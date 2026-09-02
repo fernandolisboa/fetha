@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test (unit, property-based, engine coverage gate)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Drizzle check
+        run: pnpm db:check
+
+      - name: Impeccable detect
+        run: |
+          set -e
+          git fetch origin main --depth=1 || true
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed .tsx/.css files under apps/web/src; skipping Impeccable detect."
+            exit 0
+          fi
+          echo "$CHANGED"
+          npx --yes impeccable detect $CHANGED

@@ -1,0 +1,28 @@
+{
+  "name": "fetha",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.31.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r --if-present run test",
+    "build": "pnpm -r run build",
+    "db:check": "pnpm --filter @fetha/web run db:check",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "17.4.1",
+    "prettier": "3.9.6",
+    "prettier-plugin-tailwindcss": "0.8.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mts,js,mjs,cjs,json,md,yml,yaml,css}": "prettier --write"
+  }
+}

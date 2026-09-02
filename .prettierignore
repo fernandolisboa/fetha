@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+coverage
+pnpm-lock.yaml
+apps/web/public/sw.js
+apps/web/drizzle
+.claude/skills

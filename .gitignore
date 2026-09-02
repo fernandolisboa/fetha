@@ -1,0 +1,11 @@
+node_modules
+.next
+.env*
+!.env.example
+.vercel
+coverage
+dist
+*.tsbuildinfo
+playwright-report
+test-results
+.impeccable/
