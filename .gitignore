@@ -9,3 +9,4 @@ dist
 playwright-report
 test-results
 .impeccable/
+apps/web/public/sw.js
