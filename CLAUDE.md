@@ -235,8 +235,14 @@ numbers follow Brazilian conventions. Same pipeline as Feudo so the two repos st
 
 ## Agent skills
 
-- Issue tracker: GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
-- Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
-  See `docs/agents/triage-labels.md`.
-- Domain docs: single context, `CONTEXT.md` + `UBIQUITOUS_LANGUAGE.md` + `docs/adr/` at the root.
-  See `docs/agents/domain.md`.
+### Issue tracker
+
+GitHub Issues on `fernandolisboa/fetha` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `UBIQUITOUS_LANGUAGE.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
