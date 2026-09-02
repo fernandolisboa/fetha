@@ -6,3 +6,5 @@ pnpm-lock.yaml
 apps/web/public/sw.js
 apps/web/drizzle
 .claude/skills
+.agents
+skills-lock.json
