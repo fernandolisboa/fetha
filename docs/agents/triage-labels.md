@@ -1,16 +1,22 @@
-# Triage labels
+# Triage Labels
 
-Canonical labels on the GitHub repo. An issue carries exactly one state label at a time.
+The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
 
-| label             | meaning                                                                  |
-| ----------------- | ------------------------------------------------------------------------ |
-| `needs-triage`    | new; nobody has assessed it yet                                          |
-| `needs-info`      | blocked on a question only the owner can answer                          |
-| `ready-for-agent` | fully specified; an implementer agent can take it without asking         |
-| `ready-for-human` | requires a login, a secret, a payment or a product decision by the owner |
-| `wontfix`         | closed without action, with the reason in the closing comment            |
+| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
+| -------------------------- | -------------------- | ---------------------------------------- |
+| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
+| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
+| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
+| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
+| `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-Area labels (additive): `engine`, `market-data`, `strategies`, `portfolio`, `decisions`, `auth`,
-`ui`, `infra`, `security`, `lgpd`, `docs`.
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
+
+Edit the right-hand column to match whatever vocabulary you actually use.
+
+## Additional labels in this repo
+
+Area labels (additive, one or more per issue): `engine`, `market-data`, `strategies`,
+`portfolio`, `decisions`, `auth`, `ui`, `infra`, `security`, `lgpd`, `docs`.
 Severity labels for security findings: `severity:critical`, `severity:high`, `severity:medium`,
 `severity:low`, `severity:informational`.
