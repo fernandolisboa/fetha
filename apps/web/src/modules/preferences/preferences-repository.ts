@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 
-import { themeSchema, type Theme } from "@fetha/contracts";
 import { preferences } from "@/db/schema/preferences";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
+
+import { themeSchema, type Theme } from "./theme";
 
 export interface Preferences {
   theme: Theme;
@@ -23,7 +24,11 @@ export class PreferencesRepository extends UserScopedRepository {
       return defaults;
     }
 
-    return { theme: themeSchema.parse(row.theme), railCollapsed: row.railCollapsed };
+    const parsedTheme = themeSchema.safeParse(row.theme);
+    return {
+      theme: parsedTheme.success ? parsedTheme.data : defaults.theme,
+      railCollapsed: row.railCollapsed,
+    };
   }
 
   async setTheme(theme: Theme): Promise<void> {
@@ -35,15 +40,12 @@ export class PreferencesRepository extends UserScopedRepository {
   }
 
   private async upsert(patch: Partial<Preferences>): Promise<void> {
-    const current = await this.find();
-    const next = { ...current, ...patch };
-
     await this.db
       .insert(preferences)
-      .values({ userId: this.userId, theme: next.theme, railCollapsed: next.railCollapsed })
+      .values({ userId: this.userId, ...patch })
       .onConflictDoUpdate({
         target: preferences.userId,
-        set: { theme: next.theme, railCollapsed: next.railCollapsed, updatedAt: new Date() },
+        set: { ...patch, updatedAt: new Date() },
       });
   }
 }

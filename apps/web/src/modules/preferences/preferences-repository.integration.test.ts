@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { preferences } from "@/db/schema/preferences";
 
 import { PreferencesRepository } from "./preferences-repository";
 
@@ -80,5 +81,30 @@ describe("PreferencesRepository isolation", () => {
 
     const result = await repository.find();
     expect(result).toEqual({ theme: "amplo", railCollapsed: true });
+  });
+
+  it("persists a concurrent theme change and rail toggle without one clobbering the other", async () => {
+    const db = getDb();
+    const email = uniqueEmail("concurrent");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new PreferencesRepository(db, testUser);
+
+    await Promise.all([repository.setTheme("terminal"), repository.setRailCollapsed(true)]);
+
+    const result = await repository.find();
+    expect(result).toEqual({ theme: "terminal", railCollapsed: true });
+  });
+
+  it("falls back to the default theme when the stored value is out of the enum", async () => {
+    const db = getDb();
+    const email = uniqueEmail("out-of-enum");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+
+    await db.insert(preferences).values({ userId: testUser.id, theme: "cyberpunk" });
+
+    const result = await new PreferencesRepository(db, testUser).find();
+    expect(result.theme).toBe("instrumento");
   });
 });

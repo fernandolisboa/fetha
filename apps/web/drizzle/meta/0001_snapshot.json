@@ -532,23 +532,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "preferences_user_id_idx": {
-          "name": "preferences_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "preferences_user_id_user_id_fk": {
           "name": "preferences_user_id_user_id_fk",
