@@ -1499,6 +1499,44 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
 - **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
   `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
   with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+### #16 addendum: `runBacktest` for stock-only strategies
+
+Issue #16 implements `runBacktest` for the same stock-only subset #15 implements in
+`evaluateStrategy`, and reuses `evaluateStrategy` itself as the sole source of entry and exit
+decisions inside the run: each session's signals come from one `evaluateStrategy` call at that
+session's close, with the run's own `openOperations` and a synthetic `riskProfile` whose
+`declaredCapital` is the run's current equity (never the config's, per "Sizing and risk" above).
+`runBacktest` is therefore a scheduler and accounting layer around the evaluator, not a second
+decision engine, so live and backtest reconcile by construction rather than by parallel
+implementation. Gaps the "Semantics" section above left implicit, resolved conservatively:
+
+- **Daily-only in v1.** The "Fills" section describes both a daily and an intraday fill model, but
+  intraday fills need option fair-value pricing (`fair_value`, ADR-0011/ADR-0014) that #21 has not
+  landed yet, and stock-only intraday backtesting was not asked for by this ticket. `runBacktest`
+  refuses any `strategy.definition.timeframe !== "D1"` with `unsupported`, vocabulary
+  `"timeframes"`. Lifting this is additive (a new fill path, no signature change) once #21 lands.
+- **Exit-fill retry has no three-session cap.** Q38's retry window is explicit about _entries_
+  only. An exit signal that cannot fill (no trade at the next session's open) is simply retried at
+  every following session's open — the same `pendingExits` entry, the same legs, no new
+  `EvaluationOutcome` — until it fills or the run's `period.to` sweeps the still-open operation
+  closed with `period_end` (never a fill, never a cost, as the "Simulated operations" section
+  already specifies for anything left open at period end). There is no `MissedExit`: the type
+  vocabulary has none, and a position that never closes inside the run is still fully accounted
+  for by the `period_end` close. This is the conservative reading of "retried indefinitely" a
+  hygiene-first backtester should default to, since discarding an unfilled exit would silently
+  understate risk.
+- **A stranded entry retry is finalized at `period.to`, not dropped.** If the period ends while an
+  entry fill is still being retried (no trade yet, fewer than three attempts made), the run
+  records one `MissedEntry` with `reason: "no_trades"` and `sessionsTried` equal to the attempts
+  actually made, rather than discarding it silently. `evaluateStrategy` is not called on the final
+  session (there is no next session left to fill into), so this finalization happens directly in
+  the period-end sweep.
+- **A month with zero sessions in the run can only be reached in a synthetic calendar.** A real
+  ANBIMA calendar trades every month, so a scheduled monthly-tax deduction always meets its
+  target month's own last session before another month transition can overwrite it. The one
+  defensive line that flushes an unpaid deduction on a further transition (`run-backtest.ts`,
+  guarding against exactly that skipped-month case) is marked `/* v8 ignore */` rather than
+  exercised by a contrived multi-month-gap fixture, since no real dataset can produce it.
 
 ## Considered options
 
