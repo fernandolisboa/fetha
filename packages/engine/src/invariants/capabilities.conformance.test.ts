@@ -11,7 +11,9 @@ import type {
 } from "@fetha/contracts";
 import { capabilities } from "../internal/capabilities";
 import {
+  implementedExitRuleKinds,
   implementedIndicatorKinds,
+  implementedSizingRuleKinds,
   implementedTimeframes,
   unsupportedAdjustmentRuleKinds,
   unsupportedExitRuleKinds,
@@ -55,14 +57,17 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().expirySelections).toEqual([]);
   });
 
-  it("every sizingRules kind is unsupported (no sizing method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedSizingRuleKinds)[number]>().toEqualTypeOf<SizingRule["kind"]>();
-    expect(capabilities().sizingRules).toEqual([]);
+  it("sizingRules is implemented in full for stock-only strategies and matches the contracts kinds exactly", () => {
+    expect(unsupportedSizingRuleKinds).toEqual([]);
+    expectTypeOf<(typeof implementedSizingRuleKinds)[number]>().toEqualTypeOf<SizingRule["kind"]>();
+    expect(capabilities().sizingRules).toEqual([...implementedSizingRuleKinds]);
   });
 
-  it("every exitRules kind is unsupported (no exit-rule method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedExitRuleKinds)[number]>().toEqualTypeOf<ExitRule["kind"]>();
-    expect(capabilities().exitRules).toEqual([]);
+  it("exitRules is implemented for the stock-only subset and the rest is unsupported", () => {
+    expectTypeOf<
+      (typeof implementedExitRuleKinds)[number] | (typeof unsupportedExitRuleKinds)[number]
+    >().toEqualTypeOf<ExitRule["kind"]>();
+    expect(capabilities().exitRules).toEqual([...implementedExitRuleKinds]);
   });
 
   it("every adjustmentRules kind is unsupported (no adjustment-rule method is implemented yet)", () => {

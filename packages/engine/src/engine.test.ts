@@ -111,17 +111,6 @@ describe("engine", () => {
       { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
     ],
     [
-      "evaluateStrategy",
-      () =>
-        engine.evaluateStrategy({
-          view: emptyView,
-          strategy,
-          instruments: ["PETR4"],
-          at: "2024-01-01T00:00:00.000Z",
-        } satisfies EvaluateStrategyInput),
-      { code: "unsupported", vocabulary: "sizingRules", kind: "fixed_fractional" },
-    ],
-    [
       "runBacktest",
       () =>
         engine.runBacktest({
@@ -218,10 +207,49 @@ describe("engine", () => {
     },
   );
 
-  it("reports the caller's strategy sizing kind for evaluateStrategy, not a fixed vocabulary entry", async () => {
+  it("evaluates a stock-only strategy, including fixed_risk sizing, end to end with no candles to evaluate", async () => {
     const result = await engine.evaluateStrategy({
       view: emptyView,
       strategy: fixedRiskStrategy,
+      instruments: ["PETR4"],
+      at: "2024-01-01T00:00:00.000Z",
+    } satisfies EvaluateStrategyInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations).toEqual([
+      {
+        ticker: "PETR4",
+        at: "2024-01-01T00:00:00.000Z",
+        session: "2024-01-01",
+        outcome: "insufficient_data",
+        detail: "no candles for this instrument and timeframe",
+      },
+    ]);
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("reports unsupported with the strike-selection kind for evaluateStrategy on a structure with option legs", async () => {
+    const optionStrategy: StrategyVersion = {
+      id: "v1",
+      definition: {
+        ...strategy.definition,
+        structureId: "covered_call",
+        strikes: [{ kind: "moneyness", percent: decimalString("0.05") }],
+        expiry: { kind: "business_days", min: 20, max: 45 },
+      },
+      structure: {
+        id: "covered_call",
+        name: "Covered call",
+        expiry: "shared",
+        legs: [
+          { role: "stock", side: "buy", ratio: 1 },
+          { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+        ],
+      },
+    };
+    const result = await engine.evaluateStrategy({
+      view: emptyView,
+      strategy: optionStrategy,
       instruments: ["PETR4"],
       at: "2024-01-01T00:00:00.000Z",
     } satisfies EvaluateStrategyInput);
@@ -229,8 +257,8 @@ describe("engine", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "unsupported",
-      vocabulary: "sizingRules",
-      kind: "fixed_risk",
+      vocabulary: "strikeSelections",
+      kind: "moneyness",
     });
   });
 

@@ -1006,6 +1006,121 @@ only `entry`, `exit` and `adjust` outcomes also produce a `Signal`. `no_series_m
 Q45), with the failed selection or rule in `detail`. The engine does not mark late signals: it
 has no clock; the caller compares `signal.at` with its own time (ADR-0010).
 
+**Stock-only scope (#15).** Option structures, strike/expiry selection and option pricing are
+#23; until then `evaluateStrategy` implements the structures whose legs are all `stock` and
+refuses everything else with `unsupported`, vocabulary `strikeSelections`, the caller's own first
+strike-selection `kind` (coherence already guarantees `strikes` is non-empty whenever the
+structure has option legs, so this is never a lookup on an empty array). Decisions taken to make
+that subset concrete:
+
+- **Condition truncation per evaluation instant.** Each evaluation instant `c` gets its own
+  adjusted candle series and indicator readings, computed exactly as `indicators()` would at
+  `at = c` (candle close, corporate-action adjustment, indicator warm-up, all included): nothing
+  is cached or extrapolated across evaluation instants. This is the direct, unoptimized reading
+  of "each evaluation sees the view truncated at its own close" and is what makes I1 hold at every
+  inner instant for free, including a corporate-action factor whose `asOf` falls inside a later
+  instant's window but not an earlier one's. `provenance.truncated`, by contrast, is computed once
+  for the whole call at `at` (rows for instruments outside `instruments`, or with `asOf` after
+  `at`); per-instant truncation is not reported, matching "rows dropped by an inner instant are
+  simply invisible to that evaluation; they are not reported."
+- **Missing instrument.** A `StrategyVersion` has no instrument of its own; the only way one can
+  be "referenced but absent" is through `openOperations`. An operation whose `underlying` is not
+  among `instruments` is `invalid_input` (path `openOperations[i].underlying`): the batch is what
+  the engine computes candles and indicators for, so an operation outside it has nothing to
+  evaluate against. An operation with a non-stock leg, or a stock-only operation carrying an
+  `expiry`, is `invalid_input` for the same reason coherence rejects them on the definition side
+  (paths `openOperations[i].legs` and `openOperations[i].expiry`); a stock leg whose own `ticker`
+  differs from its operation's `underlying` is `invalid_input` the same way (path
+  `openOperations[i].legs[j].ticker`). An instrument in `instruments` with no candle for the
+  strategy's timeframe is not silently skipped: it gets exactly one `insufficient_data`
+  `EvaluationRecord` at `at`, so the caller can tell "nothing to evaluate" from "the batch
+  produced nothing." The same holds when the instrument has candles but none falls in
+  `(since, at]`: that also gets one `insufficient_data` record at `at`, distinct in `detail` from
+  the no-candles-at-all case. Every such record's `session` is resolved from `view.calendar` (the
+  last session whose `open <= at`, the rule `dataWindow` already uses), not by slicing `at`'s own
+  date; the fallback — slicing `at`'s own ISO date, a UTC slice rather than a B3-calendar one —
+  triggers whenever the calendar does not cover `at`, whether because `view.calendar` is empty or
+  because every session it does carry opens after `at`, not only when the view carries no calendar
+  row at all.
+- **Batch validation.** Duplicate tickers in `instruments`, duplicate `id`s in `openOperations`,
+  and duplicate `(series, asOf)` rows in `macro` or `(underlying, asOf)` rows in `dividendYields`
+  are `invalid_input`, checked once for the whole call — including when `instruments` is empty,
+  so an inconsistent view is never silently accepted just because nothing was asked of it. The
+  same pass rejects a non-positive candle price anywhere in `view.candles` and a non-positive
+  corporate-action factor anywhere in `view.corporateActions` (true index in the path in both
+  cases, including rows for tickers outside `instruments` — `buildCandleSeries` also checks both,
+  but only over the per-ticker slice it is called with, so this batch-wide pass is what gives a
+  correct index and unreferenced-ticker coverage) and a macro `annualRate` or dividend
+  `annualYield` of `-1` or below, which would make `ln(1 + rate)` undefined downstream.
+- **Entry gating.** At evaluation instant `c`, an open operation for the instrument participates
+  only when `op.openedAt <= nominalCandle.session`; before that session the instrument is treated
+  as having no open operation and entry gating applies normally (ADR-0014 Q47 states the
+  no-pyramiding rule this gating implements). `Operation` carries no `closedAt`, so an operation
+  closed inside `(since, at]` is never represented in `openOperations`: catch-up re-evaluates
+  entry for every instant from the close onward as if the instrument were flat again, which is
+  correct only when the caller pre-filters `openOperations` by `strategyVersionId` (an operation
+  the caller closed under a different version, or intends to keep open regardless of what this
+  version's entry condition says, must not be passed in). When an active operation exists, only
+  that instrument's exit rules are evaluated and entry is skipped entirely for that instant. The
+  `openOperationCount` a proposal's `maxOpenOperations` limit check is priced against is the same
+  `op.openedAt <= nominalCandle.session` count, taken over the whole batch's `openOperations`
+  (every instrument, not just the one being priced): an operation the batch will open later never
+  counts toward an earlier instant's limit.
+- **Sizing and risk for a stock leg.** A `SizingRule`'s "unit" is one structure unit (`ratio *
+units` per leg, as in `priceOperation`); `fixed_fractional` budgets `fraction *
+declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budgets the same
+  fraction against the unit's max loss, which is bounded (the entry price) for a `buy` leg and
+  unbounded for a `sell` leg, so `fixed_risk` on a structure with any short stock leg is
+  unsizeable. Fewer than one unit is unsizeable (`EvaluationOutcome`, not `EngineError`; the
+  `detail` string is freeform since `EvaluationRecord` carries no structured reason).
+- **Pricing a stock-only proposal.** `priceOperation` itself stays `unsupported` (#23 covers
+  strike/expiry selection and option pricing uniformly); a stock leg needs none of that, so
+  `evaluateStrategy` prices its own proposals directly. `spot` and each leg's `price` are the
+  nominal close (a real, tradable price; adjusted prices are a synthetic construct for indicator
+  continuity only). Each leg's `greeks` are its per-unit sensitivity (`delta: "1.000000"`,
+  everything else zero, per the "a stock leg contributes `delta = sign * quantity`" rule); the
+  aggregate `greeks.delta` is `sum(sign * quantity)`. `maxLoss`/`maxGain` are positive magnitudes
+  (so `normalizedPnl = pnl / maxLoss` keeps realized-loss sign correct elsewhere in the engine):
+  a net-long combination has `maxGain: "unbounded"` and a bounded `maxLoss` at the payoff's value
+  as the underlying goes to zero; a net-short combination is the mirror; a delta-neutral pair
+  (`netSlope = 0`) is bounded both ways at that same zero-price payoff. `breakEvens` is exact
+  (`[entryPrice]`) for a single leg and left empty for multi-leg stock structures, a v1
+  simplification noted here rather than solved generically. `payoff` is three points
+  (`spot * 0.8, 1, 1.2`), a minimal table; a fuller grid is deferred with the rest of payoff
+  computation to its own ticket. Limit checks against `riskProfile` always run in warn mode
+  (ADR-0014 Q49: `evaluateStrategy` has no `limits: LimitMode` the way `BacktestConfig` does);
+  a breach is noted (`limit_breach_warned`) and the proposal still built, per ADR-0014 Q39's warn
+  semantics, plus `maxPremiumBought` checked against the proposal's net premium when the structure
+  is net debit. The nested `OperationPricing.provenance.truncated` on a proposal is always `[]`:
+  truncation is reported once at the evaluation's own `provenance.truncated`, not per proposal.
+- **Exit rule evaluation.** `profit_target` and `stop_loss` are evaluated numerically against the
+  operation's own legs and the current nominal close (never `unknown`, since prices are always
+  present once a candle exists); `condition` reuses the same three-valued (`true`/`false`/
+  `unknown`) tree evaluator as entry. Rules are tried in the order ADR-0014 Q48 fixes; further
+  rules are not evaluated once one signals. Each numeric rule is checked against a base computed
+  once per operation from its entry legs via `priceStockLegs` (ADR-0014 Q50): `profit_target`
+  against `|netPremium|`, `stop_loss` against `maxLoss` when finite else `|netPremium|`; a zero
+  base means the rule can never fire, and the evaluation record's `detail` says so. Before that
+  comparison, the nominal close — not the entry price — is rebased onto the entry price's own
+  scale, dividing by the product of the ticker's visible corporate-action factors with `exDate` in
+  `(op.openedAt, nominalCandle.session]` (the same factors, and the same convention,
+  `buildCandleSeries` uses to adjust a candle series, but applied in the opposite direction here).
+  Per-leg pnl is `side × quantity × (close / f − entryPrice)` in centavos, with `side = +1` for a `buy` leg and `−1` for a `sell` leg: `quantity` and `entryPrice` are
+  true money on the scale the operation was opened at and are never touched, so a position opened
+  before a split is compared to the post-split close on the same scale instead of firing a stop or
+  target on the split alone, and the money is right, not just the sign — scaling `entryPrice` by
+  `f` instead (the earlier, incorrect approach) leaves the pnl off by a factor of `1/f`.
+  `days_before_expiry` cannot appear on a stock-only definition
+  (coherence rejects it), so the evaluator's exhaustive `switch` throws if it somehow does — a
+  bug, not a runtime outcome. `EvaluationRecord.outcome` for an instant with an open operation is
+  `signal` if any exit fired, `insufficient_data` if none fired but some `condition` rule was
+  `unknown`, else `conditions_not_met`.
+- **Capabilities.** Both `SizingRule` kinds (`fixed_fractional`, `fixed_risk`) are implemented in
+  full; of the `ExitRule` kinds, `profit_target`, `stop_loss` and `condition` are implemented and
+  `days_before_expiry` stays unsupported (it is meaningless without an expiry, which a stock-only
+  structure's coherence check forbids). No `AdjustmentRule` kind is implemented: the only one,
+  `roll`, needs option legs the same way.
+
 #### `runBacktest`
 
 - Advances from `resume.cursor` (or `period.from`) while data, `maxSessions` and the period
@@ -1144,10 +1259,13 @@ has no clock; the caller compares `signal.at` with its own time (ADR-0010).
   result so `iv_rank` reads it back from `MarketView.impliedVolatilityIndex`.
 - **`dataWindow`** is synchronous and needs no view: from the strategy it derives lookback per
   timeframe, whether a chain, macro rates, corporate actions or the implied-volatility index are
-  needed, and uses the calendar to turn candle counts into `from`. `to` is `at`. The structure's
-  option legs decide the collections needed (`optionSeries`, `optionPrices`, `macro`,
-  `dividendYields`), not the indicators: any structure with a leg whose `role` is not `stock`
-  requests the chain and rates, regardless of what the entry/exit/adjustment conditions read.
+  needed, and uses the calendar to turn candle counts into `from`. `to` is `at`. `candles`,
+  `corporateActions`, `macro` and `dividendYields` are always requested, not gated by the
+  indicators or the structure's legs: `evaluateStrategy` prices its own stock-only proposals with
+  `priceStockLegs`, which reads `cdi` and the underlying's dividend yield regardless of whether
+  the structure carries option legs. A structure with a leg whose `role` is not `stock`
+  additionally requests `optionSeries` and `optionPrices` (the chain), regardless of what the
+  entry/exit/adjustment conditions read.
   - **Anchor.** The lookback is computed from `since` when present, else from `at` (`since ??
 at`); the anchor session is the last calendar session whose `open <= anchor`. This lets a
     caller ask for the window a batched `evaluateStrategy(since, at]` run needs, which is the
