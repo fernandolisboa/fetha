@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
+import {
+  checkStrategyCoherence,
+  strategyDefinitionSchema,
+  type StrategyDefinition,
+} from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { forCurrentUser, UnauthenticatedError } from "@/modules/auth";
@@ -13,29 +17,53 @@ import {
   StrategyNotFoundError,
   StrategyNotSharedError,
 } from "./strategies-repository";
+import { StructuresRepository } from "./structures-repository";
 
 export type StrategyActionResult =
   | { status: "ok"; strategyId: string }
-  | { status: "error"; error: "invalid" | "not_found" | "not_shared" };
+  | {
+      status: "error";
+      error: "invalid" | "not_found" | "not_shared" | "conflict" | "unavailable";
+    };
 
-const createInputSchema = z.strictObject({
-  name: z.string().min(1),
-  definition: strategyDefinitionSchema,
-});
+// A generous ceiling, not a plan limit (CLAUDE.md: no fees, no plans): it
+// exists only to bound an unbounded write loop (a bug or a scripted abuser),
+// not to constrain the owner's real usage.
+const MAX_STRATEGIES_PER_USER = 200;
+
+const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
 
 const addVersionInputSchema = z.strictObject({
-  strategyId: z.string().min(1),
+  strategyId: z.string().min(1).max(200),
   definition: strategyDefinitionSchema,
 });
 
 const shareInputSchema = z.strictObject({
-  strategyId: z.string().min(1),
+  strategyId: z.string().min(1).max(200),
   visibility: z.enum(["private", "shared"]),
 });
 
-const copyInputSchema = z.strictObject({
-  sourceStrategyId: z.string().min(1),
-});
+const copyInputSchema = z.strictObject({ sourceStrategyId: z.string().min(1).max(200) });
+
+function isPgError(error: unknown): error is { code: string } {
+  return (
+    typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+  );
+}
+
+function mapKnownError(
+  error: unknown,
+): "not_found" | "not_shared" | "conflict" | "unavailable" | null {
+  if (error instanceof StrategyNotFoundError) return "not_found";
+  if (error instanceof StrategyNotSharedError) return "not_shared";
+  if (isPgError(error)) {
+    if (error.code === "23505" || error.code === "40001" || error.code === "40P01") {
+      return "conflict";
+    }
+    return "unavailable";
+  }
+  return null;
+}
 
 async function withRepository<T>(
   run: (repository: StrategiesRepository) => Promise<T>,
@@ -51,21 +79,46 @@ async function withRepository<T>(
   }
 }
 
+async function definitionIsCoherent(definition: StrategyDefinition): Promise<boolean> {
+  const structures = await new StructuresRepository(getDb()).listAll();
+  const structure = structures.find((candidate) => candidate.id === definition.structureId);
+  if (!structure) {
+    return false;
+  }
+  return checkStrategyCoherence(definition, structure).ok;
+}
+
 export async function createStrategyAction(input: {
-  name: string;
   definition: StrategyDefinition;
 }): Promise<StrategyActionResult> {
   const parsed = createInputSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "error", error: "invalid" };
   }
+  if (!(await definitionIsCoherent(parsed.data.definition))) {
+    return { status: "error", error: "invalid" };
+  }
 
-  const created = await withRepository((repository) =>
-    repository.createWithVersion(parsed.data.name, parsed.data.definition),
-  );
-
-  revalidatePath("/estrategias");
-  return { status: "ok", strategyId: created.id };
+  try {
+    const created = await withRepository(async (repository) => {
+      const mine = await repository.listMine();
+      if (mine.length >= MAX_STRATEGIES_PER_USER) {
+        throw new StrategyLimitReachedError();
+      }
+      return repository.createWithVersion(parsed.data.definition);
+    });
+    revalidatePath("/estrategias");
+    return { status: "ok", strategyId: created.id };
+  } catch (error) {
+    if (error instanceof StrategyLimitReachedError) {
+      return { status: "error", error: "unavailable" };
+    }
+    const mapped = mapKnownError(error);
+    if (mapped) {
+      return { status: "error", error: mapped };
+    }
+    throw error;
+  }
 }
 
 export async function addStrategyVersionAction(input: {
@@ -74,6 +127,9 @@ export async function addStrategyVersionAction(input: {
 }): Promise<StrategyActionResult> {
   const parsed = addVersionInputSchema.safeParse(input);
   if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+  if (!(await definitionIsCoherent(parsed.data.definition))) {
     return { status: "error", error: "invalid" };
   }
 
@@ -85,8 +141,9 @@ export async function addStrategyVersionAction(input: {
     revalidatePath(`/estrategias/${updated.id}`);
     return { status: "ok", strategyId: updated.id };
   } catch (error) {
-    if (error instanceof StrategyNotFoundError) {
-      return { status: "error", error: "not_found" };
+    const mapped = mapKnownError(error);
+    if (mapped) {
+      return { status: "error", error: mapped };
     }
     throw error;
   }
@@ -109,8 +166,9 @@ export async function setStrategyVisibilityAction(input: {
     revalidatePath(`/estrategias/${parsed.data.strategyId}`);
     return { status: "ok", strategyId: parsed.data.strategyId };
   } catch (error) {
-    if (error instanceof StrategyNotFoundError) {
-      return { status: "error", error: "not_found" };
+    const mapped = mapKnownError(error);
+    if (mapped) {
+      return { status: "error", error: mapped };
     }
     throw error;
   }
@@ -131,12 +189,17 @@ export async function copySharedStrategyAction(input: {
     revalidatePath("/estrategias");
     return { status: "ok", strategyId: copy.id };
   } catch (error) {
-    if (error instanceof StrategyNotFoundError) {
-      return { status: "error", error: "not_found" };
-    }
-    if (error instanceof StrategyNotSharedError) {
-      return { status: "error", error: "not_shared" };
+    const mapped = mapKnownError(error);
+    if (mapped) {
+      return { status: "error", error: mapped };
     }
     throw error;
+  }
+}
+
+class StrategyLimitReachedError extends Error {
+  constructor() {
+    super("Strategy limit reached");
+    this.name = "StrategyLimitReachedError";
   }
 }
