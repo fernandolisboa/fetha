@@ -129,6 +129,13 @@ inbox until a decision answers it. Every evaluation produces an evaluation recor
 outcomes also produce a signal.
 _Avoid_: alert, trigger, recommendation, setup
 
+**Proposal**:
+The sized, priced set of legs an entry signal carries: quantities and an `OperationPricing`
+(spot, greeks, payoff, break-evens, max loss/gain, limit breaches). Produced by the engine
+(`priceOperation` or `evaluateStrategy`'s own stock-leg pricing), never by the AI; a decision
+either enters it as-is or is answered `do_not_enter`.
+_Avoid_: quote, order, ticket
+
 **Evaluation record**:
 The outcome of one evaluation of one strategy version on one instrument at one evaluation time:
 a signal, conditions not met, no series match, degenerate strikes, insufficient data or
