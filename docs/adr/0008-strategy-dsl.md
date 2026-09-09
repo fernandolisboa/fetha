@@ -17,6 +17,16 @@ as expressions in the JSON. When no option series satisfies the selection rules 
 signal and the reason is recorded. Versions are immutable and referenced by backtests, signals
 and decisions.
 
+The v1 editor UI (`apps/web/src/modules/strategies/editor/`) renders only a subset of this
+vocabulary as rows: a single `compare` condition, or a flat `and` of `compare` conditions, for
+both the entry condition and a `condition` exit rule. Any other shape the schema allows — `or`,
+`not`, or an `and` that nests another `and`/`or`/`not` — is not editable in this UI: it is shown
+as a read-only notice and kept byte-for-byte unchanged on save (`compare-conditions.ts`'s
+`toEditableEntry`/`fromEditableEntry`), never silently replaced by a default row. A strategy
+built outside this editor (a hand-authored catalog entry, a future API) with such a condition
+still round-trips through the contracts schema and the engine; it just cannot be edited visually
+until the editor grows a recursive tree builder.
+
 ## Considered options
 
 - Strategies as TypeScript functions: maximal expressiveness, but not diffable, not safely

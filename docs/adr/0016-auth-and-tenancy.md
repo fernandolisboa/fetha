@@ -111,6 +111,14 @@ provide an export named 'kAPIErrorHeaderSymbol'` before the CLI ever reads `DATA
 - Reference data, the catalog and shared strategies (ADR-0012) remain the only read-only
   exceptions to tenant scoping (CLAUDE.md, principle 5); `invites` and `mail_outbox` are a third
   class, described below.
+- A child table can carry no `user_id` of its own as long as every read and write reaches it only
+  through an already-scoped parent row: `strategy_versions` (#17) has no `user_id` column, but
+  `StrategiesRepository` never selects from it except by a `strategy_id` obtained from a
+  `strategies` row already filtered by `user_id` (`findMine`) or by visibility (`findShared`), so
+  the parent lookup is the access check. This is narrower than the read-only reference-data
+  exception above: `strategy_versions` is regular, per-user, mutable-by-insert domain data: it
+  costs a second row read where a denormalized `user_id` would cost a column, chosen here because
+  a version can never be read, listed or created except through its strategy.
 
 **Operational tables (`invites`, `mail_outbox`): unscoped, system-written, not user data**
 
