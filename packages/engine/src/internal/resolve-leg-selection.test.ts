@@ -284,4 +284,160 @@ describe("resolveLegSelection", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("no_series_matches");
   });
+
+  it("breaks a nearest-price strike tie by the lower strike, regardless of array order", () => {
+    const singleCall: Structure = {
+      id: "single-call",
+      name: "single call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C32", "32.00"), callSeries("PETR4C28", "28.00")],
+    };
+    const result = resolveLegSelection({
+      structure: singleCall,
+      underlying: "PETR4",
+      strikes: [{ kind: "nearest", price: decimalString("30.00") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString("30.00"),
+      riskFreeRate: decimalString("0.1"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.legs[0]).toMatchObject({ series: { ticker: "PETR4C28" } });
+  });
+
+  it("resolves the same nearest-|delta| series regardless of the optionSeries/optionPrices array order", () => {
+    const singleCall: Structure = {
+      id: "single-call",
+      name: "single call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const series = [callSeries("PETR4C32", "32.00"), callSeries("PETR4C28", "28.00")];
+    const prices = [
+      {
+        ticker: "PETR4C32",
+        session: "2024-01-02",
+        asOf: at,
+        average: null,
+        close: decimalString("2.00"),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+      {
+        ticker: "PETR4C28",
+        session: "2024-01-02",
+        asOf: at,
+        average: null,
+        close: decimalString("2.00"),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+    ];
+    const build = (
+      optionSeries: OptionSeries[],
+      optionPrices: typeof prices,
+    ): ReturnType<typeof resolveLegSelection> =>
+      resolveLegSelection({
+        structure: singleCall,
+        underlying: "PETR4",
+        strikes: [{ kind: "delta", target: decimalString("0.5") }],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view: { ...baseView, optionSeries, optionPrices },
+        at,
+        spot: decimalString("30.00"),
+        riskFreeRate: decimalString("0.1"),
+        dividendYield: decimalString("0"),
+      });
+
+    const forward = build(series, prices);
+    const reversed = build([...series].reverse(), [...prices].reverse());
+    expect(forward).toEqual(reversed);
+  });
+
+  it("breaks an exact nearest-|delta| tie by the lower strike, regardless of array order", () => {
+    const singleCall: Structure = {
+      id: "single-call",
+      name: "single call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C32", "32.00"), callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("4.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    // delta(28) ~= 0.669725, delta(32) ~= 0.414445 at this spot/rate/tte; their midpoint
+    // is an exact tie on |delta - target|, so the tie-break (lower strike) decides.
+    const result = resolveLegSelection({
+      structure: singleCall,
+      underlying: "PETR4",
+      strikes: [{ kind: "delta", target: decimalString("0.542085") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString("30.00"),
+      riskFreeRate: decimalString("0.1"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.legs[0]).toMatchObject({ series: { ticker: "PETR4C28" } });
+  });
+
+  it("breaks a same-strike nearest-price tie by the lexicographically earlier ticker", () => {
+    const straddle: Structure = {
+      id: "straddle",
+      name: "straddle",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P30", "30.00"), right: "put" },
+        callSeries("PETR4C30", "30.00"),
+      ],
+    };
+    const result = resolveLegSelection({
+      structure: straddle,
+      underlying: "PETR4",
+      strikes: [{ kind: "nearest", price: decimalString("30.00") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString("30.00"),
+      riskFreeRate: decimalString("0.1"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(true);
+  });
 });

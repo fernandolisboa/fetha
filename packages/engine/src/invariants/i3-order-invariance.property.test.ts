@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import type { Structure } from "@fetha/contracts";
 import type {
   Candle,
   CorporateActionFactor,
@@ -7,12 +8,17 @@ import type {
   ImpliedVolatilityIndexPoint,
   IndicatorsInput,
   MarketView,
+  OptionDayPrice,
+  OptionSeries,
+  PriceOperationInput,
   StrategyVersion,
+  TradingSession,
 } from "../api";
 import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
-import { decimalString } from "../test/support";
+import { priceOperation } from "../internal/price-operation";
+import { decimalString, quantity } from "../test/support";
 import { candleSeriesArbitrary } from "./arbitraries";
 
 const shuffle = <T>(rows: readonly T[], seed: number): T[] => {
@@ -247,6 +253,94 @@ describe("I3 Order-invariance", () => {
           expect(evaluateStrategy(shuffled)).toEqual(evaluateStrategy(input));
         },
       ),
+    );
+  });
+
+  it("any permutation of optionSeries and optionPrices yields a deep-equal priceOperation(LegSelection) result", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 1_000_000 }), (seed) => {
+        const calendar: TradingSession[] = Array.from({ length: 20 }, (_, i) => {
+          const day = String(2 + i).padStart(2, "0");
+          return {
+            date: `2024-01-${day}`,
+            open: `2024-01-${day}T13:00:00.000Z`,
+            close: `2024-01-${day}T21:00:00.000Z`,
+          };
+        });
+        const at = "2024-01-02T21:00:00.000Z";
+        const strikes = [38, 40, 42, 44, 46];
+        const optionSeries: OptionSeries[] = strikes.map((strike) => ({
+          ticker: `PETR4C${String(strike)}`,
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString(String(strike)),
+          expiry: "2024-01-21",
+          style: "european",
+          asOf: at,
+        }));
+        const optionPrices: OptionDayPrice[] = strikes.map((strike) => ({
+          ticker: `PETR4C${String(strike)}`,
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString(Math.max(0.1, 42 - strike + 3).toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        }));
+        const structure: Structure = {
+          id: "single-call",
+          name: "single call",
+          expiry: "shared",
+          legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+        };
+        const view: MarketView = {
+          calendar,
+          candles: [],
+          corporateActions: [],
+          optionSeries,
+          optionPrices,
+          quotes: [
+            { ticker: "PETR4", asOf: at, last: decimalString("42.00"), bid: null, ask: null },
+          ],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+        const input: PriceOperationInput = {
+          view,
+          at,
+          legs: {
+            structure,
+            underlying: "PETR4",
+            strikes: [{ kind: "delta", target: decimalString("0.5") }],
+            expiry: { kind: "business_days", min: 1, max: 30 },
+            quantity: quantity(1),
+          },
+        };
+        const shuffled: PriceOperationInput = {
+          ...input,
+          view: {
+            ...view,
+            optionSeries: shuffle(optionSeries, seed),
+            optionPrices: shuffle(optionPrices, seed + 1),
+          },
+        };
+        expect(
+          priceOperation(shuffled, {
+            engineVersion: "0.1.0",
+            pricingModel: "bsm_continuous_yield",
+            dataVersion: null,
+            datasetNotes: [],
+          }),
+        ).toEqual(
+          priceOperation(input, {
+            engineVersion: "0.1.0",
+            pricingModel: "bsm_continuous_yield",
+            dataVersion: null,
+            datasetNotes: [],
+          }),
+        );
+      }),
     );
   });
 });

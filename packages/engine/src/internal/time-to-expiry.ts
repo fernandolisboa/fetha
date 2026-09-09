@@ -2,7 +2,10 @@ import type { Instant, SessionDate } from "@fetha/contracts";
 import type { TradingSession } from "../api";
 import { compareInstants, isAtOrBefore } from "./instant";
 
-export type TimeToExpiryResult = { ok: true; years: number } | { ok: false };
+export type TimeToExpiryFailureReason = "already_expired" | "calendar_gap";
+
+export type TimeToExpiryResult =
+  { ok: true; years: number } | { ok: false; reason: TimeToExpiryFailureReason };
 
 const SESSIONS_PER_YEAR = 252;
 
@@ -24,14 +27,14 @@ export function resolveTimeToExpiryYears(
   for (const session of sorted) {
     if (isAtOrBefore(session.open, at)) atSession = session;
   }
-  if (!atSession) return { ok: false };
+  if (!atSession) return { ok: false, reason: "calendar_gap" };
 
   const expirySession = sorted.find((session) => session.date === expiry);
-  if (!expirySession) return { ok: false };
+  if (!expirySession) return { ok: false, reason: "calendar_gap" };
 
   const atIndex = sorted.indexOf(atSession);
   const expiryIndex = sorted.indexOf(expirySession);
-  if (expiryIndex < atIndex) return { ok: false };
+  if (expiryIndex < atIndex) return { ok: false, reason: "already_expired" };
 
   const n = expiryIndex - atIndex;
   const span = compareInstants(atSession.close, atSession.open);

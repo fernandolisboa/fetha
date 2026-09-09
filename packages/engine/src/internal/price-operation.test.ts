@@ -612,6 +612,59 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("returns invalid_input when a concrete option leg's expiry precedes the session of at", () => {
+    const laterAt = "2024-01-05T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4C40", "40.00"), expiry: "2024-01-03" }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at: laterAt,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("returns insufficient_data when a concrete option leg's expiry is not in the calendar", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4C40", "40.00"), expiry: "2024-02-01" }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
+
   it("reports a short stock leg's per-leg delta unsigned and only signs the aggregate", () => {
     const result = priceOperation(
       {

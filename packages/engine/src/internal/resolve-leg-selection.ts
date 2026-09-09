@@ -11,8 +11,9 @@ import type {
 import type { EngineError, MarketView, OptionSeries, TradingSession } from "../api";
 import { parseDecimal } from "./decimal";
 import { compareInstants, isAtOrBefore } from "./instant";
-import { assertDefined } from "./invariant";
+import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
+import { resolveLegMarketPrice } from "./resolve-market-price";
 import { toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
@@ -59,6 +60,15 @@ function distinctRanks(structure: Structure): number[] {
   return [...ranks].sort((a, b) => a - b);
 }
 
+// Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose
+// row order is not meaningful, so a tie on distance must resolve to the same series
+// regardless of array order: the lower strike, then the lexicographically earlier ticker.
+function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): boolean {
+  const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
+  if (strikeCompare !== 0) return strikeCompare < 0;
+  return a.ticker < b.ticker;
+}
+
 function nearestSeriesByStrike(
   candidates: readonly OptionSeries[],
   target: Decimal,
@@ -67,7 +77,11 @@ function nearestSeriesByStrike(
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
     const distance = parseDecimal(series.strike).sub(target).abs();
-    if (bestDistance === null || distance.lt(bestDistance)) {
+    const isBetter =
+      bestDistance === null ||
+      distance.lt(bestDistance) ||
+      (distance.eq(bestDistance) && best !== null && isEarlierByStrikeThenTicker(series, best));
+    if (isBetter) {
       best = series;
       bestDistance = distance;
     }
@@ -88,10 +102,7 @@ function nearestSeriesByAbsDelta(
   let best: OptionSeries | null = null;
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
-    const priceRow = view.optionPrices.find(
-      (p) => p.ticker === series.ticker && isAtOrBefore(p.asOf, at),
-    );
-    const marketPrice = priceRow?.close ?? priceRow?.average ?? null;
+    const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
     const valuation = priceOptionLeg({
       leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: toQuantity(1) },
@@ -100,16 +111,16 @@ function nearestSeriesByAbsDelta(
       riskFreeRate,
       dividendYield,
       timeToExpiryYears,
-      marketPrice: {
-        value: marketPrice,
-        source: priceRow?.close ? "close" : "average",
-        stale: null,
-      },
+      marketPrice,
       givenVolatility: null,
     });
     if (!valuation.greeks) continue;
     const distance = new Decimal(valuation.greeks.delta).abs().sub(target).abs();
-    if (bestDistance === null || distance.lt(bestDistance)) {
+    const isBetter =
+      bestDistance === null ||
+      distance.lt(bestDistance) ||
+      (distance.eq(bestDistance) && best !== null && isEarlierByStrikeThenTicker(series, best));
+    if (isBetter) {
       best = series;
       bestDistance = distance;
     }
@@ -185,7 +196,11 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
   ).expiry;
 
   const tteResult = resolveTimeToExpiryYears(input.view.calendar, input.at, chosenExpiry);
-  const timeToExpiryYears = tteResult.ok ? tteResult.years : 0;
+  // chosenExpiry came from candidateExpiries, which already required it to be a listed
+  // calendar session strictly after the session of `at` (Q43's business_days window), so
+  // resolveTimeToExpiryYears cannot fail here; an expired series never reaches this point.
+  invariant(tteResult.ok, "chosenExpiry must resolve a time to expiry: it passed the window check");
+  const timeToExpiryYears = tteResult.years;
 
   const resolvedStrikes: DecimalString[] = [];
   for (const [i, rank] of ranks.entries()) {

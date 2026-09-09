@@ -24,9 +24,10 @@ import {
 } from "./decimal";
 import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
-import { priceOptionLeg, type ResolvedMarketPrice } from "./option-pricing";
+import { priceOptionLeg } from "./option-pricing";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
+import { resolveLegMarketPrice } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 import { latestVisible } from "./visible";
@@ -52,7 +53,7 @@ function isPositive(value: DecimalString): boolean {
   return parseDecimal(value).gt(0);
 }
 
-function invalidNonPositive(path: string, message: string): EngineError {
+function invalidInput(path: string, message: string): EngineError {
   return { code: "invalid_input", path, message };
 }
 
@@ -77,37 +78,6 @@ function resolveUnderlyingMarketPrice(
     .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
     .at(-1);
   return candle?.close ?? null;
-}
-
-function resolveLegMarketPrice(
-  view: MarketView,
-  ticker: string,
-  at: string,
-  given?: DecimalString,
-): ResolvedMarketPrice | null {
-  if (given) return { value: given, source: "given", stale: null };
-  const quote = latestVisible(
-    view.quotes.filter((q) => q.ticker === ticker),
-    at,
-  );
-  if (quote?.bid && quote.ask) {
-    return {
-      value: toDecimalString(
-        parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
-        PRICE_SCALE,
-      ),
-      source: "mid",
-      stale: null,
-    };
-  }
-  if (quote?.last) return { value: quote.last, source: "last", stale: null };
-  const dayPrice = latestVisible(
-    view.optionPrices.filter((p) => p.ticker === ticker),
-    at,
-  );
-  if (dayPrice?.close) return { value: dayPrice.close, source: "close", stale: null };
-  if (dayPrice?.average) return { value: dayPrice.average, source: "average", stale: null };
-  return null;
 }
 
 type PricedLeg = {
@@ -165,11 +135,32 @@ function valueOneLeg(
   if (!isPositive(series.strike)) {
     return {
       ok: false,
-      error: invalidNonPositive("legs.strike", "a listed strike must be positive"),
+      error: invalidInput("legs.strike", "a listed strike must be positive"),
     };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
+  if (!tte.ok) {
+    if (tte.reason === "already_expired") {
+      return {
+        ok: false,
+        error: invalidInput("legs.expiry", "the leg's expiry precedes the session of at"),
+      };
+    }
+    return {
+      ok: false,
+      error: {
+        code: "insufficient_data",
+        needed: {
+          from: at,
+          to: at,
+          instruments: [leg.ticker],
+          timeframes: [],
+          collections: ["candles"],
+        },
+      },
+    };
+  }
   const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price);
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
@@ -177,7 +168,7 @@ function valueOneLeg(
     spot,
     riskFreeRate,
     dividendYield,
-    timeToExpiryYears: tte.ok ? tte.years : 0,
+    timeToExpiryYears: tte.years,
     marketPrice,
     givenVolatility: leg.volatility ?? null,
   });
@@ -581,7 +572,7 @@ function priceSelection(
   const spot = resolveUnderlyingMarketPrice(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
   if (!isPositive(spot)) {
-    return err(invalidNonPositive("spot", "the underlying's spot must be positive"));
+    return err(invalidInput("spot", "the underlying's spot must be positive"));
   }
 
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
@@ -664,7 +655,7 @@ export function priceOperation(
     const spot = resolveUnderlyingMarketPrice(input.view, underlyingResult.underlying, input.at);
     if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
     if (!isPositive(spot)) {
-      return err(invalidNonPositive("spot", "the underlying's spot must be positive"));
+      return err(invalidInput("spot", "the underlying's spot must be positive"));
     }
     return priceConcreteLegs(
       input.view,

@@ -46,18 +46,18 @@ describe("resolveTimeToExpiryYears (ADR-0013 (n + (1 - f)) / 252)", () => {
     expect(result).toEqual({ ok: true, years: (4 + 0.5) / 252 });
   });
 
-  it("fails when the calendar has no session open at or before `at`", () => {
+  it("fails with calendar_gap when the calendar has no session open at or before `at`", () => {
     const result = resolveTimeToExpiryYears(calendar, "2024-01-01T13:00:00.000Z", "2024-01-12");
-    expect(result).toEqual({ ok: false });
+    expect(result).toEqual({ ok: false, reason: "calendar_gap" });
   });
 
-  it("fails when the expiry date is not in the calendar", () => {
+  it("fails with calendar_gap when the expiry date is not in the calendar", () => {
     const result = resolveTimeToExpiryYears(calendar, "2024-01-08T13:00:00.000Z", "2024-02-01");
-    expect(result).toEqual({ ok: false });
+    expect(result).toEqual({ ok: false, reason: "calendar_gap" });
   });
 
-  it("fails when the expiry precedes the session containing `at`", () => {
+  it("fails with already_expired when the expiry precedes the session containing `at`", () => {
     const result = resolveTimeToExpiryYears(calendar, "2024-01-12T13:00:00.000Z", "2024-01-08");
-    expect(result).toEqual({ ok: false });
+    expect(result).toEqual({ ok: false, reason: "already_expired" });
   });
 });
