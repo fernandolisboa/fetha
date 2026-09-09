@@ -86,7 +86,16 @@ export function parseSgsResponse(
   body: unknown,
   sessions: SessionOpen[],
 ): MacroPoint[] {
-  const points = sgsResponseSchema.parse(body).filter((point) => point.valor.trim() !== "");
+  const sessionDates = new Set(sessions.map((session) => session.date));
+  const points = sgsResponseSchema
+    .parse(body)
+    .filter((point) => point.valor.trim() !== "")
+    // Series 432 (Selic target) is published for every calendar day,
+    // repeating the same rate over weekends and holidays; asOf for selic
+    // requires the reference date to be a session (ADR-0017), so a
+    // non-session duplicate carries nothing a session-day point doesn't
+    // already give and is dropped rather than treated as a calendar gap.
+    .filter((point) => series !== "selic" || sessionDates.has(toIsoDate(point.data)));
   return points.map((point) => {
     const date = toIsoDate(point.data);
     return macroPointSchema.parse({

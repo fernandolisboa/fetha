@@ -13,6 +13,9 @@ import {
 const cdiFixture: unknown = JSON.parse(
   readFileSync(path.join(import.meta.dirname, "fixtures", "sgs-cdi-sample.json"), "utf-8"),
 );
+const selicFixture: unknown = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "fixtures", "sgs-selic-sample.json"), "utf-8"),
+);
 const ipcaFixture: unknown = JSON.parse(
   readFileSync(path.join(import.meta.dirname, "fixtures", "sgs-ipca-12m-sample.json"), "utf-8"),
 );
@@ -30,6 +33,23 @@ const septemberSessions = [
   { date: "2026-09-16", open: "2026-09-16T13:00:00.000Z" },
 ];
 
+// The IPCA fixture (series 13522) covers reference months January through
+// July 2026; each point's asOf lands on or after the 15th of the following
+// month (2026-02-15 through 2026-08-15). 2026-08-15/16 are a weekend, so the
+// July point rolls to the Monday session; every other 15th here is a
+// weekday. 2026-04-16 is kept as a second April session to exercise the
+// same roll-forward behaviour without reaching into May.
+const ipcaSessions = [
+  { date: "2026-02-16", open: "2026-02-16T13:00:00.000Z" },
+  { date: "2026-03-16", open: "2026-03-16T13:00:00.000Z" },
+  { date: "2026-04-15", open: "2026-04-15T13:00:00.000Z" },
+  { date: "2026-04-16", open: "2026-04-16T13:00:00.000Z" },
+  { date: "2026-05-15", open: "2026-05-15T13:00:00.000Z" },
+  { date: "2026-06-15", open: "2026-06-15T13:00:00.000Z" },
+  { date: "2026-07-15", open: "2026-07-15T13:00:00.000Z" },
+  { date: "2026-08-17", open: "2026-08-17T13:00:00.000Z" },
+];
+
 describe("parseSgsResponse", () => {
   it("cdi: asOf is the next session's open after the reference date", () => {
     const points = parseSgsResponse("cdi", cdiFixture, septemberSessions);
@@ -44,19 +64,31 @@ describe("parseSgsResponse", () => {
   });
 
   it("selic: asOf is the reference date's own session open", () => {
-    const points = parseSgsResponse("selic", cdiFixture, septemberSessions);
+    const points = parseSgsResponse("selic", selicFixture, septemberSessions);
     expect(points[0]).toMatchObject({ date: "2026-09-01", asOf: "2026-09-01T13:00:00.000Z" });
+    expect(points.at(-1)).toMatchObject({ date: "2026-09-08", asOf: "2026-09-08T13:00:00.000Z" });
+  });
+
+  it("selic: drops weekend/holiday duplicates the target rate repeats for every calendar day", () => {
+    // sgs-selic-sample.json includes 2026-09-05/06 (weekend) and 2026-09-07
+    // (Independência), none of which is a session in septemberSessions.
+    const points = parseSgsResponse("selic", selicFixture, septemberSessions);
+    expect(points).toHaveLength(5);
+    expect(points.map((point) => point.date)).not.toContain("2026-09-05");
+    expect(points.map((point) => point.date)).not.toContain("2026-09-07");
   });
 
   it("ipca: asOf is the open of the first session on or after the 15th of the following month", () => {
-    const points = parseSgsResponse("ipca", ipcaFixture, septemberSessions);
-    expect(points[0]).toMatchObject({ date: "2026-08-31", asOf: "2026-09-15T13:00:00.000Z" });
+    const points = parseSgsResponse("ipca", ipcaFixture, ipcaSessions);
+    const march = points.find((point) => point.date === "2026-03-01");
+    expect(march).toMatchObject({ asOf: "2026-04-15T13:00:00.000Z" });
   });
 
   it("ipca: rolls forward when the 15th itself is not a session", () => {
-    const sessionsWithout15th = septemberSessions.filter((s) => s.date !== "2026-09-15");
-    const points = parseSgsResponse("ipca", ipcaFixture, sessionsWithout15th);
-    expect(points[0]?.asOf).toBe("2026-09-16T13:00:00.000Z");
+    const sessionsWithoutApr15 = ipcaSessions.filter((s) => s.date !== "2026-04-15");
+    const points = parseSgsResponse("ipca", ipcaFixture, sessionsWithoutApr15);
+    const march = points.find((point) => point.date === "2026-03-01");
+    expect(march?.asOf).toBe("2026-04-16T13:00:00.000Z");
   });
 
   it("throws when no session covers the required lookup (a calendar gap)", () => {
@@ -102,11 +134,11 @@ describe("convertToAnnualRate", () => {
   });
 
   it("passes the Selic target rate through unchanged (already % a.a.)", () => {
-    expect(convertToAnnualRate("selic", "10.75")).toBe("10.75000000");
+    expect(convertToAnnualRate("selic", "14.00")).toBe("14.00000000");
   });
 
   it("passes the IPCA 12-month accumulated rate through unchanged (series 13522, already % a.a.)", () => {
-    expect(convertToAnnualRate("ipca", "4.35")).toBe("4.35000000");
+    expect(convertToAnnualRate("ipca", "4.44")).toBe("4.44000000");
   });
 });
 

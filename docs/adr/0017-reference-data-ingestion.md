@@ -115,7 +115,10 @@ each point refers to is not when the rate becomes knowable:
 - **CDI (12)**: known only once the session it describes has closed and Bacen computes it, so
   `asOf` is the **next** trading session's open after the reference date.
 - **Selic target (432)**: takes effect from the reference date itself, so `asOf` is that date's own
-  session open — unchanged from before.
+  session open — unchanged from before. Bacen repeats the same rate for every calendar day,
+  including weekends and holidays; `parseSgsResponse` drops any selic point whose date is not a
+  session in the calendar it was given, since a non-session duplicate carries nothing a session-day
+  point doesn't already give.
 - **IPCA (13522)**: Bacen publishes the 12-month accumulated figure roughly mid-month for the
   previous month, so `asOf` is the open of the first session **on or after the 15th** of the month
   following the reference month.
