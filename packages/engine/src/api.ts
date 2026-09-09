@@ -77,6 +77,7 @@ export type NoteCode =
   | "missed_entry"
   | "intraday_option_fill_at_fair_value"
   | "short_window_not_annualized"
+  | "non_positive_equity"
   | "no_thesis_claim"
   | "no_operation"
   | "unbounded_max_loss"
@@ -95,6 +96,7 @@ export const noteCodes = [
   "missed_entry",
   "intraday_option_fill_at_fair_value",
   "short_window_not_annualized",
+  "non_positive_equity",
   "no_thesis_claim",
   "no_operation",
   "unbounded_max_loss",
@@ -442,10 +444,12 @@ export type BacktestCheckpoint = {
   state: unknown;
 };
 
-export type FillSource = "next_session_open" | "next_session_average" | "fair_value" | "settlement";
+export type FillSource =
+  "next_session_open" | "next_session_average" | "next_candle_open" | "fair_value" | "settlement";
 export const fillSources = [
   "next_session_open",
   "next_session_average",
+  "next_candle_open",
   "fair_value",
   "settlement",
 ] as const satisfies readonly FillSource[];
@@ -508,14 +512,12 @@ export type SimulatedOperation = Operation & {
   pnl: Centavos;
   maxLoss: Centavos | "unbounded";
 } & (
-    | { status: "open" }
     | { status: "closed"; closedAt: SessionDate; closeReason: CloseReason }
     | { status: "expired"; closedAt: SessionDate; settlement: LegSettlement[] }
   );
 
 export type SimulatedOperationStatus = SimulatedOperation["status"];
 export const simulatedOperationStatuses = [
-  "open",
   "closed",
   "expired",
 ] as const satisfies readonly SimulatedOperationStatus[];

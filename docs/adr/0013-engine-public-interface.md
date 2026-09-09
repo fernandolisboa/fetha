@@ -129,6 +129,7 @@ export type NoteCode =
   | "missed_entry"
   | "intraday_option_fill_at_fair_value"
   | "short_window_not_annualized"
+  | "non_positive_equity"
   | "no_thesis_claim"
   | "no_operation"
   | "unbounded_max_loss"
@@ -147,6 +148,7 @@ export const noteCodes = [
   "missed_entry",
   "intraday_option_fill_at_fair_value",
   "short_window_not_annualized",
+  "non_positive_equity",
   "no_thesis_claim",
   "no_operation",
   "unbounded_max_loss",
@@ -494,10 +496,12 @@ export type BacktestCheckpoint = {
   state: unknown;
 };
 
-export type FillSource = "next_session_open" | "next_session_average" | "fair_value" | "settlement";
+export type FillSource =
+  "next_session_open" | "next_session_average" | "next_candle_open" | "fair_value" | "settlement";
 export const fillSources = [
   "next_session_open",
   "next_session_average",
+  "next_candle_open",
   "fair_value",
   "settlement",
 ] as const satisfies readonly FillSource[];
@@ -560,14 +564,12 @@ export type SimulatedOperation = Operation & {
   pnl: Centavos;
   maxLoss: Centavos | "unbounded";
 } & (
-    | { status: "open" }
     | { status: "closed"; closedAt: SessionDate; closeReason: CloseReason }
     | { status: "expired"; closedAt: SessionDate; settlement: LegSettlement[] }
   );
 
 export type SimulatedOperationStatus = SimulatedOperation["status"];
 export const simulatedOperationStatuses = [
-  "open",
   "closed",
   "expired",
 ] as const satisfies readonly SimulatedOperationStatus[];
@@ -842,7 +844,7 @@ export interface Engine {
 #### Visibility
 
 - A row is visible to a computation at instant `t` iff `row.asOf <= t`. `asOf` is the candle
-  close for candles, the ex-date session close for corporate-action factors, the session close
+  close for candles, the ex-date session open for corporate-action factors, the session close
   for daily option prices, the publication time for macro points, the quote timestamp for quotes,
   the listing time for option series, the publication time for dividend yields and
   implied-volatility index points. The calendar is the only collection exempt (a published
@@ -856,16 +858,20 @@ export interface Engine {
   with `since` evaluates at each candle close `c` in `(since, at]` on the view truncated at `c`,
   and the proposal it prices has `pricing.at = c`. `runBacktest` evaluates each session on the
   view truncated at that session's close and fills a signal from session D with session D+1 data
-  only (ADR-0004; intraday runs follow ADR-0011). `score` never reads a row later than the
-  horizon close, `proposeSettlement` never reads one later than the expiry close, whatever the
-  view contains. Rows dropped by an inner instant are simply invisible to that evaluation; they
-  are not reported.
+  only (ADR-0004); an intraday run evaluates at each candle close of the strategy's timeframe and
+  fills at the next candle of that timeframe (ADR-0011, sharpened under "Fills" below). `score`
+  never reads a row later than the horizon close, `proposeSettlement` never reads one later than
+  the expiry close, whatever the view contains. Rows dropped by an inner instant are simply
+  invisible to that evaluation; they are not reported.
 
 #### Candles and corporate actions
 
 - The view carries **nominal candles only**, plus `corporateActions`: one factor per instrument
-  and ex-date, `asOf` = the ex-date session close, `factor` = the multiplier that makes prices
-  before the ex-date comparable with prices after it. The engine derives the **adjusted series
+  and ex-date, `asOf` = the ex-date session open, `factor` = the multiplier that makes prices
+  before the ex-date comparable with prices after it. The factor becomes visible at the open, not
+  the close, so every evaluation inside the ex-date session (intraday candles included) reads the
+  same adjusted series as the session close does; the ex-date candle itself is never adjusted
+  (`exDate > s` fails for it). The engine derives the **adjusted series
   at each evaluation instant `c`**: a nominal candle of session `s` has `open`, `high`, `low`
   and `close` multiplied by the product of that ticker's factors with `exDate > s` and
   `asOf <= c`; `tradedQuantity` is not adjusted. A factor ingested later therefore never rewrites
@@ -892,7 +898,10 @@ export interface Engine {
   `[0, 1]`). At a session close `f = 1`, so a daily evaluation uses `n / 252`; at the expiry
   session close it is zero.
 - **Greeks** per leg: `delta` per 1.00 of underlying, `gamma` per 1.00 of underlying squared,
-  `theta` per calendar day (annual theta / 365, negative when the leg loses value with time),
+  `theta` per session (annual theta / 252, negative when the leg loses value with time; the
+  same 252-session clock as time to expiry, so theta times sessions elapsed is the model's decay
+  over that span; a per-calendar-day figure on screen is a UI conversion, never an engine output
+  and never used in attribution),
   `vega` per 1 volatility point (0.01), `rho` per 1.00 of rate. Aggregate greeks (operation and
   portfolio) are signed sums, `sum(sign * quantity * greek)` with `sign = +1` for `buy` and `-1`
   for `sell`; a stock leg contributes `delta = sign * quantity` and zero elsewhere.
@@ -901,9 +910,9 @@ export interface Engine {
   still solved from the market price when there is one); `own_implied` when the leg has a market
   price at `at` and the volatility is solved from it; `last_trade_implied` when the leg is
   `stale` and the volatility solved from its last trade is repriced at `at` (ADR-0014 Q42);
-  `closing_iv_index` for `fair_value` fills in intraday backtests (ADR-0011), read as the latest
-  implied-volatility index point visible at the fill instant, which is the previous session's
-  close for an intraday fill. `null` when there is no `fairValue`.
+  `closing_iv_index` for `fair_value` fills in intraday backtests (ADR-0011 as amended by
+  ADR-0014), read as the latest implied-volatility index point visible at the fill instant,
+  which is the previous session's close for an intraday fill. `null` when there is no `fairValue`.
 
 #### Operations, positions and strategy versions
 
@@ -990,18 +999,27 @@ has no clock; the caller compares `signal.at` with its own time (ADR-0010).
 - Sizing fractions and risk-profile limits apply to the run's current equity;
   `riskProfile.declaredCapital` is ignored inside a run. `config.sizing` overrides the strategy's
   sizing rule when present. Missed entries, warn mode and fill-time failures follow ADR-0014.
-- **Fills.** Stocks at the next session's open (`next_session_open`); options at the next
-  session's average traded price (`next_session_average`), or at fair value in intraday runs
-  (`fair_value`, ADR-0011). `Fill.price` includes slippage: the option reference price times
+- **Fills.** In a daily run a signal evaluated at session D's close fills with session D+1
+  data: stocks at the next session's open (`next_session_open`), options at the next session's
+  average traded price (`next_session_average`). In an intraday run a signal at candle `k` of the
+  strategy's timeframe fills at candle `k + 1` of that timeframe: stock at that candle's open
+  (`next_candle_open`); options at model fair value on that candle's open spot with the latest
+  implied-volatility index point visible at that instant (`fair_value`; ADR-0011 as amended by
+  ADR-0014), plus slippage. `Fill.price` includes slippage: the option reference price times
   `(1 + optionSlippageRate)` for a buy and `(1 - optionSlippageRate)` for a sell, at scale 2.
   `Fill.costs` = B3 fee (`b3FeeRate` on the gross traded value) plus brokerage. A single
   `b3FeeRate` over every fill is the accepted v1 simplification of B3's per-instrument fee
   table.
-- **Simulated operations.** A `SimulatedOperation` is `open` (still held at `period.to`),
-  `closed` (by an exit rule, by a roll into `toOperationId`, or by `period_end`) or `expired`
-  (reached its `expiry`, with the per-leg `settlement`). The status is a discriminated union so
-  an open operation carries no close fields and an expired one carries no `CloseReason`; expiry is
-  therefore a status, not a close reason. A rolled operation is `closed` with reason `rolled` and
+- **Simulated operations.** A `SimulatedOperation` is `closed` (by an exit rule, by a roll into
+  `toOperationId`, or by `period_end`) or `expired` (reached its `expiry`, with the per-leg
+  `settlement`). The status is a discriminated union so an expired operation carries no
+  `CloseReason` and a closed one no `settlement`; expiry is therefore a status, not a close
+  reason. There is no `open` status: a complete run holds nothing. An operation still held at the
+  `period.to` session close is closed there with `closeReason: { kind: "period_end" }` at the
+  mark of that close (a stale mark per ADR-0014 Q42 when a series did not trade), with no
+  slippage and no costs, since it is a valuation and not a trade; no fill is recorded and it is
+  not a taxable event. Such an operation counts in `metrics.operations` but is excluded from
+  `winRate` and `profitFactor`. A rolled operation is `closed` with reason `rolled` and
   the new operation records `rolledFrom`; there is no `adjusted` status in a run (the lifecycle
   status of a real operation belongs to `portfolio`, not to this seam). A missed entry is not an
   operation: nothing was filled, so it has no id, legs, entry prices or P&L, and it is recorded in
@@ -1011,7 +1029,18 @@ has no clock; the caller compares `signal.at` with its own time (ADR-0010).
   at the strike, out-of-the-money legs expire worthless, stock legs are kept. The stock fills this
   produces carry `source: "settlement"`, price = strike, no slippage, and `costs` as any stock
   fill; they are listed in `run.fills` and, per leg, in `settlement[i].fills` (the same fills; an
-  attribution view, never counted twice).
+  attribution view, never counted twice). Stock those fills create nets out inside the operation
+  when the structure closes on itself (a vertical with both legs in the money, an assigned
+  covered call against its stock leg). Residual stock that does not net out (a lone long call
+  exercised leaves long stock, a lone long put exercised leaves short stock, a lone short put
+  assigned leaves long stock, a lone short call assigned leaves short stock) is closed at the
+  next session's open with `source: "next_session_open"`, attributed to the operation (its
+  `operationId`, listed in `run.fills`, not in `settlement[i].fills`), and the operation's `pnl`
+  is realized only then; `closedAt` stays the expiry session, since the status describes what
+  ended the operation. A `kept` stock leg is closed the same way, so an `expired` operation is
+  always fully realized. When the expiry session is `period.to` there is no next session and
+  the residual is marked at that close under the `period_end` rule above, with the same
+  exclusions from `winRate` and `profitFactor`.
 - **Operation P&L** (`SimulatedOperation.pnl`) is realized: fills net of costs, slippage already
   inside the prices, before taxes (taxes are monthly and not attributable to one operation).
 - **Taxes** (`MonthlyTax`, `month` as `YYYY-MM` of the closing fill's session). `stockSales` is
@@ -1028,20 +1057,26 @@ has no clock; the caller compares `signal.at` with its own time (ADR-0010).
   the last session of month M+1; tax not yet deducted at `period.to` is deducted on the final
   session.
 - **Equity and metrics.** `EquityPoint.equity` is cash plus the mark of every open position at
-  the session close; `drawdown = 1 - equity / runningPeak`, zero at a new peak. Daily simple
+  the session close; `drawdown = 1 - equity / runningPeak`, zero at a new peak, where
+  `runningPeak` starts at `initialCapital` and is the largest equity seen so far (so a run that
+  never rises above its initial capital reports the drawdown from that capital). Daily simple
   returns are `r_t = equity_t / equity_(t-1) - 1` (the first against `initialCapital`); the
   risk-free rate per session is `rf_t = (1 + cdi_t)^(1/252) - 1` from the CDI point visible at
   that close. Then `totalReturn = equity_last / initialCapital - 1`;
   `cagr = (equity_last / initialCapital)^(252 / sessions) - 1`;
   `sharpe = mean(r_t - rf_t) / sampleStdev(r_t - rf_t) * sqrt(252)`, `null` when the standard
   deviation is zero; `maxDrawdown` is the largest `drawdown`; `exposure` is the fraction of
-  sessions with at least one open operation at the close; `winRate` is closed operations with
-  `pnl > 0` over closed operations, `null` when none closed; `profitFactor` is gross wins over
-  gross losses of closed operations, `null` when there are no losses; `fees` is the sum of
+  sessions with at least one operation held at the close. `winRate` and `profitFactor` are
+  computed over the **settled operations**: those `expired`, plus those `closed` with a reason
+  other than `period_end`; operations closed by `period_end` are excluded because their `pnl` is
+  a mark, not a result. `winRate` is settled operations with `pnl > 0` over settled operations,
+  `null` when none settled; `profitFactor` is gross wins over gross losses of settled
+  operations, `null` when there are no losses; `fees` is the sum of
   `Fill.costs`, `taxes` the sum of `MonthlyTax.tax`, `slippage` the sum over option fills of
   `|price - reference| * quantity`, informational only (it is already inside `Fill.price`).
   `cagr` and `sharpe` are `null` with note `short_window_not_annualized` when the run has fewer
-  than 126 sessions.
+  than 126 sessions. `cagr` alone is `null` with note `non_positive_equity` when
+  `equity_last <= 0` (the power has no real value); `sharpe` is unaffected by that case.
 - **Walk-forward** (ADR-0014 Q37) cuts the period into consecutive windows of `windowSessions`
   sessions from `period.from` (the last may be shorter) and reports the metrics above per
   window, computed on that window's slice of the equity curve; an operation belongs to the
@@ -1123,11 +1158,14 @@ and landing with the first implementation ticket that makes it testable.
   for `evaluateStrategy`, each session close for `runBacktest`, the horizon close for `score`,
   the expiry close for `proposeSettlement`), appending rows with `asOf > c` to the view never
   changes the artifact computed at `c`; rows later than the call's truncation instant appear in
-  `provenance.truncated`. In particular, appending a corporate-action factor with a later
-  `asOf` never changes an artifact computed at an earlier instant.
+  `provenance.truncated`. In particular, appending a corporate-action factor whose ex-date
+  session opens after `c` never changes an artifact computed at `c`, and one whose ex-date
+  session opens at or before `c` adjusts every candle before its ex-date at every evaluation
+  instant inside that session alike.
 - **I2 Chunk-invariance** (`i2-chunk-invariance.property.test.ts`): any sequence of `runBacktest`
   calls with any `maxSessions` values and their checkpoints yields a `BacktestRun` deep-equal to
-  one uninterrupted call.
+  one uninterrupted call modulo `provenance.truncated`: the truncation report depends on the view
+  slice each chunk receives, so the property test compares the runs with `truncated` stripped.
 - **I3 Order-invariance** (`i3-order-invariance.property.test.ts`): any permutation of any
   `MarketView` array yields a deep-equal artifact.
 - **I4 Determinism** (`i4-determinism.property.test.ts`): identical inputs yield deep-equal
@@ -1142,10 +1180,11 @@ and landing with the first implementation ticket that makes it testable.
   and `datasetNotes`, and a `Note` for each approximation applied (`european_pricing` per
   ADR-0002, `intraday_option_fill_at_fair_value` and `short_window_not_annualized` per ADR-0011).
 - **I7 Prefix-consistency** (`i7-prefix-consistency.property.test.ts`): a run over `[from, D]`
-  and a run over `[from, to]` with `to > D` produce identical fills, operations and equity curve
-  up to and including session D, except operations the shorter run closed with reason
-  `period_end`; a checkpoint paused at cursor D carries no information from rows with `asOf`
-  later than D's close.
+  and a run over `[from, to]` with `to > D` produce identical fills and equity curve up to and
+  including session D, and identical operations except those still held at D's close: the
+  shorter run closes them with reason `period_end` at that close's mark (no fill, no cost, so
+  equity at D agrees), the longer run carries them on. A checkpoint paused at cursor D carries no
+  information from rows with `asOf` later than D's close.
 
 An eighth test, `capabilities.conformance.test.ts`, asserts that every `kind` reported by
 `capabilities()` is a member of the matching `contracts` enum and that every member of those

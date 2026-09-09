@@ -177,9 +177,12 @@ describe("dependent shapes", () => {
     expectTypeOf<Operation["expiry"]>().toEqualTypeOf<SessionDate | null>();
   });
 
-  it("keeps close fields off open simulated operations", () => {
-    expectTypeOf<Extract<SimulatedOperation, { status: "open" }>>().not.toHaveProperty("closedAt");
+  it("keeps settlement and close reason on distinct simulated operation statuses", () => {
+    expectTypeOf<SimulatedOperation>().toHaveProperty("closedAt");
     expectTypeOf<Extract<SimulatedOperation, { status: "closed" }>>().toHaveProperty("closeReason");
+    expectTypeOf<Extract<SimulatedOperation, { status: "closed" }>>().not.toHaveProperty(
+      "settlement",
+    );
     expectTypeOf<Extract<SimulatedOperation, { status: "expired" }>>().toHaveProperty("settlement");
     expectTypeOf<Extract<SimulatedOperation, { status: "expired" }>>().not.toHaveProperty(
       "closeReason",
@@ -246,6 +249,7 @@ describe("closed vocabularies", () => {
       "missed_entry",
       "intraday_option_fill_at_fair_value",
       "short_window_not_annualized",
+      "non_positive_equity",
       "no_thesis_claim",
       "no_operation",
       "unbounded_max_loss",
@@ -319,6 +323,7 @@ describe("closed vocabularies", () => {
     expect(fillSources).toEqual([
       "next_session_open",
       "next_session_average",
+      "next_candle_open",
       "fair_value",
       "settlement",
     ]);
@@ -335,7 +340,7 @@ describe("closed vocabularies", () => {
     expectTypeOf<
       (typeof simulatedOperationStatuses)[number]
     >().toEqualTypeOf<SimulatedOperationStatus>();
-    expect(simulatedOperationStatuses).toEqual(["open", "closed", "expired"]);
+    expect(simulatedOperationStatuses).toEqual(["closed", "expired"]);
     expectTypeOf<
       (typeof backtestProgressStatuses)[number]
     >().toEqualTypeOf<BacktestProgressStatus>();

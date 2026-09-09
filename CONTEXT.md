@@ -45,8 +45,9 @@ exposing module's interface, never through its tables.
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
 4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
-   curve, metrics, walk-forward view. Fills follow ADR-0004; intraday runs follow ADR-0011,
-   missed fills, warn mode and walk-forward follow ADR-0014.
+   curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
+   or the next candle of the strategy timeframe in an intraday run (ADR-0011, as sharpened by
+   ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
 5. **Decide and journal.** From a signal, an operation or a structure, the user requests an
    analysis (on demand, capped) and records a decision (enter, do not enter, hold, adjust, exit)
    with a thesis and horizon. At the horizon the engine scores the decision and the analysis

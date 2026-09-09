@@ -85,6 +85,13 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   component alone forms the score. ADR-0005's "realized P&L normalized by max loss" applies only
   when there is an operation to realize it on. A `normalizedPnl` is also `null` when the
   operation's max loss is zero (note `zero_max_loss`), since there is nothing to normalize by.
+- **Intraday option fill volatility (amends ADR-0011).** ADR-0011 says an intraday option fill
+  is priced at fair value with "that day's closing implied volatility"; that volatility is not
+  visible before the session closes, so reading it would be look-ahead. The fill uses the latest
+  implied-volatility index point visible at the fill instant (the previous session's close for
+  any fill inside a session), the spot being the open of the fill candle, plus slippage, and
+  carries `volatilitySource: "closing_iv_index"` and note `intraday_option_fill_at_fair_value`
+  (ADR-0013, "Fills").
 - **Implied-volatility rank (sharpens ADR-0008).** `iv_rank` is a 0-100 percentile rank of the
   underlying's implied-volatility index over `lookbackSessions` (formula in ADR-0013), so
   `iv_rank > 50` means the current index is above the median of its lookback.
@@ -95,5 +102,7 @@ ADR-0004 stays in force with three sharpened points (retry window for missed fil
 semantics, walk-forward meaning). ADR-0005 stays in force with the thesis claim as the only source
 of `thesis.held`, one explicit counterfactual rule and a thesis-only score when there is no
 operation. ADR-0008 stays in force with a single shared expiry per structure and no parameter
-space. The glossary gains "Thesis claim", "Implied volatility index", "Settlement proposal",
-"Missed entry", "Leg template" and "Evaluation record", and rewrites "Walk-forward".
+space. ADR-0011 stays in force with one amendment: the volatility of an intraday fair-value fill
+is the latest index point visible at the fill instant, never the fill session's own close. The
+glossary gains "Thesis claim", "Implied volatility index", "Settlement proposal", "Missed entry",
+"Leg template" and "Evaluation record", and rewrites "Walk-forward".

@@ -59,7 +59,7 @@ _Avoid_: holiday list, business calendar
 The multiplier applied to earlier prices and quantities of an instrument to compensate for a
 split, reverse split, bonus or dividend, so that a series stays comparable across the event.
 Recorded by ingestion with its ex-date; applied by the engine point in time, so a factor is
-invisible to any computation dated before its ex-date session close (ADR-0013).
+invisible to any computation dated before its ex-date session open (ADR-0013).
 _Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
 
 **Adjusted series / nominal series**:
