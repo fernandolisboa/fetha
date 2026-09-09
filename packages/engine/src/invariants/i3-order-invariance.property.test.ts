@@ -171,7 +171,7 @@ describe("I3 Order-invariance", () => {
     );
   });
 
-  it("any permutation of candles across a two-instrument evaluateStrategy batch yields a deep-equal artifact", () => {
+  it("any permutation of candles, macro and dividendYields across a two-instrument evaluateStrategy batch yields a deep-equal artifact", () => {
     fc.assert(
       fc.property(
         candleSeriesArbitrary,
@@ -180,6 +180,20 @@ describe("I3 Order-invariance", () => {
           fc.pre(candles.length >= 4);
           const otherTickerCandles: Candle[] = candles.map((c) => ({ ...c, ticker: "VALE3" }));
           const allCandles = [...candles, ...otherTickerCandles];
+          const macro = candles.map((c, i) => ({
+            series: "cdi" as const,
+            date: c.session,
+            asOf: c.asOf,
+            annualRate: decimalString(i % 2 === 0 ? "0.10" : "0.11"),
+          }));
+          const firstCandleAsOf = assertDefined(
+            candles[0],
+            "test setup: missing first candle",
+          ).asOf;
+          const dividendYields = [
+            { underlying: "PETR4", asOf: firstCandleAsOf, annualYield: decimalString("0.05") },
+            { underlying: "VALE3", asOf: firstCandleAsOf, annualYield: decimalString("0.06") },
+          ];
           const view: MarketView = {
             calendar: [],
             candles: allCandles,
@@ -187,8 +201,8 @@ describe("I3 Order-invariance", () => {
             optionSeries: [],
             optionPrices: [],
             quotes: [],
-            macro: [],
-            dividendYields: [],
+            macro,
+            dividendYields,
             impliedVolatilityIndex: [],
           };
           const strategy: StrategyVersion = {
@@ -223,7 +237,12 @@ describe("I3 Order-invariance", () => {
           };
           const shuffled: EvaluateStrategyInput = {
             ...input,
-            view: { ...view, candles: shuffle(allCandles, seed) },
+            view: {
+              ...view,
+              candles: shuffle(allCandles, seed),
+              macro: shuffle(macro, seed + 1),
+              dividendYields: shuffle(dividendYields, seed + 2),
+            },
           };
           expect(evaluateStrategy(shuffled)).toEqual(evaluateStrategy(input));
         },
