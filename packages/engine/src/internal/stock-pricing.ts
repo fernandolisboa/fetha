@@ -19,7 +19,7 @@ import {
   RATIO_SCALE,
   toDecimalString,
 } from "./decimal";
-import { compareInstants } from "./instant";
+import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { toCentavos } from "./scalars";
 
 export type StockLegInput = OperationLeg & { priceSource: PriceSource };
@@ -47,15 +47,6 @@ const zeroGreeks: Greeks = {
   rho: zero,
 };
 
-function latestVisible<T extends { asOf: Instant }>(rows: readonly T[], at: Instant): T | null {
-  let latest: T | null = null;
-  for (const row of rows) {
-    if (compareInstants(row.asOf, at) > 0) continue;
-    if (latest === null || compareInstants(row.asOf, latest.asOf) > 0) latest = row;
-  }
-  return latest;
-}
-
 function sign(side: OperationLeg["side"]): 1 | -1 {
   return side === "buy" ? 1 : -1;
 }
@@ -63,26 +54,14 @@ function sign(side: OperationLeg["side"]): 1 | -1 {
 export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const notes: Note[] = [];
 
-  const cdiPoint = latestVisible(
-    input.view.macro.filter((m) => m.series === "cdi"),
+  const riskFreeRate = resolveRiskFreeRate(input.view.macro, input.at) as DecimalString;
+  const dividendResolution = resolveDividendYield(
+    input.view.dividendYields,
+    input.underlying,
     input.at,
   );
-  const riskFreeRate = cdiPoint
-    ? toDecimalString(new Decimal(1).add(parseDecimal(cdiPoint.annualRate)).ln(), RATIO_SCALE)
-    : toDecimalString(new Decimal(0), RATIO_SCALE);
-
-  const dividendPoint = latestVisible(
-    input.view.dividendYields.filter((d) => d.underlying === input.underlying),
-    input.at,
-  );
-  const dividendYield = dividendPoint
-    ? toDecimalString(new Decimal(1).add(parseDecimal(dividendPoint.annualYield)).ln(), RATIO_SCALE)
-    : toDecimalString(new Decimal(0), RATIO_SCALE);
-  if (!dividendPoint)
-    notes.push({
-      code: "dividend_yield_defaulted",
-      message: "no dividend yield visible; defaulted to 0",
-    });
+  const dividendYield = dividendResolution.value as DecimalString;
+  notes.push(...dividendResolution.notes);
 
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,
