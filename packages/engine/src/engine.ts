@@ -8,6 +8,7 @@ import type {
   EvaluateStrategyInput,
   Evaluation,
   ImpliedVolatilityIndex,
+  ImpliedVolatilityIndexInput,
   IndicatorSeries,
   IndicatorsInput,
   OperationPricing,
@@ -22,6 +23,7 @@ import { ENGINE_VERSION, pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
+import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
 import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
@@ -66,18 +68,20 @@ export const engine: Engine = {
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
-    return unsupported("pricingModels", pricingModelKind);
+    return unsupported("adjustmentRules", "mark_to_market");
   },
 
   proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return unsupported("pricingModels", pricingModelKind);
+    return unsupported("adjustmentRules", "propose_settlement");
   },
 
   score(): Promise<Result<Score>> {
     return unsupported("thesisClaims", thesisClaimKind);
   },
 
-  impliedVolatilityIndex(): Promise<Result<ImpliedVolatilityIndex>> {
-    return unsupported("pricingModels", pricingModelKind);
+  impliedVolatilityIndex(
+    input: ImpliedVolatilityIndexInput,
+  ): Promise<Result<ImpliedVolatilityIndex>> {
+    return Promise.resolve(computeImpliedVolatilityIndex(input.view, input.underlying, input.at));
   },
 };
