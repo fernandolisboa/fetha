@@ -264,4 +264,19 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
     expect(Number(valuation.fairValue)).toBeCloseTo(0.81, 1);
     expect(Number(valuation.greeks?.delta)).toBeLessThan(0);
   });
+
+  it("never throws and reports a null fairValue/greeks for a non-positive spot (last-line seam guard)", () => {
+    const valuation = priceOptionLeg({
+      leg: hullCallLeg,
+      strike: decimalString("40.00"),
+      spot: decimalString("0.00"),
+      riskFreeRate: decimalString("0.10"),
+      dividendYield: decimalString("0.00"),
+      timeToExpiryYears: 0.5,
+      marketPrice: null,
+      givenVolatility: decimalString("0.20"),
+    });
+    expect(valuation.fairValue).toBeNull();
+    expect(valuation.greeks).toBeNull();
+  });
 });

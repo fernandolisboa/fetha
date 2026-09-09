@@ -556,6 +556,58 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("returns invalid_input when the underlying's spot resolves to zero (concrete legs)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("0.00"), bid: null, ask: null }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("returns invalid_input when a concrete option leg's listed strike is not positive", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4C00", "0.00") }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C00",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("reports a short stock leg's per-leg delta unsigned and only signs the aggregate", () => {
     const result = priceOperation(
       {
@@ -1216,6 +1268,31 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4" });
+  });
+
+  it("returns invalid_input when a LegSelection's underlying spot resolves to zero", () => {
+    const zeroSpotView: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("0.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+    };
+    const result = priceOperation(
+      {
+        view: zeroSpotView,
+        at,
+        legs: {
+          structure: oneLegStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: quantity(1),
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 
   it("returns unsizeable(unbounded_max_loss) for a fixed_risk quantity on a naked short call", () => {

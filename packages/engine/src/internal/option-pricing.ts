@@ -90,14 +90,21 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
 
   let fairValue: DecimalString | null = null;
   let greeks: Greeks | null = null;
-  if (sigma !== null && sigma > 0) {
+  if (sigma !== null && sigma > 0 && s > 0 && k > 0) {
     const priceRaw = bsmPriceRaw({ s, k, t, r, q, sigma, right });
-    fairValue = toDecimalString(new Decimal(priceRaw), PRICE_SCALE);
-    greeks = toReportedGreeks(bsmGreeksRaw({ s, k, t, r, q, sigma, right }));
-    notes.push({
-      code: "european_pricing",
-      message: "priced as a European option under Black-Scholes-Merton (ADR-0002)",
-    });
+    const greeksRaw = bsmGreeksRaw({ s, k, t, r, q, sigma, right });
+    // Last-line guard at the number-to-Decimal seam (ADR-0002): callers are expected to
+    // reject a non-positive spot/strike before pricing, so this should be unreachable in
+    // practice, but toDecimalString throws on a non-finite input and this seam has no
+    // other way to report that back than to leave the leg unpriced.
+    if (Number.isFinite(priceRaw) && Object.values(greeksRaw).every(Number.isFinite)) {
+      fairValue = toDecimalString(new Decimal(priceRaw), PRICE_SCALE);
+      greeks = toReportedGreeks(greeksRaw);
+      notes.push({
+        code: "european_pricing",
+        message: "priced as a European option under Black-Scholes-Merton (ADR-0002)",
+      });
+    }
   }
 
   return {

@@ -48,6 +48,14 @@ function err(error: EngineError): Result<OperationPricing> {
   return { ok: false, error };
 }
 
+function isPositive(value: DecimalString): boolean {
+  return parseDecimal(value).gt(0);
+}
+
+function invalidNonPositive(path: string, message: string): EngineError {
+  return { code: "invalid_input", path, message };
+}
+
 function resolveUnderlyingMarketPrice(
   view: MarketView,
   ticker: string,
@@ -152,6 +160,12 @@ function valueOneLeg(
     return {
       ok: false,
       error: { code: "invalid_input", path: "legs", message: "leg underlying mismatch" },
+    };
+  }
+  if (!isPositive(series.strike)) {
+    return {
+      ok: false,
+      error: invalidNonPositive("legs.strike", "a listed strike must be positive"),
     };
   }
 
@@ -541,6 +555,9 @@ function priceSelection(
 ): Result<OperationPricing> {
   const spot = resolveUnderlyingMarketPrice(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
+  if (!isPositive(spot)) {
+    return err(invalidNonPositive("spot", "the underlying's spot must be positive"));
+  }
 
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
   if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
@@ -621,6 +638,9 @@ export function priceOperation(
     if (!underlyingResult.ok) return err(underlyingResult.error);
     const spot = resolveUnderlyingMarketPrice(input.view, underlyingResult.underlying, input.at);
     if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
+    if (!isPositive(spot)) {
+      return err(invalidNonPositive("spot", "the underlying's spot must be positive"));
+    }
     return priceConcreteLegs(
       input.view,
       input.at,
