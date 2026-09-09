@@ -346,6 +346,113 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.breakEvens).toContainEqual(decimalString("32.00"));
   });
 
+  it("interpolates a vertical spread's breakeven strictly between the two strikes for a partial debit", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            price: decimalString("3.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C32",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Net debit 2.00, so the breakeven is at 28 + 2.00 = 30.00, strictly between the strikes.
+    expect(result.value.breakEvens).toContainEqual(decimalString("30.00"));
+  });
+
+  it("extrapolates a long call's breakeven beyond its own strike (unbounded upside tail)", () => {
+    const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            price: decimalString("2.50"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.maxGain).toBe("unbounded");
+    expect(result.value.breakEvens).toContainEqual(decimalString("42.50"));
+  });
+
+  it("computes a collar's bounded maxLoss/maxGain and both put/call breakevens", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("30.00"),
+          },
+          {
+            role: "put",
+            side: "buy",
+            ticker: "PETR4P28",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C32",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.maxLoss).not.toBe("unbounded");
+    expect(result.value.maxGain).not.toBe("unbounded");
+    if (result.value.maxLoss === "unbounded" || result.value.maxGain === "unbounded") return;
+    // Zero-cost collar (put and call premiums cancel): downside capped at the put strike,
+    // upside capped at the call strike, both measured from the 30.00 entry price.
+    expect(result.value.maxLoss).toBe(centavos((30 - 28) * 100));
+    expect(result.value.maxGain).toBe(centavos((32 - 30) * 100));
+  });
+
   it("derives the underlying's spot from a bid/ask mid quote when no last is visible", () => {
     const view: MarketView = {
       ...baseView,
@@ -665,6 +772,44 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
+  it("surfaces iv_not_converged and below_intrinsic on a leg with an arbitrage-violating market price", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("42.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C40", "40.00")],
+      macro: [
+        { series: "cdi", date: "2024-01-01", asOf: at, annualRate: decimalString("0.105709") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.fairValue).toBeNull();
+    expect(result.value.legs[0]?.notes).toContainEqual({
+      code: "iv_not_converged",
+      message: "implied volatility did not converge from the visible market price",
+    });
+    expect(result.value.legs[0]?.notes).toContainEqual({
+      code: "below_intrinsic",
+      message: "market price is below the model's intrinsic value floor",
+    });
+  });
+
   it("reports a short stock leg's per-leg delta unsigned and only signs the aggregate", () => {
     const result = priceOperation(
       {
@@ -823,6 +968,58 @@ describe("priceOperation properties (vertical spreads, given prices)", () => {
           if (result.value.maxLoss === "unbounded" || result.value.maxGain === "unbounded")
             return false;
           return result.value.maxGain + result.value.maxLoss === width * 100;
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it("a long straddle's breakevens sit symmetrically around the strike (call premium == put premium)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 20, max: 100 }),
+        fc.integer({ min: 1, max: 2000 }),
+        (strike, premiumCents) => {
+          fc.pre(premiumCents / 100 < strike / 2);
+          const premium = (premiumCents / 100).toFixed(2);
+          const view: MarketView = {
+            ...baseView,
+            optionSeries: [
+              callSeries("PETR4C", String(strike)),
+              { ...callSeries("PETR4P", String(strike)), right: "put" },
+            ],
+          };
+          const result = priceOperation(
+            {
+              view,
+              at,
+              legs: [
+                {
+                  role: "call",
+                  side: "buy",
+                  ticker: "PETR4C",
+                  quantity: quantity(1),
+                  price: decimalString(premium),
+                },
+                {
+                  role: "put",
+                  side: "buy",
+                  ticker: "PETR4P",
+                  quantity: quantity(1),
+                  price: decimalString(premium),
+                },
+              ],
+            },
+            provenanceBase,
+          );
+          if (!result.ok) return false;
+          const breakEvens = result.value.breakEvens.map(Number).sort((a, b) => a - b);
+          if (breakEvens.length !== 2) return false;
+          const [lower, upper] = breakEvens;
+          if (lower === undefined || upper === undefined) return false;
+          const lowerGap = strike - lower;
+          const upperGap = upper - strike;
+          return Math.abs(lowerGap - upperGap) < 1e-6;
         },
       ),
       { numRuns: 50 },

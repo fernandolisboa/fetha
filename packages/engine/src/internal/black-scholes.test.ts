@@ -96,7 +96,7 @@ describe("bsmPriceRaw (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
   });
 });
 
-describe("bsmGreeksRaw (Hull ch. 19, same S0=42, K=40, r=10%, sigma=20%, T=0.5 example)", () => {
+describe("bsmGreeksRaw (self-derived cross-checks, S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
   it("computes call delta near Hull's N(d1) = 0.7791", () => {
     const greeks = bsmGreeksRaw({
       s: hullS,
@@ -268,6 +268,83 @@ describe("bsmGreeksRaw (Hull ch. 19, same S0=42, K=40, r=10%, sigma=20%, T=0.5 e
       right: "put",
     });
     expect(greeks.delta).toBe(0);
+  });
+});
+
+// Hull, Options, Futures, and Other Derivatives, ch. 19 worked example: S0=$49, K=$50,
+// r=5% p.a. (continuously compounded), sigma=20% p.a., T=20 weeks=20/52 years, no dividend.
+// Book values: delta ~= 0.522, gamma ~= 0.066, theta ~= -4.31/year, vega ~= 12.1, rho ~= 8.91.
+describe("bsmGreeksRaw (Hull ch. 19, S0=49, K=50, r=5%, sigma=20%, T=20/52)", () => {
+  const ch19S = 49;
+  const ch19K = 50;
+  const ch19R = 0.05;
+  const ch19Q = 0;
+  const ch19Sigma = 0.2;
+  const ch19T = 20 / 52;
+
+  it("computes call delta near Hull's 0.522", () => {
+    const greeks = bsmGreeksRaw({
+      s: ch19S,
+      k: ch19K,
+      t: ch19T,
+      r: ch19R,
+      q: ch19Q,
+      sigma: ch19Sigma,
+      right: "call",
+    });
+    expect(greeks.delta).toBeCloseTo(0.522, 2);
+  });
+
+  it("computes gamma near Hull's 0.066", () => {
+    const greeks = bsmGreeksRaw({
+      s: ch19S,
+      k: ch19K,
+      t: ch19T,
+      r: ch19R,
+      q: ch19Q,
+      sigma: ch19Sigma,
+      right: "call",
+    });
+    expect(greeks.gamma).toBeCloseTo(0.066, 2);
+  });
+
+  it("computes call theta near Hull's -4.31 per year", () => {
+    const greeks = bsmGreeksRaw({
+      s: ch19S,
+      k: ch19K,
+      t: ch19T,
+      r: ch19R,
+      q: ch19Q,
+      sigma: ch19Sigma,
+      right: "call",
+    });
+    expect(greeks.theta).toBeCloseTo(-4.31, 1);
+  });
+
+  it("computes vega near Hull's 12.1", () => {
+    const greeks = bsmGreeksRaw({
+      s: ch19S,
+      k: ch19K,
+      t: ch19T,
+      r: ch19R,
+      q: ch19Q,
+      sigma: ch19Sigma,
+      right: "call",
+    });
+    expect(greeks.vega).toBeCloseTo(12.1, 0);
+  });
+
+  it("computes call rho near Hull's 8.91", () => {
+    const greeks = bsmGreeksRaw({
+      s: ch19S,
+      k: ch19K,
+      t: ch19T,
+      r: ch19R,
+      q: ch19Q,
+      sigma: ch19Sigma,
+      right: "call",
+    });
+    expect(greeks.rho).toBeCloseTo(8.91, 0);
   });
 });
 
