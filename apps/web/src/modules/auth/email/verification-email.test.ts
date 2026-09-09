@@ -14,4 +14,10 @@ describe("buildVerificationEmail", () => {
     expect(email.html).not.toContain("<script>");
     expect(email.html).toContain("&lt;script&gt;");
   });
+
+  it("tells the recipient to ignore the email if they didn't create the account", () => {
+    const email = buildVerificationEmail("Nova User", "https://fetha.app/verify?token=abc");
+    expect(email.text).toContain("Se você não criou esta conta, ignore este e-mail.");
+    expect(email.html).toContain("Se você não criou esta conta, ignore este e-mail.");
+  });
 });
