@@ -1,14 +1,16 @@
-import { desc, eq } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
-import { mailOutbox } from "@/db/schema/mail-outbox";
 import { isProductionDeployment, readE2ESecret } from "@/modules/auth/env";
+import { findLatestVerificationLink } from "@/modules/auth/verification-link";
 
-const URL_PATTERN = /https?:\/\/\S+/;
-
-function extractLink(text: string): string | undefined {
-  return URL_PATTERN.exec(text)?.[0];
+function timingSafeEqualStrings(provided: string, configured: string): boolean {
+  if (provided.length !== configured.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(configured));
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -17,7 +19,8 @@ export async function GET(request: Request): Promise<Response> {
     return new NextResponse(null, { status: 404 });
   }
 
-  if (request.headers.get("x-e2e-secret") !== configuredSecret) {
+  const providedSecret = request.headers.get("x-e2e-secret") ?? "";
+  if (!timingSafeEqualStrings(providedSecret, configuredSecret)) {
     return new NextResponse(null, { status: 404 });
   }
 
@@ -26,18 +29,7 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "email is required" }, { status: 400 });
   }
 
-  const [row] = await getDb()
-    .select()
-    .from(mailOutbox)
-    .where(eq(mailOutbox.to, email))
-    .orderBy(desc(mailOutbox.sentAt))
-    .limit(1);
-
-  if (!row) {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  const link = extractLink(row.text);
+  const link = await findLatestVerificationLink(getDb(), email);
   if (!link) {
     return new NextResponse(null, { status: 404 });
   }

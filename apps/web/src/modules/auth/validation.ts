@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-const emailField = z
-  .string()
-  .transform((value) => value.trim().toLowerCase())
-  .pipe(z.email());
+import { normalizeEmail } from "./normalize-email";
+
+const emailField = z.string().transform(normalizeEmail).pipe(z.email());
 
 export const signUpFormSchema = z.object({
   name: z.string().trim().min(1).max(120),

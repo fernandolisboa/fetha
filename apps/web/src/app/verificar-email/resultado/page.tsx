@@ -16,8 +16,11 @@ export default async function VerificationResultPage({
   return (
     <AuthShell title={error ? copy.errorTitle : copy.successTitle}>
       <p className="text-sm">{error ? copy.errorBody : copy.successBody}</p>
-      <Link href="/entrar" className="mt-4 inline-block text-sm underline underline-offset-4">
-        {copy.signInLink}
+      <Link
+        href={error ? "/verificar-email" : "/entrar"}
+        className="mt-4 inline-block text-sm underline underline-offset-4"
+      >
+        {error ? copy.resendLink : copy.signInLink}
       </Link>
     </AuthShell>
   );

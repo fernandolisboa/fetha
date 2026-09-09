@@ -2,43 +2,84 @@ import type { BetterAuthOptions } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { z } from "zod";
 
 import type { Database } from "@/db/client";
 import { registrationMode } from "@/lib/env";
 
 import { buildVerificationEmail } from "./email/verification-email";
 import { getMailer } from "./email/select";
-import { readAuthBaseUrl, type AuthEnv } from "./env";
+import type { Mailer } from "./email/mailer";
+import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
 import { consumePendingInvite, hasPendingInvite } from "./invite-repository";
+import { normalizeEmail } from "./normalize-email";
 import { evaluateRegistrationMode } from "./registration-policy";
-import { TermsAcceptanceRepository } from "./terms-acceptance-repository";
+import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 
-function readTermsAccepted(body: unknown): boolean {
-  if (typeof body !== "object" || body === null) {
-    return false;
+const signUpEmailBodySchema = z.object({
+  email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
+  termsAccepted: z.boolean().optional(),
+});
+
+function readSignUpEmailBody(body: unknown): { email?: string; termsAccepted: boolean } {
+  const parsed = signUpEmailBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return { termsAccepted: false };
   }
-  return (body as Record<string, unknown>).termsAccepted === true;
+  return {
+    email: parsed.data.email,
+    termsAccepted: parsed.data.termsAccepted === true,
+  };
 }
 
-function readEmail(body: unknown): string | undefined {
-  if (typeof body !== "object" || body === null) {
-    return undefined;
-  }
-  const value = (body as Record<string, unknown>).email;
-  return typeof value === "string" ? value : undefined;
+// Terms acceptance is atomic with the user INSERT: this data is merged into
+// the same create statement Better Auth issues, so a user row can never
+// exist with a null termsVersion (docs/adr/0016).
+export function buildUserCreateOverrides(
+  user: { email: string },
+  termsAcceptedAt: Date = new Date(),
+): { termsVersion: string; termsAcceptedAt: Date; email: string } {
+  return {
+    termsVersion: CURRENT_TERMS_VERSION,
+    termsAcceptedAt,
+    email: normalizeEmail(user.email),
+  };
 }
 
-export function buildAuthOptions(db: Database, env: AuthEnv = process.env) {
+export function buildAuthOptions(
+  db: Database,
+  env: AuthEnv = process.env,
+  mailer: Mailer = getMailer(env),
+) {
   const baseURL = readAuthBaseUrl(env);
 
   return {
     database: drizzleAdapter(db, { provider: "pg" }),
     secret: env.BETTER_AUTH_SECRET,
     baseURL,
-    trustedOrigins: [baseURL],
+    trustedOrigins: (request) => {
+      if (isProductionDeployment(env) || !request) {
+        return [baseURL];
+      }
+      return [baseURL, new URL(request.url).origin];
+    },
+    user: {
+      additionalFields: {
+        termsVersion: {
+          type: "string",
+          required: true,
+          input: false,
+        },
+        termsAcceptedAt: {
+          type: "date",
+          required: true,
+          input: false,
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -49,14 +90,23 @@ export function buildAuthOptions(db: Database, env: AuthEnv = process.env) {
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user, url }) => {
         const email = buildVerificationEmail(user.name, url);
-        await getMailer(env).send({ to: user.email, ...email });
+        await mailer.send({ to: user.email, ...email });
       },
     },
     databaseHooks: {
       user: {
         create: {
+          before: (user: { email: string }) => {
+            return Promise.resolve({ data: buildUserCreateOverrides(user) });
+          },
           after: async (createdUser) => {
-            await new TermsAcceptanceRepository(db, createdUser.id).record(CURRENT_TERMS_VERSION);
+            const termsAcceptedAt = createdUser.termsAcceptedAt;
+            await recordTermsAcceptanceHistory(db, {
+              id: createdUser.id,
+              name: createdUser.name,
+              email: createdUser.email,
+              termsAcceptedAt: termsAcceptedAt instanceof Date ? termsAcceptedAt : new Date(),
+            });
             await consumePendingInvite(db, createdUser.email, createdUser.id);
           },
         },
@@ -68,11 +118,12 @@ export function buildAuthOptions(db: Database, env: AuthEnv = process.env) {
           return;
         }
 
-        if (!readTermsAccepted(ctx.body)) {
+        const { email, termsAccepted } = readSignUpEmailBody(ctx.body);
+
+        if (!termsAccepted) {
           throw new APIError("BAD_REQUEST", { message: "terms_not_accepted" });
         }
 
-        const email = readEmail(ctx.body);
         const mode = registrationMode();
         const pendingInvite =
           mode === "invite" && email ? await hasPendingInvite(db, email) : false;

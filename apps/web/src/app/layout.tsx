@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { Toaster } from "@/components/ui/sonner";
-
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">
-        {children}
-        <Toaster />
-      </body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

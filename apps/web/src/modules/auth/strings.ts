@@ -30,9 +30,9 @@ const en = {
     successTitle: "Email confirmed",
     successBody: "Your email is confirmed. You can sign in now.",
     errorTitle: "We couldn't confirm your email",
-    errorBody:
-      "This confirmation link is invalid or has expired. Request a new one from the sign-in page.",
+    errorBody: "This confirmation link is invalid or has expired. Request a new one below.",
     signInLink: "Go to sign-in",
+    resendLink: "Request a new confirmation link",
   },
   terms: {
     title: "Terms of use",
@@ -46,10 +46,11 @@ const en = {
     invalidInput: "Check the fields highlighted below.",
     termsRequired: "You must accept the terms of use and the privacy policy.",
     registrationClosed: "Registration is closed at the moment.",
-    inviteRequired: "Registration is invite-only at the moment; ask the owner for an invite.",
     signUpFailed: "We couldn't complete your registration. Try again.",
     invalidCredentials: "Incorrect email or password.",
     emailNotVerified: "Confirm your email before signing in.",
+    rateLimited: "Too many attempts. Wait a moment and try again.",
+    signInFailed: "We couldn't sign you in. Try again.",
     resendFailed: "We couldn't resend the email. Try again.",
   },
   verificationEmail: {
@@ -92,8 +93,9 @@ const ptBR = {
     successTitle: "E-mail confirmado",
     successBody: "Seu e-mail foi confirmado. Você já pode entrar.",
     errorTitle: "Não foi possível confirmar seu e-mail",
-    errorBody: "Esse link de confirmação é inválido ou expirou. Peça um novo na tela de entrada.",
+    errorBody: "Esse link de confirmação é inválido ou expirou. Peça um novo abaixo.",
     signInLink: "Ir para a tela de entrada",
+    resendLink: "Pedir um novo link de confirmação",
   },
   terms: {
     title: "Termos de uso",
@@ -107,10 +109,11 @@ const ptBR = {
     invalidInput: "Confira os campos destacados abaixo.",
     termsRequired: "Você precisa aceitar os termos de uso e a política de privacidade.",
     registrationClosed: "O cadastro está fechado no momento.",
-    inviteRequired: "O cadastro é só por convite no momento; peça um convite ao responsável.",
     signUpFailed: "Não foi possível concluir seu cadastro. Tente novamente.",
     invalidCredentials: "E-mail ou senha incorretos.",
     emailNotVerified: "Confirme seu e-mail antes de entrar.",
+    rateLimited: "Muitas tentativas seguidas. Aguarde um instante e tente de novo.",
+    signInFailed: "Não foi possível entrar. Tente novamente.",
     resendFailed: "Não foi possível reenviar o e-mail. Tente novamente.",
   },
   verificationEmail: {

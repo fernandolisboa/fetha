@@ -1,6 +1,11 @@
 import { getAuth } from "./auth";
 import { readAuthBaseUrl } from "./env";
 
+// One calling convention throughout this module: every Better Auth call
+// goes through the HTTP handler (not `auth.api.*`), because every outcome
+// here is derived from a real HTTP status code and JSON error `code`
+// (invalid credentials, unverified email, rate limiting); `auth.api.*` only
+// throws APIError on failure, which would need its own separate mapping.
 const AUTH_BASE_PATH = "/api/auth";
 
 function logAuthHandlerError(error: unknown): void {
@@ -43,10 +48,9 @@ export interface SignUpInput {
 }
 
 export type SignUpOutcome =
-  | { status: "ok"; userId: string }
+  | { status: "ok"; userId?: string }
   | { status: "terms_not_accepted" }
   | { status: "registration_closed" }
-  | { status: "invite_required" }
   | { status: "sign_up_failed" };
 
 export async function signUp(input: SignUpInput, requestHeaders: Headers): Promise<SignUpOutcome> {
@@ -71,11 +75,13 @@ export async function signUp(input: SignUpInput, requestHeaders: Headers): Promi
     if (body?.message === "registration_closed") {
       return { status: "registration_closed" };
     }
-    if (body?.message === "invite_required") {
-      return { status: "invite_required" };
-    }
     if (body?.message === "terms_not_accepted") {
       return { status: "terms_not_accepted" };
+    }
+    if (body?.message === "invite_required") {
+      // No enumeration (docs/adr/0016): an email with no pending invite
+      // gets the exact same outward response as a real sign-up.
+      return { status: "ok" };
     }
     return { status: "sign_up_failed" };
   }
@@ -96,6 +102,7 @@ export type SignInOutcome =
   | { status: "ok" }
   | { status: "invalid_credentials" }
   | { status: "email_not_verified" }
+  | { status: "rate_limited" }
   | { status: "failed" };
 
 export async function signIn(input: SignInInput, requestHeaders: Headers): Promise<SignInOutcome> {
@@ -105,11 +112,22 @@ export async function signIn(input: SignInInput, requestHeaders: Headers): Promi
     return { status: "failed" };
   }
 
-  if (!response.ok) {
-    return { status: response.status === 403 ? "email_not_verified" : "invalid_credentials" };
+  if (response.ok) {
+    return { status: "ok" };
   }
 
-  return { status: "ok" };
+  if (response.status === 429) {
+    return { status: "rate_limited" };
+  }
+
+  const body = await readJson<{ code?: string }>(response);
+  if (body?.code === "EMAIL_NOT_VERIFIED") {
+    return { status: "email_not_verified" };
+  }
+  if (response.status >= 400 && response.status < 500) {
+    return { status: "invalid_credentials" };
+  }
+  return { status: "failed" };
 }
 
 export type ResendVerificationOutcome = { status: "ok" } | { status: "failed" };
@@ -132,5 +150,5 @@ export async function resendVerification(
 }
 
 export async function signOut(requestHeaders: Headers): Promise<void> {
-  await getAuth().api.signOut({ headers: requestHeaders });
+  await callAuthHandler("/sign-out", {}, requestHeaders);
 }

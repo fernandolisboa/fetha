@@ -13,12 +13,10 @@ export default async function VerifyEmailPage({
 
   return (
     <AuthShell title={t.verifyEmail.title}>
-      <p className="text-sm">{t.verifyEmail.body.replace("{email}", email ?? "")}</p>
-      {email ? (
-        <div className="mt-4">
-          <ResendVerificationForm email={email} />
-        </div>
-      ) : null}
+      {email ? <p className="text-sm">{t.verifyEmail.body.replace("{email}", email)}</p> : null}
+      <div className="mt-4">
+        <ResendVerificationForm email={email} />
+      </div>
     </AuthShell>
   );
 }

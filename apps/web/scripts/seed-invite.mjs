@@ -1,8 +1,9 @@
 // Run by hand, locally, with DATABASE_URL pointed at the target database:
 //   DATABASE_URL=... node scripts/seed-invite.mjs owner@example.com
 // This is how the first invite (the owner's own) gets into a fresh database,
-// since the protected `createInvite` server action requires an existing
-// session and nobody can sign up in `invite` mode without one.
+// since sign-up in `invite` mode requires an existing invite. Mirrors
+// src/modules/auth/invite-repository.ts's createInvite: idempotent, and
+// honest about whether it created, reopened or left the invite untouched.
 import { neon } from "@neondatabase/serverless";
 
 const email = process.argv[2];
@@ -17,10 +18,29 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+const normalized = email.trim().toLowerCase();
 const sql = neon(databaseUrl);
-await sql`
-  insert into invites (id, email)
-  values (gen_random_uuid()::text, ${email.trim().toLowerCase()})
-  on conflict (email) do nothing
-`;
-console.log(`Invite seeded for ${email}.`);
+
+const [existing] = await sql`select consumed_at from invites where email = ${normalized}`;
+
+let outcome;
+if (!existing) {
+  await sql`insert into invites (id, email) values (gen_random_uuid()::text, ${normalized})`;
+  outcome = "created";
+} else if (existing.consumed_at === null) {
+  outcome = "already_pending";
+} else {
+  await sql`
+    update invites
+    set consumed_at = null, consumed_by_user_id = null
+    where email = ${normalized}
+  `;
+  outcome = "reopened";
+}
+
+const messages = {
+  created: `Invite created for ${normalized}.`,
+  already_pending: `Invite for ${normalized} was already pending; nothing changed.`,
+  reopened: `Invite for ${normalized} had been consumed; reopened it.`,
+};
+console.log(messages[outcome]);

@@ -1,14 +1,14 @@
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import { session, user } from "@/db/schema/auth";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
-import { mailOutbox } from "@/db/schema/mail-outbox";
 import { invites } from "@/db/schema/invites";
 
 import { getAuth } from "./auth";
 import { resendVerification, signIn, signOut, signUp } from "./service";
+import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
@@ -18,20 +18,11 @@ function uniqueEmail(label: string): string {
 }
 
 async function extractVerificationToken(email: string): Promise<string> {
-  const [row] = await getDb()
-    .select()
-    .from(mailOutbox)
-    .where(eq(mailOutbox.to, email))
-    .orderBy(desc(mailOutbox.sentAt))
-    .limit(1);
-  if (!row) {
+  const link = await findLatestVerificationLink(getDb(), email);
+  if (!link) {
     throw new Error(`no email was captured for ${email}`);
   }
-  const match = /https?:\/\/\S+/.exec(row.text);
-  if (!match) {
-    throw new Error("verification email did not contain a link");
-  }
-  const token = new URL(match[0]).searchParams.get("token");
+  const token = new URL(link).searchParams.get("token");
   if (!token) {
     throw new Error("verification link did not contain a token");
   }
@@ -61,6 +52,22 @@ afterEach(async () => {
 });
 
 describe("registration, verification, login, logout and session expiry", () => {
+  it("refuses a user row with no termsVersion at the database level", async () => {
+    const email = uniqueEmail("no-terms-column");
+    createdEmails.push(email);
+
+    await expect(
+      getDb()
+        .insert(user)
+        .values({
+          id: crypto.randomUUID(),
+          name: "No Terms Column",
+          email,
+          emailVerified: true,
+        } as unknown as typeof user.$inferInsert),
+    ).rejects.toThrow();
+  });
+
   it("registers, verifies and signs in in open mode", async () => {
     const email = uniqueEmail("open");
     createdEmails.push(email);
@@ -92,7 +99,7 @@ describe("registration, verification, login, logout and session expiry", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("refuses registration in invite mode without a pending invite", async () => {
+  it("returns the same generic outcome for a non-invited email in invite mode, creating no user", async () => {
     process.env.REGISTRATION_MODE = "invite";
     const email = uniqueEmail("no-invite");
     createdEmails.push(email);
@@ -101,7 +108,10 @@ describe("registration, verification, login, logout and session expiry", () => {
       { name: "No Invite", email, password: "correct-horse-battery", termsAccepted: true },
       new Headers(),
     );
-    expect(outcome.status).toBe("invite_required");
+
+    expect(outcome.status).toBe("ok");
+    const rows = await getDb().select().from(user).where(eq(user.email, email));
+    expect(rows).toHaveLength(0);
   });
 
   it("registers in invite mode with a pending invite and consumes it", async () => {
@@ -119,6 +129,7 @@ describe("registration, verification, login, logout and session expiry", () => {
     expect(outcome.status).toBe("ok");
 
     const [invite] = await getDb().select().from(invites).where(eq(invites.email, email));
+    expect(invite).toBeDefined();
     expect(invite?.consumedAt).not.toBeNull();
   });
 
@@ -203,10 +214,11 @@ describe("registration, verification, login, logout and session expiry", () => {
     await signOut(headers);
 
     const [dbUser] = await getDb().select().from(user).where(eq(user.email, email));
-    if (dbUser) {
-      const rows = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
-      expect(rows).toHaveLength(0);
-    }
+    expect(dbUser).toBeDefined();
+    if (!dbUser) throw new Error("user row missing after sign-up");
+
+    const rows = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
+    expect(rows).toHaveLength(0);
   });
 
   it("treats an expired session as unauthenticated", async () => {

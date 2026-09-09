@@ -11,15 +11,22 @@ function uniqueEmail(label: string): string {
   return `fetha-terms-${label}-${crypto.randomUUID()}@example.com`;
 }
 
-async function insertBareUser(email: string): Promise<string> {
+async function insertBareUser(email: string): Promise<{ id: string; name: string; email: string }> {
   const [row] = await getDb()
     .insert(user)
-    .values({ id: crypto.randomUUID(), name: "Test User", email, emailVerified: true })
-    .returning({ id: user.id });
+    .values({
+      id: crypto.randomUUID(),
+      name: "Test User",
+      email,
+      emailVerified: true,
+      termsVersion: "2026-09-09",
+      termsAcceptedAt: new Date(),
+    })
+    .returning({ id: user.id, name: user.name, email: user.email });
   if (!row) {
     throw new Error("failed to insert test user");
   }
-  return row.id;
+  return row;
 }
 
 const createdEmails: string[] = [];
@@ -38,17 +45,17 @@ describe("TermsAcceptanceRepository isolation", () => {
     const emailB = uniqueEmail("b");
     createdEmails.push(emailA, emailB);
 
-    const userAId = await insertBareUser(emailA);
-    const userBId = await insertBareUser(emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
 
-    await new TermsAcceptanceRepository(db, userAId).record("2026-09-09");
+    await new TermsAcceptanceRepository(db, userA).record("2026-09-09");
 
-    const repositoryForB = new TermsAcceptanceRepository(db, userBId);
+    const repositoryForB = new TermsAcceptanceRepository(db, userB);
     const bAcceptance = await repositoryForB.findLatest();
 
     expect(bAcceptance).toBeUndefined();
 
-    const repositoryForA = new TermsAcceptanceRepository(db, userAId);
+    const repositoryForA = new TermsAcceptanceRepository(db, userA);
     const aAcceptance = await repositoryForA.findLatest();
     expect(aAcceptance?.termsVersion).toBe("2026-09-09");
   });
@@ -57,15 +64,15 @@ describe("TermsAcceptanceRepository isolation", () => {
     const db = getDb();
     const email = uniqueEmail("record");
     createdEmails.push(email);
-    const userId = await insertBareUser(email);
+    const testUser = await insertBareUser(email);
     const acceptedAt = new Date("2026-09-09T12:00:00.000Z");
 
-    await new TermsAcceptanceRepository(db, userId).record("2026-09-09", acceptedAt);
+    await new TermsAcceptanceRepository(db, testUser).record("2026-09-09", acceptedAt);
 
-    const [row] = await db.select().from(user).where(eq(user.id, userId));
+    const [row] = await db.select().from(user).where(eq(user.id, testUser.id));
     expect(row).toBeDefined();
 
-    const acceptance = await new TermsAcceptanceRepository(db, userId).findLatest();
+    const acceptance = await new TermsAcceptanceRepository(db, testUser).findLatest();
     expect(acceptance?.termsVersion).toBe("2026-09-09");
     expect(acceptance?.acceptedAt.toISOString()).toBe(acceptedAt.toISOString());
   });

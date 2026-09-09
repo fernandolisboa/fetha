@@ -1,7 +1,3 @@
-import { toNextJsHandler } from "better-auth/next-js";
+import { authRouteHandlers } from "@/modules/auth";
 
-import { getAuth } from "@/modules/auth/auth";
-
-export const { GET, POST, PATCH, PUT, DELETE } = toNextJsHandler((request: Request) =>
-  getAuth().handler(request),
-);
+export const { GET, POST, PATCH, PUT, DELETE } = authRouteHandlers;

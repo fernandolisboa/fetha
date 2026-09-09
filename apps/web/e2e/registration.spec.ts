@@ -8,7 +8,7 @@ const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the registration flow against a preview.");
 
-test("registration, email verification and login", async ({ page, baseURL, request }) => {
+test("registration, email verification, login and logout", async ({ page, baseURL, request }) => {
   const email = `fetha-e2e-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
@@ -38,4 +38,9 @@ test("registration, email verification and login", async ({ page, baseURL, reque
   await page.getByRole("button", { name: "Entrar" }).click();
 
   await expect(page).toHaveURL(baseURL ?? "/");
+  await expect(page.getByText(email)).toBeVisible();
+
+  await page.getByRole("button", { name: "Sair" }).click();
+
+  await expect(page).toHaveURL(/\/entrar/);
 });

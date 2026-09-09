@@ -3,10 +3,17 @@ export interface AuthEnv {
   VERCEL_URL?: string;
   VERCEL_ENV?: string;
   E2E_SECRET?: string;
+  MAILER?: string;
+  DATABASE_URL?: string;
   [key: string]: string | undefined;
 }
 
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
+
+// fetha-preview and CI never carry a database host that could be mistaken
+// for production; this marker mirrors the one the reset guard refuses to
+// touch (apps/web/scripts/lib/reset-guard.mjs).
+const PRODUCTION_DATABASE_HOST_MARKER = "fetha-production";
 
 function readOptionalEnvValue(env: AuthEnv, key: string): string | undefined {
   const raw = env[key];
@@ -34,4 +41,16 @@ export function isProductionDeployment(env: AuthEnv = process.env): boolean {
 
 export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
+}
+
+export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
+  const databaseUrl = readOptionalEnvValue(env, "DATABASE_URL");
+  if (!databaseUrl) {
+    return false;
+  }
+  try {
+    return new URL(databaseUrl).hostname.includes(PRODUCTION_DATABASE_HOST_MARKER);
+  } catch {
+    return false;
+  }
 }
