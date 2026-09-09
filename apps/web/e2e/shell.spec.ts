@@ -25,7 +25,9 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", "terminal");
 
   await page.getByRole("button", { name: "Menu da conta" }).click();
-  await page.getByRole("link", { name: "Configurações" }).click();
+  // Scoped to the open menu: the rail's own "Configurações" destination
+  // link shares the same accessible name and would otherwise match first.
+  await page.getByRole("menu").getByRole("link", { name: "Configurações" }).click();
   await expect(page).toHaveURL(/\/configuracoes/);
 
   await page.getByRole("radio", { name: /Terminal/ }).click();

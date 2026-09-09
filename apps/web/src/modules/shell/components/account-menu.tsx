@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuLinkItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -28,18 +29,9 @@ export function AccountMenu({ email }: { email: string }) {
           {email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {/* A plain next/link, not a Base UI Menu item: MenuPrimitive.Item
-            and MenuPrimitive.LinkItem both leave the popup's dismiss layer
-            mounted after this link navigates, intercepting the triggering
-            click and every click after (confirmed against a Vercel
-            preview). SignOutButton below is the same shape: a plain form
-            child, not a menu item, for the same reason. */}
-        <Link
-          href="/configuracoes"
-          className="hover:bg-secondary rounded-[var(--radius)] px-1.5 py-1 text-sm"
-        >
+        <DropdownMenuLinkItem render={<Link href="/configuracoes" />} className="px-0">
           {t.destinations.settings}
-        </Link>
+        </DropdownMenuLinkItem>
         <DropdownMenuSeparator />
         <SignOutButton />
       </DropdownMenuContent>
