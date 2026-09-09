@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { readLatestLink } from "./support";
+
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
 // Requires REGISTRATION_MODE=open on that deployment (or a matching invite),
@@ -8,21 +10,6 @@ import { expect, test } from "@playwright/test";
 const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the password reset flow against a preview.");
-
-async function readLatestLink(
-  request: import("@playwright/test").APIRequestContext,
-  baseURL: string | undefined,
-  email: string,
-  secret: string,
-): Promise<string> {
-  const linkResponse = await request.get(
-    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
-    { headers: { "x-e2e-secret": secret } },
-  );
-  expect(linkResponse.ok()).toBe(true);
-  const { link } = (await linkResponse.json()) as { link: string };
-  return link;
-}
 
 test("password reset lets the user sign in with a new password", async ({
   page,

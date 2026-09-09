@@ -1,6 +1,8 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
+import { readLatestLink } from "./support";
+
 const password = "correct-horse-battery-staple";
 
 export async function registerAndSignIn(
@@ -21,12 +23,7 @@ export async function registerAndSignIn(
 
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
 
-  const linkResponse = await request.get(
-    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
-    { headers: { "x-e2e-secret": secret } },
-  );
-  expect(linkResponse.ok()).toBe(true);
-  const { link } = (await linkResponse.json()) as { link: string };
+  const link = await readLatestLink(request, baseURL, email, secret);
 
   await page.goto(link);
 
