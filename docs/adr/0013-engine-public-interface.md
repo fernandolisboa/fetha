@@ -1207,7 +1207,8 @@ The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonInteger
 legacy and outside this interface, existing only because the `apps/web` placeholder page rendered
 `formatBRL`. Issue #8 removed them from `packages/engine`; `apps/web` now formats currency with its
 own pt-BR formatter (`apps/web/src/lib/format/brl.ts`), and nothing outside this package may import
-money helpers from `@fetha/engine`.
+money helpers from `@fetha/engine`. Until the first computation lands (issue #14), `packages/engine`
+is a types-only package, so its coverage thresholds pass vacuously.
 
 ## Considered options
 

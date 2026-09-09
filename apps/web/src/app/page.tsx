@@ -1,8 +1,9 @@
+import { centavosSchema } from "@fetha/contracts";
 import { Button } from "@/components/ui/button";
 import { registrationMode } from "@/lib/env";
 import { formatBRL } from "@/lib/format/brl";
 
-const sampleCentavos = 123456;
+const sampleCentavos = centavosSchema.parse(123456);
 
 export default function Home() {
   const mode = registrationMode();

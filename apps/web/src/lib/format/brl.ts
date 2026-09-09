@@ -1,19 +1,8 @@
-export class NonIntegerCentavosError extends Error {
-  readonly centavos: number;
-
-  constructor(centavos: number) {
-    super(`BRL amounts must be an integer number of centavos, received ${String(centavos)}`);
-    this.name = "NonIntegerCentavosError";
-    this.centavos = centavos;
-  }
-}
+import type { Centavos } from "@fetha/contracts";
 
 const MINUS_SIGN = "−";
 
-export function formatBRL(centavos: number): string {
-  if (!Number.isInteger(centavos)) {
-    throw new NonIntegerCentavosError(centavos);
-  }
+export function formatBRL(centavos: Centavos): string {
   const isNegative = centavos < 0;
   const absoluteCentavos = Math.abs(centavos);
   const reais = Math.floor(absoluteCentavos / 100);

@@ -117,6 +117,10 @@ describe("centavosSchema", () => {
     expect(centavosSchema.safeParse("100").success).toBe(false);
   });
 
+  it("rejects integers outside the safe integer range", () => {
+    expect(centavosSchema.safeParse(2 ** 53 + 2).success).toBe(false);
+  });
+
   it("brands the parsed value so a plain number does not type-check as money", () => {
     expectTypeOf<number>().not.toExtend<Centavos>();
     expectTypeOf<Centavos>().not.toExtend<Quantity>();
