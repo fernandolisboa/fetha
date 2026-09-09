@@ -5,10 +5,15 @@ import { getAuth } from "./auth";
 import { readAuthBaseUrl } from "./env";
 
 // One calling convention throughout this module: every Better Auth call
-// goes through the HTTP handler (not `auth.api.*`), because every outcome
-// here is derived from a real HTTP status code and JSON error `code`
-// (invalid credentials, unverified email, rate limiting); `auth.api.*` only
-// throws APIError on failure, which would need its own separate mapping.
+// goes through the HTTP handler (not `auth.api.*`), because the rate
+// limiter runs only inside the router's onRequest hook, which `auth.handler()`
+// triggers and `auth.api.*` bypasses entirely — calling `auth.api.*` here
+// would silently exempt that call from rate limiting. The handler path is
+// required both for the 429 -> rate_limited mapping (every outcome here is
+// derived from a real HTTP status code and JSON error `code` — invalid
+// credentials, unverified email, rate limiting; `auth.api.*` only throws
+// APIError on failure, which would need its own separate mapping) and for
+// ticket #10, which turns rate limiting on (docs/adr/0016).
 const AUTH_BASE_PATH = "/api/auth";
 
 function logAuthHandlerError(error: unknown): void {
