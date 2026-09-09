@@ -1265,6 +1265,11 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       throw new Error("expected a complete run");
     const equityAfterEntry = result.value.run.equityCurve.find((p) => p.session === "2024-01-03");
     expect(equityAfterEntry?.equity).toBeLessThan(0);
+    expect(equityAfterEntry?.cash).toBeLessThan(0);
+    expect(result.value.run.notes).toContainEqual({
+      code: "negative_cash",
+      message: "cash went below zero during the run; v1 has no cash constraint",
+    });
   });
 });
 

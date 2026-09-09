@@ -141,7 +141,8 @@ export type NoteCode =
   | "unbounded_max_loss"
   | "zero_max_loss"
   | "iv_index_not_bracketed"
-  | "risk_free_rate_defaulted";
+  | "risk_free_rate_defaulted"
+  | "negative_cash";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -162,6 +163,7 @@ export const noteCodes = [
   "zero_max_loss",
   "iv_index_not_bracketed",
   "risk_free_rate_defaulted",
+  "negative_cash",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1541,6 +1543,12 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   session follows it in the run, gap or not — so a month transition never finds one still
   pending, real ANBIMA calendar or a synthetic gap alike; `run-backtest.ts` asserts this as an
   invariant rather than guarding it defensively.
+- **v1 has no cash constraint.** Sizing already keeps an entry inside the run's current equity,
+  but costs, slippage and taxes are charged on top of it and can still push `cash` below zero
+  (a large fixed brokerage fee against a small position, for instance). A run does not refuse or
+  clamp this; it is recorded once, additively, as note `negative_cash` on the run
+  ("cash went below zero during the run; v1 has no cash constraint") when any `EquityPoint.cash`
+  in the run is negative. A margin or buying-power constraint is a future ticket, not a #16 gap.
 
 ## Considered options
 

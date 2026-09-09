@@ -256,6 +256,7 @@ describe("closed vocabularies", () => {
       "zero_max_loss",
       "iv_index_not_bracketed",
       "risk_free_rate_defaulted",
+      "negative_cash",
     ]);
   });
 

@@ -84,7 +84,8 @@ export type NoteCode =
   | "unbounded_max_loss"
   | "zero_max_loss"
   | "iv_index_not_bracketed"
-  | "risk_free_rate_defaulted";
+  | "risk_free_rate_defaulted"
+  | "negative_cash";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -105,6 +106,7 @@ export const noteCodes = [
   "zero_max_loss",
   "iv_index_not_bracketed",
   "risk_free_rate_defaulted",
+  "negative_cash",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };

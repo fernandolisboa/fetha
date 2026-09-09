@@ -730,6 +730,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   const { metrics, notes: metricsNotes } = computeBacktestMetrics(
     buildMetricsInput(state, config.initialCapital),
   );
+  const notes = [...metricsNotes];
+  if (state.equityCurve.some((p) => p.cash < 0)) {
+    notes.push({
+      code: "negative_cash",
+      message: "cash went below zero during the run; v1 has no cash constraint",
+    });
+  }
 
   const truncated = batchTruncationReport({
     candles: view.candles,
@@ -752,7 +759,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     metrics,
     walkForward: config.walkForward ? computeWalkForward(state, config, periodSessions) : null,
     taxes: state.taxesFinalized,
-    notes: metricsNotes,
+    notes,
     provenance: {
       engineVersion: ENGINE_VERSION,
       pricingModel: "bsm_continuous_yield",
