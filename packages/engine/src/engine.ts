@@ -26,10 +26,14 @@ import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate
 import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
-import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
+import {
+  unsupportedAdjustmentRuleKinds,
+  unsupportedThesisClaimKinds,
+} from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
 const thesisClaimKind = unsupportedThesisClaimKinds[0];
+const adjustmentRuleKind = unsupportedAdjustmentRuleKinds[0];
 
 function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
   return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
@@ -68,11 +72,11 @@ export const engine: Engine = {
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
-    return unsupported("adjustmentRules", "mark_to_market");
+    return unsupported("adjustmentRules", adjustmentRuleKind);
   },
 
   proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return unsupported("adjustmentRules", "propose_settlement");
+    return unsupported("adjustmentRules", adjustmentRuleKind);
   },
 
   score(): Promise<Result<Score>> {

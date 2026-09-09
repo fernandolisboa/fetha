@@ -1474,9 +1474,8 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   interpolating linearly in total variance. `markToMarket` and `proposeSettlement` are still
   unimplemented, but no longer misreport `"pricingModels"` as the reason (BSM is implemented, by
   `priceOperation` and now `impliedVolatilityIndex`); they report `"adjustmentRules"` instead
-  (`capabilities().adjustmentRules` is genuinely empty) with a descriptive `kind`
-  (`mark_to_market`, `propose_settlement`) — `EngineError`'s `kind` is a plain `string`, not
-  constrained to the vocabulary's own members, so this does not misuse the type.
+  (`capabilities().adjustmentRules` is genuinely empty), with `unsupportedAdjustmentRuleKinds[0]`
+  as the `kind`, the same pattern `score()` already used for `thesisClaims`.
 - **A sizing preview values legs, not a whole operation.** `resolveSizingUnits` used to call
   the same `priceConcreteLegs` a real pricing pass calls, built a full `OperationPricing`
   around it with an empty, fabricated `Provenance`, and — because `priceConcreteLegs`

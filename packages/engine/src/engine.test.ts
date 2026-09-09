@@ -150,7 +150,7 @@ describe("engine", () => {
           operations: [],
           cash: centavos(0),
         } satisfies MarkToMarketInput),
-      { code: "unsupported", vocabulary: "adjustmentRules", kind: "mark_to_market" },
+      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
     ],
     [
       "proposeSettlement",
@@ -159,7 +159,7 @@ describe("engine", () => {
           view: emptyView,
           operation: stockOperation,
         } satisfies ProposeSettlementInput),
-      { code: "unsupported", vocabulary: "adjustmentRules", kind: "propose_settlement" },
+      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
     ],
     [
       "score",
