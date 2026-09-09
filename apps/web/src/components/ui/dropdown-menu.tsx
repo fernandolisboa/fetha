@@ -101,34 +101,6 @@ function DropdownMenuItem({
   );
 }
 
-function DropdownMenuLinkItem({
-  className,
-  inset,
-  ...props
-}: MenuPrimitive.Item.Props & {
-  inset?: boolean;
-}) {
-  // MenuPrimitive.LinkItem's focus/dismiss wiring never settles when
-  // composed with next/link's render prop: the popup's full-viewport
-  // dismiss layer stays mounted and intercepts the very click that
-  // triggered the navigation, blocking every click after (confirmed
-  // against a Vercel preview, not just locally). MenuPrimitive.Item does
-  // not have this problem and the composition docs render it as an <a> the
-  // same way; closeOnClick defaults to true on Item, unlike LinkItem's
-  // false, so no override is needed here either.
-  return (
-    <MenuPrimitive.Item
-      data-slot="dropdown-menu-link-item"
-      data-inset={inset}
-      className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-inset:pl-7 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
 function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
   return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />;
 }
@@ -280,7 +252,6 @@ export {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuItem,
-  DropdownMenuLinkItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
