@@ -1520,8 +1520,11 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
 - **Daily-only in v1.** The "Fills" section describes both a daily and an intraday fill model, but
   intraday fills need option fair-value pricing (`fair_value`, ADR-0011/ADR-0014) that #21 has not
   landed yet, and stock-only intraday backtesting was not asked for by this ticket. `runBacktest`
-  refuses any `strategy.definition.timeframe !== "D1"` with `unsupported`, vocabulary
-  `"timeframes"`. Lifting this is additive (a new fill path, no signature change) once #21 lands.
+  refuses any `strategy.definition.timeframe !== "D1"` with `invalid_input` at
+  `config.strategy.definition.timeframe`, naming the v1 daily-only scope: the timeframe is a
+  scheduling restriction this ticket imposes, not a `kind` `capabilities()` reports as a vocabulary
+  member, so `unsupported` (reserved for a member `capabilities()` names and then refuses) is the
+  wrong code here. Lifting this is additive (a new fill path, no signature change) once #21 lands.
 - **Exit-fill retry has no cap, and a stranded entry retry is finalized at `period.to`.** These
   are permanent rules, not #16-scope stopgaps, so they are recorded in ADR-0014 as Q52 and Q53
   rather than here.
