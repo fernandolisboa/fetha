@@ -18,7 +18,6 @@ import { resolveTimeToExpiryYears } from "./time-to-expiry";
 import { latestVisible } from "./visible";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
-const SESSIONS_PER_YEAR = 252;
 const EMPTY_PROVENANCE: Pick<
   Provenance,
   "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
@@ -223,12 +222,15 @@ export function computeImpliedVolatilityIndex(
       },
     });
   }
-  const atIndex = calendar.indexOf(atSession);
-
   const targetDate = addCalendarDays(atSession.date, CALENDAR_DAYS_TO_TARGET);
   const targetSession = calendar.find((session) => session.date >= targetDate) ?? null;
   if (!targetSession) return notBracketed(underlying, atSession.date);
-  const t30 = (calendar.indexOf(targetSession) - atIndex) / SESSIONS_PER_YEAR;
+  // t30 must share the exact-tenor basis with every bracket below (resolveTimeToExpiryYears,
+  // which includes the intraday (1 - f) term): a whole-session count here bracketed the same
+  // view differently at the session's open than at its close (PR #53 round 3 item 2).
+  const t30Resolution = resolveTimeToExpiryYears(view.calendar, at, targetSession.date);
+  if (!t30Resolution.ok) return notBracketed(underlying, atSession.date);
+  const t30 = t30Resolution.years;
 
   const listedExpiries = [
     ...new Set(

@@ -161,6 +161,45 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.value.seriesUsed).toEqual(["PETR4C50"]);
   });
 
+  it("brackets the same listed expiry the same way whether evaluated at the session's open or its close", () => {
+    const expiry = sessionAt(30).date;
+    const trueSigma = 0.3;
+    const atOpen = sessionAt(0).open;
+    const price = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 31 / 252,
+      r: 0,
+      q: 0,
+      sigma: trueSigma,
+      right: "call",
+    });
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: atOpen, last: decimalString("50.00"), bid: null, ask: null },
+      ],
+      optionSeries: [{ ...callSeries("PETR4C50", "50.00", expiry), asOf: atOpen }],
+      optionPrices: [
+        {
+          ticker: "PETR4C50",
+          session: sessionAt(0).date,
+          asOf: atOpen,
+          average: null,
+          close: decimalString(price.toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", atOpen);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toEqual([]);
+    expect(result.value.impliedVolatility).not.toBeNull();
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+  });
+
   it("interpolates linearly in total variance between two bracketing expiries", () => {
     const expiryLower = sessionAt(20).date;
     const expiryUpper = sessionAt(40).date;
