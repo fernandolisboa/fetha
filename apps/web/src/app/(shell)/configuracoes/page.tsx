@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 
-import { getDb } from "@/db/client";
 import { requireUser, SignOutButton } from "@/modules/auth";
-import { PreferencesRepository, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
+import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { t } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}` };
 
 export default async function SettingsPage() {
-  const user = await requireUser();
-  const preferences = await new PreferencesRepository(getDb(), user).find();
+  await requireUser();
+  const preferences = await getPreferences();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">

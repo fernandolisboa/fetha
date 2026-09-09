@@ -10,7 +10,7 @@ export { SignInForm } from "./components/sign-in-form";
 export { SignOutButton } from "./components/sign-out-button";
 export { SignUpForm } from "./components/sign-up-form";
 export type { CurrentUser } from "./session";
-export { getSession, requireUser, UnauthenticatedError } from "./session";
+export { forCurrentUser, getSession, requireUser, UnauthenticatedError } from "./session";
 export { authStrings, t } from "./strings";
 export { TermsAcceptanceRepository, type TermsAcceptance } from "./terms-acceptance-repository";
 export { CURRENT_TERMS_VERSION } from "./terms";
