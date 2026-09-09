@@ -43,4 +43,18 @@ describe("Wilder RSI (New Concepts in Technical Trading Systems, 1978)", () => {
     const result = rsi(closes, 3);
     expect(result[3]?.toString()).toBe("100");
   });
+
+  it("matches the published RSI(14) reference series (StockCharts.org RSI ChartSchool example, also reproduced in anandanand84/technicalindicators test fixtures)", () => {
+    const closes = [
+      44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.1, 45.42, 45.84, 46.08, 45.89, 46.03, 45.61,
+      46.28, 46.28, 46.0, 46.03, 46.41, 46.22, 45.64, 46.21, 46.25, 45.71, 46.45, 45.78, 45.35,
+      44.03, 44.18, 44.22, 44.57, 43.42, 42.66, 43.13,
+    ].map((n) => new Decimal(n));
+    const result = rsi(closes, 14);
+    const toTwoDp = (v: Decimal | null | undefined): string | null =>
+      v ? v.toDecimalPlaces(2).toString() : null;
+    expect(toTwoDp(result[14])).toBe("70.46");
+    expect(toTwoDp(result[15])).toBe("66.25");
+    expect(toTwoDp(result[16])).toBe("66.48");
+  });
 });

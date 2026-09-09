@@ -66,4 +66,22 @@ describe("Wilder ATR (New Concepts in Technical Trading Systems, 1978)", () => {
       .div(length);
     expect(result[4]?.toString()).toBe(atr4.toString());
   });
+
+  it("matches the published ATR(14) reference series (StockCharts.org ATR ChartSchool example, also reproduced in anandanand84/technicalindicators test fixtures)", () => {
+    const high = [
+      48.7, 48.72, 48.9, 48.87, 48.82, 49.05, 49.2, 49.35, 49.92, 50.19, 50.12, 49.66, 49.88, 50.19,
+      50.36,
+    ];
+    const low = [
+      47.79, 48.14, 48.39, 48.37, 48.24, 48.64, 48.94, 48.86, 49.5, 49.87, 49.2, 48.9, 49.43, 49.73,
+      49.26,
+    ];
+    const close = [
+      48.16, 48.61, 48.75, 48.63, 48.74, 49.03, 49.07, 49.32, 49.91, 50.13, 49.53, 49.5, 49.75,
+      50.03, 50.31,
+    ];
+    const bars: Bar[] = high.map((h, i) => bar(h, low[i] as number, close[i] as number));
+    const result = atr(bars, 14);
+    expect(result[14]?.toDecimalPlaces(2).toString()).toBe("0.57");
+  });
 });
