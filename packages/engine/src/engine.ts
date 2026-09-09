@@ -1,6 +1,7 @@
 import type {
   BacktestProgress,
   Capabilities,
+  CapabilityVocabulary,
   DataWindow,
   DataWindowInput,
   Engine,
@@ -14,15 +15,18 @@ import type {
   Score,
   SettlementProposal,
 } from "./api";
+import { pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { computeIndicators } from "./internal/indicators-computation";
+import { unsupportedSizingRuleKinds, unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
-function notImplemented<T>(): Promise<Result<T>> {
-  return Promise.resolve({
-    ok: false,
-    error: { code: "invalid_input", path: "", message: "not implemented" },
-  });
+const pricingModelKind = pricingModels[0];
+const sizingRuleKind = unsupportedSizingRuleKinds[0];
+const thesisClaimKind = unsupportedThesisClaimKinds[0];
+
+function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
+  return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
 }
 
 export const engine: Engine = {
@@ -39,30 +43,30 @@ export const engine: Engine = {
   },
 
   priceOperation(): Promise<Result<OperationPricing>> {
-    return notImplemented();
+    return unsupported("pricingModels", pricingModelKind);
   },
 
   evaluateStrategy(): Promise<Result<Evaluation>> {
-    return notImplemented();
+    return unsupported("sizingRules", sizingRuleKind);
   },
 
   runBacktest(): Promise<Result<BacktestProgress>> {
-    return notImplemented();
+    return unsupported("sizingRules", sizingRuleKind);
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
-    return notImplemented();
+    return unsupported("pricingModels", pricingModelKind);
   },
 
   proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return notImplemented();
+    return unsupported("pricingModels", pricingModelKind);
   },
 
   score(): Promise<Result<Score>> {
-    return notImplemented();
+    return unsupported("thesisClaims", thesisClaimKind);
   },
 
   impliedVolatilityIndex(): Promise<Result<ImpliedVolatilityIndex>> {
-    return notImplemented();
+    return unsupported("pricingModels", pricingModelKind);
   },
 };
