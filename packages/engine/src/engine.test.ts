@@ -12,6 +12,7 @@ import type {
   ScoreInput,
   StrategyVersion,
 } from "./api";
+import { ENGINE_VERSION } from "./api";
 import { centavos, confidence, decimalString, quantity } from "./test/support";
 
 const emptyView: IndicatorsInput["view"] = {
@@ -254,6 +255,42 @@ describe("engine", () => {
     expect(result.value.notes).toContainEqual(
       expect.objectContaining({ code: "iv_index_not_bracketed" }),
     );
+    expect(result.value.provenance.engineVersion).toBe(ENGINE_VERSION);
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+    expect(result.value.provenance.dataVersion).toBeNull();
+    expect(result.value.provenance.datasetNotes).toEqual([]);
+  });
+
+  it("threads the view's dataVersion and datasetNotes into the implied-volatility index provenance", async () => {
+    const result = await engine.impliedVolatilityIndex({
+      view: {
+        ...emptyView,
+        dataVersion: "2024-01-01T00:00:00.000Z",
+        datasetNotes: ["b3-cotahist-2024"],
+        calendar: [
+          {
+            date: "2024-01-01",
+            open: "2024-01-01T13:00:00.000Z",
+            close: "2024-01-01T21:00:00.000Z",
+          },
+        ],
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-01T21:00:00.000Z",
+            last: decimalString("50.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      underlying: "PETR4",
+      at: "2024-01-01T21:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.provenance.dataVersion).toBe("2024-01-01T00:00:00.000Z");
+    expect(result.value.provenance.datasetNotes).toEqual(["b3-cotahist-2024"]);
   });
 
   it("evaluates a stock-only strategy, including fixed_risk sizing, end to end with no candles to evaluate", async () => {

@@ -82,6 +82,13 @@ export const engine: Engine = {
   impliedVolatilityIndex(
     input: ImpliedVolatilityIndexInput,
   ): Promise<Result<ImpliedVolatilityIndex>> {
-    return Promise.resolve(computeImpliedVolatilityIndex(input.view, input.underlying, input.at));
+    return Promise.resolve(
+      computeImpliedVolatilityIndex(input.view, input.underlying, input.at, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 };

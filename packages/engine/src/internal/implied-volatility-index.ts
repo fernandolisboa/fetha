@@ -18,15 +18,11 @@ import { resolveTimeToExpiryYears } from "./time-to-expiry";
 import { latestVisible } from "./visible";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
-const EMPTY_PROVENANCE: Pick<
+
+type ProvenanceBase = Pick<
   Provenance,
   "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-> = {
-  engineVersion: "",
-  pricingModel: "bsm_continuous_yield",
-  dataVersion: null,
-  datasetNotes: [],
-};
+>;
 
 function err(error: EngineError): Result<ImpliedVolatilityIndex> {
   return { ok: false, error };
@@ -148,7 +144,11 @@ function solveAtmVolatility(
   return { volatility, seriesUsed };
 }
 
-function notBracketed(underlying: Ticker, session: SessionDate): Result<ImpliedVolatilityIndex> {
+function notBracketed(
+  underlying: Ticker,
+  session: SessionDate,
+  provenanceBase: ProvenanceBase,
+): Result<ImpliedVolatilityIndex> {
   return {
     ok: true,
     value: {
@@ -163,7 +163,7 @@ function notBracketed(underlying: Ticker, session: SessionDate): Result<ImpliedV
           message: "fewer than two listed expiries bracket 30 calendar days ahead",
         },
       ],
-      provenance: { ...EMPTY_PROVENANCE, truncated: [] },
+      provenance: { ...provenanceBase, truncated: [] },
     },
   };
 }
@@ -173,6 +173,7 @@ function toResult(
   session: SessionDate,
   volatility: number,
   seriesUsed: Ticker[],
+  provenanceBase: ProvenanceBase,
 ): Result<ImpliedVolatilityIndex> {
   return {
     ok: true,
@@ -183,7 +184,7 @@ function toResult(
       method: "atm_30d_variance_interpolated",
       seriesUsed,
       notes: [],
-      provenance: { ...EMPTY_PROVENANCE, truncated: [] },
+      provenance: { ...provenanceBase, truncated: [] },
     },
   };
 }
@@ -195,6 +196,7 @@ export function computeImpliedVolatilityIndex(
   view: MarketView,
   underlying: Ticker,
   at: Instant,
+  provenanceBase: ProvenanceBase,
 ): Result<ImpliedVolatilityIndex> {
   const spotValue = resolveUnderlyingSpot(view, underlying, at);
   if (!spotValue) return err({ code: "missing_instrument", ticker: underlying });
@@ -224,12 +226,12 @@ export function computeImpliedVolatilityIndex(
   }
   const targetDate = addCalendarDays(atSession.date, CALENDAR_DAYS_TO_TARGET);
   const targetSession = calendar.find((session) => session.date >= targetDate) ?? null;
-  if (!targetSession) return notBracketed(underlying, atSession.date);
+  if (!targetSession) return notBracketed(underlying, atSession.date, provenanceBase);
   // t30 must share the exact-tenor basis with every bracket below (resolveTimeToExpiryYears,
   // which includes the intraday (1 - f) term): a whole-session count here bracketed the same
   // view differently at the session's open than at its close (PR #53 round 3 item 2).
   const t30Resolution = resolveTimeToExpiryYears(view.calendar, at, targetSession.date);
-  if (!t30Resolution.ok) return notBracketed(underlying, atSession.date);
+  if (!t30Resolution.ok) return notBracketed(underlying, atSession.date, provenanceBase);
   const t30 = t30Resolution.years;
 
   const listedExpiries = [
@@ -262,8 +264,14 @@ export function computeImpliedVolatilityIndex(
   const exact = brackets.find((b) => Math.abs(b.years - t30) < 1e-12);
   if (exact) {
     const solved = solve(exact);
-    if (!solved) return notBracketed(underlying, atSession.date);
-    return toResult(underlying, atSession.date, solved.volatility, solved.seriesUsed);
+    if (!solved) return notBracketed(underlying, atSession.date, provenanceBase);
+    return toResult(
+      underlying,
+      atSession.date,
+      solved.volatility,
+      solved.seriesUsed,
+      provenanceBase,
+    );
   }
 
   let lower: AtmBracket | null = null;
@@ -272,11 +280,11 @@ export function computeImpliedVolatilityIndex(
     if (bracket.years <= t30) lower = bracket;
     if (bracket.years > t30 && !upper) upper = bracket;
   }
-  if (!lower || !upper) return notBracketed(underlying, atSession.date);
+  if (!lower || !upper) return notBracketed(underlying, atSession.date, provenanceBase);
 
   const solvedLower = solve(lower);
   const solvedUpper = solve(upper);
-  if (!solvedLower || !solvedUpper) return notBracketed(underlying, atSession.date);
+  if (!solvedLower || !solvedUpper) return notBracketed(underlying, atSession.date, provenanceBase);
 
   const w = (upper.years - t30) / (upper.years - lower.years);
   const variance =
@@ -284,8 +292,11 @@ export function computeImpliedVolatilityIndex(
       (1 - w) * solvedUpper.volatility ** 2 * upper.years) /
     t30;
 
-  return toResult(underlying, atSession.date, Math.sqrt(variance), [
-    ...solvedLower.seriesUsed,
-    ...solvedUpper.seriesUsed,
-  ]);
+  return toResult(
+    underlying,
+    atSession.date,
+    Math.sqrt(variance),
+    [...solvedLower.seriesUsed, ...solvedUpper.seriesUsed],
+    provenanceBase,
+  );
 }

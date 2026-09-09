@@ -38,6 +38,13 @@ function callSeries(ticker: string, strike: string, expiry: string): OptionSerie
   };
 }
 
+const testProvenanceBase = {
+  engineVersion: "0.1.0",
+  pricingModel: "bsm_continuous_yield" as const,
+  dataVersion: null,
+  datasetNotes: [],
+};
+
 const baseView: MarketView = {
   calendar,
   candles: [],
@@ -53,7 +60,7 @@ const baseView: MarketView = {
 describe("computeImpliedVolatilityIndex", () => {
   it("returns missing_instrument when the underlying has no visible spot", () => {
     const view: MarketView = { ...baseView, quotes: [] };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result).toEqual({ ok: false, error: { code: "missing_instrument", ticker: "PETR4" } });
   });
 
@@ -70,7 +77,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
   });
 
@@ -103,20 +110,20 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
   });
 
   it("returns insufficient_data when the calendar has no session open at or before at", () => {
     const view: MarketView = { ...baseView, calendar: [] };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("insufficient_data");
   });
 
   it("reports iv_index_not_bracketed with a null impliedVolatility when no series are listed", () => {
-    const result = computeImpliedVolatilityIndex(baseView, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(baseView, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).toBeNull();
@@ -152,7 +159,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
@@ -192,7 +199,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", atOpen);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", atOpen, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.notes).toEqual([]);
@@ -250,7 +257,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
@@ -268,7 +275,7 @@ describe("computeImpliedVolatilityIndex", () => {
       ...baseView,
       optionSeries: [callSeries("PETR4C50", "50.00", expiry)],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).toBeNull();
@@ -290,7 +297,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).toBeNull();
@@ -326,7 +333,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).toBeNull();
@@ -370,7 +377,7 @@ describe("computeImpliedVolatilityIndex", () => {
         },
       ],
     };
-    const result = computeImpliedVolatilityIndex(view, "PETR4", at);
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.seriesUsed).toEqual(["PETR4C48"]);
