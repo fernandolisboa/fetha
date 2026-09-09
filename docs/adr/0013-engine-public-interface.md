@@ -1531,12 +1531,11 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   actually made, rather than discarding it silently. `evaluateStrategy` is not called on the final
   session (there is no next session left to fill into), so this finalization happens directly in
   the period-end sweep.
-- **A month with zero sessions in the run can only be reached in a synthetic calendar.** A real
-  ANBIMA calendar trades every month, so a scheduled monthly-tax deduction always meets its
-  target month's own last session before another month transition can overwrite it. The one
-  defensive line that flushes an unpaid deduction on a further transition (`run-backtest.ts`,
-  guarding against exactly that skipped-month case) is marked `/* v8 ignore */` rather than
-  exercised by a contrived multi-month-gap fixture, since no real dataset can produce it.
+- **A calendar month gap never leaves a tax deduction unpaid.** The deduction scheduled after a
+  month finalizes is paid on that month's own last session in `periodSessions` — whichever
+  session follows it in the run, gap or not — so a month transition never finds one still
+  pending, real ANBIMA calendar or a synthetic gap alike; `run-backtest.ts` asserts this as an
+  invariant rather than guarding it defensively.
 
 ## Considered options
 

@@ -323,16 +323,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     if (state.currentMonthKey === null) {
       state.currentMonthKey = monthKey;
     } else if (monthKey !== state.currentMonthKey) {
-      // A calendar gap (a month with no session at all in this run — never the case for a real
-      // ANBIMA calendar, which trades every month, so untestable without a synthetic gap) would
-      // otherwise let an unpaid deduction survive a second overwrite below and never reach cash;
-      // flushing any leftover here keeps exactly one pending deduction in flight at a time.
-      /* v8 ignore start */
-      if (state.pendingTaxDeduction !== null) {
-        state.cash -= state.pendingTaxDeduction.tax;
-        state.pendingTaxDeduction = null;
-      }
-      /* v8 ignore stop */
+      // Step 2 below already pays off any pendingTaxDeduction whose target month is the one
+      // that just finished, on that month's own last session in periodSessions — whichever
+      // session follows it, gap or not — so by the time a new month is seen here there is
+      // never one left in flight to overwrite.
+      invariant(
+        state.pendingTaxDeduction === null,
+        "run-backtest: a month transition never finds a still-pending tax deduction",
+      );
       const finishedMonth = state.currentMonthKey;
       finalizeMonth(finishedMonth);
       const tax = assertDefined(
