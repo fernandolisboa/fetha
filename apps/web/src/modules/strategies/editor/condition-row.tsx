@@ -23,7 +23,7 @@ export function ConditionRow({
   return (
     <div className="border-line flex flex-wrap items-end gap-2 border-b pb-3 last:border-b-0">
       <OperandField
-        label={t.editor.entry.title}
+        label={t.editor.entry.leftOperand}
         value={value.left}
         onChange={(left) => {
           onChange({ ...value, left });
@@ -44,7 +44,7 @@ export function ConditionRow({
         />
       </div>
       <OperandField
-        label={t.editor.entry.title}
+        label={t.editor.entry.rightOperand}
         value={value.right}
         onChange={(right) => {
           onChange({ ...value, right });

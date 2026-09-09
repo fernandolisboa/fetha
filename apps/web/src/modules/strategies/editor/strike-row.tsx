@@ -27,7 +27,7 @@ export function StrikeRow({
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <span className="text-muted-foreground w-6 text-xs">#{rank}</span>
+      <span className="text-muted-foreground w-6 font-mono text-xs tabular-nums">#{rank}</span>
       <div className="flex w-40 flex-col gap-1.5">
         <span className="text-muted-foreground text-xs">{t.editor.strikes.kind}</span>
         <SimpleSelect
@@ -36,7 +36,10 @@ export function StrikeRow({
           onValueChange={(kind) => {
             onChange(defaultForKind(kind as StrikeSelection["kind"]));
           }}
-          options={strikeSelectionKinds.map((kind) => ({ value: kind, label: kind }))}
+          options={strikeSelectionKinds.map((kind) => ({
+            value: kind,
+            label: t.editor.strikes.kinds[kind],
+          }))}
         />
       </div>
 
