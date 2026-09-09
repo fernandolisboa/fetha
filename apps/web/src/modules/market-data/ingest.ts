@@ -23,11 +23,14 @@ import {
 import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 
-const SGS_DEFAULT_START = "2015-01-01";
 const CALENDAR_MARKER_SUFFIX = "-01-01";
 const RECENT_SESSION_WINDOW = 10;
 const DEFAULT_MAX_DURATION_MS = 300_000;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
+// SGS is never backfilled before the calendar's own coverage starts;
+// resolveAsOfInstant throws for any point older than the earliest recorded
+// session (docs/adr/0017), so starting earlier would only fail loudly.
+const SGS_DEFAULT_START = `${String(FIRST_INGESTED_CALENDAR_YEAR)}-01-01`;
 
 export interface SourceOutcome {
   source: IngestionSource;

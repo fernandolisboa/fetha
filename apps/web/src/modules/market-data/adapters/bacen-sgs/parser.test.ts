@@ -38,8 +38,12 @@ const septemberSessions = [
 // month (2026-02-15 through 2026-08-15). 2026-08-15/16 are a weekend, so the
 // July point rolls to the Monday session; every other 15th here is a
 // weekday. 2026-04-16 is kept as a second April session to exercise the
-// same roll-forward behaviour without reaching into May.
+// same roll-forward behaviour without reaching into May. The 2026-01-01
+// session covers the January reference point itself (resolveAsOfInstant
+// requires every reference date to be within calendar coverage, not just
+// its resolved lookup target) without affecting any asOf assertion below.
 const ipcaSessions = [
+  { date: "2026-01-01", open: "2026-01-01T13:00:00.000Z" },
   { date: "2026-02-16", open: "2026-02-16T13:00:00.000Z" },
   { date: "2026-03-16", open: "2026-03-16T13:00:00.000Z" },
   { date: "2026-04-15", open: "2026-04-15T13:00:00.000Z" },
@@ -124,21 +128,27 @@ describe("resolveAsOfInstant", () => {
       "2026-09-01T13:00:00.000Z",
     );
   });
+
+  it("throws for a date older than the calendar's earliest recorded session", () => {
+    expect(() => resolveAsOfInstant("cdi", "2015-01-05", septemberSessions)).toThrow(
+      /precedes the first recorded trading session/,
+    );
+  });
 });
 
 describe("convertToAnnualRate", () => {
-  it("compounds a CDI daily rate (% a.d.) into an annual rate over 252 sessions", () => {
-    // Reference: (1 + 0.05/100)^252 - 1 = 13.4246% a.a.
+  it("compounds a CDI daily rate (% a.d.) into an annual fraction over 252 sessions", () => {
+    // Reference: (1 + 0.05/100)^252 - 1 = 0.13424645 (13.424645% a.a.)
     const annual = convertToAnnualRate("cdi", "0.05");
-    expect(Number(annual)).toBeCloseTo(13.4246, 3);
+    expect(annual).toBe("0.13424645");
   });
 
-  it("passes the Selic target rate through unchanged (already % a.a.)", () => {
-    expect(convertToAnnualRate("selic", "14.00")).toBe("14.00000000");
+  it("converts the Selic target rate (% a.a.) to a fraction", () => {
+    expect(convertToAnnualRate("selic", "14.00")).toBe("0.14000000");
   });
 
-  it("passes the IPCA 12-month accumulated rate through unchanged (series 13522, already % a.a.)", () => {
-    expect(convertToAnnualRate("ipca", "4.44")).toBe("4.44000000");
+  it("converts the IPCA 12-month accumulated rate (series 13522, % a.a.) to a fraction", () => {
+    expect(convertToAnnualRate("ipca", "4.44")).toBe("0.04440000");
   });
 });
 

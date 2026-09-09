@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,11 @@ import { applyQuotationFactor, CotahistParseError, parseCotahist } from "./parse
 const fixture = readFileSync(path.join(import.meta.dirname, "fixtures", "cotahist-sample.txt"), {
   encoding: "latin1",
 });
+
+const REAL_COTAHIST_PATH =
+  "/tmp/claude-1000/-home-ferna-projects-financas-fetha/53edd023-9f9b-4060-9e9b-f0c9dc969b3a/scratchpad/r12/real/COTAHIST_D08092026.TXT";
+const REAL_REGISTRY_PATH =
+  "/tmp/claude-1000/-home-ferna-projects-financas-fetha/53edd023-9f9b-4060-9e9b-f0c9dc969b3a/scratchpad/r12/real/instruments-2026-09-08.csv";
 
 describe("parseCotahist", () => {
   it("parses stock rows (TPMERC 010) with OHLC and traded quantity", () => {
@@ -119,6 +124,28 @@ describe("parseCotahist", () => {
   it("accepts a file whose DATA field matches the requested session", () => {
     expect(() => parseCotahist(fixture, "2026-09-08")).not.toThrow();
   });
+
+  (existsSync(REAL_COTAHIST_PATH) && existsSync(REAL_REGISTRY_PATH) ? describe : describe.skip)(
+    "cross-source strike consistency against the real 2026-09-08 files",
+    () => {
+      it("PREEXE / 100 for IBOVA183 matches the instruments registry's ExrcPric (not / 100 x FATCOT)", () => {
+        const realCotahist = readFileSync(REAL_COTAHIST_PATH, { encoding: "latin1" });
+        const rows = parseCotahist(realCotahist, "2026-09-08");
+        const ibov = rows.find(
+          (row): row is Extract<(typeof rows)[number], { kind: "option" }> =>
+            row.kind === "option" && row.ticker === "IBOVA183",
+        );
+        expect(ibov?.strike).toBe("183000.000000");
+
+        const realRegistry = readFileSync(REAL_REGISTRY_PATH, { encoding: "latin1" });
+        const registryLine = realRegistry
+          .split(/\r?\n/)
+          .find((line) => line.startsWith("2026-09-08;IBOVA183;"));
+        const exrcPric = registryLine?.split(";")[35];
+        expect(exrcPric).toBe("183000");
+      });
+    },
+  );
 });
 
 describe("applyQuotationFactor", () => {

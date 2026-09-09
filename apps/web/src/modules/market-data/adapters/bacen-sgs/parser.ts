@@ -16,17 +16,20 @@ function toIsoDate(ddmmyyyy: string): string {
 }
 
 function compoundToAnnual(rate: Decimal, periodsPerYear: number): Decimal {
-  return rate.dividedBy(100).plus(1).pow(periodsPerYear).minus(1).times(100);
+  return rate.dividedBy(100).plus(1).pow(periodsPerYear).minus(1);
 }
 
+// ADR-0013's ln(1 + cdi) consumes annualRate as a fraction (0.14 for 14%
+// a.a.), not a percent; every branch below returns a fraction.
 export function convertToAnnualRate(series: MacroSeriesKind, value: string): string {
   const decimal = new Decimal(value);
   if (series === "cdi") {
     return compoundToAnnual(decimal, TRADING_SESSIONS_PER_YEAR).toFixed(8);
   }
   // selic (432, meta) and ipca (13522, 12-month accumulated) are both
-  // already annual rates; no compounding assumption is applied.
-  return decimal.toFixed(8);
+  // already annual rates in percent; converting to a fraction is the only
+  // transform applied.
+  return decimal.dividedBy(100).toFixed(8);
 }
 
 function nextSessionStrictlyAfter(date: string, sessions: SessionOpen[]): SessionOpen {
@@ -59,6 +62,14 @@ function fifteenthOfNextMonth(isoDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+function earliestSessionDate(sessions: SessionOpen[]): string | undefined {
+  return sessions.reduce<string | undefined>(
+    (earliest, session) =>
+      earliest === undefined || session.date < earliest ? session.date : earliest,
+    undefined,
+  );
+}
+
 // ADR-0017: a macro point's asOf is its publication instant (ADR-0013), not
 // the reference date's open, which would let evaluations see the rate before
 // it exists. cdi (12) and the (currently unfetched) Selic daily series (11)
@@ -67,11 +78,27 @@ function fifteenthOfNextMonth(isoDate: string): string {
 // accumulated) is published roughly mid-month for the previous month, so it
 // becomes visible at the first session on or after the 15th of the month
 // following the reference month.
+//
+// A reference `date` that precedes the earliest session the caller knows
+// about throws rather than silently resolving forward to that session: the
+// calendar starts in 2024, so backfilling SGS from an earlier year would
+// otherwise stamp years of history with the same wrong asOf instead of
+// failing loudly (docs/adr/0017). A legitimate caller always passes the full
+// calendar it has recorded for the years it needs, so this never fires for a
+// reference date within calendar coverage even when the resolved *lookup*
+// target (e.g. IPCA's 15th-of-next-month) briefly precedes the earliest
+// session in that same coverage.
 export function resolveAsOfInstant(
   series: MacroSeriesKind,
   date: string,
   sessions: SessionOpen[],
 ): string {
+  const earliest = earliestSessionDate(sessions);
+  if (earliest !== undefined && date < earliest) {
+    throw new Error(
+      `${date} precedes the first recorded trading session (${earliest}): calendar coverage does not reach back this far`,
+    );
+  }
   if (series === "cdi") {
     return nextSessionStrictlyAfter(date, sessions).open;
   }

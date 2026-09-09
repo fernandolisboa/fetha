@@ -60,6 +60,15 @@ function toStorageDecimal(rawCents: string, factor: string): string {
   return new Decimal(applyQuotationFactor(rawCents, factor)).toFixed(STORAGE_DECIMALS);
 }
 
+// PREEXE (strike) is always stored in raw cents/points with no FATCOT
+// scaling: the instruments registry's ExrcPric for the same series (e.g.
+// IBOVA183, ExrcPric 183000) matches rawCents / 100, not rawCents / (100 x
+// FATCOT). FATCOT is a quotation-lot factor for the traded price fields
+// only, never for the strike.
+function toStrikeDecimal(rawCents: string): string {
+  return new Decimal(rawCents || "0").dividedBy(100).toFixed(STORAGE_DECIMALS);
+}
+
 function parseDailyQuotationLine(
   line: string,
   lineNumber: number,
@@ -102,7 +111,7 @@ function parseDailyQuotationLine(
   }
 
   if (OPTION_MARKET_TYPES.has(marketType)) {
-    const strike = toStorageDecimal(slice(line, STRIKE), factor);
+    const strike = toStrikeDecimal(slice(line, STRIKE));
     const expiryDigits = slice(line, EXPIRY);
     if (expiryDigits.length !== 8) {
       throw new CotahistParseError("option row missing DATVEN (expiry)", lineNumber);
