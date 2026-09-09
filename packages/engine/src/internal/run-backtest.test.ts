@@ -427,6 +427,79 @@ describe("runBacktest — limits", () => {
     expect(result.value.run.limitBreaches[0]?.ticker).toBe("PETR4");
     expect(result.value.run.limitBreaches[0]?.session).toBe("2024-01-03");
   });
+
+  const maxTwoOpenRiskProfile = {
+    declaredCapital: centavos(10_000_00),
+    limits: {
+      maxLossPerOperation: decimalString("1"),
+      maxExposurePerOperation: decimalString("1"),
+      maxOpenOperations: 2,
+      maxPremiumBought: decimalString("1"),
+    },
+  };
+
+  it("re-checks maxOpenOperations at fill time across same-session fills, refusing the excess in enforce mode", () => {
+    const config = baseConfig({
+      universe: ["AAAA4", "BBBB4", "CCCC4"],
+      period: { from: "2024-01-02", to: "2024-01-03" },
+      riskProfile: maxTwoOpenRiskProfile,
+      limits: "enforce",
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("AAAA4", "2024-01-02", "10.00", "10.00"),
+        candle("AAAA4", "2024-01-03", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-02", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-03", "10.00", "10.00"),
+        candle("CCCC4", "2024-01-02", "10.00", "10.00"),
+        candle("CCCC4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills).toHaveLength(2);
+    expect(result.value.run.missedEntries).toHaveLength(1);
+    expect(result.value.run.missedEntries[0]).toMatchObject({
+      ticker: "CCCC4",
+      reason: "limit_breach",
+    });
+  });
+
+  it("re-checks maxOpenOperations at fill time across same-session fills, filling and warning on the excess in warn mode", () => {
+    const config = baseConfig({
+      universe: ["AAAA4", "BBBB4", "CCCC4"],
+      period: { from: "2024-01-02", to: "2024-01-03" },
+      riskProfile: maxTwoOpenRiskProfile,
+      limits: "warn",
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("AAAA4", "2024-01-02", "10.00", "10.00"),
+        candle("AAAA4", "2024-01-03", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-02", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-03", "10.00", "10.00"),
+        candle("CCCC4", "2024-01-02", "10.00", "10.00"),
+        candle("CCCC4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills).toHaveLength(3);
+    expect(result.value.run.missedEntries).toHaveLength(0);
+    expect(result.value.run.limitBreaches).toHaveLength(1);
+    expect(result.value.run.limitBreaches[0]).toMatchObject({
+      ticker: "CCCC4",
+      limit: "maxOpenOperations",
+    });
+  });
 });
 
 describe("runBacktest — period end", () => {

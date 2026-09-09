@@ -308,12 +308,31 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       state.currentMonthKey = monthKey;
     }
 
-    // Step 1: resolve pending entry fills targeting this session's open.
+    // Step 1: resolve pending entry fills targeting this session's open. evaluateStrategy
+    // computes openOperationCount once per call, so several tickers signalling entry in the
+    // same session each see the same, stale count and none alone trips maxOpenOperations;
+    // this running counter re-checks the limit against fills already made this same session.
     const failedEntryTickers = new Set<Ticker>();
+    let openCountThisSession = state.openOperations.length;
+    const maxOpenOperations = config.riskProfile.limits.maxOpenOperations;
     for (const [ticker, pending] of Object.entries(state.pendingEntries)) {
       const candle = candleFor(candlesByTicker, ticker, session.date);
       state.retryCount[ticker] = (state.retryCount[ticker] ?? 0) + 1;
       if (candle && candle.tradedQuantity > 0) {
+        if (openCountThisSession + 1 > maxOpenOperations) {
+          if (config.limits === "enforce") {
+            finalizeMissedEntry(ticker, session.open, "limit_breach");
+            continue;
+          }
+          state.limitBreaches.push({
+            limit: "maxOpenOperations",
+            value: toDecimalString(new Decimal(openCountThisSession + 1), RATIO_SCALE),
+            allowed: toDecimalString(new Decimal(maxOpenOperations), RATIO_SCALE),
+            session: session.date,
+            ticker,
+          });
+        }
+        openCountThisSession += 1;
         const id = operationId(state.operationSeq, config.strategy.id, ticker, session.date);
         state.operationSeq += 1;
         const legs: OperationLeg[] = pending.legs.map((leg) => ({
