@@ -39,7 +39,7 @@ import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
 import { assertDefined, assertPresent, invariant } from "./invariant";
 import { codeUnitCompare } from "./order";
-import { toCentavos } from "./scalars";
+import { toCentavos, toQuantity } from "./scalars";
 
 type PendingEntry = {
   legs: Leg[];
@@ -145,13 +145,19 @@ function operationId(
   return `${strategyVersionId}:${ticker}:${session}:${String(seq)}`;
 }
 
-function legPnlCentavos(leg: OperationLeg, exitPrice: DecimalString): Decimal {
+function legPnlCentavos(
+  leg: OperationLeg,
+  exitPrice: DecimalString,
+  splitFactor: Decimal,
+): Decimal {
   const sign = leg.side === "buy" ? 1 : -1;
+  const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
+  const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
   return parseDecimal(exitPrice)
-    .sub(parseDecimal(leg.entryPrice))
+    .sub(effectiveEntryPrice)
     .mul(sign)
     .mul(CENTAVOS_PER_REAL)
-    .mul(leg.quantity);
+    .mul(effectiveQuantity);
 }
 
 export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
@@ -219,6 +225,31 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const bucket = candlesByTicker.get(c.ticker);
     if (bucket) bucket.push(c);
     else candlesByTicker.set(c.ticker, [c]);
+  }
+
+  const corporateActionsByTicker = new Map<Ticker, typeof view.corporateActions>();
+  for (const f of view.corporateActions) {
+    const bucket = corporateActionsByTicker.get(f.ticker);
+    if (bucket) bucket.push(f);
+    else corporateActionsByTicker.set(f.ticker, [f]);
+  }
+  // The product of every visible split/reverse-split factor between an operation's own entry
+  // and a later session (exclusive of the entry, inclusive of `through`): the multiplier that
+  // turns the nominal share count and entry price recorded at entry into the effective count and
+  // price comparable with `through`'s own nominal candles (ADR-0013 "Candles and corporate
+  // actions"). `Operation.legs` themselves stay nominal — the evaluator already rebases its own
+  // exit-rule comparisons the same way — so this is applied only where runBacktest computes
+  // marks, fills and P&L on its own.
+  function corporateActionFactorThrough(
+    ticker: Ticker,
+    openedAt: SessionDate,
+    through: SessionDate,
+  ): Decimal {
+    const factors = corporateActionsByTicker.get(ticker) ?? [];
+    return factors.reduce((acc, f) => {
+      if (f.exDate > openedAt && f.exDate <= through) return acc.mul(parseDecimal(f.factor));
+      return acc;
+    }, new Decimal(1));
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
@@ -406,18 +437,24 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       if (!candle || candle.tradedQuantity <= 0) continue;
 
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
+      const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
       let pnl = new Decimal(0);
       op.legs.forEach((leg, legIndex) => {
-        const costs = fillCosts(config.costModel, candle.open, leg.quantity);
+        const effectiveQuantity = toQuantity(
+          new Decimal(leg.quantity).div(splitFactor).round().toNumber(),
+        );
+        const costs = fillCosts(config.costModel, candle.open, effectiveQuantity);
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
-        state.cash +=
-          (exitSide === "sell" ? 1 : -1) *
-            parseDecimal(candle.open).mul(CENTAVOS_PER_REAL).mul(leg.quantity).round().toNumber() -
-          costs;
+        const grossCentavos = parseDecimal(candle.open)
+          .mul(CENTAVOS_PER_REAL)
+          .mul(effectiveQuantity)
+          .round()
+          .toNumber();
+        state.cash += (exitSide === "sell" ? 1 : -1) * grossCentavos - costs;
         state.fills.push({
           ticker: op.underlying,
           side: exitSide,
-          quantity: leg.quantity,
+          quantity: effectiveQuantity,
           price: candle.open,
           session: session.date,
           at: session.open,
@@ -426,13 +463,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           source: "next_session_open",
         });
         const entryCost = entryCosts[legIndex] ?? toCentavos(0);
-        pnl = pnl.add(legPnlCentavos(leg, candle.open)).sub(costs).sub(entryCost);
+        pnl = pnl
+          .add(legPnlCentavos(leg, candle.open, splitFactor))
+          .sub(costs)
+          .sub(entryCost);
         if (exitSide === "sell") {
-          state.currentMonthStockSales += parseDecimal(candle.open)
-            .mul(CENTAVOS_PER_REAL)
-            .mul(leg.quantity)
-            .round()
-            .toNumber();
+          state.currentMonthStockSales += grossCentavos;
         }
       });
       const pnlCentavos = toCentavos(pnl.round().toNumber());
@@ -487,11 +523,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         lastKnownClose(candlesByTicker, op.underlying, session.date),
         "run-backtest: an open operation's underlying always has a candle from its own entry fill",
       );
+      const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
       for (const leg of op.legs) {
         const sign = leg.side === "buy" ? 1 : -1;
+        const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         markValue +=
           sign *
-          parseDecimal(markPrice).mul(CENTAVOS_PER_REAL).mul(leg.quantity).round().toNumber();
+          parseDecimal(markPrice).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity).round().toNumber();
       }
     }
     const equity = toCentavos(state.cash + markValue);
@@ -520,10 +558,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           "run-backtest: an open operation's underlying always has a candle from its own entry fill",
         );
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
+        const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
         let pnl = new Decimal(0);
         op.legs.forEach((leg, legIndex) => {
           const entryCost = entryCosts[legIndex] ?? toCentavos(0);
-          pnl = pnl.add(legPnlCentavos(leg, price)).sub(entryCost);
+          pnl = pnl.add(legPnlCentavos(leg, price, splitFactor)).sub(entryCost);
         });
         state.operations.push({
           id: op.id,

@@ -3,6 +3,7 @@ import type { Condition, LegTemplate, StrategyDefinition, Structure } from "@fet
 import type {
   BacktestConfig,
   Candle,
+  CorporateActionFactor,
   MarketView,
   RunBacktestInput,
   StrategyVersion,
@@ -673,6 +674,88 @@ describe("runBacktest — errors", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("checkpoint_mismatch");
+  });
+});
+
+describe("runBacktest — corporate actions across an open position", () => {
+  const split: CorporateActionFactor = {
+    ticker: "PETR4",
+    exDate: "2024-01-04",
+    asOf: "2024-01-04T13:00:00.000Z",
+    factor: decimalString("0.5"),
+  };
+
+  it("marks an open position on its post-split effective share count, no phantom drawdown", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "5.00", "5.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    // Entry: 500 shares at 10.00 on 2024-01-03. The ex-date factor 0.5 (a 2:1 split) makes the
+    // effective holding 1000 shares at an entry price rebased to 5.00, so a mark at the
+    // post-split nominal close of 5.00 is flat, not a phantom drawdown from pricing 500 shares
+    // (the pre-split count) at the post-split price.
+    const dayOfSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-04");
+    const dayBeforeSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-03");
+    expect(dayOfSplit?.equity).toBe(dayBeforeSplit?.equity);
+  });
+
+  it("exits an open position across a split at the effective (post-split) share count", () => {
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+      ),
+      period: { from: "2024-01-02", to: "2024-01-04" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "5.20", "5.20"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills[0]).toMatchObject({
+      side: "buy",
+      quantity: quantity(500),
+      price: decimalString("10.00"),
+      session: "2024-01-03",
+    });
+    expect(result.value.run.fills[1]).toMatchObject({
+      side: "sell",
+      quantity: quantity(1000),
+      price: decimalString("5.20"),
+      session: "2024-01-04",
+    });
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    expect(op.closeReason.kind).toBe("exit_rule");
+    expect(op.pnl).toBe(centavos(19_290));
   });
 });
 
