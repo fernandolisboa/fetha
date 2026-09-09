@@ -32,8 +32,10 @@ export {
 export { sizingRuleKinds, sizingRuleSchema, type SizingRule } from "./sizing-rule";
 export {
   comparators,
+  conditionDepth,
   conditionKinds,
   conditionSchema,
+  MAX_CONDITION_DEPTH,
   operandSchema,
   priceFields,
   type Condition,

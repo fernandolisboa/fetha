@@ -24,7 +24,7 @@ export type Condition =
   | { kind: "or"; conditions: [Condition, ...Condition[]] }
   | { kind: "not"; condition: Condition };
 
-export const conditionSchema: z.ZodType<Condition> = z.lazy(() =>
+const rawConditionSchema: z.ZodType<Condition> = z.lazy(() =>
   z.discriminatedUnion("kind", [
     z.strictObject({
       kind: z.literal("compare"),
@@ -34,12 +34,34 @@ export const conditionSchema: z.ZodType<Condition> = z.lazy(() =>
     }),
     z.strictObject({
       kind: z.literal("and"),
-      conditions: z.tuple([conditionSchema], conditionSchema),
+      conditions: z.tuple([rawConditionSchema], rawConditionSchema),
     }),
     z.strictObject({
       kind: z.literal("or"),
-      conditions: z.tuple([conditionSchema], conditionSchema),
+      conditions: z.tuple([rawConditionSchema], rawConditionSchema),
     }),
-    z.strictObject({ kind: z.literal("not"), condition: conditionSchema }),
+    z.strictObject({ kind: z.literal("not"), condition: rawConditionSchema }),
   ]),
+);
+
+// A strategy is data, never code (docs/adr/0008): an unbounded condition
+// tree is still data, but a hostile or accidental deeply-nested one is a
+// resource-exhaustion surface for every consumer that walks it (the
+// editor, the engine, a future backtest). MAX_CONDITION_DEPTH caps it at
+// the action edge.
+export const MAX_CONDITION_DEPTH = 6;
+
+export function conditionDepth(condition: Condition): number {
+  if (condition.kind === "compare") {
+    return 1;
+  }
+  if (condition.kind === "not") {
+    return 1 + conditionDepth(condition.condition);
+  }
+  return 1 + Math.max(...condition.conditions.map(conditionDepth));
+}
+
+export const conditionSchema: z.ZodType<Condition> = rawConditionSchema.refine(
+  (condition) => conditionDepth(condition) <= MAX_CONDITION_DEPTH,
+  { message: `condition tree must be at most ${String(MAX_CONDITION_DEPTH)} levels deep` },
 );
