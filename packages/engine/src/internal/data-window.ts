@@ -8,6 +8,7 @@ import type {
 import type { DataWindow, DataWindowInput, MarketViewCollection, TradingSession } from "../api";
 import { instantMs, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
+import { codeUnitCompare } from "./order";
 
 const timeframeMinutes: Record<Timeframe, number | null> = {
   "15m": 15,
@@ -20,7 +21,7 @@ const RECURSIVE_WARMUP_MULTIPLIER = 3;
 
 export function dataWindow(input: DataWindowInput): DataWindow {
   const { strategy, instruments, calendar, at, since } = input;
-  const sortedCalendar = [...calendar].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedCalendar = [...calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
 
   const indicators = collectIndicatorSpecs(strategy.definition);
   const candlesNeeded = Math.max(1, ...indicators.map(candleCountFor));
@@ -31,10 +32,11 @@ export function dataWindow(input: DataWindowInput): DataWindow {
 
   const anchor = since ?? at;
   const anchorIndex = findSessionIndexAtOrBefore(sortedCalendar, anchor);
+  const firstSession = sortedCalendar[0];
 
   const from =
     anchorIndex === null
-      ? at
+      ? (firstSession?.open ?? at)
       : computeFrom(
           sortedCalendar,
           anchorIndex,
@@ -90,14 +92,22 @@ function computeFrom(
   const minutes = timeframeMinutes[timeframe];
   const anchorSession = assertDefined(calendar[anchorIndex], "dataWindow: missing anchor session");
 
+  const anchorSessionClosed = isAtOrBefore(anchorSession.close, anchor);
   const closedInAnchorSession =
     minutes === null
-      ? isAtOrBefore(anchorSession.close, anchor)
+      ? anchorSessionClosed
         ? 1
         : 0
-      : Math.max(
-          0,
-          Math.floor((instantMs(anchor) - instantMs(anchorSession.open)) / (minutes * 60_000)),
+      : Math.min(
+          candlesPerSession(anchorSession, minutes),
+          Math.max(
+            0,
+            Math.floor(
+              (Math.min(instantMs(anchor), instantMs(anchorSession.close)) -
+                instantMs(anchorSession.open)) /
+                (minutes * 60_000),
+            ),
+          ),
         );
 
   let remaining = candlesNeeded - closedInAnchorSession;
@@ -113,7 +123,9 @@ function computeFrom(
 
   const candleEarliestIndex = Math.max(0, anchorIndex - sessionsBack);
   const ivEarliestIndex =
-    ivSessionsNeeded > 0 ? Math.max(0, anchorIndex - (ivSessionsNeeded - 1)) : anchorIndex;
+    ivSessionsNeeded > 0
+      ? Math.max(0, anchorIndex - (anchorSessionClosed ? ivSessionsNeeded - 1 : ivSessionsNeeded))
+      : anchorIndex;
   const earliestIndex = Math.min(candleEarliestIndex, ivEarliestIndex);
 
   const boundarySession = assertDefined(

@@ -27,7 +27,12 @@ ADR-0001), quantities as integer `Quantity` (positive, for legs and fills) or `S
 `[0, 1]`), dates as ISO `SessionDate`, times as ISO-8601 UTC `Instant`. The numeric scalars are
 branded by their Zod schemas, so a plain `string` or `number` does not type-check where a
 validated scalar is expected; dates, instants and tickers are plain strings. No `decimal.js`
-instance, class, `Date` or `bigint` crosses the seam. Closed vocabularies (`Timeframe`,
+instance, class, `Date` or `bigint` crosses the seam. `Instant` is canonical millisecond-precision
+UTC (`YYYY-MM-DDTHH:mm:ss.sssZ`, `packages/contracts`' `z.iso.datetime({ precision: 3, offset:
+false })`); every comparison and every deduplication key inside the engine that identifies a row
+by its instant uses `internal/instant.ts#instantMs` (or `compareInstants`, built on it), not
+string equality, so two canonical representations of the same instant are never treated as
+distinct rows. Closed vocabularies (`Timeframe`,
 `IndicatorSpec`, `StrikeSelection`, `ExpirySelection`, `SizingRule`, `ExitRule`,
 `AdjustmentRule`, `CostModel`, `RiskProfile`, `Structure`, `LegTemplate`, `Condition`,
 `StrategyDefinition`, `ThesisClaim`) are Zod schemas in `packages/contracts`; the engine imports
@@ -969,7 +974,8 @@ Reference formulas, on the adjusted close unless stated:
 - `ema`: `k = 2 / (length + 1)`, seeded with the SMA of the first `length` candles.
 - `rsi` per Wilder: the first average gain and loss are simple means over `length` changes, then
   Wilder smoothing `avg = (prev * (length - 1) + current) / length`;
-  `RSI = 100 - 100 / (1 + avgGain / avgLoss)`, 100 when `avgLoss = 0`.
+  `RSI = 100 - 100 / (1 + avgGain / avgLoss)`, 100 when `avgLoss = 0` and `avgGain > 0`, `null`
+  when both averages are zero (a flat window has no momentum to rank).
 - `atr`: Wilder-smoothed true range, `TR = max(high - low, |high - prevClose|, |low - prevClose|)`,
   the first ATR being the simple mean of the first `length` true ranges.
 - `iv_rank`: a 0-100 percentile rank of the underlying's implied-volatility index,
@@ -1146,26 +1152,33 @@ has no clock; the caller compares `signal.at` with its own time (ADR-0010).
 at`); the anchor session is the last calendar session whose `open <= anchor`. This lets a
     caller ask for the window a batched `evaluateStrategy(since, at]` run needs, which is the
     window the earliest evaluation instant (`since`) needs, not the latest (`at`).
-  - **Candles already closed in the anchor session.** For an intraday timeframe,
-    `floor((anchor - session.open) / timeframeMinutes)`, clamped to `>= 0` — the candles of the
-    anchor session that have already closed by the anchor instant; a forming candle never counts.
-    For `D1`, the anchor session contributes one closed candle exactly when `session.close <=
-anchor`, zero when the anchor falls mid-session (a daily candle is not observable before its
-    session closes). Every session strictly before the anchor session is assumed fully closed and
-    contributes a full session's candle count.
-  - **Candles per session and its uniform-grid assumption.** `floor((session.close -
-session.open) / timeframeMinutes)`, minimum 1. The engine assumes every session on a given
-    timeframe has the same candle count as the anchor session (no half-days, no early closes
-    modeled per session); a calendar with an irregular session is a known simplification, not
-    handled specially.
+  - **Per-session candle count.** Every session contributes `floor((session.close - session.open)
+/ timeframeMinutes)` of its own candles, minimum 1 — its own open/close, not the anchor
+    session's, so a half-day (early close) session contributes fewer candles than a full one and
+    the walk below never overcounts it. Each prior session (strictly before the anchor session) is
+    assumed fully closed and contributes its own full count this way.
+  - **Candles already closed in the anchor session.** `min(candlesPerSession(anchorSession),
+max(0, floor((min(anchor, anchorSession.close) - anchorSession.open) / timeframeMinutes)))` —
+    the candles of the anchor session that have already closed by the anchor instant, clamped to
+    the anchor session's own candle count so an anchor hours after that session's close (or a
+    half-day anchor session) never reports more closed candles than the session actually has; a
+    forming candle never counts. For `D1`, the anchor session contributes one closed candle
+    exactly when `session.close <= anchor`, zero when the anchor falls mid-session (a daily candle
+    is not observable before its session closes).
   - **Warm-up multiplier.** The candle count requested per indicator is `length` for `sma`,
     `3 * length` for the recursive indicators (`ema`, `rsi`, `atr`; see "Indicators" above), 1 for
     `iv_rank` (its lookback is a session count, tracked separately). `dataWindow` walks sessions
-    backward from the anchor, each contributing its per-session candle count, until the running
-    total covers the largest requested count across every indicator the strategy references.
-  - **`iv_rank`'s lookback** is independent of the candle-count walk: it reaches back
-    `lookbackSessions - 1` further sessions from the anchor session (a session count, not a
-    candle count), and the two walks combine by taking whichever reaches further back.
+    backward from the anchor, each contributing its per-session candle count (per the two rules
+    above), until the running total covers the largest requested count across every indicator the
+    strategy references.
+  - **`iv_rank`'s lookback** is independent of the candle-count walk: the anchor session
+    contributes an IV point only if it has closed by the anchor (`anchorSession.close <= anchor`,
+    the same test used for the `D1` candle rule above); when it has, the walk reaches back
+    `lookbackSessions - 1` further sessions from the anchor session; when it has not (the anchor
+    falls mid-session, so the anchor session's own point is not yet visible), the walk reaches back
+    `lookbackSessions` further sessions instead, so the window still contains `lookbackSessions`
+    closed points. Either way it is a session count, not a candle count, and the two walks (candle
+    and `iv_rank`) combine by taking whichever reaches further back.
   - **`from`** is the close of the session immediately preceding the earliest needed session, so
     every candle of that session has `asOf > from` (a candle's `asOf` is its close, always after
     its session's open); when the earliest needed session is the calendar's first session (no
@@ -1175,7 +1188,10 @@ from` for every candle in it.
     shorter than the lookback yields a shorter window than requested, not a negative index or a
     thrown error; callers see `insufficient_data` from the computing method (`indicators`,
     `evaluateStrategy`, ...) when the window turns out too short to seed an indicator, not from
-    `dataWindow` itself, which never fails.
+    `dataWindow` itself, which never fails. When no calendar session opens at or before the
+    anchor but the calendar is non-empty (`since` reaches back before the calendar's first
+    session), `from` falls back to that first session's `open`, not to `at`; `at` is the fallback
+    only when the calendar is empty, since there is then no session to anchor to.
 
 ### Error union
 
