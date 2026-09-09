@@ -18,6 +18,7 @@ import {
   PRICE_SCALE,
   RATIO_SCALE,
   toDecimalString,
+  ZERO_RATIO,
 } from "./decimal";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { toCentavos } from "./scalars";
@@ -38,13 +39,12 @@ export type PriceStockLegsInput = {
   >;
 };
 
-const zero = toDecimalString(new Decimal(0), RATIO_SCALE);
 const zeroGreeks: Greeks = {
-  delta: zero,
-  gamma: zero,
-  theta: zero,
-  vega: zero,
-  rho: zero,
+  delta: ZERO_RATIO,
+  gamma: ZERO_RATIO,
+  theta: ZERO_RATIO,
+  vega: ZERO_RATIO,
+  rho: ZERO_RATIO,
 };
 
 function sign(side: OperationLeg["side"]): 1 | -1 {
@@ -54,9 +54,8 @@ function sign(side: OperationLeg["side"]): 1 | -1 {
 export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const notes: Note[] = [];
 
-  const zeroRate = toDecimalString(new Decimal(0), RATIO_SCALE);
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
-  const riskFreeRate = riskFreeRateResolution.ok ? riskFreeRateResolution.value : zeroRate;
+  const riskFreeRate = riskFreeRateResolution.ok ? riskFreeRateResolution.value : ZERO_RATIO;
   if (riskFreeRateResolution.ok) {
     notes.push(...riskFreeRateResolution.notes);
   } else {
@@ -75,7 +74,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
     input.underlying,
     input.at,
   );
-  const dividendYield = dividendResolution.ok ? dividendResolution.value : zeroRate;
+  const dividendYield = dividendResolution.ok ? dividendResolution.value : ZERO_RATIO;
   if (dividendResolution.ok) {
     notes.push(...dividendResolution.notes);
   } else {

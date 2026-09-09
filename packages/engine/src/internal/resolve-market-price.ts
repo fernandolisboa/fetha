@@ -1,6 +1,7 @@
 import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type { MarketView } from "../api";
 import { parseDecimal, PRICE_SCALE, toDecimalString } from "./decimal";
+import { isAtOrBefore } from "./instant";
 import type { ResolvedMarketPrice } from "./option-pricing";
 import { latestVisible } from "./visible";
 
@@ -45,4 +46,31 @@ export function resolveLegMarketPrice(
   if (dayPrice.close) return { value: dayPrice.close, source: "close", stale };
   if (dayPrice.average) return { value: dayPrice.average, source: "average", stale };
   return null;
+}
+
+// The underlying's own spot uses the same mid-before-last precedence as a leg's market
+// price (item 18, PR #53 round 1), falling back to the latest visible D1 candle close
+// instead of an option series' day price, which the underlying itself never has. Shared
+// by price-operation.ts and the implied-volatility index (PR #53 round 3 item 9).
+export function resolveUnderlyingSpot(
+  view: MarketView,
+  ticker: Ticker,
+  at: Instant,
+): DecimalString | null {
+  const quote = latestVisible(
+    view.quotes.filter((q) => q.ticker === ticker),
+    at,
+  );
+  if (quote?.bid && quote.ask) {
+    return toDecimalString(
+      parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
+      PRICE_SCALE,
+    );
+  }
+  if (quote?.last) return quote.last;
+  const candle = view.candles
+    .filter((c) => c.ticker === ticker && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
+    .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
+    .at(-1);
+  return candle?.close ?? null;
 }

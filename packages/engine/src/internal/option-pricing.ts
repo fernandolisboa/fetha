@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import type { DecimalString, SessionDate } from "@fetha/contracts";
 import type { Greeks, Leg, LegValuation, Note, PriceSource } from "../api";
 import { bsmGreeksRaw, bsmPriceRaw, type OptionRightRaw } from "./black-scholes";
+import { SESSIONS_PER_YEAR } from "./calendar";
 import { PRICE_SCALE, RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 
@@ -22,7 +23,6 @@ export type PriceOptionLegInput = {
   givenVolatility: DecimalString | null;
 };
 
-const SESSIONS_PER_YEAR = 252;
 const VOLATILITY_POINT = 0.01;
 
 // ADR-0013 "Rates, time and greeks": theta is reported per session (annual theta / 252),

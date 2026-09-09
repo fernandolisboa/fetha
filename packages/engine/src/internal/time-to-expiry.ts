@@ -1,13 +1,12 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
 import type { TradingSession } from "../api";
-import { compareInstants, isAtOrBefore } from "./instant";
+import { SESSIONS_PER_YEAR, sessionAtOrBefore, sortedCalendar } from "./calendar";
+import { compareInstants } from "./instant";
 
 export type TimeToExpiryFailureReason = "already_expired" | "calendar_gap";
 
 export type TimeToExpiryResult =
   { ok: true; years: number } | { ok: false; reason: TimeToExpiryFailureReason };
-
-const SESSIONS_PER_YEAR = 252;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -21,12 +20,8 @@ export function resolveTimeToExpiryYears(
   at: Instant,
   expiry: SessionDate,
 ): TimeToExpiryResult {
-  const sorted = [...calendar].sort((a, b) => compareInstants(a.open, b.open));
-
-  let atSession: TradingSession | null = null;
-  for (const session of sorted) {
-    if (isAtOrBefore(session.open, at)) atSession = session;
-  }
+  const sorted = sortedCalendar(calendar);
+  const atSession = sessionAtOrBefore(calendar, at);
   if (!atSession) return { ok: false, reason: "calendar_gap" };
 
   const expirySession = sorted.find((session) => session.date === expiry);

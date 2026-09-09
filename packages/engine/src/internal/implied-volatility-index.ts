@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type { Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type {
   EngineError,
   ImpliedVolatilityIndex,
@@ -7,15 +7,14 @@ import type {
   OptionSeries,
   Provenance,
   Result,
-  TradingSession,
 } from "../api";
-import { parseDecimal, PRICE_SCALE, RATIO_SCALE, toDecimalString } from "./decimal";
-import { compareInstants, isAtOrBefore } from "./instant";
+import { sessionAtOrBefore, sortedCalendar } from "./calendar";
+import { RATIO_SCALE, toDecimalString } from "./decimal";
+import { isAtOrBefore } from "./instant";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
-import { resolveLegMarketPrice } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
-import { latestVisible } from "./visible";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
 
@@ -28,48 +27,10 @@ function err(error: EngineError): Result<ImpliedVolatilityIndex> {
   return { ok: false, error };
 }
 
-function sortedCalendar(calendar: readonly TradingSession[]): TradingSession[] {
-  return [...calendar].sort((a, b) => compareInstants(a.open, b.open));
-}
-
-function sessionAtOrBefore(
-  calendar: readonly TradingSession[],
-  at: Instant,
-): TradingSession | null {
-  let found: TradingSession | null = null;
-  for (const session of calendar) {
-    if (isAtOrBefore(session.open, at)) found = session;
-  }
-  return found;
-}
-
 function addCalendarDays(date: SessionDate, days: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString().slice(0, 10);
-}
-
-function resolveUnderlyingSpot(
-  view: MarketView,
-  underlying: Ticker,
-  at: Instant,
-): DecimalString | null {
-  const quote = latestVisible(
-    view.quotes.filter((q) => q.ticker === underlying),
-    at,
-  );
-  if (quote?.bid && quote.ask) {
-    return toDecimalString(
-      parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
-      PRICE_SCALE,
-    );
-  }
-  if (quote?.last) return quote.last;
-  const candle = view.candles
-    .filter((c) => c.ticker === underlying && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
-    .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
-    .at(-1);
-  return candle?.close ?? null;
 }
 
 type AtmBracket = { expiry: SessionDate; years: number };

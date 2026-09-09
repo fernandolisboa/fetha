@@ -16,25 +16,24 @@ import type {
   Result,
   TradingSession,
 } from "../api";
+import { sessionAtOrBefore } from "./calendar";
 import {
   CENTAVOS_PER_REAL,
   PRICE_SCALE,
   RATIO_SCALE,
+  ZERO_RATIO,
   parseDecimal,
   toDecimalString,
 } from "./decimal";
 import { assertDefined } from "./invariant";
-import { compareInstants, isAtOrBefore } from "./instant";
 import { priceOptionLeg } from "./option-pricing";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
-import { resolveLegMarketPrice } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
-import { latestVisible } from "./visible";
 
-const ZERO_RATIO = toDecimalString(new Decimal(0), RATIO_SCALE);
 const zeroGreeks: Greeks = {
   delta: ZERO_RATIO,
   gamma: ZERO_RATIO,
@@ -65,37 +64,7 @@ function sessionDateAtOrBefore(
   calendar: readonly TradingSession[],
   at: string,
 ): SessionDate | null {
-  let found: TradingSession | null = null;
-  for (const session of [...calendar].sort((a, b) => compareInstants(a.open, b.open))) {
-    if (isAtOrBefore(session.open, at)) found = session;
-  }
-  return found?.date ?? null;
-}
-
-// Same precedence as a leg's own price (resolve-market-price.ts): mid before last, so the
-// underlying's spot resolves the same way whether it is read as "the spot" or priced as a
-// leg of its own operation (item 18, PR #53 round 1).
-function resolveUnderlyingMarketPrice(
-  view: MarketView,
-  ticker: string,
-  at: string,
-): DecimalString | null {
-  const quote = latestVisible(
-    view.quotes.filter((q) => q.ticker === ticker),
-    at,
-  );
-  if (quote?.bid && quote.ask) {
-    return toDecimalString(
-      parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
-      PRICE_SCALE,
-    );
-  }
-  if (quote?.last) return quote.last;
-  const candle = view.candles
-    .filter((c) => c.ticker === ticker && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
-    .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
-    .at(-1);
-  return candle?.close ?? null;
+  return sessionAtOrBefore(calendar, at)?.date ?? null;
 }
 
 type PricedLeg = {
@@ -233,9 +202,11 @@ function computePayoffProfile(
   maxLoss: Centavos | "unbounded";
   maxGain: Centavos | "unbounded";
 } {
-  const strikes = [
-    ...new Set(legs.filter((l) => l.strike !== null).map((l) => l.strike as DecimalString)),
-  ].map((s) => parseDecimal(s));
+  const hasStrike = (leg: PricedLeg): leg is PricedLeg & { strike: DecimalString } =>
+    leg.strike !== null;
+  const strikes = [...new Set(legs.filter(hasStrike).map((l) => l.strike))].map((s) =>
+    parseDecimal(s),
+  );
   const points = [new Decimal(0), ...strikes].sort((a, b) => a.cmp(b));
 
   const slopeAtInfinity = legs.reduce(
@@ -670,7 +641,7 @@ function priceSelection(
     "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
   >,
 ): Result<OperationPricing> {
-  const spot = resolveUnderlyingMarketPrice(input.view, selection.underlying, input.at);
+  const spot = resolveUnderlyingSpot(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
   if (!isPositive(spot)) {
     return err(invalidInput("spot", "the underlying's spot must be positive"));
@@ -758,7 +729,7 @@ export function priceOperation(
       input.legs,
     );
     if (consistencyError) return err(consistencyError);
-    const spot = resolveUnderlyingMarketPrice(input.view, underlyingResult.underlying, input.at);
+    const spot = resolveUnderlyingSpot(input.view, underlyingResult.underlying, input.at);
     if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
     if (!isPositive(spot)) {
       return err(invalidInput("spot", "the underlying's spot must be positive"));

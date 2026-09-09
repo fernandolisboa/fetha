@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import type { DecimalString, Instant, Ticker } from "@fetha/contracts";
 import type { DividendYieldPoint, EngineError, MacroPoint, Note } from "../api";
-import { parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
+import { parseDecimal, RATIO_SCALE, toDecimalString, ZERO_RATIO } from "./decimal";
 import { latestVisible } from "./visible";
 
 export type RateResolution =
@@ -26,7 +26,7 @@ export function resolveRiskFreeRate(macro: readonly MacroPoint[], at: Instant): 
   if (!cdiPoint) {
     return {
       ok: true,
-      value: toDecimalString(new Decimal(0), RATIO_SCALE),
+      value: ZERO_RATIO,
       notes: [{ code: "risk_free_rate_defaulted", message: "no cdi rate visible; defaulted to 0" }],
     };
   }
@@ -53,7 +53,7 @@ export function resolveDividendYield(
   if (!point) {
     return {
       ok: true,
-      value: toDecimalString(new Decimal(0), RATIO_SCALE),
+      value: ZERO_RATIO,
       notes: [
         { code: "dividend_yield_defaulted", message: "no dividend yield visible; defaulted to 0" },
       ],

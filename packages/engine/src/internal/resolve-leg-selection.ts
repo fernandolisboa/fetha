@@ -8,9 +8,9 @@ import type {
   Structure,
   Ticker,
 } from "@fetha/contracts";
-import type { EngineError, MarketView, OptionSeries, TradingSession } from "../api";
+import type { EngineError, MarketView, OptionSeries } from "../api";
+import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import { parseDecimal } from "./decimal";
-import { compareInstants, isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
 import { resolveLegMarketPrice } from "./resolve-market-price";
@@ -37,21 +37,6 @@ export type ResolveLegSelectionInput = {
   riskFreeRate: DecimalString;
   dividendYield: DecimalString;
 };
-
-function sortedCalendar(calendar: readonly TradingSession[]): TradingSession[] {
-  return [...calendar].sort((a, b) => compareInstants(a.open, b.open));
-}
-
-function sessionAtOrBefore(
-  calendar: readonly TradingSession[],
-  at: Instant,
-): TradingSession | null {
-  let found: TradingSession | null = null;
-  for (const session of calendar) {
-    if (isAtOrBefore(session.open, at)) found = session;
-  }
-  return found;
-}
 
 function distinctRanks(structure: Structure): number[] {
   const ranks = new Set<number>();
