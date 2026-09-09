@@ -201,7 +201,7 @@ calendar.
 ## Monthly partitioning
 
 `candles` and `option_daily_prices` are `PARTITION BY RANGE (session)` parents
-(`drizzle/0001_market_data_reference_tables.sql`); `create_monthly_partitions(parent, start, end)`
+(`drizzle/0002_market_data_reference_tables.sql`); `create_monthly_partitions(parent, start, end)`
 is a Postgres function, idempotent (`CREATE TABLE IF NOT EXISTS ... PARTITION OF`), that creates
 one partition per calendar month in `[start, end)`. The migration seeds partitions for 2024-01
 through 2026-12; `ensureMonthlyPartition` (`repositories/partitions.ts`) calls the same function
