@@ -487,6 +487,40 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.spot).toBe(decimalString("30.00"));
   });
 
+  it("prefers the bid/ask mid over last for the underlying's spot, matching a leg's own price precedence", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: at,
+          last: decimalString("31.00"),
+          bid: decimalString("29.50"),
+          ask: decimalString("30.50"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.spot).toBe(decimalString("30.00"));
+  });
+
   it("falls back to the latest visible D1 candle close for the underlying's spot", () => {
     const view: MarketView = {
       ...baseView,

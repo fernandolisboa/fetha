@@ -57,6 +57,9 @@ function invalidInput(path: string, message: string): EngineError {
   return { code: "invalid_input", path, message };
 }
 
+// Same precedence as a leg's own price (resolve-market-price.ts): mid before last, so the
+// underlying's spot resolves the same way whether it is read as "the spot" or priced as a
+// leg of its own operation (item 18, PR #53 round 1).
 function resolveUnderlyingMarketPrice(
   view: MarketView,
   ticker: string,
@@ -66,13 +69,13 @@ function resolveUnderlyingMarketPrice(
     view.quotes.filter((q) => q.ticker === ticker),
     at,
   );
-  if (quote?.last) return quote.last;
   if (quote?.bid && quote.ask) {
     return toDecimalString(
       parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
       PRICE_SCALE,
     );
   }
+  if (quote?.last) return quote.last;
   const candle = view.candles
     .filter((c) => c.ticker === ticker && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
     .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))

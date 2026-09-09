@@ -63,13 +63,13 @@ function resolveUnderlyingSpot(
     view.quotes.filter((q) => q.ticker === underlying),
     at,
   );
-  if (quote?.last) return quote.last;
   if (quote?.bid && quote.ask) {
     return toDecimalString(
       parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
       PRICE_SCALE,
     );
   }
+  if (quote?.last) return quote.last;
   const candle = view.candles
     .filter((c) => c.ticker === underlying && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
     .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
