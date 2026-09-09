@@ -212,14 +212,29 @@ in parallel via background subagents. Record which agents handled each ticket in
 
 ## Design system tokens
 
-Canonical values live in `DESIGN.md`. This section mirrors them so `/design` and `/design-sync`
-can read them. Filled in Phase 3; until then it is a placeholder.
+Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design-sync` read.
 
-- Direction: dense, data-first workstation; dark mode by default; typography and color tuned for
-  numbers and charts. Not a fintech landing page.
-- Color, type scale, spacing, radius, motion, chart palette (up/down, greeks, risk bands): see
-  `DESIGN.md` (pending).
-- Number and date formatting: pt-BR conventions (`R$ 1.234,56`, `12,5%`, `02/09/2026`).
+- Direction: dense, data-first workstation; dark by default; tabular monospaced numerals;
+  hairlines, one action accent, a separate reserved color for risk. Not a fintech landing page.
+- Structure (not themeable): header 48px with command search and market bar; left rail 200px /
+  56px collapsed, six destinations; page = overline + headline + chips + actions; content grid
+  `minmax(0,1fr) 320px`; hairline panels, 36px table rows, one decision bar per screen.
+- Themes (per-user, `data-theme`, ADR-0015): `instrumento` (default) · `terminal` · `amplo`.
+  Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
+--accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
+--greek-gamma --greek-theta --greek-vega --font-display --font-body --font-mono --radius
+--elevation --density --chart-stroke`.
+- Instrumento: bg `#0f1115`, surface `#151922`, ink `#e6e8ee`, muted `#8d97a8`, accent
+  `#3fb8c8`, up `#2fb36a`, down `#e0524f`, warning `#e0a83a`, IBM Plex Sans + IBM Plex Mono,
+  radius 4px, body 13px.
+- Type scale: 11 · 12 · body · 13 · 15 · 18 · 22 · 26; every number in `--font-mono` with tabular
+  figures.
+- Spacing 4px base, page padding 16px 20px, panel gap 14px; motion 120ms hover, 180ms shell;
+  `prefers-reduced-motion` respected.
+- Charts: candles `--up`/`--down`; payoff line `--chart-stroke` with gain/loss areas at 12%;
+  greeks by their tokens; risk bands up/warning/down; never dual axes or pies.
+- Formatting: `R$ 1.234,56`, `−R$ 1.234,56`, `2,08%`, `10,65% a.a.`, `17/10/2026`, `14:32`,
+  `28 sessões`, `America/Sao_Paulo`.
 
 ## i18n
 

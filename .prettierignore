@@ -8,3 +8,5 @@ apps/web/drizzle
 .claude/skills
 .agents
 skills-lock.json
+docs/design/workstation/*.dc.html
+docs/design/workstation/fetha-workstation.html

@@ -1,0 +1,61 @@
+{
+  "artboards": [
+    {
+      "file": "DirectionTerminal.dc.html",
+      "title": "Tema Terminal",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Main.dc.html",
+      "title": "Tema Instrumento (padrão)",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "DirectionAmplo.dc.html",
+      "title": "Tema Amplo",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-terminal",
+      "x": 0,
+      "y": -170,
+      "w": 640,
+      "text": "Tema Terminal. Tudo em monoespaçada, cantos retos, fundo quase preto, âmbar como único acento. Motivação: máxima densidade e leitura de números em coluna; lembra um terminal sem copiar nenhum. Custo: cansa em sessões longas e a hierarquia depende só de peso e cor."
+    },
+    {
+      "id": "note-instrumento",
+      "x": 1560,
+      "y": -170,
+      "w": 640,
+      "text": "Tema Instrumento (padrão). Sans para rótulos, mono só nos números, painéis com divisórias finas, ciano como acento e âmbar reservado a risco. Motivação: densidade alta com hierarquia clara; números e gráfico no mesmo idioma visual. Custo: mais neutra, menos personalidade."
+    },
+    {
+      "id": "note-amplo",
+      "x": 3120,
+      "y": -170,
+      "w": 640,
+      "text": "Tema Amplo. Serifa nos títulos, tipos maiores, mais ar entre painéis, paleta quente e ouro discreto. Motivação: leitura calma para decidir, não para operar; destaca tese e decisão. Custo: cabe menos informação por tela; exige rolagem em carteiras grandes."
+    },
+    {
+      "id": "note-conteudo",
+      "x": 1560,
+      "y": 1020,
+      "w": 900,
+      "text": "Os três são temas do mesmo app: o usuário escolhe em Configurações; a anatomia (shell, painéis, tabelas, gráficos) é idêntica e só os tokens mudam (ADR 0015). Conteúdo real e coerente nos três: collar em PETR4 (1.000 ações a 38,42; venda de 1.000 calls K 40,00 a 0,92; compra de 1.000 puts K 36,00 a 0,58). Crédito líquido R$ 340; perda máxima R$ 2.080 (fura o limite de 2% de R$ 100.000); ganho máximo R$ 1.920; break-even 38,08. O aviso de risco, a decisão e a análise sob demanda seguem os ADRs 0005, 0009 e 0014."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
