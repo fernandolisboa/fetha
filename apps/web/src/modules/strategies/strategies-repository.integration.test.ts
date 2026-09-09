@@ -75,8 +75,7 @@ describe("StrategiesRepository isolation", () => {
     const userB = await insertBareUser(emailB);
 
     const created = await new StrategiesRepository(db, userB).createWithVersion(
-      "Estratégia da B",
-      definition(),
+      definition({ name: "Estratégia da B" }),
     );
 
     await expect(new StrategiesRepository(db, userA).findMine(created.id)).rejects.toBeInstanceOf(
@@ -93,8 +92,7 @@ describe("StrategiesRepository isolation", () => {
     const userB = await insertBareUser(emailB);
 
     const created = await new StrategiesRepository(db, userB).createWithVersion(
-      "Estratégia da B",
-      definition(),
+      definition({ name: "Estratégia da B" }),
     );
 
     await expect(
@@ -108,6 +106,7 @@ describe("StrategiesRepository isolation", () => {
     const stillB = await new StrategiesRepository(db, userB).findMine(created.id);
     expect(stillB.versions).toHaveLength(1);
     expect(stillB.visibility).toBe("private");
+    expect(stillB.name).toBe("Estratégia da B");
   });
 
   it("listMine only returns the caller's own strategies", async () => {
@@ -118,8 +117,8 @@ describe("StrategiesRepository isolation", () => {
     const userA = await insertBareUser(emailA);
     const userB = await insertBareUser(emailB);
 
-    await new StrategiesRepository(db, userA).createWithVersion("A1", definition());
-    await new StrategiesRepository(db, userB).createWithVersion("B1", definition());
+    await new StrategiesRepository(db, userA).createWithVersion(definition({ name: "A1" }));
+    await new StrategiesRepository(db, userB).createWithVersion(definition({ name: "B1" }));
 
     const listA = await new StrategiesRepository(db, userA).listMine();
     expect(listA.map((s) => s.name)).toEqual(["A1"]);
@@ -134,7 +133,7 @@ describe("StrategiesRepository immutability", () => {
     const owner = await insertBareUser(email);
     const repository = new StrategiesRepository(db, owner);
 
-    const created = await repository.createWithVersion("V1", definition());
+    const created = await repository.createWithVersion(definition({ name: "V1" }));
     expect(created.versions).toHaveLength(1);
     expect(created.versions[0]?.versionNumber).toBe(1);
 
@@ -159,6 +158,29 @@ describe("StrategiesRepository immutability", () => {
       fraction: decimalString("0.2"),
     });
   });
+
+  it("two concurrent addVersion calls on the same strategy produce distinct, sequential version numbers", async () => {
+    const db = getDb();
+    const email = uniqueEmail("concurrent");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+
+    const created = await repository.createWithVersion(definition({ name: "V1" }));
+
+    const [first, second] = await Promise.all([
+      repository.addVersion(created.id, definition({ name: "V2" })),
+      repository.addVersion(created.id, definition({ name: "V3" })),
+    ]);
+
+    const versionNumbers = [first, second]
+      .map((result) => result.versions[result.versions.length - 1]?.versionNumber)
+      .sort();
+    expect(versionNumbers).toEqual([2, 3]);
+
+    const final = await repository.findMine(created.id);
+    expect(final.versions.map((v) => v.versionNumber)).toEqual([1, 2, 3]);
+  });
 });
 
 describe("StrategiesRepository sharing and copy", () => {
@@ -171,8 +193,7 @@ describe("StrategiesRepository sharing and copy", () => {
     const other = await insertBareUser(emailOther);
 
     const created = await new StrategiesRepository(db, owner).createWithVersion(
-      "Trava de alta",
-      definition(),
+      definition({ name: "Trava de alta" }),
     );
 
     await expect(new StrategiesRepository(db, other).findShared(created.id)).rejects.toBeInstanceOf(
@@ -195,7 +216,7 @@ describe("StrategiesRepository sharing and copy", () => {
     const copier = await insertBareUser(emailCopier);
 
     const ownerRepository = new StrategiesRepository(db, owner);
-    const created = await ownerRepository.createWithVersion("Original", definition());
+    const created = await ownerRepository.createWithVersion(definition({ name: "Original" }));
     await ownerRepository.addVersion(created.id, definition({ name: "Original v2" }));
     await ownerRepository.setVisibility(created.id, "shared");
 
@@ -213,7 +234,7 @@ describe("StrategiesRepository sharing and copy", () => {
     expect(copyingAgainDoesNotAffectOriginal.versions).toHaveLength(2);
   });
 
-  it("copying a private strategy fails", async () => {
+  it("copying another user's private strategy reports not found, not not-shared (no existence oracle)", async () => {
     const db = getDb();
     const emailOwner = uniqueEmail("owner3");
     const emailCopier = uniqueEmail("copier3");
@@ -222,13 +243,27 @@ describe("StrategiesRepository sharing and copy", () => {
     const copier = await insertBareUser(emailCopier);
 
     const created = await new StrategiesRepository(db, owner).createWithVersion(
-      "Privada",
-      definition(),
+      definition({ name: "Privada" }),
     );
 
     await expect(
       new StrategiesRepository(db, copier).copyShared(created.id),
-    ).rejects.toBeInstanceOf(StrategyNotSharedError);
+    ).rejects.toBeInstanceOf(StrategyNotFoundError);
+  });
+
+  it("the owner copying their own private strategy gets a distinct not-shared error", async () => {
+    const db = getDb();
+    const emailOwner = uniqueEmail("owner3b");
+    createdEmails.push(emailOwner);
+    const owner = await insertBareUser(emailOwner);
+
+    const created = await new StrategiesRepository(db, owner).createWithVersion(
+      definition({ name: "Privada" }),
+    );
+
+    await expect(new StrategiesRepository(db, owner).copyShared(created.id)).rejects.toBeInstanceOf(
+      StrategyNotSharedError,
+    );
   });
 
   it("listShared returns strategies from every user, not only the caller's", async () => {
@@ -240,7 +275,7 @@ describe("StrategiesRepository sharing and copy", () => {
     const userB = await insertBareUser(emailB);
 
     const repoA = new StrategiesRepository(db, userA);
-    const created = await repoA.createWithVersion("Compartilhada por A", definition());
+    const created = await repoA.createWithVersion(definition({ name: "Compartilhada por A" }));
     await repoA.setVisibility(created.id, "shared");
 
     const listedByB = await new StrategiesRepository(db, userB).listShared();
