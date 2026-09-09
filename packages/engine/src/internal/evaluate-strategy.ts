@@ -14,9 +14,10 @@ import {
   type OperationLeg,
   type Result,
   type Signal,
+  type TradingSession,
 } from "../api";
 import { batchTruncationReport } from "./batch-truncation";
-import { buildCandleSeries } from "./candle-series";
+import { buildCandleSeries, isPositiveDecimal, priceFields } from "./candle-series";
 import {
   collectIndicatorSpecs,
   collectSpecsFromCondition,
@@ -51,6 +52,19 @@ function record(
   detail: string | null,
 ): EvaluationRecord {
   return { ticker, at, session, outcome, detail };
+}
+
+// The session for a record at `at` is the last calendar session whose `open <= at`, the same
+// rule dataWindow uses; when the view carries no calendar row for `at`, this falls back to
+// slicing the instant's own date (ADR-0013 "Missing instrument").
+function sessionForInstant(calendar: readonly TradingSession[], at: Instant): SessionDate {
+  const sorted = [...calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
+  let found: SessionDate | null = null;
+  for (const session of sorted) {
+    if (isAtOrBefore(session.open, at)) found = session.date;
+    else break;
+  }
+  return found ?? at.slice(0, 10);
 }
 
 function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | null {
@@ -169,6 +183,17 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
     return invalidInput("view.candles", `duplicate candle row for ${candleDupe.duplicateKey}`);
   }
 
+  for (const [index, c] of input.view.candles.entries()) {
+    for (const field of priceFields) {
+      if (!isPositiveDecimal(c[field])) {
+        return invalidInput(
+          `view.candles[${String(index)}].${field}`,
+          "a candle's open, high, low and close must be strictly positive",
+        );
+      }
+    }
+  }
+
   const factorDupe = sortUnique(
     input.view.corporateActions,
     (f) => `${f.ticker}|${f.exDate}`,
@@ -200,6 +225,24 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
       "view.dividendYields",
       `duplicate dividend yield point for ${dividendDupe.duplicateKey}`,
     );
+  }
+
+  for (const [index, m] of input.view.macro.entries()) {
+    if (parseDecimal(m.annualRate).lte(-1)) {
+      return invalidInput(
+        `view.macro[${String(index)}].annualRate`,
+        "an annual rate of -100% or below makes ln(1 + rate) undefined",
+      );
+    }
+  }
+
+  for (const [index, d] of input.view.dividendYields.entries()) {
+    if (parseDecimal(d.annualYield).lte(-1)) {
+      return invalidInput(
+        `view.dividendYields[${String(index)}].annualYield`,
+        "an annual yield of -100% or below makes ln(1 + yield) undefined",
+      );
+    }
   }
 
   return null;
@@ -240,16 +283,31 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   return { premiumBase, maxLossBase };
 }
 
+// Same scale convention buildCandleSeries uses for adjusted candles: a factor whose ex-date
+// falls after the price was recorded is folded in so the entry price and the current close
+// compare on one scale (ADR-0013 "Exit rule evaluation").
+function splitFactorProduct(
+  factors: readonly CorporateActionFactor[],
+  openedAt: SessionDate,
+  through: SessionDate,
+): Decimal {
+  return factors.reduce((acc, f) => {
+    if (f.exDate > openedAt && f.exDate <= through) return acc.mul(new Decimal(f.factor));
+    return acc;
+  }, new Decimal(1));
+}
+
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
   currentClose: DecimalString,
   bases: ExitRuleBases,
+  splitFactor: Decimal,
 ): { fired: boolean; zeroBase: boolean } {
   const current = parseDecimal(currentClose);
   let pnlCentavos = new Decimal(0);
   for (const leg of op.legs) {
-    const entry = parseDecimal(leg.entryPrice);
+    const entry = parseDecimal(leg.entryPrice).mul(splitFactor);
     const legSign = leg.side === "buy" ? 1 : -1;
     pnlCentavos = pnlCentavos.add(
       current.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
@@ -345,7 +403,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
         record(
           ticker,
           input.at,
-          input.at.slice(0, 10),
+          sessionForInstant(input.view.calendar, input.at),
           "insufficient_data",
           "no candles for this instrument and timeframe",
         ),
@@ -364,6 +422,19 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
               "evaluateStrategy: missing latest candle",
             ),
           ];
+
+    if (instants.length === 0) {
+      evaluations.push(
+        record(
+          ticker,
+          input.at,
+          sessionForInstant(input.view.calendar, input.at),
+          "insufficient_data",
+          "no candles in (since, at] for this instrument and timeframe",
+        ),
+      );
+      continue;
+    }
 
     const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
     const basesByOpId = new Map(
@@ -459,7 +530,8 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           legs: operationLegs.map((leg) => ({ ...leg, priceSource: "close" as const })),
           view: input.view,
           riskProfile: input.riskProfile,
-          openOperationCount: openOperations.length,
+          openOperationCount: openOperations.filter((op) => op.openedAt <= nominalCandle.session)
+            .length,
           provenanceBase: {
             engineVersion: ENGINE_VERSION,
             pricingModel: "bsm_continuous_yield",
@@ -504,13 +576,21 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           basesByOpId.get(op.id),
           "evaluateStrategy: missing precomputed exit rule bases",
         );
+        const visibleFactors = tickerView.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
+        const splitFactor = splitFactorProduct(visibleFactors, op.openedAt, nominalCandle.session);
         let fired = false;
         for (const rule of input.strategy.definition.exit) {
           if (fired) break;
           switch (rule.kind) {
             case "profit_target":
             case "stop_loss": {
-              const outcome = evaluateNumericExitRule(rule, op, nominalCandle.close, bases);
+              const outcome = evaluateNumericExitRule(
+                rule,
+                op,
+                nominalCandle.close,
+                bases,
+                splitFactor,
+              );
               if (outcome.zeroBase && zeroBaseDetail === null) {
                 zeroBaseDetail = zeroBaseMessage(rule.kind);
               }

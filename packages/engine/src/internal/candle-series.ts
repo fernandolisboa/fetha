@@ -17,7 +17,7 @@ export type CandleSeriesResult =
   | { ok: true; value: { nominal: Candle[]; adjusted: Candle[]; truncated: TruncationReport[] } }
   | { ok: false; error: { path: string; message: string } };
 
-const priceFields = ["open", "high", "low", "close"] as const;
+export const priceFields = ["open", "high", "low", "close"] as const;
 
 export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesResult {
   for (const [index, c] of input.candles.entries()) {
@@ -162,6 +162,6 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
   return { ok: true, value: { nominal, adjusted, truncated } };
 }
 
-function isPositiveDecimal(value: string): boolean {
+export function isPositiveDecimal(value: string): boolean {
   return new Decimal(value).isPositive() && !new Decimal(value).isZero();
 }

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { Condition, LegTemplate, StrategyDefinition, Structure } from "@fetha/contracts";
 import type {
   Candle,
+  CorporateActionFactor,
+  DividendYieldPoint,
   EvaluateStrategyInput,
+  MacroPoint,
   MarketView,
   Operation,
   Signal,
@@ -368,6 +371,57 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.value.signals).toEqual([]);
   });
 
+  it("scales entryPrice by a split factor before comparing it to the close, so stop_loss does not fire on a flat position across a 2:1 split", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 3, "16.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const preSplitOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "stop_loss", multipleOfMaxLoss: decimalString("0.1") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [preSplitOperation],
+    };
+    // Unadjusted: pnl = (16.00 - 30.00) * 100 = -R$1400, well past a 10% stop on a R$3000 base.
+    // Adjusted for the 2:1 split (entry scaled to 15.00): pnl = (16.00 - 15.00) * 100 = +R$100.
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.signals).toEqual([]);
+  });
+
   it("does not enter when an open operation already exists for the instrument", () => {
     const closes = ["10.00", "10.00", "10.00", "13.00"];
     const view: MarketView = {
@@ -537,6 +591,67 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-04",
         outcome: "insufficient_data",
         detail: "no candles for this instrument and timeframe",
+      },
+    ]);
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("resolves the record's session from the calendar rather than slicing at's own date", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: [
+        { date: "2024-01-04", open: "2024-01-05T00:30:00.000Z", close: "2024-01-05T03:00:00.000Z" },
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-05T01:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.session).toBe("2024-01-04");
+  });
+
+  it("falls back to slicing at's own date when the view carries no calendar row", () => {
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-05T01:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.session).toBe("2024-01-05");
+  });
+
+  it("records insufficient_data when no candle falls in (since, at], distinct from no candles at all", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 0, "10.00")],
+    };
+    const since = "2024-01-01T21:00:00.000Z";
+    const at = "2024-01-01T21:00:00.001Z";
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      since,
+      at,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations).toEqual([
+      {
+        ticker: "PETR4",
+        at,
+        session: "2024-01-01",
+        outcome: "insufficient_data",
+        detail: "no candles in (since, at] for this instrument and timeframe",
       },
     ]);
     expect(result.value.signals).toEqual([]);
@@ -1007,7 +1122,52 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.error).toMatchObject({ code: "invalid_input", path: "view.dividendYields" });
   });
 
-  it("rejects a candle with a non-positive close, propagated from the per-ticker candle series", () => {
+  it("rejects a macro annualRate of -100% or below as invalid_input, at the macro row's own path", () => {
+    const point: MacroPoint = {
+      series: "cdi",
+      date: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      annualRate: decimalString("-1"),
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, macro: [point] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.macro[0].annualRate",
+      message: "an annual rate of -100% or below makes ln(1 + rate) undefined",
+    });
+  });
+
+  it("rejects a dividend annualYield of -100% or below as invalid_input, at the row's own path", () => {
+    const point: DividendYieldPoint = {
+      underlying: "PETR4",
+      asOf: "2024-01-02T21:00:00.000Z",
+      annualYield: decimalString("-1.50"),
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, dividendYields: [point] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.dividendYields[0].annualYield",
+      message: "an annual yield of -100% or below makes ln(1 + yield) undefined",
+    });
+  });
+
+  it("rejects a candle with a non-positive close, at its true index in view.candles", () => {
     const badView: MarketView = {
       ...emptyView,
       candles: [{ ...dailyCandle("PETR4", 0, "10.00"), close: decimalString("0.00") }],
@@ -1022,6 +1182,26 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatchObject({ code: "invalid_input", path: "view.candles[0].close" });
+  });
+
+  it("rejects a non-positive candle for a ticker outside instruments, not just referenced ones", () => {
+    const badView: MarketView = {
+      ...emptyView,
+      candles: [
+        dailyCandle("PETR4", 0, "10.00"),
+        { ...dailyCandle("VALE3", 0, "10.00"), close: decimalString("0.00") },
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view: badView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.candles[1].close" });
   });
 
   it("gates entry only from the session an open operation was actually opened at (openedAt catch-up)", () => {
@@ -1073,6 +1253,49 @@ describe("evaluateStrategy — stock-only strategies", () => {
     ]);
     const exitSignal = result.value.signals[1] as Extract<Signal, { kind: "exit" }>;
     expect(exitSignal.session >= lateOperation.openedAt).toBe(true);
+  });
+
+  it("does not count a portfolio operation opened after the instant toward maxOpenOperations", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const futureOperation: Operation = {
+      id: "future-op",
+      underlying: "VALE3",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "VALE3",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-05",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4", "VALE3"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [futureOperation],
+      riskProfile: { ...riskProfile, limits: { ...riskProfile.limits, maxOpenOperations: 1 } },
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const entrySignal = result.value.signals.find((s) => s.ticker === "PETR4");
+    expect(entrySignal?.kind).toBe("entry");
+    if (entrySignal?.kind !== "entry") return;
+    expect(entrySignal.proposal.pricing.limitBreaches).toEqual([]);
+    expect(entrySignal.proposal.pricing.notes.some((n) => n.code === "limit_breach_warned")).toBe(
+      false,
+    );
   });
 
   it("tries exit rules in definition order and stops at the first that fires", () => {
@@ -1209,6 +1432,48 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("signal");
+  });
+
+  it("does not fire stop_loss on a short stock operation when the loss stays under the threshold", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const shortOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "stop_loss", multipleOfMaxLoss: decimalString("0.5") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [shortOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.signals).toEqual([]);
   });
 
   it("uses net premium, not gross cost, as the profit_target base on a buy-2/sell-1 structure", () => {

@@ -20,6 +20,12 @@ describe("toDecimalString", () => {
   it("keeps the sign of a genuinely negative value", () => {
     expect(toDecimalString(new Decimal("-1.5"), PRICE_SCALE)).toBe("-1.50");
   });
+
+  it("throws for a non-finite value instead of emitting Infinity or NaN as a string", () => {
+    expect(() => toDecimalString(new Decimal(Infinity), PRICE_SCALE)).toThrow();
+    expect(() => toDecimalString(new Decimal(-Infinity), PRICE_SCALE)).toThrow();
+    expect(() => toDecimalString(new Decimal(NaN), PRICE_SCALE)).toThrow();
+  });
 });
 
 describe("parseDecimal", () => {
