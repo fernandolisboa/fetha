@@ -388,32 +388,32 @@ function applyRiskLimits(
   return limitBreaches;
 }
 
-function priceConcreteLegs(
+type ValuedLegs = {
+  priced: PricedLeg[];
+  notes: Note[];
+  netPremiumCentavos: Decimal;
+};
+
+// The per-leg valuation, its notes and the net premium are what a sizing preview needs
+// (item 19, PR #53 round 1): everything a full `OperationPricing` adds on top of this —
+// the payoff profile, aggregate greeks, risk-limit checks and provenance — is either
+// unneeded for sizing or, for provenance, has no real value to report before the leg
+// count is known. Splitting this out means the preview no longer manufactures a fake one.
+function valueLegs(
   view: MarketView,
   at: string,
   underlying: string,
   spot: DecimalString,
+  riskFreeRate: DecimalString,
+  dividendYield: DecimalString,
   legs: readonly LegInput[],
-  riskProfile: RiskProfile | undefined,
-  openOperationCount: number | undefined,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
-): Result<OperationPricing> {
-  const riskFreeRateResolution = resolveRiskFreeRate(view.macro, at);
-  if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
-  const dividendResolution = resolveDividendYield(view.dividendYields, underlying, at);
-  if (!dividendResolution.ok) return err(dividendResolution.error);
-  const riskFreeRate = riskFreeRateResolution.value;
-  const dividendYield = dividendResolution.value;
-  const notes: Note[] = [...riskFreeRateResolution.notes, ...dividendResolution.notes];
-
+): { ok: true; value: ValuedLegs } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
+  const notes: Note[] = [];
   let anyLegUnpriced = false;
   for (const leg of legs) {
     const result = valueOneLeg(view, at, underlying, spot, riskFreeRate, dividendYield, leg);
-    if (!result.ok) return err(result.error);
+    if (!result.ok) return { ok: false, error: result.error };
     priced.push(result.leg);
     notes.push(...result.leg.valuation.notes.filter((n) => n.code === "european_pricing"));
     if (result.leg.valuation.notes.some((n) => n.code === "no_market_price")) {
@@ -437,6 +437,54 @@ function priceConcreteLegs(
       ),
     new Decimal(0),
   );
+
+  return { ok: true, value: { priced, notes, netPremiumCentavos } };
+}
+
+// Resolved once per `priceOperation` call and threaded through, rather than re-resolved
+// by every step that happens to need a rate: the concrete-legs path resolves it once for
+// its single pricing pass, and `priceSelection` resolves it once for strike/expiry
+// selection, sizing and the final pricing, all three of which used to re-resolve
+// (PR #53 round 1 item 19).
+function resolveOperationRates(
+  view: MarketView,
+  at: string,
+  underlying: string,
+):
+  | { ok: true; riskFreeRate: DecimalString; dividendYield: DecimalString; notes: Note[] }
+  | { ok: false; error: EngineError } {
+  const riskFreeRateResolution = resolveRiskFreeRate(view.macro, at);
+  if (!riskFreeRateResolution.ok) return { ok: false, error: riskFreeRateResolution.error };
+  const dividendResolution = resolveDividendYield(view.dividendYields, underlying, at);
+  if (!dividendResolution.ok) return { ok: false, error: dividendResolution.error };
+  return {
+    ok: true,
+    riskFreeRate: riskFreeRateResolution.value,
+    dividendYield: dividendResolution.value,
+    notes: [...riskFreeRateResolution.notes, ...dividendResolution.notes],
+  };
+}
+
+function priceConcreteLegs(
+  view: MarketView,
+  at: string,
+  underlying: string,
+  spot: DecimalString,
+  riskFreeRate: DecimalString,
+  dividendYield: DecimalString,
+  rateNotes: readonly Note[],
+  legs: readonly LegInput[],
+  riskProfile: RiskProfile | undefined,
+  openOperationCount: number | undefined,
+  provenanceBase: Pick<
+    Provenance,
+    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
+  >,
+): Result<OperationPricing> {
+  const valued = valueLegs(view, at, underlying, spot, riskFreeRate, dividendYield, legs);
+  if (!valued.ok) return err(valued.error);
+  const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
+  const notes: Note[] = [...rateNotes, ...legNotes];
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 
@@ -540,6 +588,8 @@ function resolveSizingUnits(
   at: string,
   underlying: string,
   spot: DecimalString,
+  riskFreeRate: DecimalString,
+  dividendYield: DecimalString,
   riskProfile: RiskProfile | undefined,
   buildLegs: (units: number) => LegInput[],
 ): { ok: true; units: number } | { ok: false; error: EngineError } {
@@ -549,21 +599,7 @@ function resolveSizingUnits(
   if (!riskProfile)
     return { ok: false, error: { code: "unsizeable", reason: "no_declared_capital" } };
 
-  const preview = priceConcreteLegs(
-    view,
-    at,
-    underlying,
-    spot,
-    buildLegs(1),
-    undefined,
-    undefined,
-    {
-      engineVersion: "",
-      pricingModel: "bsm_continuous_yield",
-      dataVersion: null,
-      datasetNotes: [],
-    },
-  );
+  const preview = valueLegs(view, at, underlying, spot, riskFreeRate, dividendYield, buildLegs(1));
   if (!preview.ok) return { ok: false, error: preview.error };
   if (preview.value.notes.some((n) => n.code === "no_market_price")) {
     return {
@@ -580,6 +616,8 @@ function resolveSizingUnits(
       },
     };
   }
+  const { maxLoss } = computePayoffProfile(preview.value.priced, spot);
+  const netPremium = toCentavos(preview.value.netPremiumCentavos.round().toNumber());
 
   const capital = new Decimal(riskProfile.declaredCapital);
   const fraction = parseDecimal(sizing.fraction);
@@ -601,20 +639,20 @@ function resolveSizingUnits(
   };
 
   if (sizing.kind === "fixed_risk") {
-    if (preview.value.maxLoss === "unbounded") return unboundedMaxLoss;
-    return unitsFromPerUnit(new Decimal(preview.value.maxLoss));
+    if (maxLoss === "unbounded") return unboundedMaxLoss;
+    return unitsFromPerUnit(new Decimal(maxLoss));
   }
 
   // fixed_fractional sizes against the capital actually at risk: for a net-credit
   // structure (netPremium > 0, premium received) that is the bounded max loss
   // (ADR-0014's stop_loss base uses the same reasoning), never the premium received,
   // which understates the risk of a spread.
-  const isNetCredit = preview.value.netPremium > 0;
+  const isNetCredit = netPremium > 0;
   if (isNetCredit) {
-    if (preview.value.maxLoss === "unbounded") return unboundedMaxLoss;
-    return unitsFromPerUnit(new Decimal(preview.value.maxLoss));
+    if (maxLoss === "unbounded") return unboundedMaxLoss;
+    return unitsFromPerUnit(new Decimal(maxLoss));
   }
-  return unitsFromPerUnit(new Decimal(preview.value.netPremium).abs());
+  return unitsFromPerUnit(new Decimal(netPremium).abs());
 }
 
 function priceSelection(
@@ -631,16 +669,9 @@ function priceSelection(
     return err(invalidInput("spot", "the underlying's spot must be positive"));
   }
 
-  const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
-  if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
-  const dividendResolution = resolveDividendYield(
-    input.view.dividendYields,
-    selection.underlying,
-    input.at,
-  );
-  if (!dividendResolution.ok) return err(dividendResolution.error);
-  const riskFreeRate = riskFreeRateResolution.value;
-  const dividendYield = dividendResolution.value;
+  const ratesResolution = resolveOperationRates(input.view, input.at, selection.underlying);
+  if (!ratesResolution.ok) return err(ratesResolution.error);
+  const { riskFreeRate, dividendYield, notes: rateNotes } = ratesResolution;
 
   const resolution = resolveLegSelection({
     structure: selection.structure,
@@ -674,6 +705,8 @@ function priceSelection(
     input.at,
     selection.underlying,
     spot,
+    riskFreeRate,
+    dividendYield,
     input.riskProfile,
     buildLegs,
   );
@@ -684,6 +717,9 @@ function priceSelection(
     input.at,
     selection.underlying,
     spot,
+    riskFreeRate,
+    dividendYield,
+    rateNotes,
     buildLegs(sizing.units),
     input.riskProfile,
     input.openOperationCount,
@@ -720,11 +756,20 @@ export function priceOperation(
     if (!isPositive(spot)) {
       return err(invalidInput("spot", "the underlying's spot must be positive"));
     }
+    const ratesResolution = resolveOperationRates(
+      input.view,
+      input.at,
+      underlyingResult.underlying,
+    );
+    if (!ratesResolution.ok) return err(ratesResolution.error);
     return priceConcreteLegs(
       input.view,
       input.at,
       underlyingResult.underlying,
       spot,
+      ratesResolution.riskFreeRate,
+      ratesResolution.dividendYield,
+      ratesResolution.notes,
       input.legs,
       input.riskProfile,
       input.openOperationCount,

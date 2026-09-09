@@ -1477,6 +1477,15 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   (`capabilities().adjustmentRules` is genuinely empty) with a descriptive `kind`
   (`mark_to_market`, `propose_settlement`) — `EngineError`'s `kind` is a plain `string`, not
   constrained to the vocabulary's own members, so this does not misuse the type.
+- **A sizing preview values legs, not a whole operation.** `resolveSizingUnits` used to call
+  the same `priceConcreteLegs` a real pricing pass calls, built a full `OperationPricing`
+  around it with an empty, fabricated `Provenance`, and — because `priceConcreteLegs`
+  resolved the risk-free rate and dividend yield itself — resolved both a second and (once
+  more, for the final pricing pass) a third time in one `priceOperation` call over a
+  `LegSelection`. `valueLegs` now does exactly the per-leg valuation, notes and net premium
+  a preview or a full pricing pass shares; `resolveOperationRates` resolves the rate and
+  yield once per call and both `priceSelection` and the concrete-legs path thread the
+  result through `resolveSizingUnits` and `priceConcreteLegs` rather than re-resolving.
 - **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
   `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
   with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
