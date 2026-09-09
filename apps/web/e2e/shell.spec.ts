@@ -25,7 +25,10 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", "terminal");
 
   await page.getByRole("button", { name: "Menu da conta" }).click();
-  await page.getByRole("button", { name: /Terminal/ }).click();
+  await page.getByRole("link", { name: "Configurações" }).click();
+  await expect(page).toHaveURL(/\/configuracoes/);
+
+  await page.getByRole("radio", { name: /Terminal/ }).click();
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "terminal");
 
@@ -37,7 +40,11 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
 test("rail collapse persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.getByRole("button", { name: "Recolher a navegação" }).click();
+  const [response] = await Promise.all([
+    page.waitForResponse((res) => res.request().method() === "POST"),
+    page.getByRole("button", { name: "Recolher a navegação" }).click(),
+  ]);
+  expect(response.ok()).toBe(true);
   await expect(page.getByText("Watchlist", { exact: true })).toBeHidden();
 
   await page.reload();
