@@ -9,6 +9,12 @@ describe("capabilities", () => {
     expect(caps.timeframes).toEqual(["15m", "30m", "60m", "D1"]);
   });
 
+  it("reports both sizing rules and the stock-only exit rules implemented for evaluateStrategy", () => {
+    const caps = capabilities();
+    expect(caps.sizingRules).toEqual(["fixed_fractional", "fixed_risk"]);
+    expect(caps.exitRules).toEqual(["profit_target", "stop_loss", "condition"]);
+  });
+
   it("reports the engine version", () => {
     expect(capabilities().engineVersion).toBe(ENGINE_VERSION);
   });
@@ -17,8 +23,6 @@ describe("capabilities", () => {
     const caps = capabilities();
     expect(caps.strikeSelections).toEqual([]);
     expect(caps.expirySelections).toEqual([]);
-    expect(caps.sizingRules).toEqual([]);
-    expect(caps.exitRules).toEqual([]);
     expect(caps.adjustmentRules).toEqual([]);
     expect(caps.thesisClaims).toEqual([]);
     expect(caps.pricingModels).toEqual([]);

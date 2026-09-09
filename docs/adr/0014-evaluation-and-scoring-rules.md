@@ -95,6 +95,31 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
 - **Implied-volatility rank (sharpens ADR-0008).** `iv_rank` is a 0-100 percentile rank of the
   underlying's implied-volatility index over `lookbackSessions` (formula in ADR-0013), so
   `iv_rank > 50` means the current index is above the median of its lookback.
+- **No pyramiding in `evaluateStrategy` (Q47; permanent, not a #15 stopgap).** A strategy version
+  never opens a second entry into an instrument that already has an open, active operation
+  (ADR-0013 "Entry gating"): the entry condition is evaluated only when the instrument has no
+  active open operation, for stock-only structures now and for structures with option legs once
+  #23 lands. This is a product rule, not a limitation of the current implementation, so it is
+  recorded here rather than in the #15 scope note.
+- **Exit rule order (Q48; permanent, not a #15 stopgap).** `evaluateStrategy` and `runBacktest`
+  both try an operation's exit rules in the strategy definition's own order; the first rule whose
+  threshold or condition fires wins for that operation at that instant, and no further rule is
+  evaluated. A strategy author controls precedence entirely by ordering the `exit` array; the
+  engine never picks the "best" of several rules that would fire together.
+- **`evaluateStrategy` always warns on a limit breach (Q49; permanent, not a #15 stopgap).**
+  Unlike `runBacktest`, which takes `config.limits: LimitMode`, `evaluateStrategy` has no enforce
+  mode: a signal is a proposal for a human to act on, so a risk-profile breach is always recorded
+  (`limitBreaches`, note `limit_breach_warned`, Q39's warn semantics) and never blocks the signal
+  from reaching the inbox. Refusing a signal outright would take the decision away from the user
+  this seam exists to inform.
+- **Exit rule bases for a stock leg (Q50).** `profit_target` and `stop_loss` are evaluated against
+  a base computed once per operation from its entry legs, priced with `priceStockLegs` at the
+  entry prices (never the current close, which would let the base drift as the position moves):
+  `profit_target`'s base is `|netPremium|`; `stop_loss`'s base is `maxLoss` when it is finite, or
+  `|netPremium|` when `maxLoss` is `"unbounded"` (a net-short stock position), since there is no
+  other bounded figure to measure a stop against. A base of zero (a delta-neutral pair of legs at
+  the same entry price) means the rule can never fire; the evaluation record's `detail` names the
+  rule and says so, since `EvaluationRecord` carries no structured reason.
 
 ## Consequences
 

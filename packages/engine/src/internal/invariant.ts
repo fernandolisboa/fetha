@@ -7,3 +7,7 @@ export function assertPresent<T>(value: T | null | undefined, message: string): 
   if (value === null || value === undefined) throw new Error(message);
   return value;
 }
+
+export function invariant(condition: boolean, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}

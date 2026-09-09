@@ -1,6 +1,11 @@
 import { ENGINE_VERSION } from "../api";
 import type { Capabilities } from "../api";
-import { implementedIndicatorKinds, implementedTimeframes } from "./vocabularies";
+import {
+  implementedExitRuleKinds,
+  implementedIndicatorKinds,
+  implementedSizingRuleKinds,
+  implementedTimeframes,
+} from "./vocabularies";
 
 export function capabilities(): Capabilities {
   return {
@@ -9,8 +14,8 @@ export function capabilities(): Capabilities {
     indicators: [...implementedIndicatorKinds],
     strikeSelections: [],
     expirySelections: [],
-    sizingRules: [],
-    exitRules: [],
+    sizingRules: [...implementedSizingRuleKinds],
+    exitRules: [...implementedExitRuleKinds],
     adjustmentRules: [],
     thesisClaims: [],
     pricingModels: [],

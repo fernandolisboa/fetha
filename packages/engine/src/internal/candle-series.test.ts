@@ -374,4 +374,35 @@ describe("buildCandleSeries", () => {
       .map((t) => t.ticker);
     expect(otherTickers).toEqual(["ABEV3", "VALE3"]);
   });
+
+  it("rejects a candle with a non-positive close as invalid_input", () => {
+    const badCandle = { ...candle("2024-01-02", "10.00"), close: decimalString("0.00") };
+    const result = buildCandleSeries({
+      candles: [badCandle],
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      path: "view.candles[0].close",
+      message: "a candle's open, high, low and close must be strictly positive",
+    });
+  });
+
+  it("rejects a candle with a negative open as invalid_input", () => {
+    const badCandle = { ...candle("2024-01-02", "10.00"), open: decimalString("-1.00") };
+    const result = buildCandleSeries({
+      candles: [badCandle],
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.path).toBe("view.candles[0].open");
+  });
 });

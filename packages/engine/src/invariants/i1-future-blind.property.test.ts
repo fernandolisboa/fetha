@@ -3,16 +3,32 @@ import { describe, expect, it } from "vitest";
 import type {
   Candle,
   CorporateActionFactor,
+  EvaluateStrategyInput,
+  Evaluation,
   ImpliedVolatilityIndexPoint,
   IndicatorSeries,
   IndicatorsInput,
+  MarketView,
+  Operation,
   Result,
+  StrategyVersion,
 } from "../api";
+import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
 import { instantMs } from "../internal/instant";
-import { decimalString } from "../test/support";
+import { centavos, decimalString, quantity } from "../test/support";
 import { candlePriceArbitrary, candleSeriesArbitrary } from "./arbitraries";
+
+const riskProfile = {
+  declaredCapital: centavos(1_000_000_00),
+  limits: {
+    maxLossPerOperation: decimalString("1"),
+    maxExposurePerOperation: decimalString("1"),
+    maxOpenOperations: 100,
+    maxPremiumBought: decimalString("1"),
+  },
+};
 
 // The ADR states appending future rows never changes the artifact, but that those rows
 // do appear in provenance.truncated (a growing count), so the comparison strips it,
@@ -176,5 +192,285 @@ describe("I1 Future-blind", () => {
         );
       }),
     );
+  });
+});
+
+describe("I1 Future-blind — evaluateStrategy's inner evaluation instants", () => {
+  const strategy: StrategyVersion = {
+    id: "v1",
+    definition: {
+      name: "test",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: ">",
+        right: { kind: "indicator", indicator: { kind: "sma", length: 3 } },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+      exit: [],
+      adjustments: [],
+    },
+    structure: {
+      id: "stock",
+      name: "Stock",
+      expiry: "shared",
+      legs: [{ role: "stock", side: "buy", ratio: 1 }],
+    },
+  };
+
+  const stripProvenance = (result: Result<Evaluation>): unknown => {
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      value: { signals: result.value.signals, evaluations: result.value.evaluations },
+    };
+  };
+
+  it("appending a candle with asOf in (c, at] never changes the evaluation record or signal at the inner instant c", () => {
+    let sawAtLeastOneSignal = false;
+    fc.assert(
+      fc.property(candleSeriesArbitrary, candlePriceArbitrary, (candles, extraPrice) => {
+        fc.pre(candles.length >= 5);
+        const c = assertDefined(candles[2], "test setup: missing inner instant candle").asOf;
+        const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
+        const firstCandle = assertDefined(candles[0], "test setup: missing first candle");
+
+        const view = (extra: Candle[]): MarketView => ({
+          calendar: [],
+          candles: [...candles, ...extra],
+          corporateActions: [],
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        });
+
+        const input: EvaluateStrategyInput = {
+          view: view([]),
+          strategy,
+          instruments: ["PETR4"],
+          since: `${firstCandle.session}T00:00:00.000Z`,
+          at,
+          riskProfile,
+        };
+
+        const futureCandle: Candle = {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: new Date(Date.UTC(2030, 0, 1)).toISOString().slice(0, 10),
+          asOf: asOfPlusMs(c, 1),
+          open: extraPrice,
+          high: extraPrice,
+          low: extraPrice,
+          close: extraPrice,
+          tradedQuantity: 1,
+        };
+        const extendedInput: EvaluateStrategyInput = { ...input, view: view([futureCandle]) };
+
+        const baseResult = evaluateStrategy(input);
+        const extendedResult = evaluateStrategy(extendedInput);
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.signals.length > 0) sawAtLeastOneSignal = true;
+
+        const atC = <T extends { at: string }>(rows: T[]): T[] => rows.filter((r) => r.at === c);
+        expect(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(extendedResult.value.signals),
+              evaluations: atC(extendedResult.value.evaluations),
+              notes: [],
+              provenance: extendedResult.value.provenance,
+            },
+          }),
+        ).toEqual(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(baseResult.value.signals),
+              evaluations: atC(baseResult.value.evaluations),
+              notes: [],
+              provenance: baseResult.value.provenance,
+            },
+          }),
+        );
+      }),
+    );
+    expect(sawAtLeastOneSignal).toBe(true);
+  });
+
+  it("appending a corporate-action factor with asOf in (c, at] never changes the evaluation record or signal at the inner instant c", () => {
+    let sawAtLeastOneSignal = false;
+    fc.assert(
+      fc.property(candleSeriesArbitrary, (candles) => {
+        fc.pre(candles.length >= 5);
+        const c = assertDefined(candles[2], "test setup: missing inner instant candle").asOf;
+        const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
+        const firstCandle = assertDefined(candles[0], "test setup: missing first candle");
+
+        const view = (factors: CorporateActionFactor[]): MarketView => ({
+          calendar: [],
+          candles,
+          corporateActions: factors,
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        });
+
+        const input: EvaluateStrategyInput = {
+          view: view([]),
+          strategy,
+          instruments: ["PETR4"],
+          since: `${firstCandle.session}T00:00:00.000Z`,
+          at,
+          riskProfile,
+        };
+
+        // A factor whose asOf falls strictly after c (inside (c, at]) must not rewrite the
+        // record already produced at c, even though its ex-date is inside the visible range.
+        const laterFactor: CorporateActionFactor = {
+          ticker: "PETR4",
+          exDate: firstCandle.session,
+          asOf: asOfPlusMs(c, 1),
+          factor: decimalString("0.5"),
+        };
+        const extendedInput: EvaluateStrategyInput = { ...input, view: view([laterFactor]) };
+
+        const baseResult = evaluateStrategy(input);
+        const extendedResult = evaluateStrategy(extendedInput);
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.signals.length > 0) sawAtLeastOneSignal = true;
+
+        const atC = <T extends { at: string }>(rows: T[]): T[] => rows.filter((r) => r.at === c);
+        expect(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(extendedResult.value.signals),
+              evaluations: atC(extendedResult.value.evaluations),
+              notes: [],
+              provenance: extendedResult.value.provenance,
+            },
+          }),
+        ).toEqual(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(baseResult.value.signals),
+              evaluations: atC(baseResult.value.evaluations),
+              notes: [],
+              provenance: baseResult.value.provenance,
+            },
+          }),
+        );
+      }),
+    );
+    expect(sawAtLeastOneSignal).toBe(true);
+  });
+
+  it("appending a portfolio operation with openedAt in (c, at] never changes the evaluation record or signal at the inner instant c", () => {
+    let sawAtLeastOneSignal = false;
+    fc.assert(
+      fc.property(candleSeriesArbitrary, (candles) => {
+        fc.pre(candles.length >= 5);
+        const c = assertDefined(candles[2], "test setup: missing inner instant candle").asOf;
+        const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
+        const lastCandle = assertDefined(candles.at(-1), "test setup: missing last candle");
+        const firstCandle = assertDefined(candles[0], "test setup: missing first candle");
+
+        const view: MarketView = {
+          calendar: [],
+          candles,
+          corporateActions: [],
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+
+        // maxOpenOperations: 1 makes the bug observable: if the future operation were
+        // counted at c, the entry at c would breach the limit it must not see yet.
+        const tightRiskProfile = {
+          ...riskProfile,
+          limits: { ...riskProfile.limits, maxOpenOperations: 1 },
+        };
+
+        const baseInput: EvaluateStrategyInput = {
+          view,
+          strategy,
+          instruments: ["PETR4"],
+          since: `${firstCandle.session}T00:00:00.000Z`,
+          at,
+          riskProfile: tightRiskProfile,
+        };
+
+        const futureOperation: Operation = {
+          id: "future-op",
+          underlying: "PETR4",
+          legs: [
+            {
+              role: "stock",
+              side: "buy",
+              ticker: "PETR4",
+              quantity: quantity(1),
+              entryPrice: decimalString("1.00"),
+            },
+          ],
+          expiry: null,
+          openedAt: lastCandle.session,
+          strategyVersionId: "v1",
+          rolledFrom: null,
+        };
+        const extendedInput: EvaluateStrategyInput = {
+          ...baseInput,
+          openOperations: [futureOperation],
+        };
+
+        const baseResult = evaluateStrategy(baseInput);
+        const extendedResult = evaluateStrategy(extendedInput);
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.signals.length > 0) sawAtLeastOneSignal = true;
+
+        const atC = <T extends { at: string }>(rows: T[]): T[] => rows.filter((r) => r.at === c);
+        expect(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(extendedResult.value.signals),
+              evaluations: atC(extendedResult.value.evaluations),
+              notes: [],
+              provenance: extendedResult.value.provenance,
+            },
+          }),
+        ).toEqual(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(baseResult.value.signals),
+              evaluations: atC(baseResult.value.evaluations),
+              notes: [],
+              provenance: baseResult.value.provenance,
+            },
+          }),
+        );
+      }),
+    );
+    expect(sawAtLeastOneSignal).toBe(true);
   });
 });

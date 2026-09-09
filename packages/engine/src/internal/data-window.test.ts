@@ -515,6 +515,24 @@ describe("dataWindow", () => {
     expect(result.collections).toContain("dividendYields");
   });
 
+  it("requests macro (cdi) and dividend yields for a stock-only strategy, since evaluateStrategy prices its own proposals", () => {
+    const calendar = dailySessions(30);
+    const input: DataWindowInput = {
+      strategy: strategy(
+        definition({ entry: compareCondition(5, "sma"), timeframe: "D1", structureId: "stock" }),
+        stockStructure,
+      ),
+      instruments: ["PETR4"],
+      calendar,
+      at: "2024-01-30T20:00:00.000Z",
+    };
+    const result = dataWindow(input);
+    expect(result.collections).toContain("macro");
+    expect(result.collections).toContain("dividendYields");
+    expect(result.collections).not.toContain("optionSeries");
+    expect(result.collections).not.toContain("optionPrices");
+  });
+
   it("falls back to at when the calendar has no session at or before at", () => {
     const input: DataWindowInput = {
       strategy: strategy(
