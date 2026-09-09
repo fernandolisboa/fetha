@@ -12,16 +12,18 @@ import type {
   IndicatorsInput,
   OperationPricing,
   PortfolioValuation,
+  PriceOperationInput,
   Result,
   RunBacktestInput,
   Score,
   SettlementProposal,
 } from "./api";
-import { pricingModels } from "./api";
+import { ENGINE_VERSION, pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
 import { computeIndicators } from "./internal/indicators-computation";
+import { priceOperation as computePriceOperation } from "./internal/price-operation";
 import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
@@ -44,8 +46,15 @@ export const engine: Engine = {
     return Promise.resolve(computeIndicators(input));
   },
 
-  priceOperation(): Promise<Result<OperationPricing>> {
-    return unsupported("pricingModels", pricingModelKind);
+  priceOperation(input: PriceOperationInput): Promise<Result<OperationPricing>> {
+    return Promise.resolve(
+      computePriceOperation(input, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 
   evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {

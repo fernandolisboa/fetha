@@ -106,11 +106,6 @@ describe("engine", () => {
 
   it.each([
     [
-      "priceOperation",
-      () => engine.priceOperation({ view: emptyView, at: "2024-01-01T00:00:00.000Z", legs: [] }),
-      { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
-    ],
-    [
       "runBacktest",
       () =>
         engine.runBacktest({
@@ -206,6 +201,37 @@ describe("engine", () => {
       expect(result.error).toEqual(expected);
     },
   );
+
+  it("prices a concrete stock-only operation end to end through the Engine interface", async () => {
+    const result = await engine.priceOperation({
+      view: {
+        ...emptyView,
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-01T00:00:00.000Z",
+            last: decimalString("25.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      at: "2024-01-01T00:00:00.000Z",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          price: decimalString("25.00"),
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.netPremium).toBe(centavos(-25_00 * 100));
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+  });
 
   it("evaluates a stock-only strategy, including fixed_risk sizing, end to end with no candles to evaluate", async () => {
     const result = await engine.evaluateStrategy({

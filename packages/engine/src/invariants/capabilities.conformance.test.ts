@@ -9,11 +9,14 @@ import type {
   ThesisClaim,
   Timeframe,
 } from "@fetha/contracts";
+import { pricingModels } from "../api";
 import { capabilities } from "../internal/capabilities";
 import {
   implementedExitRuleKinds,
+  implementedExpirySelectionKinds,
   implementedIndicatorKinds,
   implementedSizingRuleKinds,
+  implementedStrikeSelectionKinds,
   implementedTimeframes,
   unsupportedAdjustmentRuleKinds,
   unsupportedExitRuleKinds,
@@ -43,18 +46,20 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().timeframes).toEqual([...implementedTimeframes]);
   });
 
-  it("every strikeSelections kind is unsupported (no strike-selection method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedStrikeSelectionKinds)[number]>().toEqualTypeOf<
+  it("strikeSelections is implemented in full and matches the contracts StrikeSelection kinds exactly", () => {
+    expect(unsupportedStrikeSelectionKinds).toEqual([]);
+    expectTypeOf<(typeof implementedStrikeSelectionKinds)[number]>().toEqualTypeOf<
       StrikeSelection["kind"]
     >();
-    expect(capabilities().strikeSelections).toEqual([]);
+    expect(capabilities().strikeSelections).toEqual([...implementedStrikeSelectionKinds]);
   });
 
-  it("every expirySelections kind is unsupported (no expiry-selection method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedExpirySelectionKinds)[number]>().toEqualTypeOf<
+  it("expirySelections is implemented in full and matches the contracts ExpirySelection kinds exactly", () => {
+    expect(unsupportedExpirySelectionKinds).toEqual([]);
+    expectTypeOf<(typeof implementedExpirySelectionKinds)[number]>().toEqualTypeOf<
       ExpirySelection["kind"]
     >();
-    expect(capabilities().expirySelections).toEqual([]);
+    expect(capabilities().expirySelections).toEqual([...implementedExpirySelectionKinds]);
   });
 
   it("sizingRules is implemented in full for stock-only strategies and matches the contracts kinds exactly", () => {
@@ -84,7 +89,7 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().thesisClaims).toEqual([]);
   });
 
-  it("pricingModels is left empty until a pricing method is implemented", () => {
-    expect(capabilities().pricingModels).toEqual([]);
+  it("pricingModels is implemented in full (bsm_continuous_yield, ADR-0002)", () => {
+    expect(capabilities().pricingModels).toEqual([...pricingModels]);
   });
 });

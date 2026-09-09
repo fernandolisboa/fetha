@@ -162,6 +162,57 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
     });
   });
 
+  it("keeps the given volatility for fair value while still reporting implied volatility from a market price", () => {
+    const marketPrice = bsmPriceRaw({
+      s: 42,
+      k: 40,
+      t: 0.5,
+      r: 0.1,
+      q: 0,
+      sigma: 0.2,
+      right: "call",
+    });
+    const valuation = priceOptionLeg({
+      leg: hullCallLeg,
+      strike: decimalString("40.00"),
+      spot: decimalString("42.00"),
+      riskFreeRate: decimalString("0.10"),
+      dividendYield: decimalString("0.00"),
+      timeToExpiryYears: 0.5,
+      marketPrice: { value: decimalString(marketPrice.toFixed(2)), source: "close", stale: null },
+      givenVolatility: decimalString("0.35"),
+    });
+    expect(valuation.volatilitySource).toBe("given");
+    expect(Number(valuation.impliedVolatility)).toBeCloseTo(0.2, 2);
+    expect(Number(valuation.fairValue)).not.toBeCloseTo(marketPrice, 1);
+  });
+
+  it("notes iv_not_converged without below_intrinsic for a price above the model's reachable range", () => {
+    const upperPrice = bsmPriceRaw({ s: 42, k: 40, t: 0.5, r: 0.1, q: 0, sigma: 5, right: "call" });
+    const valuation = priceOptionLeg({
+      leg: hullCallLeg,
+      strike: decimalString("40.00"),
+      spot: decimalString("42.00"),
+      riskFreeRate: decimalString("0.10"),
+      dividendYield: decimalString("0.00"),
+      timeToExpiryYears: 0.5,
+      marketPrice: {
+        value: decimalString((upperPrice + 1).toFixed(2)),
+        source: "close",
+        stale: null,
+      },
+      givenVolatility: null,
+    });
+    expect(valuation.notes).toContainEqual({
+      code: "iv_not_converged",
+      message: "implied volatility did not converge from the visible market price",
+    });
+    expect(valuation.notes).not.toContainEqual({
+      code: "below_intrinsic",
+      message: "market price is below the model's intrinsic value floor",
+    });
+  });
+
   it("notes iv_not_converged and below_intrinsic for an arbitrage-violating market price", () => {
     const valuation = priceOptionLeg({
       leg: hullCallLeg,
