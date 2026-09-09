@@ -1,7 +1,11 @@
 export type SortUniqueResult<T> = { ok: true; value: T[] } | { ok: false; duplicateKey: string };
 
+export function codeUnitCompare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function sortedEntries(counts: ReadonlyMap<string, number>): [string, number][] {
-  return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+  return [...counts.entries()].sort(([a], [b]) => codeUnitCompare(a, b));
 }
 
 export function sortUnique<T>(

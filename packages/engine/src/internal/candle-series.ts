@@ -2,8 +2,8 @@ import Decimal from "decimal.js";
 import type { Instant, Ticker, Timeframe } from "@fetha/contracts";
 import type { Candle, CorporateActionFactor, TruncationReport } from "../api";
 import { PRICE_SCALE, toDecimalString } from "./decimal";
-import { compareInstants, isAfter } from "./instant";
-import { sortedEntries, sortUnique } from "./order";
+import { compareInstants, instantMs, isAfter } from "./instant";
+import { codeUnitCompare, sortedEntries, sortUnique } from "./order";
 
 export type BuildCandleSeriesInput = {
   candles: readonly Candle[];
@@ -34,10 +34,10 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
 
   const sortedCandles = sortUnique(
     input.candles,
-    (c) => `${c.ticker}|${c.timeframe}|${c.asOf}`,
+    (c) => `${c.ticker}|${c.timeframe}|${String(instantMs(c.asOf))}`,
     (a, b) =>
-      a.ticker.localeCompare(b.ticker) ||
-      a.timeframe.localeCompare(b.timeframe) ||
+      codeUnitCompare(a.ticker, b.ticker) ||
+      codeUnitCompare(a.timeframe, b.timeframe) ||
       compareInstants(a.asOf, b.asOf),
   );
   if (!sortedCandles.ok) {
@@ -54,8 +54,8 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
     input.corporateActions,
     (f) => `${f.ticker}|${f.exDate}`,
     (a, b) =>
-      a.ticker.localeCompare(b.ticker) ||
-      a.exDate.localeCompare(b.exDate) ||
+      codeUnitCompare(a.ticker, b.ticker) ||
+      codeUnitCompare(a.exDate, b.exDate) ||
       compareInstants(a.asOf, b.asOf),
   );
   if (!sortedFactors.ok) {
@@ -74,11 +74,11 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
   let afterAtDropped = 0;
 
   for (const c of sortedCandles.value) {
-    if (c.timeframe !== input.timeframe) continue;
     if (c.ticker !== input.ticker) {
       otherTickerCandleDrops.set(c.ticker, (otherTickerCandleDrops.get(c.ticker) ?? 0) + 1);
       continue;
     }
+    if (c.timeframe !== input.timeframe) continue;
     if (isAfter(c.asOf, input.at)) {
       afterAtDropped += 1;
       continue;

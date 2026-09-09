@@ -1,7 +1,7 @@
 import type { Instant, Ticker } from "@fetha/contracts";
 import type { ImpliedVolatilityIndexPoint, TruncationReport } from "../api";
 import { isAfter } from "./instant";
-import { sortedEntries, sortUnique } from "./order";
+import { codeUnitCompare, sortedEntries, sortUnique } from "./order";
 
 export type BuildIvIndexSeriesInput = {
   points: readonly ImpliedVolatilityIndexPoint[];
@@ -17,7 +17,7 @@ export function buildIvIndexSeries(input: BuildIvIndexSeriesInput): IvIndexSerie
   const sorted = sortUnique(
     input.points,
     (p) => `${p.underlying}|${p.session}`,
-    (a, b) => a.underlying.localeCompare(b.underlying) || a.session.localeCompare(b.session),
+    (a, b) => codeUnitCompare(a.underlying, b.underlying) || codeUnitCompare(a.session, b.session),
   );
   if (!sorted.ok) {
     return {

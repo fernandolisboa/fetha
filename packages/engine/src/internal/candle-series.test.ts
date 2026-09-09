@@ -137,6 +137,31 @@ describe("buildCandleSeries", () => {
     expect(result.value.truncated).toEqual([]);
   });
 
+  it("counts an unreferenced-instrument row as unreferenced regardless of its timeframe, in a mixed-timeframe view", () => {
+    const candles = [
+      candle("2024-01-02", "10.00"),
+      { ...candle("2024-01-02", "20.00"), ticker: "VALE3" },
+      { ...candle("2024-01-02", "30.00"), ticker: "VALE3", timeframe: "60m" as const },
+      { ...candle("2024-01-02", "10.00"), timeframe: "60m" as const },
+    ];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted).toHaveLength(1);
+    expect(result.value.truncated).toContainEqual({
+      collection: "candles",
+      ticker: "VALE3",
+      dropped: 2,
+      reason: "unreferenced_instrument",
+    });
+  });
+
   it("drops corporate action factors after the truncation instant and for other instruments, reporting both", () => {
     const candles = [candle("2024-01-02", "10.00")];
     const factors: CorporateActionFactor[] = [
@@ -204,6 +229,21 @@ describe("buildCandleSeries", () => {
 
   it("rejects duplicate candle keys as invalid input", () => {
     const candles = [candle("2024-01-02", "10.00"), candle("2024-01-02", "10.50")];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects two candle rows for the same instant expressed with different millisecond precision as a duplicate key", () => {
+    const candles = [
+      candle("2024-01-02", "10.00", "2024-01-02T20:00:00Z"),
+      candle("2024-01-02", "10.50", "2024-01-02T20:00:00.000Z"),
+    ];
     const result = buildCandleSeries({
       candles,
       corporateActions: [],

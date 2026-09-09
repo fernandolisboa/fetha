@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortUnique } from "./order";
+import { codeUnitCompare, sortedEntries, sortUnique } from "./order";
 
 type Row = { key: string; order: number; value: number };
 
@@ -47,5 +47,37 @@ describe("sortUnique", () => {
     const result = sortUnique<Row>([], byKey, byOrder);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value).toEqual([]);
+  });
+});
+
+describe("codeUnitCompare", () => {
+  it("orders strictly by UTF-16 code unit, not by locale collation: uppercase before lowercase", () => {
+    expect(codeUnitCompare("A", "a")).toBeLessThan(0);
+    expect(codeUnitCompare("Z", "a")).toBeLessThan(0);
+    expect(codeUnitCompare("a", "A")).toBeGreaterThan(0);
+  });
+
+  it("compares digit strings lexicographically by code unit, not numerically", () => {
+    expect(codeUnitCompare("10", "9")).toBeLessThan(0);
+  });
+
+  it("is zero for equal strings", () => {
+    expect(codeUnitCompare("ABEV3", "ABEV3")).toBe(0);
+  });
+
+  it("is deterministic and produces the same order regardless of the runtime locale", () => {
+    const input = ["b", "A", "Z", "10", "9", "a"];
+    expect([...input].sort(codeUnitCompare)).toEqual(["10", "9", "A", "Z", "a", "b"]);
+  });
+});
+
+describe("sortedEntries", () => {
+  it("orders map entries by code unit, uppercase before lowercase", () => {
+    const counts = new Map<string, number>([
+      ["b", 1],
+      ["A", 2],
+      ["a", 3],
+    ]);
+    expect(sortedEntries(counts).map(([key]) => key)).toEqual(["A", "a", "b"]);
   });
 });
