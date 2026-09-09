@@ -30,7 +30,7 @@ export function CommandSearch() {
         onClick={() => {
           setOpen(true);
         }}
-        className="border-border bg-background text-muted-foreground flex h-[30px] w-[360px] items-center gap-2 rounded-[var(--radius)] border px-2.5 text-[13px]"
+        className="border-border bg-background text-muted-foreground flex h-8 w-[360px] items-center gap-2 rounded-[var(--radius)] border px-2.5 text-[13px]"
       >
         <Search className="size-3.5" aria-hidden />
         <span className="truncate">{t.search.placeholder}</span>
