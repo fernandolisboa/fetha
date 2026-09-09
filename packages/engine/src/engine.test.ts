@@ -107,40 +107,6 @@ describe("engine", () => {
 
   it.each([
     [
-      "runBacktest",
-      () =>
-        engine.runBacktest({
-          view: emptyView,
-          config: {
-            strategy,
-            universe: ["PETR4"],
-            period: { from: "2024-01-01", to: "2024-01-31" },
-            initialCapital: centavos(100_000_00),
-            costModel: {
-              b3FeeRate: decimalString("0.0003"),
-              brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
-              optionSlippageRate: decimalString("0.01"),
-              incomeTaxRate: decimalString("0.15"),
-              monthlyStockSalesExemption: centavos(20_000_00),
-            },
-            riskProfile: {
-              declaredCapital: centavos(100_000_00),
-              limits: {
-                maxLossPerOperation: decimalString("0.02"),
-                maxExposurePerOperation: decimalString("0.1"),
-                maxOpenOperations: 5,
-                maxPremiumBought: decimalString("0.05"),
-              },
-            },
-            limits: "enforce",
-            sizing: null,
-            walkForward: null,
-            seed: 1,
-          },
-        } satisfies RunBacktestInput),
-      { code: "unsupported", vocabulary: "sizingRules", kind: "fixed_fractional" },
-    ],
-    [
       "markToMarket",
       () =>
         engine.markToMarket({
@@ -348,11 +314,29 @@ describe("engine", () => {
     });
   });
 
-  it("reports the caller's strategy sizing kind for runBacktest, not a fixed vocabulary entry", async () => {
+  it("reports unsupported with the strike-selection kind for runBacktest on a structure with option legs", async () => {
+    const optionStrategy: StrategyVersion = {
+      id: "v1",
+      definition: {
+        ...strategy.definition,
+        structureId: "covered_call",
+        strikes: [{ kind: "moneyness", percent: decimalString("0.05") }],
+        expiry: { kind: "business_days", min: 20, max: 45 },
+      },
+      structure: {
+        id: "covered_call",
+        name: "Covered call",
+        expiry: "shared",
+        legs: [
+          { role: "stock", side: "buy", ratio: 1 },
+          { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+        ],
+      },
+    };
     const result = await engine.runBacktest({
       view: emptyView,
       config: {
-        strategy: fixedRiskStrategy,
+        strategy: optionStrategy,
         universe: ["PETR4"],
         period: { from: "2024-01-01", to: "2024-01-31" },
         initialCapital: centavos(100_000_00),
@@ -382,8 +366,74 @@ describe("engine", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "unsupported",
-      vocabulary: "sizingRules",
-      kind: "fixed_risk",
+      vocabulary: "strikeSelections",
+      kind: "delta",
     });
+  });
+
+  it("runs a stock-only backtest end to end through the Engine interface", async () => {
+    const view: IndicatorsInput["view"] = {
+      ...emptyView,
+      calendar: [
+        { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T20:00:00.000Z" },
+        { date: "2024-01-03", open: "2024-01-03T13:00:00.000Z", close: "2024-01-03T20:00:00.000Z" },
+      ],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-02",
+          asOf: "2024-01-02T20:00:00.000Z",
+          open: decimalString("10.00"),
+          high: decimalString("10.00"),
+          low: decimalString("10.00"),
+          close: decimalString("10.00"),
+          tradedQuantity: 1000,
+        },
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-03",
+          asOf: "2024-01-03T20:00:00.000Z",
+          open: decimalString("10.50"),
+          high: decimalString("10.50"),
+          low: decimalString("10.50"),
+          close: decimalString("10.50"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    const result = await engine.runBacktest({
+      view,
+      config: {
+        strategy,
+        universe: ["PETR4"],
+        period: { from: "2024-01-02", to: "2024-01-03" },
+        initialCapital: centavos(100_000_00),
+        costModel: {
+          b3FeeRate: decimalString("0"),
+          brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+          optionSlippageRate: decimalString("0"),
+          incomeTaxRate: decimalString("0.15"),
+          monthlyStockSalesExemption: centavos(20_000_00),
+        },
+        riskProfile: {
+          declaredCapital: centavos(100_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+        limits: "enforce",
+        sizing: null,
+        walkForward: null,
+        seed: 1,
+      },
+    } satisfies RunBacktestInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.status).toBe("complete");
   });
 });
