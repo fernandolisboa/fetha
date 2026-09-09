@@ -1,5 +1,5 @@
 import { asc } from "drizzle-orm";
-import type { Structure } from "@fetha/contracts";
+import { structureSchema, type Structure } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import { structures } from "@/db/schema/structures";
@@ -17,6 +17,8 @@ export class StructuresRepository {
       .from(structures)
       .orderBy(asc(structures.name));
 
-    return rows.map((row) => ({ id: row.id, name: row.name, expiry: "shared", legs: row.legs }));
+    return rows.map((row) =>
+      structureSchema.parse({ id: row.id, name: row.name, expiry: "shared", legs: row.legs }),
+    );
   }
 }

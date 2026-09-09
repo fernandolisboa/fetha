@@ -1,0 +1,58 @@
+// Run by hand, locally, with DATABASE_URL pointed at the target database:
+//   DATABASE_URL=... node scripts/seed-structures.mjs
+// Seeds the reference structure catalog (docs/adr/0012, CLAUDE.md
+// principle 5: shared, read-only data no user writes). Today this is only
+// the trivial structure UBIQUITOUS_LANGUAGE.md names ("a single stock
+// purchase is the trivial structure with one stock leg"); #20 extends this
+// script with the hand-written reference structures (collar, trava de
+// alta, butterfly, condor). Idempotent: re-running it changes nothing.
+//
+// Each row is validated against a plain re-statement of
+// `packages/contracts/src/structure.ts`'s shape before it is written, since
+// this script runs as plain Node with no TypeScript build step (same
+// constraint as scripts/seed-invite.mjs) and cannot import that module's
+// `.ts` source directly.
+import { neon } from "@neondatabase/serverless";
+import { z } from "zod";
+
+const legTemplateSchema = z.discriminatedUnion("role", [
+  z.strictObject({
+    role: z.literal("stock"),
+    side: z.enum(["buy", "sell"]),
+    ratio: z.int().min(1),
+  }),
+  z.strictObject({
+    role: z.enum(["call", "put"]),
+    side: z.enum(["buy", "sell"]),
+    ratio: z.int().min(1),
+    strikeRank: z.int().min(1),
+  }),
+]);
+
+const structureSchema = z.strictObject({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  legs: z.array(legTemplateSchema).min(1),
+});
+
+const catalog = [
+  { id: "stock", name: "Compra de ação", legs: [{ role: "stock", side: "buy", ratio: 1 }] },
+];
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  console.error("DATABASE_URL is not set.");
+  process.exit(1);
+}
+
+const sql = neon(databaseUrl);
+
+for (const candidate of catalog) {
+  const structure = structureSchema.parse(candidate);
+  await sql`
+    insert into structures (id, name, legs)
+    values (${structure.id}, ${structure.name}, ${JSON.stringify(structure.legs)})
+    on conflict (id) do nothing
+  `;
+  console.log(`Seeded structure "${structure.id}".`);
+}

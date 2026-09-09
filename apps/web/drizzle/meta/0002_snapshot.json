@@ -1,5 +1,5 @@
 {
-  "id": "6c790981-0ace-4880-92b0-aa45c19a6f76",
+  "id": "cc108bf5-cac3-4e59-8d90-651063f25661",
   "prevId": "cb0f10c6-e87b-467d-9503-196a6299138e",
   "version": "7",
   "dialect": "postgresql",
@@ -642,12 +642,30 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "strategies_copied_from_strategy_id_strategies_id_fk": {
+          "name": "strategies_copied_from_strategy_id_strategies_id_fk",
+          "tableFrom": "strategies",
+          "tableTo": "strategies",
+          "columnsFrom": [
+            "copied_from_strategy_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "strategies_visibility_check": {
+          "name": "strategies_visibility_check",
+          "value": "\"strategies\".\"visibility\" in ('private', 'shared')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.strategy_versions": {
@@ -678,8 +696,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "config_digest": {
-          "name": "config_digest",
+        "definition_digest": {
+          "name": "definition_digest",
           "type": "text",
           "primaryKey": false,
           "notNull": true
