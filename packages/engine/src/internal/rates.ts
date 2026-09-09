@@ -2,16 +2,7 @@ import Decimal from "decimal.js";
 import type { Instant, Ticker } from "@fetha/contracts";
 import type { DividendYieldPoint, MacroPoint, Note } from "../api";
 import { parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
-import { compareInstants } from "./instant";
-
-function latestVisible<T extends { asOf: Instant }>(rows: readonly T[], at: Instant): T | null {
-  let latest: T | null = null;
-  for (const row of rows) {
-    if (compareInstants(row.asOf, at) > 0) continue;
-    if (latest === null || compareInstants(row.asOf, latest.asOf) > 0) latest = row;
-  }
-  return latest;
-}
+import { latestVisible } from "./visible";
 
 // ADR-0013 "Rates, time and greeks": the CDI annual rate is compounded over 252 business
 // days, so the model's continuous rate is r = ln(1 + cdi).
