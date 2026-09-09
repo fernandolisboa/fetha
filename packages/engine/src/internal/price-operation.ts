@@ -486,6 +486,37 @@ function priceConcreteLegs(
   };
 }
 
+// Concrete `LegInput[]` legs are not built by `resolveLegSelection`, so nothing else
+// guarantees they describe one operation: every stock leg must be the same underlying
+// the operation was inferred from, and every option leg must share one listed expiry
+// (a calendar spread is a `LegSelection`'s job, once #23 exists — not a concrete-legs
+// operation). A leg with no listed series is left for `valueOneLeg`'s own
+// `missing_instrument` to report (PR #53 round 1 item 14).
+function validateConcreteLegs(
+  view: MarketView,
+  at: string,
+  underlying: string,
+  legs: readonly LegInput[],
+): EngineError | null {
+  for (const leg of legs) {
+    if (leg.role === "stock" && leg.ticker !== underlying) {
+      return invalidInput("legs", "every stock leg must share the operation's underlying");
+    }
+  }
+  const expiries = new Set<string>();
+  for (const leg of legs) {
+    if (leg.role === "stock") continue;
+    const series = view.optionSeries.find(
+      (candidate) => candidate.ticker === leg.ticker && isAtOrBefore(candidate.asOf, at),
+    );
+    if (series) expiries.add(series.expiry);
+  }
+  if (expiries.size > 1) {
+    return invalidInput("legs", "every option leg must share one expiry");
+  }
+  return null;
+}
+
 function resolveUnderlyingFromLegs(
   view: MarketView,
   at: string,
@@ -677,6 +708,13 @@ export function priceOperation(
       ...input.legs.slice(1),
     ]);
     if (!underlyingResult.ok) return err(underlyingResult.error);
+    const consistencyError = validateConcreteLegs(
+      input.view,
+      input.at,
+      underlyingResult.underlying,
+      input.legs,
+    );
+    if (consistencyError) return err(consistencyError);
     const spot = resolveUnderlyingMarketPrice(input.view, underlyingResult.underlying, input.at);
     if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
     if (!isPositive(spot)) {

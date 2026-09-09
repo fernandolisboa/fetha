@@ -1434,6 +1434,12 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   construction (the chosen expiry already passed the `business_days` window check against the
   calendar), so its former silent-zero fallback is an `invariant` now, not a code path a test can
   reach with well-formed data.
+- **Concrete legs are validated as one operation.** `resolveLegSelection` builds a
+  consistent set of legs by construction; a caller-supplied `LegInput[]` does not. Every
+  stock leg must share the underlying inferred for the operation (the first stock leg's
+  ticker, or the first option leg's listed underlying); every option leg must share one
+  listed expiry — both `invalid_input` (path `legs`). A leg with no listed series is still
+  `missing_instrument`, reported by its own valuation, not by this check.
 - **Sizing: `zero_units` and the net-credit divisor.** `UnsizeableReason` gains `zero_units`
   (additive, `api.ts` and the frozen block above updated together): a `SizingRule` that would
   otherwise size to fewer than one unit is unsizeable, per "Quantity" above ("fewer than one

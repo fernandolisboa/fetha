@@ -885,6 +885,78 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
+  it("returns invalid_input when a second stock leg's ticker does not match the inferred underlying", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        ...baseView.quotes,
+        { ticker: "VALE3", asOf: at, last: decimalString("60.00"), bid: null, ask: null },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("30.00"),
+          },
+          {
+            role: "stock",
+            side: "sell",
+            ticker: "VALE3",
+            quantity: quantity(100),
+            price: decimalString("60.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("returns invalid_input when two concrete option legs list different expiries", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4C40", "40.00"),
+        { ...callSeries("PETR4C42", "42.00"), expiry: "2024-01-14" },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C42",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("surfaces iv_not_converged and below_intrinsic on a leg with an arbitrage-violating market price", () => {
     const view: MarketView = {
       ...baseView,
