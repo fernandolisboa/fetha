@@ -50,6 +50,16 @@ describe("solveImpliedVolatilityRaw", () => {
     expect(solved.ok).toBe(false);
   });
 
+  it("fails to converge on a deep-in-the-money, near-expiry call whose price is near-flat in sigma", () => {
+    // Deep ITM with days to expiry: vega is negligible everywhere in the sigma domain, so
+    // the bisection can satisfy the price tolerance at almost any point in a wide bracket
+    // (PR #53 round 1 item 16) — the "solution" is not actually pinned by the price.
+    const params = { s: 100, k: 50, t: 0.02, r: 0.1, q: 0, right: "call" as const };
+    const price = bsmPriceRaw({ ...params, sigma: 1 });
+    const solved = solveImpliedVolatilityRaw({ ...params, price });
+    expect(solved.ok).toBe(false);
+  });
+
   it("round-trips for puts too", () => {
     const sigma = 0.35;
     const params = { s: 30, k: 32, t: 0.25, r: 0.08, q: 0.02, right: "put" as const };

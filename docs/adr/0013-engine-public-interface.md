@@ -1458,6 +1458,16 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   `dividend_yield_defaulted`, so a caller can tell the continuous rate was assumed zero rather
   than read from `MarketView.macro`. An `annualRate`/`annualYield` at or below -1 (which would
   make the continuous-rate conversion's `ln()` throw) is `invalid_input` before conversion.
+- **`iv_not_converged` also covers a spuriously "matched" price.** A price within
+  `PRICE_TOLERANCE` (1e-8) of the model's price at some sigma is not, on its own, evidence
+  that sigma is pinned by the price: deep in/out of the money near expiry, price is
+  near-flat across almost the whole `[1e-4, 5]` sigma domain, so bisection can satisfy the
+  tolerance inside a bracket that never meaningfully narrowed. `solveImpliedVolatilityRaw`
+  now also requires, at the accepted sigma: local vega ≥ 1e-3 (raw, pre-scaling), and the
+  price spanned by the accepted bracket's own endpoints (`|price(high) - price(low)|`) ≥
+  1e-4. Both thresholds sit two orders of magnitude below well-conditioned fixtures
+  (vega ~5-10, bracket price width ~0.8-1.5) and two above the near-intrinsic case the
+  fix's test uses (vega <1e-3, bracket price width <1e-4).
 - **`impliedVolatilityIndex` is implemented**, per "`markToMarket`, ..., `impliedVolatilityIndex`,
   `dataWindow`" above: `atm_30d_variance_interpolated`, bracketing the 30-calendar-day point
   between the two nearest listed expiries (or using one that lands on it exactly) and
