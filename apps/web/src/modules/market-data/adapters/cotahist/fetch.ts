@@ -1,3 +1,5 @@
+import { unzipSync } from "fflate";
+
 import type { CotahistRow } from "./schema";
 import { parseCotahist } from "./parser";
 
@@ -13,13 +15,20 @@ export class CotahistFetchError extends Error {
 
 // B3 publishes the daily COTAHIST file as COTAHIST_D{ddmmyyyy}.ZIP under
 // InstDados/SerHist (docs/research/2026-09-02-market-data-providers.md,
-// section 2). The zip holds a single fixed-width .TXT with the same name.
-// `fetchImpl` is expected to return the already-decompressed .TXT content
-// (unzipping is an ingestion-runtime concern, not the parser's); tests inject
-// a fake that returns fixture text directly, matching that contract.
+// section 2). The zip holds a single fixed-width .TXT with the same name,
+// latin1-encoded (accented instrument names).
 export function cotahistDailyFileUrl(session: string): string {
   const [year = "", month = "", day = ""] = session.split("-");
   return `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D${day}${month}${year}.ZIP`;
+}
+
+function decompressCotahist(zipBytes: Uint8Array): string {
+  const entries = unzipSync(zipBytes);
+  const [name, bytes] = Object.entries(entries)[0] ?? [];
+  if (!name || !bytes) {
+    throw new CotahistFetchError("COTAHIST zip has no entries");
+  }
+  return new TextDecoder("latin1").decode(bytes);
 }
 
 export async function fetchCotahist(
@@ -30,6 +39,7 @@ export async function fetchCotahist(
   if (!response.ok) {
     throw new CotahistFetchError(`COTAHIST fetch failed for ${session}`, response.status);
   }
-  const content = await response.text();
-  return parseCotahist(content);
+  const zipBytes = new Uint8Array(await response.arrayBuffer());
+  const content = decompressCotahist(zipBytes);
+  return parseCotahist(content, session);
 }

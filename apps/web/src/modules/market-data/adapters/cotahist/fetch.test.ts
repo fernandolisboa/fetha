@@ -5,13 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { CotahistFetchError, cotahistDailyFileUrl, fetchCotahist } from "./fetch";
 
-const fixture = readFileSync(
-  path.join(import.meta.dirname, "fixtures", "cotahist-sample.txt"),
-  "utf-8",
-);
+const zipFixture = readFileSync(path.join(import.meta.dirname, "fixtures", "cotahist-sample.zip"));
 
-function fakeFetch(status: number, body: string): typeof fetch {
-  return () => Promise.resolve(new Response(body, { status }));
+function fakeFetch(status: number, body: Uint8Array | string): typeof fetch {
+  return () => Promise.resolve(new Response(body as BodyInit, { status }));
 }
 
 describe("cotahistDailyFileUrl", () => {
@@ -23,9 +20,18 @@ describe("cotahistDailyFileUrl", () => {
 });
 
 describe("fetchCotahist", () => {
-  it("parses the response body through the fixed-width parser", async () => {
-    const rows = await fetchCotahist("2026-09-08", fakeFetch(200, fixture));
-    expect(rows).toHaveLength(2);
+  it("decompresses the real B3 zip, decodes latin1 and parses the fixed-width rows", async () => {
+    const rows = await fetchCotahist("2026-09-08", fakeFetch(200, zipFixture));
+    expect(rows).toHaveLength(5);
+    expect(rows.filter((row) => row.kind === "stock").map((row) => row.ticker)).toEqual([
+      "PETR4",
+      "VALE3",
+      "FNAM11",
+    ]);
+    expect(rows.filter((row) => row.kind === "option").map((row) => row.ticker)).toEqual([
+      "PETRK312",
+      "PETRW463",
+    ]);
   });
 
   it("throws CotahistFetchError on a non-ok response", async () => {

@@ -26,6 +26,7 @@ const PUT_MARKET_TYPE = "080";
 const OPTION_MARKET_TYPES = new Set([CALL_MARKET_TYPE, PUT_MARKET_TYPE]);
 
 const RECORD_LENGTH = 245;
+const STORAGE_DECIMALS = 6;
 
 function slice(line: string, [start, end]: readonly [number, number]): string {
   return line.slice(start, end).trim();
@@ -33,10 +34,6 @@ function slice(line: string, [start, end]: readonly [number, number]): string {
 
 function toIsoDate(yyyymmdd: string): string {
   return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
-}
-
-function toDecimalString(digits: string): string {
-  return new Decimal(digits || "0").dividedBy(100).toFixed(2);
 }
 
 export class CotahistParseError extends Error {
@@ -49,28 +46,44 @@ export class CotahistParseError extends Error {
   }
 }
 
-function applyQuotationFactor(price: string, factor: string): string {
+// Divides the raw cents integer by 100 x FATCOT once, at full decimal.js
+// precision. FATCOT is a quotation-lot factor (e.g. 1000 for some BDRs and
+// FIIs), not a corporate-action adjustment (ADR-0017); rounding to 2 dp
+// before or during this division collapses lot-quoted prices to 0.00.
+export function applyQuotationFactor(rawCents: string, factor: string): string {
   const factorValue = new Decimal(factor || "1");
-  if (factorValue.isZero()) {
-    return price;
-  }
-  return new Decimal(price).dividedBy(factorValue).toFixed(2);
+  const divisor = factorValue.isZero() ? new Decimal(100) : factorValue.times(100);
+  return new Decimal(rawCents || "0").dividedBy(divisor).toString();
 }
 
-function parseDailyQuotationLine(line: string, lineNumber: number): CotahistRow | null {
+function toStorageDecimal(rawCents: string, factor: string): string {
+  return new Decimal(applyQuotationFactor(rawCents, factor)).toFixed(STORAGE_DECIMALS);
+}
+
+function parseDailyQuotationLine(
+  line: string,
+  lineNumber: number,
+  expectedSession: string | undefined,
+): CotahistRow | null {
   const marketType = slice(line, MARKET_TYPE);
   const session = toIsoDate(slice(line, REFERENCE_DATE));
+  if (expectedSession && session !== expectedSession) {
+    throw new CotahistParseError(
+      `record session ${session} does not match the requested session ${expectedSession}`,
+      lineNumber,
+    );
+  }
   const ticker = slice(line, TICKER);
   const trades = Number.parseInt(slice(line, TRADES), 10);
   const tradedQuantity = Number.parseInt(slice(line, TRADED_QUANTITY), 10);
   const rawFactor = slice(line, QUOTATION_FACTOR);
   const factor = rawFactor ? String(Number.parseInt(rawFactor, 10)) : "1";
 
-  const open = applyQuotationFactor(toDecimalString(slice(line, OPEN)), factor);
-  const high = applyQuotationFactor(toDecimalString(slice(line, HIGH)), factor);
-  const low = applyQuotationFactor(toDecimalString(slice(line, LOW)), factor);
-  const average = applyQuotationFactor(toDecimalString(slice(line, AVERAGE)), factor);
-  const close = applyQuotationFactor(toDecimalString(slice(line, CLOSE)), factor);
+  const open = toStorageDecimal(slice(line, OPEN), factor);
+  const high = toStorageDecimal(slice(line, HIGH), factor);
+  const low = toStorageDecimal(slice(line, LOW), factor);
+  const average = toStorageDecimal(slice(line, AVERAGE), factor);
+  const close = toStorageDecimal(slice(line, CLOSE), factor);
 
   if (CASH_MARKET_TYPES.has(marketType)) {
     const row = {
@@ -89,7 +102,7 @@ function parseDailyQuotationLine(line: string, lineNumber: number): CotahistRow 
   }
 
   if (OPTION_MARKET_TYPES.has(marketType)) {
-    const strike = applyQuotationFactor(toDecimalString(slice(line, STRIKE)), factor);
+    const strike = toStorageDecimal(slice(line, STRIKE), factor);
     const expiryDigits = slice(line, EXPIRY);
     if (expiryDigits.length !== 8) {
       throw new CotahistParseError("option row missing DATVEN (expiry)", lineNumber);
@@ -116,13 +129,13 @@ function parseDailyQuotationLine(line: string, lineNumber: number): CotahistRow 
   return null;
 }
 
-export function parseCotahist(content: string): CotahistRow[] {
+export function parseCotahist(content: string, expectedSession?: string): CotahistRow[] {
   const rows: CotahistRow[] = [];
   const lines = content.split(/\r?\n/).filter((line) => line.length > 0);
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
-    if (line.length < RECORD_LENGTH) {
+    if (line.length !== RECORD_LENGTH) {
       throw new CotahistParseError(
         `expected a ${String(RECORD_LENGTH)}-byte record, got ${String(line.length)}`,
         lineNumber,
@@ -135,7 +148,7 @@ export function parseCotahist(content: string): CotahistRow[] {
     if (recordType !== "01") {
       throw new CotahistParseError(`unknown record type "${recordType}"`, lineNumber);
     }
-    const row = parseDailyQuotationLine(line, lineNumber);
+    const row = parseDailyQuotationLine(line, lineNumber, expectedSession);
     if (row) {
       rows.push(row);
     }
