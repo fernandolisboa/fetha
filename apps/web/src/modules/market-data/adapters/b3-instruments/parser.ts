@@ -1,8 +1,24 @@
+import { z } from "zod";
+
 import type { InstrumentOptionSeries } from "./schema";
 import { instrumentOptionSeriesSchema } from "./schema";
 
 const CALL_OPTION_TYPE = "Call";
 const PUT_OPTION_TYPE = "Put";
+
+// The registry also lists ~7,400 commodity/FX option rows (SctyCtgyNm blank,
+// MktNm "OPTIONS ON FUTURE"/"OPTIONS ON SPOT", e.g. BGIF27C034000) whose
+// tickers don't fit tickerSchema; this ticket only covers equities, BDRs,
+// ETFs and their options, so anything outside these categories is out of
+// scope and dropped before validation, not a parse failure.
+const IN_SCOPE_CATEGORIES = new Set([
+  "SHARES",
+  "BDR",
+  "ETF EQUITIES",
+  "ETF FOREIGN INDEX",
+  "OPTION ON EQUITIES",
+  "OPTION ON INDEX",
+]);
 
 function styleFrom(optionStyle: string): "american" | "european" | null {
   if (optionStyle === "AMER") return "american";
@@ -48,10 +64,16 @@ export function parseInstrumentsRegistry(content: string): InstrumentOptionSerie
   const styleIndex = indexOf("OptnStyle");
   const strikeIndex = indexOf("ExrcPric");
   const optionTypeIndex = indexOf("OptnTp");
+  const categoryIndex = indexOf("SctyCtgyNm");
 
   const series: InstrumentOptionSeries[] = [];
+  let skipped = 0;
   for (const row of rows) {
     const fields = row.split(";");
+    const category = fields[categoryIndex]?.trim() ?? "";
+    if (!IN_SCOPE_CATEGORIES.has(category)) {
+      continue;
+    }
     const right = rightFrom(fields[optionTypeIndex] ?? "");
     if (!right) {
       continue;
@@ -63,18 +85,29 @@ export function parseInstrumentsRegistry(content: string): InstrumentOptionSerie
     if (!style || !expiry || !rawStrike || !isin) {
       continue;
     }
-    series.push(
-      instrumentOptionSeriesSchema.parse({
-        ticker: fields[tickerIndex],
-        isin,
-        underlying: fields[underlyingIndex],
-        right,
-        strike: commaToDot(rawStrike),
-        expiry,
-        style,
-        asOf: fields[reportDateIndex],
-      }),
-    );
+    try {
+      series.push(
+        instrumentOptionSeriesSchema.parse({
+          ticker: fields[tickerIndex],
+          isin,
+          underlying: fields[underlyingIndex],
+          right,
+          strike: commaToDot(rawStrike),
+          expiry,
+          style,
+          asOf: fields[reportDateIndex],
+        }),
+      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        skipped += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+  if (skipped > 0) {
+    console.warn(`instruments registry: skipped ${String(skipped)} non-conforming row(s)`);
   }
   return series;
 }
