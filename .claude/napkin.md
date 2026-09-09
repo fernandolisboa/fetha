@@ -16,6 +16,13 @@
 3. **[2026-09-02] Sibling repo `../feudo` is the template ("same as Feudo")**
    Do instead: mirror its versions, configs and agent shapes; deviate only where the kickoff says so (engine package, contracts package, quant reviewer, decimal prices).
 
+4. **[2026-09-09] `design-an-interface` does not exist in the plugin; use `mattpocock-skills:codebase-design` (DESIGN-IT-TWICE.md) with 3 parallel `architect` agents**
+   Do instead: brief each architect with a different constraint (minimal / flexible / common caller), write to `docs/design/<module>/`, compare, then publish a pt-BR decision page as an Artifact so the owner can choose without reading code.
+5. **[2026-09-09] Owner wants Fable 5.1 for design-grade work; Opus only where the routing table says so**
+   Do instead: never downgrade `architect` or blocking reviewers for cost without asking.
+6. **[2026-09-09] Review batching works: collect all lenses, send one consolidated fix brief to the author agent, then re-check only the blocking lens**
+   Do instead: number the items, mark blocking vs advisory, require gate outputs and ADR-block == code confirmation in the report.
+
 ## Shell & Command Reliability
 
 1. **[2026-09-02] Toolchain: node 24, pnpm 10.31, gh (fernandolisboa), vercel CLI (fernandoigorlisboa-8569), codex 0.152 works in WSL**
