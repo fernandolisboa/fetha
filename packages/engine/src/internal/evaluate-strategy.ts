@@ -26,8 +26,14 @@ import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { toQuantity } from "./scalars";
-import { sizeStockEntry } from "./sizing";
+import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { priceStockLegs } from "./stock-pricing";
+
+const sizingDetail: Record<StockSizingReason, string> = {
+  no_declared_capital: "no declared capital to size against",
+  unbounded_max_loss: "fixed_risk sizing is unsizeable against an unbounded max loss",
+  zero_units: "sizing yields fewer than one unit",
+};
 
 function invalidInput(path: string, message: string): Result<Evaluation> {
   return { ok: false, error: { code: "invalid_input", path, message } };
@@ -273,7 +279,13 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
         });
         if (!sizingResult.ok) {
           evaluations.push(
-            record(ticker, c, nominalCandle.session, "unsizeable", sizingResult.detail),
+            record(
+              ticker,
+              c,
+              nominalCandle.session,
+              "unsizeable",
+              sizingDetail[sizingResult.detail],
+            ),
           );
           continue;
         }
@@ -288,7 +300,8 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
         const pricing = priceStockLegs({
           at: c,
           underlying: ticker,
-          legs: operationLegs,
+          spot: nominalCandle.close,
+          legs: operationLegs.map((leg) => ({ ...leg, priceSource: "close" as const })),
           view: input.view,
           riskProfile: input.riskProfile,
           openOperationCount: openOperations.length,

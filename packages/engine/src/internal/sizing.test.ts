@@ -30,7 +30,17 @@ describe("sizeStockEntry", () => {
       legs: [{ side: "buy", ratio: 1 }],
       price: decimalString("25.00"),
     });
-    expect(result).toEqual({ ok: false, detail: "sizing yields no units" });
+    expect(result).toEqual({ ok: false, detail: "zero_units" });
+  });
+
+  it("is unsizeable when the price is non-positive, never dividing by zero", () => {
+    const result = sizeStockEntry({
+      sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+      declaredCapital: centavos(100_000_00),
+      legs: [{ side: "buy", ratio: 1 }],
+      price: decimalString("0.00"),
+    });
+    expect(result).toEqual({ ok: false, detail: "zero_units" });
   });
 
   it("sizes fixed_risk against declared capital and a bounded long stock loss", () => {

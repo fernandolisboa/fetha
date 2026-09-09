@@ -9,16 +9,27 @@ import type {
   OperationLeg,
   OperationPricing,
   PayoffPoint,
+  PriceSource,
   Provenance,
 } from "../api";
-import { parseDecimal, PRICE_SCALE, RATIO_SCALE, toDecimalString } from "./decimal";
+import {
+  CENTAVOS_PER_REAL,
+  parseDecimal,
+  PRICE_SCALE,
+  RATIO_SCALE,
+  toDecimalString,
+} from "./decimal";
 import { compareInstants } from "./instant";
+import { decimalStringSchema } from "./scalar-schemas";
 import { toCentavos } from "./scalars";
+
+export type StockLegInput = OperationLeg & { priceSource: PriceSource };
 
 export type PriceStockLegsInput = {
   at: Instant;
   underlying: Ticker;
-  legs: readonly OperationLeg[];
+  spot: DecimalString;
+  legs: readonly StockLegInput[];
   view: MarketView;
   riskProfile?: RiskProfile | undefined;
   openOperationCount?: number | undefined;
@@ -29,7 +40,7 @@ export type PriceStockLegsInput = {
 };
 
 function ds(value: string): DecimalString {
-  return value as DecimalString;
+  return decimalStringSchema.parse(value);
 }
 
 const zeroGreeks: Greeks = {
@@ -80,7 +91,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,
     price: leg.entryPrice,
-    priceSource: "given",
+    priceSource: leg.priceSource,
     stale: null,
     fairValue: null,
     impliedVolatility: null,
@@ -95,23 +106,17 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
       acc.add(
         new Decimal(sign(leg.side))
           .neg()
-          .mul(parseDecimal(leg.entryPrice).mul(100))
+          .mul(parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL))
           .mul(leg.quantity),
       ),
     new Decimal(0),
   );
 
   const netSlope = input.legs.reduce((acc, leg) => acc + sign(leg.side) * leg.quantity, 0);
-  const payoffAtZeroCentavos = input.legs.reduce(
-    (acc, leg) =>
-      acc.add(
-        new Decimal(sign(leg.side))
-          .neg()
-          .mul(parseDecimal(leg.entryPrice).mul(100))
-          .mul(leg.quantity),
-      ),
-    new Decimal(0),
-  );
+  // The payoff of a net stock position as the underlying goes to zero is exactly the negative
+  // of what was paid to enter it: a long leg loses everything paid, a short leg keeps everything
+  // received, so this is the same figure as the net premium, not a separate computation.
+  const payoffAtZeroCentavos = netPremiumCentavos;
 
   let maxLoss: Centavos | "unbounded";
   let maxGain: Centavos | "unbounded";
@@ -140,7 +145,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
       ? [ds(parseDecimal(soleLeg.entryPrice).toFixed(PRICE_SCALE))]
       : [];
 
-  const spot = soleLeg ? soleLeg.entryPrice : toDecimalString(new Decimal(0), PRICE_SCALE);
+  const spot = input.spot;
   const payoff: PayoffPoint[] = [0.8, 1, 1.2].map((factor) => {
     const underlying = parseDecimal(spot).mul(factor);
     const pnlCentavos = input.legs.reduce(
@@ -148,7 +153,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
         acc.add(
           new Decimal(sign(leg.side))
             .mul(underlying.sub(parseDecimal(leg.entryPrice)))
-            .mul(100)
+            .mul(CENTAVOS_PER_REAL)
             .mul(leg.quantity),
         ),
       new Decimal(0),
@@ -184,7 +189,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
       }
     }
     const notionalCentavos = input.legs.reduce(
-      (acc, leg) => acc.add(parseDecimal(leg.entryPrice).mul(100).mul(leg.quantity)),
+      (acc, leg) => acc.add(parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL).mul(leg.quantity)),
       new Decimal(0),
     );
     if (capital.gt(0)) {
@@ -195,6 +200,17 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
           limit: "maxExposurePerOperation",
           value: toDecimalString(exposureRatio, RATIO_SCALE),
           allowed: input.riskProfile.limits.maxExposurePerOperation,
+        });
+      }
+    }
+    if (capital.gt(0) && netPremiumCentavos.isNegative()) {
+      const premiumRatio = netPremiumCentavos.neg().div(capital);
+      const allowedPremium = parseDecimal(input.riskProfile.limits.maxPremiumBought);
+      if (premiumRatio.gt(allowedPremium)) {
+        limitBreaches.push({
+          limit: "maxPremiumBought",
+          value: toDecimalString(premiumRatio, RATIO_SCALE),
+          allowed: input.riskProfile.limits.maxPremiumBought,
         });
       }
     }

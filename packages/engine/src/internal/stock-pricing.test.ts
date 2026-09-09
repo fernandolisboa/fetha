@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Centavos, RiskProfile } from "@fetha/contracts";
-import type { LegInput, MarketView } from "../api";
+import type { MarketView } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
-import { priceStockLegs } from "./stock-pricing";
+import { priceStockLegs, type StockLegInput } from "./stock-pricing";
 
 const emptyView: MarketView = {
   calendar: [],
@@ -23,13 +23,14 @@ const provenanceBase = {
   datasetNotes: [],
 };
 
-const longLeg: (LegInput & { entryPrice: string })[] = [
+const longLeg: StockLegInput[] = [
   {
     role: "stock",
     side: "buy",
     ticker: "PETR4",
     quantity: quantity(100),
-    entryPrice: "25.00",
+    entryPrice: decimalString("25.00"),
+    priceSource: "close",
   },
 ];
 
@@ -38,7 +39,8 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view: emptyView,
       provenanceBase,
     });
@@ -46,6 +48,7 @@ describe("priceStockLegs", () => {
     expect(pricing.maxGain).toBe("unbounded");
     expect(pricing.breakEvens).toEqual([decimalString("25.00")]);
     expect(pricing.netPremium).toBe(centavos(-25_00 * 100));
+    expect(pricing.legs[0]?.priceSource).toBe("close");
     expect(pricing.notes).toContainEqual({
       code: "no_risk_profile",
       message: "no risk profile supplied; limits not checked",
@@ -56,6 +59,7 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
+      spot: decimalString("25.00"),
       legs: [
         {
           role: "stock",
@@ -63,6 +67,7 @@ describe("priceStockLegs", () => {
           ticker: "PETR4",
           quantity: quantity(100),
           entryPrice: decimalString("25.00"),
+          priceSource: "close",
         },
       ],
       view: emptyView,
@@ -71,6 +76,18 @@ describe("priceStockLegs", () => {
     expect(pricing.maxLoss).toBe("unbounded");
     expect(pricing.maxGain).toBe(centavos(25_00 * 100));
     expect(pricing.netPremium).toBe(centavos(25_00 * 100));
+  });
+
+  it("uses the explicit spot input rather than deriving it from a leg's entry price", () => {
+    const pricing = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("30.00"),
+      legs: longLeg,
+      view: emptyView,
+      provenanceBase,
+    });
+    expect(pricing.spot).toBe(decimalString("30.00"));
   });
 
   it("checks the maxLossPerOperation limit against declared capital", () => {
@@ -86,7 +103,8 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view: emptyView,
       riskProfile,
       provenanceBase,
@@ -117,12 +135,70 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view: emptyView,
       riskProfile,
       provenanceBase,
     });
     expect(pricing.limitBreaches).toEqual([]);
+  });
+
+  it("breaches maxPremiumBought when the structure is net debit beyond the limit", () => {
+    const riskProfile: RiskProfile = {
+      declaredCapital: centavos(10_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("1"),
+        maxOpenOperations: 5,
+        maxPremiumBought: decimalString("0.1"),
+      },
+    };
+    const pricing = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: longLeg,
+      view: emptyView,
+      riskProfile,
+      provenanceBase,
+    });
+    expect(pricing.limitBreaches).toContainEqual({
+      limit: "maxPremiumBought",
+      value: decimalString("0.250000"),
+      allowed: decimalString("0.1"),
+    });
+  });
+
+  it("does not check maxPremiumBought when the structure is net credit", () => {
+    const riskProfile: RiskProfile = {
+      declaredCapital: centavos(10_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("1"),
+        maxOpenOperations: 5,
+        maxPremiumBought: decimalString("0.0001"),
+      },
+    };
+    const pricing = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: [
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+          priceSource: "close",
+        },
+      ],
+      view: emptyView,
+      riskProfile,
+      provenanceBase,
+    });
+    expect(pricing.limitBreaches.some((b) => b.limit === "maxPremiumBought")).toBe(false);
   });
 
   it("reads the latest visible CDI and dividend-yield points instead of defaulting to zero", () => {
@@ -153,7 +229,8 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view,
       provenanceBase,
     });
@@ -177,6 +254,7 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
+      spot: decimalString("25.00"),
       legs: [
         {
           role: "stock",
@@ -184,6 +262,7 @@ describe("priceStockLegs", () => {
           ticker: "PETR4",
           quantity: quantity(100),
           entryPrice: decimalString("25.00"),
+          priceSource: "close",
         },
       ],
       view: emptyView,
@@ -212,7 +291,8 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view: emptyView,
       riskProfile,
       openOperationCount: 1,
@@ -234,13 +314,14 @@ describe("priceStockLegs", () => {
         maxLossPerOperation: decimalString("0.1"),
         maxExposurePerOperation: decimalString("0.1"),
         maxOpenOperations: 5,
-        maxPremiumBought: decimalString("1"),
+        maxPremiumBought: decimalString("0.1"),
       },
     };
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
-      legs: longLeg.map((l) => ({ ...l, entryPrice: decimalString(l.entryPrice) })),
+      spot: decimalString("25.00"),
+      legs: longLeg,
       view: emptyView,
       riskProfile,
       provenanceBase,
@@ -252,6 +333,7 @@ describe("priceStockLegs", () => {
     const pricing = priceStockLegs({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
+      spot: decimalString("25.00"),
       legs: [
         {
           role: "stock",
@@ -259,6 +341,7 @@ describe("priceStockLegs", () => {
           ticker: "PETR4",
           quantity: quantity(100),
           entryPrice: decimalString("25.00"),
+          priceSource: "close",
         },
         {
           role: "stock",
@@ -266,6 +349,7 @@ describe("priceStockLegs", () => {
           ticker: "PETR4",
           quantity: quantity(100),
           entryPrice: decimalString("25.00"),
+          priceSource: "close",
         },
       ],
       view: emptyView,

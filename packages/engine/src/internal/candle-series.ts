@@ -20,6 +20,20 @@ export type CandleSeriesResult =
 const priceFields = ["open", "high", "low", "close"] as const;
 
 export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesResult {
+  for (const [index, c] of input.candles.entries()) {
+    for (const field of priceFields) {
+      if (!isPositiveDecimal(c[field])) {
+        return {
+          ok: false,
+          error: {
+            path: `view.candles[${String(index)}].${field}`,
+            message: "a candle's open, high, low and close must be strictly positive",
+          },
+        };
+      }
+    }
+  }
+
   for (const [index, factor] of input.corporateActions.entries()) {
     if (!isPositiveDecimal(factor.factor)) {
       return {

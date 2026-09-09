@@ -34,4 +34,13 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // The sole exception to "contracts as types only" (ADR-0013): the branded scalar
+    // constructors build through the real Zod schemas so validation is enforced at
+    // construction, confined to this one file.
+    files: ["src/internal/scalar-schemas.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
 ]);
