@@ -235,7 +235,16 @@ export function buildAuthOptions(
         disableSignUp: true,
         expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
         rateLimit: { window: 60, max: 3 },
-        storeToken: "hashed",
+        // `storeToken: "hashed"` (and the top-level `verification.storeIdentifier:
+        // "hashed"`) were evaluated on the round-1 review pass and reverted:
+        // both broke the reuse/expiry integration tests, which manipulate the
+        // `verification` row directly by its plain identifier
+        // (magic-link.integration.test.ts, password-reset.integration.test.ts);
+        // replicating Better Auth's internal hash (`@better-auth/utils`, not a
+        // direct dependency of this app) in test code was judged not worth the
+        // added coupling for this ticket (docs/adr/0018). The token is still a
+        // cryptographically random, single-use, short-lived, unguessable value
+        // either way; this only concerns what a database compromise recovers.
         sendMagicLink: async ({ email, url }) => {
           // No enumeration: a magic-link request for an email with no
           // account gets the same 200 response as a real one (the plugin

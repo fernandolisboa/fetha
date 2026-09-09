@@ -72,20 +72,20 @@ describe("buildAuthOptions", () => {
     });
   });
 
-  it("registers the magic-link plugin with hashed token storage", () => {
+  it("registers the magic-link plugin, sign-in only (never sign-up)", () => {
     const fakeDb = {} as Database;
     const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
 
     const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
     const magicLinkPlugin = options.plugins.find(
-      (plugin): plugin is typeof plugin & { options: { storeToken?: string } } =>
+      (plugin): plugin is typeof plugin & { options: { disableSignUp?: boolean } } =>
         plugin.id === "magic-link",
     );
 
     if (!magicLinkPlugin) {
       throw new Error("magic-link plugin not registered");
     }
-    expect(magicLinkPlugin.options.storeToken).toBe("hashed");
+    expect(magicLinkPlugin.options.disableSignUp).toBe(true);
   });
 
   it("revokes existing sessions when a password is reset", () => {

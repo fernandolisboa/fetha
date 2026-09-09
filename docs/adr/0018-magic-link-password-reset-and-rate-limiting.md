@@ -18,12 +18,18 @@ insufficient on its own; the "Decision" section below reflects the final, accoun
 
 **Magic link and password reset (Better Auth's plugin API, no schema or repository change)**
 
-- `magicLink({ disableSignUp: true, storeToken: "hashed" })`: sign-in only, never sign-up. A click
-  that silently created a new account would bypass the terms/privacy checkboxes `/sign-up/email`
-  requires and the `REGISTRATION_MODE` invite gate, which only guards that one endpoint (ADR-0016).
-  `storeToken: "hashed"` stores a hash of the token instead of the token itself, the same posture as
-  password reset and email verification tokens; the plugin hashes on send and on verify
-  symmetrically, so this is transparent to every caller.
+- `magicLink({ disableSignUp: true })`: sign-in only, never sign-up. A click that silently created
+  a new account would bypass the terms/privacy checkboxes `/sign-up/email` requires and the
+  `REGISTRATION_MODE` invite gate, which only guards that one endpoint (ADR-0016).
+  `storeToken: "hashed"` and the top-level `verification.storeIdentifier: "hashed"` were evaluated
+  on the round-1 review pass and reverted, kept plain, for both magic link and password reset:
+  both broke the reuse/expiry integration tests, which manipulate the `verification` table's row
+  directly by its plain identifier to force a token to look expired or already-consumed
+  (`magic-link.integration.test.ts`, `password-reset.integration.test.ts`); reproducing Better
+  Auth's internal hash in test code needs `@better-auth/utils`, not a direct dependency of this
+  app, and doing so was judged more coupling than this ticket's scope earns. The token itself is
+  still a cryptographically random, single-use, short-lived, unguessable value regardless of
+  hashing; the difference only matters if the database itself is compromised.
 - `magicLink`'s `sendMagicLink` looks the email up (`db.query.user.findFirst`) before sending: an
   unregistered address gets the exact same 200 response (the plugin always answers
   `{ status: true }` once its own endpoint handler runs, regardless of what this callback does) but

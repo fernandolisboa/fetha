@@ -125,18 +125,20 @@ describe("magic link sign-in", () => {
     expect(response.headers.get("location")).toContain("error");
   });
 
-  it("never creates a new account for an email with no existing user", async () => {
+  it("sends no mail and creates no account for an email with no existing user", async () => {
     const email = uniqueEmail("no-account");
     createdEmails.push(email);
     const headers = testRequestHeaders();
 
+    // No enumeration (docs/adr/0018): the outward response for an
+    // unregistered email is identical to a real one, but nothing is ever
+    // sent and no account is ever created through this endpoint.
     const outcome = await signInMagicLink({ email }, headers);
     expect(outcome.status).toBe("ok");
 
-    const url = await captureMagicLinkUrl(email);
-    const response = await getAuth().handler(new Request(url, { method: "GET", headers }));
+    const link = await findLatestVerificationLink(getDb(), email);
+    expect(link).toBeUndefined();
 
-    expect(response.headers.get("location")).toContain("error");
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
