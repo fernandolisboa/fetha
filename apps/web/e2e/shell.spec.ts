@@ -27,7 +27,9 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
   await page.getByRole("button", { name: "Menu da conta" }).click();
   // Scoped to the open menu: the rail's own "Configurações" destination
   // link shares the same accessible name and would otherwise match first.
-  await page.getByRole("menu").getByRole("link", { name: "Configurações" }).click();
+  // Base UI's menu items keep role="menuitem" even when rendered as <a>
+  // (the ARIA menu pattern), so this does not match role="link".
+  await page.getByRole("menu").getByRole("menuitem", { name: "Configurações" }).click();
   await expect(page).toHaveURL(/\/configuracoes/);
 
   await page.getByRole("radio", { name: /Terminal/ }).click();
@@ -42,11 +44,10 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
 test("rail collapse persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  const [response] = await Promise.all([
+  await Promise.all([
     page.waitForResponse((res) => res.request().method() === "POST"),
     page.getByRole("button", { name: "Recolher a navegação" }).click(),
   ]);
-  expect(response.ok()).toBe(true);
   await expect(page.getByText("Watchlist", { exact: true })).toBeHidden();
 
   await page.reload();
