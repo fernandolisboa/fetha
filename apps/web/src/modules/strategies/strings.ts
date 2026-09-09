@@ -123,7 +123,7 @@ const ptBR = {
     newStrategy: "Nova estratégia",
     mine: {
       title: "Minhas estratégias",
-      empty: "Nenhuma estratégia no catálogo ainda. Crie uma a partir de uma Estrutura.",
+      empty: "Nenhuma estratégia no catálogo ainda. Crie uma a partir de uma estrutura.",
       columns: {
         name: "Nome",
         visibility: "Visibilidade",
@@ -142,7 +142,7 @@ const ptBR = {
       copyError: "Não foi possível copiar a estratégia. Tente novamente.",
     },
     visibility: { private: "Privada", shared: "Compartilhada" },
-    emptyCatalog: "O Catálogo de Estruturas ainda não foi carregado.",
+    emptyCatalog: "O catálogo de estruturas ainda não foi carregado.",
   },
   editor: {
     createOverline: "Nova estratégia",
@@ -182,8 +182,8 @@ const ptBR = {
     },
     expiry: {
       title: "Janela de vencimento",
-      min: "Mínimo de dias úteis",
-      max: "Máximo de dias úteis",
+      min: "Mínimo de sessões",
+      max: "Máximo de sessões",
     },
     sizing: {
       title: "Dimensionamento",
@@ -198,7 +198,7 @@ const ptBR = {
       removeRule: "Remover regra",
       kind: "Tipo",
       profit_target: "Alvo de lucro",
-      stop_loss: "Parada",
+      stop_loss: "Stop",
       days_before_expiry: "Dias antes do vencimento",
       condition: "Condição",
       fractionOfPremium: "Fração do prêmio",
