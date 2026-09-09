@@ -32,6 +32,17 @@ describe("ensureMonthlyPartition", () => {
     await expect(ensureMonthlyPartition(getDb(), "candles", "2031-05-20")).resolves.not.toThrow();
   });
 
+  it("tolerates two concurrent callers racing to create the same month's partition", async () => {
+    await expect(
+      Promise.all([
+        ensureMonthlyPartition(getDb(), "candles", "2031-06-01"),
+        ensureMonthlyPartition(getDb(), "candles", "2031-06-20"),
+      ]),
+    ).resolves.not.toThrow();
+    expect(await partitionExists("candles_2031_06")).toBe(true);
+    await getDb().execute(sql`drop table if exists candles_2031_06`);
+  });
+
   it("already created the migration's initial partitions (2024-2026)", async () => {
     expect(await partitionExists("candles_2026_09")).toBe(true);
     expect(await partitionExists("option_daily_prices_2026_09")).toBe(true);

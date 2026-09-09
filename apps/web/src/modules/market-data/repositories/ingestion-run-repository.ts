@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import type { IngestionSource, IngestionStatus } from "@/db/schema/market-data";
@@ -65,6 +65,31 @@ export async function finishRun(
       error: outcome.status === "failed" ? outcome.error : null,
     })
     .where(eq(ingestionRuns.id, id));
+}
+
+// A "running" row whose start is older than the route's maxDuration can only
+// mean the previous invocation crashed or was killed by the platform without
+// ever reaching finishRun; left as "running" it would wrongly block every
+// later retry from ever attempting that (source, session) again.
+export async function reapStaleRunningRuns(
+  db: Database,
+  source: IngestionSource,
+  cutoff: Date,
+): Promise<void> {
+  await db
+    .update(ingestionRuns)
+    .set({
+      status: "failed",
+      finishedAt: sql`now()`,
+      error: "reaped: running longer than maxDuration",
+    })
+    .where(
+      and(
+        eq(ingestionRuns.source, source),
+        eq(ingestionRuns.status, "running"),
+        lt(ingestionRuns.startedAt, cutoff),
+      ),
+    );
 }
 
 export async function latestRunPerSource(db: Database): Promise<IngestionRun[]> {
