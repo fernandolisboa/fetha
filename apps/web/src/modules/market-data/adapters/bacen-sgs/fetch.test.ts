@@ -10,6 +10,11 @@ const fixture = readFileSync(
   "utf-8",
 );
 
+const sessions = [
+  { date: "2026-01-01", open: "2026-01-01T13:00:00.000Z" },
+  { date: "2026-09-09", open: "2026-09-09T13:00:00.000Z" },
+];
+
 function fakeFetch(status: number, body: string): typeof fetch {
   return () => Promise.resolve(new Response(body, { status }));
 }
@@ -24,8 +29,14 @@ describe("sgsUrl", () => {
 
 describe("fetchSgsSeries", () => {
   it("parses the response through the SGS JSON parser", async () => {
-    const points = await fetchSgsSeries("cdi", "2026-01-01", "2026-09-08", fakeFetch(200, fixture));
-    expect(points).toHaveLength(2);
+    const points = await fetchSgsSeries(
+      "cdi",
+      "2026-01-01",
+      "2026-09-08",
+      sessions,
+      fakeFetch(200, fixture),
+    );
+    expect(points).toHaveLength(5);
   });
 
   it("issues one request per 10-year window", async () => {
@@ -35,13 +46,13 @@ describe("fetchSgsSeries", () => {
       return Promise.resolve(new Response(fixture, { status: 200 }));
     };
 
-    await fetchSgsSeries("cdi", "2000-01-01", "2026-09-08", countingFetch);
+    await fetchSgsSeries("cdi", "2000-01-01", "2026-09-08", sessions, countingFetch);
     expect(calls).toBe(3);
   });
 
   it("throws SgsFetchError on a non-ok response", async () => {
     await expect(
-      fetchSgsSeries("cdi", "2026-01-01", "2026-09-08", fakeFetch(503, "")),
+      fetchSgsSeries("cdi", "2026-01-01", "2026-09-08", sessions, fakeFetch(503, "")),
     ).rejects.toThrow(SgsFetchError);
   });
 });

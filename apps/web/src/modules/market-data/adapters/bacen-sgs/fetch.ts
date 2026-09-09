@@ -1,5 +1,6 @@
-import type { MacroPoint, MacroSeriesKind } from "./schema";
+import type { SessionOpen } from "./parser";
 import { parseSgsResponse, splitIntoTenYearWindows } from "./parser";
+import type { MacroPoint, MacroSeriesKind } from "./schema";
 import { sgsSeriesCodes } from "./schema";
 
 export class SgsFetchError extends Error {
@@ -33,6 +34,7 @@ export async function fetchSgsSeries(
   series: MacroSeriesKind,
   from: string,
   to: string,
+  sessions: SessionOpen[],
   fetchImpl: typeof fetch = fetch,
 ): Promise<MacroPoint[]> {
   const windows = splitIntoTenYearWindows(from, to);
@@ -43,7 +45,7 @@ export async function fetchSgsSeries(
       throw new SgsFetchError(`SGS fetch failed for series ${series}`, response.status);
     }
     const body: unknown = await response.json();
-    results.push(...parseSgsResponse(series, body));
+    results.push(...parseSgsResponse(series, body, sessions));
   }
   return results;
 }
