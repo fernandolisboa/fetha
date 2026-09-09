@@ -26,7 +26,7 @@
 ## Shell & Command Reliability
 
 0. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**
-   Do instead: keep `ignoreCommand` in `apps/web/vercel.json` pointing inside `apps/web`; fetch `main` with an explicit refspec; never point CI tests at the Vercel `DATABASE_URL` (ask the owner for a Neon `ci` branch); after `main` advances, `gh pr update-branch <n>` before merging (strict protection); run `pnpm install` in the main checkout after merging a PR that adds dependencies.
+   Do instead: keep `ignoreCommand` in `apps/web/vercel.json` pointing inside `apps/web`; the first deployment of a branch always builds (Vercel's clone cannot fetch `main` of a private repo, so no base exists), later pushes use `VERCEL_GIT_PREVIOUS_SHA`; never point CI tests at the Vercel `DATABASE_URL` (ask the owner for a Neon `ci` branch); after `main` advances, `gh pr update-branch <n>` before merging (strict protection); run `pnpm install` in the main checkout after merging a PR that adds dependencies.
 
 1. **[2026-09-09] `gh pr checks --watch` returns "no checks" if the CI run has not registered yet, and the merge then bypasses protection**
    Do instead: after pushing, loop `gh run list --branch <b> --limit 1` until a run exists, `gh run watch <id> --exit-status`, and only merge when `gh pr checks <n>` lists `ci pass`. `enforce_admins` is on since 2026-09-09.
