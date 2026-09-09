@@ -16,7 +16,11 @@ if [ -n "${VERCEL_GIT_PREVIOUS_SHA:-}" ] \
   && git cat-file -e "${VERCEL_GIT_PREVIOUS_SHA}^{commit}" 2>/dev/null; then
   range="${VERCEL_GIT_PREVIOUS_SHA}..${VERCEL_GIT_COMMIT_SHA}"
 else
-  if git fetch --depth=50 origin main 2>/dev/null; then
+  fetch_depth=""
+  if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    fetch_depth="--depth=50"
+  fi
+  if git fetch $fetch_depth origin '+refs/heads/main:refs/remotes/origin/main' 2>/dev/null; then
     merge_base=$(git merge-base origin/main HEAD 2>/dev/null) || merge_base=""
     if [ -n "$merge_base" ]; then
       range="${merge_base}...HEAD"
@@ -29,7 +33,7 @@ if [ -z "$range" ]; then
   exit 1
 fi
 
-changed_files=$(git diff --name-only --no-renames "$range" 2>/dev/null) || {
+changed_files=$(git -c core.quotePath=false diff --name-only --no-renames "$range" 2>/dev/null) || {
   echo "vercel-ignore-build: cannot compute diff for '$range', building."
   exit 1
 }

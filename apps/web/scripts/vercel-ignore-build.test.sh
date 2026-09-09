@@ -151,6 +151,98 @@ assert_exit_in_subdir "invoked from apps/web subdirectory, code change, builds" 
   env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh
 git -C "$repo" push -q origin main
 
+i=1
+while [ "$i" -le 6 ]; do
+  echo "filler $i" >>"$repo/README.md"
+  git -C "$repo" add -A
+  git -C "$repo" commit -q -m "chore: filler commit $i to pad history past clone depth"
+  i=$((i + 1))
+done
+git -C "$repo" push -q origin main
+
+git -C "$repo" checkout -q -b shallow-docs-only main
+echo "shallow docs only" >>"$repo/README.md"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "docs: shallow single-branch docs only"
+git -C "$repo" push -q origin shallow-docs-only
+
+shallow_repo="$workdir/shallow-docs-only"
+git clone -q --depth=10 --single-branch --branch shallow-docs-only "file://$origin" "$shallow_repo"
+git -C "$shallow_repo" config user.email "test@fetha.local"
+git -C "$shallow_repo" config user.name "Fetha Test"
+if [ "$(git -C "$shallow_repo" rev-parse --is-shallow-repository)" != "true" ]; then
+  echo "not ok - precondition: shallow-docs-only clone is shallow"
+  failures=$((failures + 1))
+fi
+set +e
+(cd "$shallow_repo" && env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh "$script" >"$out" 2>&1)
+actual=$?
+set -e
+if [ "$actual" -eq 0 ]; then
+  echo "ok - shallow single-branch clone, docs-only range, skips"
+else
+  echo "not ok - shallow single-branch clone, docs-only range, skips (expected exit 0, got $actual)"
+  cat "$out"
+  failures=$((failures + 1))
+fi
+
+git -C "$repo" checkout -q -b shallow-code-then-docs main
+echo "export const shallow = 1;" >>"$repo/apps/web/src/app/page.tsx"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "feat: shallow code change"
+echo "shallow code then docs" >>"$repo/README.md"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "docs: shallow docs after code"
+git -C "$repo" push -q origin shallow-code-then-docs
+
+shallow_repo_2="$workdir/shallow-code-then-docs"
+git clone -q --depth=10 --single-branch --branch shallow-code-then-docs "file://$origin" "$shallow_repo_2"
+git -C "$shallow_repo_2" config user.email "test@fetha.local"
+git -C "$shallow_repo_2" config user.name "Fetha Test"
+if [ "$(git -C "$shallow_repo_2" rev-parse --is-shallow-repository)" != "true" ]; then
+  echo "not ok - precondition: shallow-code-then-docs clone is shallow"
+  failures=$((failures + 1))
+fi
+set +e
+(cd "$shallow_repo_2" && env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh "$script" >"$out" 2>&1)
+actual=$?
+set -e
+if [ "$actual" -eq 1 ]; then
+  echo "ok - shallow single-branch clone, code-then-docs range, builds"
+else
+  echo "not ok - shallow single-branch clone, code-then-docs range, builds (expected exit 1, got $actual)"
+  cat "$out"
+  failures=$((failures + 1))
+fi
+
+git -C "$repo" checkout -q main
+
+full_clone="$workdir/full-clone"
+git clone -q "$origin" "$full_clone"
+git -C "$full_clone" config user.email "test@fetha.local"
+git -C "$full_clone" config user.name "Fetha Test"
+before_shallow=$(git -C "$full_clone" rev-parse --is-shallow-repository)
+set +e
+(cd "$full_clone" && env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh "$script" >"$out" 2>&1)
+set -e
+after_shallow=$(git -C "$full_clone" rev-parse --is-shallow-repository)
+if [ "$before_shallow" = "false" ] && [ "$after_shallow" = "false" ]; then
+  echo "ok - full clone stays non-shallow after run"
+else
+  echo "not ok - full clone stays non-shallow after run (before=$before_shallow after=$after_shallow)"
+  cat "$out"
+  failures=$((failures + 1))
+fi
+
+git -C "$repo" checkout -q -b non-ascii-docs
+echo "reuniao" >"$repo/docs/notas de reunião.md"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "docs: add non-ascii filename"
+assert_exit "non-ascii filename under docs/ is docs-only, skips" 0 \
+  env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh
+git -C "$repo" checkout -q main
+git -C "$repo" push -q origin non-ascii-docs
+
 if [ "$failures" -ne 0 ]; then
   echo "$failures test(s) failed"
   exit 1
