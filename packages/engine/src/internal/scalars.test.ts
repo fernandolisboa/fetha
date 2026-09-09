@@ -19,6 +19,10 @@ describe("toQuantity", () => {
     expect(() => toQuantity(Infinity)).toThrow();
     expect(() => toQuantity(NaN)).toThrow();
   });
+
+  it("throws for an integer beyond Number.MAX_SAFE_INTEGER", () => {
+    expect(() => toQuantity(Number.MAX_SAFE_INTEGER + 1)).toThrow();
+  });
 });
 
 describe("toCentavos", () => {
@@ -35,5 +39,10 @@ describe("toCentavos", () => {
     expect(() => toCentavos(Infinity)).toThrow();
     expect(() => toCentavos(-Infinity)).toThrow();
     expect(() => toCentavos(NaN)).toThrow();
+  });
+
+  it("throws for an integer beyond Number.MAX_SAFE_INTEGER in either direction", () => {
+    expect(() => toCentavos(Number.MAX_SAFE_INTEGER + 1)).toThrow();
+    expect(() => toCentavos(-(Number.MAX_SAFE_INTEGER + 1))).toThrow();
   });
 });
