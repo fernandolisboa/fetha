@@ -38,6 +38,7 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   await page.getByRole("button", { name: "Entrar" }).click();
 
   await expect(page).toHaveURL(baseURL ?? "/");
+  await page.getByRole("button", { name: "Menu da conta" }).click();
   await expect(page.getByText(email)).toBeVisible();
 
   await page.getByRole("button", { name: "Sair" }).click();
@@ -45,6 +46,5 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   await expect(page).toHaveURL(/\/entrar/);
 
   await page.goto("/");
-  await expect(page.getByText(email)).not.toBeVisible();
-  await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+  await expect(page).toHaveURL(/\/entrar/);
 });

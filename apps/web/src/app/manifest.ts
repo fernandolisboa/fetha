@@ -8,8 +8,9 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "pt-BR",
     start_url: "/",
     display: "standalone",
+    // Instrumento (the default theme): --bg and --surface (DESIGN.md).
     background_color: "#0f1115",
-    theme_color: "#0f1115",
+    theme_color: "#151922",
     icons: [
       {
         src: "/icons/icon-192.png",
