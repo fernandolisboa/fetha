@@ -11,7 +11,7 @@ describe("cron ingest route", () => {
   beforeEach(() => {
     process.env.CRON_SECRET = "test-secret";
     ingestMock.mockReset();
-    ingestMock.mockResolvedValue({ session: "2026-09-08", sources: [] });
+    ingestMock.mockResolvedValue({ session: "2026-09-08", ok: true, sources: [] });
   });
 
   afterEach(() => {
@@ -46,6 +46,23 @@ describe("cron ingest route", () => {
     expect(ingestMock).toHaveBeenCalledWith({}, {});
   });
 
+  it("returns 500 and ok:false when a source failed", async () => {
+    ingestMock.mockResolvedValue({
+      session: "2026-09-08",
+      ok: false,
+      sources: [{ source: "cotahist", skipped: false, rowCount: 0, error: "boom" }],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(500);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ ok: false });
+  });
+
   it("rejects POST without a bearer header", async () => {
     const { POST } = await import("./route");
     const response = await POST(
@@ -75,6 +92,19 @@ describe("cron ingest route", () => {
         method: "POST",
         headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
         body: JSON.stringify({ session: "not-a-date" }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(ingestMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown field on the manual trigger body", async () => {
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/cron/ingest", {
+        method: "POST",
+        headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
+        body: JSON.stringify({ session: "2026-09-08", extra: "nope" }),
       }),
     );
     expect(response.status).toBe(400);

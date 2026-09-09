@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 
+import { sessionDateSchema } from "@fetha/contracts";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { ingest } from "@/modules/market-data";
@@ -18,11 +20,11 @@ function isAuthorized(authorizationHeader: string | null): boolean {
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
-const sessionDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+const manualTriggerBodySchema = z.object({ session: sessionDateSchema.optional() }).strict();
 
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
   const result = await ingest(getDb(), session ? { session } : {});
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -41,22 +43,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  let session: string | undefined;
-  try {
-    const body: unknown = await request.json();
-    if (body && typeof body === "object" && "session" in body) {
-      const value = (body as { session?: unknown }).session;
-      if (typeof value === "string") {
-        session = value;
-      }
+  let rawBody: unknown = {};
+  const text = await request.text();
+  if (text.length > 0) {
+    try {
+      rawBody = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
     }
-  } catch {
-    session = undefined;
   }
 
-  if (session !== undefined && !sessionDateRegex.test(session)) {
+  const parsed = manualTriggerBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid session date" }, { status: 400 });
   }
 
-  return runIngestion(session);
+  return runIngestion(parsed.data.session);
 }
