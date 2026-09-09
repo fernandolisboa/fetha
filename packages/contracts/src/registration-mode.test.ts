@@ -12,6 +12,10 @@ describe("registrationModeSchema", () => {
     expect(registrationModeSchema.parse(undefined)).toBe("invite");
   });
 
+  it("defaults to invite when the variable is an empty string", () => {
+    expect(registrationModeSchema.parse("")).toBe("invite");
+  });
+
   it("rejects unknown values", () => {
     expect(registrationModeSchema.safeParse("public").success).toBe(false);
   });

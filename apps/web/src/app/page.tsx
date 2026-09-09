@@ -1,12 +1,17 @@
+import Link from "next/link";
+
 import { centavosSchema } from "@fetha/contracts";
 import { Button } from "@/components/ui/button";
 import { registrationMode } from "@/lib/env";
 import { formatBRL } from "@/lib/format/brl";
+import { getSession, SignOutButton } from "@/modules/auth";
 
 const sampleCentavos = centavosSchema.parse(123456);
 
-export default function Home() {
+export default async function Home() {
   const mode = registrationMode();
+  const user = await getSession();
+
   return (
     <main className="bg-background text-foreground flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
       <h1 className="text-4xl font-semibold tracking-tight">Fetha</h1>
@@ -14,6 +19,21 @@ export default function Home() {
         Laboratório pessoal de trading e investimentos.
       </p>
       <Button>{formatBRL(sampleCentavos)}</Button>
+      {user ? (
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm">{user.email}</p>
+          <SignOutButton />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 text-sm">
+          <Link href="/entrar" className="underline underline-offset-4">
+            Entrar
+          </Link>
+          <Link href="/cadastro" className="underline underline-offset-4">
+            Criar conta
+          </Link>
+        </div>
+      )}
       <p className="text-muted-foreground text-xs">Cadastro: {mode}</p>
     </main>
   );
