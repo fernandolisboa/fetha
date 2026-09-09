@@ -20,32 +20,18 @@ selection rule and E2E secret comparison were hardened, and the invite-mode sign
 made generic to avoid email enumeration. The "Decision" section below reflects the final shape;
 superseded choices are called out inline.
 
+Magic link, password reset and database-backed rate limiting, called out below as out of scope for
+ticket #10, were built by that ticket. See ADR-0018, which amends this one with those decisions
+rather than editing the sections below in place.
+
 ## Decision
 
 **Identity (Better Auth, Drizzle adapter on Neon Postgres, emails through Resend or capture)**
 
-- Email + password with mandatory email verification (`requireEmailVerification`). **Ticket #10
-  added magic link and password reset**, exactly as this ADR anticipated: through Better Auth's
-  plugin API (`magicLink`, `emailAndPassword.sendResetPassword`), without touching the tables or
-  hooks above. Magic link is sign-in only (`disableSignUp: true`): a click that silently created a
-  new account would bypass the terms/privacy checkboxes sign-up requires and the invite gate below,
-  which only guards `/sign-up/email`. Both flows send through the same `Mailer` port as email
-  verification (`buildMagicLinkEmail`, `buildPasswordResetEmail`, `src/modules/auth/email/`), so
-  `mail_outbox` capture and the E2E verification-link route work for them unchanged.
-- **Ticket #10 turned rate limiting on**, closing security-audit finding A-01
-  (`docs/security-audit/2026-09-09.md`): Better Auth's `rateLimit` with `storage: "database"`
-  against a new `rate_limits` table (`id`, `key`, `count`, `last_request`; no `user_id` — an
-  operational table in the same class as `invites`/`mail_outbox` below, keyed by client IP and
-  path, written only by Better Auth's own rate limiter), replacing the in-memory `Map` that reset
-  on every cold serverless instance. `RATE_LIMIT_CUSTOM_RULES` (`options.ts`) makes the window/max
-  for `/sign-in/email`, `/sign-up/email`, `/request-password-reset`, `/reset-password` and
-  `/send-verification-email` explicit, matching the values Better Auth's own defaults already used
-  for the first, second and fifth so an upstream default change can't silently loosen them; the
-  magic-link plugin carries its own `rateLimit` option for `/sign-in/magic-link` and
-  `/magic-link/verify`. It stays off only under a plain `vitest` unit-test run, which never
-  migrates a real `rate_limits` table (`isUnitTestEnv`, `env.ts`, keyed off `VITEST_INTEGRATION`,
-  set by `vitest.integration.config.mts` only); it is on in the integration suite, every Vercel
-  deployment tier and local dev.
+- Email + password with mandatory email verification (`requireEmailVerification`). Magic link and
+  password reset are out of scope for this ticket (#10) but nothing here precludes adding them:
+  Better Auth's plugin API composes without touching the tables or hooks below.
+- Rate limiting is out of scope for this ticket (#10); Better Auth's defaults apply until then.
 - `REGISTRATION_MODE=open|invite|closed` (`@fetha/contracts`) is read at request time inside a
   `hooks.before` middleware on `/sign-up/email`: `closed` refuses every sign-up; `invite` allows
   sign-up only for an email that holds a row in `invites` with `consumed_at` null; `open` allows
@@ -113,29 +99,22 @@ provide an export named 'kAPIErrorHeaderSymbol'` before the CLI ever reads `DATA
   user-scoped repository built on `UserScopedRepository`
   (`src/lib/user-scoped-repository.ts`): the constructor takes `(db, currentUser)` — the session
   type `CurrentUser`, not a bare string — and no method on a subclass may accept a user id as a
-  parameter. `Repository.forCurrentUser(db)` was tried as a static factory on
-  `UserScopedRepository` itself but reverted (fix-forward on ticket #11's review pass): it needed a
-  lazy `import("@/modules/auth/session")` inside `lib/` to avoid a class-initialization cycle with
-  `options.ts`, which wires repositories whose `extends UserScopedRepository` clause needs the base
-  class already fully evaluated. The factory now lives where the cycle cannot occur:
-  `modules/auth/session.ts` exports `forCurrentUser(db, Repository)`, which calls `requireUser()`
-  and constructs `new Repository(db, user)`; `lib/user-scoped-repository.ts` stays pure, importing
-  only the `CurrentUser` type. `forCurrentUser` is how every call site outside a Better Auth hook is
-  expected to bind a repository to the live session; `databaseHooks.user.create.after` is the one
-  exception, since it runs before any session exists and constructs `TermsAcceptanceRepository`
-  directly from the just-created user's identity. `TermsAcceptanceRepository` is the first concrete
-  repository and the first isolation test (`terms-acceptance-repository.integration.test.ts`).
-  Every future module reuses this base.
+  parameter. A static `forCurrentUser(db)` factory calls `requireUser()` and constructs the
+  repository from the live session, which is how every call site outside a Better Auth hook is
+  expected to obtain one; `databaseHooks.user.create.after` is the one exception, since it runs
+  before any session exists and constructs `TermsAcceptanceRepository` directly from the just-
+  created user's identity. `TermsAcceptanceRepository` is the first concrete repository and the
+  first isolation test (`terms-acceptance-repository.integration.test.ts`). Every future module
+  reuses this base.
 - Reference data, the catalog and shared strategies (ADR-0012) remain the only read-only
   exceptions to tenant scoping (CLAUDE.md, principle 5); `invites` and `mail_outbox` are a third
   class, described below.
 
-**Operational tables (`invites`, `mail_outbox`, `rate_limits`): unscoped, system-written, not user data**
+**Operational tables (`invites`, `mail_outbox`): unscoped, system-written, not user data**
 
-Not every table without a `user_id` is reference data. `invites`, `mail_outbox` and (since ticket
-#10) `rate_limits` are a distinct, narrower exception: they are not shared content a user reads
-(like the catalog), they are mechanism the system uses to run itself, and only the system writes
-them — never a user action:
+Not every table without a `user_id` is reference data. `invites` and `mail_outbox` are a distinct,
+narrower exception: they are not shared content a user reads (like the catalog), they are
+mechanism the system uses to run itself, and only the system writes them — never a user action:
 
 - `invites` is written by the seed script (bootstrapping) and by the sign-up hook
   (`consumePendingInvite`), and read by the sign-up hook (`hasPendingInvite`). No user-facing
@@ -150,10 +129,6 @@ them — never a user action:
   structurally never accumulate there. Every row is single-use and short-lived even outside production: reading the
   latest link for an email (`findLatestVerificationLink`) deletes the row in the same call, and
   every `CaptureMailer.send()` purges anything older than a day before inserting.
-- `rate_limits` (`src/db/schema/rate-limits.ts`) is written and read exclusively by Better Auth's
-  own database-backed rate limiter (`storage: "database"`); no application code queries it. Its
-  shape (`id`, `key`, `count`, `last_request`) is fixed by that limiter, not chosen by this
-  codebase — it reads and writes those exact field names directly.
 
 **Email (`Mailer` port, `src/modules/auth/email/`)**
 
@@ -299,8 +274,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 - Every `timestamp` column in this ticket's schema is `timestamp with time zone`; Postgres stores
   UTC internally either way, but an app that ever runs outside UTC (a developer's machine, a
   future non-UTC deployment) would silently misread a timestamp-without-time-zone column.
-- Magic link, password reset and rate limiting (#10) add plugins and hooks to `options.ts` without
-  touching the schema or the repository pattern established here.
+- Magic link, password reset and rate limiting shipped in ticket #10 (ADR-0018): they add plugins
+  and hooks to `options.ts` and one operational table (`rate_limits`), without touching the
+  repository pattern established here.
 - Follow-ups filed as issues by the orchestrator, deliberately not in this ticket: token-based
   invites (today's invite is keyed by email only, with no secret token in the link — acceptable at
   single-digit-user scale but not a pattern to grow); purging unverified users (an account that
