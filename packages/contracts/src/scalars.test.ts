@@ -175,13 +175,18 @@ describe("sessionDateSchema", () => {
 });
 
 describe("instantSchema", () => {
-  it("accepts an ISO 8601 UTC instant", () => {
-    expect(instantSchema.safeParse("2026-09-09T20:00:00Z").success).toBe(true);
+  it("accepts an ISO 8601 UTC instant with millisecond precision", () => {
     expect(instantSchema.safeParse("2026-09-09T20:00:00.000Z").success).toBe(true);
+    expect(instantSchema.safeParse("2026-09-09T20:00:00.123Z").success).toBe(true);
+  });
+
+  it("rejects instants without millisecond precision", () => {
+    expect(instantSchema.safeParse("2026-09-09T20:00:00Z").success).toBe(false);
   });
 
   it("rejects bare dates and offsets", () => {
     expect(instantSchema.safeParse("2026-09-09").success).toBe(false);
     expect(instantSchema.safeParse("2026-09-09T17:00:00-03:00").success).toBe(false);
+    expect(instantSchema.safeParse("2026-09-09T17:00:00.000-03:00").success).toBe(false);
   });
 });

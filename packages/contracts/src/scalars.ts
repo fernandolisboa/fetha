@@ -49,5 +49,5 @@ export type Ticker = z.infer<typeof tickerSchema>;
 export const sessionDateSchema = z.iso.date();
 export type SessionDate = z.infer<typeof sessionDateSchema>;
 
-export const instantSchema = z.iso.datetime();
+export const instantSchema = z.iso.datetime({ precision: 3, offset: false });
 export type Instant = z.infer<typeof instantSchema>;
