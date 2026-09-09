@@ -21,11 +21,15 @@ export function Rail({ initialCollapsed }: { initialCollapsed: boolean }) {
     const next = !previous;
     setCollapsed(next);
     startTransition(() => {
-      void setRailCollapsedAction(next).then((result) => {
-        if (result.status === "error") {
+      void setRailCollapsedAction(next)
+        .then((result) => {
+          if (result.status === "error") {
+            setCollapsed(previous);
+          }
+        })
+        .catch(() => {
           setCollapsed(previous);
-        }
-      });
+        });
     });
   }
 
