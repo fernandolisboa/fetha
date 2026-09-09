@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm db:migrate && pnpm build",
+  "buildCommand": "pnpm build",
+  "ignoreCommand": "sh scripts/vercel-ignore-build.sh",
   "crons": [
     {
       "path": "/api/cron/ingest",
