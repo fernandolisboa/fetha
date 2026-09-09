@@ -1,8 +1,8 @@
-import { formatBRL, type Money } from "@fetha/engine";
 import { Button } from "@/components/ui/button";
 import { registrationMode } from "@/lib/env";
+import { formatBRL } from "@/lib/format/brl";
 
-const sample: Money = { amountCentavos: 123456, currency: "BRL" };
+const sampleCentavos = 123456;
 
 export default function Home() {
   const mode = registrationMode();
@@ -12,7 +12,7 @@ export default function Home() {
       <p className="text-muted-foreground max-w-md">
         Laboratório pessoal de trading e investimentos.
       </p>
-      <Button>{formatBRL(sample)}</Button>
+      <Button>{formatBRL(sampleCentavos)}</Button>
       <p className="text-muted-foreground text-xs">Cadastro: {mode}</p>
     </main>
   );
