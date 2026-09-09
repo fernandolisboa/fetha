@@ -1006,6 +1006,75 @@ only `entry`, `exit` and `adjust` outcomes also produce a `Signal`. `no_series_m
 Q45), with the failed selection or rule in `detail`. The engine does not mark late signals: it
 has no clock; the caller compares `signal.at` with its own time (ADR-0010).
 
+**Stock-only scope (#15).** Option structures, strike/expiry selection and option pricing are
+#23; until then `evaluateStrategy` implements the structures whose legs are all `stock` and
+refuses everything else with `unsupported`, vocabulary `strikeSelections`, the caller's own first
+strike-selection `kind` (coherence already guarantees `strikes` is non-empty whenever the
+structure has option legs, so this is never a lookup on an empty array). Decisions taken to make
+that subset concrete:
+
+- **Condition truncation per evaluation instant.** Each evaluation instant `c` gets its own
+  adjusted candle series and indicator readings, computed exactly as `indicators()` would at
+  `at = c` (candle close, corporate-action adjustment, indicator warm-up, all included): nothing
+  is cached or extrapolated across evaluation instants. This is the direct, unoptimized reading
+  of "each evaluation sees the view truncated at its own close" and is what makes I1 hold at every
+  inner instant for free, including a corporate-action factor whose `asOf` falls inside a later
+  instant's window but not an earlier one's. `provenance.truncated`, by contrast, is computed once
+  for the whole call at `at` (rows for instruments outside `instruments`, or with `asOf` after
+  `at`); per-instant truncation is not reported, matching "rows dropped by an inner instant are
+  simply invisible to that evaluation; they are not reported."
+- **Missing instrument.** A `StrategyVersion` has no instrument of its own; the only way one can
+  be "referenced but absent" is through `openOperations`. An operation whose `underlying` is not
+  among `instruments` is `invalid_input` (path `openOperations[i].underlying`): the batch is what
+  the engine computes candles and indicators for, so an operation outside it has nothing to
+  evaluate against. An operation with a non-stock leg, or a stock-only operation carrying an
+  `expiry`, is `invalid_input` for the same reason coherence rejects them on the definition side
+  (paths `openOperations[i].legs` and `openOperations[i].expiry`).
+- **Entry gating.** The entry condition is evaluated only when `openOperations` has no entry whose
+  `underlying` equals the instrument; when one exists, only that instrument's exit rules are
+  evaluated and entry is skipped entirely for that instant (a strategy does not pyramid into the
+  same instrument in v1).
+- **Sizing and risk for a stock leg.** A `SizingRule`'s "unit" is one structure unit (`ratio *
+units` per leg, as in `priceOperation`); `fixed_fractional` budgets `fraction *
+declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budgets the same
+  fraction against the unit's max loss, which is bounded (the entry price) for a `buy` leg and
+  unbounded for a `sell` leg, so `fixed_risk` on a structure with any short stock leg is
+  unsizeable. Fewer than one unit is unsizeable (`EvaluationOutcome`, not `EngineError`; the
+  `detail` string is freeform since `EvaluationRecord` carries no structured reason).
+- **Pricing a stock-only proposal.** `priceOperation` itself stays `unsupported` (#23 covers
+  strike/expiry selection and option pricing uniformly); a stock leg needs none of that, so
+  `evaluateStrategy` prices its own proposals directly. `spot` and each leg's `price` are the
+  nominal close (a real, tradable price; adjusted prices are a synthetic construct for indicator
+  continuity only). Each leg's `greeks` are its per-unit sensitivity (`delta: "1.000000"`,
+  everything else zero, per the "a stock leg contributes `delta = sign * quantity`" rule); the
+  aggregate `greeks.delta` is `sum(sign * quantity)`. `maxLoss`/`maxGain` are positive magnitudes
+  (so `normalizedPnl = pnl / maxLoss` keeps realized-loss sign correct elsewhere in the engine):
+  a net-long combination has `maxGain: "unbounded"` and a bounded `maxLoss` at the payoff's value
+  as the underlying goes to zero; a net-short combination is the mirror; a delta-neutral pair
+  (`netSlope = 0`) is bounded both ways at that same zero-price payoff. `breakEvens` is exact
+  (`[entryPrice]`) for a single leg and left empty for multi-leg stock structures, a v1
+  simplification noted here rather than solved generically. `payoff` is three points
+  (`spot * 0.8, 1, 1.2`), a minimal table; a fuller grid is deferred with the rest of payoff
+  computation to its own ticket. Limit checks against `riskProfile` always run in warn mode
+  (`evaluateStrategy` has no `limits: LimitMode` the way `BacktestConfig` does — signals wait for
+  a human decision, so refusing outright has no meaning here); a breach is noted
+  (`limit_breach_warned`) and the proposal still built, per ADR-0014 Q39's warn semantics.
+- **Exit rule evaluation.** `profit_target` and `stop_loss` are evaluated numerically against the
+  operation's own legs and the current nominal close (never `unknown`, since prices are always
+  present once a candle exists); `condition` reuses the same three-valued (`true`/`false`/
+  `unknown`) tree evaluator as entry. Rules are tried in definition order and the first one that
+  fires wins for that operation at that instant; further rules are not evaluated once one signals.
+  `days_before_expiry` cannot appear on a stock-only definition (coherence rejects it), so the
+  evaluator's exhaustive `switch` throws if it somehow does — a bug, not a runtime outcome.
+  `EvaluationRecord.outcome` for an instant with an open operation is `signal` if any exit fired,
+  `insufficient_data` if none fired but some `condition` rule was `unknown`, else
+  `conditions_not_met`.
+- **Capabilities.** Both `SizingRule` kinds (`fixed_fractional`, `fixed_risk`) are implemented in
+  full; of the `ExitRule` kinds, `profit_target`, `stop_loss` and `condition` are implemented and
+  `days_before_expiry` stays unsupported (it is meaningless without an expiry, which a stock-only
+  structure's coherence check forbids). No `AdjustmentRule` kind is implemented: the only one,
+  `roll`, needs option legs the same way.
+
 #### `runBacktest`
 
 - Advances from `resume.cursor` (or `period.from`) while data, `maxSessions` and the period
