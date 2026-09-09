@@ -10,52 +10,76 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 import { capabilities } from "../internal/capabilities";
+import {
+  implementedIndicatorKinds,
+  implementedTimeframes,
+  unsupportedAdjustmentRuleKinds,
+  unsupportedExitRuleKinds,
+  unsupportedExpirySelectionKinds,
+  unsupportedSizingRuleKinds,
+  unsupportedStrikeSelectionKinds,
+  unsupportedThesisClaimKinds,
+} from "../internal/vocabularies";
 
 // The engine cannot import contracts vocabularies as runtime values (ADR-0013), so
-// conformance is checked at the type level: every kind capabilities() can report is
-// structurally a member of the matching contracts union, in both directions, which is
-// a stronger guarantee than a runtime subset check and cannot silently drift.
+// conformance is checked at the type level against the engine's own implemented*/
+// unsupported* arrays (declared in internal/vocabularies.ts and satisfies-checked
+// against the contracts type at their declaration site): every kind capabilities()
+// can report, plus every kind explicitly marked unsupported, together enumerate the
+// matching contracts union exactly. A kind that is neither implemented nor listed as
+// unsupported fails to type-check here, so drift cannot land silently.
 describe("capabilities() conformance with the contracts vocabularies", () => {
   it("indicators is implemented in full and matches the contracts IndicatorSpec kinds exactly", () => {
-    expectTypeOf<ReturnType<typeof capabilities>["indicators"][number]>().toEqualTypeOf<
+    expectTypeOf<(typeof implementedIndicatorKinds)[number]>().toEqualTypeOf<
       IndicatorSpec["kind"]
     >();
-    expect(capabilities().indicators).toEqual([
-      "sma",
-      "ema",
-      "rsi",
-      "atr",
-      "iv_rank",
-    ] satisfies IndicatorSpec["kind"][]);
+    expect(capabilities().indicators).toEqual([...implementedIndicatorKinds]);
   });
 
   it("timeframes is implemented in full and matches the contracts Timeframe kinds exactly", () => {
-    expectTypeOf<
-      ReturnType<typeof capabilities>["timeframes"][number]
-    >().toEqualTypeOf<Timeframe>();
-    expect(capabilities().timeframes).toEqual(["15m", "30m", "60m", "D1"] satisfies Timeframe[]);
+    expectTypeOf<(typeof implementedTimeframes)[number]>().toEqualTypeOf<Timeframe>();
+    expect(capabilities().timeframes).toEqual([...implementedTimeframes]);
   });
 
-  it("leaves every vocabulary whose methods are not implemented yet (issue #14) empty", () => {
-    const caps = capabilities();
-    expectTypeOf<(typeof caps)["strikeSelections"][number]>().toEqualTypeOf<
+  it("every strikeSelections kind is unsupported (no strike-selection method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedStrikeSelectionKinds)[number]>().toEqualTypeOf<
       StrikeSelection["kind"]
     >();
-    expectTypeOf<(typeof caps)["expirySelections"][number]>().toEqualTypeOf<
+    expect(capabilities().strikeSelections).toEqual([]);
+  });
+
+  it("every expirySelections kind is unsupported (no expiry-selection method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedExpirySelectionKinds)[number]>().toEqualTypeOf<
       ExpirySelection["kind"]
     >();
-    expectTypeOf<(typeof caps)["sizingRules"][number]>().toEqualTypeOf<SizingRule["kind"]>();
-    expectTypeOf<(typeof caps)["exitRules"][number]>().toEqualTypeOf<ExitRule["kind"]>();
-    expectTypeOf<(typeof caps)["adjustmentRules"][number]>().toEqualTypeOf<
+    expect(capabilities().expirySelections).toEqual([]);
+  });
+
+  it("every sizingRules kind is unsupported (no sizing method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedSizingRuleKinds)[number]>().toEqualTypeOf<SizingRule["kind"]>();
+    expect(capabilities().sizingRules).toEqual([]);
+  });
+
+  it("every exitRules kind is unsupported (no exit-rule method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedExitRuleKinds)[number]>().toEqualTypeOf<ExitRule["kind"]>();
+    expect(capabilities().exitRules).toEqual([]);
+  });
+
+  it("every adjustmentRules kind is unsupported (no adjustment-rule method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedAdjustmentRuleKinds)[number]>().toEqualTypeOf<
       AdjustmentRule["kind"]
     >();
-    expectTypeOf<(typeof caps)["thesisClaims"][number]>().toEqualTypeOf<ThesisClaim["kind"]>();
-    expect(caps.strikeSelections).toEqual([]);
-    expect(caps.expirySelections).toEqual([]);
-    expect(caps.sizingRules).toEqual([]);
-    expect(caps.exitRules).toEqual([]);
-    expect(caps.adjustmentRules).toEqual([]);
-    expect(caps.thesisClaims).toEqual([]);
-    expect(caps.pricingModels).toEqual([]);
+    expect(capabilities().adjustmentRules).toEqual([]);
+  });
+
+  it("every thesisClaims kind is unsupported (no scoring method is implemented yet)", () => {
+    expectTypeOf<(typeof unsupportedThesisClaimKinds)[number]>().toEqualTypeOf<
+      ThesisClaim["kind"]
+    >();
+    expect(capabilities().thesisClaims).toEqual([]);
+  });
+
+  it("pricingModels is left empty until a pricing method is implemented", () => {
+    expect(capabilities().pricingModels).toEqual([]);
   });
 });
