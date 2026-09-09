@@ -1,15 +1,15 @@
 import type { Database } from "@/db/client";
-import { ingestionSourceValues, type IngestionSource } from "@/db/schema/market-data";
+import type { IngestionSource } from "@/db/schema/market-data";
 
-import { tradingSessionsForYear } from "./adapters/anbima-calendar/source";
+import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
 import { fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
+import { gaps } from "./freshness";
 import { withSourceLock } from "./repositories/advisory-lock";
 import { upsertDailyCandles } from "./repositories/candle-repository";
 import {
-  recentSessions,
   sessionByDate,
   sessionsFrom,
   upsertTradingSessions,
@@ -23,8 +23,6 @@ import {
 import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 
-const CALENDAR_MARKER_SUFFIX = "-01-01";
-const RECENT_SESSION_WINDOW = 10;
 const DEFAULT_MAX_DURATION_MS = 300_000;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // SGS is never backfilled before the calendar's own coverage starts;
@@ -45,11 +43,34 @@ export interface IngestOutcome {
   sources: SourceOutcome[];
 }
 
-function calendarMarkerSession(year: number): string {
-  return `${String(year)}${CALENDAR_MARKER_SUFFIX}`;
+function contentHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (Math.imul(31, hash) + value.charCodeAt(index)) | 0;
+  }
+  return hash >>> 0;
+}
+
+const DAYS_IN_HASH_RANGE = 365;
+
+// Keyed on a hash of the year's holiday list and B3 closures folded into a
+// day offset within the year, not a static `{year}-01-01` marker: `session`
+// is a Postgres `date` column, so the marker must stay a valid calendar
+// date, but a corrected ANBIMA source file or a newly added B3 closure now
+// changes the marker and re-runs the year instead of the old fixed marker
+// permanently reporting it as already ingested (docs/adr/0017).
+export function calendarMarkerSession(year: number): string {
+  const closures = [...closuresForYear(year)].sort().join(",");
+  const dayOffset = contentHash(closures) % DAYS_IN_HASH_RANGE;
+  const date = new Date(Date.UTC(year, 0, 1));
+  date.setUTCDate(date.getUTCDate() + dayOffset);
+  return date.toISOString().slice(0, 10);
 }
 
 function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): SourceOutcome {
+  if (outcomes.length === 0) {
+    return { source, skipped: true, rowCount: 0 };
+  }
   const errors = outcomes
     .map((outcome) => outcome.error)
     .filter((error): error is string => Boolean(error));
@@ -61,6 +82,12 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
   };
 }
 
+// The running row is inserted and committed with the plain `db` handle
+// before the locked work starts, and finished (succeeded/failed) with `db`
+// again after the lock is released: the advisory lock only ever wraps the
+// fetch-plus-write `run()` callback, never the bookkeeping around it, so a
+// `running` row is visible to `reapStaleRunningRuns` the moment a run starts
+// instead of only becoming visible once it has already finished (docs/adr/0017).
 async function runSource(
   db: Database,
   source: IngestionSource,
@@ -68,44 +95,50 @@ async function runSource(
   maxDurationMs: number,
   run: () => Promise<number>,
 ): Promise<SourceOutcome> {
-  return withSourceLock(db, source, async (tx) => {
-    await reapStaleRunningRuns(tx, source, new Date(Date.now() - maxDurationMs));
+  await reapStaleRunningRuns(db, source, new Date(Date.now() - maxDurationMs));
 
-    const existing = await findSucceededRun(tx, source, session);
-    if (existing) {
-      return { source, skipped: true, rowCount: existing.rowCount ?? 0 };
-    }
+  const existing = await findSucceededRun(db, source, session);
+  if (existing) {
+    return { source, skipped: true, rowCount: existing.rowCount ?? 0 };
+  }
 
-    const runId = await startRun(tx, source, session);
-    try {
-      const rowCount = await run();
-      await finishRun(tx, runId, { status: "succeeded", rowCount });
-      return { source, skipped: false, rowCount };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      await finishRun(tx, runId, { status: "failed", error: message });
-      return { source, skipped: false, rowCount: 0, error: message };
-    }
-  });
+  const runId = await startRun(db, source, session);
+  try {
+    const rowCount = await withSourceLock(db, source, async (tx) => {
+      const alreadySucceeded = await findSucceededRun(tx, source, session);
+      if (alreadySucceeded) {
+        return alreadySucceeded.rowCount ?? 0;
+      }
+      return run();
+    });
+    await finishRun(db, runId, { status: "succeeded", rowCount });
+    return { source, skipped: false, rowCount };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    await finishRun(db, runId, { status: "failed", error: message });
+    return { source, skipped: false, rowCount: 0, error: message };
+  }
 }
 
-// The oldest of the last `RECENT_SESSION_WINDOW` closed sessions this source
-// has no succeeded run for yet. Bounded so a session that keeps failing is
-// retried by the next cron instead of the target silently jumping to the
-// latest closed session and leaving a permanent hole (docs/adr/0017).
-async function targetSessionForSource(
+// Every gap in the last `RECENT_SESSION_WINDOW` window, oldest first, is
+// attempted this invocation (not just the single oldest one): a source
+// pinned on one permanently-failing session would otherwise never make
+// progress on the sessions after it (docs/adr/0017).
+async function runSessionBoundSource(
   db: Database,
   source: IngestionSource,
-  at: Date,
-): Promise<string | null> {
-  const sessions = await recentSessions(db, at, RECENT_SESSION_WINDOW);
-  for (const candidate of sessions) {
-    const existing = await findSucceededRun(db, source, candidate.date);
-    if (!existing) {
-      return candidate.date;
-    }
+  sessions: string[],
+  maxDurationMs: number,
+  run: (session: string) => Promise<number>,
+): Promise<SourceOutcome | null> {
+  if (sessions.length === 0) {
+    return null;
   }
-  return null;
+  const outcomes: SourceOutcome[] = [];
+  for (const session of sessions) {
+    outcomes.push(await runSource(db, source, session, maxDurationMs, () => run(session)));
+  }
+  return mergeOutcomes(source, outcomes);
 }
 
 async function runCalendarSources(
@@ -142,70 +175,77 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
 
   const calendarOutcome = await runCalendarSources(db, now, maxDurationMs);
 
-  async function resolveSession(source: IngestionSource): Promise<string | null> {
+  async function resolveSessions(source: IngestionSource): Promise<string[]> {
     if (options.session) {
-      return options.session;
+      return [options.session];
     }
-    return targetSessionForSource(db, source, now);
+    return gaps(db, source, now);
   }
 
-  const cotahistSession = await resolveSession("cotahist");
-  const cotahistOutcome: SourceOutcome | null = cotahistSession
-    ? await runSource(db, "cotahist", cotahistSession, maxDurationMs, async () => {
-        const trading = await sessionByDate(db, cotahistSession);
-        if (!trading) {
-          throw new Error(`no trading session recorded for ${cotahistSession}`);
-        }
-        const rows = await fetchCotahist(cotahistSession, fetchImpl);
-        const stocks = rows.filter((row) => row.kind === "stock");
-        const optionRows = rows.filter((row) => row.kind === "option");
-        const candleCount = await upsertDailyCandles(db, cotahistSession, trading.close, stocks);
-        const optionCount = await upsertOptionDailyPrices(
-          db,
-          cotahistSession,
-          trading.close,
-          optionRows,
-        );
-        return candleCount + optionCount;
-      })
-    : null;
+  const cotahistSessions = await resolveSessions("cotahist");
+  const cotahistOutcome = await runSessionBoundSource(
+    db,
+    "cotahist",
+    cotahistSessions,
+    maxDurationMs,
+    async (session) => {
+      const trading = await sessionByDate(db, session);
+      if (!trading) {
+        throw new Error(`no trading session recorded for ${session}`);
+      }
+      const rows = await fetchCotahist(session, fetchImpl);
+      const stocks = rows.filter((row) => row.kind === "stock");
+      const optionRows = rows.filter((row) => row.kind === "option");
+      const candleCount = await upsertDailyCandles(db, session, trading.close, stocks);
+      const optionCount = await upsertOptionDailyPrices(db, session, trading.close, optionRows);
+      return candleCount + optionCount;
+    },
+  );
 
-  const instrumentsSession = await resolveSession("instruments");
-  const instrumentsOutcome: SourceOutcome | null = instrumentsSession
-    ? await runSource(db, "instruments", instrumentsSession, maxDurationMs, async () => {
-        const trading = await sessionByDate(db, instrumentsSession);
-        if (!trading) {
-          throw new Error(`no trading session recorded for ${instrumentsSession}`);
-        }
-        const series = await fetchInstrumentsRegistry(instrumentsSession, fetchImpl);
-        return upsertOptionSeries(db, trading.close, series);
-      })
-    : null;
+  const instrumentsSessions = await resolveSessions("instruments");
+  const instrumentsOutcome = await runSessionBoundSource(
+    db,
+    "instruments",
+    instrumentsSessions,
+    maxDurationMs,
+    async (session) => {
+      const trading = await sessionByDate(db, session);
+      if (!trading) {
+        throw new Error(`no trading session recorded for ${session}`);
+      }
+      const series = await fetchInstrumentsRegistry(session, fetchImpl);
+      return upsertOptionSeries(db, trading.close, series);
+    },
+  );
 
-  const sgsSession = await resolveSession("sgs");
-  const sgsOutcome: SourceOutcome | null = sgsSession
-    ? await runSource(db, "sgs", sgsSession, maxDurationMs, async () => {
-        let total = 0;
-        for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
-          const since = (await latestMacroPointDate(db, series)) ?? SGS_DEFAULT_START;
-          const from = nextDay(since);
-          if (from > sgsSession) {
-            continue;
-          }
-          const sessions = await sessionsFrom(db, from);
-          const points = await fetchSgsSeries(series, from, sgsSession, sessions, fetchImpl);
-          total += await upsertMacroPoints(db, points);
+  const sgsSessions = await resolveSessions("sgs");
+  const sgsOutcome = await runSessionBoundSource(
+    db,
+    "sgs",
+    sgsSessions,
+    maxDurationMs,
+    async (session) => {
+      let total = 0;
+      for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
+        const since = (await latestMacroPointDate(db, series)) ?? SGS_DEFAULT_START;
+        const from = nextDay(since);
+        if (from > session) {
+          continue;
         }
-        return total;
-      })
-    : null;
+        const sessions = await sessionsFrom(db, from);
+        const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
+        total += await upsertMacroPoints(db, points);
+      }
+      return total;
+    },
+  );
 
   const sources = [calendarOutcome, cotahistOutcome, instrumentsOutcome, sgsOutcome].filter(
     (outcome): outcome is SourceOutcome => outcome !== null,
   );
 
   return {
-    session: cotahistSession,
+    session: options.session ?? cotahistSessions.at(-1) ?? null,
     ok: sources.every((outcome) => outcome.error === undefined),
     sources,
   };
@@ -216,5 +256,3 @@ function nextDay(isoDate: string): string {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 }
-
-export { ingestionSourceValues };

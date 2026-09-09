@@ -1,5 +1,5 @@
 import { zipSync } from "fflate";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -11,7 +11,7 @@ import {
   optionSeries,
 } from "@/db/schema/market-data";
 
-import { ingest } from "./ingest";
+import { calendarMarkerSession, ingest } from "./ingest";
 
 const TEST_SESSION = "2026-06-15";
 const STOCK_TICKER = "ZZT3";
@@ -79,8 +79,8 @@ function buildCotahistFixture(session: string): Uint8Array {
 function buildInstrumentsFixture(session: string): string {
   return [
     "Status do Arquivo: Final",
-    "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp",
-    `${session};${OPTION_TICKER};ZZT3;${OPTION_ISIN};2026-10-16;AMER;5,00;Call`,
+    "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp;SctyCtgyNm",
+    `${session};${OPTION_TICKER};ZZT3;${OPTION_ISIN};2026-10-16;AMER;5,00;Call;OPTION ON EQUITIES`,
   ].join("\n");
 }
 
@@ -115,14 +115,57 @@ function fakeFetch(session: string): typeof fetch {
   }) as unknown as typeof fetch;
 }
 
+// Same shape as fakeFetch, but derives the requested session from the URL
+// instead of closing over a single one, so it can answer for any of the
+// sessions a gap-draining invocation attempts in one call.
+function fakeFetchAnySession(): typeof fetch {
+  return ((input: string) => {
+    const cotahistMatch = /COTAHIST_D(\d{2})(\d{2})(\d{4})\.ZIP/.exec(input);
+    if (cotahistMatch) {
+      const [, dd = "", mm = "", yyyy = ""] = cotahistMatch;
+      return Promise.resolve(
+        new Response(buildCotahistFixture(`${yyyy}-${mm}-${dd}`) as unknown as BodyInit, {
+          status: 200,
+        }),
+      );
+    }
+    if (input.includes("requestname")) {
+      const date = new URL(input).searchParams.get("date") ?? "";
+      return Promise.resolve(
+        new Response(JSON.stringify({ token: `test-token-${date}` }), { status: 200 }),
+      );
+    }
+    if (input.includes("api/download")) {
+      const token = new URL(input).searchParams.get("token") ?? "";
+      const session = token.replace("test-token-", "");
+      return Promise.resolve(new Response(buildInstrumentsFixture(session), { status: 200 }));
+    }
+    if (input.includes("bcdata.sgs")) {
+      const finalDate = new URL(input).searchParams.get("dataFinal") ?? "";
+      return Promise.resolve(
+        new Response(JSON.stringify([{ data: finalDate, valor: "0.05" }]), { status: 200 }),
+      );
+    }
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  }) as unknown as typeof fetch;
+}
+
+const OLDER_SESSION = "2026-06-12";
+// Wide enough to cover every session the gap-draining test's
+// RECENT_SESSION_WINDOW can reach back to from TEST_SESSION.
+const WINDOW_FLOOR = "2026-05-01";
+
 async function cleanup(): Promise<void> {
   const db = getDb();
   await db.delete(candles).where(eq(candles.ticker, STOCK_TICKER));
   await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, OPTION_TICKER));
   await db.delete(optionSeries).where(eq(optionSeries.isin, OPTION_ISIN));
-  await db.delete(ingestionRuns).where(eq(ingestionRuns.session, TEST_SESSION));
+  await db
+    .delete(ingestionRuns)
+    .where(and(gte(ingestionRuns.session, WINDOW_FLOOR), lte(ingestionRuns.session, TEST_SESSION)));
+  await db.delete(macroPoints).where(eq(macroPoints.date, OLDER_SESSION));
   for (let year = 2024; year <= 2027; year += 1) {
-    await db.delete(ingestionRuns).where(eq(ingestionRuns.session, `${String(year)}-01-01`));
+    await db.delete(ingestionRuns).where(eq(ingestionRuns.session, calendarMarkerSession(year)));
   }
   await db.delete(macroPoints).where(eq(macroPoints.date, TEST_SESSION));
 }
@@ -221,4 +264,33 @@ describe("ingest", () => {
       .where(and(eq(ingestionRuns.source, "cotahist"), eq(ingestionRuns.session, TEST_SESSION)));
     expect(failedRun?.status).toBe("failed");
   });
+
+  it("drains every gap in the window, oldest first, in one invocation instead of pinning on a single session", async () => {
+    const db = getDb();
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetchAnySession(),
+    });
+
+    expect(result.ok).toBe(true);
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    // rowCount sums stock + option rows per session across every drained gap.
+    expect(cotahist?.rowCount).toBeGreaterThan(2);
+
+    const succeededCotahistRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "cotahist"),
+          eq(ingestionRuns.status, "succeeded"),
+          gte(ingestionRuns.session, WINDOW_FLOOR),
+          lte(ingestionRuns.session, TEST_SESSION),
+        ),
+      );
+    const succeededSessions = succeededCotahistRuns.map((run) => run.session).sort();
+    expect(succeededSessions).toContain(OLDER_SESSION);
+    expect(succeededSessions).toContain(TEST_SESSION);
+  }, 120_000);
 });

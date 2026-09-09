@@ -34,5 +34,3 @@ export const sgsSeriesCodes = {
   selic: 432,
   ipca: 13522,
 } as const satisfies Record<MacroSeriesKind, number>;
-
-export const sgsSelicDailySeriesCode = 11;

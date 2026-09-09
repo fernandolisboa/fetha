@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db/client";
 import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
 
-import type { CotahistOptionRow, CotahistStockRow } from "../adapters/cotahist/schema";
+import { cotahistOptionRowSchema, cotahistStockRowSchema } from "../adapters/cotahist/schema";
 import { instrumentOptionSeriesSchema } from "../adapters/b3-instruments/schema";
 import { macroPointSchema } from "../adapters/bacen-sgs/schema";
 import { upsertDailyCandles } from "./candle-repository";
@@ -16,7 +16,7 @@ const TICKER = "IDMP3";
 const OPTION_TICKER = "IDMPW1";
 const ISIN = "BRIDMPIDMPW01";
 
-const stockRow: CotahistStockRow = {
+const stockRow = cotahistStockRowSchema.parse({
   kind: "stock",
   session: SESSION,
   ticker: TICKER,
@@ -27,9 +27,9 @@ const stockRow: CotahistStockRow = {
   close: "10.750000",
   trades: 100,
   tradedQuantity: 5000,
-};
+});
 
-const optionRow: CotahistOptionRow = {
+const optionRow = cotahistOptionRowSchema.parse({
   kind: "option",
   session: SESSION,
   ticker: OPTION_TICKER,
@@ -44,7 +44,7 @@ const optionRow: CotahistOptionRow = {
   close: "1.100000",
   trades: 5,
   tradedQuantity: 300,
-};
+});
 
 const seriesRow = instrumentOptionSeriesSchema.parse({
   ticker: OPTION_TICKER,

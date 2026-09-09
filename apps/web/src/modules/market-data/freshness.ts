@@ -49,16 +49,20 @@ export async function gaps(
   return result;
 }
 
+type SessionBoundSource = Exclude<IngestionSource, "calendar">;
+
 // "calendar" is excluded: its natural key is a once-a-year marker session,
 // not one of the trading sessions this window scans.
-const SESSION_BOUND_SOURCES = ingestionSourceValues.filter((source) => source !== "calendar");
+const SESSION_BOUND_SOURCES = ingestionSourceValues.filter(
+  (source): source is SessionBoundSource => source !== "calendar",
+);
 
 export async function allGaps(
   db: Database,
   at: Date = new Date(),
-): Promise<Record<IngestionSource, string[]>> {
+): Promise<Record<SessionBoundSource, string[]>> {
   const entries = await Promise.all(
     SESSION_BOUND_SOURCES.map(async (source) => [source, await gaps(db, source, at)] as const),
   );
-  return Object.fromEntries(entries) as Record<IngestionSource, string[]>;
+  return Object.fromEntries(entries) as Record<SessionBoundSource, string[]>;
 }

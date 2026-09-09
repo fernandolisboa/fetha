@@ -8,6 +8,10 @@ import { buildTradingSessions, holidaysForYear, parseHolidaysFile } from "./pars
 // fetch at ingestion time.
 const holidays = parseHolidaysFile(holidaysFile);
 
+export function closuresForYear(year: number): string[] {
+  return holidaysForYear(holidays, year);
+}
+
 export function tradingSessionsForYear(year: number): ParsedTradingSession[] {
-  return buildTradingSessions(year, holidaysForYear(holidays, year));
+  return buildTradingSessions(year, closuresForYear(year));
 }
