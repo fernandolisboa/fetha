@@ -9,6 +9,7 @@ const en = {
     noData: "no data yet",
   },
   rail: {
+    navigationLabel: "Main navigation",
     collapse: "Collapse the navigation",
     expand: "Expand the navigation",
     declaredCapital: "Declared capital",
@@ -24,7 +25,6 @@ const en = {
   },
   accountMenu: {
     open: "Account menu",
-    theme: "Theme",
   },
   emptyStates: {
     watchlist: {
@@ -61,6 +61,7 @@ const ptBR = {
     noData: "sem dados",
   },
   rail: {
+    navigationLabel: "Navegação principal",
     collapse: "Recolher a navegação",
     expand: "Expandir a navegação",
     declaredCapital: "Capital declarado",
@@ -76,7 +77,6 @@ const ptBR = {
   },
   accountMenu: {
     open: "Menu da conta",
-    theme: "Tema",
   },
   emptyStates: {
     watchlist: {
