@@ -13,6 +13,7 @@ import { parseDecimal } from "./decimal";
 import { compareInstants, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
+import { toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 export type ResolvedStructureLeg =
@@ -93,7 +94,7 @@ function nearestSeriesByAbsDelta(
     const marketPrice = priceRow?.close ?? priceRow?.average ?? null;
     if (!marketPrice) continue;
     const valuation = priceOptionLeg({
-      leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: 1 as never },
+      leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: toQuantity(1) },
       strike: series.strike,
       spot,
       riskFreeRate,

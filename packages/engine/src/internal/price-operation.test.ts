@@ -309,6 +309,39 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.maxGain + result.value.maxLoss).toBe(centavos((32 - 28) * 100));
   });
 
+  it("reports a breakeven exactly at the upper strike when the debit paid equals the strike width", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            price: decimalString("5.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C32",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toContainEqual(decimalString("32.00"));
+  });
+
   it("derives the underlying's spot from a bid/ask mid quote when no last is visible", () => {
     const view: MarketView = {
       ...baseView,
@@ -546,6 +579,66 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.greeks.delta).toBe(decimalString("-100.000000"));
   });
 
+  it("returns invalid_input when the visible cdi annual rate is at or below -1 (concrete legs)", () => {
+    const view: MarketView = {
+      ...baseView,
+      macro: [{ series: "cdi", date: "2024-01-01", asOf: at, annualRate: decimalString("-1.00") }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "macro.cdi.annualRate",
+      message: "annual rate must be greater than -1",
+    });
+  });
+
+  it("returns invalid_input when the visible dividend yield is at or below -1 (concrete legs)", () => {
+    const view: MarketView = {
+      ...baseView,
+      dividendYields: [{ underlying: "PETR4", asOf: at, annualYield: decimalString("-1.00") }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "dividendYields.annualYield",
+      message: "annual rate must be greater than -1",
+    });
+  });
+
   it("aggregates a mixed long-stock/short-call structure's delta to the signed sum of its legs", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C32", "32.00")] };
     const result = priceOperation(
@@ -742,6 +835,34 @@ describe("priceOperation (selection: strike ranks, degenerate strikes, expiry wi
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("no_series_matches");
+  });
+
+  it("returns invalid_input when the visible cdi annual rate is at or below -1 (selection)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+      macro: [{ series: "cdi", date: "2024-01-01", asOf: at, annualRate: decimalString("-1.00") }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: {
+          structure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.50") },
+            { kind: "nearest", price: decimalString("31.50") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: quantity(1),
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 
   it("resolves the delta selection to the listed strike with the nearest |delta| to the target", () => {

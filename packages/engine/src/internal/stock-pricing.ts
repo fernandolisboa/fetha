@@ -54,14 +54,18 @@ function sign(side: OperationLeg["side"]): 1 | -1 {
 export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const notes: Note[] = [];
 
-  const riskFreeRate = resolveRiskFreeRate(input.view.macro, input.at) as DecimalString;
+  const zeroRate = toDecimalString(new Decimal(0), RATIO_SCALE);
+  const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
+  const riskFreeRate = riskFreeRateResolution.ok ? riskFreeRateResolution.value : zeroRate;
+  if (riskFreeRateResolution.ok) notes.push(...riskFreeRateResolution.notes);
+
   const dividendResolution = resolveDividendYield(
     input.view.dividendYields,
     input.underlying,
     input.at,
   );
-  const dividendYield = dividendResolution.value as DecimalString;
-  notes.push(...dividendResolution.notes);
+  const dividendYield = dividendResolution.ok ? dividendResolution.value : zeroRate;
+  if (dividendResolution.ok) notes.push(...dividendResolution.notes);
 
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,

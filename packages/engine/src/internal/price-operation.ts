@@ -371,10 +371,13 @@ function priceConcreteLegs(
     "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
   >,
 ): Result<OperationPricing> {
-  const riskFreeRate = resolveRiskFreeRate(view.macro, at) as DecimalString;
+  const riskFreeRateResolution = resolveRiskFreeRate(view.macro, at);
+  if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
   const dividendResolution = resolveDividendYield(view.dividendYields, underlying, at);
-  const dividendYield = dividendResolution.value as DecimalString;
-  const notes: Note[] = [...dividendResolution.notes];
+  if (!dividendResolution.ok) return err(dividendResolution.error);
+  const riskFreeRate = riskFreeRateResolution.value;
+  const dividendYield = dividendResolution.value;
+  const notes: Note[] = [...riskFreeRateResolution.notes, ...dividendResolution.notes];
 
   const priced: PricedLeg[] = [];
   for (const leg of legs) {
@@ -539,13 +542,16 @@ function priceSelection(
   const spot = resolveUnderlyingMarketPrice(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
 
-  const riskFreeRate = resolveRiskFreeRate(input.view.macro, input.at) as DecimalString;
+  const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
+  if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
   const dividendResolution = resolveDividendYield(
     input.view.dividendYields,
     selection.underlying,
     input.at,
   );
-  const dividendYield = dividendResolution.value as DecimalString;
+  if (!dividendResolution.ok) return err(dividendResolution.error);
+  const riskFreeRate = riskFreeRateResolution.value;
+  const dividendYield = dividendResolution.value;
 
   const resolution = resolveLegSelection({
     structure: selection.structure,

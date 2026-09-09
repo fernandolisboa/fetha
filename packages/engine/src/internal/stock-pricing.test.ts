@@ -359,4 +359,49 @@ describe("priceStockLegs", () => {
     expect(pricing.maxGain).toBe(centavos(0));
     expect(pricing.breakEvens).toEqual([]);
   });
+
+  it("defaults the risk-free rate to zero without throwing when the visible cdi rate is at or below -1", () => {
+    const view: MarketView = {
+      ...emptyView,
+      macro: [
+        {
+          series: "cdi",
+          date: "2024-01-01",
+          asOf: "2024-01-10T20:00:00.000Z",
+          annualRate: decimalString("-1.00"),
+        },
+      ],
+    };
+    const pricing = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: longLeg,
+      view,
+      provenanceBase,
+    });
+    expect(pricing.riskFreeRate).toBe(decimalString("0.000000"));
+  });
+
+  it("defaults the dividend yield to zero without throwing when the visible yield is at or below -1", () => {
+    const view: MarketView = {
+      ...emptyView,
+      dividendYields: [
+        {
+          underlying: "PETR4",
+          asOf: "2024-01-10T20:00:00.000Z",
+          annualYield: decimalString("-1.00"),
+        },
+      ],
+    };
+    const pricing = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: longLeg,
+      view,
+      provenanceBase,
+    });
+    expect(pricing.dividendYield).toBe(decimalString("0.000000"));
+  });
 });
