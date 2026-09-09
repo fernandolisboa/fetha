@@ -653,6 +653,26 @@ describe("runBacktest — errors", () => {
     });
   });
 
+  it("returns invalid_input for a duplicate session date in view.calendar", () => {
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: [...fourSessionCalendar.slice(0, 2), session("2024-01-02")],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.calendar",
+      message: "duplicate session 2024-01-02",
+    });
+  });
+
   it("returns invalid_input when the calendar has no session inside the period", () => {
     const config = baseConfig();
     const result = runBacktest({ view: emptyView, config });

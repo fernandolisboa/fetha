@@ -38,7 +38,7 @@ import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from ".
 import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
 import { assertDefined, assertPresent, invariant } from "./invariant";
-import { codeUnitCompare } from "./order";
+import { codeUnitCompare, sortUnique } from "./order";
 import { toCentavos, toQuantity } from "./scalars";
 
 type PendingEntry = {
@@ -216,7 +216,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     }
   }
 
-  const sortedCalendar = [...view.calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
+  const calendarDupe = sortUnique(
+    view.calendar,
+    (s) => s.date,
+    (a, b) => codeUnitCompare(a.date, b.date),
+  );
+  if (!calendarDupe.ok) {
+    return invalidInput("view.calendar", `duplicate session ${calendarDupe.duplicateKey}`);
+  }
+  const sortedCalendar = calendarDupe.value;
   const periodSessions = sortedCalendar.filter(
     (s) => s.date >= config.period.from && s.date <= config.period.to,
   );
