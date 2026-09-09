@@ -51,6 +51,14 @@ const strategy: StrategyVersion = {
   },
 };
 
+const fixedRiskStrategy: StrategyVersion = {
+  ...strategy,
+  definition: {
+    ...strategy.definition,
+    sizing: { kind: "fixed_risk", fraction: decimalString("0.1") },
+  },
+};
+
 const stockOperation: Operation = {
   id: "op-1",
   underlying: "PETR4",
@@ -209,4 +217,59 @@ describe("engine", () => {
       expect(result.error).toEqual(expected);
     },
   );
+
+  it("reports the caller's strategy sizing kind for evaluateStrategy, not a fixed vocabulary entry", async () => {
+    const result = await engine.evaluateStrategy({
+      view: emptyView,
+      strategy: fixedRiskStrategy,
+      instruments: ["PETR4"],
+      at: "2024-01-01T00:00:00.000Z",
+    } satisfies EvaluateStrategyInput);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "unsupported",
+      vocabulary: "sizingRules",
+      kind: "fixed_risk",
+    });
+  });
+
+  it("reports the caller's strategy sizing kind for runBacktest, not a fixed vocabulary entry", async () => {
+    const result = await engine.runBacktest({
+      view: emptyView,
+      config: {
+        strategy: fixedRiskStrategy,
+        universe: ["PETR4"],
+        period: { from: "2024-01-01", to: "2024-01-31" },
+        initialCapital: centavos(100_000_00),
+        costModel: {
+          b3FeeRate: decimalString("0.0003"),
+          brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+          optionSlippageRate: decimalString("0.01"),
+          incomeTaxRate: decimalString("0.15"),
+          monthlyStockSalesExemption: centavos(20_000_00),
+        },
+        riskProfile: {
+          declaredCapital: centavos(100_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("0.02"),
+            maxExposurePerOperation: decimalString("0.1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("0.05"),
+          },
+        },
+        limits: "enforce",
+        sizing: null,
+        walkForward: null,
+        seed: 1,
+      },
+    } satisfies RunBacktestInput);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "unsupported",
+      vocabulary: "sizingRules",
+      kind: "fixed_risk",
+    });
+  });
 });

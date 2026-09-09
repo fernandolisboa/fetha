@@ -5,6 +5,7 @@ import type {
   DataWindow,
   DataWindowInput,
   Engine,
+  EvaluateStrategyInput,
   Evaluation,
   ImpliedVolatilityIndex,
   IndicatorSeries,
@@ -12,6 +13,7 @@ import type {
   OperationPricing,
   PortfolioValuation,
   Result,
+  RunBacktestInput,
   Score,
   SettlementProposal,
 } from "./api";
@@ -19,10 +21,9 @@ import { pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { computeIndicators } from "./internal/indicators-computation";
-import { unsupportedSizingRuleKinds, unsupportedThesisClaimKinds } from "./internal/vocabularies";
+import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
-const sizingRuleKind = unsupportedSizingRuleKinds[0];
 const thesisClaimKind = unsupportedThesisClaimKinds[0];
 
 function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
@@ -46,12 +47,12 @@ export const engine: Engine = {
     return unsupported("pricingModels", pricingModelKind);
   },
 
-  evaluateStrategy(): Promise<Result<Evaluation>> {
-    return unsupported("sizingRules", sizingRuleKind);
+  evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {
+    return unsupported("sizingRules", input.strategy.definition.sizing.kind);
   },
 
-  runBacktest(): Promise<Result<BacktestProgress>> {
-    return unsupported("sizingRules", sizingRuleKind);
+  runBacktest(input: RunBacktestInput): Promise<Result<BacktestProgress>> {
+    return unsupported("sizingRules", input.config.strategy.definition.sizing.kind);
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
