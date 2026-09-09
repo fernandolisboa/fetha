@@ -8,10 +8,10 @@ const eslintConfig = defineConfig([
   ...nextTs,
   ...tseslint.configs.strictTypeChecked.map((config) => ({
     ...config,
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts"],
   })),
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
