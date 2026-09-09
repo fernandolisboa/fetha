@@ -1105,7 +1105,7 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   scale, dividing by the product of the ticker's visible corporate-action factors with `exDate` in
   `(op.openedAt, nominalCandle.session]` (the same factors, and the same convention,
   `buildCandleSeries` uses to adjust a candle series, but applied in the opposite direction here).
-  Per-leg pnl is `quantity × (close / f − entryPrice)` in centavos: `quantity` and `entryPrice` are
+  Per-leg pnl is `side × quantity × (close / f − entryPrice)` in centavos, with `side = +1` for a `buy` leg and `−1` for a `sell` leg: `quantity` and `entryPrice` are
   true money on the scale the operation was opened at and are never touched, so a position opened
   before a split is compared to the post-split close on the same scale instead of firing a stop or
   target on the split alone, and the money is right, not just the sign — scaling `entryPrice` by
