@@ -10,3 +10,4 @@ playwright-report
 test-results
 .impeccable/
 apps/web/public/sw.js
+docs/design/workstation/fetha-workstation.html

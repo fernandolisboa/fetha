@@ -67,8 +67,8 @@ broker connection, no order execution.
    declared limits of intraday runs.
 7. Portfolio and risk dashboard: positions, operations, mark to market, limits.
 8. Decision journal with scores and calibration.
-9. Settings: declared capital and risk profile, provider token, sharing, data export, account
-   deletion.
+9. Settings: declared capital and risk profile, provider token, theme (Instrumento, Terminal,
+   Amplo), sharing, data export, account deletion.
 
 Later: strategy comparison, fills import from brokerage notes, audit log view.
 
