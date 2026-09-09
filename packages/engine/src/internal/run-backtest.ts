@@ -10,6 +10,7 @@ import type {
 } from "@fetha/contracts";
 import {
   ENGINE_VERSION,
+  pricingModels,
   type BacktestCheckpoint,
   type BacktestConfig,
   type BacktestProgress,
@@ -17,6 +18,7 @@ import {
   type Candle,
   type DataWindow,
   type EquityPoint,
+  type EvaluationOutcome,
   type Leg,
   type LimitBreach,
   type MissedEntry,
@@ -149,6 +151,9 @@ function missingMarkError(
   through: Instant,
 ): Result<BacktestProgress> {
   const openedAtSession = sortedCalendar.find((s) => s.date === openedAt);
+  // openedAt always names a session this same sortedCalendar carries (it was set from one of
+  // its own sessions when the operation opened); the fallback only guards the type.
+  /* v8 ignore next */
   const from = openedAtSession?.open ?? through;
   const needed: DataWindow = {
     from,
@@ -160,8 +165,15 @@ function missingMarkError(
   return { ok: false, error: { code: "insufficient_data", needed } };
 }
 
+// The gross traded value of a fill or a mark, on the centavos scale but not yet rounded to an
+// integer Centavos: callers that compose it further (fillCosts) or need the unrounded value for
+// a sum keep it as a Decimal; callers that record it as money round it themselves.
+function grossCentavos(price: DecimalString, quantity: number | Decimal): Decimal {
+  return parseDecimal(price).mul(CENTAVOS_PER_REAL).mul(quantity);
+}
+
 function fillCosts(costModel: CostModel, price: DecimalString, quantity: number): Centavos {
-  const gross = parseDecimal(price).mul(CENTAVOS_PER_REAL).mul(quantity);
+  const gross = grossCentavos(price, quantity);
   const b3Fee = gross.mul(parseDecimal(costModel.b3FeeRate)).round().toNumber();
   return toCentavos(b3Fee + costModel.brokerage.stockPerOrder);
 }
@@ -173,6 +185,23 @@ function operationId(
   session: SessionDate,
 ): string {
   return `${strategyVersionId}:${ticker}:${session}:${String(seq)}`;
+}
+
+// Exhaustive over EvaluationOutcome so a future outcome the type gains is a compile error here,
+// not a silently wrong reason. no_series_match and degenerate_strikes are unreachable for a
+// stock-only run (#16) — evaluateStrategy never selects strikes for a stock-only structure — but
+// mapping them to their own MissedEntryReason keeps this scheduler correct if it is ever reused
+// for a structure with option legs.
+function missedEntryReasonFor(outcome: EvaluationOutcome | undefined): MissedEntryReason {
+  if (outcome === "unsizeable") return "unsizeable";
+  /* v8 ignore start */
+  if (outcome === "no_series_match") return "no_series_match";
+  if (outcome === "degenerate_strikes") return "degenerate_strikes";
+  /* v8 ignore stop */
+  // Every remaining EvaluationOutcome ("signal", "conditions_not_met", "insufficient_data") and
+  // "undefined" (no matching evaluation record) fall back to "no_trades", the only
+  // MissedEntryReason a fill-time failure with none of the above outcomes can be.
+  return "no_trades";
 }
 
 function legPnlCentavos(
@@ -349,7 +378,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     state.taxesFinalized.push(tax);
     state.currentMonthStockSales = 0;
     state.currentMonthStockGain = 0;
-    return;
   }
 
   for (let i = startIndex; i < endIndex; i += 1) {
@@ -420,11 +448,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         for (const leg of legs) {
           const costs = fillCosts(config.costModel, candle.open, leg.quantity);
           entryCosts.push(costs);
-          const gross = parseDecimal(candle.open)
-            .mul(CENTAVOS_PER_REAL)
-            .mul(leg.quantity)
-            .round()
-            .toNumber();
+          const gross = grossCentavos(candle.open, leg.quantity).round().toNumber();
           state.cash -= (leg.side === "buy" ? 1 : -1) * gross + costs;
           // A short entry is itself a stock sell (ADR-0004's exemption reads "stock
           // sells in the month", any sell fill, not only an exit closing a long): the
@@ -487,12 +511,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         );
         const costs = fillCosts(config.costModel, candle.open, effectiveQuantity);
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
-        const grossCentavos = parseDecimal(candle.open)
-          .mul(CENTAVOS_PER_REAL)
-          .mul(effectiveQuantity)
-          .round()
-          .toNumber();
-        state.cash += (exitSide === "sell" ? 1 : -1) * grossCentavos - costs;
+        const gross = grossCentavos(candle.open, effectiveQuantity).round().toNumber();
+        state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
         state.fills.push({
           ticker: op.underlying,
           side: exitSide,
@@ -510,7 +530,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           .sub(costs)
           .sub(entryCost);
         if (exitSide === "sell") {
-          state.currentMonthStockSales += grossCentavos;
+          state.currentMonthStockSales += gross;
         }
       });
       const pnlCentavos = toCentavos(pnl.round().toNumber());
@@ -558,21 +578,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       state.cash -= finalTax.tax;
     }
 
-    // Step 3: equity for this session.
+    // Step 3: equity for this session. Marks are kept (per ticker) for Step 4/5's period-end
+    // sweep to reuse: it processes the same state.openOperations at the same session.date, so a
+    // second lookup would always find exactly what this one already did.
     let markValue = 0;
+    const marksThisSession = new Map<Ticker, DecimalString>();
     for (const op of state.openOperations) {
       const markPriceOrNull = lastKnownClose(candlesByTicker, op.underlying, session.date);
       if (markPriceOrNull === null) {
         return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
       }
       const markPrice = markPriceOrNull;
+      marksThisSession.set(op.underlying, markPrice);
       const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
       for (const leg of op.legs) {
         const sign = leg.side === "buy" ? 1 : -1;
         const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
-        markValue +=
-          sign *
-          parseDecimal(markPrice).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity).round().toNumber();
+        markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
     const equity = toCentavos(state.cash + markValue);
@@ -596,11 +618,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // Step 4/5: period end sweep, or next signals.
     if (isFinalSession) {
       for (const op of state.openOperations) {
-        const priceOrNull = lastKnownClose(candlesByTicker, op.underlying, session.date);
-        if (priceOrNull === null) {
-          return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
-        }
-        const price = priceOrNull;
+        const price = assertDefined(
+          marksThisSession.get(op.underlying),
+          "run-backtest: Step 3 already marked every currently open operation this same session",
+        );
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
         const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
         let pnl = new Decimal(0);
@@ -692,9 +713,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const record = evalResult.value.evaluations.find(
         (e) => e.ticker === ticker && e.at === session.close,
       );
-      const reason: MissedEntryReason =
-        record?.outcome === "unsizeable" ? "unsizeable" : "no_trades";
-      finalizeMissedEntry(ticker, session.close, reason);
+      finalizeMissedEntry(ticker, session.close, missedEntryReasonFor(record?.outcome));
     }
   }
 
@@ -778,7 +797,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     notes,
     provenance: {
       engineVersion: ENGINE_VERSION,
-      pricingModel: "bsm_continuous_yield",
+      pricingModel: assertDefined(pricingModels[0], "run-backtest: pricingModels is non-empty"),
       truncated,
       dataVersion: view.dataVersion ?? null,
       datasetNotes: view.datasetNotes ?? [],
@@ -797,10 +816,19 @@ function isLastSessionOfMonth(
   return next === undefined || monthKeyOf(next.date) !== monthKey;
 }
 
+// A settled operation is one whose pnl is a result, not a mark: closed by an exit rule or a
+// roll, or expired, but not closed by period_end (that pnl is a valuation, ADR-0013 "Equity and
+// metrics"). winRate and profitFactor are computed over settled operations only. "expired" is
+// unreachable for a stock-only run (#16, no option legs to settle) but handled correctly should
+// this scheduler ever process a structure with option legs.
+function isSettledOperation(op: SimulatedOperation): boolean {
+  /* v8 ignore next */
+  if (op.status !== "closed") return true;
+  return op.closeReason.kind !== "period_end";
+}
+
 function buildMetricsInput(state: BacktestState, initialCapital: Centavos): MetricsInput {
-  const settled = state.operations.filter(
-    (op) => op.status === "closed" && op.closeReason.kind !== "period_end",
-  );
+  const settled = state.operations.filter(isSettledOperation);
   return {
     equityCurve: state.equityCurve,
     initialCapital,
@@ -819,9 +847,11 @@ function computeWalkForward(
   config: BacktestConfig,
   periodSessions: readonly TradingSession[],
 ): NonNullable<BacktestRun["walkForward"]> {
+  /* v8 ignore start */
   if (config.walkForward === null) {
     throw new Error("run-backtest: computeWalkForward only called when walkForward is configured");
   }
+  /* v8 ignore stop */
   const windowSessions = config.walkForward.windowSessions;
   const windows: NonNullable<BacktestRun["walkForward"]> = [];
   for (let start = 0; start < periodSessions.length; start += windowSessions) {
@@ -840,9 +870,7 @@ function computeWalkForward(
             "run-backtest: a completed run has one equity point per processed session",
           ).equity;
     const opsInWindow = state.operations.filter((op) => op.openedAt >= from && op.openedAt <= to);
-    const settled = opsInWindow.filter(
-      (op) => op.status === "closed" && op.closeReason.kind !== "period_end",
-    );
+    const settled = opsInWindow.filter(isSettledOperation);
     const { metrics } = computeBacktestMetrics({
       equityCurve: equitySlice,
       initialCapital: baseline,

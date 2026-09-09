@@ -48,8 +48,8 @@ export function computeBacktestMetrics(input: MetricsInput): {
   ];
   const returns: Decimal[] = [];
   for (let i = 1; i < equitySeries.length; i += 1) {
-    const prev = equitySeries[i - 1] as Decimal;
-    const curr = equitySeries[i] as Decimal;
+    const prev = assertDefined(equitySeries[i - 1], "computeBacktestMetrics: index within bounds");
+    const curr = assertDefined(equitySeries[i], "computeBacktestMetrics: index within bounds");
     returns.push(prev.isZero() ? new Decimal(0) : curr.div(prev).sub(1));
   }
   const excess = returns.map((r, i) => r.sub(new Decimal(input.rfPerSession[i] ?? "0")));
