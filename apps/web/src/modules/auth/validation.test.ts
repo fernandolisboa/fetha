@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { resendVerificationFormSchema, signInFormSchema, signUpFormSchema } from "./validation";
+import {
+  magicLinkFormSchema,
+  requestPasswordResetFormSchema,
+  resendVerificationFormSchema,
+  resetPasswordFormSchema,
+  signInFormSchema,
+  signUpFormSchema,
+} from "./validation";
 
 describe("signUpFormSchema", () => {
   it("normalizes the email to lowercase and trims it", () => {
@@ -49,5 +56,47 @@ describe("resendVerificationFormSchema", () => {
   it("normalizes the email", () => {
     const parsed = resendVerificationFormSchema.parse({ email: "  Nova@Example.com " });
     expect(parsed.email).toBe("nova@example.com");
+  });
+});
+
+describe("magicLinkFormSchema", () => {
+  it("normalizes the email", () => {
+    const parsed = magicLinkFormSchema.parse({ email: "  Nova@Example.com " });
+    expect(parsed.email).toBe("nova@example.com");
+  });
+
+  it("rejects an invalid email", () => {
+    const result = magicLinkFormSchema.safeParse({ email: "not-an-email" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("requestPasswordResetFormSchema", () => {
+  it("normalizes the email", () => {
+    const parsed = requestPasswordResetFormSchema.parse({ email: "  Nova@Example.com " });
+    expect(parsed.email).toBe("nova@example.com");
+  });
+});
+
+describe("resetPasswordFormSchema", () => {
+  it("accepts a token and a password of at least 8 characters", () => {
+    const result = resetPasswordFormSchema.safeParse({
+      token: "abc123",
+      newPassword: "correct-horse-battery",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a password shorter than 8 characters", () => {
+    const result = resetPasswordFormSchema.safeParse({ token: "abc123", newPassword: "short" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty token", () => {
+    const result = resetPasswordFormSchema.safeParse({
+      token: "",
+      newPassword: "correct-horse-battery",
+    });
+    expect(result.success).toBe(false);
   });
 });

@@ -40,4 +40,52 @@ describe("buildAuthOptions", () => {
 
     expect(drizzleAdapter).toHaveBeenCalledWith(fakeDb, { provider: "pg", transaction: true });
   });
+
+  it("disables the database-backed rate limiter under plain Vitest, but not under the integration config", () => {
+    const fakeDb = {} as Database;
+    const base = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const unitTestOptions = buildAuthOptions(fakeDb, { ...base, VITEST: "true" }, new FakeMailer());
+    expect(unitTestOptions.rateLimit.enabled).toBe(false);
+
+    const integrationTestOptions = buildAuthOptions(
+      fakeDb,
+      { ...base, VITEST: "true", VITEST_INTEGRATION: "1" },
+      new FakeMailer(),
+    );
+    expect(integrationTestOptions.rateLimit.enabled).toBe(true);
+
+    const runtimeOptions = buildAuthOptions(fakeDb, base, new FakeMailer());
+    expect(runtimeOptions.rateLimit.enabled).toBe(true);
+  });
+
+  it("stores rate limit counters in the database, keyed per auth endpoint", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(options.rateLimit.storage).toBe("database");
+    expect(options.rateLimit.customRules?.["/sign-in/email"]).toEqual({ window: 10, max: 3 });
+    expect(options.rateLimit.customRules?.["/sign-up/email"]).toEqual({ window: 10, max: 3 });
+    expect(options.rateLimit.customRules?.["/request-password-reset"]).toEqual({
+      window: 60,
+      max: 3,
+    });
+    expect(options.rateLimit.customRules?.["/reset-password"]).toEqual({ window: 60, max: 5 });
+    expect(options.rateLimit.customRules?.["/send-verification-email"]).toEqual({
+      window: 60,
+      max: 3,
+    });
+  });
+
+  it("registers the magic-link plugin", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+    const magicLinkPlugin = options.plugins.find((plugin) => plugin.id === "magic-link");
+
+    expect(magicLinkPlugin).toBeDefined();
+  });
 });

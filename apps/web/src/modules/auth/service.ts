@@ -196,6 +196,109 @@ export async function resendVerification(
   return { status: "ok" };
 }
 
+export interface SignInMagicLinkInput {
+  email: string;
+}
+
+export type SignInMagicLinkOutcome =
+  { status: "ok" } | { status: "rate_limited" } | { status: "failed" };
+
+export async function signInMagicLink(
+  input: SignInMagicLinkInput,
+  requestHeaders: Headers,
+): Promise<SignInMagicLinkOutcome> {
+  const response = await callAuthHandler(
+    "/sign-in/magic-link",
+    {
+      email: input.email,
+      callbackURL: "/",
+      errorCallbackURL: "/link-magico/erro",
+    },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (response.status === 429) {
+    return { status: "rate_limited" };
+  }
+  if (!response.ok) {
+    return { status: "failed" };
+  }
+  return { status: "ok" };
+}
+
+export interface RequestPasswordResetInput {
+  email: string;
+}
+
+export type RequestPasswordResetOutcome =
+  { status: "ok" } | { status: "rate_limited" } | { status: "failed" };
+
+export async function requestPasswordReset(
+  input: RequestPasswordResetInput,
+  requestHeaders: Headers,
+): Promise<RequestPasswordResetOutcome> {
+  const response = await callAuthHandler(
+    "/request-password-reset",
+    {
+      email: input.email,
+      redirectTo: "/redefinir-senha/confirmar",
+    },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (response.status === 429) {
+    return { status: "rate_limited" };
+  }
+  if (!response.ok) {
+    return { status: "failed" };
+  }
+  return { status: "ok" };
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
+export type ResetPasswordOutcome =
+  | { status: "ok" }
+  | { status: "invalid_token" }
+  | { status: "rate_limited" }
+  | { status: "failed" };
+
+export async function resetPassword(
+  input: ResetPasswordInput,
+  requestHeaders: Headers,
+): Promise<ResetPasswordOutcome> {
+  const response = await callAuthHandler(
+    "/reset-password",
+    { token: input.token, newPassword: input.newPassword },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (response.status === 429) {
+    return { status: "rate_limited" };
+  }
+  if (response.ok) {
+    return { status: "ok" };
+  }
+
+  const body = await readJson<{ code?: string }>(response);
+  if (body?.code === "INVALID_TOKEN") {
+    return { status: "invalid_token" };
+  }
+  return { status: "failed" };
+}
+
 export async function signOut(requestHeaders: Headers): Promise<void> {
   await callAuthHandler("/sign-out", {}, requestHeaders);
 }

@@ -2,15 +2,18 @@ import type { BetterAuthOptions } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { magicLink } from "better-auth/plugins";
 import { z } from "zod";
 
 import type { Database } from "@/db/client";
 import { registrationMode } from "@/lib/env";
 
+import { buildMagicLinkEmail } from "./email/magic-link-email";
+import { buildPasswordResetEmail } from "./email/password-reset-email";
 import { buildVerificationEmail } from "./email/verification-email";
 import { getMailer } from "./email/select";
 import type { Mailer } from "./email/mailer";
-import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
+import { isProductionDeployment, isUnitTestEnv, readAuthBaseUrl, type AuthEnv } from "./env";
 import { consumePendingInviteSafely, hasPendingInvite } from "./invite-repository";
 import { normalizeEmail } from "./normalize-email";
 import { evaluateRegistrationMode } from "./registration-policy";
@@ -18,6 +21,23 @@ import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
+const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 5;
+const PASSWORD_RESET_EXPIRES_IN_SECONDS = 60 * 60;
+
+// Matches the security audit's A-01 remediation (docs/security-audit/2026-09-09.md):
+// the same window/max values Better Auth's own in-memory defaults already
+// used for sign-in and sign-up, made explicit here so they survive an
+// upstream default change, now backed by the database store below instead
+// of a per-instance in-memory Map. `/reset-password` (the token-plus-new-
+// password submission) and `/sign-in/magic-link` have no built-in special
+// rule of their own, so this is also where they get one.
+const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["customRules"] = {
+  "/sign-in/email": { window: 10, max: 3 },
+  "/sign-up/email": { window: 10, max: 3 },
+  "/request-password-reset": { window: 60, max: 3 },
+  "/reset-password": { window: 60, max: 5 },
+  "/send-verification-email": { window: 60, max: 3 },
+};
 
 const signUpEmailBodySchema = z.object({
   email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
@@ -97,6 +117,11 @@ export function buildAuthOptions(
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      resetPasswordTokenExpiresIn: PASSWORD_RESET_EXPIRES_IN_SECONDS,
+      sendResetPassword: async ({ user, url }) => {
+        const email = buildPasswordResetEmail(url);
+        await mailer.send({ to: user.email, ...email });
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
@@ -154,6 +179,31 @@ export function buildAuthOptions(
         }
       }),
     },
-    plugins: [nextCookies()],
+    plugins: [
+      // `disableSignUp: true`: a magic-link click that creates a brand new
+      // user would bypass the terms/privacy checkboxes sign-up requires
+      // (ADR-0016's consent invariant) and REGISTRATION_MODE's invite gate,
+      // which only guards `/sign-up/email`. Magic link is sign-in only here.
+      magicLink({
+        disableSignUp: true,
+        expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
+        rateLimit: { window: 60, max: 3 },
+        sendMagicLink: async ({ email, url }) => {
+          const content = buildMagicLinkEmail(url);
+          await mailer.send({ to: email, ...content });
+        },
+      }),
+      nextCookies(),
+    ],
+    // Database-backed so the limit survives across Vercel's per-instance
+    // serverless functions, unlike Better Auth's default in-memory Map
+    // (docs/security-audit/2026-09-09.md A-01, docs/adr/0016). Off only
+    // under plain unit tests, which never migrate a real `rate_limits`
+    // table (isUnitTestEnv, env.ts).
+    rateLimit: {
+      enabled: !isUnitTestEnv(env),
+      storage: "database",
+      customRules: RATE_LIMIT_CUSTOM_RULES,
+    },
   } satisfies BetterAuthOptions;
 }

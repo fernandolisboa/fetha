@@ -20,3 +20,16 @@ export const signInFormSchema = z.object({
 export const resendVerificationFormSchema = z.object({
   email: emailField,
 });
+
+export const magicLinkFormSchema = z.object({
+  email: emailField,
+});
+
+export const requestPasswordResetFormSchema = z.object({
+  email: emailField,
+});
+
+export const resetPasswordFormSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+});

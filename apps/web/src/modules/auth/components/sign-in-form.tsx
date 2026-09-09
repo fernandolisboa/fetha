@@ -44,6 +44,18 @@ export function SignInForm() {
       </Button>
 
       <p className="text-muted-foreground text-sm">
+        <Link href="/redefinir-senha" className="text-foreground underline underline-offset-4">
+          {t.signIn.forgotPasswordLink}
+        </Link>
+      </p>
+
+      <p className="text-muted-foreground text-sm">
+        <Link href="/link-magico" className="text-foreground underline underline-offset-4">
+          {t.signIn.magicLinkLink}
+        </Link>
+      </p>
+
+      <p className="text-muted-foreground text-sm">
         {t.signIn.noAccount}{" "}
         <Link href="/cadastro" className="text-foreground underline underline-offset-4">
           {t.signIn.signUpLink}

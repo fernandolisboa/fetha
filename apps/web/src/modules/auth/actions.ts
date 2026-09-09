@@ -4,9 +4,24 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { ActionState } from "./action-state";
-import { resendVerification, signIn, signOut, signUp } from "./service";
+import {
+  requestPasswordReset,
+  resendVerification,
+  resetPassword,
+  signIn,
+  signInMagicLink,
+  signOut,
+  signUp,
+} from "./service";
 import { t } from "./strings";
-import { resendVerificationFormSchema, signInFormSchema, signUpFormSchema } from "./validation";
+import {
+  magicLinkFormSchema,
+  requestPasswordResetFormSchema,
+  resendVerificationFormSchema,
+  resetPasswordFormSchema,
+  signInFormSchema,
+  signUpFormSchema,
+} from "./validation";
 
 export async function signUpAction(
   _prevState: ActionState,
@@ -108,6 +123,86 @@ export async function resendVerificationAction(
       return { status: "success", message: t.verifyEmail.resent };
     case "failed":
       return { status: "error", message: errors.resendFailed };
+  }
+}
+
+export async function signInMagicLinkAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = magicLinkFormSchema.safeParse({ email: formData.get("email") });
+
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidInput };
+  }
+
+  const requestHeaders = await headers();
+  const outcome = await signInMagicLink({ email: parsed.data.email }, requestHeaders);
+
+  switch (outcome.status) {
+    case "ok":
+      redirect(`/link-magico/verifique?email=${encodeURIComponent(parsed.data.email)}`);
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
+    case "failed":
+      return { status: "error", message: errors.magicLinkFailed };
+  }
+}
+
+export async function requestPasswordResetAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = requestPasswordResetFormSchema.safeParse({ email: formData.get("email") });
+
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidInput };
+  }
+
+  const requestHeaders = await headers();
+  const outcome = await requestPasswordReset({ email: parsed.data.email }, requestHeaders);
+
+  switch (outcome.status) {
+    case "ok":
+      redirect(`/redefinir-senha/verifique?email=${encodeURIComponent(parsed.data.email)}`);
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
+    case "failed":
+      return { status: "error", message: errors.passwordResetRequestFailed };
+  }
+}
+
+export async function resetPasswordAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = resetPasswordFormSchema.safeParse({
+    token: formData.get("token"),
+    newPassword: formData.get("newPassword"),
+  });
+
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidInput };
+  }
+
+  const requestHeaders = await headers();
+  const outcome = await resetPassword(parsed.data, requestHeaders);
+
+  switch (outcome.status) {
+    case "ok":
+      redirect("/entrar");
+    case "invalid_token":
+      return { status: "error", message: errors.invalidResetToken };
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
+    case "failed":
+      return { status: "error", message: errors.passwordResetFailed };
   }
 }
 
