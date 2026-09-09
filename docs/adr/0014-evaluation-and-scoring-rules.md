@@ -120,6 +120,21 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   other bounded figure to measure a stop against. A base of zero (a delta-neutral pair of legs at
   the same entry price) means the rule can never fire; the evaluation record's `detail` names the
   rule and says so, since `EvaluationRecord` carries no structured reason.
+- **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
+  window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
+  session's open) is retried at every following session's open — the same pending exit, the same
+  legs, no new `EvaluationOutcome` — until it fills or the run's `period.to` sweeps the still-open
+  operation closed with `period_end` (never a fill, never a cost, per the "Simulated operations"
+  rule in ADR-0013). There is no `MissedExit`: the type vocabulary has none, and a position that
+  never closes inside the run is still fully accounted for by the `period_end` close. This is the
+  conservative reading of "retried indefinitely" a hygiene-first backtester should default to,
+  since discarding an unfilled exit would silently understate risk.
+- **A stranded entry retry is finalized at `period.to`, not dropped (Q53; permanent, not a #16
+  stopgap).** If the period ends while an entry fill is still being retried (no trade yet, fewer
+  than three attempts made), the run records one `MissedEntry` with `reason: "no_trades"` and
+  `sessionsTried` equal to the attempts actually made, rather than discarding it silently.
+  `evaluateStrategy` is not called on the final session (there is no next session left to fill
+  into), so this finalization happens directly in the period-end sweep.
 
 ## Consequences
 
@@ -128,6 +143,8 @@ semantics, walk-forward meaning). ADR-0005 stays in force with the thesis claim 
 of `thesis.held`, one explicit counterfactual rule and a thesis-only score when there is no
 operation. ADR-0008 stays in force with a single shared expiry per structure and no parameter
 space. ADR-0011 stays in force with one amendment: the volatility of an intraday fair-value fill
-is the latest index point visible at the fill instant, never the fill session's own close. The
-glossary gains "Thesis claim", "Implied volatility index", "Settlement proposal", "Missed entry",
-"Leg template" and "Evaluation record", and rewrites "Walk-forward".
+is the latest index point visible at the fill instant, never the fill session's own close.
+ADR-0013 stays in force: Q52 and Q53 are the permanent rules its #16 addendum already implemented,
+recorded here rather than as a #16-scope stopgap. The glossary gains "Thesis claim", "Implied
+volatility index", "Settlement proposal", "Missed entry", "Leg template", "Evaluation record" and
+"Checkpoint", and rewrites "Walk-forward".

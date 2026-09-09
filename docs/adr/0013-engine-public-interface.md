@@ -1522,22 +1522,9 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   landed yet, and stock-only intraday backtesting was not asked for by this ticket. `runBacktest`
   refuses any `strategy.definition.timeframe !== "D1"` with `unsupported`, vocabulary
   `"timeframes"`. Lifting this is additive (a new fill path, no signature change) once #21 lands.
-- **Exit-fill retry has no three-session cap.** Q38's retry window is explicit about _entries_
-  only. An exit signal that cannot fill (no trade at the next session's open) is simply retried at
-  every following session's open — the same `pendingExits` entry, the same legs, no new
-  `EvaluationOutcome` — until it fills or the run's `period.to` sweeps the still-open operation
-  closed with `period_end` (never a fill, never a cost, as the "Simulated operations" section
-  already specifies for anything left open at period end). There is no `MissedExit`: the type
-  vocabulary has none, and a position that never closes inside the run is still fully accounted
-  for by the `period_end` close. This is the conservative reading of "retried indefinitely" a
-  hygiene-first backtester should default to, since discarding an unfilled exit would silently
-  understate risk.
-- **A stranded entry retry is finalized at `period.to`, not dropped.** If the period ends while an
-  entry fill is still being retried (no trade yet, fewer than three attempts made), the run
-  records one `MissedEntry` with `reason: "no_trades"` and `sessionsTried` equal to the attempts
-  actually made, rather than discarding it silently. `evaluateStrategy` is not called on the final
-  session (there is no next session left to fill into), so this finalization happens directly in
-  the period-end sweep.
+- **Exit-fill retry has no cap, and a stranded entry retry is finalized at `period.to`.** These
+  are permanent rules, not #16-scope stopgaps, so they are recorded in ADR-0014 as Q52 and Q53
+  rather than here.
 - **A calendar month gap never leaves a tax deduction unpaid.** The deduction scheduled after a
   month finalizes is paid on that month's own last session in `periodSessions` — whichever
   session follows it in the run, gap or not — so a month transition never finds one still
@@ -1549,6 +1536,13 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   clamp this; it is recorded once, additively, as note `negative_cash` on the run
   ("cash went below zero during the run; v1 has no cash constraint") when any `EquityPoint.cash`
   in the run is negative. A margin or buying-power constraint is a future ticket, not a #16 gap.
+- **A non-positive equity is clamped to a positive sizing budget, not refused.** The synthetic
+  `riskProfile.declaredCapital` fed to each session's `evaluateStrategy` call is
+  `max(equity, 1)`: `declaredCapital` is a `Centavos` and cannot be zero or negative, and a run
+  whose equity has gone non-positive must still be able to call `evaluateStrategy` for the
+  remaining sessions rather than fail outright. The run records this once, additively, as note
+  `non_positive_equity` on the run ("equity was non-positive at least once during the run and was
+  clamped to a positive sizing budget") whenever the clamp changed the value at least once.
 
 ## Considered options
 

@@ -210,6 +210,15 @@ simulated operations and fills, the daily equity curve and the metrics. Runs are
 running again creates a new run.
 _Avoid_: simulation, test, replay
 
+**Checkpoint**:
+The paused state of a backtest run that has not yet reached `period.to`: a `configDigest` tying
+it to the exact config that produced it, a cursor session and everything the run needs to resume
+from there. Depends only on rows visible by the cursor session's close (ADR-0013's I7), so a
+chunked run and one uninterrupted call over the same period agree (I2). Valid only for the
+`configDigest`, `engineVersion` and checkpoint schema that produced it, and only when resumed
+with the same calendar the run started with; anything else is `checkpoint_mismatch`.
+_Avoid_: snapshot, save state, resume token
+
 **Universe**:
 The set of instruments a backtest run evaluates the strategy over.
 _Avoid_: watchlist (that is the live list), basket
