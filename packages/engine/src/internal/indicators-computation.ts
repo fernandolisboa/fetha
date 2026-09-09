@@ -7,7 +7,8 @@ import type {
   Result,
   TruncationReport,
 } from "../api";
-import { alignToSessions } from "./align-to-sessions";
+import type { IndicatorSpec } from "@fetha/contracts";
+import { alignByInstant } from "./align-by-instant";
 import { buildCandleSeries } from "./candle-series";
 import { PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { atr } from "./indicators/atr";
@@ -19,6 +20,11 @@ import { buildIvIndexSeries } from "./iv-index-series";
 
 export function computeIndicators(input: IndicatorsInput): Result<IndicatorSeries> {
   const form = input.form ?? "adjusted";
+
+  for (const [index, indicator] of input.indicators.entries()) {
+    const invalid = validateIndicatorSpec(indicator, index);
+    if (invalid) return invalid;
+  }
 
   const candleSeries = buildCandleSeries({
     candles: input.view.candles,
@@ -32,7 +38,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
   }
 
   const closes = candleSeries.value.adjusted.map((c) => parseDecimal(c.close));
-  const sessions = candleSeries.value.adjusted.map((c) => c.session);
+  const candleAsOf = candleSeries.value.adjusted.map((c) => c.asOf);
   const bars = candleSeries.value.adjusted.map((c) => ({
     high: parseDecimal(c.high),
     low: parseDecimal(c.low),
@@ -40,7 +46,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
   }));
 
   const truncated: TruncationReport[] = [...candleSeries.value.truncated];
-  let ivPointSessions: string[] = [];
+  let ivPointAsOf: typeof candleAsOf = [];
   let ivPointValues: Decimal[] = [];
 
   if (input.indicators.some((spec) => spec.kind === "iv_rank")) {
@@ -53,7 +59,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
       return invalidInput(ivSeries.error.path, ivSeries.error.message);
     }
     truncated.push(...ivSeries.value.truncated);
-    ivPointSessions = ivSeries.value.points.map((p) => p.session);
+    ivPointAsOf = ivSeries.value.points.map((p) => p.asOf);
     ivPointValues = ivSeries.value.points.map((p) => parseDecimal(p.impliedVolatility));
   }
 
@@ -69,7 +75,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
         return { indicator, values: toDecimalStrings(atr(bars, indicator.length), PRICE_SCALE) };
       case "iv_rank": {
         const rankSeries = ivRank(ivPointValues, indicator.lookbackSessions);
-        const aligned = alignToSessions(sessions, ivPointSessions, rankSeries);
+        const aligned = alignByInstant(candleAsOf, ivPointAsOf, rankSeries);
         return {
           indicator,
           values: aligned.map((v) => (v ? toDecimalString(v, RATIO_SCALE) : null)),
@@ -104,4 +110,17 @@ function toDecimalStrings(values: (Decimal | null)[], scale: number) {
 
 function invalidInput(path: string, message: string): { ok: false; error: EngineError } {
   return { ok: false, error: { code: "invalid_input", path, message } };
+}
+
+function validateIndicatorSpec(
+  indicator: IndicatorSpec,
+  index: number,
+): { ok: false; error: EngineError } | null {
+  const path = `indicators[${String(index)}]`;
+  if (indicator.kind === "iv_rank") {
+    return indicator.lookbackSessions >= 2
+      ? null
+      : invalidInput(`${path}.lookbackSessions`, "lookbackSessions must be at least 2");
+  }
+  return indicator.length >= 1 ? null : invalidInput(`${path}.length`, "length must be at least 1");
 }

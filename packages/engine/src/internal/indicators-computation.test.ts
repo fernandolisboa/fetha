@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, ImpliedVolatilityIndexPoint, IndicatorsInput } from "../api";
 import { computeIndicators } from "./indicators-computation";
-import { decimalString } from "./test-support";
+import { decimalString } from "../test/support";
 
 const candle = (session: string, close: string): Candle => ({
   ticker: "PETR4",
@@ -113,6 +113,83 @@ describe("computeIndicators", () => {
     expect(result.value.series).toEqual([
       { indicator: { kind: "iv_rank", lookbackSessions: 3 }, values: [null, null, "50.000000"] },
     ]);
+  });
+
+  it("aligns intraday iv_rank to the latest IV point with asOf <= candle.asOf, never a same-session point published at the close", () => {
+    const midSessionCandle: Candle = {
+      ticker: "PETR4",
+      timeframe: "15m",
+      session: "2024-01-02",
+      asOf: "2024-01-02T14:15:00.000Z",
+      open: decimalString("10.00"),
+      high: decimalString("10.00"),
+      low: decimalString("10.00"),
+      close: decimalString("10.00"),
+      tradedQuantity: 100,
+    };
+    const points: ImpliedVolatilityIndexPoint[] = [
+      {
+        underlying: "PETR4",
+        session: "2024-01-01",
+        asOf: "2024-01-01T21:00:00.000Z",
+        impliedVolatility: decimalString("0.10"),
+      },
+      {
+        underlying: "PETR4",
+        session: "2024-01-02",
+        asOf: "2024-01-02T21:00:00.000Z",
+        impliedVolatility: decimalString("0.90"),
+      },
+    ];
+    const result = computeIndicators({
+      view: { ...emptyView, candles: [midSessionCandle], impliedVolatilityIndex: points },
+      ticker: "PETR4",
+      timeframe: "15m",
+      indicators: [{ kind: "iv_rank", lookbackSessions: 2 }],
+      at: "2024-01-02T21:05:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Only the prior-session point (0.10) is visible at 14:15; the same-session
+    // point published at 21:00 must not apply, so with a single visible point and
+    // lookbackSessions = 2 the rank is still null.
+    expect(result.value.series).toEqual([
+      { indicator: { kind: "iv_rank", lookbackSessions: 2 }, values: [null] },
+    ]);
+  });
+
+  it("rejects an indicator length below 1 as invalid_input, without NaN or a throw", () => {
+    const result = computeIndicators({
+      view: emptyView,
+      ticker: "PETR4",
+      timeframe: "D1",
+      indicators: [{ kind: "sma", length: 0 }],
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "indicators[0].length",
+      message: "length must be at least 1",
+    });
+  });
+
+  it("rejects an iv_rank lookbackSessions below 2 as invalid_input, without NaN or a throw", () => {
+    const result = computeIndicators({
+      view: emptyView,
+      ticker: "PETR4",
+      timeframe: "D1",
+      indicators: [{ kind: "iv_rank", lookbackSessions: 1 }],
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "indicators[0].lookbackSessions",
+      message: "lookbackSessions must be at least 2",
+    });
   });
 
   it("rejects a duplicate implied-volatility index point as invalid_input", () => {
