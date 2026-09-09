@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { formatDateTime } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
 import { t as shellStrings } from "@/modules/shell";
 import {
   getMyStrategy,
   getStructures,
+  Panel,
   ShareToggleButton,
   StrategyEditorForm,
   StrategyNotFoundError,
@@ -55,17 +57,16 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
         initial={latestVersion.definition}
       />
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium">{t.editor.versions.title}</h2>
+      <Panel title={t.editor.versions.title}>
         <ul className="text-muted-foreground flex flex-col gap-1 text-xs">
           {strategy.versions.map((version) => (
-            <li key={version.id} className="font-mono">
+            <li key={version.id} className="font-mono tabular-nums">
               v{version.versionNumber} · {t.editor.versions.createdAt}{" "}
-              {version.createdAt.toISOString()}
+              {formatDateTime(version.createdAt)}
             </li>
           ))}
         </ul>
-      </section>
+      </Panel>
     </div>
   );
 }

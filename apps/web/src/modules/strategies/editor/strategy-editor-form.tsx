@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { addStrategyVersionAction, createStrategyAction } from "../actions";
+import { Panel } from "../components/panel";
 import { t } from "../strings";
 import { AdjustmentRow } from "./adjustment-row";
 import {
@@ -148,11 +149,7 @@ export function StrategyEditorForm({
         </div>
       </div>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{t.editor.entry.title}</h2>
-          <p className="text-muted-foreground text-xs">{t.editor.entry.subtitle}</p>
-        </div>
+      <Panel title={t.editor.entry.title} subtitle={t.editor.entry.subtitle}>
         {conditions.map((condition, index) => (
           <ConditionRow
             key={index}
@@ -177,29 +174,23 @@ export function StrategyEditorForm({
         >
           {t.editor.entry.addCondition}
         </Button>
-      </section>
+      </Panel>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{t.editor.strikes.title}</h2>
-          <p className="text-muted-foreground text-xs">{t.editor.strikes.subtitle}</p>
-        </div>
+      <Panel title={t.editor.strikes.title} subtitle={t.editor.strikes.subtitle}>
         <StrikeList strikes={strikes} onChange={setStrikes} />
         {strikes.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium">{t.editor.expiry.title}</h3>
+            <h3 className="text-[13px] font-medium">{t.editor.expiry.title}</h3>
             <ExpiryFields value={expiry} onChange={setExpiry} />
           </div>
         )}
-      </section>
+      </Panel>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <h2 className="text-sm font-medium">{t.editor.sizing.title}</h2>
+      <Panel title={t.editor.sizing.title}>
         <SizingFields value={sizing} onChange={setSizing} />
-      </section>
+      </Panel>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <h2 className="text-sm font-medium">{t.editor.exit.title}</h2>
+      <Panel title={t.editor.exit.title}>
         {exit.map((rule, index) => (
           <ExitRuleRow
             key={index}
@@ -224,13 +215,9 @@ export function StrategyEditorForm({
         >
           {t.editor.exit.addRule}
         </Button>
-      </section>
+      </Panel>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{t.editor.adjustments.title}</h2>
-          <p className="text-muted-foreground text-xs">{t.editor.adjustments.subtitle}</p>
-        </div>
+      <Panel title={t.editor.adjustments.title} subtitle={t.editor.adjustments.subtitle}>
         {adjustments.map((adjustment, index) => (
           <AdjustmentRow
             key={index}
@@ -263,7 +250,7 @@ export function StrategyEditorForm({
         >
           {t.editor.adjustments.addAdjustment}
         </Button>
-      </section>
+      </Panel>
 
       <div className="flex gap-2">
         <Button type="button" onClick={submit} disabled={pending}>

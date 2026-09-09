@@ -6,6 +6,7 @@ export {
   type StrategyActionResult,
 } from "./actions";
 export { CopyStrategyButton } from "./components/copy-strategy-button";
+export { Panel } from "./components/panel";
 export { ShareToggleButton } from "./components/share-toggle-button";
 export { StrategyEditorForm } from "./editor/strategy-editor-form";
 export { getMyStrategies, getMyStrategy, getSharedStrategies, getStructures } from "./queries";

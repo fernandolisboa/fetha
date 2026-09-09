@@ -8,6 +8,7 @@ import {
   CopyStrategyButton,
   getMyStrategies,
   getSharedStrategies,
+  Panel,
   ShareToggleButton,
   t,
 } from "@/modules/strategies";
@@ -41,8 +42,7 @@ export default async function StrategiesPage() {
         </Link>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">{t.list.mine.title}</h2>
+      <Panel title={t.list.mine.title}>
         {mine.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.mine.empty}</p>
         ) : (
@@ -51,7 +51,7 @@ export default async function StrategiesPage() {
               <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                 <th className="py-2 font-normal">{t.list.mine.columns.name}</th>
                 <th className="py-2 font-normal">{t.list.mine.columns.visibility}</th>
-                <th className="py-2 font-normal">{t.list.mine.columns.version}</th>
+                <th className="py-2 text-right font-normal">{t.list.mine.columns.version}</th>
                 <th className="py-2 font-normal" />
               </tr>
             </thead>
@@ -67,7 +67,9 @@ export default async function StrategiesPage() {
                     </Link>
                   </td>
                   <td className="py-2">{t.list.visibility[strategy.visibility]}</td>
-                  <td className="py-2 font-mono">v{strategy.latestVersionNumber}</td>
+                  <td className="py-2 text-right font-mono tabular-nums">
+                    v{strategy.latestVersionNumber}
+                  </td>
                   <td className="py-2 text-right">
                     <ShareToggleButton strategyId={strategy.id} visibility={strategy.visibility} />
                   </td>
@@ -76,10 +78,9 @@ export default async function StrategiesPage() {
             </tbody>
           </table>
         )}
-      </section>
+      </Panel>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">{t.list.shared.title}</h2>
+      <Panel title={t.list.shared.title}>
         {shared.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.shared.empty}</p>
         ) : (
@@ -87,7 +88,7 @@ export default async function StrategiesPage() {
             <thead>
               <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                 <th className="py-2 font-normal">{t.list.mine.columns.name}</th>
-                <th className="py-2 font-normal">{t.list.mine.columns.version}</th>
+                <th className="py-2 text-right font-normal">{t.list.mine.columns.version}</th>
                 <th className="py-2 font-normal" />
               </tr>
             </thead>
@@ -95,7 +96,9 @@ export default async function StrategiesPage() {
               {shared.map((strategy) => (
                 <tr key={strategy.id} className="border-line-soft border-b">
                   <td className="py-2">{strategy.name}</td>
-                  <td className="py-2 font-mono">v{strategy.latestVersionNumber}</td>
+                  <td className="py-2 text-right font-mono tabular-nums">
+                    v{strategy.latestVersionNumber}
+                  </td>
                   <td className="py-2 text-right">
                     <CopyStrategyButton sourceStrategyId={strategy.id} />
                   </td>
@@ -104,7 +107,7 @@ export default async function StrategiesPage() {
             </tbody>
           </table>
         )}
-      </section>
+      </Panel>
     </div>
   );
 }
