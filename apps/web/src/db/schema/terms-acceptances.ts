@@ -12,7 +12,7 @@ export const termsAcceptances = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     termsVersion: text("terms_version").notNull(),
-    acceptedAt: timestamp("accepted_at").defaultNow().notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("terms_acceptances_user_id_idx").on(table.userId)],
 );

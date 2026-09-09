@@ -8,5 +8,5 @@ export const mailOutbox = pgTable("mail_outbox", {
   subject: text("subject").notNull(),
   text: text("text").notNull(),
   html: text("html").notNull(),
-  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
 });
