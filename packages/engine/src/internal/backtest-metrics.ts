@@ -70,33 +70,46 @@ export function computeBacktestMetrics(input: MetricsInput): {
         ).equity
       : input.initialCapital,
   );
+  // A window's own starting equity (its baseline, `input.initialCapital` — the run's
+  // initialCapital for the whole run, the previous window's ending equity for a walk-forward
+  // window) can itself be non-positive, distinct from a non-positive *final* equity below:
+  // every return in `returns` divides by the previous equity, so a non-positive baseline makes
+  // the very first return undefined and corrupts the whole series sharpe is computed from, not
+  // only the endpoint cagr reads. totalReturn stays `DecimalString` (never null, ADR-0013), so
+  // it falls back to the same zero it already uses for an exactly-zero baseline.
+  const nonPositiveBaseline = new Decimal(input.initialCapital).lte(0);
   const totalReturn = toDecimalString(
-    new Decimal(input.initialCapital).isZero()
-      ? new Decimal(0)
-      : equityLast.div(input.initialCapital).sub(1),
+    nonPositiveBaseline ? new Decimal(0) : equityLast.div(input.initialCapital).sub(1),
     RATIO_SCALE,
   );
 
   let cagr: DecimalString | null = null;
+  let sharpeFinal: DecimalString | null = null;
   const annualized = sessions >= MIN_ANNUALIZED_SESSIONS;
   if (!annualized) {
     notes.push({
       code: "short_window_not_annualized",
       message: `fewer than ${String(MIN_ANNUALIZED_SESSIONS)} sessions; cagr and sharpe are not annualized`,
     });
+  } else if (nonPositiveBaseline) {
+    notes.push({
+      code: "non_positive_equity",
+      message: "the window's own starting equity is non-positive; every return in it is undefined",
+    });
   } else if (equityLast.lte(0)) {
     notes.push({
       code: "non_positive_equity",
       message: "final equity is non-positive; cagr has no real value",
     });
+    sharpeFinal = sharpe;
   } else {
     const base = equityLast.div(input.initialCapital);
     cagr = toDecimalString(
       base.pow(new Decimal(SESSIONS_PER_YEAR).div(sessions)).sub(1),
       RATIO_SCALE,
     );
+    sharpeFinal = sharpe;
   }
-  const sharpeFinal = annualized ? sharpe : null;
 
   const maxDrawdown = input.equityCurve.reduce(
     (acc, p) => Decimal.max(acc, new Decimal(p.drawdown)),

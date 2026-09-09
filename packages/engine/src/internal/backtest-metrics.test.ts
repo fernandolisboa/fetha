@@ -124,6 +124,35 @@ describe("computeBacktestMetrics", () => {
     ]);
   });
 
+  it("nulls cagr and sharpe (a walk-forward window's own non-positive baseline, not just its final equity)", () => {
+    const equityCurve: EquityPoint[] = [];
+    for (let i = 0; i < MIN_ANNUALIZED_SESSIONS; i += 1) {
+      equityCurve.push(point(`s${String(i)}`, 10_000_00 + i * 100, "0"));
+    }
+    const rf = equityCurve.map(() => decimalString("0"));
+    const { metrics, notes } = computeBacktestMetrics({
+      equityCurve,
+      initialCapital: centavos(-1_00),
+      rfPerSession: rf,
+      held: equityCurve.map(() => true),
+      settledOperationPnls: [],
+      operationsCount: 0,
+      fees: centavos(0),
+      taxes: centavos(0),
+      slippage: centavos(0),
+    });
+    expect(metrics.cagr).toBeNull();
+    expect(metrics.sharpe).toBeNull();
+    expect(metrics.totalReturn).toBe(decimalString("0.000000"));
+    expect(notes).toEqual([
+      {
+        code: "non_positive_equity",
+        message:
+          "the window's own starting equity is non-positive; every return in it is undefined",
+      },
+    ]);
+  });
+
   it("computes sharpe and cagr against hand-computed decimal values over 126 alternating-return sessions", () => {
     const equityCents = [
       10200000, 10098000, 10299960, 10196960, 10400899, 10296890, 10502828, 10397800, 10605756,
