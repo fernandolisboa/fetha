@@ -2,7 +2,8 @@ import Decimal from "decimal.js";
 import type { Instant, Ticker, Timeframe } from "@fetha/contracts";
 import type { Candle, CorporateActionFactor, TruncationReport } from "../api";
 import { PRICE_SCALE, toDecimalString } from "./decimal";
-import { sortUnique } from "./order";
+import { compareInstants, isAfter } from "./instant";
+import { sortedEntries, sortUnique } from "./order";
 
 export type BuildCandleSeriesInput = {
   candles: readonly Candle[];
@@ -19,10 +20,25 @@ export type CandleSeriesResult =
 const priceFields = ["open", "high", "low", "close"] as const;
 
 export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesResult {
+  for (const [index, factor] of input.corporateActions.entries()) {
+    if (!isPositiveDecimal(factor.factor)) {
+      return {
+        ok: false,
+        error: {
+          path: `view.corporateActions[${String(index)}].factor`,
+          message: "a corporate-action factor must be strictly positive",
+        },
+      };
+    }
+  }
+
   const sortedCandles = sortUnique(
     input.candles,
     (c) => `${c.ticker}|${c.timeframe}|${c.asOf}`,
-    (a, b) => a.asOf.localeCompare(b.asOf),
+    (a, b) =>
+      a.ticker.localeCompare(b.ticker) ||
+      a.timeframe.localeCompare(b.timeframe) ||
+      compareInstants(a.asOf, b.asOf),
   );
   if (!sortedCandles.ok) {
     return {
@@ -37,7 +53,10 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
   const sortedFactors = sortUnique(
     input.corporateActions,
     (f) => `${f.ticker}|${f.exDate}`,
-    (a, b) => a.exDate.localeCompare(b.exDate),
+    (a, b) =>
+      a.ticker.localeCompare(b.ticker) ||
+      a.exDate.localeCompare(b.exDate) ||
+      compareInstants(a.asOf, b.asOf),
   );
   if (!sortedFactors.ok) {
     return {
@@ -60,7 +79,7 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
       otherTickerCandleDrops.set(c.ticker, (otherTickerCandleDrops.get(c.ticker) ?? 0) + 1);
       continue;
     }
-    if (c.asOf > input.at) {
+    if (isAfter(c.asOf, input.at)) {
       afterAtDropped += 1;
       continue;
     }
@@ -75,7 +94,7 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
       reason: "after_at",
     });
   }
-  for (const [ticker, dropped] of otherTickerCandleDrops) {
+  for (const [ticker, dropped] of sortedEntries(otherTickerCandleDrops)) {
     truncated.push({ collection: "candles", ticker, dropped, reason: "unreferenced_instrument" });
   }
 
@@ -87,7 +106,7 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
       otherTickerFactorDrops.set(f.ticker, (otherTickerFactorDrops.get(f.ticker) ?? 0) + 1);
       continue;
     }
-    if (f.asOf > input.at) {
+    if (isAfter(f.asOf, input.at)) {
       afterAtFactorsDropped += 1;
       continue;
     }
@@ -102,7 +121,7 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
       reason: "after_at",
     });
   }
-  for (const [ticker, dropped] of otherTickerFactorDrops) {
+  for (const [ticker, dropped] of sortedEntries(otherTickerFactorDrops)) {
     truncated.push({
       collection: "corporateActions",
       ticker,
@@ -127,4 +146,8 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
   });
 
   return { ok: true, value: { nominal, adjusted, truncated } };
+}
+
+function isPositiveDecimal(value: string): boolean {
+  return new Decimal(value).isPositive() && !new Decimal(value).isZero();
 }

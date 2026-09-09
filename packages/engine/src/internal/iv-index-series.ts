@@ -1,6 +1,7 @@
 import type { Instant, Ticker } from "@fetha/contracts";
 import type { ImpliedVolatilityIndexPoint, TruncationReport } from "../api";
-import { sortUnique } from "./order";
+import { isAfter } from "./instant";
+import { sortedEntries, sortUnique } from "./order";
 
 export type BuildIvIndexSeriesInput = {
   points: readonly ImpliedVolatilityIndexPoint[];
@@ -16,7 +17,7 @@ export function buildIvIndexSeries(input: BuildIvIndexSeriesInput): IvIndexSerie
   const sorted = sortUnique(
     input.points,
     (p) => `${p.underlying}|${p.session}`,
-    (a, b) => a.session.localeCompare(b.session),
+    (a, b) => a.underlying.localeCompare(b.underlying) || a.session.localeCompare(b.session),
   );
   if (!sorted.ok) {
     return {
@@ -38,7 +39,7 @@ export function buildIvIndexSeries(input: BuildIvIndexSeriesInput): IvIndexSerie
       otherUnderlyingDrops.set(p.underlying, (otherUnderlyingDrops.get(p.underlying) ?? 0) + 1);
       continue;
     }
-    if (p.asOf > input.at) {
+    if (isAfter(p.asOf, input.at)) {
       afterAtDropped += 1;
       continue;
     }
@@ -53,7 +54,7 @@ export function buildIvIndexSeries(input: BuildIvIndexSeriesInput): IvIndexSerie
       reason: "after_at",
     });
   }
-  for (const [ticker, dropped] of otherUnderlyingDrops) {
+  for (const [ticker, dropped] of sortedEntries(otherUnderlyingDrops)) {
     truncated.push({
       collection: "impliedVolatilityIndex",
       ticker,

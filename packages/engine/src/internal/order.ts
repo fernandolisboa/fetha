@@ -1,5 +1,9 @@
 export type SortUniqueResult<T> = { ok: true; value: T[] } | { ok: false; duplicateKey: string };
 
+export function sortedEntries(counts: ReadonlyMap<string, number>): [string, number][] {
+  return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
 export function sortUnique<T>(
   rows: readonly T[],
   key: (row: T) => string,
