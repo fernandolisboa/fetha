@@ -262,8 +262,11 @@ describe("computeImpliedVolatilityIndex", () => {
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
     const index = Number(result.value.impliedVolatility);
-    // With T1=20/252, T2=40/252, T30=30/252, w=0.5, variance interpolation should land
-    // between the two input volatilities, closer to their equal-weighted midpoint.
+    // T1=20/252, T2=40/252, T30=30/252, so w=(T2-T30)/(T2-T1)=0.5: the closed-form
+    // variance-linear index is sqrt((w * sigmaLower^2 * T1 + (1-w) * sigmaUpper^2 * T2) / T30),
+    // which the 252-session basis reduces to sqrt((0.04*20 + 0.16*40) / (2*30)) = sqrt(0.12),
+    // to the precision the two-cent-rounded fixture prices solve back to.
+    expect(index).toBeCloseTo(Math.sqrt(0.12), 3);
     expect(index).toBeGreaterThan(sigmaLower);
     expect(index).toBeLessThan(sigmaUpper);
     expect(result.value.seriesUsed.sort()).toEqual(["PETR4CL", "PETR4CU"]);
