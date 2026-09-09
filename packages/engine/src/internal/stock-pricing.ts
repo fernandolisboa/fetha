@@ -57,7 +57,18 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const zeroRate = toDecimalString(new Decimal(0), RATIO_SCALE);
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
   const riskFreeRate = riskFreeRateResolution.ok ? riskFreeRateResolution.value : zeroRate;
-  if (riskFreeRateResolution.ok) notes.push(...riskFreeRateResolution.notes);
+  if (riskFreeRateResolution.ok) {
+    notes.push(...riskFreeRateResolution.notes);
+  } else {
+    // A stock leg carries no rate-sensitive pricing (its greeks are a fixed unsigned
+    // delta), so an invalid CDI rate cannot fail this pricing the way it fails an
+    // option leg's; it must still be visible in notes, not silently become 0
+    // (PR #53 round 3 item 8).
+    notes.push({
+      code: "risk_free_rate_defaulted",
+      message: "the visible cdi rate is invalid (annual rate <= -1); defaulted to 0",
+    });
+  }
 
   const dividendResolution = resolveDividendYield(
     input.view.dividendYields,
@@ -65,7 +76,14 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
     input.at,
   );
   const dividendYield = dividendResolution.ok ? dividendResolution.value : zeroRate;
-  if (dividendResolution.ok) notes.push(...dividendResolution.notes);
+  if (dividendResolution.ok) {
+    notes.push(...dividendResolution.notes);
+  } else {
+    notes.push({
+      code: "dividend_yield_defaulted",
+      message: "the visible dividend yield is invalid (annual yield <= -1); defaulted to 0",
+    });
+  }
 
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,

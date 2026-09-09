@@ -381,6 +381,9 @@ describe("priceStockLegs", () => {
       provenanceBase,
     });
     expect(pricing.riskFreeRate).toBe(decimalString("0.000000"));
+    expect(pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "risk_free_rate_defaulted" }),
+    );
   });
 
   it("defaults the dividend yield to zero without throwing when the visible yield is at or below -1", () => {
@@ -403,5 +406,8 @@ describe("priceStockLegs", () => {
       provenanceBase,
     });
     expect(pricing.dividendYield).toBe(decimalString("0.000000"));
+    expect(pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "dividend_yield_defaulted" }),
+    );
   });
 });
