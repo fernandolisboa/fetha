@@ -1,12 +1,7 @@
 #!/bin/sh
-# Vercel "ignored build step" command.
-#
-# Exit 0 -> skip the build (docs-only change).
-# Exit 1 -> proceed with the build.
-#
-# Vercel invokes this script for every deployment (VERCEL_GIT_PREVIOUS_SHA and
-# VERCEL_GIT_COMMIT_SHA are set by the platform). Production deployments always
-# build, regardless of which files changed.
+# Exit 0 -> skip the build (docs-only change). Exit 1 -> proceed with the build.
+# Vercel's ignoreCommand contract: it inspects the exit code, not stdout, and
+# always builds production regardless of which files changed.
 set -eu
 
 if [ "${VERCEL_ENV:-}" = "production" ]; then
@@ -14,15 +9,27 @@ if [ "${VERCEL_ENV:-}" = "production" ]; then
   exit 1
 fi
 
+range=""
+
 if [ -n "${VERCEL_GIT_PREVIOUS_SHA:-}" ] \
   && [ -n "${VERCEL_GIT_COMMIT_SHA:-}" ] \
   && git cat-file -e "${VERCEL_GIT_PREVIOUS_SHA}^{commit}" 2>/dev/null; then
   range="${VERCEL_GIT_PREVIOUS_SHA}..${VERCEL_GIT_COMMIT_SHA}"
 else
-  range="HEAD^..HEAD"
+  if git fetch --depth=50 origin main 2>/dev/null; then
+    merge_base=$(git merge-base origin/main HEAD 2>/dev/null) || merge_base=""
+    if [ -n "$merge_base" ]; then
+      range="${merge_base}...HEAD"
+    fi
+  fi
 fi
 
-changed_files=$(git diff --name-only "$range" 2>/dev/null) || {
+if [ -z "$range" ]; then
+  echo "vercel-ignore-build: cannot establish a reliable base, building."
+  exit 1
+fi
+
+changed_files=$(git diff --name-only --no-renames "$range" 2>/dev/null) || {
   echo "vercel-ignore-build: cannot compute diff for '$range', building."
   exit 1
 }
@@ -37,7 +44,16 @@ IFS='
 '
 for file in $changed_files; do
   case "$file" in
-    *.md | docs/* | .claude/* | .github/* | LICENSE) ;;
+    docs/* | .claude/* | .github/* | LICENSE) ;;
+    *.md)
+      case "$file" in
+        */*)
+          IFS=$old_ifs
+          echo "vercel-ignore-build: '$file' is not docs-only, building."
+          exit 1
+          ;;
+      esac
+      ;;
     *)
       IFS=$old_ifs
       echo "vercel-ignore-build: '$file' is not docs-only, building."
