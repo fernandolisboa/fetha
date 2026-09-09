@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeConfigDigest } from "./config-digest";
+import { computeDefinitionDigest } from "./definition-digest";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 function decimalString(value: string): DecimalString {
@@ -23,7 +23,7 @@ const definition: StrategyDefinition = {
   adjustments: [],
 };
 
-describe("computeConfigDigest", () => {
+describe("computeDefinitionDigest", () => {
   it("is stable for the same definition regardless of key order", () => {
     const reordered = {
       timeframe: definition.timeframe,
@@ -36,16 +36,16 @@ describe("computeConfigDigest", () => {
       adjustments: definition.adjustments,
     } as StrategyDefinition;
 
-    expect(computeConfigDigest(reordered)).toBe(computeConfigDigest(definition));
+    expect(computeDefinitionDigest(reordered)).toBe(computeDefinitionDigest(definition));
   });
 
   it("differs when a field changes", () => {
     const changed: StrategyDefinition = { ...definition, name: "Outro nome" };
 
-    expect(computeConfigDigest(changed)).not.toBe(computeConfigDigest(definition));
+    expect(computeDefinitionDigest(changed)).not.toBe(computeDefinitionDigest(definition));
   });
 
   it("produces a 64-character hex sha256 digest", () => {
-    expect(computeConfigDigest(definition)).toMatch(/^[0-9a-f]{64}$/);
+    expect(computeDefinitionDigest(definition)).toMatch(/^[0-9a-f]{64}$/);
   });
 });

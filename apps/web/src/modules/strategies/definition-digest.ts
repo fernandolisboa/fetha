@@ -19,7 +19,7 @@ function sortKeysDeep(value: unknown): unknown {
 // A definition is content-addressed so two saves with the same definition
 // (e.g. a copy of a shared strategy) can be compared without a deep-equal
 // over the JSON tree at read time.
-export function computeConfigDigest(definition: StrategyDefinition): string {
+export function computeDefinitionDigest(definition: StrategyDefinition): string {
   const canonical = JSON.stringify(sortKeysDeep(definition));
   return createHash("sha256").update(canonical).digest("hex");
 }
