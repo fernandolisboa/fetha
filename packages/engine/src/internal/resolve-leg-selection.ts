@@ -241,6 +241,10 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       const target = parseDecimal(input.spot).mul(new Decimal(1).add(parseDecimal(rule.percent)));
       chosen = nearestSeriesByStrike(candidates, target);
     } else {
+      // A shared strike rank can list both rights (a straddle): the governing delta is
+      // the first right the structure declares at that rank (`rightsAtRank[0]`, insertion
+      // order over `structure.legs`), never a best-of-both or an average across rights,
+      // since the two legs must land on one strike (PR #53 round 1 item 13).
       chosen = nearestSeriesByAbsDelta(
         candidates.filter((series) => series.right === rightsAtRank[0]),
         parseDecimal(rule.target),

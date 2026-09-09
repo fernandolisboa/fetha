@@ -440,4 +440,64 @@ describe("resolveLegSelection", () => {
     });
     expect(result.ok).toBe(true);
   });
+
+  it("resolves a shared-rank straddle's nearest-|delta| strike from the first-listed right's delta", () => {
+    const straddle: Structure = {
+      id: "straddle",
+      name: "straddle",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    // At target 0.3 the two rights disagree: the call's delta (0.834 at 28.00, 0.258 at
+    // 32.00) is closer to 0.3 at strike 32.00, while the put's |delta| (0.166 at 28.00,
+    // 0.742 at 32.00) is closer to 0.3 at strike 28.00.
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4C28", "28.00"),
+        callSeries("PETR4C32", "32.00"),
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        { ...callSeries("PETR4P32", "32.00"), right: "put" },
+      ],
+      optionPrices: [
+        { ticker: "PETR4C28", price: decimalString("2.44") },
+        { ticker: "PETR4C32", price: decimalString("0.37") },
+        { ticker: "PETR4P28", price: decimalString("0.23") },
+        { ticker: "PETR4P32", price: decimalString("2.13") },
+      ].map((p) => ({
+        ticker: p.ticker,
+        session: "2024-01-02",
+        asOf: at,
+        average: null,
+        close: p.price,
+        trades: 1,
+        tradedQuantity: 1,
+      })),
+    };
+    // The structure lists "call" before "put" at rank 1: a straddle's two legs share one
+    // strike, so nearest-|delta| selection must pick a single governing right rather than
+    // average or best-of-both. That right is the structure's declaration order at the rank
+    // (the first-listed role), not whichever candidate happens to score better (PR #53
+    // round 1 item 13); here the put's own delta would prefer 28.00, but the call's — the
+    // one that governs — prefers 32.00.
+    const result = resolveLegSelection({
+      structure: straddle,
+      underlying: "PETR4",
+      strikes: [{ kind: "delta", target: decimalString("0.3") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString("30.00"),
+      riskFreeRate: decimalString("0.1"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [callLeg, putLeg] = result.legs;
+    expect(callLeg).toMatchObject({ role: "call", series: { ticker: "PETR4C32" } });
+    expect(putLeg).toMatchObject({ role: "put", series: { ticker: "PETR4P32" } });
+  });
 });

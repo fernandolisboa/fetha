@@ -1423,7 +1423,10 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   now prices every candidate through the same mid/last/close/average ladder pricing itself uses
   (`resolve-market-price.ts`, shared by `price-operation.ts` and `resolve-leg-selection.ts`)
   instead of a `.find` over `optionPrices` alone, so a selection and its own pricing a moment
-  later never disagree over which price was "current."
+  later never disagree over which price was "current." On a shared strike rank (a straddle),
+  the two rights disagree exactly at asymmetric delta targets; the governing delta is the
+  first right the structure declares at that rank, never a best-of-both or an average, since
+  both legs must land on one strike.
 - **Time-to-expiry failure is not silently `t = 0`.** A concrete option leg whose listed expiry
   precedes the session of `at` is `invalid_input` (path `legs.expiry`); one the calendar does not
   cover (neither `at` nor the expiry date has a session) is `insufficient_data` for `candles`.
