@@ -1,12 +1,14 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { candles, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
+import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
 
 import type { CotahistOptionRow, CotahistStockRow } from "../adapters/cotahist/schema";
 import { instrumentOptionSeriesSchema } from "../adapters/b3-instruments/schema";
+import { macroPointSchema } from "../adapters/bacen-sgs/schema";
 import { upsertDailyCandles } from "./candle-repository";
+import { upsertMacroPoints } from "./macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./option-repository";
 
 const SESSION = "2026-05-12";
@@ -55,11 +57,21 @@ const seriesRow = instrumentOptionSeriesSchema.parse({
   asOf: SESSION,
 });
 
+const macroPoint = macroPointSchema.parse({
+  series: "selic",
+  date: SESSION,
+  asOf: `${SESSION}T13:00:00.000Z`,
+  annualRate: "0.14000000",
+});
+
 async function cleanup(): Promise<void> {
   const db = getDb();
   await db.delete(candles).where(eq(candles.ticker, TICKER));
   await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, OPTION_TICKER));
   await db.delete(optionSeries).where(eq(optionSeries.isin, ISIN));
+  await db
+    .delete(macroPoints)
+    .where(and(eq(macroPoints.series, macroPoint.series), eq(macroPoints.date, macroPoint.date)));
 }
 
 afterEach(cleanup);
@@ -119,5 +131,34 @@ describe("repository upsert idempotency", () => {
     await upsertOptionSeries(db, later, [seriesRow]);
     const [afterLater] = await db.select().from(optionSeries).where(eq(optionSeries.isin, ISIN));
     expect(afterLater?.asOf.toISOString()).toBe(earlier.toISOString());
+  });
+
+  it("upsertMacroPoints: inserting the same (series, date) row twice yields one row with the same values", async () => {
+    const db = getDb();
+
+    await upsertMacroPoints(db, [macroPoint]);
+    await upsertMacroPoints(db, [macroPoint]);
+
+    const rows = await db
+      .select()
+      .from(macroPoints)
+      .where(and(eq(macroPoints.series, macroPoint.series), eq(macroPoints.date, macroPoint.date)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ annualRate: "0.14000000" });
+  });
+
+  it("upsertMacroPoints: a repeated (series, date) within one batch does not fail the upsert (dedupe, last wins)", async () => {
+    const db = getDb();
+    const stale = macroPointSchema.parse({ ...macroPoint, annualRate: "0.13000000" });
+
+    const count = await upsertMacroPoints(db, [stale, macroPoint]);
+    expect(count).toBe(1);
+
+    const rows = await db
+      .select()
+      .from(macroPoints)
+      .where(and(eq(macroPoints.series, macroPoint.series), eq(macroPoints.date, macroPoint.date)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ annualRate: "0.14000000" });
   });
 });
