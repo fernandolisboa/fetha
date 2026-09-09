@@ -305,10 +305,10 @@ function computePayoffProfile(
   }
 
   const payoff: PayoffPoint[] = [0.8, 1, 1.2].map((factor) => {
-    const underlyingPoint = parseDecimal(spot).mul(factor);
+    const roundedUnderlying = parseDecimal(spot).mul(factor).toDecimalPlaces(PRICE_SCALE);
     return {
-      underlying: toDecimalString(underlyingPoint, PRICE_SCALE),
-      pnl: toCentavos(payoffAt(legs, underlyingPoint).mul(CENTAVOS_PER_REAL).round().toNumber()),
+      underlying: toDecimalString(roundedUnderlying, PRICE_SCALE),
+      pnl: toCentavos(payoffAt(legs, roundedUnderlying).mul(CENTAVOS_PER_REAL).round().toNumber()),
     };
   });
 

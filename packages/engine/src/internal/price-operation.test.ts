@@ -885,6 +885,38 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
+  it("evaluates a payoff point's pnl at the underlying rounded to PRICE_SCALE, not at the unrounded factor product", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("33.32"), bid: null, ask: null }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("33.32"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 33.32 * 0.8 = 26.656, which rounds to 26.66 (not truncates to 26.65): the payoff
+    // point's own reported `underlying` must be the value pnl was evaluated at, so
+    // 100 * (26.66 - 33.32) = -666.00, not 100 * (26.656 - 33.32) = -666.40 (PR #53
+    // round 1 item 15).
+    const point = result.value.payoff.find((p) => p.underlying === decimalString("26.66"));
+    expect(point).toBeDefined();
+    expect(point?.pnl).toBe(centavos(-666_00));
+  });
+
   it("returns invalid_input when a second stock leg's ticker does not match the inferred underlying", () => {
     const view: MarketView = {
       ...baseView,
