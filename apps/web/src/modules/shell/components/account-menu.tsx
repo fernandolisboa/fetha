@@ -1,17 +1,18 @@
-import type { Theme } from "@fetha/contracts";
+import Link from "next/link";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuLinkItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ThemePicker } from "@/modules/preferences";
 import { SignOutButton } from "@/modules/auth";
 
 import { t } from "../strings";
 
-export function AccountMenu({ email, theme }: { email: string; theme: Theme }) {
+export function AccountMenu({ email }: { email: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -23,13 +24,14 @@ export function AccountMenu({ email, theme }: { email: string; theme: Theme }) {
         </span>
         <span className="text-muted-foreground max-w-40 truncate">{email}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 p-3">
+      <DropdownMenuContent align="end" className="w-64 p-3">
         <DropdownMenuLabel className="text-muted-foreground px-0 text-xs font-normal">
           {email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <p className="mb-2 text-xs font-medium">{t.accountMenu.theme}</p>
-        <ThemePicker current={theme} />
+        <DropdownMenuLinkItem render={<Link href="/configuracoes" />} className="px-0">
+          {t.destinations.settings}
+        </DropdownMenuLinkItem>
         <DropdownMenuSeparator />
         <SignOutButton />
       </DropdownMenuContent>
