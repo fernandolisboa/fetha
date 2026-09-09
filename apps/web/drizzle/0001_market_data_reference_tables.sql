@@ -11,10 +11,10 @@ CREATE TABLE "candles" (
 	"timeframe" text NOT NULL,
 	"session" date NOT NULL,
 	"as_of" timestamp with time zone NOT NULL,
-	"open" numeric(18, 2) NOT NULL,
-	"high" numeric(18, 2) NOT NULL,
-	"low" numeric(18, 2) NOT NULL,
-	"close" numeric(18, 2) NOT NULL,
+	"open" numeric(18, 6) NOT NULL,
+	"high" numeric(18, 6) NOT NULL,
+	"low" numeric(18, 6) NOT NULL,
+	"close" numeric(18, 6) NOT NULL,
 	"traded_quantity" bigint NOT NULL,
 	CONSTRAINT "candles_ticker_timeframe_session_pk" PRIMARY KEY("ticker","timeframe","session")
 ) PARTITION BY RANGE ("session");
@@ -25,12 +25,6 @@ CREATE TABLE "corporate_action_factors" (
 	"as_of" timestamp with time zone NOT NULL,
 	"factor" numeric(18, 8) NOT NULL,
 	CONSTRAINT "corporate_action_factors_ticker_ex_date_pk" PRIMARY KEY("ticker","ex_date")
-);
---> statement-breakpoint
-CREATE TABLE "data_version" (
-	"id" text PRIMARY KEY NOT NULL,
-	"version" text NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "ingestion_runs" (
@@ -56,15 +50,19 @@ CREATE TABLE "option_daily_prices" (
 	"ticker" text NOT NULL,
 	"session" date NOT NULL,
 	"as_of" timestamp with time zone NOT NULL,
-	"average" numeric(18, 2),
-	"close" numeric(18, 2),
+	"right" text NOT NULL,
+	"strike" numeric(18, 8) NOT NULL,
+	"expiry" date NOT NULL,
+	"average" numeric(18, 6),
+	"close" numeric(18, 6),
 	"trades" integer NOT NULL,
 	"traded_quantity" bigint NOT NULL,
 	CONSTRAINT "option_daily_prices_ticker_session_pk" PRIMARY KEY("ticker","session")
 ) PARTITION BY RANGE ("session");
 --> statement-breakpoint
 CREATE TABLE "option_series" (
-	"ticker" text PRIMARY KEY NOT NULL,
+	"isin" text PRIMARY KEY NOT NULL,
+	"ticker" text NOT NULL,
 	"underlying" text NOT NULL,
 	"right" text NOT NULL,
 	"strike" numeric(18, 8) NOT NULL,
@@ -78,6 +76,8 @@ CREATE TABLE "trading_sessions" (
 	"open" timestamp with time zone NOT NULL,
 	"close" timestamp with time zone NOT NULL
 );
+--> statement-breakpoint
+CREATE UNIQUE INDEX "ingestion_runs_source_session_succeeded_idx" ON "ingestion_runs" USING btree ("source","session") WHERE "ingestion_runs"."status" = 'succeeded';
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION create_monthly_partitions(parent_table text, start_date date, end_date date)
 RETURNS void AS $$
