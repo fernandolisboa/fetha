@@ -24,10 +24,28 @@ superseded choices are called out inline.
 
 **Identity (Better Auth, Drizzle adapter on Neon Postgres, emails through Resend or capture)**
 
-- Email + password with mandatory email verification (`requireEmailVerification`). Magic link and
-  password reset are out of scope for this ticket (#10) but nothing here precludes adding them:
-  Better Auth's plugin API composes without touching the tables or hooks below.
-- Rate limiting is out of scope for this ticket (#10); Better Auth's defaults apply until then.
+- Email + password with mandatory email verification (`requireEmailVerification`). **Ticket #10
+  added magic link and password reset**, exactly as this ADR anticipated: through Better Auth's
+  plugin API (`magicLink`, `emailAndPassword.sendResetPassword`), without touching the tables or
+  hooks above. Magic link is sign-in only (`disableSignUp: true`): a click that silently created a
+  new account would bypass the terms/privacy checkboxes sign-up requires and the invite gate below,
+  which only guards `/sign-up/email`. Both flows send through the same `Mailer` port as email
+  verification (`buildMagicLinkEmail`, `buildPasswordResetEmail`, `src/modules/auth/email/`), so
+  `mail_outbox` capture and the E2E verification-link route work for them unchanged.
+- **Ticket #10 turned rate limiting on**, closing security-audit finding A-01
+  (`docs/security-audit/2026-09-09.md`): Better Auth's `rateLimit` with `storage: "database"`
+  against a new `rate_limits` table (`id`, `key`, `count`, `last_request`; no `user_id` — an
+  operational table in the same class as `invites`/`mail_outbox` below, keyed by client IP and
+  path, written only by Better Auth's own rate limiter), replacing the in-memory `Map` that reset
+  on every cold serverless instance. `RATE_LIMIT_CUSTOM_RULES` (`options.ts`) makes the window/max
+  for `/sign-in/email`, `/sign-up/email`, `/request-password-reset`, `/reset-password` and
+  `/send-verification-email` explicit, matching the values Better Auth's own defaults already used
+  for the first, second and fifth so an upstream default change can't silently loosen them; the
+  magic-link plugin carries its own `rateLimit` option for `/sign-in/magic-link` and
+  `/magic-link/verify`. It stays off only under a plain `vitest` unit-test run, which never
+  migrates a real `rate_limits` table (`isUnitTestEnv`, `env.ts`, keyed off `VITEST_INTEGRATION`,
+  set by `vitest.integration.config.mts` only); it is on in the integration suite, every Vercel
+  deployment tier and local dev.
 - `REGISTRATION_MODE=open|invite|closed` (`@fetha/contracts`) is read at request time inside a
   `hooks.before` middleware on `/sign-up/email`: `closed` refuses every sign-up; `invite` allows
   sign-up only for an email that holds a row in `invites` with `consumed_at` null; `open` allows
@@ -112,11 +130,12 @@ provide an export named 'kAPIErrorHeaderSymbol'` before the CLI ever reads `DATA
   exceptions to tenant scoping (CLAUDE.md, principle 5); `invites` and `mail_outbox` are a third
   class, described below.
 
-**Operational tables (`invites`, `mail_outbox`): unscoped, system-written, not user data**
+**Operational tables (`invites`, `mail_outbox`, `rate_limits`): unscoped, system-written, not user data**
 
-Not every table without a `user_id` is reference data. `invites` and `mail_outbox` are a distinct,
-narrower exception: they are not shared content a user reads (like the catalog), they are
-mechanism the system uses to run itself, and only the system writes them — never a user action:
+Not every table without a `user_id` is reference data. `invites`, `mail_outbox` and (since ticket
+#10) `rate_limits` are a distinct, narrower exception: they are not shared content a user reads
+(like the catalog), they are mechanism the system uses to run itself, and only the system writes
+them — never a user action:
 
 - `invites` is written by the seed script (bootstrapping) and by the sign-up hook
   (`consumePendingInvite`), and read by the sign-up hook (`hasPendingInvite`). No user-facing
@@ -131,6 +150,10 @@ mechanism the system uses to run itself, and only the system writes them — nev
   structurally never accumulate there. Every row is single-use and short-lived even outside production: reading the
   latest link for an email (`findLatestVerificationLink`) deletes the row in the same call, and
   every `CaptureMailer.send()` purges anything older than a day before inserting.
+- `rate_limits` (`src/db/schema/rate-limits.ts`) is written and read exclusively by Better Auth's
+  own database-backed rate limiter (`storage: "database"`); no application code queries it. Its
+  shape (`id`, `key`, `count`, `last_request`) is fixed by that limiter, not chosen by this
+  codebase — it reads and writes those exact field names directly.
 
 **Email (`Mailer` port, `src/modules/auth/email/`)**
 
