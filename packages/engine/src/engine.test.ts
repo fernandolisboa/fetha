@@ -367,7 +367,7 @@ describe("engine", () => {
     expect(result.error).toEqual({
       code: "unsupported",
       vocabulary: "strikeSelections",
-      kind: "delta",
+      kind: "moneyness",
     });
   });
 

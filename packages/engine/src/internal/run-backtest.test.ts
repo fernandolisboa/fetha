@@ -483,18 +483,65 @@ describe("runBacktest — errors", () => {
     expect(result.error).toEqual({
       code: "unsupported",
       vocabulary: "strikeSelections",
-      kind: "delta",
+      kind: "moneyness",
     });
   });
 
-  it("returns unsupported for a non-daily timeframe", () => {
+  it("returns invalid_input for a non-daily timeframe (v1 is daily-only, not an unimplemented capability)", () => {
     const config = baseConfig({
       strategy: strategyVersion(definition({ entry: closeAbove9, timeframe: "60m" })),
     });
     const result = runBacktest({ view: emptyView, config });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toEqual({ code: "unsupported", vocabulary: "timeframes", kind: "60m" });
+    expect(result.error.code).toBe("invalid_input");
+    if (result.error.code !== "invalid_input") return;
+    expect(result.error.path).toBe("config.strategy.definition.timeframe");
+  });
+
+  it("returns invalid_input for a non-positive or fractional maxSessions", () => {
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    for (const maxSessions of [0, -1, 1.5]) {
+      const result = runBacktest({ view, config, maxSessions });
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.error).toEqual({
+        code: "invalid_input",
+        path: "maxSessions",
+        message: "maxSessions must be a positive integer",
+      });
+    }
+  });
+
+  it("returns invalid_input for a non-positive or fractional walkForward.windowSessions", () => {
+    const config = baseConfig({
+      period: { from: "2024-01-02", to: "2024-01-03" },
+      walkForward: { windowSessions: 0 },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "config.walkForward.windowSessions",
+      message: "windowSessions must be a positive integer",
+    });
   });
 
   it("returns invalid_input when the calendar has no session inside the period", () => {

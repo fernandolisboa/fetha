@@ -158,20 +158,36 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
   const hasOptionLegs = config.strategy.structure.legs.some((leg) => leg.role !== "stock");
   if (hasOptionLegs) {
+    const firstStrike = assertDefined(
+      config.strategy.definition.strikes[0],
+      "runBacktest: coherence guarantees at least one strike selection for option legs",
+    );
     return {
       ok: false,
-      error: { code: "unsupported", vocabulary: "strikeSelections", kind: "delta" },
+      error: { code: "unsupported", vocabulary: "strikeSelections", kind: firstStrike.kind },
     };
   }
   if (config.strategy.definition.timeframe !== "D1") {
-    return {
-      ok: false,
-      error: {
-        code: "unsupported",
-        vocabulary: "timeframes",
-        kind: config.strategy.definition.timeframe,
-      },
-    };
+    return invalidInput(
+      "config.strategy.definition.timeframe",
+      "runBacktest is daily-only in v1 (#16); intraday backtesting needs option fair-value fills (#21)",
+    );
+  }
+
+  if (input.maxSessions !== undefined && !Number.isInteger(input.maxSessions)) {
+    return invalidInput("maxSessions", "maxSessions must be a positive integer");
+  }
+  if (input.maxSessions !== undefined && input.maxSessions <= 0) {
+    return invalidInput("maxSessions", "maxSessions must be a positive integer");
+  }
+  if (
+    config.walkForward !== null &&
+    (!Number.isInteger(config.walkForward.windowSessions) || config.walkForward.windowSessions <= 0)
+  ) {
+    return invalidInput(
+      "config.walkForward.windowSessions",
+      "windowSessions must be a positive integer",
+    );
   }
 
   const digest = configDigest(config);
