@@ -676,6 +676,45 @@ describe("runBacktest — errors", () => {
   });
 });
 
+describe("runBacktest — provenance", () => {
+  it("reports rows after the period.to close as truncated", () => {
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "999.00", "999.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.provenance.truncated).toEqual([
+      { collection: "candles", ticker: "PETR4", dropped: 1, reason: "after_at" },
+    ]);
+  });
+
+  it("reports no truncation when every row is visible by the period's end", () => {
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.provenance.truncated).toEqual([]);
+  });
+});
+
 describe("runBacktest — chunking and determinism", () => {
   const chunkingCalendar = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"].map(session);
   const chunkingView: MarketView = {

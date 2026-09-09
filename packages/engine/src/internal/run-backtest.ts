@@ -30,6 +30,7 @@ import {
   type SimulatedOperation,
   type TradingSession,
 } from "../api";
+import { batchTruncationReport } from "./batch-truncation";
 import { computeBacktestMetrics, sumCentavos, type MetricsInput } from "./backtest-metrics";
 import { computeMonthlyTax } from "./backtest-taxes";
 import { configDigest } from "./config-digest";
@@ -649,7 +650,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     buildMetricsInput(state, config.initialCapital, rfPerSession),
   );
 
-  const truncated: BacktestRun["provenance"]["truncated"] = [];
+  const truncated = batchTruncationReport({
+    candles: view.candles,
+    corporateActions: view.corporateActions,
+    impliedVolatilityIndex: view.impliedVolatilityIndex,
+    macro: view.macro,
+    dividendYields: view.dividendYields,
+    instruments: config.universe,
+    at: assertDefined(periodSessions.at(-1), "run-backtest: non-empty period").close,
+    needsIv: false,
+  });
   const run: BacktestRun = {
     config,
     configDigest: digest,
