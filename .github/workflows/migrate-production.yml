@@ -1,0 +1,34 @@
+name: Migrate production database
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate the production database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @fetha/web run db:migrate

@@ -34,6 +34,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check preview database secret
+        id: preview-db
+        env:
+          DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          if [ -n "$DATABASE_URL_PREVIEW" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Format check
         run: pnpm format:check
 
@@ -51,6 +62,26 @@ jobs:
 
       - name: Drizzle check
         run: pnpm db:check
+
+      - name: Reset the shared preview database
+        if: steps.preview-db.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @fetha/web run db:reset
+
+      - name: Migrate the shared preview database
+        if: steps.preview-db.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @fetha/web run db:migrate
+
+      - name: Integration tests
+        if: steps.preview-db.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          BETTER_AUTH_SECRET: ci-integration-secret-ci-integration-secret
+          BETTER_AUTH_URL: http://localhost:3000
+        run: pnpm --filter @fetha/web run test:integration
 
       - name: Impeccable detect
         run: |

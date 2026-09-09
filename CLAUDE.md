@@ -63,10 +63,14 @@ Handlers.
   dropdown, select, combobox, popover, tabs, toast, form controls). Never hand-roll these.
   Components are copied into the repo and restyled through `DESIGN.md` tokens. TradingView
   `lightweight-charts` for price/candles; `visx` for analytics charts.
-- **Database**: Postgres on Neon via the Vercel integration (`main` = prod, preview branch per
-  PR). Drizzle ORM + drizzle-kit migrations committed to the repo. Time series in
-  monthly-partitioned tables. Prices as fixed-point decimals (`decimal.js` / Drizzle `numeric`),
-  money as integer centavos. **Never JavaScript `number` for money.**
+- **Database**: Postgres on Neon via the Vercel marketplace integration, one Neon project per
+  environment class (ADR-0016): the production resource is connected to Vercel Production only;
+  a separate, free `fetha-preview` project is connected to Vercel Preview and Development and is
+  also what CI resets and migrates on every run — no per-PR branch. Production is migrated by a
+  dedicated `migrate-production` job on push to `main`, never by the build. Drizzle ORM +
+  drizzle-kit migrations committed to the repo. Time series in monthly-partitioned tables. Prices
+  as fixed-point decimals (`decimal.js` / Drizzle `numeric`), money as integer centavos. **Never
+  JavaScript `number` for money.**
 - **Auth & tenancy**: same library and module shape as Feudo per its ADR (email + password with
   verification, magic link, password reset, sessions, rate-limited auth endpoints). The tenant is
   the user account; no shared workspaces in v1. Emails via Resend.
@@ -146,8 +150,9 @@ Confirm with the owner before creating any paid resource or paid data subscripti
   with no coverage gate.
 - **Property-based**: `fast-check` on pricing bounds, put-call parity, payoff symmetry,
   no-look-ahead invariants, decimal arithmetic.
-- **Integration**: Route Handlers + Drizzle against the PR's Neon preview branch, including
-  provider adapters with recorded fixtures.
+- **Integration**: Route Handlers + Drizzle against the shared `fetha-preview` Neon project
+  (ADR-0016), which CI resets and migrates before every run, including provider adapters with
+  recorded fixtures.
 - **Isolation**: for every user-scoped table, a test proving a session from user A cannot read,
   write or trigger jobs for user B. Mandatory, blocking.
 - **E2E**: Playwright against the Vercel preview for the critical paths: registration, email
