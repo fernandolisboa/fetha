@@ -1,0 +1,38 @@
+<!-- @dsCard group="Type" -->
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Fetha · tipografia por tema</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Source+Sans+3:wght@400;500;600&family=Source+Code+Pro:wght@400;500&display=swap"><style>/* Fetha design tokens. Canonical source: DESIGN.md. Themes are per-user (ADR-0015). */
+
+:root[data-theme="instrumento"] {
+  --bg: #0f1115; --surface: #151922; --surface-2: #1a1f29; --line: #262c38; --line-soft: #1f2430;
+  --ink: #e6e8ee; --muted: #8d97a8; --faint: #7a8598;
+  --accent: #3fb8c8; --accent-hover: #62c9d6; --accent-ink: #06181b; --accent-soft: #12303a;
+  --up: #2fb36a; --down: #e0524f; --warning: #e0a83a; --danger: #f0665f;
+  --greek-delta: #3fb8c8; --greek-gamma: #b688e6; --greek-theta: #e0a83a; --greek-vega: #6f9cf0;
+  --font-display: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', Consolas, monospace;
+  --radius: 4px; --elevation: none; --density-body: 13px; --density-row: 36px; --chart-stroke: var(--accent);
+}
+:root[data-theme="terminal"] {
+  --bg: #0a0b0d; --surface: #0a0b0d; --surface-2: #111317; --line: #22262c; --line-soft: #181b20;
+  --ink: #d7d9de; --muted: #8a9099; --faint: #747b85;
+  --accent: #e0a83a; --accent-hover: #f0bd5c; --accent-ink: #15120a; --accent-soft: #2a2110;
+  --up: #3ddc84; --down: #ff5c5c; --warning: #e0a83a; --danger: #ff5c5c;
+  --greek-delta: #e0a83a; --greek-gamma: #b0b6c0; --greek-theta: #f0bd5c; --greek-vega: #7d8794;
+  --font-display: 'JetBrains Mono', Consolas, monospace; --font-body: 'JetBrains Mono', Consolas, monospace; --font-mono: 'JetBrains Mono', Consolas, monospace;
+  --radius: 0px; --elevation: none; --density-body: 12px; --density-row: 32px; --chart-stroke: var(--ink);
+}
+:root[data-theme="amplo"] {
+  --bg: #13151b; --surface: #191c24; --surface-2: #1f232d; --line: #2a2f3b; --line-soft: #232833;
+  --ink: #ebe7dd; --muted: #a39d90; --faint: #8c8679;
+  --accent: #c9a25a; --accent-hover: #dcb66c; --accent-ink: #1a1509; --accent-soft: #2f2916;
+  --up: #6fbf8f; --down: #d9776f; --warning: #c9a25a; --danger: #e0736a;
+  --greek-delta: #c9a25a; --greek-gamma: #b494cf; --greek-theta: #e0b46b; --greek-vega: #7fa3c2;
+  --font-display: 'Source Serif 4', Georgia, serif; --font-body: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; --font-mono: 'Source Code Pro', Consolas, monospace;
+  --radius: 8px; --elevation: none; --density-body: 14px; --density-row: 40px; --chart-stroke: var(--ink);
+}
+
+body{margin:0;background:#0f1115;color:#e6e8ee;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:13px}
+.theme{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:var(--density-body);padding:20px;display:grid;gap:12px}
+.sw{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
+.sw div{height:56px;border:1px solid var(--line);border-radius:var(--radius);display:flex;align-items:flex-end;padding:6px;font-family:var(--font-mono);font-size:10px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+h2{margin:0;font-family:var(--font-display);font-size:16px;font-weight:600}
+</style></head><body style="width:1200px"><section class="theme" style="--bg:#0f1115;--ink:#e6e8ee;--muted:#8d97a8;--font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;--font-mono:'IBM Plex Mono', Consolas, monospace;--font-display:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;--density-body:13px"><h2>instrumento</h2><div style="font-family:var(--font-display);font-size:22px;font-weight:600">Collar em PETR4</div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Operação · a partir do catálogo</div><div>Perda máxima de R$ 2.080,00 acima do limite de R$ 2.000,00 por operação.</div><div class="mono" style="font-size:18px">− R$ 2.080,00 · 38,08 · 28,4%</div><div class="mono" style="font-size:11px;color:var(--muted)">PETRJ400 · 17/10/2026 · 14:32</div></section><section class="theme" style="--bg:#0a0b0d;--ink:#d7d9de;--muted:#8a9099;--font-body:'JetBrains Mono', Consolas, monospace;--font-mono:'JetBrains Mono', Consolas, monospace;--font-display:'JetBrains Mono', Consolas, monospace;--density-body:12px"><h2>terminal</h2><div style="font-family:var(--font-display);font-size:22px;font-weight:600">Collar em PETR4</div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Operação · a partir do catálogo</div><div>Perda máxima de R$ 2.080,00 acima do limite de R$ 2.000,00 por operação.</div><div class="mono" style="font-size:18px">− R$ 2.080,00 · 38,08 · 28,4%</div><div class="mono" style="font-size:11px;color:var(--muted)">PETRJ400 · 17/10/2026 · 14:32</div></section><section class="theme" style="--bg:#13151b;--ink:#ebe7dd;--muted:#a39d90;--font-body:'Source Sans 3', 'Segoe UI', system-ui, sans-serif;--font-mono:'Source Code Pro', Consolas, monospace;--font-display:'Source Serif 4', Georgia, serif;--density-body:14px"><h2>amplo</h2><div style="font-family:var(--font-display);font-size:22px;font-weight:600">Collar em PETR4</div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Operação · a partir do catálogo</div><div>Perda máxima de R$ 2.080,00 acima do limite de R$ 2.000,00 por operação.</div><div class="mono" style="font-size:18px">− R$ 2.080,00 · 38,08 · 28,4%</div><div class="mono" style="font-size:11px;color:var(--muted)">PETRJ400 · 17/10/2026 · 14:32</div></section></body></html>
