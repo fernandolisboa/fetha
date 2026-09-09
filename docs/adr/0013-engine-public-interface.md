@@ -1131,7 +1131,12 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   (`from` = the close of the first session the strategy's lookback reaches back to from the
   cursor, `to` = the `period.to` session close), or `complete`. The checkpoint `state` depends
   only on rows with `asOf <=` the cursor session's close; that is the truncation instant of the
-  paused run (I7).
+  paused run (I7). A resumed call's `view.calendar` must be the same calendar the run started
+  with (`market-data` builds it once from the shared reference data and hands it to every chunk);
+  a resumed view missing a candle an open position's mark needs is `insufficient_data`, naming
+  the underlying and session, not a thrown exception, and `resume.schema` must equal the
+  checkpoint schema the engine currently produces, alongside `configDigest` and `engineVersion`,
+  else `checkpoint_mismatch`.
 - Sizing fractions and risk-profile limits apply to the run's current equity;
   `riskProfile.declaredCapital` is ignored inside a run. `config.sizing` overrides the strategy's
   sizing rule when present. Missed entries, warn mode and fill-time failures follow ADR-0014.

@@ -1110,6 +1110,63 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     if (!result.ok || result.value.status !== "complete") throw new Error("expected a run");
   });
 
+  it("returns insufficient_data instead of throwing when a resumed view can't mark an open position", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const paused = runBacktest({ view: fullView, config, maxSessions: 2 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = { ...emptyView, calendar, candles: [] };
+    const resumed = runBacktest({
+      view: incompleteView,
+      config,
+      resume: paused.value.checkpoint,
+    });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("insufficient_data");
+  });
+
+  it("returns checkpoint_mismatch when the resumed schema does not match", () => {
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const digest = runBacktest({ view, config });
+    expect(digest.ok).toBe(true);
+    if (!digest.ok || digest.value.status !== "complete") throw new Error("expected complete");
+    const result = runBacktest({
+      view,
+      config,
+      resume: {
+        schema: 2 as never,
+        engineVersion: "0.1.0",
+        configDigest: digest.value.run.configDigest,
+        cursor: "2024-01-02",
+        state: null,
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("checkpoint_mismatch");
+  });
+
   it("returns invalid_input when resuming with a cursor that is not a session of the period", () => {
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
     const view: MarketView = {

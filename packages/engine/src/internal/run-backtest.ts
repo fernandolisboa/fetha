@@ -15,6 +15,7 @@ import {
   type BacktestProgress,
   type BacktestRun,
   type Candle,
+  type DataWindow,
   type EquityPoint,
   type Leg,
   type LimitBreach,
@@ -37,7 +38,7 @@ import { configDigest } from "./config-digest";
 import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
-import { assertDefined, assertPresent, invariant } from "./invariant";
+import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { toCentavos, toQuantity } from "./scalars";
 
@@ -125,14 +126,36 @@ function lastKnownClose(
 ): DecimalString | null {
   const candles = (candlesByTicker.get(ticker) ?? []).filter((c) => c.session <= uptoSession);
   // Both call sites only ask about a ticker that already has an open operation, which can only
-  // exist because a fill found a candle for it on or before this same session — so `null` cannot
-  // happen in practice, but the type stays honest about the general case.
-  /* v8 ignore next */
+  // exist because a fill found a candle for it on or before this same session in an
+  // uninterrupted run — but a resumed run's view can legitimately lack that history if the
+  // caller didn't carry it over, so both callers turn this into insufficient_data.
   if (candles.length === 0) return null;
   return assertDefined(
     candles.reduce((latest, c) => (c.session > latest.session ? c : latest)),
     "run-backtest: reduce over a non-empty array always yields a value",
   ).close;
+}
+
+// A resumed run's view must carry the same history as the run that produced its checkpoint
+// (ADR-0013): if it doesn't, an open operation's underlying can be missing every candle a mark
+// needs. That is a caller error, not an engine bug, so it is a typed insufficient_data result,
+// never a thrown exception.
+function missingMarkError(
+  ticker: Ticker,
+  openedAt: SessionDate,
+  sortedCalendar: readonly TradingSession[],
+  through: Instant,
+): Result<BacktestProgress> {
+  const openedAtSession = sortedCalendar.find((s) => s.date === openedAt);
+  const from = openedAtSession?.open ?? through;
+  const needed: DataWindow = {
+    from,
+    to: through,
+    instruments: [ticker],
+    timeframes: ["D1"],
+    collections: ["candles"],
+  };
+  return { ok: false, error: { code: "insufficient_data", needed } };
 }
 
 function fillCosts(costModel: CostModel, price: DecimalString, quantity: number): Centavos {
@@ -204,7 +227,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
   const digest = configDigest(config);
   if (input.resume !== undefined) {
-    if (input.resume.configDigest !== digest || input.resume.engineVersion !== ENGINE_VERSION) {
+    // BacktestCheckpoint.schema is typed as the literal 1, but a caller round-tripping a
+    // checkpoint through storage passes plain JSON at runtime, not a type-checked value, so this
+    // still needs a real runtime check.
+    const receivedSchema: number = input.resume.schema;
+    if (
+      receivedSchema !== 1 ||
+      input.resume.configDigest !== digest ||
+      input.resume.engineVersion !== ENGINE_VERSION
+    ) {
       return {
         ok: false,
         error: {
@@ -528,10 +559,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // Step 3: equity for this session.
     let markValue = 0;
     for (const op of state.openOperations) {
-      const markPrice = assertPresent(
-        lastKnownClose(candlesByTicker, op.underlying, session.date),
-        "run-backtest: an open operation's underlying always has a candle from its own entry fill",
-      );
+      const markPriceOrNull = lastKnownClose(candlesByTicker, op.underlying, session.date);
+      if (markPriceOrNull === null) {
+        return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
+      }
+      const markPrice = markPriceOrNull;
       const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
       for (const leg of op.legs) {
         const sign = leg.side === "buy" ? 1 : -1;
@@ -562,10 +594,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // Step 4/5: period end sweep, or next signals.
     if (isFinalSession) {
       for (const op of state.openOperations) {
-        const price = assertPresent(
-          lastKnownClose(candlesByTicker, op.underlying, session.date),
-          "run-backtest: an open operation's underlying always has a candle from its own entry fill",
-        );
+        const priceOrNull = lastKnownClose(candlesByTicker, op.underlying, session.date);
+        if (priceOrNull === null) {
+          return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
+        }
+        const price = priceOrNull;
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
         const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
         let pnl = new Decimal(0);
