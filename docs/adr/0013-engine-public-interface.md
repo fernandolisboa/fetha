@@ -1034,11 +1034,18 @@ that subset concrete:
   `openOperations[i].legs[j].ticker`). An instrument in `instruments` with no candle for the
   strategy's timeframe is not silently skipped: it gets exactly one `insufficient_data`
   `EvaluationRecord` at `at`, so the caller can tell "nothing to evaluate" from "the batch
-  produced nothing."
+  produced nothing." The same holds when the instrument has candles but none falls in
+  `(since, at]`: that also gets one `insufficient_data` record at `at`, distinct in `detail` from
+  the no-candles-at-all case. Every such record's `session` is resolved from `view.calendar` (the
+  last session whose `open <= at`, the rule `dataWindow` already uses), not by slicing `at`'s own
+  date; when the view carries no calendar row, resolution falls back to that slice.
 - **Batch validation.** Duplicate tickers in `instruments`, duplicate `id`s in `openOperations`,
   and duplicate `(series, asOf)` rows in `macro` or `(underlying, asOf)` rows in `dividendYields`
   are `invalid_input`, checked once for the whole call — including when `instruments` is empty,
-  so an inconsistent view is never silently accepted just because nothing was asked of it.
+  so an inconsistent view is never silently accepted just because nothing was asked of it. The
+  same pass rejects a non-positive candle price anywhere in `view.candles` (true index in the
+  path, including candles for tickers outside `instruments`) and a macro `annualRate` or dividend
+  `annualYield` of `-1` or below, which would make `ln(1 + rate)` undefined downstream.
 - **Entry gating.** At evaluation instant `c`, an open operation for the instrument participates
   only when `op.openedAt <= nominalCandle.session`; before that session the instrument is treated
   as having no open operation and entry gating applies normally (ADR-0014 Q47 states the
@@ -1048,7 +1055,11 @@ that subset concrete:
   correct only when the caller pre-filters `openOperations` by `strategyVersionId` (an operation
   the caller closed under a different version, or intends to keep open regardless of what this
   version's entry condition says, must not be passed in). When an active operation exists, only
-  that instrument's exit rules are evaluated and entry is skipped entirely for that instant.
+  that instrument's exit rules are evaluated and entry is skipped entirely for that instant. The
+  `openOperationCount` a proposal's `maxOpenOperations` limit check is priced against is the same
+  `op.openedAt <= nominalCandle.session` count, taken over the whole batch's `openOperations`
+  (every instrument, not just the one being priced): an operation the batch will open later never
+  counts toward an earlier instant's limit.
 - **Sizing and risk for a stock leg.** A `SizingRule`'s "unit" is one structure unit (`ratio *
 units` per leg, as in `priceOperation`); `fixed_fractional` budgets `fraction *
 declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budgets the same
@@ -1083,12 +1094,16 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   rules are not evaluated once one signals. Each numeric rule is checked against a base computed
   once per operation from its entry legs via `priceStockLegs` (ADR-0014 Q50): `profit_target`
   against `|netPremium|`, `stop_loss` against `maxLoss` when finite else `|netPremium|`; a zero
-  base means the rule can never fire, and the evaluation record's `detail` says so.
-  `days_before_expiry` cannot appear on a stock-only definition (coherence rejects it), so the
-  evaluator's exhaustive `switch` throws if it somehow does — a bug, not a runtime outcome.
-  `EvaluationRecord.outcome` for an instant with an open operation is `signal` if any exit fired,
-  `insufficient_data` if none fired but some `condition` rule was `unknown`, else
-  `conditions_not_met`.
+  base means the rule can never fire, and the evaluation record's `detail` says so. Before that
+  comparison, each leg's `entryPrice` is scaled by the product of the ticker's visible
+  corporate-action factors with `exDate` in `(op.openedAt, nominalCandle.session]` — the same
+  convention `buildCandleSeries` uses to adjust a candle series, applied here so a position opened
+  before a split is compared to the post-split close on the same scale instead of firing a stop or
+  target on the split alone. `days_before_expiry` cannot appear on a stock-only definition
+  (coherence rejects it), so the evaluator's exhaustive `switch` throws if it somehow does — a
+  bug, not a runtime outcome. `EvaluationRecord.outcome` for an instant with an open operation is
+  `signal` if any exit fired, `insufficient_data` if none fired but some `condition` rule was
+  `unknown`, else `conditions_not_met`.
 - **Capabilities.** Both `SizingRule` kinds (`fixed_fractional`, `fixed_risk`) are implemented in
   full; of the `ExitRule` kinds, `profit_target`, `stop_loss` and `condition` are implemented and
   `days_before_expiry` stays unsupported (it is meaningless without an expiry, which a stock-only

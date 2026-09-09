@@ -9,6 +9,7 @@ import type {
   IndicatorSeries,
   IndicatorsInput,
   MarketView,
+  Operation,
   Result,
   StrategyVersion,
 } from "../api";
@@ -16,7 +17,7 @@ import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
 import { instantMs } from "../internal/instant";
-import { centavos, decimalString } from "../test/support";
+import { centavos, decimalString, quantity } from "../test/support";
 import { candlePriceArbitrary, candleSeriesArbitrary } from "./arbitraries";
 
 const riskProfile = {
@@ -346,6 +347,100 @@ describe("I1 Future-blind — evaluateStrategy's inner evaluation instants", () 
         const extendedInput: EvaluateStrategyInput = { ...input, view: view([laterFactor]) };
 
         const baseResult = evaluateStrategy(input);
+        const extendedResult = evaluateStrategy(extendedInput);
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.signals.length > 0) sawAtLeastOneSignal = true;
+
+        const atC = <T extends { at: string }>(rows: T[]): T[] => rows.filter((r) => r.at === c);
+        expect(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(extendedResult.value.signals),
+              evaluations: atC(extendedResult.value.evaluations),
+              notes: [],
+              provenance: extendedResult.value.provenance,
+            },
+          }),
+        ).toEqual(
+          stripProvenance({
+            ok: true,
+            value: {
+              signals: atC(baseResult.value.signals),
+              evaluations: atC(baseResult.value.evaluations),
+              notes: [],
+              provenance: baseResult.value.provenance,
+            },
+          }),
+        );
+      }),
+    );
+    expect(sawAtLeastOneSignal).toBe(true);
+  });
+
+  it("appending a portfolio operation with openedAt in (c, at] never changes the evaluation record or signal at the inner instant c", () => {
+    let sawAtLeastOneSignal = false;
+    fc.assert(
+      fc.property(candleSeriesArbitrary, (candles) => {
+        fc.pre(candles.length >= 5);
+        const c = assertDefined(candles[2], "test setup: missing inner instant candle").asOf;
+        const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
+        const lastCandle = assertDefined(candles.at(-1), "test setup: missing last candle");
+        const firstCandle = assertDefined(candles[0], "test setup: missing first candle");
+
+        const view: MarketView = {
+          calendar: [],
+          candles,
+          corporateActions: [],
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+
+        // maxOpenOperations: 1 makes the bug observable: if the future operation were
+        // counted at c, the entry at c would breach the limit it must not see yet.
+        const tightRiskProfile = {
+          ...riskProfile,
+          limits: { ...riskProfile.limits, maxOpenOperations: 1 },
+        };
+
+        const baseInput: EvaluateStrategyInput = {
+          view,
+          strategy,
+          instruments: ["PETR4"],
+          since: `${firstCandle.session}T00:00:00.000Z`,
+          at,
+          riskProfile: tightRiskProfile,
+        };
+
+        const futureOperation: Operation = {
+          id: "future-op",
+          underlying: "PETR4",
+          legs: [
+            {
+              role: "stock",
+              side: "buy",
+              ticker: "PETR4",
+              quantity: quantity(1),
+              entryPrice: decimalString("1.00"),
+            },
+          ],
+          expiry: null,
+          openedAt: lastCandle.session,
+          strategyVersionId: "v1",
+          rolledFrom: null,
+        };
+        const extendedInput: EvaluateStrategyInput = {
+          ...baseInput,
+          openOperations: [futureOperation],
+        };
+
+        const baseResult = evaluateStrategy(baseInput);
         const extendedResult = evaluateStrategy(extendedInput);
         expect(baseResult.ok).toBe(true);
         expect(extendedResult.ok).toBe(true);
