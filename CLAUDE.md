@@ -27,11 +27,11 @@ and `docs/adr/`. Visual truth lives in `DESIGN.md`. When this file and those dis
 
 ## What we are building
 
-1. **Market data**: quotes, fundamentals, historical candles, options chains, macro series
-   (CDI/Selic/IPCA).
+1. **Market data**: daily reference data (candles, option series and prices, macro series, calendar)
+   shared by all users; an optional per-user intraday tier (live quotes, chain, 15m/30m/60m candles).
 2. **Engine**: indicators, options pricing and greeks, payoff of multi-leg structures (travas,
    collars, covered calls, butterflies, condors...), event-driven backtester, portfolio and risk
-   metrics.
+   metrics; daily and intraday strategy evaluation into a signal inbox.
 3. **Strategy catalog**: declarative strategy definitions that can be backtested, versioned and
    compared. Definitions come from standard references (Hull, B3 materials), never from copying
    anyone's content.
@@ -39,6 +39,8 @@ and `docs/adr/`. Visual truth lives in `DESIGN.md`. When this file and those dis
    returns.
 5. **AI decision layer**: reasons over engine outputs, argues both sides, flags tail risk, keeps a
    decision journal that is later scored against actual outcomes.
+6. **Real portfolio**: fills entered by hand or imported from the B3 investor-area export,
+   grouped into operations, marked to market; no broker connection, no order execution.
 
 ## Stack (closed; same as Feudo, deviations noted)
 
@@ -51,8 +53,9 @@ Handlers.
   indicators, strategy DSL types, options pricing (Black-Scholes, greeks, implied vol), payoff of
   structures, backtester (no look-ahead by construction), portfolio and risk metrics.
   Property-based tests with `fast-check` wherever math allows. Its public interface is designed
-  once, deliberately (Phase 2), and frozen in an ADR: it is the seam most likely to be optimized
-  or replaced, so nothing outside the package may depend on its internals.
+  deliberately in Phase 2 (two candidate shapes, compared) and frozen in an ADR: it is the seam
+  most likely to be optimized or replaced, so nothing outside the package may depend on its
+  internals.
 - **`packages/contracts`**: Zod schemas and derived types shared by `apps/web` and the engine
   edges (strategy files, provider payloads, AI outputs, env).
 - **PWA**: Serwist, installable on Windows. Offline: cached shell only.
@@ -70,12 +73,15 @@ Handlers.
 - **Jobs**: Vercel Cron hitting bearer-protected Route Handlers for daily data ingestion.
   Backtests run in Route Handlers with `maxDuration` raised; if a run exceeds the limit, chunk it
   before considering any other infrastructure.
-- **Data providers** behind a `MarketDataProvider` interface (ADR in Phase 1): brapi.dev for
-  quotes/fundamentals; B3 COTAHIST files for historical backtest data; options chain to be
-  evaluated among brapi, B3 public files and OpLab; Bacen SGS for macro series.
+- **Data providers** behind a `MarketDataProvider` interface (ADR-0007): public B3 files (COTAHIST,
+  instruments registry), Bacen SGS and the ANBIMA calendar as shared reference data; brapi.dev Pro
+  as the per-user intraday tier (token supplied by the user; optional); OpLab as a candidate
+  second adapter. Greeks and IV are always computed by the engine.
 - **AI**: `@anthropic-ai/sdk`. Opus for thesis/counter-thesis and strategy critique; Sonnet for
   routine reports. Prompts under `prompts/` with versions and fixture tests.
-- **Hosting**: Vercel free tier, `*.vercel.app` domain.
+- **Hosting**: Vercel on the owner's Pro team (`feuxs-projects`), `*.vercel.app` domain. Pro is used for
+  `maxDuration` on backtests and ingestion, never for per-minute crons (ADR-0010). Builds consume
+  the team's included credit: keep preview builds lean.
 
 Confirm with the owner before creating any paid resource or paid data subscription.
 
@@ -96,7 +102,7 @@ Confirm with the owner before creating any paid resource or paid data subscripti
 5. **Tenant isolation is a hard invariant.** Every domain table carries `user_id`. Data access
    goes through user-scoped repositories that take the user from the session; no query path
    accepts an unscoped id. Every new table ships with an isolation test (user A cannot read or
-   write user B). Market data and the strategy catalog are shared reference data and are the only
+   write user B). Reference data, the catalog and shared strategies (ADR-0012) are the only
    exceptions, read-only to users.
 6. **LGPD by design**: terms and privacy policy accepted at registration; data minimization;
    account data export and deletion flows; audit log of access to portfolio and decision data.
