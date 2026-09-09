@@ -44,11 +44,17 @@
 
 ## Domain Behavior Guardrails
 
-1. **[2026-09-02] Multi-user; the user account is the tenant**
+0. **[2026-09-09] Drizzle migrations are matched by journal timestamp: squashing/regenerating a migration after it ran anywhere (production got the old `0000` from early previews) makes `db:migrate` recreate tables and fail**
+   Do instead: never regenerate an applied migration; before the first real user, an empty production schema may be reset by hand (`drop schema public cascade; create schema public; drop schema drizzle cascade`) and the `migrate-production` workflow rerun; afterwards only additive migrations (expand/contract, ADR-0016).
+
+1. **[2026-09-09] A PR with merge conflicts gets NO GitHub Actions run (no check suite at all); Better Auth's `nextCookies` plugin skips `auth.handler()` calls (router mode), so server actions must forward `Set-Cookie` themselves; Vercel previews sit behind SSO, Playwright needs `x-vercel-protection-bypass` (project bypass secret, scratchpad `env/e2e.env`)**
+   Do instead: when a PR shows zero runs, check `mergeable` first and `gh pr update-branch`; keep the cookie-forwarding helper and its integration test; run E2E from a scratch worktree with `PLAYWRIGHT_BASE_URL`, `E2E_SECRET`, `VERCEL_PROTECTION_BYPASS` (preview env has `REGISTRATION_MODE=open`).
+
+2. **[2026-09-02] Multi-user; the user account is the tenant**
    Do instead: every domain table carries `user_id`; user-scoped repositories; isolation test per table. Market data + strategy catalog are shared read-only reference data.
-2. **[2026-09-02] Prices are decimals, money is integer centavos, never JS `number` for money**
+3. **[2026-09-02] Prices are decimals, money is integer centavos, never JS `number` for money**
    Do instead: `decimal.js` / Drizzle `numeric` for prices; integer centavos for money.
-3. **[2026-09-02] AI never produces numbers; engine is pure**
+4. **[2026-09-02] AI never produces numbers; engine is pure**
    Do instead: engine computes, AI reasons over artifacts and cites inputs; `packages/engine` has zero I/O.
 
 ## User Directives
