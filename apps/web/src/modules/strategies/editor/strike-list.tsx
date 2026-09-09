@@ -1,6 +1,6 @@
 "use client";
 
-import type { DecimalString, StrikeSelection } from "@fetha/contracts";
+import { decimalStringSchema, type StrikeSelection } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +8,7 @@ import { t } from "../strings";
 import { StrikeRow } from "./strike-row";
 
 function newStrike(): StrikeSelection {
-  return { kind: "delta", target: "0.3" as DecimalString };
+  return { kind: "delta", target: decimalStringSchema.parse("0.3") };
 }
 
 export function StrikeList({

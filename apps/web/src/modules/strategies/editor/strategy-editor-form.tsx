@@ -3,10 +3,10 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  decimalStringSchema,
   strategyDefinitionSchema,
   timeframes,
   type AdjustmentRule,
-  type DecimalString,
   type ExitRule,
   type ExpirySelection,
   type SizingRule,
@@ -19,15 +19,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { addStrategyVersionAction, createStrategyAction } from "../actions";
+import {
+  addStrategyVersionAction,
+  createStrategyAction,
+  type StrategyActionResult,
+} from "../actions";
 import { Panel } from "../components/panel";
 import { t } from "../strings";
 import { AdjustmentRow } from "./adjustment-row";
-import {
-  compareConditionsToEntry,
-  entryToCompareConditions,
-  type CompareCondition,
-} from "./compare-conditions";
+import { fromEditableEntry, toEditableEntry, type EditableEntry } from "./compare-conditions";
 import { ConditionRow } from "./condition-row";
 import { defaultCompareCondition } from "./defaults";
 import { ExpiryFields } from "./expiry-fields";
@@ -37,6 +37,10 @@ import { SizingFields } from "./sizing-fields";
 import { StrikeList } from "./strike-list";
 
 const defaultExpiry: ExpirySelection = { kind: "business_days", min: 5, max: 20 };
+
+function newStrikeForAdjustment(): StrikeSelection {
+  return { kind: "delta", target: decimalStringSchema.parse("0.3") };
+}
 
 export function StrategyEditorForm({
   structures,
@@ -51,15 +55,15 @@ export function StrategyEditorForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [timeframe, setTimeframe] = useState(initial?.timeframe ?? "D1");
   const [structureId, setStructureId] = useState(initial?.structureId ?? structures[0]?.id ?? "");
-  const [conditions, setConditions] = useState<CompareCondition[]>(
+  const [entry, setEntry] = useState<EditableEntry>(
     initial
-      ? entryToCompareConditions(initial.entry, defaultCompareCondition)
-      : [defaultCompareCondition],
+      ? toEditableEntry(initial.entry)
+      : { editable: true, conditions: [defaultCompareCondition] },
   );
   const [strikes, setStrikes] = useState<StrikeSelection[]>(initial?.strikes ?? []);
   const [expiry, setExpiry] = useState<ExpirySelection>(initial?.expiry ?? defaultExpiry);
   const [sizing, setSizing] = useState<SizingRule>(
-    initial?.sizing ?? { kind: "fixed_fractional", fraction: "0.1" as DecimalString },
+    initial?.sizing ?? { kind: "fixed_fractional", fraction: decimalStringSchema.parse("0.1") },
   );
   const [exit, setExit] = useState<ExitRule[]>(initial?.exit ?? []);
   const [adjustments, setAdjustments] = useState<AdjustmentRule[]>(initial?.adjustments ?? []);
@@ -70,7 +74,7 @@ export function StrategyEditorForm({
     return {
       name,
       timeframe,
-      entry: compareConditionsToEntry(conditions),
+      entry: fromEditableEntry(entry),
       structureId,
       strikes,
       expiry: strikes.length > 0 ? expiry : undefined,
@@ -80,11 +84,15 @@ export function StrategyEditorForm({
     };
   }
 
+  function errorMessage(result: Extract<StrategyActionResult, { status: "error" }>): string {
+    return t.editor.errors[result.error];
+  }
+
   function submit() {
     const definition = buildDefinition();
     const parsed = strategyDefinitionSchema.safeParse(definition);
     if (!parsed.success) {
-      setError(t.editor.invalid);
+      setError(t.editor.errors.invalid);
       return;
     }
     setError(null);
@@ -92,19 +100,19 @@ export function StrategyEditorForm({
     startTransition(() => {
       const action = strategyId
         ? addStrategyVersionAction({ strategyId, definition: parsed.data })
-        : createStrategyAction({ name: parsed.data.name, definition: parsed.data });
+        : createStrategyAction({ definition: parsed.data });
       action
         .then((result) => {
           setPending(false);
           if (result.status === "ok") {
             router.push(`/estrategias/${result.strategyId}`);
           } else {
-            setError(t.editor.invalid);
+            setError(errorMessage(result));
           }
         })
         .catch(() => {
           setPending(false);
-          setError(t.editor.invalid);
+          setError(t.editor.errors.unavailable);
         });
     });
   }
@@ -119,6 +127,7 @@ export function StrategyEditorForm({
           <Input
             id="strategy-name"
             value={name}
+            maxLength={120}
             onChange={(event) => {
               setName(event.target.value);
             }}
@@ -150,30 +159,45 @@ export function StrategyEditorForm({
       </div>
 
       <Panel title={t.editor.entry.title} subtitle={t.editor.entry.subtitle}>
-        {conditions.map((condition, index) => (
-          <ConditionRow
-            key={index}
-            value={condition}
-            removable={conditions.length > 1}
-            onChange={(next) => {
-              setConditions(conditions.map((c, i) => (i === index ? next : c)));
-            }}
-            onRemove={() => {
-              setConditions(conditions.filter((_, i) => i !== index));
-            }}
-          />
-        ))}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => {
-            setConditions([...conditions, defaultCompareCondition]);
-          }}
-        >
-          {t.editor.entry.addCondition}
-        </Button>
+        {entry.editable ? (
+          <>
+            {entry.conditions.map((condition, index) => (
+              <ConditionRow
+                key={index}
+                value={condition}
+                removable={entry.conditions.length > 1}
+                onChange={(next) => {
+                  setEntry({
+                    editable: true,
+                    conditions: entry.conditions.map((c, i) => (i === index ? next : c)),
+                  });
+                }}
+                onRemove={() => {
+                  setEntry({
+                    editable: true,
+                    conditions: entry.conditions.filter((_, i) => i !== index),
+                  });
+                }}
+              />
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => {
+                setEntry({
+                  editable: true,
+                  conditions: [...entry.conditions, defaultCompareCondition],
+                });
+              }}
+            >
+              {t.editor.entry.addCondition}
+            </Button>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-sm">{t.editor.entry.readOnlyNotice}</p>
+        )}
       </Panel>
 
       <Panel title={t.editor.strikes.title} subtitle={t.editor.strikes.subtitle}>
@@ -243,7 +267,7 @@ export function StrategyEditorForm({
                 kind: "roll",
                 when: { kind: "days_before_expiry", businessDays: 3 },
                 expiry: defaultExpiry,
-                strikes: [],
+                strikes: [newStrikeForAdjustment()],
               },
             ]);
           }}

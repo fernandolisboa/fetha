@@ -1,17 +1,22 @@
 "use client";
 
-import { strikeSelectionKinds, type DecimalString, type StrikeSelection } from "@fetha/contracts";
+import { strikeSelectionKinds, decimalStringSchema, type StrikeSelection } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 import { t } from "../strings";
+import { DecimalField } from "./decimal-field";
 import { SimpleSelect } from "./simple-select";
 
 function defaultForKind(kind: StrikeSelection["kind"]): StrikeSelection {
-  if (kind === "delta") return { kind: "delta", target: "0.3" as DecimalString };
-  if (kind === "moneyness") return { kind: "moneyness", percent: "0" as DecimalString };
-  return { kind: "nearest", price: "1" as DecimalString };
+  switch (kind) {
+    case "delta":
+      return { kind: "delta", target: decimalStringSchema.parse("0.3") };
+    case "moneyness":
+      return { kind: "moneyness", percent: decimalStringSchema.parse("0") };
+    case "nearest":
+      return { kind: "nearest", price: decimalStringSchema.parse("1") };
+  }
 }
 
 export function StrikeRow({
@@ -44,29 +49,29 @@ export function StrikeRow({
       </div>
 
       {value.kind === "delta" && (
-        <Input
-          aria-label={`${t.editor.strikes.delta.target} #${String(rank)}`}
+        <DecimalField
+          ariaLabel={`${t.editor.strikes.delta.target} #${String(rank)}`}
           value={value.target}
-          onChange={(event) => {
-            onChange({ kind: "delta", target: event.target.value as DecimalString });
+          onChange={(target) => {
+            onChange({ kind: "delta", target });
           }}
         />
       )}
       {value.kind === "moneyness" && (
-        <Input
-          aria-label={`${t.editor.strikes.moneyness.percent} #${String(rank)}`}
+        <DecimalField
+          ariaLabel={`${t.editor.strikes.moneyness.percent} #${String(rank)}`}
           value={value.percent}
-          onChange={(event) => {
-            onChange({ kind: "moneyness", percent: event.target.value as DecimalString });
+          onChange={(percent) => {
+            onChange({ kind: "moneyness", percent });
           }}
         />
       )}
       {value.kind === "nearest" && (
-        <Input
-          aria-label={`${t.editor.strikes.nearest.price} #${String(rank)}`}
+        <DecimalField
+          ariaLabel={`${t.editor.strikes.nearest.price} #${String(rank)}`}
           value={value.price}
-          onChange={(event) => {
-            onChange({ kind: "nearest", price: event.target.value as DecimalString });
+          onChange={(price) => {
+            onChange({ kind: "nearest", price });
           }}
         />
       )}

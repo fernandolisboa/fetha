@@ -19,6 +19,8 @@ const en = {
       copyError: "Couldn't copy the strategy. Try again.",
     },
     visibility: { private: "Private", shared: "Shared" },
+    emptyCatalog:
+      "The structure catalog is not seeded yet, so there is nothing to build a strategy from.",
   },
   editor: {
     createOverline: "New strategy",
@@ -34,6 +36,8 @@ const en = {
       comparator: "Comparator",
       leftOperand: "First value",
       rightOperand: "Second value",
+      readOnlyNotice:
+        "This condition combines and/or/not in a way the editor cannot show as rows yet. It is kept unchanged.",
     },
     operand: {
       kind: "Type",
@@ -78,6 +82,8 @@ const en = {
       fractionOfPremium: "Fraction of the premium",
       multipleOfMaxLoss: "Multiple of the max loss",
       businessDays: "Business days",
+      readOnlyNotice:
+        "This exit condition combines and/or/not in a way the editor cannot show as rows yet. It is kept unchanged.",
     },
     adjustments: {
       title: "Adjustments",
@@ -89,6 +95,13 @@ const en = {
     submit: { create: "Create strategy", save: "Save new version" },
     cancel: "Cancel",
     invalid: "Some fields are invalid. Review the values before saving.",
+    errors: {
+      invalid: "Some fields are invalid. Review the values before saving.",
+      not_found: "This strategy no longer exists.",
+      not_shared: "This strategy is not shared.",
+      conflict: "Someone else just changed this strategy. Reload and try again.",
+      unavailable: "Couldn't save right now. Try again in a moment.",
+    },
     versions: { title: "Versions", createdAt: "Created" },
   },
   comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
@@ -130,6 +143,8 @@ const ptBR = {
       copyError: "Não foi possível copiar a estratégia. Tente novamente.",
     },
     visibility: { private: "Privada", shared: "Compartilhada" },
+    emptyCatalog:
+      "O catálogo de estruturas ainda não foi carregado, então não há a partir do que criar uma estratégia.",
   },
   editor: {
     createOverline: "Nova estratégia",
@@ -145,6 +160,8 @@ const ptBR = {
       comparator: "Comparador",
       leftOperand: "Primeiro valor",
       rightOperand: "Segundo valor",
+      readOnlyNotice:
+        "Essa condição combina e/ou/não de um jeito que o editor ainda não consegue mostrar em linhas. Ela é mantida sem alteração.",
     },
     operand: {
       kind: "Tipo",
@@ -189,6 +206,8 @@ const ptBR = {
       fractionOfPremium: "Fração do prêmio",
       multipleOfMaxLoss: "Múltiplo da perda máxima",
       businessDays: "Dias úteis",
+      readOnlyNotice:
+        "Essa condição de saída combina e/ou/não de um jeito que o editor ainda não consegue mostrar em linhas. Ela é mantida sem alteração.",
     },
     adjustments: {
       title: "Ajustes",
@@ -200,6 +219,13 @@ const ptBR = {
     submit: { create: "Criar estratégia", save: "Salvar nova versão" },
     cancel: "Cancelar",
     invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
+    errors: {
+      invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
+      not_found: "Essa estratégia não existe mais.",
+      not_shared: "Essa estratégia não está compartilhada.",
+      conflict: "Outra pessoa acabou de alterar essa estratégia. Recarregue e tente de novo.",
+      unavailable: "Não foi possível salvar agora. Tente novamente em instantes.",
+    },
     versions: { title: "Versões", createdAt: "Criada em" },
   },
   comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },

@@ -1,22 +1,28 @@
 "use client";
 
-import { exitRuleKinds, type DecimalString, type ExitRule } from "@fetha/contracts";
+import { decimalStringSchema, exitRuleKinds, type ExitRule } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
-import { defaultCompareCondition } from "./defaults";
-import { compareConditionsToEntry, entryToCompareConditions } from "./compare-conditions";
-import { ConditionRow } from "./condition-row";
 import { t } from "../strings";
+import { compareConditionsToEntry, toEditableEntry } from "./compare-conditions";
+import { ConditionRow } from "./condition-row";
+import { DecimalField } from "./decimal-field";
+import { defaultCompareCondition } from "./defaults";
+import { NumberField } from "./number-field";
 import { SimpleSelect } from "./simple-select";
 
 function defaultForKind(kind: ExitRule["kind"]): ExitRule {
-  if (kind === "profit_target")
-    return { kind: "profit_target", fractionOfPremium: "0.5" as DecimalString };
-  if (kind === "stop_loss") return { kind: "stop_loss", multipleOfMaxLoss: "1" as DecimalString };
-  if (kind === "days_before_expiry") return { kind: "days_before_expiry", businessDays: 3 };
-  return { kind: "condition", condition: defaultCompareCondition };
+  switch (kind) {
+    case "profit_target":
+      return { kind: "profit_target", fractionOfPremium: decimalStringSchema.parse("0.5") };
+    case "stop_loss":
+      return { kind: "stop_loss", multipleOfMaxLoss: decimalStringSchema.parse("1") };
+    case "days_before_expiry":
+      return { kind: "days_before_expiry", businessDays: 3 };
+    case "condition":
+      return { kind: "condition", condition: defaultCompareCondition };
+  }
 }
 
 export function ExitRuleRow({
@@ -48,37 +54,30 @@ export function ExitRuleRow({
         </div>
 
         {value.kind === "profit_target" && (
-          <Input
-            aria-label={`${t.editor.exit.fractionOfPremium} #${String(index + 1)}`}
+          <DecimalField
+            ariaLabel={`${t.editor.exit.fractionOfPremium} #${String(index + 1)}`}
             value={value.fractionOfPremium}
-            onChange={(event) => {
-              onChange({
-                kind: "profit_target",
-                fractionOfPremium: event.target.value as DecimalString,
-              });
+            onChange={(fractionOfPremium) => {
+              onChange({ kind: "profit_target", fractionOfPremium });
             }}
           />
         )}
         {value.kind === "stop_loss" && (
-          <Input
-            aria-label={`${t.editor.exit.multipleOfMaxLoss} #${String(index + 1)}`}
+          <DecimalField
+            ariaLabel={`${t.editor.exit.multipleOfMaxLoss} #${String(index + 1)}`}
             value={value.multipleOfMaxLoss}
-            onChange={(event) => {
-              onChange({
-                kind: "stop_loss",
-                multipleOfMaxLoss: event.target.value as DecimalString,
-              });
+            onChange={(multipleOfMaxLoss) => {
+              onChange({ kind: "stop_loss", multipleOfMaxLoss });
             }}
           />
         )}
         {value.kind === "days_before_expiry" && (
-          <Input
-            type="number"
+          <NumberField
             min={0}
-            aria-label={`${t.editor.exit.businessDays} #${String(index + 1)}`}
+            ariaLabel={`${t.editor.exit.businessDays} #${String(index + 1)}`}
             value={value.businessDays}
-            onChange={(event) => {
-              onChange({ kind: "days_before_expiry", businessDays: Number(event.target.value) });
+            onChange={(businessDays) => {
+              onChange({ kind: "days_before_expiry", businessDays });
             }}
           />
         )}
@@ -90,19 +89,24 @@ export function ExitRuleRow({
         )}
       </div>
 
-      {value.kind === "condition" && (
-        <ConditionRow
-          removable={false}
-          onRemove={() => undefined}
-          value={
-            entryToCompareConditions(value.condition, defaultCompareCondition)[0] ??
-            defaultCompareCondition
+      {value.kind === "condition" &&
+        (() => {
+          const editable = toEditableEntry(value.condition);
+          if (!editable.editable) {
+            return <p className="text-muted-foreground text-sm">{t.editor.exit.readOnlyNotice}</p>;
           }
-          onChange={(condition) => {
-            onChange({ kind: "condition", condition: compareConditionsToEntry([condition]) });
-          }}
-        />
-      )}
+          const first = editable.conditions[0] ?? defaultCompareCondition;
+          return (
+            <ConditionRow
+              removable={false}
+              onRemove={() => undefined}
+              value={first}
+              onChange={(condition) => {
+                onChange({ kind: "condition", condition: compareConditionsToEntry([condition]) });
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

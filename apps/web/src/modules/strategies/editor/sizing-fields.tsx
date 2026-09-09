@@ -1,10 +1,9 @@
 "use client";
 
-import { sizingRuleKinds, type DecimalString, type SizingRule } from "@fetha/contracts";
-
-import { Input } from "@/components/ui/input";
+import { sizingRuleKinds, type SizingRule } from "@fetha/contracts";
 
 import { t } from "../strings";
+import { DecimalField } from "./decimal-field";
 import { SimpleSelect } from "./simple-select";
 
 export function SizingFields({
@@ -29,11 +28,11 @@ export function SizingFields({
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-muted-foreground text-xs">{t.editor.sizing.fraction}</span>
-        <Input
-          aria-label={t.editor.sizing.fraction}
+        <DecimalField
+          ariaLabel={t.editor.sizing.fraction}
           value={value.fraction}
-          onChange={(event) => {
-            onChange({ kind: value.kind, fraction: event.target.value as DecimalString });
+          onChange={(fraction) => {
+            onChange({ kind: value.kind, fraction });
           }}
         />
       </div>

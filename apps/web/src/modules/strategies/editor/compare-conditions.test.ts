@@ -4,6 +4,8 @@ import { decimalStringSchema, type Condition } from "@fetha/contracts";
 import {
   compareConditionsToEntry,
   entryToCompareConditions,
+  fromEditableEntry,
+  toEditableEntry,
   type CompareCondition,
 } from "./compare-conditions";
 
@@ -41,5 +43,44 @@ describe("compareConditionsToEntry / entryToCompareConditions", () => {
 
   it("throws when building an entry from an empty list", () => {
     expect(() => compareConditionsToEntry([])).toThrow();
+  });
+});
+
+describe("toEditableEntry / fromEditableEntry", () => {
+  it("round-trips a single compare condition as editable", () => {
+    const editable = toEditableEntry(closeAboveSma);
+    expect(editable).toEqual({ editable: true, conditions: [closeAboveSma] });
+    expect(fromEditableEntry(editable)).toEqual(closeAboveSma);
+  });
+
+  it("round-trips a flat AND of compares as editable", () => {
+    const entry: Condition = { kind: "and", conditions: [closeAboveSma, rsiBelow30] };
+    const editable = toEditableEntry(entry);
+    expect(editable).toEqual({ editable: true, conditions: [closeAboveSma, rsiBelow30] });
+    expect(fromEditableEntry(editable)).toEqual(entry);
+  });
+
+  it("preserves an or entry byte-for-byte as a read-only original", () => {
+    const orEntry: Condition = { kind: "or", conditions: [closeAboveSma, rsiBelow30] };
+    const editable = toEditableEntry(orEntry);
+    expect(editable).toEqual({ editable: false, original: orEntry });
+    expect(fromEditableEntry(editable)).toBe(orEntry);
+  });
+
+  it("preserves a not entry byte-for-byte as a read-only original", () => {
+    const notEntry: Condition = { kind: "not", condition: closeAboveSma };
+    const editable = toEditableEntry(notEntry);
+    expect(editable).toEqual({ editable: false, original: notEntry });
+    expect(fromEditableEntry(editable)).toBe(notEntry);
+  });
+
+  it("preserves a nested and (not a flat and-of-compares) byte-for-byte", () => {
+    const nested: Condition = {
+      kind: "and",
+      conditions: [closeAboveSma, { kind: "not", condition: rsiBelow30 }],
+    };
+    const editable = toEditableEntry(nested);
+    expect(editable).toEqual({ editable: false, original: nested });
+    expect(fromEditableEntry(editable)).toBe(nested);
   });
 });

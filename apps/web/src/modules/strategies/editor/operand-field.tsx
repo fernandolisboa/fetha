@@ -1,16 +1,16 @@
 "use client";
 
 import {
+  decimalStringSchema,
   indicatorKinds,
   priceFields,
-  type DecimalString,
   type IndicatorSpec,
   type Operand,
 } from "@fetha/contracts";
 
-import { Input } from "@/components/ui/input";
-
 import { t } from "../strings";
+import { DecimalField } from "./decimal-field";
+import { NumberField } from "./number-field";
 import { SimpleSelect } from "./simple-select";
 
 const operandKinds = ["indicator", "price", "constant"] as const;
@@ -40,7 +40,7 @@ export function OperandField({
           } else if (kind === "price") {
             onChange({ kind: "price", field: "close" });
           } else {
-            onChange({ kind: "constant", value: "0" as DecimalString });
+            onChange({ kind: "constant", value: decimalStringSchema.parse("0") });
           }
         }}
         options={operandKinds.map((kind) => ({ value: kind, label: t.operandKinds[kind] }))}
@@ -67,35 +67,24 @@ export function OperandField({
             options={indicatorKinds.map((kind) => ({ value: kind, label: t.indicatorKinds[kind] }))}
           />
           {value.indicator.kind === "iv_rank" ? (
-            <Input
-              type="number"
+            <NumberField
               min={2}
-              aria-label={`${label} · ${t.editor.operand.indicatorLookback}`}
+              ariaLabel={`${label} · ${t.editor.operand.indicatorLookback}`}
               value={value.indicator.lookbackSessions}
-              onChange={(event) => {
-                onChange({
-                  kind: "indicator",
-                  indicator: {
-                    kind: "iv_rank",
-                    lookbackSessions: Number(event.target.value),
-                  },
-                });
+              onChange={(lookbackSessions) => {
+                onChange({ kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions } });
               }}
             />
           ) : (
-            <Input
-              type="number"
+            <NumberField
               min={1}
-              aria-label={`${label} · ${t.editor.operand.indicatorLength}`}
+              ariaLabel={`${label} · ${t.editor.operand.indicatorLength}`}
               value={value.indicator.length}
-              onChange={(event) => {
+              onChange={(length) => {
                 if (value.indicator.kind === "iv_rank") {
                   return;
                 }
-                onChange({
-                  kind: "indicator",
-                  indicator: { kind: value.indicator.kind, length: Number(event.target.value) },
-                });
+                onChange({ kind: "indicator", indicator: { kind: value.indicator.kind, length } });
               }}
             />
           )}
@@ -114,11 +103,11 @@ export function OperandField({
       )}
 
       {value.kind === "constant" && (
-        <Input
-          aria-label={`${label} · ${t.editor.operand.constantValue}`}
+        <DecimalField
+          ariaLabel={`${label} · ${t.editor.operand.constantValue}`}
           value={value.value}
-          onChange={(event) => {
-            onChange({ kind: "constant", value: event.target.value as DecimalString });
+          onChange={(next) => {
+            onChange({ kind: "constant", value: next });
           }}
         />
       )}
