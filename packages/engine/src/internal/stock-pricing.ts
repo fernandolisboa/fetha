@@ -20,7 +20,6 @@ import {
   toDecimalString,
 } from "./decimal";
 import { compareInstants } from "./instant";
-import { decimalStringSchema } from "./scalar-schemas";
 import { toCentavos } from "./scalars";
 
 export type StockLegInput = OperationLeg & { priceSource: PriceSource };
@@ -39,16 +38,13 @@ export type PriceStockLegsInput = {
   >;
 };
 
-function ds(value: string): DecimalString {
-  return decimalStringSchema.parse(value);
-}
-
+const zero = toDecimalString(new Decimal(0), RATIO_SCALE);
 const zeroGreeks: Greeks = {
-  delta: ds("0.000000"),
-  gamma: ds("0.000000"),
-  theta: ds("0.000000"),
-  vega: ds("0.000000"),
-  rho: ds("0.000000"),
+  delta: zero,
+  gamma: zero,
+  theta: zero,
+  vega: zero,
+  rho: zero,
 };
 
 function latestVisible<T extends { asOf: Instant }>(rows: readonly T[], at: Instant): T | null {
@@ -96,7 +92,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
     fairValue: null,
     impliedVolatility: null,
     volatilitySource: null,
-    greeks: { ...zeroGreeks, delta: ds("1.000000") },
+    greeks: { ...zeroGreeks, delta: toDecimalString(new Decimal(1), RATIO_SCALE) },
     timeToExpiryYears: null,
     notes: [],
   }));
@@ -142,7 +138,7 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   const [soleLeg] = input.legs;
   const breakEvens: DecimalString[] =
     input.legs.length === 1 && soleLeg
-      ? [ds(parseDecimal(soleLeg.entryPrice).toFixed(PRICE_SCALE))]
+      ? [toDecimalString(parseDecimal(soleLeg.entryPrice), PRICE_SCALE)]
       : [];
 
   const spot = input.spot;
