@@ -522,6 +522,61 @@ describe("priceOperation (concrete legs)", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
   });
+
+  it("reports a short stock leg's per-leg delta unsigned and only signs the aggregate", () => {
+    const result = priceOperation(
+      {
+        view: baseView,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "sell",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.greeks?.delta).toBe(decimalString("1.000000"));
+    expect(result.value.greeks.delta).toBe(decimalString("-100.000000"));
+  });
+
+  it("aggregates a mixed long-stock/short-call structure's delta to the signed sum of its legs", () => {
+    const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C32", "32.00")] };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("30.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C32",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const stockDelta = 100;
+    const callLegDelta = Number(result.value.legs[1]?.greeks?.delta);
+    expect(Number(result.value.greeks.delta)).toBeCloseTo(stockDelta - callLegDelta, 6);
+  });
 });
 
 describe("priceOperation properties (vertical spreads, given prices)", () => {

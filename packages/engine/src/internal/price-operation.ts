@@ -128,9 +128,7 @@ function valueOneLeg(
       fairValue: null,
       impliedVolatility: null,
       volatilitySource: null,
-      greeks: price
-        ? { ...zeroGreeks, delta: toDecimalString(new Decimal(sign(leg.side)), RATIO_SCALE) }
-        : null,
+      greeks: price ? { ...zeroGreeks, delta: toDecimalString(new Decimal(1), RATIO_SCALE) } : null,
       timeToExpiryYears: null,
       notes: price
         ? []
