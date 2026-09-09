@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { zipSync } from "fflate";
+import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -8,15 +9,14 @@ import {
   macroPoints,
   optionDailyPrices,
   optionSeries,
-  tradingSessions,
 } from "@/db/schema/market-data";
 
 import { ingest } from "./ingest";
 
 const TEST_SESSION = "2026-06-15";
-const TEST_YEAR = 2026;
 const STOCK_TICKER = "ZZT3";
 const OPTION_TICKER = "ZZTW999";
+const OPTION_ISIN = "BRZZZTOPTW01";
 
 function padRight(value: string, length: number): string {
   return value.slice(0, length).padEnd(length, " ");
@@ -25,10 +25,10 @@ function padLeft(value: string, length: number): string {
   return value.slice(0, length).padStart(length, "0");
 }
 
-function buildCotahistFixture(): string {
+function buildCotahistFixture(session: string): Uint8Array {
   function baseRow(tpmerc: string, ticker: string): string {
     let row = "01";
-    row += TEST_SESSION.replaceAll("-", "");
+    row += session.replaceAll("-", "");
     row += "02";
     row += padRight(ticker, 12);
     row += tpmerc;
@@ -64,19 +64,23 @@ function buildCotahistFixture(): string {
   }
 
   const header = padRight(
-    `00COTAHIST.2026${padRight("BOVESPA", 7)}${TEST_SESSION.replaceAll("-", "")}`,
+    `00COTAHIST.2026${padRight("BOVESPA", 7)}${session.replaceAll("-", "")}`,
     245,
   );
   const stock = baseRow("010", STOCK_TICKER);
   const option = baseRow("070", OPTION_TICKER);
   const trailer = padRight("9900003", 245);
-  return [header, stock, option, trailer].join("\n");
+  const content = [header, stock, option, trailer].join("\r\n");
+  return zipSync({
+    [`COTAHIST_D${session.split("-").reverse().join("")}.TXT`]: new TextEncoder().encode(content),
+  });
 }
 
-function buildInstrumentsFixture(): string {
+function buildInstrumentsFixture(session: string): string {
   return [
-    "RptDt;TckrSymb;Asst;CFICode;XprtnDt;OptnStyle;ExrcPric",
-    `${TEST_SESSION};${OPTION_TICKER};ZZT;OCASPS;2026-10-16;A;5.00`,
+    "Status do Arquivo: Final",
+    "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp",
+    `${session};${OPTION_TICKER};ZZT3;${OPTION_ISIN};2026-10-16;AMER;5,00;Call`,
   ].join("\n");
 }
 
@@ -89,25 +93,23 @@ function buildSgsFixture(url: string): string {
   return JSON.stringify([{ data: "15/06/2026", valor: "0.05" }]);
 }
 
-function buildCalendarFixture(): string {
-  return ["Data;Dia da Semana;Feriado;Tipo", "01/01/2026;quinta-feira;Ano Novo;Nacional"].join(
-    "\n",
-  );
-}
-
-function fakeFetch(): typeof fetch {
+function fakeFetch(session: string): typeof fetch {
   return ((input: string) => {
     if (input.includes("InstDados/SerHist")) {
-      return Promise.resolve(new Response(buildCotahistFixture(), { status: 200 }));
+      return Promise.resolve(
+        new Response(buildCotahistFixture(session) as unknown as BodyInit, { status: 200 }),
+      );
     }
-    if (input.includes("InstrumentsConsolidated")) {
-      return Promise.resolve(new Response(buildInstrumentsFixture(), { status: 200 }));
+    if (input.includes("requestname")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ token: "test-token" }), { status: 200 }),
+      );
+    }
+    if (input.includes("api/download")) {
+      return Promise.resolve(new Response(buildInstrumentsFixture(session), { status: 200 }));
     }
     if (input.includes("bcdata.sgs")) {
       return Promise.resolve(new Response(buildSgsFixture(input), { status: 200 }));
-    }
-    if (input.includes("feriados")) {
-      return Promise.resolve(new Response(buildCalendarFixture(), { status: 200 }));
     }
     return Promise.resolve(new Response("not found", { status: 404 }));
   }) as unknown as typeof fetch;
@@ -117,10 +119,11 @@ async function cleanup(): Promise<void> {
   const db = getDb();
   await db.delete(candles).where(eq(candles.ticker, STOCK_TICKER));
   await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, OPTION_TICKER));
-  await db.delete(optionSeries).where(eq(optionSeries.ticker, OPTION_TICKER));
+  await db.delete(optionSeries).where(eq(optionSeries.isin, OPTION_ISIN));
   await db.delete(ingestionRuns).where(eq(ingestionRuns.session, TEST_SESSION));
-  await db.delete(ingestionRuns).where(eq(ingestionRuns.session, `${String(TEST_YEAR)}-01-01`));
-  await db.delete(tradingSessions).where(eq(tradingSessions.date, "2026-01-01"));
+  for (let year = 2024; year <= 2027; year += 1) {
+    await db.delete(ingestionRuns).where(eq(ingestionRuns.session, `${String(year)}-01-01`));
+  }
   await db.delete(macroPoints).where(eq(macroPoints.date, TEST_SESSION));
 }
 
@@ -132,39 +135,48 @@ describe("ingest", () => {
     const result = await ingest(db, {
       session: TEST_SESSION,
       now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
-      fetchImpl: fakeFetch(),
+      fetchImpl: fakeFetch(TEST_SESSION),
     });
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
       ["calendar", "cotahist", "instruments", "sgs"].sort(),
     );
+    expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
 
     const [candleRow] = await db.select().from(candles).where(eq(candles.ticker, STOCK_TICKER));
-    expect(candleRow?.close).toBe("1.08");
+    expect(candleRow?.close).toBe("1.080000");
+    expect(candleRow?.asOf.toISOString()).toBe("2026-06-15T20:00:00.000Z");
 
     const [optionPriceRow] = await db
       .select()
       .from(optionDailyPrices)
       .where(eq(optionDailyPrices.ticker, OPTION_TICKER));
-    expect(optionPriceRow?.close).toBe("1.08");
+    expect(optionPriceRow?.close).toBe("1.080000");
+    expect(optionPriceRow?.right).toBe("call");
+    expect(optionPriceRow?.strike).toBe("5.00000000");
 
     const [seriesRow] = await db
       .select()
       .from(optionSeries)
-      .where(eq(optionSeries.ticker, OPTION_TICKER));
+      .where(eq(optionSeries.isin, OPTION_ISIN));
     expect(seriesRow?.strike).toBe("5.00000000");
+    expect(seriesRow?.ticker).toBe(OPTION_TICKER);
   });
 
   it("is idempotent: re-running the same session changes nothing and skips already-succeeded sources", async () => {
     const db = getDb();
-    const fetchSpy = fakeFetch();
-    await ingest(db, { session: TEST_SESSION, now: new Date(), fetchImpl: fetchSpy });
+    const fetchSpy = fakeFetch(TEST_SESSION);
+    await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fetchSpy,
+    });
 
     const secondRun = await ingest(db, {
       session: TEST_SESSION,
-      now: new Date(),
+      now: new Date(`${TEST_SESSION}T23:00:00.000Z`),
       fetchImpl: fetchSpy,
     });
 
@@ -176,8 +188,37 @@ describe("ingest", () => {
     const runs = await db
       .select()
       .from(ingestionRuns)
-      .where(eq(ingestionRuns.session, TEST_SESSION));
+      .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
     expect(runs).toHaveLength(3);
-    expect(runs.every((run) => run.status === "succeeded")).toBe(true);
+  });
+
+  it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {
+    const db = getDb();
+    const mismatchedFetch: typeof fetch = ((input: string) => {
+      if (input.includes("InstDados/SerHist")) {
+        return Promise.resolve(
+          new Response(buildCotahistFixture("2026-06-16") as unknown as BodyInit, {
+            status: 200,
+          }),
+        );
+      }
+      return fakeFetch(TEST_SESSION)(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: mismatchedFetch,
+    });
+
+    expect(result.ok).toBe(false);
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeDefined();
+
+    const [failedRun] = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "cotahist"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(failedRun?.status).toBe("failed");
   });
 });
