@@ -25,15 +25,21 @@
 
 ## Shell & Command Reliability
 
-1. **[2026-09-02] Toolchain: node 24, pnpm 10.31, gh (fernandolisboa), vercel CLI (fernandoigorlisboa-8569), codex 0.152 works in WSL**
+0. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**
+   Do instead: keep `ignoreCommand` in `apps/web/vercel.json` pointing inside `apps/web`; fetch `main` with an explicit refspec; never point CI tests at the Vercel `DATABASE_URL` (ask the owner for a Neon `ci` branch); after `main` advances, `gh pr update-branch <n>` before merging (strict protection).
+
+1. **[2026-09-09] `gh pr checks --watch` returns "no checks" if the CI run has not registered yet, and the merge then bypasses protection**
+   Do instead: after pushing, loop `gh run list --branch <b> --limit 1` until a run exists, `gh run watch <id> --exit-status`, and only merge when `gh pr checks <n>` lists `ci pass`. `enforce_admins` is on since 2026-09-09.
+
+2. **[2026-09-02] Toolchain: node 24, pnpm 10.31, gh (fernandolisboa), vercel CLI (fernandoigorlisboa-8569), codex 0.152 works in WSL**
    Do instead: no Neon CLI; Neon is the Vercel marketplace resource `neon-cinereous-ocean` (Free plan `free_v3`, no card) on project `fetha` (team `feuxs-projects`); env vars (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, ...) are synced by the integration. Prod URL: https://fetha.vercel.app.
-2. **[2026-09-02] GitHub push: no SSH key in WSL and the `gh` OAuth token lacks the `workflow` scope**
+3. **[2026-09-02] GitHub push: no SSH key in WSL and the `gh` OAuth token lacks the `workflow` scope**
    Do instead: remote is HTTPS via `gh auth setup-git`; the owner must run `gh auth refresh -h github.com -s workflow` once before any push that touches `.github/workflows`.
-3. **[2026-09-02] Vercel root directory has no CLI flag**
+4. **[2026-09-02] Vercel root directory has no CLI flag**
    Do instead: PATCH `https://api.vercel.com/v9/projects/fetha?teamId=team_GXogSV1DlEUaBKFFJz96kEmP` with the token from `~/.local/share/com.vercel.cli/auth.json` (never print it).
-4. **[2026-09-02] `npx impeccable install` fails ("invalid zip data")**
+5. **[2026-09-02] `npx impeccable install` fails ("invalid zip data")**
    Do instead: copy `.claude/skills/impeccable` and the `impeccable-*` agents from `../feudo` (v4.1.3).
-5. **[2026-09-02] `cd` in Bash resets cwd after the call**
+6. **[2026-09-02] `cd` in Bash resets cwd after the call**
    Do instead: use absolute paths or `cd ../feudo && ...` in a single command.
 
 ## Domain Behavior Guardrails

@@ -11,3 +11,5 @@ test-results
 .impeccable/
 apps/web/public/sw.js
 docs/design/workstation/fetha-workstation.html
+.claude/worktrees/
+wt/
