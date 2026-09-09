@@ -22,16 +22,22 @@ const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 const signUpEmailBodySchema = z.object({
   email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
   termsAccepted: z.boolean().optional(),
+  privacyAccepted: z.boolean().optional(),
 });
 
-function readSignUpEmailBody(body: unknown): { email?: string; termsAccepted: boolean } {
+function readSignUpEmailBody(body: unknown): {
+  email?: string;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+} {
   const parsed = signUpEmailBodySchema.safeParse(body);
   if (!parsed.success) {
-    return { termsAccepted: false };
+    return { termsAccepted: false, privacyAccepted: false };
   }
   return {
     email: parsed.data.email,
     termsAccepted: parsed.data.termsAccepted === true,
+    privacyAccepted: parsed.data.privacyAccepted === true,
   };
 }
 
@@ -57,7 +63,11 @@ export function buildAuthOptions(
   const baseURL = readAuthBaseUrl(env);
 
   return {
-    database: drizzleAdapter(db, { provider: "pg" }),
+    // `transaction: true` wraps each Better Auth operation's writes (e.g.
+    // sign-up's `user` INSERT plus its `account` INSERT) in one
+    // `db.transaction()`, so a failure partway through can never leave an
+    // orphan `user` row with no matching `account`.
+    database: drizzleAdapter(db, { provider: "pg", transaction: true }),
     secret: env.BETTER_AUTH_SECRET,
     baseURL,
     trustedOrigins: (request) => {
@@ -122,10 +132,17 @@ export function buildAuthOptions(
           return;
         }
 
-        const { email, termsAccepted } = readSignUpEmailBody(ctx.body);
+        const { email, termsAccepted, privacyAccepted } = readSignUpEmailBody(ctx.body);
 
         if (!termsAccepted) {
           throw new APIError("BAD_REQUEST", { message: "terms_not_accepted" });
+        }
+        // ADR-0016 records terms and privacy acceptance as a single pair
+        // (`termsVersion`/`termsAcceptedAt`, stamped together below): a
+        // client that skips the privacy checkbox is refused here rather
+        // than after being allowed to bypass the terms check alone.
+        if (!privacyAccepted) {
+          throw new APIError("BAD_REQUEST", { message: "privacy_not_accepted" });
         }
 
         const mode = registrationMode();

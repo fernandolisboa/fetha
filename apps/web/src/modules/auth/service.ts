@@ -1,3 +1,6 @@
+import { parseSetCookieHeader, toCookieOptions } from "better-auth/cookies";
+import { cookies as readCookies } from "next/headers";
+
 import { getAuth } from "./auth";
 import { readAuthBaseUrl } from "./env";
 
@@ -19,13 +22,50 @@ function buildAuthRequest(path: string, body: unknown, requestHeaders: Headers):
   return new Request(url, { method: "POST", headers, body: JSON.stringify(body) });
 }
 
+// The `nextCookies` plugin (options.ts) never fires for this call path: its
+// `after` hook bails out whenever `ctx._flag === "router"`, which is exactly
+// the flag Better Auth's own router sets while running `auth.handler()`. A
+// Response built that way carries a real `Set-Cookie` header, but nothing
+// forwards it into Next's `cookies()` unless a Server Action does it
+// explicitly, so every call here does it itself instead of relying on the
+// plugin.
+async function forwardSetCookies(response: Response): Promise<void> {
+  const setCookieHeader = response.headers.get("set-cookie");
+  if (!setCookieHeader) {
+    return;
+  }
+
+  let cookieStore: Awaited<ReturnType<typeof readCookies>>;
+  try {
+    cookieStore = await readCookies();
+  } catch {
+    // Outside a Next.js request scope (e.g. a plain integration test calling
+    // this module directly); nothing to forward to.
+    return;
+  }
+
+  parseSetCookieHeader(setCookieHeader).forEach((attributes, name) => {
+    if (!name) {
+      return;
+    }
+    try {
+      cookieStore.set(name, attributes.value, toCookieOptions(attributes));
+    } catch {
+      // Next.js refuses cookie mutation during a Server Component render;
+      // every caller of this module is a Server Action, but stay defensive.
+    }
+  });
+}
+
 async function callAuthHandler(
   path: string,
   body: unknown,
   requestHeaders: Headers,
 ): Promise<Response | undefined> {
   try {
-    return await getAuth().handler(buildAuthRequest(path, body, requestHeaders));
+    const response = await getAuth().handler(buildAuthRequest(path, body, requestHeaders));
+    await forwardSetCookies(response);
+    return response;
   } catch (error) {
     logAuthHandlerError(error);
     return undefined;
@@ -45,6 +85,7 @@ export interface SignUpInput {
   email: string;
   password: string;
   termsAccepted: boolean;
+  privacyAccepted: boolean;
 }
 
 export type SignUpOutcome =
@@ -61,6 +102,7 @@ export async function signUp(input: SignUpInput, requestHeaders: Headers): Promi
       email: input.email,
       password: input.password,
       termsAccepted: input.termsAccepted,
+      privacyAccepted: input.privacyAccepted,
       callbackURL: "/verificar-email/resultado",
     },
     requestHeaders,
@@ -75,7 +117,7 @@ export async function signUp(input: SignUpInput, requestHeaders: Headers): Promi
     if (body?.message === "registration_closed") {
       return { status: "registration_closed" };
     }
-    if (body?.message === "terms_not_accepted") {
+    if (body?.message === "terms_not_accepted" || body?.message === "privacy_not_accepted") {
       return { status: "terms_not_accepted" };
     }
     if (body?.message === "invite_required") {

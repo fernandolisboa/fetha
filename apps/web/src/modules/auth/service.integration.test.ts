@@ -73,7 +73,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     const outcome = await signUp(
-      { name: "Nova User", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Nova User",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     expect(outcome.status).toBe("ok");
@@ -90,7 +96,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     const outcome = await signUp(
-      { name: "Closed Mode", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Closed Mode",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     expect(outcome.status).toBe("registration_closed");
@@ -105,7 +117,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     const outcome = await signUp(
-      { name: "No Invite", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "No Invite",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
 
@@ -123,7 +141,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     await getDb().insert(invites).values({ email });
 
     const outcome = await signUp(
-      { name: "Invited User", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Invited User",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     expect(outcome.status).toBe("ok");
@@ -138,10 +162,61 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     const outcome = await signUp(
-      { name: "No Terms", email, password: "correct-horse-battery", termsAccepted: false },
+      {
+        name: "No Terms",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: false,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     expect(outcome.status).toBe("terms_not_accepted");
+  });
+
+  it("refuses registration without accepting the privacy policy", async () => {
+    const email = uniqueEmail("no-privacy");
+    createdEmails.push(email);
+
+    const outcome = await signUp(
+      {
+        name: "No Privacy",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: false,
+      },
+      new Headers(),
+    );
+    expect(outcome.status).toBe("terms_not_accepted");
+
+    const rows = await getDb().select().from(user).where(eq(user.email, email));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("refuses a direct sign-up POST that accepts terms but not privacy, creating no user", async () => {
+    const email = uniqueEmail("direct-no-privacy");
+    createdEmails.push(email);
+
+    const response = await getAuth().handler(
+      new Request(new URL("/api/auth/sign-up/email", process.env.BETTER_AUTH_URL), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Direct No Privacy",
+          email,
+          password: "correct-horse-battery",
+          termsAccepted: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toBe("privacy_not_accepted");
+
+    const rows = await getDb().select().from(user).where(eq(user.email, email));
+    expect(rows).toHaveLength(0);
   });
 
   it("returns the same generic outcome on a duplicate email, creating exactly one user row", async () => {
@@ -149,11 +224,23 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     const first = await signUp(
-      { name: "First", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "First",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     const second = await signUp(
-      { name: "Second", email, password: "another-password-here", termsAccepted: true },
+      {
+        name: "Second",
+        email,
+        password: "another-password-here",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
 
@@ -169,7 +256,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     await signUp(
-      { name: "Unverified", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Unverified",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
 
@@ -182,7 +275,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     await signUp(
-      { name: "Resend", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Resend",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
 
@@ -195,7 +294,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     await signUp(
-      { name: "Logout", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Logout",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     await verifyEmail(email);
@@ -226,7 +331,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     createdEmails.push(email);
 
     await signUp(
-      { name: "Expiry", email, password: "correct-horse-battery", termsAccepted: true },
+      {
+        name: "Expiry",
+        email,
+        password: "correct-horse-battery",
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
       new Headers(),
     );
     await verifyEmail(email);

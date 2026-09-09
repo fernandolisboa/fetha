@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildUserCreateOverrides } from "./options";
+vi.mock("better-auth/adapters/drizzle", () => ({
+  drizzleAdapter: vi.fn(() => "fake-drizzle-adapter"),
+}));
+
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+
+import type { Database } from "@/db/client";
+
+import { FakeMailer } from "./email/fake-mailer";
+import { buildAuthOptions, buildUserCreateOverrides } from "./options";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
 describe("buildUserCreateOverrides", () => {
@@ -19,5 +28,16 @@ describe("buildUserCreateOverrides", () => {
     const overrides = buildUserCreateOverrides({ email: "a@example.com" });
     expect(overrides.termsVersion).toBe(CURRENT_TERMS_VERSION);
     expect(overrides.termsAcceptedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("buildAuthOptions", () => {
+  it("enables the Drizzle adapter's transaction option, so user + account creation is atomic", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(drizzleAdapter).toHaveBeenCalledWith(fakeDb, { provider: "pg", transaction: true });
   });
 });

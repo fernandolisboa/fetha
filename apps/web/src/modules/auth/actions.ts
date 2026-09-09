@@ -37,6 +37,7 @@ export async function signUpAction(
       email: parsed.data.email,
       password: parsed.data.password,
       termsAccepted: true,
+      privacyAccepted: true,
     },
     requestHeaders,
   );

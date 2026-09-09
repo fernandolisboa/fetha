@@ -141,6 +141,21 @@ mechanism the system uses to run itself, and only the system writes them — nev
   derived from a real HTTP status code and a JSON error `code`; `auth.api.*` throws `APIError` on
   failure instead of returning a `Response`, which would need a second, separate mapping. This
   includes sign-out, which the original implementation called through `auth.api.signOut` alone.
+  **Fix-forward on ticket #9's review pass (this same date)**: the `nextCookies` plugin
+  (`options.ts`) never fires for this call path — its `after` hook bails out whenever
+  `ctx._flag === "router"`, the flag Better Auth's own router sets while running
+  `auth.handler()` — so the session `Set-Cookie` from a successful sign-in, sign-up or sign-out
+  was computed but never reached the browser. `callAuthHandler` now forwards it itself, parsing
+  the response's `Set-Cookie` with `better-auth/cookies`' own `parseSetCookieHeader` /
+  `toCookieOptions` and writing it through Next's `cookies()`, swallowing the "outside a request
+  scope" case exactly like the plugin's own hook does. The same pass also closed a gap where the
+  raw `/sign-up/email` endpoint's `hooks.before` gate checked `termsAccepted` but not
+  `privacyAccepted` — a direct POST past the UI form could accept the terms and skip the privacy
+  policy; the gate now requires both, still recorded as the one `termsVersion`/`termsAcceptedAt`
+  pair (LGPD requires both accepted together, not two independently versioned artifacts) — and
+  enabled the Drizzle adapter's `transaction: true`, wrapping a sign-up's `user` and `account`
+  inserts in one `db.transaction()` so a failure partway through can never leave an orphan `user`
+  row.
 
 **CI database topology**
 
