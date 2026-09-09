@@ -1,11 +1,13 @@
-// Run by hand, locally, with DATABASE_URL pointed at the target database:
+// Run after every migration, in CI (ci.yml, migrate-production.yml) or by
+// hand with DATABASE_URL pointed at the target database:
 //   DATABASE_URL=... node scripts/seed-structures.mjs
 // Seeds the reference structure catalog (docs/adr/0012, CLAUDE.md
 // principle 5: shared, read-only data no user writes). Today this is only
 // the trivial structure UBIQUITOUS_LANGUAGE.md names ("a single stock
 // purchase is the trivial structure with one stock leg"); #20 extends this
 // script with the hand-written reference structures (collar, trava de
-// alta, butterfly, condor). Idempotent: re-running it changes nothing.
+// alta, butterfly, condor). An upsert: re-running it after a catalog edit
+// in this file brings the row's name/legs up to date.
 //
 // Each row is validated against a plain re-statement of
 // `packages/contracts/src/structure.ts`'s shape before it is written, since
@@ -52,7 +54,7 @@ for (const candidate of catalog) {
   await sql`
     insert into structures (id, name, legs)
     values (${structure.id}, ${structure.name}, ${JSON.stringify(structure.legs)})
-    on conflict (id) do nothing
+    on conflict (id) do update set name = excluded.name, legs = excluded.legs
   `;
   console.log(`Seeded structure "${structure.id}".`);
 }

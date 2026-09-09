@@ -215,7 +215,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   (guarded by whether `DATABASE_URL_PREVIEW` is configured, checked once and exposed as a step
   output, since secrets cannot be read directly in an `if:`), not a second job: `pnpm --filter
 @fetha/web run db:reset` (drops and recreates the `public` and `drizzle` schemas, cascading,
-  wiping schema drift left over by any other branch) then `db:migrate` then
+  wiping schema drift left over by any other branch) then `db:migrate` then `db:seed-structures`
+  (`scripts/seed-structures.mjs`, an idempotent upsert on the structure catalog's primary key, so
+  a catalog edit ships by editing the script and letting the next migrate run reseed it) then
   `pnpm --filter @fetha/web run test:integration`. `db:reset` (`scripts/reset-database.mjs`)
   refuses to run — before issuing any query — unless the host of `DATABASE_URL` exactly matches
   the `fetha-preview` pooler host or `ALLOW_DATABASE_RESET=1` is set explicitly, and refuses
@@ -233,8 +235,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   it needed to.
 - **Production is migrated by a separate workflow**, `migrate-production.yml`, triggered on push to
   `main` only, `concurrency: { group: migrate-production, cancel-in-progress: false }`, running
-  `pnpm --filter @fetha/web run db:migrate` with `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`.
-  It is lean — install and migrate, no build — because `apps/web/vercel.json`'s `buildCommand` no
+  `pnpm --filter @fetha/web run db:migrate` then `db:seed-structures`, both with
+  `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`.
+  It is lean — install, migrate and seed, no build — because `apps/web/vercel.json`'s `buildCommand` no
   longer runs a migration itself (`pnpm build` only); Vercel's own build must never be the thing
   that mutates the production schema, since a build can run for a preview or be retried.
 - **No per-PR Neon branch.** This deviates from Feudo's stated preview-branch-per-PR plan in
