@@ -39,6 +39,8 @@ and `docs/adr/`. Visual truth lives in `DESIGN.md`. When this file and those dis
    returns.
 5. **AI decision layer**: reasons over engine outputs, argues both sides, flags tail risk, keeps a
    decision journal that is later scored against actual outcomes.
+6. **Real portfolio**: fills entered by hand or imported from the B3 investor-area export,
+   grouped into operations, marked to market; no broker connection, no order execution.
 
 ## Stack (closed; same as Feudo, deviations noted)
 
@@ -51,8 +53,9 @@ Handlers.
   indicators, strategy DSL types, options pricing (Black-Scholes, greeks, implied vol), payoff of
   structures, backtester (no look-ahead by construction), portfolio and risk metrics.
   Property-based tests with `fast-check` wherever math allows. Its public interface is designed
-  once, deliberately (Phase 2), and frozen in an ADR: it is the seam most likely to be optimized
-  or replaced, so nothing outside the package may depend on its internals.
+  deliberately in Phase 2 (two candidate shapes, compared) and frozen in an ADR: it is the seam
+  most likely to be optimized or replaced, so nothing outside the package may depend on its
+  internals.
 - **`packages/contracts`**: Zod schemas and derived types shared by `apps/web` and the engine
   edges (strategy files, provider payloads, AI outputs, env).
 - **PWA**: Serwist, installable on Windows. Offline: cached shell only.
@@ -99,7 +102,7 @@ Confirm with the owner before creating any paid resource or paid data subscripti
 5. **Tenant isolation is a hard invariant.** Every domain table carries `user_id`. Data access
    goes through user-scoped repositories that take the user from the session; no query path
    accepts an unscoped id. Every new table ships with an isolation test (user A cannot read or
-   write user B). Market data and the strategy catalog are shared reference data and are the only
+   write user B). Reference data, the catalog and shared strategies (ADR-0012) are the only
    exceptions, read-only to users.
 6. **LGPD by design**: terms and privacy policy accepted at registration; data minimization;
    account data export and deletion flows; audit log of access to portfolio and decision data.

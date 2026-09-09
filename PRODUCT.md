@@ -10,7 +10,7 @@ An individual investor who wants to study, price and backtest options structures
 strategies before putting money at risk, and who wants an honest record of how well their own
 decisions age. No fees, no plans, no order execution. Every decision is the user's own.
 
-## The five jobs
+## The six jobs
 
 ### 1. Market data
 
@@ -76,8 +76,8 @@ Later: strategy comparison, fills import from brokerage notes, audit log view.
 
 - AI never produces numbers. Every number on screen comes from the engine.
 - Strategies are data. Backtest hygiene is enforced by the engine, not by discipline.
-- Tenant isolation is absolute. Market data and the strategy catalog are the only shared data,
-  read-only to users.
+- Tenant isolation is absolute. Reference data, the catalog and strategies a user chose to share
+  are the only shared data, read-only to users.
 - Privacy by design (LGPD): terms at registration, minimal storage, export and deletion, audit
   log.
 - Exact numbers: decimal prices, integer centavos, Brazilian formatting.

@@ -16,24 +16,24 @@ data, the catalog and strategies a user chose to share.
 
 ## Modules
 
-| module        | owns                                                                                                                                                                                                                             | exposes                                                                                |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `auth`        | accounts, sessions, registration mode, terms acceptance                                                                                                                                                                          | the current user                                                                       |
-| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface |
-| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure, frozen public interface (ADR-0006)                                             |
-| `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; watchlists; signal evaluation and the signal inbox                                                                             | strategy versions, signals                                                             |
-| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, mark to market, risk profile and limit checks                                                                                          | the portfolio view, operation lifecycle commands                                       |
-| `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                         |
+| module        | owns                                                                                                                                                                                                                             | exposes                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `auth`        | accounts, sessions, registration mode, terms acceptance                                                                                                                                                                          | the current user                                                                          |
+| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface    |
+| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure public interface, frozen by the Phase 2 interface ADR (ADR-0006 sets the boundary) |
+| `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; watchlists; signal evaluation and the signal inbox                                                                             | strategy versions, signals                                                                |
+| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, mark to market, risk profile and limit checks                                                                                          | the portfolio view, operation lifecycle commands                                          |
+| `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                            |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
 exposing module's interface, never through its tables.
 
 ## Key flows
 
-1. **Nightly ingestion and daily evaluation.** The cron (22:00 America/Sao_Paulo, retries 00:30
-   and 06:00) ingests COTAHIST, the B3 instruments registry, Bacen SGS and the holiday file,
-   applies corporate-action factors (adjusted and nominal series), then evaluates every active
-   daily strategy over each user's watchlist and deposits signals in their inbox.
+1. **Nightly ingestion and daily evaluation.** A nightly job with scheduled retries (ADR-0010)
+   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, applies
+   corporate-action factors (adjusted and nominal series), then evaluates every active daily
+   strategy over each user's watchlist and deposits signals in their inbox.
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
    on each candle and caught up on reopening (late signals marked). Intraday candles fetched

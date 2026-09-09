@@ -46,8 +46,24 @@ with a user's token is cached for that user alone.
 _Avoid_: real-time feed, premium data, live data
 
 **Trading session**:
-One B3 business day according to the B3 holiday calendar.
+One B3 business day according to the trading calendar.
 _Avoid_: trading day, pregão (in code)
+
+**Trading calendar**:
+The list of B3 holidays and special sessions (ingested from the ANBIMA holiday file and B3
+notices) that determines which days are trading sessions and their hours.
+_Avoid_: holiday list, business calendar
+
+**Corporate-action factor**:
+The multiplier applied to earlier prices and quantities of an instrument to compensate for a
+split, reverse split, bonus or dividend, so that a series stays comparable across the event.
+_Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
+
+**Adjusted series / nominal series**:
+The two forms of an instrument's candle history: adjusted applies corporate-action factors and
+is the default for charts and indicators; nominal keeps the prices as traded and is the basis for
+option strikes and prices.
+_Avoid_: raw series, unadjusted, real prices
 
 **Macro series**:
 A reference rate or index published by Bacen and used as risk-free rate or benchmark: CDI, Selic,
