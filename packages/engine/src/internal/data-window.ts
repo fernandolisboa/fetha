@@ -1,11 +1,6 @@
-import type {
-  Condition,
-  IndicatorSpec,
-  Instant,
-  StrategyDefinition,
-  Timeframe,
-} from "@fetha/contracts";
+import type { IndicatorSpec, Instant, Timeframe } from "@fetha/contracts";
 import type { DataWindow, DataWindowInput, MarketViewCollection, TradingSession } from "../api";
+import { collectIndicatorSpecs } from "./collect-indicator-specs";
 import { instantMs, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { codeUnitCompare } from "./order";
@@ -151,29 +146,4 @@ function candleCountFor(indicator: IndicatorSpec): number {
     case "iv_rank":
       return 1;
   }
-}
-
-function collectIndicatorSpecs(definition: StrategyDefinition): IndicatorSpec[] {
-  const specs: IndicatorSpec[] = [];
-  const visitCondition = (condition: Condition): void => {
-    if (condition.kind === "compare") {
-      if (condition.left.kind === "indicator") specs.push(condition.left.indicator);
-      if (condition.right.kind === "indicator") specs.push(condition.right.indicator);
-      return;
-    }
-    if (condition.kind === "not") {
-      visitCondition(condition.condition);
-      return;
-    }
-    condition.conditions.forEach(visitCondition);
-  };
-
-  visitCondition(definition.entry);
-  for (const rule of definition.exit) {
-    if (rule.kind === "condition") visitCondition(rule.condition);
-  }
-  for (const rule of definition.adjustments) {
-    if (rule.when.kind === "condition") visitCondition(rule.when.condition);
-  }
-  return specs;
 }
