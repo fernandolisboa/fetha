@@ -120,6 +120,21 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   other bounded figure to measure a stop against. A base of zero (a delta-neutral pair of legs at
   the same entry price) means the rule can never fire; the evaluation record's `detail` names the
   rule and says so, since `EvaluationRecord` carries no structured reason.
+- **Corporate actions across an open position in `runBacktest` (Q51).** `Operation.legs` stay
+  nominal at every step — the same scale `evaluateStrategy` already rebases its own exit-rule
+  comparisons against (Q50, ADR-0013 "Exit rule evaluation") — so nothing is applied twice.
+  `runBacktest` itself, wherever it marks, fills or realizes P&L for an open leg, uses that leg's
+  effective share count `quantity / F` and effective entry price `entryPrice × F`, where `F` is
+  the product of every visible split/reverse-split factor with `exDate` strictly after the
+  operation's own `openedAt` and at or before the session in question (`splitFactorProduct`,
+  shared with `evaluateStrategy`). A dividend-type factor is treated as reinvestment at the
+  ex-date price: it changes `F` the same way a split does, and the run books no separate cash
+  dividend. `F` need not divide `quantity` evenly; the effective count is never rounded mid-run.
+  Where a fill or a close needs an integer number of shares to trade, the leg trades
+  `floor(quantity / F)` shares and the fractional residue `quantity / F − floor(quantity / F)` is
+  cash-settled at that same fill's price (the ex-date price for a factor realized exactly at
+  entry-to-close, the session's own price otherwise) and folded into the operation's `pnl`; it is
+  never dropped and never made to throw on caller-supplied quantities that do not divide evenly.
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same
