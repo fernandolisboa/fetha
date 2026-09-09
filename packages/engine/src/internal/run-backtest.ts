@@ -279,7 +279,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   for (let i = startIndex; i < endIndex; i += 1) {
     const session = assertDefined(periodSessions[i], "run-backtest: index within bounds");
     const monthKey = monthKeyOf(session.date);
-    const isFinalSession = session.date === config.period.to;
+    // The last session inside the period, not the session that happens to fall on
+    // config.period.to itself: a period.to on a non-trading day (a holiday or a
+    // weekend) would otherwise leave the final session's sweep and tax finalization
+    // never run.
+    const isFinalSession = i === periodSessions.length - 1;
 
     if (state.currentMonthKey === null) {
       state.currentMonthKey = monthKey;

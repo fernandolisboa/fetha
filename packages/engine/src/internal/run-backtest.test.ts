@@ -453,6 +453,30 @@ describe("runBacktest — period end", () => {
     expect(result.value.run.metrics.winRate).toBeNull();
     expect(result.value.run.metrics.profitFactor).toBeNull();
   });
+
+  it("sweeps and finalizes the last month's tax when period.to falls on a non-session day", () => {
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-07" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar.slice(0, 2),
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.operations).toHaveLength(1);
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    expect(op.closeReason.kind).toBe("period_end");
+    expect(op.closedAt).toBe("2024-01-03");
+    expect(result.value.run.taxes).toHaveLength(1);
+    expect(result.value.run.taxes[0]?.month).toBe("2024-01");
+  });
 });
 
 describe("runBacktest — errors", () => {
