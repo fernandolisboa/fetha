@@ -27,11 +27,11 @@ and `docs/adr/`. Visual truth lives in `DESIGN.md`. When this file and those dis
 
 ## What we are building
 
-1. **Market data**: quotes, fundamentals, historical candles, options chains, macro series
-   (CDI/Selic/IPCA).
+1. **Market data**: daily reference data (candles, option series and prices, macro series, calendar)
+   shared by all users; an optional per-user intraday tier (live quotes, chain, 15m/30m/60m candles).
 2. **Engine**: indicators, options pricing and greeks, payoff of multi-leg structures (travas,
    collars, covered calls, butterflies, condors...), event-driven backtester, portfolio and risk
-   metrics.
+   metrics; daily and intraday strategy evaluation into a signal inbox.
 3. **Strategy catalog**: declarative strategy definitions that can be backtested, versioned and
    compared. Definitions come from standard references (Hull, B3 materials), never from copying
    anyone's content.
@@ -70,12 +70,15 @@ Handlers.
 - **Jobs**: Vercel Cron hitting bearer-protected Route Handlers for daily data ingestion.
   Backtests run in Route Handlers with `maxDuration` raised; if a run exceeds the limit, chunk it
   before considering any other infrastructure.
-- **Data providers** behind a `MarketDataProvider` interface (ADR in Phase 1): brapi.dev for
-  quotes/fundamentals; B3 COTAHIST files for historical backtest data; options chain to be
-  evaluated among brapi, B3 public files and OpLab; Bacen SGS for macro series.
+- **Data providers** behind a `MarketDataProvider` interface (ADR-0007): public B3 files (COTAHIST,
+  instruments registry), Bacen SGS and the ANBIMA calendar as shared reference data; brapi.dev Pro
+  as the per-user intraday tier (token supplied by the user; optional); OpLab as a candidate
+  second adapter. Greeks and IV are always computed by the engine.
 - **AI**: `@anthropic-ai/sdk`. Opus for thesis/counter-thesis and strategy critique; Sonnet for
   routine reports. Prompts under `prompts/` with versions and fixture tests.
-- **Hosting**: Vercel free tier, `*.vercel.app` domain.
+- **Hosting**: Vercel on the owner's Pro team (`feuxs-projects`), `*.vercel.app` domain. Pro is used for
+  `maxDuration` on backtests and ingestion, never for per-minute crons (ADR-0010). Builds consume
+  the team's included credit: keep preview builds lean.
 
 Confirm with the owner before creating any paid resource or paid data subscription.
 

@@ -11,8 +11,8 @@
 
 1. **[2026-09-02] Orchestrator never implements tickets**
    Do instead: delegate to `.claude/agents/implementer.md` (Sonnet); keep the main session for planning, integration and talking to the user. Phase 0 bootstrap is the one exception.
-2. **[2026-09-02] Some claude.ai skills are user-only (`setup-matt-pocock-skills`, `setup-pre-commit`, `to-issues`, `to-prd`)**
-   Do instead: replicate their output by hand (docs/agents/*, husky + lint-staged) and tell the user at the next checkpoint.
+2. **[2026-09-02] Some claude.ai skills are user-only (`setup-matt-pocock-skills`, `setup-pre-commit`, `grill-with-docs`, `to-issues`, `to-prd`, `design-an-interface`?)**
+   Do instead: ask the user to type the slash command with the arguments ready to paste; never replicate `grill-with-docs` by other means (the harness forbids it).
 3. **[2026-09-02] Sibling repo `../feudo` is the template ("same as Feudo")**
    Do instead: mirror its versions, configs and agent shapes; deviate only where the kickoff says so (engine package, contracts package, quant reviewer, decimal prices).
 
@@ -39,6 +39,9 @@
    Do instead: engine computes, AI reasons over artifacts and cites inputs; `packages/engine` has zero I/O.
 
 ## User Directives
+
+0. **[2026-09-02] Owner pays Vercel Pro but GitHub Actions minutes are scarce and Vercel build credit is shared with other projects**
+   Do instead: keep CI to one lean job; never add scheduled workflows; no per-minute crons; skip Vercel builds on docs-only changes when possible.
 
 1. **[2026-09-02] Speak pt-BR to the user; everything else in English**
    Do instead: chat in Portuguese; code, commits, tickets, docs, ADRs in English; UI strings ship in pt-BR.
