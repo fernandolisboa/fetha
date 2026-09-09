@@ -1203,10 +1203,11 @@ signature changes, new or removed methods, changes to the visibility rule or to 
 existing field require a superseding ADR. `ENGINE_VERSION` bumps its minor on additive change and
 its major on a superseding ADR; checkpoints are valid only for the version that produced them.
 
-The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonIntegerAmountError`) are
-legacy and outside this interface: they exist only because the `apps/web` placeholder page still
-renders `formatBRL`. The ticket that gives `apps/web` its own pt-BR currency formatter removes
-them from `packages/engine`; nothing new may import them.
+The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonIntegerAmountError`) were
+legacy and outside this interface, existing only because the `apps/web` placeholder page rendered
+`formatBRL`. Issue #8 removed them from `packages/engine`; `apps/web` now formats currency with its
+own pt-BR formatter (`apps/web/src/lib/format/brl.ts`), and nothing outside this package may import
+money helpers from `@fetha/engine`.
 
 ## Considered options
 
