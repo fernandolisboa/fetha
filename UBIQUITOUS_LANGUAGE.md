@@ -37,7 +37,10 @@ _Avoid_: resolution, interval, period (reserved for the backtest date range)
 
 **Reference data**:
 Market data shared by all users and read-only to them: daily candles, option series, daily
-option prices, macro series and the trading calendar, ingested from public B3 and Bacen sources.
+option prices, corporate-action factors, macro series and the trading calendar, ingested from
+public B3 and Bacen sources. Corporate-action factor recording from labeled events is tracked
+as a follow-up (#50, ADR-0017); the table exists and is read by the engine (ADR-0013) but no
+current ingestion source writes to it.
 _Avoid_: shared data, public data
 
 **Intraday tier**:
