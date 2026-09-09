@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { configDefaults, defineConfig } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -9,8 +9,9 @@ export default defineConfig({
     },
   },
   test: {
+    include: ["src/**/*.integration.test.ts"],
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts"],
-    exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
+    fileParallelism: false,
+    testTimeout: 20000,
   },
 });
