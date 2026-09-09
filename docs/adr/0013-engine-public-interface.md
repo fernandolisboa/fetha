@@ -1038,7 +1038,10 @@ that subset concrete:
   `(since, at]`: that also gets one `insufficient_data` record at `at`, distinct in `detail` from
   the no-candles-at-all case. Every such record's `session` is resolved from `view.calendar` (the
   last session whose `open <= at`, the rule `dataWindow` already uses), not by slicing `at`'s own
-  date; when the view carries no calendar row, resolution falls back to that slice.
+  date; the fallback — slicing `at`'s own ISO date, a UTC slice rather than a B3-calendar one —
+  triggers whenever the calendar does not cover `at`, whether because `view.calendar` is empty or
+  because every session it does carry opens after `at`, not only when the view carries no calendar
+  row at all.
 - **Batch validation.** Duplicate tickers in `instruments`, duplicate `id`s in `openOperations`,
   and duplicate `(series, asOf)` rows in `macro` or `(underlying, asOf)` rows in `dividendYields`
   are `invalid_input`, checked once for the whole call — including when `instruments` is empty,
