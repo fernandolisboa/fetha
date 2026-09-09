@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { legRoles, legSides, legTemplateSchema, structureSchema } from "./structure";
 
-const travaDeAlta = {
+const bullCallSpread = {
   id: "bull-call-spread",
   name: "Trava de alta",
   expiry: "shared",
@@ -54,7 +54,7 @@ describe("legTemplateSchema", () => {
 
 describe("structureSchema", () => {
   it("accepts a trava de alta and a collar", () => {
-    expect(structureSchema.parse(travaDeAlta)).toEqual(travaDeAlta);
+    expect(structureSchema.parse(bullCallSpread)).toEqual(bullCallSpread);
     expect(structureSchema.parse(collar)).toEqual(collar);
   });
 
@@ -69,11 +69,11 @@ describe("structureSchema", () => {
   });
 
   it("rejects per-leg expiries so calendars and diagonals stay out of v1", () => {
-    expect(structureSchema.safeParse({ ...travaDeAlta, expiry: "per_leg" }).success).toBe(false);
+    expect(structureSchema.safeParse({ ...bullCallSpread, expiry: "per_leg" }).success).toBe(false);
     expect(
       structureSchema.safeParse({
-        ...travaDeAlta,
-        legs: travaDeAlta.legs.map((leg) => ({
+        ...bullCallSpread,
+        legs: bullCallSpread.legs.map((leg) => ({
           ...leg,
           expiry: { kind: "business_days", min: 1, max: 5 },
         })),
@@ -81,11 +81,41 @@ describe("structureSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects an empty structure and concrete tickers or strikes on legs", () => {
-    expect(structureSchema.safeParse({ ...travaDeAlta, legs: [] }).success).toBe(false);
+  it("accepts legs that explicitly share a rank", () => {
+    const straddle = {
+      id: "straddle",
+      name: "Straddle",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    expect(structureSchema.safeParse(straddle).success).toBe(true);
+  });
+
+  it("rejects strike ranks with gaps or not starting at one", () => {
+    const gapped = {
+      ...bullCallSpread,
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "sell", ratio: 1, strikeRank: 3 },
+      ],
+    };
+    expect(structureSchema.safeParse(gapped).success).toBe(false);
     expect(
       structureSchema.safeParse({
-        ...travaDeAlta,
+        ...bullCallSpread,
+        legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 2 }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an empty structure and concrete tickers or strikes on legs", () => {
+    expect(structureSchema.safeParse({ ...bullCallSpread, legs: [] }).success).toBe(false);
+    expect(
+      structureSchema.safeParse({
+        ...bullCallSpread,
         legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1, ticker: "PETRJ400" }],
       }).success,
     ).toBe(false);

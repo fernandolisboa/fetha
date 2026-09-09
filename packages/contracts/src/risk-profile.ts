@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { centavosSchema, decimalStringSchema } from "./scalars";
+import { centavosSchema, leftOpenUnitIntervalSchema } from "./scalars";
 
 export const riskLimits = [
   "maxLossPerOperation",
@@ -11,10 +11,10 @@ export const riskLimits = [
 export const riskProfileSchema = z.strictObject({
   declaredCapital: centavosSchema.positive(),
   limits: z.strictObject({
-    maxLossPerOperation: decimalStringSchema,
-    maxExposurePerOperation: decimalStringSchema,
+    maxLossPerOperation: leftOpenUnitIntervalSchema,
+    maxExposurePerOperation: leftOpenUnitIntervalSchema,
     maxOpenOperations: z.int().min(1),
-    maxPremiumBought: decimalStringSchema,
+    maxPremiumBought: leftOpenUnitIntervalSchema,
   }),
 });
 export type RiskProfile = z.infer<typeof riskProfileSchema>;

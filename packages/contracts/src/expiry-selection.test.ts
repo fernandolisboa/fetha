@@ -26,7 +26,10 @@ describe("expirySelectionSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects negative or fractional days and unknown kinds", () => {
+  it("rejects zero, negative or fractional days and unknown kinds", () => {
+    expect(
+      expirySelectionSchema.safeParse({ kind: "business_days", min: 0, max: 20 }).success,
+    ).toBe(false);
     expect(
       expirySelectionSchema.safeParse({ kind: "business_days", min: -1, max: 20 }).success,
     ).toBe(false);

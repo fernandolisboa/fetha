@@ -17,8 +17,8 @@ describe("adjustmentRuleSchema", () => {
     expect(adjustmentRuleSchema.parse(roll)).toEqual(roll);
   });
 
-  it("accepts a roll with no strike selections", () => {
-    expect(adjustmentRuleSchema.safeParse({ ...roll, strikes: [] }).success).toBe(true);
+  it("rejects a roll with no strike selections", () => {
+    expect(adjustmentRuleSchema.safeParse({ ...roll, strikes: [] }).success).toBe(false);
   });
 
   it("rejects unknown kinds and a roll without a trigger", () => {

@@ -11,19 +11,49 @@ const profile = {
   },
 };
 
+const fractionLimits = ["maxLossPerOperation", "maxExposurePerOperation", "maxPremiumBought"];
+
 describe("riskProfileSchema", () => {
-  it("lists every limit and requires each in the schema", () => {
+  it("lists every limit", () => {
     expect(riskLimits).toEqual([
       "maxLossPerOperation",
       "maxExposurePerOperation",
       "maxOpenOperations",
       "maxPremiumBought",
     ]);
-    expect(Object.keys(riskProfileSchema.shape.limits.shape)).toEqual([...riskLimits]);
+  });
+
+  it.each(riskLimits)("requires %s", (limit) => {
+    const withoutLimit = Object.fromEntries(
+      Object.entries(profile.limits).filter(([key]) => key !== limit),
+    );
+    expect(riskProfileSchema.safeParse({ ...profile, limits: withoutLimit }).success).toBe(false);
   });
 
   it("accepts a declared capital with limits as fractions", () => {
     expect(riskProfileSchema.parse(profile)).toEqual(profile);
+  });
+
+  it("accepts a fraction limit of one", () => {
+    for (const limit of fractionLimits) {
+      expect(
+        riskProfileSchema.safeParse({ ...profile, limits: { ...profile.limits, [limit]: "1" } })
+          .success,
+      ).toBe(true);
+    }
+  });
+
+  it("rejects fraction limits of zero, above one or negative", () => {
+    for (const limit of fractionLimits) {
+      for (const fraction of ["0", "1.5", "-0.1"]) {
+        expect(
+          riskProfileSchema.safeParse({
+            ...profile,
+            limits: { ...profile.limits, [limit]: fraction },
+          }).success,
+        ).toBe(false);
+      }
+    }
   });
 
   it("rejects zero or fractional declared capital", () => {

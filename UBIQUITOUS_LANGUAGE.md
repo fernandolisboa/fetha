@@ -26,9 +26,10 @@ The set of option series listed on one underlying on a given day, with their quo
 _Avoid_: option board, grade de opções
 
 **Candle**:
-The open, high, low, close and volume of an instrument over one timeframe interval: a trading
-session (daily) or an intraday interval of 15, 30 or 60 minutes.
-_Avoid_: bar, OHLC, quote history
+The open, high, low, close and traded quantity (count of shares or contracts) of an instrument
+over one timeframe interval: a trading session (daily) or an intraday interval of 15, 30 or 60
+minutes. Stored and exchanged in nominal form; the adjusted form is derived.
+_Avoid_: bar, OHLC, quote history, volume (ambiguous between quantity and financial value)
 
 **Timeframe**:
 The interval a candle, an indicator or a strategy is defined on: `15m`, `30m`, `60m` or `D1`.
@@ -57,12 +58,15 @@ _Avoid_: holiday list, business calendar
 **Corporate-action factor**:
 The multiplier applied to earlier prices and quantities of an instrument to compensate for a
 split, reverse split, bonus or dividend, so that a series stays comparable across the event.
+Recorded by ingestion with its ex-date; applied by the engine point in time, so a factor is
+invisible to any computation dated before its ex-date session close (ADR-0013).
 _Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
 
 **Adjusted series / nominal series**:
-The two forms of an instrument's candle history: adjusted applies corporate-action factors and
-is the default for charts and indicators; nominal keeps the prices as traded and is the basis for
-option strikes and prices.
+The two forms of an instrument's candle history: nominal keeps the prices as traded and is the
+basis for option strikes, prices, fills and settlement; adjusted is derived by the engine from
+the nominal series and the corporate-action factors visible at the evaluation instant, and is
+the default for charts, indicators and conditions.
 _Avoid_: raw series, unadjusted, real prices
 
 **Macro series**:
@@ -79,10 +83,15 @@ strikes or dates. Collar, trava de alta, butterfly and iron condor are structure
 purchase is the trivial structure with one stock leg.
 _Avoid_: strategy (that is a rule, not a shape), setup, combo, montagem
 
+**Leg template**:
+One component of a structure, described relatively: an instrument role (stock, call or put), a
+side (buy or sell), a quantity ratio and, for option roles, a strike rank that orders the
+structure's strikes ascending (legs sharing a rank share a strike, as in a straddle).
+_Avoid_: abstract leg, leg spec
+
 **Leg**:
-One component of a structure or operation: an instrument role (stock, call or put), a side
-(buy or sell), a quantity ratio and, when instantiated, a concrete option series or stock and a
-price.
+A leg template instantiated: role, side, a concrete instrument (stock or option series) and a
+quantity; with an entry price once it belongs to an operation.
 _Avoid_: ponta (in code), position (a leg is not a position)
 
 **Strategy**:
@@ -113,10 +122,18 @@ watchlist.
 _Avoid_: universe (reserved for backtests), favorites, radar
 
 **Signal**:
-The outcome of evaluating one strategy version on one instrument at one evaluation time: an
-entry condition met, an exit or adjustment condition met, or nothing; with the indicator values
-that fired. A signal waits in the user's inbox until a decision answers it.
+An evaluation of one strategy version on one instrument at one evaluation time whose outcome is
+actionable: an entry condition met with a priced proposal, or an exit or adjustment condition
+met on an open operation; with the indicator values that fired. A signal waits in the user's
+inbox until a decision answers it. Every evaluation produces an evaluation record; only these
+outcomes also produce a signal.
 _Avoid_: alert, trigger, recommendation, setup
+
+**Evaluation record**:
+The outcome of one evaluation of one strategy version on one instrument at one evaluation time:
+a signal, conditions not met, no series match, degenerate strikes, insufficient data or
+unsizeable; with a detail. Visible in the evaluation log, never in the inbox.
+_Avoid_: signal (reserved for the actionable outcomes), evaluation log entry
 
 **Evaluation time**:
 The moment a strategy's conditions are computed against the data available then: the close of a
@@ -129,9 +146,12 @@ it is opened again. Signals found this way are marked late.
 _Avoid_: backfill, replay
 
 **Missed entry**:
-An entry signal that produced no operation: the selected series had no trades in the fill
-session and the following sessions (up to three while the condition held), or a risk-profile
-limit refused it. Recorded with the sessions tried and the reason; never filled retroactively.
+An entry signal in a backtest that produced no operation, with the sessions tried and one
+reason: no trades in the selected series in the fill session and the following sessions (up to
+three while the condition held); a risk-profile limit refused it (enforce mode); no listed
+series matched the selection at the attempt's session; two strike ranks collapsed onto one
+strike (degenerate strikes); or the sizing rule yielded no units (unsizeable). Never filled
+retroactively (ADR-0014).
 _Avoid_: skipped trade, failed fill, rejected order
 
 ### Operations and portfolio
@@ -149,7 +169,8 @@ _Avoid_: trade, execution, order
 
 **Position**:
 The net quantity a user currently holds in one instrument, with its average cost, as the result
-of all fills in that instrument.
+of all fills in that instrument. Signed: positive when net long, negative when net short (a
+written option); never zero, since a closed position is no position.
 _Avoid_: holding, exposure, custody
 
 **Portfolio**:
@@ -196,9 +217,11 @@ The daily series of the simulated portfolio value during a backtest run.
 _Avoid_: PnL curve, balance history
 
 **Walk-forward**:
-Validating a strategy by optimizing on one window and testing on the following unseen window,
-repeatedly across the period.
-_Avoid_: out-of-sample test (that is one window, not the procedure)
+The per-window view of a backtest run: the period cut into consecutive windows of a fixed number
+of sessions, with the run's metrics reported per window next to the whole-run metrics, so that
+instability over time is visible. No optimization and no out-of-sample test in v1 (ADR-0014);
+an operation belongs to the window where it opened.
+_Avoid_: out-of-sample test, optimization window, anchored walk-forward
 
 ### Risk
 

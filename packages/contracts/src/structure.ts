@@ -16,10 +16,23 @@ export const legTemplateSchema = z.discriminatedUnion("role", [
 ]);
 export type LegTemplate = z.infer<typeof legTemplateSchema>;
 
-export const structureSchema = z.strictObject({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  expiry: z.literal("shared"),
-  legs: z.array(legTemplateSchema).min(1),
-});
+const strikeRanksAreContiguousFromOne = (legs: LegTemplate[]): boolean => {
+  const ranks = new Set<number>();
+  for (const leg of legs) {
+    if (leg.role !== "stock") ranks.add(leg.strikeRank);
+  }
+  return [...ranks].every((rank) => rank <= ranks.size);
+};
+
+export const structureSchema = z
+  .strictObject({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    expiry: z.literal("shared"),
+    legs: z.array(legTemplateSchema).min(1),
+  })
+  .refine((structure) => strikeRanksAreContiguousFromOne(structure.legs), {
+    message: "strike ranks must be 1..k without gaps",
+    path: ["legs"],
+  });
 export type Structure = z.infer<typeof structureSchema>;

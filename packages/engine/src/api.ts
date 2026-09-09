@@ -1,15 +1,18 @@
 import type {
   AdjustmentRule,
   Centavos,
+  Confidence,
   CostModel,
   DecimalString,
   ExitRule,
   ExpirySelection,
   IndicatorSpec,
   Instant,
+  LegTemplate,
   Quantity,
   RiskProfile,
   SessionDate,
+  SignedQuantity,
   SizingRule,
   StrategyDefinition,
   StrikeSelection,
@@ -23,9 +26,15 @@ export const ENGINE_VERSION = "0.1.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
+export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital";
+export const unsizeableReasons = [
+  "unbounded_max_loss",
+  "no_declared_capital",
+] as const satisfies readonly UnsizeableReason[];
+
 export type EngineError =
   | { code: "invalid_input"; path: string; message: string }
-  | { code: "unsupported"; vocabulary: keyof Omit<Capabilities, "engineVersion">; kind: string }
+  | { code: "unsupported"; vocabulary: CapabilityVocabulary; kind: string }
   | { code: "missing_instrument"; ticker: Ticker }
   | { code: "insufficient_data"; needed: DataWindow }
   | {
@@ -34,13 +43,30 @@ export type EngineError =
       strikes: StrikeSelection[];
       expiry: ExpirySelection;
     }
-  | { code: "unsizeable"; reason: "unbounded_max_loss" | "no_declared_capital" }
+  | {
+      code: "degenerate_strikes";
+      underlying: Ticker;
+      strikes: StrikeSelection[];
+      resolved: DecimalString[];
+    }
+  | { code: "unsizeable"; reason: UnsizeableReason }
   | { code: "checkpoint_mismatch"; expectedDigest: string; receivedDigest: string };
+
+export type EngineErrorCode = EngineError["code"];
+export const engineErrorCodes = [
+  "invalid_input",
+  "unsupported",
+  "missing_instrument",
+  "insufficient_data",
+  "no_series_matches",
+  "degenerate_strikes",
+  "unsizeable",
+  "checkpoint_mismatch",
+] as const satisfies readonly EngineErrorCode[];
 
 export type NoteCode =
   | "european_pricing"
   | "dividend_yield_defaulted"
-  | "candle_form_substituted"
   | "no_market_price"
   | "iv_from_average_price"
   | "iv_not_converged"
@@ -52,53 +78,105 @@ export type NoteCode =
   | "intraday_option_fill_at_fair_value"
   | "short_window_not_annualized"
   | "no_thesis_claim"
-  | "unbounded_max_loss";
+  | "no_operation"
+  | "unbounded_max_loss"
+  | "zero_max_loss"
+  | "iv_index_not_bracketed";
+export const noteCodes = [
+  "european_pricing",
+  "dividend_yield_defaulted",
+  "no_market_price",
+  "iv_from_average_price",
+  "iv_not_converged",
+  "below_intrinsic",
+  "stale_price",
+  "no_risk_profile",
+  "limit_breach_warned",
+  "missed_entry",
+  "intraday_option_fill_at_fair_value",
+  "short_window_not_annualized",
+  "no_thesis_claim",
+  "no_operation",
+  "unbounded_max_loss",
+  "zero_max_loss",
+  "iv_index_not_bracketed",
+] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
 
 export type MarketViewCollection =
   | "candles"
+  | "corporateActions"
   | "optionSeries"
   | "optionPrices"
   | "quotes"
   | "macro"
   | "dividendYields"
   | "impliedVolatilityIndex";
+export const marketViewCollections = [
+  "candles",
+  "corporateActions",
+  "optionSeries",
+  "optionPrices",
+  "quotes",
+  "macro",
+  "dividendYields",
+  "impliedVolatilityIndex",
+] as const satisfies readonly MarketViewCollection[];
+
+export type TruncationReason = "after_at" | "unreferenced_instrument";
+export const truncationReasons = [
+  "after_at",
+  "unreferenced_instrument",
+] as const satisfies readonly TruncationReason[];
 
 export type TruncationReport = {
   collection: MarketViewCollection;
   ticker: Ticker | null;
   dropped: number;
-  reason: "after_at" | "unreferenced_instrument";
+  reason: TruncationReason;
 };
 
 export type PricingModel = "bsm_continuous_yield";
+export const pricingModels = ["bsm_continuous_yield"] as const satisfies readonly PricingModel[];
 
 export type Provenance = {
   engineVersion: string;
   pricingModel: PricingModel;
   truncated: TruncationReport[];
+  dataVersion: string | null;
+  datasetNotes: string[];
 };
 
 export type TradingSession = { date: SessionDate; open: Instant; close: Instant };
 
 export type CandleForm = "adjusted" | "nominal";
+export const candleForms = ["adjusted", "nominal"] as const satisfies readonly CandleForm[];
 
 export type Candle = {
   ticker: Ticker;
   timeframe: Timeframe;
-  form: CandleForm;
   session: SessionDate;
   asOf: Instant;
   open: DecimalString;
   high: DecimalString;
   low: DecimalString;
   close: DecimalString;
-  volume: number;
+  tradedQuantity: number;
+};
+
+export type CorporateActionFactor = {
+  ticker: Ticker;
+  exDate: SessionDate;
+  asOf: Instant;
+  factor: DecimalString;
 };
 
 export type OptionRight = "call" | "put";
+export const optionRights = ["call", "put"] as const satisfies readonly OptionRight[];
+
 export type ExerciseStyle = "american" | "european";
+export const exerciseStyles = ["american", "european"] as const satisfies readonly ExerciseStyle[];
 
 export type OptionSeries = {
   ticker: Ticker;
@@ -117,7 +195,7 @@ export type OptionDayPrice = {
   average: DecimalString | null;
   close: DecimalString | null;
   trades: number;
-  volume: number;
+  tradedQuantity: number;
 };
 
 export type Quote = {
@@ -129,6 +207,11 @@ export type Quote = {
 };
 
 export type MacroSeriesKind = "cdi" | "selic" | "ipca";
+export const macroSeriesKinds = [
+  "cdi",
+  "selic",
+  "ipca",
+] as const satisfies readonly MacroSeriesKind[];
 
 export type MacroPoint = {
   series: MacroSeriesKind;
@@ -149,12 +232,15 @@ export type ImpliedVolatilityIndexPoint = {
 export type MarketView = {
   calendar: TradingSession[];
   candles: Candle[];
+  corporateActions: CorporateActionFactor[];
   optionSeries: OptionSeries[];
   optionPrices: OptionDayPrice[];
   quotes: Quote[];
   macro: MacroPoint[];
   dividendYields: DividendYieldPoint[];
   impliedVolatilityIndex: ImpliedVolatilityIndexPoint[];
+  dataVersion?: string;
+  datasetNotes?: string[];
 };
 
 export type DataWindow = {
@@ -167,21 +253,20 @@ export type DataWindow = {
 
 export type StrategyVersion = { id: string; definition: StrategyDefinition; structure: Structure };
 
-export type LegRole = "stock" | "call" | "put";
-export type Side = "buy" | "sell";
+export type LegRole = LegTemplate["role"];
+export type Side = LegTemplate["side"];
 
 export type Leg = { role: LegRole; side: Side; ticker: Ticker; quantity: Quantity };
 
-export type LegInput = Leg & { price?: DecimalString };
+export type LegInput = Leg & { price?: DecimalString; volatility?: DecimalString };
 
 export type OperationLeg = Leg & { entryPrice: DecimalString };
-
-export type OperationStatus = "open" | "adjusted" | "closed" | "expired";
 
 export type Operation = {
   id: string;
   underlying: Ticker;
   legs: OperationLeg[];
+  expiry: SessionDate | null;
   openedAt: SessionDate;
   strategyVersionId: string | null;
   rolledFrom: string | null;
@@ -197,7 +282,7 @@ export type Fill = {
   costs: Centavos;
 };
 
-export type Position = { ticker: Ticker; quantity: Quantity; averageCost: DecimalString };
+export type Position = { ticker: Ticker; quantity: SignedQuantity; averageCost: DecimalString };
 
 export type Greeks = {
   delta: DecimalString;
@@ -212,6 +297,21 @@ export type RiskLimit = keyof RiskProfile["limits"];
 export type LimitBreach = { limit: RiskLimit; value: DecimalString; allowed: DecimalString };
 
 export type PriceSource = "given" | "mid" | "last" | "close" | "average";
+export const priceSources = [
+  "given",
+  "mid",
+  "last",
+  "close",
+  "average",
+] as const satisfies readonly PriceSource[];
+
+export type VolatilitySource = "given" | "own_implied" | "last_trade_implied" | "closing_iv_index";
+export const volatilitySources = [
+  "given",
+  "own_implied",
+  "last_trade_implied",
+  "closing_iv_index",
+] as const satisfies readonly VolatilitySource[];
 
 export type LegSelection = {
   structure: Structure;
@@ -228,9 +328,10 @@ export type LegValuation = {
   stale: { session: SessionDate } | null;
   fairValue: DecimalString | null;
   impliedVolatility: DecimalString | null;
+  volatilitySource: VolatilitySource | null;
   greeks: Greeks | null;
   timeToExpiryYears: DecimalString | null;
-  note?: Note;
+  notes: Note[];
 };
 
 export type PayoffPoint = { underlying: DecimalString; pnl: Centavos };
@@ -283,8 +384,24 @@ export type Signal = SignalBase &
     | { kind: "adjust"; operationId: string; rule: AdjustmentRule; proposal: Proposal }
   );
 
+export type SignalKind = Signal["kind"];
+export const signalKinds = ["entry", "exit", "adjust"] as const satisfies readonly SignalKind[];
+
 export type EvaluationOutcome =
-  "signal" | "conditions_not_met" | "no_series_match" | "insufficient_data" | "unsizeable";
+  | "signal"
+  | "conditions_not_met"
+  | "no_series_match"
+  | "degenerate_strikes"
+  | "insufficient_data"
+  | "unsizeable";
+export const evaluationOutcomes = [
+  "signal",
+  "conditions_not_met",
+  "no_series_match",
+  "degenerate_strikes",
+  "insufficient_data",
+  "unsizeable",
+] as const satisfies readonly EvaluationOutcome[];
 
 export type EvaluationRecord = {
   ticker: Ticker;
@@ -302,6 +419,7 @@ export type Evaluation = {
 };
 
 export type LimitMode = "enforce" | "warn";
+export const limitModes = ["enforce", "warn"] as const satisfies readonly LimitMode[];
 
 export type BacktestConfig = {
   strategy: StrategyVersion;
@@ -324,11 +442,25 @@ export type BacktestCheckpoint = {
   state: unknown;
 };
 
-export type FillSource = "next_session_open" | "next_session_average" | "fair_value";
+export type FillSource = "next_session_open" | "next_session_average" | "fair_value" | "settlement";
+export const fillSources = [
+  "next_session_open",
+  "next_session_average",
+  "fair_value",
+  "settlement",
+] as const satisfies readonly FillSource[];
 
 export type SimulatedFill = Fill & { operationId: string; source: FillSource };
 
-export type MissedEntryReason = "no_trades" | "limit_breach" | "no_series_match" | "unsizeable";
+export type MissedEntryReason =
+  "no_trades" | "limit_breach" | "no_series_match" | "degenerate_strikes" | "unsizeable";
+export const missedEntryReasons = [
+  "no_trades",
+  "limit_breach",
+  "no_series_match",
+  "degenerate_strikes",
+  "unsizeable",
+] as const satisfies readonly MissedEntryReason[];
 
 export type MissedEntry = {
   ticker: Ticker;
@@ -340,16 +472,53 @@ export type MissedEntry = {
 export type CloseReason =
   | { kind: "exit_rule"; rule: ExitRule }
   | { kind: "rolled"; toOperationId: string }
-  | { kind: "expiry" }
   | { kind: "period_end" };
 
+export type CloseReasonKind = CloseReason["kind"];
+export const closeReasonKinds = [
+  "exit_rule",
+  "rolled",
+  "period_end",
+] as const satisfies readonly CloseReasonKind[];
+
+export type SettlementOutcome = "kept" | "exercised" | "assigned" | "expired_worthless";
+export const settlementOutcomes = [
+  "kept",
+  "exercised",
+  "assigned",
+  "expired_worthless",
+] as const satisfies readonly SettlementOutcome[];
+
+export type LegSettlement =
+  | { leg: OperationLeg & { role: "stock" }; outcome: "kept"; intrinsicValue: null; fills: Fill[] }
+  | {
+      leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "buy" };
+      outcome: "exercised" | "expired_worthless";
+      intrinsicValue: DecimalString;
+      fills: Fill[];
+    }
+  | {
+      leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "sell" };
+      outcome: "assigned" | "expired_worthless";
+      intrinsicValue: DecimalString;
+      fills: Fill[];
+    };
+
 export type SimulatedOperation = Operation & {
-  status: OperationStatus;
-  closedAt: SessionDate | null;
-  closeReason: CloseReason | null;
   pnl: Centavos;
   maxLoss: Centavos | "unbounded";
-};
+} & (
+    | { status: "open" }
+    | { status: "closed"; closedAt: SessionDate; closeReason: CloseReason }
+    | { status: "expired"; closedAt: SessionDate; settlement: LegSettlement[] }
+  );
+
+export type SimulatedOperationStatus = SimulatedOperation["status"];
+export const simulatedOperationStatuses = [
+  "open",
+  "closed",
+  "expired",
+] as const satisfies readonly SimulatedOperationStatus[];
 
 export type EquityPoint = {
   session: SessionDate;
@@ -365,7 +534,7 @@ export type BacktestMetrics = {
   cagr: DecimalString | null;
   maxDrawdown: DecimalString;
   sharpe: DecimalString | null;
-  winRate: DecimalString;
+  winRate: DecimalString | null;
   profitFactor: DecimalString | null;
   exposure: DecimalString;
   fees: Centavos;
@@ -375,7 +544,15 @@ export type BacktestMetrics = {
 
 export type WalkForwardWindow = { from: SessionDate; to: SessionDate; metrics: BacktestMetrics };
 
-export type MonthlyTax = { month: string; netGain: Centavos; tax: Centavos };
+export type MonthlyTax = {
+  month: string;
+  stockSales: Centavos;
+  stockGain: Centavos;
+  optionGain: Centavos;
+  exemptGain: Centavos;
+  netGain: Centavos;
+  tax: Centavos;
+};
 
 export type SessionLimitBreach = LimitBreach & { session: SessionDate; ticker: Ticker };
 
@@ -404,6 +581,12 @@ export type BacktestProgress =
     }
   | { status: "complete"; run: BacktestRun };
 
+export type BacktestProgressStatus = BacktestProgress["status"];
+export const backtestProgressStatuses = [
+  "paused",
+  "complete",
+] as const satisfies readonly BacktestProgressStatus[];
+
 export type PositionValuation = {
   position: Position;
   price: DecimalString | null;
@@ -411,7 +594,7 @@ export type PositionValuation = {
   stale: { session: SessionDate } | null;
   value: Centavos | null;
   unrealizedPnl: Centavos | null;
-  note?: Note;
+  notes: Note[];
 };
 
 export type OperationValuation = {
@@ -430,15 +613,6 @@ export type PortfolioValuation = {
   provenance: Provenance;
 };
 
-export type SettlementOutcome = "exercised" | "assigned" | "expired_worthless" | "kept";
-
-export type LegSettlement = {
-  leg: OperationLeg;
-  outcome: SettlementOutcome;
-  intrinsicValue: DecimalString | null;
-  proposedFills: Fill[];
-};
-
 export type SettlementProposal = {
   operationId: string;
   expiry: SessionDate;
@@ -449,22 +623,47 @@ export type SettlementProposal = {
 };
 
 export type DecisionKind = "enter" | "do_not_enter" | "hold" | "adjust" | "exit";
+export const decisionKinds = [
+  "enter",
+  "do_not_enter",
+  "hold",
+  "adjust",
+  "exit",
+] as const satisfies readonly DecisionKind[];
 
 export type ScoreSubject = DecisionKind | "analysis";
+export const scoreSubjects = [
+  ...decisionKinds,
+  "analysis",
+] as const satisfies readonly ScoreSubject[];
 
 export type DecisionOrigin = { kind: "signal"; strategy: StrategyVersion } | { kind: "manual" };
 
-export type Score = {
-  pnl: Centavos | null;
-  maxLoss: Centavos | "unbounded";
-  normalizedPnl: DecimalString | null;
-  thesis: { held: boolean | null; brier: DecimalString | null };
+export type DecisionOriginKind = DecisionOrigin["kind"];
+export const decisionOriginKinds = [
+  "signal",
+  "manual",
+] as const satisfies readonly DecisionOriginKind[];
+
+export type PnlScore =
+  | { pnl: null; maxLoss: null; normalizedPnl: null }
+  | { pnl: Centavos; maxLoss: "unbounded"; normalizedPnl: null }
+  | { pnl: Centavos; maxLoss: Centavos; normalizedPnl: DecimalString | null };
+
+export type ThesisScore =
+  { claim: null } | { claim: ThesisClaim; held: boolean; brier: DecimalString };
+
+export type Score = PnlScore & {
+  thesis: ThesisScore;
   counterfactualPnl: Centavos | null;
   notes: Note[];
   provenance: Provenance;
 };
 
-export type ImpliedVolatilityIndexMethod = "atm_30d_interpolated";
+export type ImpliedVolatilityIndexMethod = "atm_30d_variance_interpolated";
+export const impliedVolatilityIndexMethods = [
+  "atm_30d_variance_interpolated",
+] as const satisfies readonly ImpliedVolatilityIndexMethod[];
 
 export type ImpliedVolatilityIndex = {
   underlying: Ticker;
@@ -489,6 +688,19 @@ export type Capabilities = {
   pricingModels: PricingModel[];
 };
 
+export type CapabilityVocabulary = keyof Omit<Capabilities, "engineVersion">;
+export const capabilityVocabularies = [
+  "timeframes",
+  "indicators",
+  "strikeSelections",
+  "expirySelections",
+  "sizingRules",
+  "exitRules",
+  "adjustmentRules",
+  "thesisClaims",
+  "pricingModels",
+] as const satisfies readonly CapabilityVocabulary[];
+
 export type DataWindowInput = {
   strategy: StrategyVersion;
   instruments: Ticker[];
@@ -511,7 +723,7 @@ export type PriceOperationInput = {
   at: Instant;
   legs: LegInput[] | LegSelection;
   riskProfile?: RiskProfile;
-  openOperations?: number;
+  openOperationCount?: number;
 };
 
 export type EvaluateStrategyInput = {
@@ -540,20 +752,16 @@ export type MarkToMarketInput = {
   riskProfile?: RiskProfile;
 };
 
-export type ProposeSettlementInput = {
-  view: MarketView;
-  operation: Operation;
-  expiry: SessionDate;
-};
+export type ProposeSettlementInput = { view: MarketView; operation: Operation };
 
 export type ScoreInput = {
   view: MarketView;
   subject: ScoreSubject;
   decidedAt: Instant;
   horizon: SessionDate;
-  confidence: DecimalString;
+  confidence: Confidence;
   claim: ThesisClaim | null;
-  operation: Operation;
+  operation?: Operation;
   realizedFills: Fill[];
   origin: DecisionOrigin;
   costModel: CostModel;

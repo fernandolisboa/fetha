@@ -7,7 +7,7 @@ date: 2026-09-09
 
 ## Context
 
-Designing the engine interface (ADR-0013) surfaced ten product questions that ADR-0004 (backtest
+Designing the engine interface (ADR-0013) surfaced eleven product questions that ADR-0004 (backtest
 hygiene), ADR-0005 (decision scoring) and ADR-0008 (strategy DSL) had left implicit. The owner
 answered them on 2026-09-09. This ADR records the answers as rules the engine implements and the
 types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
@@ -23,17 +23,27 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   counts; the journal shows the thesis as unscored, never as held or failed. Users never mark a
   thesis held by hand.
 - **Walk-forward (Q37; sharpens ADR-0004 and the glossary).** In v1 walk-forward is rolling
-  out-of-sample windows of the same strategy version: the run's period is cut into consecutive
-  windows of `windowSessions` sessions and metrics are reported per window next to the whole-run
-  metrics, so instability across windows is visible. Comparison across candidate strategies is
-  done by hand-authoring versions and running each; there is no parameter optimization and no
-  parameter space in the DSL (ADR-0008 stands).
+  sub-period metrics of the same strategy version: the run's period is cut into consecutive
+  windows of `windowSessions` sessions and the run's metrics are reported per window next to
+  the whole-run metrics, so instability across windows is visible; an operation belongs to the
+  window where it opened. The windows are not out-of-sample tests: nothing is fitted on one
+  window and tested on the next. Comparison across candidate strategies is done by
+  hand-authoring versions and running each; there is no parameter optimization and no parameter
+  space in the DSL (ADR-0008 stands).
 - **Missed fill (Q38; amends ADR-0004).** When an entry signal cannot be filled because the
   selected series had no trades in the fill session, the entry is retried on each following
   session while the entry condition still holds at that session's evaluation, up to three
   sessions in total. After that, or as soon as the condition stops holding, the entry is recorded
   as a `MissedEntry` with `sessionsTried` and reason `no_trades`. Each attempt uses that session's
-  own prices; nothing is filled retroactively.
+  own prices; nothing is filled retroactively. Each attempt re-instantiates the structure at that
+  session's close (strikes from that session's chain, size from that session's prices and the
+  run's current equity), so the other `MissedEntryReason`s arise at fill time too: `no_series_match`
+  when no listed series satisfies the selection at the attempt's session, `degenerate_strikes`
+  when two distinct strike ranks resolve to the same listed strike, `unsizeable` when the sizing
+  rule yields zero units at that session's prices (or the max loss is unbounded under
+  `fixed_risk`), `limit_breach` under `enforce` (Q39). In the live evaluator (`evaluateStrategy`)
+  the same three failures are `EvaluationRecord`s, not missed entries, because nothing is filled
+  there (Q45).
 - **Limit breach in warn mode (Q39; sharpens ADR-0004).** With `limits: "warn"` a breaching
   operation is filled at the requested size and the breach is recorded in the run's
   `limitBreaches` with its session and ticker, plus note `limit_breach_warned`. The operation is
@@ -67,12 +77,23 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
 - **No matching option series in evaluation (Q45; sharpens ADR-0008).** When the entry condition
   holds but no listed series satisfies the strike and expiry selection, the evaluation records an
   `EvaluationRecord` with outcome `no_series_match` and the selection that failed in `detail`. It
-  is not a signal, does not reach the inbox and is visible in the evaluation log.
+  is not a signal, does not reach the inbox and is visible in the evaluation log. The same holds
+  for `degenerate_strikes` (two ranks collapsed onto one strike) and `unsizeable`.
+- **Scoring without an operation (Q46; amends ADR-0005).** An analysis of a strategy version, or
+  a decision that references no operation, is scored on its thesis claim only: `pnl`, `maxLoss`,
+  `normalizedPnl` and `counterfactualPnl` are `null` with note `no_operation`, and the Brier
+  component alone forms the score. ADR-0005's "realized P&L normalized by max loss" applies only
+  when there is an operation to realize it on. A `normalizedPnl` is also `null` when the
+  operation's max loss is zero (note `zero_max_loss`), since there is nothing to normalize by.
+- **Implied-volatility rank (sharpens ADR-0008).** `iv_rank` is a 0-100 percentile rank of the
+  underlying's implied-volatility index over `lookbackSessions` (formula in ADR-0013), so
+  `iv_rank > 50` means the current index is above the median of its lookback.
 
 ## Consequences
 
 ADR-0004 stays in force with three sharpened points (retry window for missed fills, warn-mode
 semantics, walk-forward meaning). ADR-0005 stays in force with the thesis claim as the only source
-of `thesis.held` and one explicit counterfactual rule. ADR-0008 stays in force with a single shared
-expiry per structure and no parameter space. The glossary gains "Thesis claim", "Implied
-volatility index", "Settlement proposal" and "Missed entry".
+of `thesis.held`, one explicit counterfactual rule and a thesis-only score when there is no
+operation. ADR-0008 stays in force with a single shared expiry per structure and no parameter
+space. The glossary gains "Thesis claim", "Implied volatility index", "Settlement proposal",
+"Missed entry", "Leg template" and "Evaluation record", and rewrites "Walk-forward".

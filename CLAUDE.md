@@ -52,9 +52,9 @@ Handlers.
 - **`packages/engine`**: pure TypeScript, zero I/O, zero framework imports. Market data model,
   indicators, strategy DSL types, options pricing (Black-Scholes, greeks, implied vol), payoff of
   structures, backtester (no look-ahead by construction), portfolio and risk metrics.
-  Property-based tests with `fast-check` wherever math allows. Its public interface is designed
-  deliberately in Phase 2 (two candidate shapes, compared) and frozen in an ADR: it is the seam
-  most likely to be optimized or replaced, so nothing outside the package may depend on its
+  Property-based tests with `fast-check` wherever math allows. Its public interface was designed
+  deliberately in Phase 2 (three candidate shapes, compared) and frozen in ADR-0013: it is the
+  seam most likely to be optimized or replaced, so nothing outside the package may depend on its
   internals.
 - **`packages/contracts`**: Zod schemas and derived types shared by `apps/web` and the engine
   edges (strategy files, provider payloads, AI outputs, env).

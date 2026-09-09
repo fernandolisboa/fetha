@@ -31,8 +31,9 @@ exposing module's interface, never through its tables.
 ## Key flows
 
 1. **Nightly ingestion and daily evaluation.** A nightly job with scheduled retries (ADR-0010)
-   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, applies
-   corporate-action factors (adjusted and nominal series), then evaluates every active daily
+   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, records
+   corporate-action factors (the engine derives adjusted series point in time, ADR-0013), then
+   evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox.
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
@@ -44,7 +45,8 @@ exposing module's interface, never through its tables.
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
 4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
-   curve, metrics, walk-forward view. Fills follow ADR-0004; intraday runs follow ADR-0011.
+   curve, metrics, walk-forward view. Fills follow ADR-0004; intraday runs follow ADR-0011,
+   missed fills, warn mode and walk-forward follow ADR-0014.
 5. **Decide and journal.** From a signal, an operation or a structure, the user requests an
    analysis (on demand, capped) and records a decision (enter, do not enter, hold, adjust, exit)
    with a thesis and horizon. At the horizon the engine scores the decision and the analysis

@@ -30,6 +30,26 @@ describe("strikeSelectionSchema", () => {
     expect(strikeSelectionSchema.safeParse({ kind: "delta", target: 0.3 }).success).toBe(false);
   });
 
+  it("rejects a delta target outside the open unit interval", () => {
+    for (const target of ["0", "1", "0.0", "1.30", "-0.30", "0.000"]) {
+      expect(strikeSelectionSchema.safeParse({ kind: "delta", target }).success).toBe(false);
+    }
+    expect(strikeSelectionSchema.safeParse({ kind: "delta", target: "0.999" }).success).toBe(true);
+    expect(strikeSelectionSchema.safeParse({ kind: "delta", target: "0.001" }).success).toBe(true);
+  });
+
+  it("accepts negative moneyness for strikes below spot", () => {
+    expect(strikeSelectionSchema.safeParse({ kind: "moneyness", percent: "-0.10" }).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects a nearest price of zero or negative", () => {
+    for (const price of ["0", "0.00", "-40.00"]) {
+      expect(strikeSelectionSchema.safeParse({ kind: "nearest", price }).success).toBe(false);
+    }
+  });
+
   it("rejects a parameter that belongs to another kind", () => {
     expect(strikeSelectionSchema.safeParse({ kind: "delta", price: "40.00" }).success).toBe(false);
   });

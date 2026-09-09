@@ -7,15 +7,20 @@ import { sizingRuleSchema } from "./sizing-rule";
 import { strikeSelectionSchema } from "./strike-selection";
 import { timeframeSchema } from "./timeframe";
 
-export const strategyDefinitionSchema = z.strictObject({
-  name: z.string().min(1),
-  timeframe: timeframeSchema,
-  entry: conditionSchema,
-  structureId: z.string().min(1),
-  strikes: z.array(strikeSelectionSchema),
-  expiry: expirySelectionSchema.optional(),
-  sizing: sizingRuleSchema,
-  exit: z.array(exitRuleSchema),
-  adjustments: z.array(adjustmentRuleSchema),
-});
+export const strategyDefinitionSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    timeframe: timeframeSchema,
+    entry: conditionSchema,
+    structureId: z.string().min(1),
+    strikes: z.array(strikeSelectionSchema),
+    expiry: expirySelectionSchema.optional(),
+    sizing: sizingRuleSchema,
+    exit: z.array(exitRuleSchema),
+    adjustments: z.array(adjustmentRuleSchema),
+  })
+  .refine((definition) => definition.strikes.length === 0 || definition.expiry !== undefined, {
+    message: "expiry is required when the strategy selects strikes",
+    path: ["expiry"],
+  });
 export type StrategyDefinition = z.infer<typeof strategyDefinitionSchema>;

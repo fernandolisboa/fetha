@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   comparators,
   conditionKinds,
@@ -7,6 +7,7 @@ import {
   priceFields,
   type Condition,
 } from "./condition";
+import { decimalStringSchema } from "./scalars";
 
 const closeAboveSma20: Condition = {
   kind: "compare",
@@ -19,7 +20,7 @@ const rsiOversold: Condition = {
   kind: "compare",
   left: { kind: "indicator", indicator: { kind: "rsi", length: 14 } },
   comparator: "<",
-  right: { kind: "constant", value: "30" },
+  right: { kind: "constant", value: decimalStringSchema.parse("30") },
 };
 
 describe("operandSchema", () => {
@@ -62,18 +63,35 @@ describe("conditionSchema", () => {
     expect(conditionSchema.parse(tree)).toEqual(tree);
   });
 
+  it("accepts a single-child and/or", () => {
+    expect(conditionSchema.safeParse({ kind: "and", conditions: [rsiOversold] }).success).toBe(
+      true,
+    );
+    expect(conditionSchema.safeParse({ kind: "or", conditions: [rsiOversold] }).success).toBe(true);
+  });
+
+  it("types and/or children as non-empty tuples, matching the schema's minimum of one", () => {
+    expectTypeOf<Extract<Condition, { kind: "and" }>["conditions"]>().toEqualTypeOf<
+      [Condition, ...Condition[]]
+    >();
+    expectTypeOf<Extract<Condition, { kind: "or" }>["conditions"]>().toEqualTypeOf<
+      [Condition, ...Condition[]]
+    >();
+  });
+
   it("accepts iv_rank in a comparison", () => {
     const ivRankHigh: Condition = {
       kind: "compare",
       left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 252 } },
       comparator: ">",
-      right: { kind: "constant", value: "50" },
+      right: { kind: "constant", value: decimalStringSchema.parse("50") },
     };
     expect(conditionSchema.safeParse(ivRankHigh).success).toBe(true);
   });
 
   it("rejects empty and/or, unknown kinds and comparators", () => {
     expect(conditionSchema.safeParse({ kind: "and", conditions: [] }).success).toBe(false);
+    expect(conditionSchema.safeParse({ kind: "or", conditions: [] }).success).toBe(false);
     expect(conditionSchema.safeParse({ kind: "xor", conditions: [rsiOversold] }).success).toBe(
       false,
     );

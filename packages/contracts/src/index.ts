@@ -1,16 +1,20 @@
 export { registrationModeSchema, type RegistrationMode } from "./registration-mode";
 export {
   centavosSchema,
+  confidenceSchema,
   decimalStringSchema,
   instantSchema,
   quantitySchema,
   sessionDateSchema,
+  signedQuantitySchema,
   tickerSchema,
   type Centavos,
+  type Confidence,
   type DecimalString,
   type Instant,
   type Quantity,
   type SessionDate,
+  type SignedQuantity,
   type Ticker,
 } from "./scalars";
 export { timeframeSchema, timeframes, type Timeframe } from "./timeframe";

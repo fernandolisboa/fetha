@@ -35,33 +35,69 @@ const strategy = {
   adjustments: [],
 };
 
+const stockOnly = {
+  name: "Trend following on stock",
+  timeframe: "D1",
+  entry: strategy.entry,
+  structureId: "stock",
+  strikes: [],
+  sizing: { kind: "fixed_fractional", fraction: "0.10" },
+  exit: [
+    {
+      kind: "condition",
+      condition: {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: "<",
+        right: { kind: "indicator", indicator: { kind: "sma", length: 50 } },
+      },
+    },
+  ],
+  adjustments: [],
+};
+
+const roll = {
+  kind: "roll",
+  when: { kind: "days_before_expiry", businessDays: 5 },
+  expiry: { kind: "business_days", min: 20, max: 45 },
+  strikes: [{ kind: "delta", target: "0.30" }],
+};
+
 describe("strategyDefinitionSchema", () => {
   it("accepts a complete daily options strategy", () => {
     expect(strategyDefinitionSchema.parse(strategy)).toEqual(strategy);
   });
 
-  it("accepts a stock-only strategy without strikes or expiry", () => {
-    const stockOnly = Object.fromEntries(
-      Object.entries({ ...strategy, structureId: "stock", strikes: [] }).filter(
-        ([key]) => key !== "expiry",
-      ),
+  it("accepts a stock-only strategy without strikes, expiry, expiry-based exits or rolls", () => {
+    expect(strategyDefinitionSchema.parse(stockOnly)).toEqual(stockOnly);
+  });
+
+  it("cannot reject expiry-based exits or rolls on a stock-only strategy: the engine does, as invalid_input against the structure (ADR-0013)", () => {
+    expect(
+      strategyDefinitionSchema.safeParse({
+        ...stockOnly,
+        exit: [{ kind: "days_before_expiry", businessDays: 3 }],
+      }).success,
+    ).toBe(true);
+    expect(strategyDefinitionSchema.safeParse({ ...stockOnly, adjustments: [roll] }).success).toBe(
+      true,
     );
-    expect(strategyDefinitionSchema.safeParse(stockOnly).success).toBe(true);
   });
 
   it("accepts every timeframe and a roll adjustment", () => {
     for (const timeframe of ["15m", "30m", "60m", "D1"]) {
       expect(strategyDefinitionSchema.safeParse({ ...strategy, timeframe }).success).toBe(true);
     }
-    const roll = {
-      kind: "roll",
-      when: { kind: "days_before_expiry", businessDays: 5 },
-      expiry: { kind: "business_days", min: 20, max: 45 },
-      strikes: [{ kind: "delta", target: "0.30" }],
-    };
     expect(strategyDefinitionSchema.safeParse({ ...strategy, adjustments: [roll] }).success).toBe(
       true,
     );
+  });
+
+  it("rejects strikes without an expiry", () => {
+    const withoutExpiry = Object.fromEntries(
+      Object.entries(strategy).filter(([key]) => key !== "expiry"),
+    );
+    expect(strategyDefinitionSchema.safeParse(withoutExpiry).success).toBe(false);
   });
 
   it("rejects a strategy without an entry condition or a structure", () => {
