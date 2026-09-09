@@ -106,8 +106,9 @@ Confirm with the owner before creating any paid resource or paid data subscripti
 5. **Tenant isolation is a hard invariant.** Every domain table carries `user_id`. Data access
    goes through user-scoped repositories that take the user from the session; no query path
    accepts an unscoped id. Every new table ships with an isolation test (user A cannot read or
-   write user B). Reference data, the catalog and shared strategies (ADR-0012) are the only
-   exceptions, read-only to users.
+   write user B). Reference data, the catalog and shared strategies (ADR-0012) are read-only
+   exceptions; operational tables the system alone writes and no user reads (`invites`,
+   `mail_outbox`, ADR-0016) are the other class.
 6. **LGPD by design**: terms and privacy policy accepted at registration; data minimization;
    account data export and deletion flows; audit log of access to portfolio and decision data.
    Ships before `REGISTRATION_MODE=open`.
