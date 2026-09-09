@@ -1,8 +1,14 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { IndicatorsInput } from "../api";
+import type {
+  Candle,
+  CorporateActionFactor,
+  ImpliedVolatilityIndexPoint,
+  IndicatorsInput,
+} from "../api";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
+import { decimalString } from "../test/support";
 import { candleSeriesArbitrary } from "./arbitraries";
 
 const shuffle = <T>(rows: readonly T[], seed: number): T[] => {
@@ -51,6 +57,77 @@ describe("I3 Order-invariance", () => {
           const shuffled: IndicatorsInput = {
             ...input,
             view: { ...baseView, candles: shuffle(candles, seed) },
+          };
+          expect(computeIndicators(shuffled)).toEqual(computeIndicators(input));
+        },
+      ),
+    );
+  });
+
+  it("any permutation of candles, corporateActions and impliedVolatilityIndex together yields a deep-equal artifact, with two tickers sharing one asOf", () => {
+    fc.assert(
+      fc.property(
+        candleSeriesArbitrary,
+        fc.integer({ min: 0, max: 1_000_000 }),
+        (candles, seed) => {
+          fc.pre(candles.length >= 3);
+          const lastCandle = assertDefined(candles.at(-1), "test setup: missing last candle");
+          const sharedAsOf = lastCandle.asOf;
+          const otherTickerCandle: Candle = {
+            ...lastCandle,
+            ticker: "VALE3",
+            asOf: sharedAsOf,
+          };
+          const allCandles: Candle[] = [...candles, otherTickerCandle];
+          const factors: CorporateActionFactor[] = [
+            {
+              ticker: "PETR4",
+              exDate: assertDefined(candles[1], "test setup: missing second candle").session,
+              asOf: assertDefined(candles[0], "test setup: missing first candle").asOf,
+              factor: decimalString("0.5"),
+            },
+            {
+              ticker: "VALE3",
+              exDate: assertDefined(candles[1], "test setup: missing second candle").session,
+              asOf: sharedAsOf,
+              factor: decimalString("2"),
+            },
+          ];
+          const ivPoints: ImpliedVolatilityIndexPoint[] = candles.map((c) => ({
+            underlying: "PETR4",
+            session: c.session,
+            asOf: c.asOf,
+            impliedVolatility: decimalString("0.30"),
+          }));
+          const baseView: IndicatorsInput["view"] = {
+            calendar: [],
+            candles: allCandles,
+            corporateActions: factors,
+            optionSeries: [],
+            optionPrices: [],
+            quotes: [],
+            macro: [],
+            dividendYields: [],
+            impliedVolatilityIndex: ivPoints,
+          };
+          const input: IndicatorsInput = {
+            view: baseView,
+            ticker: "PETR4",
+            timeframe: "D1",
+            indicators: [
+              { kind: "sma", length: 3 },
+              { kind: "iv_rank", lookbackSessions: 2 },
+            ],
+            at: lastCandle.asOf,
+          };
+          const shuffled: IndicatorsInput = {
+            ...input,
+            view: {
+              ...baseView,
+              candles: shuffle(allCandles, seed),
+              corporateActions: shuffle(factors, seed + 1),
+              impliedVolatilityIndex: shuffle(ivPoints, seed + 2),
+            },
           };
           expect(computeIndicators(shuffled)).toEqual(computeIndicators(input));
         },
