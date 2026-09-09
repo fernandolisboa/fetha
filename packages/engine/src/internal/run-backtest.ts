@@ -74,6 +74,7 @@ type BacktestState = {
   taxesFinalized: MonthlyTax[];
   pendingTaxDeduction: { monthKey: string; tax: number } | null;
   operationSeq: number;
+  equityClampEngaged: boolean;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -99,6 +100,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     taxesFinalized: [],
     pendingTaxDeduction: null,
     operationSeq: 0,
+    equityClampEngaged: false,
   };
 }
 
@@ -635,6 +637,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       continue;
     }
 
+    if (equity <= 0) state.equityClampEngaged = true;
     const currentEquity = Math.max(equity, 1);
     const effectiveStrategy = {
       ...config.strategy,
@@ -735,6 +738,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     notes.push({
       code: "negative_cash",
       message: "cash went below zero during the run; v1 has no cash constraint",
+    });
+  }
+  if (state.limitBreaches.length > 0) {
+    notes.push({
+      code: "limit_breach_warned",
+      message: "the run filled at least one entry that breached the risk profile under warn mode",
+    });
+  }
+  if (state.equityClampEngaged) {
+    notes.push({
+      code: "non_positive_equity",
+      message:
+        "equity was non-positive at least once during the run and was clamped to a positive sizing budget",
     });
   }
 

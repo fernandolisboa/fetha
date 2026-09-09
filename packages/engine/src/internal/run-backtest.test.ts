@@ -438,6 +438,10 @@ describe("runBacktest — limits", () => {
     expect(result.value.run.limitBreaches).toHaveLength(1);
     expect(result.value.run.limitBreaches[0]?.ticker).toBe("PETR4");
     expect(result.value.run.limitBreaches[0]?.session).toBe("2024-01-03");
+    expect(result.value.run.notes).toContainEqual({
+      code: "limit_breach_warned",
+      message: "the run filled at least one entry that breached the risk profile under warn mode",
+    });
   });
 
   const maxTwoOpenRiskProfile = {
@@ -1269,6 +1273,11 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     expect(result.value.run.notes).toContainEqual({
       code: "negative_cash",
       message: "cash went below zero during the run; v1 has no cash constraint",
+    });
+    expect(result.value.run.notes).toContainEqual({
+      code: "non_positive_equity",
+      message:
+        "equity was non-positive at least once during the run and was clamped to a positive sizing budget",
     });
   });
 });
