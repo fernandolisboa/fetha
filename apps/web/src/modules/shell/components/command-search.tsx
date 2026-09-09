@@ -34,9 +34,7 @@ export function CommandSearch() {
       >
         <Search className="size-3.5" aria-hidden />
         <span className="truncate">{t.search.placeholder}</span>
-        <span className="text-muted-foreground/70 ml-auto font-mono text-[11px]">
-          {t.search.shortcut}
-        </span>
+        <span className="text-faint ml-auto font-mono text-[11px]">{t.search.shortcut}</span>
       </button>
       <CommandDialog open={open} onOpenChange={setOpen} title={t.search.placeholder}>
         <CommandInput placeholder={t.search.placeholder} />

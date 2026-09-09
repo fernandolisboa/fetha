@@ -54,7 +54,7 @@ export function Rail({ initialCollapsed }: { initialCollapsed: boolean }) {
               <Badge
                 variant="secondary"
                 className={cn(
-                  "bg-primary text-primary-foreground ml-auto font-mono text-[11px] max-lg:hidden",
+                  "bg-primary text-primary-foreground ml-auto font-mono text-[11px] tabular-nums max-lg:hidden",
                   collapsed && "hidden",
                 )}
               >

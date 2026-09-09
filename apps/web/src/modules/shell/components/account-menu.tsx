@@ -18,7 +18,7 @@ export function AccountMenu({ email, theme }: { email: string; theme: Theme }) {
         aria-label={t.accountMenu.open}
         className="border-border bg-secondary flex h-7 items-center gap-2 rounded-full border px-2 text-xs"
       >
-        <span className="bg-accent text-foreground flex size-5 items-center justify-center rounded-full text-[10px] font-medium uppercase">
+        <span className="bg-accent text-foreground flex size-5 items-center justify-center rounded-full text-[11px] font-medium uppercase">
           {email.slice(0, 1)}
         </span>
         <span className="text-muted-foreground max-w-40 truncate">{email}</span>

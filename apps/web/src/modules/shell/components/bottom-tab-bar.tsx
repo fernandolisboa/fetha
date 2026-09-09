@@ -29,7 +29,7 @@ export function BottomTabBar() {
             {destination.showUnreadBadge ? (
               <Badge
                 variant="secondary"
-                className="bg-primary text-primary-foreground absolute -top-1 right-0 h-4 min-w-4 px-1 font-mono text-[10px]"
+                className="bg-primary text-primary-foreground absolute -top-1 right-0 h-4 min-w-4 px-1 font-mono text-[11px] tabular-nums"
               >
                 0
               </Badge>

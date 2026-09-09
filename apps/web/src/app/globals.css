@@ -18,6 +18,7 @@
   --color-accent: var(--accent-soft);
   --color-muted-foreground: var(--muted);
   --color-muted: var(--surface-2);
+  --color-faint: var(--faint);
   --color-secondary-foreground: var(--ink);
   --color-secondary: var(--surface-2);
   --color-primary-foreground: var(--accent-ink);
