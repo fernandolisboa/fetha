@@ -639,6 +639,85 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.legs[0]?.priceSource).toBe("mid");
   });
 
+  it("marks an option leg's mark stale when the price row's session is earlier than the session of at", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.stale).toEqual({ session: "2024-01-01" });
+    expect(result.value.legs[0]?.notes).toContainEqual({
+      code: "stale_price",
+      message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
+    });
+  });
+
+  it("marks a stock leg's mark stale when the price row's session is earlier than the session of at", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-02",
+          asOf: at,
+          open: decimalString("29.00"),
+          high: decimalString("30.00"),
+          low: decimalString("28.50"),
+          close: decimalString("29.50"),
+          tradedQuantity: 1000,
+        },
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("29.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "stock", side: "buy", ticker: "PETR4", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.stale).toEqual({ session: "2024-01-01" });
+    expect(result.value.legs[0]?.notes).toContainEqual({
+      code: "stale_price",
+      message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
+    });
+  });
+
   it("returns invalid_input when an option leg's underlying does not match the operation's underlying", () => {
     const view: MarketView = {
       ...baseView,

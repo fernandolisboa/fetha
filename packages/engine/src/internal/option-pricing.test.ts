@@ -114,6 +114,10 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
       givenVolatility: null,
     });
     expect(valuation.volatilitySource).toBe("last_trade_implied");
+    expect(valuation.notes).toContainEqual({
+      code: "stale_price",
+      message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
+    });
   });
 
   it("notes iv_from_average_price when the resolved market price came from the session average", () => {

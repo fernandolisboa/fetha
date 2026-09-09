@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { Centavos, DecimalString, RiskProfile } from "@fetha/contracts";
+import type { Centavos, DecimalString, RiskProfile, SessionDate } from "@fetha/contracts";
 import type {
   EngineError,
   Greeks,
@@ -14,6 +14,7 @@ import type {
   PriceOperationInput,
   Provenance,
   Result,
+  TradingSession,
 } from "../api";
 import {
   CENTAVOS_PER_REAL,
@@ -23,7 +24,7 @@ import {
   toDecimalString,
 } from "./decimal";
 import { assertDefined } from "./invariant";
-import { isAtOrBefore } from "./instant";
+import { compareInstants, isAtOrBefore } from "./instant";
 import { priceOptionLeg } from "./option-pricing";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
@@ -55,6 +56,19 @@ function isPositive(value: DecimalString): boolean {
 
 function invalidInput(path: string, message: string): EngineError {
   return { code: "invalid_input", path, message };
+}
+
+// ADR-0014 Q42: a mark is `stale` when the price row it came from belongs to an earlier
+// session than the one being valued (an untraded series marked at its last trade).
+function sessionDateAtOrBefore(
+  calendar: readonly TradingSession[],
+  at: string,
+): SessionDate | null {
+  let found: TradingSession | null = null;
+  for (const session of [...calendar].sort((a, b) => compareInstants(a.open, b.open))) {
+    if (isAtOrBefore(session.open, at)) found = session;
+  }
+  return found?.date ?? null;
 }
 
 // Same precedence as a leg's own price (resolve-market-price.ts): mid before last, so the
@@ -98,21 +112,29 @@ function valueOneLeg(
   dividendYield: DecimalString,
   leg: LegInput,
 ): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
+  const atSession = sessionDateAtOrBefore(view.calendar, at);
   if (leg.role === "stock") {
-    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price);
+    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
     const price = resolved?.value ?? null;
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
       price,
       priceSource: resolved?.source ?? null,
-      stale: null,
+      stale: resolved?.stale ?? null,
       fairValue: null,
       impliedVolatility: null,
       volatilitySource: null,
       greeks: price ? { ...zeroGreeks, delta: toDecimalString(new Decimal(1), RATIO_SCALE) } : null,
       timeToExpiryYears: null,
       notes: price
-        ? []
+        ? resolved?.stale
+          ? [
+              {
+                code: "stale_price",
+                message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
+              },
+            ]
+          : []
         : [{ code: "no_market_price", message: "no market price visible for this leg" }],
     };
     return {
@@ -164,7 +186,7 @@ function valueOneLeg(
       },
     };
   }
-  const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price);
+  const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: series.strike,

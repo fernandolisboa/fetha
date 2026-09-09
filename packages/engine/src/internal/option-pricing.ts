@@ -84,6 +84,12 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
         message: "implied volatility solved from the session average price",
       });
     }
+    if (input.marketPrice.stale) {
+      notes.push({
+        code: "stale_price",
+        message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
+      });
+    }
   } else {
     notes.push({ code: "no_market_price", message: "no market price visible for this leg" });
   }

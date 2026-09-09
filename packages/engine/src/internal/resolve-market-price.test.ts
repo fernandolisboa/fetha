@@ -40,4 +40,46 @@ describe("resolveLegMarketPrice", () => {
   it("returns null when no price is visible anywhere", () => {
     expect(resolveLegMarketPrice(baseView, "PETR4C28", at)).toBeNull();
   });
+
+  it("flags stale when the price row's session differs from the session of at (ADR-0014 Q42)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = resolveLegMarketPrice(view, "PETR4C28", at, undefined, "2024-01-02");
+    expect(result).toEqual({
+      value: decimalString("2.50"),
+      source: "close",
+      stale: { session: "2024-01-01" },
+    });
+  });
+
+  it("does not flag stale when the price row's session matches the session of at", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = resolveLegMarketPrice(view, "PETR4C28", at, undefined, "2024-01-02");
+    expect(result).toEqual({ value: decimalString("2.50"), source: "close", stale: null });
+  });
 });
