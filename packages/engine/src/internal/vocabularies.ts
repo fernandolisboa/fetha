@@ -27,11 +27,11 @@ export const implementedTimeframes = [
   "D1",
 ] as const satisfies readonly Timeframe[];
 
-// None of the methods behind these six vocabularies is implemented yet (issue #14
-// landed only capabilities/dataWindow/indicators), so every kind is unsupported for
-// now. Each array must enumerate its contracts union in full: the conformance test
-// checks it against the type, and dropping a member here without dropping it from the
-// union is a compile error, not a silent gap.
+// No strike- or expiry-selection method is implemented yet (that is option-leg
+// territory, #23), so every kind in those two vocabularies stays unsupported. Each
+// array must enumerate its contracts union in full: the conformance test checks it
+// against the type, and dropping a member here without dropping it from the union is
+// a compile error, not a silent gap.
 export const unsupportedStrikeSelectionKinds = [
   "delta",
   "moneyness",
@@ -42,18 +42,30 @@ export const unsupportedExpirySelectionKinds = [
   "business_days",
 ] as const satisfies readonly ExpirySelection["kind"][];
 
-export const unsupportedSizingRuleKinds = [
+// #15 implements evaluateStrategy for stock-only strategies: both sizing rules apply
+// to a stock leg (fixed_fractional and fixed_risk, the latter unsizeable on a short
+// leg's unbounded max loss), so nothing is left unsupported there. Of the exit rules,
+// only days_before_expiry stays unsupported: it needs an expiry, which a stock-only
+// structure's coherence check already forbids.
+export const implementedSizingRuleKinds = [
   "fixed_fractional",
   "fixed_risk",
 ] as const satisfies readonly SizingRule["kind"][];
 
-export const unsupportedExitRuleKinds = [
+export const unsupportedSizingRuleKinds = [] as const satisfies readonly SizingRule["kind"][];
+
+export const implementedExitRuleKinds = [
   "profit_target",
   "stop_loss",
-  "days_before_expiry",
   "condition",
 ] as const satisfies readonly ExitRule["kind"][];
 
+export const unsupportedExitRuleKinds = [
+  "days_before_expiry",
+] as const satisfies readonly ExitRule["kind"][];
+
+// roll only makes sense on a structure with option legs (#23); a stock-only
+// structure's coherence check rejects it outright.
 export const unsupportedAdjustmentRuleKinds = [
   "roll",
 ] as const satisfies readonly AdjustmentRule["kind"][];

@@ -20,6 +20,7 @@ import type {
 import { pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
+import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
 import { computeIndicators } from "./internal/indicators-computation";
 import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
@@ -48,7 +49,7 @@ export const engine: Engine = {
   },
 
   evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {
-    return unsupported("sizingRules", input.strategy.definition.sizing.kind);
+    return Promise.resolve(computeEvaluateStrategy(input));
   },
 
   runBacktest(input: RunBacktestInput): Promise<Result<BacktestProgress>> {
