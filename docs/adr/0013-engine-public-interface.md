@@ -1397,6 +1397,71 @@ money helpers from `@fetha/engine`. Issue #14 landed the first computation (`cap
 `dataWindow()` and `indicators()`, with SMA, EMA, Wilder RSI, Wilder ATR and `iv_rank`), so the
 coverage gate is live from that ticket on, not vacuous.
 
+### #21 addendum: `priceOperation`, `impliedVolatilityIndex` and the option-pricing seam
+
+Issue #21 implements `priceOperation` in full (concrete legs and `LegSelection`, strike and
+expiry selection, sizing) and `impliedVolatilityIndex`, landing the option-pricing seam this ADR
+describes above ("Rates, time and greeks", "`priceOperation`", "Indicators", "`markToMarket`, ...
+`impliedVolatilityIndex`"). Review round 1 (PR #53) surfaced gaps the sections above left
+implicit or wrong; this addendum records what shipped and the rules that came out of the fix.
+
+- **BSM/IV on doubles at the `black-scholes.ts` seam.** ADR-0001 fixes decimal arithmetic for
+  prices, greeks and money everywhere the engine's public types are concerned; it does not reach
+  into a pricing model's internal numerics. `black-scholes.ts` and `implied-volatility.ts` compute
+  entirely in `number` (decimal.js has no closed-form normal CDF/PDF, and Abramowitz & Stegun
+  7.1.26 on doubles is far below the 6-decimal-place scale a `DecimalString` reports at), and
+  convert to `Decimal` only at `option-pricing.ts`'s `priceOptionLeg`, the one seam between this
+  model and the rest of the engine. That seam now guards non-finite output as a last line (a
+  non-positive spot/strike is rejected earlier, at `invalid_input`, so this is defense in depth,
+  not the primary check) rather than let `toDecimalString`'s finiteness invariant throw out of
+  `priceOperation`.
+- **Selection tie-breaks are deterministic.** Nearest-strike and nearest-|delta| selection (both
+  `nearest` and `delta` `StrikeSelection` kinds) break an exact tie by the lower strike, then the
+  lexicographically earlier ticker, never by which candidate a `MarketView` array happens to list
+  first: `MarketView.optionSeries`/`optionPrices` order is not meaningful (I3), so a caller that
+  reshuffles rows before calling must resolve the same operation. Nearest-|delta| selection also
+  now prices every candidate through the same mid/last/close/average ladder pricing itself uses
+  (`resolve-market-price.ts`, shared by `price-operation.ts` and `resolve-leg-selection.ts`)
+  instead of a `.find` over `optionPrices` alone, so a selection and its own pricing a moment
+  later never disagree over which price was "current."
+- **Time-to-expiry failure is not silently `t = 0`.** A concrete option leg whose listed expiry
+  precedes the session of `at` is `invalid_input` (path `legs.expiry`); one the calendar does not
+  cover (neither `at` nor the expiry date has a session) is `insufficient_data` for `candles`.
+  `resolveLegSelection`'s own time-to-expiry lookup for the strike it already chose cannot fail by
+  construction (the chosen expiry already passed the `business_days` window check against the
+  calendar), so its former silent-zero fallback is an `invariant` now, not a code path a test can
+  reach with well-formed data.
+- **Sizing: `zero_units` and the net-credit divisor.** `UnsizeableReason` gains `zero_units`
+  (additive, `api.ts` and the frozen block above updated together): a `SizingRule` that would
+  otherwise size to fewer than one unit is unsizeable, per "Quantity" above ("fewer than one
+  unit is unsizeable") — it is never clamped up to one unit, the bug round 1 found. A
+  `fixed_fractional` quantity on a net-credit structure (`netPremium > 0`, premium received)
+  sizes against the structure's bounded max loss, not the premium received, which understated the
+  capital actually at risk on a credit spread; an unbounded max loss on a net-credit
+  `fixed_fractional` structure is `unsizeable` (`unbounded_max_loss`), the same reading
+  `fixed_risk` already gave a naked short option.
+- **Spot precedence matches leg precedence.** The underlying's own spot and a leg's own price
+  both resolve `mid` (bid/ask average) before `last`, `last` before a day's `close`, `close`
+  before `average` — one ladder, not two, so a leg that happens to be the underlying itself prices
+  the same way whether it is read as "the spot" or "a leg."
+- **`risk_free_rate_defaulted`.** A visible `cdi` point's absence is now a note (additive
+  `NoteCode`, `api.ts` and the frozen block updated together) alongside the existing
+  `dividend_yield_defaulted`, so a caller can tell the continuous rate was assumed zero rather
+  than read from `MarketView.macro`. An `annualRate`/`annualYield` at or below -1 (which would
+  make the continuous-rate conversion's `ln()` throw) is `invalid_input` before conversion.
+- **`impliedVolatilityIndex` is implemented**, per "`markToMarket`, ..., `impliedVolatilityIndex`,
+  `dataWindow`" above: `atm_30d_variance_interpolated`, bracketing the 30-calendar-day point
+  between the two nearest listed expiries (or using one that lands on it exactly) and
+  interpolating linearly in total variance. `markToMarket` and `proposeSettlement` are still
+  unimplemented, but no longer misreport `"pricingModels"` as the reason (BSM is implemented, by
+  `priceOperation` and now `impliedVolatilityIndex`); they report `"adjustmentRules"` instead
+  (`capabilities().adjustmentRules` is genuinely empty) with a descriptive `kind`
+  (`mark_to_market`, `propose_settlement`) — `EngineError`'s `kind` is a plain `string`, not
+  constrained to the vocabulary's own members, so this does not misuse the type.
+- **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
+  `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
+  with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+
 ## Considered options
 
 - **A, minimal**: two functions (`compute(view, query)` and `step(view, input, budget)`) over a

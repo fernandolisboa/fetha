@@ -21,8 +21,9 @@ export type GreeksRaw = {
 // ADR-0002: Black-Scholes-Merton with a continuous dividend yield, European for every
 // series. The formulas need the standard normal CDF/PDF, which decimal.js has no closed
 // form for; the Abramowitz & Stegun 7.1.26 approximation on plain doubles (error < 1.5e-7)
-// is far below the 6-decimal-place scale every DecimalString reports at, so the seam
-// converts to `number` here and callers convert back to Decimal at the boundary.
+// is about 15% of one unit in the last reported place at the 6-decimal-place scale every
+// DecimalString reports at — a real but sub-rounding contribution, not negligible noise —
+// so the seam converts to `number` here and callers convert back to Decimal at the boundary.
 function normalPdf(x: number): number {
   return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
 }
