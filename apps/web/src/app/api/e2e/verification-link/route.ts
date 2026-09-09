@@ -1,17 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
-import { getDb } from "@/db/client";
-import { isProductionDeployment, readE2ESecret } from "@/modules/auth/env";
-import { findLatestVerificationLink } from "@/modules/auth/verification-link";
+import { isProductionDeployment, readE2ESecret, readE2EVerificationLink } from "@/modules/auth";
 
-function timingSafeEqualStrings(provided: string, configured: string): boolean {
-  if (provided.length !== configured.length) {
-    return false;
-  }
-  return timingSafeEqual(Buffer.from(provided), Buffer.from(configured));
-}
+import { timingSafeEqualStrings } from "./timing-safe-equal-strings";
 
 export async function GET(request: Request): Promise<Response> {
   const configuredSecret = readE2ESecret();
@@ -29,7 +20,7 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "email is required" }, { status: 400 });
   }
 
-  const link = await findLatestVerificationLink(getDb(), email);
+  const link = await readE2EVerificationLink(email);
   if (!link) {
     return new NextResponse(null, { status: 404 });
   }

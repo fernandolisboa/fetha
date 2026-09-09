@@ -3,6 +3,8 @@ export { initialActionState } from "./action-state";
 export { resendVerificationAction, signInAction, signOutAction, signUpAction } from "./actions";
 export { authRouteHandlers } from "./auth";
 export { AuthShell } from "./components/auth-shell";
+export { readE2EVerificationLink } from "./e2e-verification-link";
+export { isProductionDeployment, readE2ESecret } from "./env";
 export { ResendVerificationForm } from "./components/resend-verification-form";
 export { SignInForm } from "./components/sign-in-form";
 export { SignOutButton } from "./components/sign-out-button";
