@@ -68,14 +68,18 @@ export function buildAuthOptions(
     },
     user: {
       additionalFields: {
+        // required: false here means "the client request body does not need
+        // to carry it"; the value is always supplied by
+        // databaseHooks.user.create.before, so the database column itself
+        // stays NOT NULL (docs/adr/0016) regardless of this flag.
         termsVersion: {
           type: "string",
-          required: true,
+          required: false,
           input: false,
         },
         termsAcceptedAt: {
           type: "date",
-          required: true,
+          required: false,
           input: false,
         },
       },
