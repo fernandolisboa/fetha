@@ -520,7 +520,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     ]);
   });
 
-  it("does not compute any evaluation when there are no candles for the instrument", () => {
+  it("records one insufficient_data evaluation per instrument when there are no candles for it", () => {
     const input: EvaluateStrategyInput = {
       view: emptyView,
       strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
@@ -530,8 +530,33 @@ describe("evaluateStrategy — stock-only strategies", () => {
     const result = evaluateStrategy(input);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.evaluations).toEqual([]);
+    expect(result.value.evaluations).toEqual([
+      {
+        ticker: "PETR4",
+        at: "2024-01-04T21:00:00.000Z",
+        session: "2024-01-04",
+        outcome: "insufficient_data",
+        detail: "no candles for this instrument and timeframe",
+      },
+    ]);
     expect(result.value.signals).toEqual([]);
+  });
+
+  it("validates the whole view for duplicates even when instruments is empty", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 0, "10.00"), dailyCandle("PETR4", 0, "11.00")],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: [],
+      at: "2024-01-01T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 
   it("rejects a stock-only definition with an expiry selection as invalid_input", () => {
@@ -853,5 +878,455 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+  });
+
+  it("rejects a duplicate ticker in instruments as invalid_input", () => {
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4", "PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "instruments",
+      message: "duplicate instrument PETR4",
+    });
+  });
+
+  it("rejects a duplicate operation id as invalid_input", () => {
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [stockOperation("op-1"), stockOperation("op-1")],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations",
+      message: "duplicate operation id op-1",
+    });
+  });
+
+  it("rejects an open operation whose stock leg ticker does not match its underlying", () => {
+    const mismatched: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "VALE3",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [mismatched],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].legs[0].ticker",
+      message: "a stock leg's ticker must match the operation's underlying",
+    });
+  });
+
+  it("rejects duplicate corporate-action factors across the whole view as invalid_input", () => {
+    const factor = {
+      ticker: "PETR4",
+      exDate: "2024-01-02",
+      asOf: "2024-01-02T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, corporateActions: [factor, factor] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "view.corporateActions" });
+  });
+
+  it("rejects a duplicate (series, asOf) pair in macro as invalid_input", () => {
+    const point = {
+      series: "cdi" as const,
+      date: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      annualRate: decimalString("0.10"),
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, macro: [point, point] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.macro" });
+  });
+
+  it("rejects a duplicate (underlying, asOf) pair in dividendYields as invalid_input", () => {
+    const point = {
+      underlying: "PETR4",
+      asOf: "2024-01-02T21:00:00.000Z",
+      annualYield: decimalString("0.05"),
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, dividendYields: [point, point] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.dividendYields" });
+  });
+
+  it("rejects a candle with a non-positive close, propagated from the per-ticker candle series", () => {
+    const badView: MarketView = {
+      ...emptyView,
+      candles: [{ ...dailyCandle("PETR4", 0, "10.00"), close: decimalString("0.00") }],
+    };
+    const input: EvaluateStrategyInput = {
+      view: badView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.candles[0].close" });
+  });
+
+  it("gates entry only from the session an open operation was actually opened at (openedAt catch-up)", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00", "14.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const lateOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-05",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.01") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      since: "2024-01-03T21:00:00.000Z",
+      at: "2024-01-05T21:00:00.000Z",
+      openOperations: [lateOperation],
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Before openedAt (2024-01-04), the operation is invisible: entry is evaluated normally
+    // and fires. From openedAt on (2024-01-05), entry is gated and only the exit rule runs.
+    expect(result.value.evaluations.map((e) => e.outcome)).toEqual(["signal", "signal"]);
+    expect(result.value.signals.map((s) => ({ kind: s.kind, at: s.at }))).toEqual([
+      { kind: "entry", at: "2024-01-04T21:00:00.000Z" },
+      { kind: "exit", at: "2024-01-05T21:00:00.000Z" },
+    ]);
+    const exitSignal = result.value.signals[1] as Extract<Signal, { kind: "exit" }>;
+    expect(exitSignal.session >= lateOperation.openedAt).toBe(true);
+  });
+
+  it("tries exit rules in definition order and stops at the first that fires", () => {
+    const closes = ["10.00", "10.00", "10.00", "10.50"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const alsoAlwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("-1") },
+    };
+    const firstRule: Extract<ReturnType<typeof definition>["exit"][number], { kind: "condition" }> =
+      { kind: "condition", condition: alwaysTrue };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [firstRule, { kind: "condition", condition: alsoAlwaysTrue }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [stockOperation("op-1")],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.signals).toHaveLength(1);
+    const signal = result.value.signals[0] as Extract<Signal, { kind: "exit" }>;
+    expect(signal.rule).toEqual(firstRule);
+  });
+
+  it("does not fire a numeric exit rule whose base is zero, and records why", () => {
+    const closes = ["10.00", "10.00", "10.00", "10.50"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const deltaNeutralOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [deltaNeutralOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.signals).toEqual([]);
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-04T21:00:00.000Z",
+      session: "2024-01-04",
+      outcome: "conditions_not_met",
+      detail: "profit_target cannot fire: the operation's premium base is zero",
+    });
+  });
+
+  it("fires stop_loss on a short stock operation using |netPremium| as the max-loss base (unbounded max loss)", () => {
+    const closes = ["10.00", "10.00", "10.00", "14.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const shortOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "stop_loss", multipleOfMaxLoss: decimalString("0.3") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [shortOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+  });
+
+  it("uses net premium, not gross cost, as the profit_target base on a buy-2/sell-1 structure", () => {
+    // buy 100 @ 10.00 + sell 50 @ 8.00: net premium (debit) is 600 reais, gross cost 1400 reais.
+    // At close 20.00, pnl is 400 reais: above the net-premium target (0.5 * 600 = 300) but
+    // below what the gross-cost target would have required (0.5 * 1400 = 700).
+    const closes = ["10.00", "10.00", "10.00", "20.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const structure: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(50),
+          entryPrice: decimalString("8.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [structure],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+  });
+
+  it("sizes and sends an entry signal under fixed_risk sizing with real candles", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          sizing: { kind: "fixed_risk", fraction: decimalString("0.01") },
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    const signal = result.value.signals[0] as Extract<Signal, { kind: "entry" }>;
+    // budget = 0.01 * 100_000_00 = 100_000 centavos; price 13.00 -> 1300 centavos/unit;
+    // units = floor(100_000 / 1300) = 76
+    expect(signal.proposal.legs).toEqual([
+      { role: "stock", side: "buy", ticker: "PETR4", quantity: quantity(76) },
+    ]);
+  });
+
+  it("is unsizeable under fixed_risk when the structure has a short stock leg, through evaluateStrategy end to end", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const shortStructure: Structure = {
+      id: "stock",
+      name: "Stock",
+      expiry: "shared",
+      legs: [{ role: "stock", side: "sell", ratio: 1 }] as LegTemplate[],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          sizing: { kind: "fixed_risk", fraction: decimalString("0.01") },
+        }),
+        shortStructure,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-04T21:00:00.000Z",
+      session: "2024-01-04",
+      outcome: "unsizeable",
+      detail: "fixed_risk sizing is unsizeable against an unbounded max loss",
+    });
+    expect(result.value.signals).toEqual([]);
   });
 });

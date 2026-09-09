@@ -216,7 +216,15 @@ describe("engine", () => {
     } satisfies EvaluateStrategyInput);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.evaluations).toEqual([]);
+    expect(result.value.evaluations).toEqual([
+      {
+        ticker: "PETR4",
+        at: "2024-01-01T00:00:00.000Z",
+        session: "2024-01-01",
+        outcome: "insufficient_data",
+        detail: "no candles for this instrument and timeframe",
+      },
+    ]);
     expect(result.value.signals).toEqual([]);
   });
 

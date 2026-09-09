@@ -1,12 +1,15 @@
 import Decimal from "decimal.js";
-import type { DecimalString, ExitRule } from "@fetha/contracts";
+import type { DecimalString, ExitRule, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import {
   ENGINE_VERSION,
+  type Candle,
+  type CorporateActionFactor,
   type Evaluation,
   type EvaluationOutcome,
   type EvaluationRecord,
   type EvaluateStrategyInput,
   type IndicatorReading,
+  type MarketView,
   type Operation,
   type OperationLeg,
   type Result,
@@ -21,10 +24,11 @@ import {
   indicatorSpecKey,
 } from "./collect-indicator-specs";
 import { evaluateCondition, type ConditionContext } from "./condition-evaluator";
-import { parseDecimal } from "./decimal";
+import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
+import { codeUnitCompare, sortUnique } from "./order";
 import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { priceStockLegs } from "./stock-pricing";
@@ -40,9 +44,9 @@ function invalidInput(path: string, message: string): Result<Evaluation> {
 }
 
 function record(
-  ticker: string,
-  at: string,
-  session: string,
+  ticker: Ticker,
+  at: Instant,
+  session: SessionDate,
   outcome: EvaluationOutcome,
   detail: string | null,
 ): EvaluationRecord {
@@ -125,28 +129,149 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
         "a stock-only operation must not have an expiry",
       );
     }
+    for (const [legIndex, leg] of op.legs.entries()) {
+      if (leg.ticker !== op.underlying) {
+        return invalidInput(
+          `openOperations[${String(index)}].legs[${String(legIndex)}].ticker`,
+          "a stock leg's ticker must match the operation's underlying",
+        );
+      }
+    }
   }
   return null;
+}
+
+function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluation> | null {
+  const instrumentDupe = sortUnique(input.instruments, (t) => t, codeUnitCompare);
+  if (!instrumentDupe.ok) {
+    return invalidInput("instruments", `duplicate instrument ${instrumentDupe.duplicateKey}`);
+  }
+
+  const openOperations = input.openOperations ?? [];
+  const operationIdDupe = sortUnique(
+    openOperations,
+    (op) => op.id,
+    (a, b) => codeUnitCompare(a.id, b.id),
+  );
+  if (!operationIdDupe.ok) {
+    return invalidInput("openOperations", `duplicate operation id ${operationIdDupe.duplicateKey}`);
+  }
+
+  const candleDupe = sortUnique(
+    input.view.candles,
+    (c) => `${c.ticker}|${c.timeframe}|${c.asOf}`,
+    (a, b) =>
+      codeUnitCompare(a.ticker, b.ticker) ||
+      codeUnitCompare(a.timeframe, b.timeframe) ||
+      compareInstants(a.asOf, b.asOf),
+  );
+  if (!candleDupe.ok) {
+    return invalidInput("view.candles", `duplicate candle row for ${candleDupe.duplicateKey}`);
+  }
+
+  const factorDupe = sortUnique(
+    input.view.corporateActions,
+    (f) => `${f.ticker}|${f.exDate}`,
+    (a, b) => codeUnitCompare(a.ticker, b.ticker) || codeUnitCompare(a.exDate, b.exDate),
+  );
+  if (!factorDupe.ok) {
+    return invalidInput(
+      "view.corporateActions",
+      `duplicate corporate action factor for ${factorDupe.duplicateKey}`,
+    );
+  }
+
+  const macroDupe = sortUnique(
+    input.view.macro,
+    (m) => `${m.series}|${m.asOf}`,
+    (a, b) => codeUnitCompare(a.series, b.series) || compareInstants(a.asOf, b.asOf),
+  );
+  if (!macroDupe.ok) {
+    return invalidInput("view.macro", `duplicate macro point for ${macroDupe.duplicateKey}`);
+  }
+
+  const dividendDupe = sortUnique(
+    input.view.dividendYields,
+    (d) => `${d.underlying}|${d.asOf}`,
+    (a, b) => codeUnitCompare(a.underlying, b.underlying) || compareInstants(a.asOf, b.asOf),
+  );
+  if (!dividendDupe.ok) {
+    return invalidInput(
+      "view.dividendYields",
+      `duplicate dividend yield point for ${dividendDupe.duplicateKey}`,
+    );
+  }
+
+  return null;
+}
+
+function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Map<Ticker, T[]> {
+  const byTicker = new Map<Ticker, T[]>();
+  for (const row of rows) {
+    const bucket = byTicker.get(row.ticker);
+    if (bucket) bucket.push(row);
+    else byTicker.set(row.ticker, [row]);
+  }
+  return byTicker;
+}
+
+type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
+
+function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): ExitRuleBases {
+  const firstLeg = assertDefined(
+    op.legs[0],
+    "evaluateStrategy: an operation always carries at least one leg",
+  );
+  const pricing = priceStockLegs({
+    at,
+    underlying: op.underlying,
+    spot: firstLeg.entryPrice,
+    legs: op.legs.map((leg) => ({ ...leg, priceSource: "given" as const })),
+    view,
+    provenanceBase: {
+      engineVersion: ENGINE_VERSION,
+      pricingModel: "bsm_continuous_yield",
+      dataVersion: null,
+      datasetNotes: [],
+    },
+  });
+  const premiumBase = new Decimal(Math.abs(pricing.netPremium));
+  const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
+  return { premiumBase, maxLossBase };
 }
 
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
   currentClose: DecimalString,
-): boolean {
+  bases: ExitRuleBases,
+): { fired: boolean; zeroBase: boolean } {
   const current = parseDecimal(currentClose);
-  let pnl = new Decimal(0);
-  let cost = new Decimal(0);
+  let pnlCentavos = new Decimal(0);
   for (const leg of op.legs) {
     const entry = parseDecimal(leg.entryPrice);
     const legSign = leg.side === "buy" ? 1 : -1;
-    pnl = pnl.add(current.sub(entry).mul(legSign).mul(leg.quantity));
-    cost = cost.add(entry.mul(leg.quantity));
+    pnlCentavos = pnlCentavos.add(
+      current.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+    );
   }
   if (rule.kind === "profit_target") {
-    return pnl.gte(cost.mul(parseDecimal(rule.fractionOfPremium)));
+    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true };
+    return {
+      fired: pnlCentavos.gte(bases.premiumBase.mul(parseDecimal(rule.fractionOfPremium))),
+      zeroBase: false,
+    };
   }
-  return pnl.lte(cost.mul(parseDecimal(rule.multipleOfMaxLoss)).neg());
+  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true };
+  return {
+    fired: pnlCentavos.lte(bases.maxLossBase.mul(parseDecimal(rule.multipleOfMaxLoss)).neg()),
+    zeroBase: false,
+  };
+}
+
+function zeroBaseMessage(kind: "profit_target" | "stop_loss"): string {
+  const baseName = kind === "profit_target" ? "premium" : "max-loss";
+  return `${kind} cannot fire: the operation's ${baseName} base is zero`;
 }
 
 export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluation> {
@@ -172,6 +297,9 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   const openOperationsError = validateOpenOperations(input);
   if (openOperationsError) return openOperationsError;
 
+  const batchError = validateBatchInvariants(input);
+  if (batchError) return batchError;
+
   const openOperations = input.openOperations ?? [];
   const distinctSpecs = dedupeIndicatorSpecs(collectIndicatorSpecs(input.strategy.definition));
   const needsIv = distinctSpecs.some((spec) => spec.kind === "iv_rank");
@@ -191,10 +319,19 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   const evaluations: EvaluationRecord[] = [];
   const timeframe = input.strategy.definition.timeframe;
 
+  const candlesByTicker = partitionByTicker<Candle>(input.view.candles);
+  const actionsByTicker = partitionByTicker<CorporateActionFactor>(input.view.corporateActions);
+
   for (const ticker of input.instruments) {
+    const tickerView: MarketView = {
+      ...input.view,
+      candles: candlesByTicker.get(ticker) ?? [],
+      corporateActions: actionsByTicker.get(ticker) ?? [],
+    };
+
     const nominalSeries = buildCandleSeries({
-      candles: input.view.candles,
-      corporateActions: input.view.corporateActions,
+      candles: tickerView.candles,
+      corporateActions: tickerView.corporateActions,
       ticker,
       timeframe,
       at: input.at,
@@ -203,26 +340,42 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
       return invalidInput(nominalSeries.error.path, nominalSeries.error.message);
     }
 
+    if (nominalSeries.value.nominal.length === 0) {
+      evaluations.push(
+        record(
+          ticker,
+          input.at,
+          input.at.slice(0, 10),
+          "insufficient_data",
+          "no candles for this instrument and timeframe",
+        ),
+      );
+      continue;
+    }
+
     const instants =
       input.since !== undefined
         ? nominalSeries.value.nominal.filter(
             (c) => isAfter(c.asOf, input.since as string) && isAtOrBefore(c.asOf, input.at),
           )
-        : nominalSeries.value.nominal.length > 0
-          ? [
-              assertDefined(
-                nominalSeries.value.nominal.at(-1),
-                "evaluateStrategy: missing latest candle",
-              ),
-            ]
-          : [];
+        : [
+            assertDefined(
+              nominalSeries.value.nominal.at(-1),
+              "evaluateStrategy: missing latest candle",
+            ),
+          ];
 
     const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
+    const basesByOpId = new Map(
+      opsForTicker.map((op) => [op.id, computeExitRuleBases(op, input.view, input.at)] as const),
+    );
 
     for (const nominalCandle of instants) {
       const c = nominalCandle.asOf;
+      const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
+
       const indicatorsResult = computeIndicators({
-        view: input.view,
+        view: tickerView,
         ticker,
         timeframe,
         indicators: distinctSpecs,
@@ -253,7 +406,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
         indicatorValues: decimalIndicatorValues,
       };
 
-      if (opsForTicker.length === 0) {
+      if (activeOps.length === 0) {
         const entryVerdict = evaluateCondition(input.strategy.definition.entry, ctx);
         if (entryVerdict === "unknown") {
           evaluations.push(
@@ -345,14 +498,23 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
 
       let instantFired = false;
       let instantUnknown = false;
-      for (const op of opsForTicker) {
+      let zeroBaseDetail: string | null = null;
+      for (const op of activeOps) {
+        const bases = assertDefined(
+          basesByOpId.get(op.id),
+          "evaluateStrategy: missing precomputed exit rule bases",
+        );
         let fired = false;
         for (const rule of input.strategy.definition.exit) {
           if (fired) break;
           switch (rule.kind) {
             case "profit_target":
             case "stop_loss": {
-              if (evaluateNumericExitRule(rule, op, nominalCandle.close)) {
+              const outcome = evaluateNumericExitRule(rule, op, nominalCandle.close, bases);
+              if (outcome.zeroBase && zeroBaseDetail === null) {
+                zeroBaseDetail = zeroBaseMessage(rule.kind);
+              }
+              if (outcome.fired) {
                 signals.push({
                   kind: "exit",
                   strategyVersionId: input.strategy.id,
@@ -407,7 +569,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           c,
           nominalCandle.session,
           instantFired ? "signal" : instantUnknown ? "insufficient_data" : "conditions_not_met",
-          null,
+          instantFired ? null : zeroBaseDetail,
         ),
       );
     }
