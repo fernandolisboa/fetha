@@ -57,6 +57,10 @@ type BacktestState = {
   limitBreaches: SessionLimitBreach[];
   equityCurve: EquityPoint[];
   held: boolean[];
+  // Carried in the checkpoint state, not call-local: a resumed run must pair each equity
+  // point with the risk-free rate visible at that same session's close, or a chunked run's
+  // Sharpe (and walk-forward windows) diverge from an uninterrupted call over the same period.
+  rfPerSession: DecimalString[];
   runningPeak: number;
   pendingEntries: Record<string, PendingEntry>;
   retryCount: Record<string, number>;
@@ -81,6 +85,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     limitBreaches: [],
     equityCurve: [],
     held: [],
+    rfPerSession: [],
     runningPeak: initialCapital,
     pendingEntries: {},
     retryCount: {},
@@ -281,8 +286,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     input.resume === undefined
       ? initialState(config.initialCapital)
       : (input.resume.state as BacktestState);
-
-  const rfPerSession: DecimalString[] = [];
 
   function finalizeMissedEntry(ticker: Ticker, signalAt: Instant, reason: MissedEntryReason): void {
     state.missedEntries.push({
@@ -548,7 +551,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       drawdown,
     });
     state.held.push(state.openOperations.length > 0);
-    rfPerSession.push(rfAt(session.close));
+    state.rfPerSession.push(rfAt(session.close));
 
     // Step 4/5: period end sweep, or next signals.
     if (isFinalSession) {
@@ -686,7 +689,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   }
 
   const { metrics, notes: metricsNotes } = computeBacktestMetrics(
-    buildMetricsInput(state, config.initialCapital, rfPerSession),
+    buildMetricsInput(state, config.initialCapital),
   );
 
   const truncated = batchTruncationReport({
@@ -708,9 +711,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     limitBreaches: state.limitBreaches,
     equityCurve: state.equityCurve,
     metrics,
-    walkForward: config.walkForward
-      ? computeWalkForward(state, config, rfPerSession, periodSessions)
-      : null,
+    walkForward: config.walkForward ? computeWalkForward(state, config, periodSessions) : null,
     taxes: state.taxesFinalized,
     notes: metricsNotes,
     provenance: {
@@ -734,18 +735,14 @@ function isLastSessionOfMonth(
   return next === undefined || monthKeyOf(next.date) !== monthKey;
 }
 
-function buildMetricsInput(
-  state: BacktestState,
-  initialCapital: Centavos,
-  rfPerSession: readonly DecimalString[],
-): MetricsInput {
+function buildMetricsInput(state: BacktestState, initialCapital: Centavos): MetricsInput {
   const settled = state.operations.filter(
     (op) => op.status === "closed" && op.closeReason.kind !== "period_end",
   );
   return {
     equityCurve: state.equityCurve,
     initialCapital,
-    rfPerSession,
+    rfPerSession: state.rfPerSession,
     held: state.held,
     settledOperationPnls: settled.map((op) => op.pnl),
     operationsCount: state.operations.length,
@@ -758,7 +755,6 @@ function buildMetricsInput(
 function computeWalkForward(
   state: BacktestState,
   config: BacktestConfig,
-  rfPerSession: readonly DecimalString[],
   periodSessions: readonly TradingSession[],
 ): NonNullable<BacktestRun["walkForward"]> {
   if (config.walkForward === null) {
@@ -773,7 +769,7 @@ function computeWalkForward(
     const to = assertDefined(windowSessionsSlice.at(-1), "run-backtest: non-empty window").date;
     const equitySlice = state.equityCurve.slice(start, end);
     const heldSlice = state.held.slice(start, end);
-    const rfSlice = rfPerSession.slice(start, end);
+    const rfSlice = state.rfPerSession.slice(start, end);
     const baseline =
       start === 0
         ? config.initialCapital

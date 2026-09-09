@@ -118,6 +118,17 @@ function baseConfig(overrides: Partial<BacktestConfig> = {}): BacktestConfig {
 
 const fourSessionCalendar = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"].map(session);
 
+function businessDays(count: number, startingFrom = new Date(Date.UTC(2024, 0, 2))): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(startingFrom);
+  while (dates.length < count) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 describe("runBacktest — hand-computed fills, costs, taxes and metrics", () => {
   it("fills at the next session's open, charges costs, exits on profit_target, taxes an exempt month, refuses annualization under 126 sessions", () => {
     const config = baseConfig({
@@ -685,13 +696,20 @@ describe("runBacktest — corporate actions across an open position", () => {
     factor: decimalString("0.5"),
   };
 
+  const distantUnrelatedFactor: CorporateActionFactor = {
+    ticker: "PETR4",
+    exDate: "2099-01-01",
+    asOf: "2099-01-01T13:00:00.000Z",
+    factor: decimalString("1"),
+  };
+
   it("marks an open position on its post-split effective share count, no phantom drawdown", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
     const view: MarketView = {
       ...emptyView,
       calendar,
-      corporateActions: [split],
+      corporateActions: [split, distantUnrelatedFactor],
       candles: [
         candle("PETR4", "2024-01-02", "10.00", "10.00"),
         candle("PETR4", "2024-01-03", "10.00", "10.00"),
@@ -870,6 +888,54 @@ describe("runBacktest — chunking and determinism", () => {
     expect(shortOp?.status).toBe("closed");
     if (shortOp?.status !== "closed") throw new Error("expected a closed operation");
     expect(shortOp.closeReason).toEqual({ kind: "period_end" });
+  });
+
+  it("a chunked run over 126+ sessions with a non-zero CDI reports the same sharpe as one call (I2)", () => {
+    const dates = businessDays(130);
+    const calendar = dates.map(session);
+    const candles = dates.map((date, i) =>
+      candle("PETR4", date, "10.00", i % 2 === 0 ? "10.10" : "9.95"),
+    );
+    const config = baseConfig({
+      strategy: strategyVersion(definition({ entry: closeAbove9 })),
+      period: { from: dates[0] ?? "", to: dates[dates.length - 1] ?? "" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles,
+      macro: [
+        {
+          series: "cdi",
+          date: "2024-01-01",
+          asOf: "2024-01-01T21:00:00.000Z",
+          annualRate: decimalString("0.10"),
+        },
+      ],
+    };
+    const whole = runBacktest({ view, config });
+    expect(whole.ok).toBe(true);
+    if (!whole.ok || whole.value.status !== "complete") throw new Error("expected complete");
+    expect(whole.value.run.metrics.sharpe).not.toBeNull();
+
+    let resume: RunBacktestInput["resume"] | undefined;
+    let last: ReturnType<typeof runBacktest> | null = null;
+    for (let iterations = 0; iterations < 20; iterations += 1) {
+      const step = runBacktest(
+        resume === undefined
+          ? { view, config, maxSessions: 10 }
+          : { view, config, maxSessions: 10, resume },
+      );
+      expect(step.ok).toBe(true);
+      if (!step.ok) throw new Error("expected an ok result");
+      last = step;
+      if (step.value.status === "complete") break;
+      resume = step.value.checkpoint;
+    }
+    if (!last?.ok || last.value.status !== "complete")
+      throw new Error("expected the chunked run to complete");
+    expect(last.value.run.metrics.sharpe).toEqual(whole.value.run.metrics.sharpe);
+    expect(last.value.run.metrics.cagr).toEqual(whole.value.run.metrics.cagr);
   });
 });
 
