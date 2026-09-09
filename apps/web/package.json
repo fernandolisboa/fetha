@@ -39,7 +39,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@better-auth/cli": "1.7.3",
+    "@better-auth/cli": "1.4.22",
     "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "20.19.43",
