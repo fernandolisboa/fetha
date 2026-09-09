@@ -11,7 +11,7 @@
 
 1. **[2026-09-02] Orchestrator never implements tickets**
    Do instead: delegate to `.claude/agents/implementer.md` (Sonnet); keep the main session for planning, integration and talking to the user. Phase 0 bootstrap is the one exception.
-2. **[2026-09-02] Some claude.ai skills are user-only (`setup-matt-pocock-skills`, `setup-pre-commit`, `grill-with-docs`, `to-issues`, `to-prd`, `design-an-interface`?)**
+2. **[2026-09-02] Some claude.ai skills are user-only (`setup-matt-pocock-skills`, `setup-pre-commit`, `grill-with-docs`, `to-issues`, `to-prd`, `design-an-interface`)**
    Do instead: ask the user to type the slash command with the arguments ready to paste; never replicate `grill-with-docs` by other means (the harness forbids it).
 3. **[2026-09-02] Sibling repo `../feudo` is the template ("same as Feudo")**
    Do instead: mirror its versions, configs and agent shapes; deviate only where the kickoff says so (engine package, contracts package, quant reviewer, decimal prices).

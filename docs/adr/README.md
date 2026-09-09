@@ -18,5 +18,7 @@ supersedes or amends them and says so.
 | 0010 | Intraday data and strategies refresh only while the app is in use                     |
 | 0011 | Intraday backtests: persisted candles, option fills at model fair value (amends 0004) |
 | 0012 | Strategy sharing by visibility                                                        |
+| 0013 | Engine public interface: ten methods over one market view, frozen                     |
+| 0014 | Evaluation, backtest and scoring rules (amends 0004, 0005, 0008)                      |
 
-Open: the engine public interface itself (Phase 2, designed twice and frozen).
+Open: none.

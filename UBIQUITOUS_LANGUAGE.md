@@ -128,6 +128,12 @@ Evaluating an intraday strategy over the candles that closed while the app was n
 it is opened again. Signals found this way are marked late.
 _Avoid_: backfill, replay
 
+**Missed entry**:
+An entry signal that produced no operation: the selected series had no trades in the fill
+session and the following sessions (up to three while the condition held), or a risk-profile
+limit refused it. Recorded with the sessions tried and the reason; never filled retroactively.
+_Avoid_: skipped trade, failed fill, rejected order
+
 ### Operations and portfolio
 
 **Operation**:
@@ -154,6 +160,13 @@ _Avoid_: account, wallet, carteira (in code)
 **Mark to market**:
 Valuing positions and operations at the latest available prices from ingested data.
 _Avoid_: revaluation, current value
+
+**Settlement proposal**:
+The engine's proposed outcome for each leg of an operation at its expiry: exercised or assigned
+when in the money at the expiry close by any amount, expired worthless otherwise, kept for stock
+legs; with the fills that outcome implies. The user confirms or corrects; nothing settles on its
+own.
+_Avoid_: auto-exercise, expiry processing, liquidação (in code)
 
 **Fills import**:
 Loading a user's executed trades from the spreadsheet exported by B3's investor area, which
@@ -224,6 +237,13 @@ The volatility that makes the pricing model's fair value equal to the market pri
 series.
 _Avoid_: IV (fine as an abbreviation in UI), vol
 
+**Implied volatility index**:
+One number per underlying per trading session summarizing its implied volatility: the
+at-the-money implied volatility for thirty calendar days, interpolated between the two nearest
+expiries. Computed by the engine from the chain, persisted with reference data and the input of
+`iv_rank`.
+_Avoid_: VIX (a specific index), IV surface, vol level
+
 **Greeks**:
 The sensitivities of an option's fair value: delta, gamma, theta, vega, rho. Computed per leg and
 aggregated per operation and per portfolio.
@@ -255,6 +275,12 @@ _Avoid_: action, choice, trade idea, entry, order
 The falsifiable expectation behind a decision: what the user believes will happen, by when, and
 what would invalidate it.
 _Avoid_: view, idea, bet, rationale (that is the free-text reasoning)
+
+**Thesis claim**:
+The optional machine-checkable part of a thesis, from a closed vocabulary: the instrument closes
+above or below a level at the horizon, or the operation's P&L is positive at the horizon. The
+engine decides whether it held; a thesis without a claim is scored on P&L only.
+_Avoid_: prediction, target, condition (reserved for strategy rules)
 
 **Analysis**:
 One AI-produced reasoning artifact over engine output for a structure, operation or signal:
