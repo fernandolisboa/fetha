@@ -13,5 +13,9 @@ export default defineConfig({
     environment: "node",
     fileParallelism: false,
     testTimeout: 20000,
+    // Distinguishes this run from the unit config for isUnitTestEnv
+    // (src/modules/auth/env.ts): rate limiting stays on here, against the
+    // real fetha-preview database, unlike under plain `vitest` (docs/adr/0016).
+    env: { VITEST_INTEGRATION: "1" },
   },
 });

@@ -49,6 +49,15 @@ export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
 }
 
+// Vitest sets VITEST=true for both the unit and the integration config; only
+// vitest.integration.config.mts also sets VITEST_INTEGRATION, so this is the
+// one signal that separates "no real database" unit tests (where the
+// database-backed rate limiter must stay off) from every other run,
+// including integration tests, where it stays on (docs/adr/0016).
+export function isUnitTestEnv(env: AuthEnv = process.env): boolean {
+  return env.VITEST === "true" && env.VITEST_INTEGRATION !== "1";
+}
+
 export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   const databaseUrl = readOptionalEnvValue(env, "DATABASE_URL");
   if (!databaseUrl) {

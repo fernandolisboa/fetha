@@ -8,6 +8,7 @@ import { invites } from "@/db/schema/invites";
 
 import { getAuth } from "./auth";
 import { resendVerification, signIn, signOut, signUp } from "./service";
+import { testRequestHeaders, uniqueTestIp } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
@@ -67,8 +68,8 @@ describe("registration, verification, login, logout and session expiry", () => {
         } as unknown as typeof user.$inferInsert),
     ).rejects.toThrow();
   });
-
   it("registers, verifies and signs in in open mode", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("open");
     createdEmails.push(email);
 
@@ -80,17 +81,17 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(outcome.status).toBe("ok");
 
     await verifyEmail(email);
 
-    const signInOutcome = await signIn({ email, password: "correct-horse-battery" }, new Headers());
+    const signInOutcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);
     expect(signInOutcome.status).toBe("ok");
   });
-
   it("refuses registration when REGISTRATION_MODE is closed, creating no user", async () => {
+    const testHeaders = testRequestHeaders();
     process.env.REGISTRATION_MODE = "closed";
     const email = uniqueEmail("closed");
     createdEmails.push(email);
@@ -103,15 +104,15 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(outcome.status).toBe("registration_closed");
 
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-
   it("returns the same generic outcome for a non-invited email in invite mode, creating no user", async () => {
+    const testHeaders = testRequestHeaders();
     process.env.REGISTRATION_MODE = "invite";
     const email = uniqueEmail("no-invite");
     createdEmails.push(email);
@@ -124,15 +125,15 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
 
     expect(outcome.status).toBe("ok");
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-
   it("registers in invite mode with a pending invite and consumes it", async () => {
+    const testHeaders = testRequestHeaders();
     process.env.REGISTRATION_MODE = "invite";
     const email = uniqueEmail("invited");
     createdEmails.push(email);
@@ -148,7 +149,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(outcome.status).toBe("ok");
 
@@ -156,8 +157,8 @@ describe("registration, verification, login, logout and session expiry", () => {
     expect(invite).toBeDefined();
     expect(invite?.consumedAt).not.toBeNull();
   });
-
   it("refuses registration without accepting the terms", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("no-terms");
     createdEmails.push(email);
 
@@ -169,12 +170,12 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: false,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(outcome.status).toBe("terms_not_accepted");
   });
-
   it("refuses registration without accepting the privacy policy", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("no-privacy");
     createdEmails.push(email);
 
@@ -186,14 +187,13 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: false,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(outcome.status).toBe("terms_not_accepted");
 
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-
   it("refuses a direct sign-up POST that accepts terms but not privacy, creating no user", async () => {
     const email = uniqueEmail("direct-no-privacy");
     createdEmails.push(email);
@@ -201,7 +201,7 @@ describe("registration, verification, login, logout and session expiry", () => {
     const response = await getAuth().handler(
       new Request(new URL("/api/auth/sign-up/email", process.env.BETTER_AUTH_URL), {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-forwarded-for": uniqueTestIp() },
         body: JSON.stringify({
           name: "Direct No Privacy",
           email,
@@ -218,8 +218,8 @@ describe("registration, verification, login, logout and session expiry", () => {
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-
   it("returns the same generic outcome on a duplicate email, creating exactly one user row", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("duplicate");
     createdEmails.push(email);
 
@@ -231,7 +231,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     const second = await signUp(
       {
@@ -241,7 +241,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
 
     expect(first.status).toBe("ok");
@@ -250,8 +250,8 @@ describe("registration, verification, login, logout and session expiry", () => {
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(1);
   });
-
   it("refuses sign-in for an unverified user", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("unverified");
     createdEmails.push(email);
 
@@ -263,14 +263,14 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
 
-    const outcome = await signIn({ email, password: "correct-horse-battery" }, new Headers());
+    const outcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);
     expect(outcome.status).toBe("email_not_verified");
   });
-
   it("resends the verification email", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("resend");
     createdEmails.push(email);
 
@@ -282,14 +282,14 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
 
-    const outcome = await resendVerification(email, new Headers());
+    const outcome = await resendVerification(email, testHeaders);
     expect(outcome.status).toBe("ok");
   });
-
   it("signs out, clearing the session", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("logout");
     createdEmails.push(email);
 
@@ -301,7 +301,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     await verifyEmail(email);
 
@@ -325,8 +325,8 @@ describe("registration, verification, login, logout and session expiry", () => {
     const rows = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
     expect(rows).toHaveLength(0);
   });
-
   it("treats an expired session as unauthenticated", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("expiry");
     createdEmails.push(email);
 
@@ -338,7 +338,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     await verifyEmail(email);
 
