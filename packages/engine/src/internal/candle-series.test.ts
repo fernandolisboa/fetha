@@ -1,0 +1,216 @@
+import { describe, expect, it } from "vitest";
+import type { Candle, CorporateActionFactor } from "../api";
+import { buildCandleSeries } from "./candle-series";
+import { decimalString } from "./test-support";
+
+const candle = (session: string, close: string, asOf = `${session}T21:00:00.000Z`): Candle => ({
+  ticker: "PETR4",
+  timeframe: "D1",
+  session,
+  asOf,
+  open: decimalString(close),
+  high: decimalString(close),
+  low: decimalString(close),
+  close: decimalString(close),
+  tradedQuantity: 1000,
+});
+
+describe("buildCandleSeries", () => {
+  it("leaves candles before any ex-date unadjusted when there is no factor", () => {
+    const candles = [candle("2024-01-02", "10.00"), candle("2024-01-03", "11.00")];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-03T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["10.00", "11.00"]);
+    expect(result.value.nominal.map((c) => c.close)).toEqual(["10.00", "11.00"]);
+  });
+
+  it("multiplies sessions strictly before the ex-date by the visible factor, leaving the ex-date session and after untouched", () => {
+    const candles = [
+      candle("2024-01-02", "10.00"),
+      candle("2024-01-03", "5.10"),
+      candle("2024-01-04", "5.20"),
+    ];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["5.00", "5.10", "5.20"]);
+    expect(result.value.nominal.map((c) => c.close)).toEqual(["10.00", "5.10", "5.20"]);
+  });
+
+  it("ignores a factor whose asOf is after the truncation instant (I1)", () => {
+    const candles = [candle("2024-01-02", "10.00"), candle("2024-01-03", "5.10")];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-05T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-03T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["10.00", "5.10"]);
+  });
+
+  it("drops candles with asOf after the truncation instant and reports them", () => {
+    const candles = [candle("2024-01-02", "10.00"), candle("2024-01-03", "11.00")];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.session)).toEqual(["2024-01-02"]);
+    expect(result.value.truncated).toContainEqual({
+      collection: "candles",
+      ticker: "PETR4",
+      dropped: 1,
+      reason: "after_at",
+    });
+  });
+
+  it("drops candles for other instruments and reports them as unreferenced", () => {
+    const candles = [
+      candle("2024-01-02", "10.00"),
+      { ...candle("2024-01-02", "50.00"), ticker: "VALE3" },
+    ];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted).toHaveLength(1);
+    expect(result.value.truncated).toContainEqual({
+      collection: "candles",
+      ticker: "VALE3",
+      dropped: 1,
+      reason: "unreferenced_instrument",
+    });
+  });
+
+  it("ignores candles of a different timeframe without reporting them", () => {
+    const candles = [
+      candle("2024-01-02", "10.00"),
+      { ...candle("2024-01-02", "10.00"), timeframe: "60m" as const },
+    ];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted).toHaveLength(1);
+    expect(result.value.truncated).toEqual([]);
+  });
+
+  it("drops corporate action factors after the truncation instant and for other instruments, reporting both", () => {
+    const candles = [candle("2024-01-02", "10.00")];
+    const factors: CorporateActionFactor[] = [
+      {
+        ticker: "PETR4",
+        exDate: "2024-01-05",
+        asOf: "2024-01-05T13:00:00.000Z",
+        factor: decimalString("0.5"),
+      },
+      {
+        ticker: "VALE3",
+        exDate: "2024-01-02",
+        asOf: "2024-01-02T13:00:00.000Z",
+        factor: decimalString("0.5"),
+      },
+    ];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: factors,
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.truncated).toContainEqual({
+      collection: "corporateActions",
+      ticker: "PETR4",
+      dropped: 1,
+      reason: "after_at",
+    });
+    expect(result.value.truncated).toContainEqual({
+      collection: "corporateActions",
+      ticker: "VALE3",
+      dropped: 1,
+      reason: "unreferenced_instrument",
+    });
+  });
+
+  it("rejects duplicate corporate action factor keys as invalid input", () => {
+    const candles = [candle("2024-01-02", "10.00")];
+    const factors: CorporateActionFactor[] = [
+      {
+        ticker: "PETR4",
+        exDate: "2024-01-03",
+        asOf: "2024-01-03T13:00:00.000Z",
+        factor: decimalString("0.5"),
+      },
+      {
+        ticker: "PETR4",
+        exDate: "2024-01-03",
+        asOf: "2024-01-03T14:00:00.000Z",
+        factor: decimalString("0.6"),
+      },
+    ];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: factors,
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-03T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects duplicate candle keys as invalid input", () => {
+    const candles = [candle("2024-01-02", "10.00"), candle("2024-01-02", "10.50")];
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(false);
+  });
+});
