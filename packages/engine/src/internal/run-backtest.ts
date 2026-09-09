@@ -327,14 +327,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         for (const leg of legs) {
           const costs = fillCosts(config.costModel, candle.open, leg.quantity);
           entryCosts.push(costs);
-          state.cash -=
-            (leg.side === "buy" ? 1 : -1) *
-              parseDecimal(candle.open)
-                .mul(CENTAVOS_PER_REAL)
-                .mul(leg.quantity)
-                .round()
-                .toNumber() +
-            costs;
+          const gross = parseDecimal(candle.open)
+            .mul(CENTAVOS_PER_REAL)
+            .mul(leg.quantity)
+            .round()
+            .toNumber();
+          state.cash -= (leg.side === "buy" ? 1 : -1) * gross + costs;
+          // A short entry is itself a stock sell (ADR-0004's exemption reads "stock
+          // sells in the month", any sell fill, not only an exit closing a long): the
+          // exit-fill loop below only sees the covering buy for this leg, so it never
+          // counts, and this is the only place that can.
+          if (leg.side === "sell") {
+            state.currentMonthStockSales += gross;
+          }
           state.fills.push({
             ticker,
             side: leg.side,

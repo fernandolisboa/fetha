@@ -974,6 +974,40 @@ describe("runBacktest — short stock legs, exit retries and error propagation",
     expect(middlePoint?.equity).toBeGreaterThan(centavos(1_000_000));
   });
 
+  it("counts a short entry's sell fill toward the month's stockSales, not only exit-side sells", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"].map(session);
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({
+          entry: closeAbove9,
+          structureId: "short-stock",
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.05") }],
+        }),
+        shortStructure,
+      ),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "8.00", "8.00"),
+        candle("PETR4", "2024-01-05", "7.50", "7.50"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const entryFill = result.value.run.fills[0];
+    expect(entryFill?.side).toBe("sell");
+    const tax = result.value.run.taxes[0];
+    expect(tax?.stockSales).toBe(
+      centavos(Number(entryFill?.quantity) * Number(entryFill?.price) * 100),
+    );
+  });
+
   it("retries an exit fill across a zero-volume session without duplicating the pending exit", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"].map(session);
     const config = baseConfig({
