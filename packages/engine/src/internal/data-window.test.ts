@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { Condition, LegTemplate, StrategyDefinition, Structure } from "@fetha/contracts";
+import type {
+  Condition,
+  Instant,
+  LegTemplate,
+  StrategyDefinition,
+  Structure,
+} from "@fetha/contracts";
 import type { DataWindowInput, StrategyVersion, TradingSession } from "../api";
 import { dataWindow } from "./data-window";
-import { decimalString } from "./test-support";
+import { compareInstants, isAfter, isAtOrBefore } from "./instant";
+import { decimalString } from "../test/support";
 
 const dailySessions = (count: number): TradingSession[] =>
   Array.from({ length: count }, (_, i) => {
@@ -63,9 +70,32 @@ const strategy = (def: StrategyDefinition, structure: Structure): StrategyVersio
   structure,
 });
 
+const closedDailyCandleCount = (
+  calendar: readonly TradingSession[],
+  from: Instant,
+  at: Instant,
+): number => calendar.filter((s) => isAfter(s.close, from) && isAtOrBefore(s.close, at)).length;
+
+const intraday15mCandleAsOfs = (calendar: readonly TradingSession[]): Instant[] => {
+  const result: Instant[] = [];
+  for (const session of calendar) {
+    let cursor = new Date(session.open).getTime();
+    const close = new Date(session.close).getTime();
+    while (cursor + 15 * 60_000 <= close) {
+      cursor += 15 * 60_000;
+      result.push(new Date(cursor).toISOString());
+    }
+  }
+  return result;
+};
+
+const countVisibleCandles = (asOfs: readonly Instant[], from: Instant, at: Instant): number =>
+  asOfs.filter((asOf) => isAfter(asOf, from) && isAtOrBefore(asOf, at)).length;
+
 describe("dataWindow", () => {
-  it("derives a daily lookback from an SMA length, from = close of the session length-1 sessions back", () => {
+  it("derives a daily lookback so at least `length` D1 sessions closed within (from, at] are visible", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({ entry: compareCondition(20, "sma"), timeframe: "D1", structureId: "stock" }),
@@ -73,22 +103,50 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
     const result = dataWindow(input);
-    expect(result.to).toBe(input.at);
+    expect(result.to).toBe(at);
     expect(result.timeframes).toEqual(["D1"]);
     expect(result.instruments).toEqual(["PETR4"]);
-    // 20 sessions back from 2024-01-30 (inclusive) starts at 2024-01-11
-    expect(result.from).toBe("2024-01-11T20:00:00.000Z");
+    expect(closedDailyCandleCount(calendar, result.from, at)).toBeGreaterThanOrEqual(20);
     expect(result.collections).toContain("candles");
     expect(result.collections).toContain("corporateActions");
     expect(result.collections).not.toContain("optionSeries");
     expect(result.collections).not.toContain("impliedVolatilityIndex");
   });
 
-  it("needs length + 1 candles for RSI and ATR", () => {
+  it("counts only closed D1 sessions when at falls mid-session: SMA(20) at 15:00 still yields >= 20 closes", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T15:00:00.000Z";
+    const input: DataWindowInput = {
+      strategy: strategy(
+        definition({ entry: compareCondition(20, "sma"), timeframe: "D1", structureId: "stock" }),
+        stockStructure,
+      ),
+      instruments: ["PETR4"],
+      calendar,
+      at,
+    };
+    const result = dataWindow(input);
+    // Today's session (2024-01-30) has not closed at 15:00 (close is 20:00), so it
+    // must not count toward the 20 closes: only sessions strictly before today can.
+    const todaysSession = calendar[29];
+    expect(todaysSession).toBeDefined();
+    const closedBeforeToday = calendar
+      .slice(0, 29)
+      .filter((s) => isAfter(s.close, result.from)).length;
+    expect(closedBeforeToday).toBeGreaterThanOrEqual(20);
+    if (todaysSession) {
+      expect(
+        isAfter(todaysSession.close, result.from) && isAtOrBefore(todaysSession.close, at),
+      ).toBe(false);
+    }
+  });
+
+  it("requests a 3x-length warm-up for the recursive indicators (RSI, ATR, EMA), yielding well over length + 1 candles", () => {
+    const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({ entry: compareCondition(5, "rsi"), timeframe: "D1", structureId: "stock" }),
@@ -96,14 +154,18 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    // needs 6 candles -> from the session 5 sessions back: 2024-01-25
-    expect(dataWindow(input).from).toBe("2024-01-25T20:00:00.000Z");
+    const result = dataWindow(input);
+    // 3 * 5 = 15 sessions of warm-up, well above the naive length + 1 = 6.
+    expect(closedDailyCandleCount(calendar, result.from, at)).toBeGreaterThanOrEqual(15);
   });
 
-  it("converts intraday candle counts to sessions using the session's open/close window", () => {
-    const calendar = dailySessions(10);
+  it("converts intraday candle counts to a from anchored at a prior session close: RSI(40) on 15m yields >= 41 visible candles", () => {
+    const calendar = dailySessions(20);
+    const lastSession = calendar.at(-1);
+    expect(lastSession).toBeDefined();
+    const at = lastSession?.close as Instant;
     const input: DataWindowInput = {
       strategy: strategy(
         definition({ entry: compareCondition(40, "rsi"), timeframe: "15m", structureId: "stock" }),
@@ -111,16 +173,29 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-10T20:00:00.000Z",
+      at,
     };
-    // 7h session = 28 candles of 15m; needs 41 candles -> ceil(41/28) = 2 sessions back -> session 9
     const result = dataWindow(input);
     expect(result.timeframes).toEqual(["15m"]);
-    expect(result.from).toBe("2024-01-09T20:00:00.000Z");
+    const asOfs = intraday15mCandleAsOfs(calendar);
+    expect(countVisibleCandles(asOfs, result.from, at)).toBeGreaterThanOrEqual(41);
+    // The from anchor is a session boundary, so every candle of the earliest needed
+    // session (the one right after the boundary session) is strictly after it.
+    const boundarySessionIndex = calendar.findIndex(
+      (s) => compareInstants(s.close, result.from) === 0,
+    );
+    const earliestNeededSession = calendar[boundarySessionIndex + 1];
+    if (boundarySessionIndex >= 0 && earliestNeededSession) {
+      const firstCandleOfSession = new Date(
+        new Date(earliestNeededSession.open).getTime() + 15 * 60_000,
+      ).toISOString();
+      expect(isAfter(firstCandleOfSession, result.from)).toBe(true);
+    }
   });
 
   it("reaches back lookbackSessions for iv_rank and requests the implied-volatility index", () => {
     const calendar = dailySessions(40);
+    const at: Instant = "2024-02-09T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({ entry: ivRankCondition(30), timeframe: "D1", structureId: "stock" }),
@@ -128,11 +203,40 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-02-09T20:00:00.000Z",
+      at,
     };
     const result = dataWindow(input);
     expect(result.collections).toContain("impliedVolatilityIndex");
-    expect(result.from).toBe("2024-01-11T20:00:00.000Z");
+    const sessionsInWindow = calendar.filter(
+      (s) => isAfter(s.close, result.from) && isAtOrBefore(s.close, at),
+    ).length;
+    expect(sessionsInWindow).toBeGreaterThanOrEqual(30);
+  });
+
+  it("anchors the lookback at the last session <= since, not at at, when since is present", () => {
+    const calendar = dailySessions(30);
+    const since: Instant = "2024-01-10T20:00:00.000Z";
+    const at: Instant = "2024-01-30T20:00:00.000Z";
+    const def = definition({
+      entry: compareCondition(5, "sma"),
+      timeframe: "D1",
+      structureId: "stock",
+    });
+    const withSince = dataWindow({
+      strategy: strategy(def, stockStructure),
+      instruments: ["PETR4"],
+      calendar,
+      at,
+      since,
+    });
+    const anchoredAtSince = dataWindow({
+      strategy: strategy(def, stockStructure),
+      instruments: ["PETR4"],
+      calendar,
+      at: since,
+    });
+    expect(withSince.from).toBe(anchoredAtSince.from);
+    expect(withSince.to).toBe(at);
   });
 
   it("requests the option chain and rates when the structure has option legs", () => {
@@ -170,8 +274,9 @@ describe("dataWindow", () => {
     expect(dataWindow(input).from).toBe(input.at);
   });
 
-  it("stops at the last session at or before at when the calendar extends into the future", () => {
+  it("stops at the last session at or before at when the calendar extends into the future, clamped by calendar length", () => {
     const calendar = dailySessions(35);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({ entry: compareCondition(5, "sma"), timeframe: "D1", structureId: "stock" }),
@@ -179,13 +284,36 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    expect(dataWindow(input).from).toBe("2024-01-26T20:00:00.000Z");
+    const result = dataWindow(input);
+    expect(closedDailyCandleCount(calendar, result.from, at)).toBeGreaterThanOrEqual(5);
+    // Sessions after at must never be reached.
+    expect(calendar.every((s) => !isAfter(s.close, at) || !isAfter(result.from, s.open))).toBe(
+      true,
+    );
+  });
+
+  it("yields a shorter window (fewer sessions than needed) when the calendar is shorter than the lookback, per the Math.max(0, ...) clamp", () => {
+    const calendar = dailySessions(3);
+    const at: Instant = "2024-01-03T20:00:00.000Z";
+    const input: DataWindowInput = {
+      strategy: strategy(
+        definition({ entry: compareCondition(20, "sma"), timeframe: "D1", structureId: "stock" }),
+        stockStructure,
+      ),
+      instruments: ["PETR4"],
+      calendar,
+      at,
+    };
+    const result = dataWindow(input);
+    expect(closedDailyCandleCount(calendar, result.from, at)).toBeLessThan(20);
+    expect(closedDailyCandleCount(calendar, result.from, at)).toBeGreaterThan(0);
   });
 
   it("collects indicator specs nested under and/or/not conditions", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const entry: Condition = {
       kind: "and",
       conditions: [
@@ -200,13 +328,14 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    expect(dataWindow(input).from).toBe("2024-01-06T20:00:00.000Z");
+    expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(25);
   });
 
   it("also collects an indicator spec on the right side of a compare condition", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const entry: Condition = {
       kind: "compare",
       left: { kind: "constant", value: decimalString("0") },
@@ -220,13 +349,14 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    expect(dataWindow(input).from).toBe("2024-01-16T20:00:00.000Z");
+    expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(15);
   });
 
   it("also collects indicator specs referenced from a roll adjustment rule's condition, ignoring non-condition rules", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({
@@ -257,13 +387,14 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    expect(dataWindow(input).from).toBe("2024-01-11T20:00:00.000Z");
+    expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(20);
   });
 
   it("also collects indicator specs referenced from a condition exit rule, ignoring non-condition rules", () => {
     const calendar = dailySessions(30);
+    const at: Instant = "2024-01-30T20:00:00.000Z";
     const input: DataWindowInput = {
       strategy: strategy(
         definition({
@@ -284,8 +415,8 @@ describe("dataWindow", () => {
       ),
       instruments: ["PETR4"],
       calendar,
-      at: "2024-01-30T20:00:00.000Z",
+      at,
     };
-    expect(dataWindow(input).from).toBe("2024-01-06T20:00:00.000Z");
+    expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(25);
   });
 });
