@@ -42,7 +42,8 @@ export function rsi(closes: readonly Decimal[], length: number): (Decimal | null
   return result;
 }
 
-function rsiFromAverages(avgGain: Decimal, avgLoss: Decimal): Decimal {
+function rsiFromAverages(avgGain: Decimal, avgLoss: Decimal): Decimal | null {
+  if (avgGain.isZero() && avgLoss.isZero()) return null;
   if (avgLoss.isZero()) return new Decimal(100);
   const rs = avgGain.div(avgLoss);
   return new Decimal(100).sub(new Decimal(100).div(new Decimal(1).add(rs)));

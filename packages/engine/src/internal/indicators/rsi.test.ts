@@ -44,6 +44,12 @@ describe("Wilder RSI (New Concepts in Technical Trading Systems, 1978)", () => {
     expect(result[3]?.toString()).toBe("100");
   });
 
+  it("is null, not 100, when the window is flat (avgGain = avgLoss = 0): a flat window has no momentum", () => {
+    const closes = [10, 10, 10, 10].map((n) => new Decimal(n));
+    const result = rsi(closes, 3);
+    expect(result[3]).toBeNull();
+  });
+
   it("matches the published RSI(14) reference series (StockCharts.org RSI ChartSchool example, also reproduced in anandanand84/technicalindicators test fixtures)", () => {
     const closes = [
       44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.1, 45.42, 45.84, 46.08, 45.89, 46.03, 45.61,
