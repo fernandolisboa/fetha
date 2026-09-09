@@ -254,6 +254,7 @@ numbers follow Brazilian conventions. Same pipeline as Feudo so the two repos st
   security reviewer's job, not this command's.
 - Product uncertainty → ask the owner. Technical uncertainty → one-paragraph ADR draft, then ask.
 - Secrets: the owner pastes them into Vercel env. Never store them in the repo or in memory.
+- Vercel skips preview builds on docs-only changes (`scripts/vercel-ignore-build.sh`).
 
 ## Agent skills
 
