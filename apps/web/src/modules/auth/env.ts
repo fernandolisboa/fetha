@@ -5,6 +5,7 @@ export interface AuthEnv {
   E2E_SECRET?: string;
   MAILER?: string;
   DATABASE_URL?: string;
+  DATABASE_PRODUCTION_HOST?: string;
   [key: string]: string | undefined;
 }
 
@@ -13,8 +14,12 @@ const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
 // Neon's Vercel marketplace integration gives every project an opaque
 // per-endpoint pooler hostname, unrelated to the project's name (confirmed
 // with `vercel env pull` on 2026-09-09, docs/adr/0016), so this is an exact
-// match against the real production host, not a substring marker.
-const PRODUCTION_DATABASE_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
+// match against the real production host, not a substring marker. Read from
+// DATABASE_PRODUCTION_HOST (a GitHub Actions variable in CI) with this
+// literal as the fallback; it and the same-named constant/fallback in
+// scripts/lib/reset-guard.mjs change together (docs/adr/0016).
+const PRODUCTION_DATABASE_HOST_FALLBACK =
+  "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 
 function readOptionalEnvValue(env: AuthEnv, key: string): string | undefined {
   const raw = env[key];
@@ -49,8 +54,10 @@ export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   if (!databaseUrl) {
     return false;
   }
+  const productionHost =
+    readOptionalEnvValue(env, "DATABASE_PRODUCTION_HOST") ?? PRODUCTION_DATABASE_HOST_FALLBACK;
   try {
-    return new URL(databaseUrl).hostname === PRODUCTION_DATABASE_HOST;
+    return new URL(databaseUrl).hostname === productionHost;
   } catch {
     return false;
   }

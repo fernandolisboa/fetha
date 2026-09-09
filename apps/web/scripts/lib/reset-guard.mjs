@@ -6,8 +6,17 @@
 // both environments on 2026-09-09 — so this cannot be a substring match on
 // "fetha-preview"; it is an exact match against a configured allow-list, the
 // same shape Feudo settled on (docs/adr/0016).
-const KNOWN_PRODUCTION_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
+// The production host is read from DATABASE_PRODUCTION_HOST (a GitHub
+// Actions variable in CI) with this literal as the fallback; it and the
+// same-named constant/fallback in src/modules/auth/env.ts change together
+// (docs/adr/0016) — plain JS here, TypeScript there, so it cannot be one
+// shared module without a build step for scripts.
+const KNOWN_PRODUCTION_HOST_FALLBACK = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 const DEFAULT_PREVIEW_HOST = "ep-lively-mode-awapxaoj-pooler.c-12.us-east-1.aws.neon.tech";
+
+function productionHostOf(env) {
+  return env.DATABASE_PRODUCTION_HOST || KNOWN_PRODUCTION_HOST_FALLBACK;
+}
 
 export class DatabaseResetNotAllowedError extends Error {
   constructor(reason) {
@@ -34,7 +43,7 @@ export function assertDatabaseResetAllowed(env = process.env) {
 
   // No override bypasses this: a stale or copy-pasted DATABASE_URL pointing
   // at production is refused even with ALLOW_DATABASE_RESET=1 set.
-  if (host === KNOWN_PRODUCTION_HOST) {
+  if (host === productionHostOf(env)) {
     throw new DatabaseResetNotAllowedError(`host "${host}" is the production database`);
   }
 

@@ -63,4 +63,25 @@ describe("assertDatabaseResetAllowed", () => {
       DatabaseResetNotAllowedError,
     );
   });
+
+  it("refuses a host configured through DATABASE_PRODUCTION_HOST even with the override set", () => {
+    const customProductionHost = "ep-custom-host-pooler.c-99.us-east-1.aws.neon.tech";
+    expect(() =>
+      assertDatabaseResetAllowed({
+        DATABASE_URL: `postgres://user:pass@${customProductionHost}/db`,
+        DATABASE_PRODUCTION_HOST: customProductionHost,
+        ALLOW_DATABASE_RESET: "1",
+      }),
+    ).toThrow(DatabaseResetNotAllowedError);
+  });
+
+  it("allows the hardcoded production host when DATABASE_PRODUCTION_HOST overrides it to something else", () => {
+    expect(() =>
+      assertDatabaseResetAllowed({
+        DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
+        DATABASE_PRODUCTION_HOST: "ep-some-other-host-pooler.c-1.us-east-1.aws.neon.tech",
+        ALLOW_DATABASE_RESET: "1",
+      }),
+    ).not.toThrow();
+  });
 });

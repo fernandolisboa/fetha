@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isProductionDeployment, readAuthBaseUrl, readE2ESecret } from "./env";
+import {
+  isProductionDatabaseHost,
+  isProductionDeployment,
+  readAuthBaseUrl,
+  readE2ESecret,
+} from "./env";
 
 describe("readAuthBaseUrl", () => {
   it("uses BETTER_AUTH_URL when set", () => {
@@ -34,5 +39,42 @@ describe("readE2ESecret", () => {
 
   it("returns the configured secret", () => {
     expect(readE2ESecret({ E2E_SECRET: "shh" })).toBe("shh");
+  });
+});
+
+describe("isProductionDatabaseHost", () => {
+  const PRODUCTION_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
+
+  it("returns false when DATABASE_URL is unset", () => {
+    expect(isProductionDatabaseHost({})).toBe(false);
+  });
+
+  it("returns false when DATABASE_URL is not a valid URL", () => {
+    expect(isProductionDatabaseHost({ DATABASE_URL: "not-a-url" })).toBe(false);
+  });
+
+  it("matches the hardcoded production host by default", () => {
+    expect(
+      isProductionDatabaseHost({ DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db` }),
+    ).toBe(true);
+    expect(
+      isProductionDatabaseHost({ DATABASE_URL: "postgres://user:pass@some-other-host/db" }),
+    ).toBe(false);
+  });
+
+  it("matches DATABASE_PRODUCTION_HOST instead when it is set", () => {
+    const customHost = "ep-custom-host-pooler.c-99.us-east-1.aws.neon.tech";
+    expect(
+      isProductionDatabaseHost({
+        DATABASE_URL: `postgres://user:pass@${customHost}/db`,
+        DATABASE_PRODUCTION_HOST: customHost,
+      }),
+    ).toBe(true);
+    expect(
+      isProductionDatabaseHost({
+        DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
+        DATABASE_PRODUCTION_HOST: customHost,
+      }),
+    ).toBe(false);
   });
 });

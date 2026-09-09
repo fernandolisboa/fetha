@@ -34,17 +34,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check preview database secret
-        id: preview-db
-        env:
-          DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: |
-          if [ -n "$DATABASE_URL_PREVIEW" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Format check
         run: pnpm format:check
 
@@ -63,11 +52,57 @@ jobs:
       - name: Drizzle check
         run: pnpm db:check
 
+      - name: Impeccable detect
+        run: |
+          set -e
+          git fetch origin main --depth=1 || true
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed .tsx/.css files under apps/web/src; skipping Impeccable detect."
+            exit 0
+          fi
+          echo "$CHANGED"
+          npx --yes impeccable detect $CHANGED
+
+  integration:
+    needs: ci
+    runs-on: ubuntu-latest
+    concurrency:
+      group: preview-db
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check preview database secret
+        id: preview-db
+        env:
+          DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          if [ -n "$DATABASE_URL_PREVIEW" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Reset the shared preview database
         if: steps.preview-db.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:reset
 
       - name: Migrate the shared preview database
@@ -83,15 +118,3 @@ jobs:
           BETTER_AUTH_SECRET: ci-integration-secret-ci-integration-secret
           BETTER_AUTH_URL: http://localhost:3000
         run: pnpm --filter @fetha/web run test:integration
-
-      - name: Impeccable detect
-        run: |
-          set -e
-          git fetch origin main --depth=1 || true
-          CHANGED=$(git diff --name-only origin/main...HEAD -- 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No changed .tsx/.css files under apps/web/src; skipping Impeccable detect."
-            exit 0
-          fi
-          echo "$CHANGED"
-          npx --yes impeccable detect $CHANGED
