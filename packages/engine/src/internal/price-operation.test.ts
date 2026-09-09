@@ -1025,6 +1025,44 @@ describe("priceOperation (concrete legs)", () => {
       code: "below_intrinsic",
       message: "market price is below the model's intrinsic value floor",
     });
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "iv_not_converged" }),
+    );
+  });
+
+  it("flags iv_not_converged at the operation level instead of silently dropping a priced leg's greeks from the aggregate", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("42.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C40", "40.00")],
+      macro: [
+        { series: "cdi", date: "2024-01-01", asOf: at, annualRate: decimalString("0.105709") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          { role: "stock", side: "buy", ticker: "PETR4", quantity: quantity(100) },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            price: decimalString("1.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[1]?.greeks).toBeNull();
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "iv_not_converged" }),
+    );
+    expect(result.value.greeks.delta).toBe(decimalString("100.000000"));
   });
 
   it("reports a short stock leg's per-leg delta unsigned and only signs the aggregate", () => {

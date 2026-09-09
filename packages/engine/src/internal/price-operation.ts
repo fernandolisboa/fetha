@@ -485,6 +485,18 @@ function priceConcreteLegs(
   const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
   const notes: Note[] = [...rateNotes, ...legNotes];
 
+  // A priced leg (it has a market price) with null greeks means the model could not
+  // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
+  // exclude it from the sum, but silently dropping it left a covered call's short leg
+  // out of the reported delta with no signal that the aggregate is incomplete
+  // (PR #53 round 3 item 3).
+  if (priced.some((leg) => leg.valuation.price !== null && !leg.valuation.greeks)) {
+    notes.push({
+      code: "iv_not_converged",
+      message: "at least one priced leg has no greeks; the aggregate excludes it",
+    });
+  }
+
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 
   const greeks: Greeks = (["delta", "gamma", "theta", "vega", "rho"] as const).reduce(
