@@ -86,7 +86,7 @@ export function parseSgsResponse(
   body: unknown,
   sessions: SessionOpen[],
 ): MacroPoint[] {
-  const points = sgsResponseSchema.parse(body);
+  const points = sgsResponseSchema.parse(body).filter((point) => point.valor.trim() !== "");
   return points.map((point) => {
     const date = toIsoDate(point.data);
     return macroPointSchema.parse({

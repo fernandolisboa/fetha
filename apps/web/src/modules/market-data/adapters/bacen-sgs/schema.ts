@@ -1,9 +1,12 @@
 import { decimalStringSchema, instantSchema, sessionDateSchema } from "@fetha/contracts";
 import { z } from "zod";
 
+// valor is a plain string here, not decimalStringSchema: Bacen occasionally
+// returns a point with an empty valor (a gap in the series), and the parser
+// drops those points rather than failing the whole batch (ADR-0017).
 export const sgsRawPointSchema = z.object({
   data: z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/),
-  valor: decimalStringSchema,
+  valor: z.string(),
 });
 export type SgsRawPoint = z.infer<typeof sgsRawPointSchema>;
 

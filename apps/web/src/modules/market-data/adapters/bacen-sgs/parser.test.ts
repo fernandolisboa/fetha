@@ -68,6 +68,16 @@ describe("parseSgsResponse", () => {
       parseSgsResponse("cdi", [{ data: "bad", valor: "x" }], septemberSessions),
     ).toThrow();
   });
+
+  it("drops a point with an empty valor (a gap in the series) instead of failing the batch", () => {
+    const withGap = [
+      { data: "01/09/2026", valor: "" },
+      { data: "02/09/2026", valor: "0.05" },
+    ];
+    const points = parseSgsResponse("cdi", withGap, septemberSessions);
+    expect(points).toHaveLength(1);
+    expect(points[0]?.date).toBe("2026-09-02");
+  });
 });
 
 describe("resolveAsOfInstant", () => {
