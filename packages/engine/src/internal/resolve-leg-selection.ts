@@ -14,6 +14,7 @@ import { compareInstants, isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
 import { resolveLegMarketPrice } from "./resolve-market-price";
+import { collapseSeriesByTicker } from "./resolve-series";
 import { toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
@@ -160,12 +161,11 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
   }
   const atIndex = calendar.indexOf(atSession);
 
+  const latestSeries = collapseSeriesByTicker(input.view.optionSeries, input.at);
   const listedExpiries = [
     ...new Set(
-      input.view.optionSeries
-        .filter(
-          (series) => series.underlying === input.underlying && isAtOrBefore(series.asOf, input.at),
-        )
+      latestSeries
+        .filter((series) => series.underlying === input.underlying)
         .map((series) => series.expiry),
     ),
   ];
@@ -215,12 +215,11 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
           .map((leg) => leg.role),
       ),
     ] as ("call" | "put")[];
-    const candidates = input.view.optionSeries.filter(
+    const candidates = latestSeries.filter(
       (series) =>
         series.underlying === input.underlying &&
         series.expiry === chosenExpiry &&
-        rightsAtRank.includes(series.right) &&
-        isAtOrBefore(series.asOf, input.at),
+        rightsAtRank.includes(series.right),
     );
     if (candidates.length === 0) {
       return {
@@ -300,13 +299,12 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       resolvedStrikes[template.strikeRank - 1],
       "every strike rank was resolved above",
     );
-    const series = input.view.optionSeries.find(
+    const series = latestSeries.find(
       (candidate) =>
         candidate.underlying === input.underlying &&
         candidate.expiry === chosenExpiry &&
         candidate.right === template.role &&
-        candidate.strike === strike &&
-        isAtOrBefore(candidate.asOf, input.at),
+        candidate.strike === strike,
     );
     if (!series) {
       return {

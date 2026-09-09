@@ -81,6 +81,42 @@ describe("resolveLegSelection", () => {
     expect(result.legs[0]).toEqual({ templateIndex: 0, role: "stock" });
   });
 
+  it("ignores a re-listed ticker's superseded strike when nearest-strike selection ties against its current strike", () => {
+    // The superseded row (strike 32.00) is equidistant from the target (32.50) as the
+    // fresh row (strike 33.00), which used to win the tie-break by lower strike: a
+    // ticker that no longer trades at 32.00 must never compete on its old strike.
+    const staleAsOf = "2024-01-02T21:00:00.000Z";
+    const freshAsOf = "2024-01-03T21:00:00.000Z";
+    const resolveAt = "2024-01-04T21:00:00.000Z";
+    const staleCall = { ...callSeries("PETR4C32", "32.00"), asOf: staleAsOf };
+    const freshCall = { ...callSeries("PETR4C32", "33.00"), asOf: freshAsOf };
+    const put: OptionSeries = { ...callSeries("PETR4P28", "28.00"), right: "put", asOf: freshAsOf };
+
+    const resolve = (optionSeries: OptionSeries[]) =>
+      resolveLegSelection({
+        structure: collar,
+        underlying: "PETR4",
+        strikes: [
+          { kind: "nearest", price: decimalString("28.00") },
+          { kind: "nearest", price: decimalString("32.50") },
+        ],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view: { ...baseView, optionSeries },
+        at: resolveAt,
+        spot: decimalString("30.00"),
+        riskFreeRate: decimalString("0.1"),
+        dividendYield: decimalString("0"),
+      });
+
+    const forward = resolve([staleCall, freshCall, put]);
+    const reversed = resolve([freshCall, staleCall, put]);
+    expect(forward).toEqual(reversed);
+    if (!forward.ok) throw new Error("expected resolution to succeed");
+    const callLeg = forward.legs.find((leg) => leg.role === "call");
+    if (callLeg?.role !== "call") throw new Error("expected a resolved call leg");
+    expect(callLeg.series.strike).toBe(decimalString("33.00"));
+  });
+
   it("returns invalid_input when strikes.length does not match the number of distinct ranks", () => {
     const result = resolveLegSelection({
       structure: collar,

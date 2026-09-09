@@ -29,6 +29,7 @@ import { priceOptionLeg } from "./option-pricing";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
 import { resolveLegMarketPrice } from "./resolve-market-price";
+import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 import { latestVisible } from "./visible";
@@ -147,9 +148,7 @@ function valueOneLeg(
     };
   }
 
-  const series = view.optionSeries.find(
-    (candidate) => candidate.ticker === leg.ticker && isAtOrBefore(candidate.asOf, at),
-  );
+  const series = resolveSeries(view, leg.ticker, at);
   if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
   if (series.underlying !== underlying) {
     return {
@@ -554,9 +553,7 @@ function validateConcreteLegs(
   const expiries = new Set<string>();
   for (const leg of legs) {
     if (leg.role === "stock") continue;
-    const series = view.optionSeries.find(
-      (candidate) => candidate.ticker === leg.ticker && isAtOrBefore(candidate.asOf, at),
-    );
+    const series = resolveSeries(view, leg.ticker, at);
     if (series) expiries.add(series.expiry);
   }
   if (expiries.size > 1) {
@@ -574,9 +571,7 @@ function resolveUnderlyingFromLegs(
     if (leg.role === "stock") return { ok: true, underlying: leg.ticker };
   }
   const [firstOption] = legs;
-  const series = view.optionSeries.find(
-    (candidate) => candidate.ticker === firstOption.ticker && isAtOrBefore(candidate.asOf, at),
-  );
+  const series = resolveSeries(view, firstOption.ticker, at);
   if (!series)
     return { ok: false, error: { code: "missing_instrument", ticker: firstOption.ticker } };
   return { ok: true, underlying: series.underlying };

@@ -343,4 +343,83 @@ describe("I3 Order-invariance", () => {
       }),
     );
   });
+
+  it("a re-listed ticker's superseded row never changes the priced result, regardless of array order", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 1_000_000 }), (seed) => {
+        const calendar: TradingSession[] = Array.from({ length: 20 }, (_, i) => {
+          const day = String(2 + i).padStart(2, "0");
+          return {
+            date: `2024-01-${day}`,
+            open: `2024-01-${day}T13:00:00.000Z`,
+            close: `2024-01-${day}T21:00:00.000Z`,
+          };
+        });
+        const staleAsOf = "2024-01-02T21:00:00.000Z";
+        const freshAsOf = "2024-01-03T21:00:00.000Z";
+        const at = "2024-01-04T21:00:00.000Z";
+        const staleSeries: OptionSeries = {
+          ticker: "PETR4C40",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("40"),
+          expiry: "2024-01-21",
+          style: "european",
+          asOf: staleAsOf,
+        };
+        const freshSeries: OptionSeries = {
+          ...staleSeries,
+          strike: decimalString("42"),
+          asOf: freshAsOf,
+        };
+        const stalePrice: OptionDayPrice = {
+          ticker: "PETR4C40",
+          session: "2024-01-02",
+          asOf: staleAsOf,
+          average: null,
+          close: decimalString("5.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        };
+        const freshPrice: OptionDayPrice = {
+          ...stalePrice,
+          asOf: freshAsOf,
+          close: decimalString("3.00"),
+        };
+        const view: MarketView = {
+          calendar,
+          candles: [],
+          corporateActions: [],
+          optionSeries: [staleSeries, freshSeries],
+          optionPrices: [stalePrice, freshPrice],
+          quotes: [
+            { ticker: "PETR4", asOf: at, last: decimalString("42.00"), bid: null, ask: null },
+          ],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+        const input: PriceOperationInput = {
+          view,
+          at,
+          legs: [{ role: "call", side: "buy", ticker: "PETR4C40", quantity: quantity(1) }],
+        };
+        const provenance = {
+          engineVersion: "0.1.0",
+          pricingModel: "bsm_continuous_yield" as const,
+          dataVersion: null,
+          datasetNotes: [],
+        };
+        const shuffled: PriceOperationInput = {
+          ...input,
+          view: {
+            ...view,
+            optionSeries: shuffle([staleSeries, freshSeries], seed),
+            optionPrices: shuffle([stalePrice, freshPrice], seed + 1),
+          },
+        };
+        expect(priceOperation(shuffled, provenance)).toEqual(priceOperation(input, provenance));
+      }),
+    );
+  });
 });
