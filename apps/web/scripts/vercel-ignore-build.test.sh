@@ -44,6 +44,24 @@ assert_exit() {
   fi
 }
 
+assert_exit_in_subdir() {
+  description=$1
+  expected=$2
+  subdir=$3
+  shift 3
+  set +e
+  (cd "$repo/$subdir" && "$@" "$script" >"$out" 2>&1)
+  actual=$?
+  set -e
+  if [ "$actual" -eq "$expected" ]; then
+    echo "ok - $description"
+  else
+    echo "not ok - $description (expected exit $expected, got $actual)"
+    cat "$out"
+    failures=$((failures + 1))
+  fi
+}
+
 echo "docs change" >"$repo/docs/adr/0016-example.md"
 git -C "$repo" add -A
 git -C "$repo" commit -q -m "docs: add ADR"
@@ -118,6 +136,20 @@ git -C "$repo" commit -q -m "docs: notes under apps"
 assert_exit "markdown file under apps/ is not docs-only, builds" 1 \
   env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh
 git -C "$repo" checkout -q main
+
+echo "docs from subdirectory" >>"$repo/README.md"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "docs: touch readme from apps/web cwd"
+assert_exit_in_subdir "invoked from apps/web subdirectory, docs-only, skip" 0 "apps/web" \
+  env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh
+git -C "$repo" push -q origin main
+
+echo "export const v = 1;" >>"$repo/apps/web/src/app/page.tsx"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "feat: touch page from apps/web cwd"
+assert_exit_in_subdir "invoked from apps/web subdirectory, code change, builds" 1 "apps/web" \
+  env -u VERCEL_ENV -u VERCEL_GIT_PREVIOUS_SHA -u VERCEL_GIT_COMMIT_SHA sh
+git -C "$repo" push -q origin main
 
 if [ "$failures" -ne 0 ]; then
   echo "$failures test(s) failed"
