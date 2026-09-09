@@ -16,14 +16,14 @@ data, the catalog and strategies a user chose to share.
 
 ## Modules
 
-| module        | owns                                                                                                                                                                                                                             | exposes                                                                                   |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `auth`        | accounts, sessions, registration mode, terms acceptance                                                                                                                                                                          | the current user                                                                          |
-| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface    |
-| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure public interface, frozen by the Phase 2 interface ADR (ADR-0006 sets the boundary) |
-| `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; watchlists; signal evaluation and the signal inbox                                                                             | strategy versions, signals                                                                |
-| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, mark to market, risk profile and limit checks                                                                                          | the portfolio view, operation lifecycle commands                                          |
-| `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                            |
+| module        | owns                                                                                                                                                                                                                             | exposes                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `auth`        | accounts, sessions, registration mode, terms acceptance                                                                                                                                                                          | the current user                                                                       |
+| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface |
+| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)               |
+| `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; watchlists; signal evaluation and the signal inbox                                                                             | strategy versions, signals                                                             |
+| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, mark to market, risk profile and limit checks                                                                                          | the portfolio view, operation lifecycle commands                                       |
+| `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                         |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
 exposing module's interface, never through its tables.
@@ -31,8 +31,9 @@ exposing module's interface, never through its tables.
 ## Key flows
 
 1. **Nightly ingestion and daily evaluation.** A nightly job with scheduled retries (ADR-0010)
-   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, applies
-   corporate-action factors (adjusted and nominal series), then evaluates every active daily
+   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, records
+   corporate-action factors (the engine derives adjusted series point in time, ADR-0013), then
+   evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox.
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
@@ -44,7 +45,9 @@ exposing module's interface, never through its tables.
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
 4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
-   curve, metrics, walk-forward view. Fills follow ADR-0004; intraday runs follow ADR-0011.
+   curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
+   or the next candle of the strategy timeframe in an intraday run (ADR-0011, as sharpened by
+   ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
 5. **Decide and journal.** From a signal, an operation or a structure, the user requests an
    analysis (on demand, capped) and records a decision (enter, do not enter, hold, adjust, exit)
    with a thesis and horizon. At the horizon the engine scores the decision and the analysis
@@ -74,4 +77,5 @@ exposing module's interface, never through its tables.
 See `docs/adr/`: numeric representation (0001), option pricing (0002), no broker integration
 (0003), backtest hygiene (0004), decision scoring (0005), engine boundary (0006), data providers
 (0007), strategy DSL (0008), AI decision contract (0009), intraday evaluation while in use
-(0010), intraday backtests (0011), strategy sharing (0012).
+(0010), intraday backtests (0011), strategy sharing (0012), the engine public interface (0013),
+evaluation, backtest and scoring rules settled with it (0014).

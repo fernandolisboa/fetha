@@ -15,6 +15,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@fetha/contracts": "workspace:*",
     "decimal.js": "10.6.0"
   },
   "devDependencies": {
