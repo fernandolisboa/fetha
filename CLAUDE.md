@@ -141,7 +141,9 @@ Confirm with the owner before creating any paid resource or paid data subscripti
 ## Testing
 
 - **Unit**: Vitest on `packages/engine`: every indicator, pricing function, payoff and backtest
-  rule, with reference values from standard texts as fixtures.
+  rule, with reference values from standard texts as fixtures. Vitest also runs in `apps/web` for
+  pure helpers (formatters, small pure functions), colocated as `*.test.ts` next to the source,
+  with no coverage gate.
 - **Property-based**: `fast-check` on pricing bounds, put-call parity, payoff symmetry,
   no-look-ahead invariants, decimal arithmetic.
 - **Integration**: Route Handlers + Drizzle against the PR's Neon preview branch, including
