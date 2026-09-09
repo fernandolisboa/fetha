@@ -38,13 +38,14 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   await page.getByRole("button", { name: "Entrar" }).click();
 
   await expect(page).toHaveURL(baseURL ?? "/");
-  await expect(page.getByText(email)).toBeVisible();
+  const accountMenuTrigger = page.getByRole("button", { name: "Menu da conta" });
+  await expect(accountMenuTrigger).toContainText(email);
+  await accountMenuTrigger.click();
 
   await page.getByRole("button", { name: "Sair" }).click();
 
   await expect(page).toHaveURL(/\/entrar/);
 
   await page.goto("/");
-  await expect(page.getByText(email)).not.toBeVisible();
-  await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+  await expect(page).toHaveURL(/\/entrar/);
 });

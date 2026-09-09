@@ -1,0 +1,9 @@
+import type { Metadata } from "next";
+
+import { EmptyState, t } from "@/modules/shell";
+
+export const metadata: Metadata = { title: `Fetha · ${t.destinations.journal}` };
+
+export default function JournalPage() {
+  return <EmptyState sentence={t.emptyStates.journal.sentence} />;
+}
