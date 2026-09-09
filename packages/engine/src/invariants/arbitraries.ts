@@ -1,7 +1,15 @@
 import Decimal from "decimal.js";
 import fc from "fast-check";
-import type { DecimalString } from "@fetha/contracts";
-import type { Candle } from "../api";
+import type {
+  Centavos,
+  Condition,
+  DecimalString,
+  LegTemplate,
+  StrategyDefinition,
+  Structure,
+} from "@fetha/contracts";
+import type { BacktestConfig, Candle, StrategyVersion, TradingSession } from "../api";
+import { assertDefined } from "../internal/invariant";
 
 const decimalString = (value: string): DecimalString => value as DecimalString;
 
@@ -56,3 +64,122 @@ export const candleSeriesArbitrary: fc.Arbitrary<Candle[]> = fc
       return candle;
     }),
   );
+
+const centavos = (value: number): Centavos => value as Centavos;
+
+// Long enough to exercise annualization (MIN_ANNUALIZED_SESSIONS is 126 per ADR-0013), one
+// business-day-shaped calendar per index so a random maxSessions split has plenty of room.
+export const BACKTEST_FIXTURE_SESSIONS = 130;
+
+function backtestSessionAt(index: number): TradingSession {
+  const date = sessionAt(index);
+  return { date, open: `${date}T13:00:00.000Z`, close: `${date}T20:00:00.000Z` };
+}
+
+const priceWalkArbitrary = fc
+  .array(fc.integer({ min: -300, max: 300 }), {
+    minLength: BACKTEST_FIXTURE_SESSIONS,
+    maxLength: BACKTEST_FIXTURE_SESSIONS,
+  })
+  .map((deltasCents) => {
+    let price = new Decimal("20.00");
+    return deltasCents.map((deltaCents) => {
+      price = price.add(new Decimal(deltaCents).div(100));
+      if (price.lte("1.00")) price = new Decimal("1.00");
+      return decimalString(price.toFixed(2));
+    });
+  });
+
+const stockStructure: Structure = {
+  id: "stock",
+  name: "Stock",
+  expiry: "shared",
+  legs: [{ role: "stock", side: "buy", ratio: 1 }] as LegTemplate[],
+};
+
+const alwaysTrueEntry: Condition = {
+  kind: "compare",
+  left: { kind: "price", field: "close" },
+  comparator: ">",
+  right: { kind: "constant", value: decimalString("0") },
+};
+
+export type LongBacktestFixture = {
+  config: BacktestConfig;
+  calendar: TradingSession[];
+  candles: Candle[];
+  cdiAnnualRate: DecimalString;
+};
+
+// A single buy-and-hold operation over a long, randomly walking price series with a non-zero
+// CDI: enough to exercise annualized sharpe/cagr and give a chunked run and a prefix run
+// something non-trivial to diverge on if the checkpoint state is wrong (I2, I7), without the
+// arbitrary itself needing to model entries, exits or limits realistically — those invariants
+// are about the resumption plumbing, not about strategy behavior.
+export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = fc
+  .tuple(priceWalkArbitrary, fc.integer({ min: 100, max: 3000 }), fc.integer({ min: 1, max: 2000 }))
+  .map(([prices, cdiBasisPoints, initialCapitalReais]) => {
+    const calendar: TradingSession[] = [];
+    const candles: Candle[] = [];
+    for (let i = 0; i < BACKTEST_FIXTURE_SESSIONS; i += 1) {
+      const s = backtestSessionAt(i);
+      calendar.push(s);
+      const price = assertDefined(prices[i], "arbitraries: index within bounds");
+      candles.push({
+        ticker: "PETR4",
+        timeframe: "D1",
+        session: s.date,
+        asOf: s.close,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        tradedQuantity: 1000,
+      });
+    }
+    const definition: StrategyDefinition = {
+      name: "buy and hold",
+      timeframe: "D1",
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+      entry: alwaysTrueEntry,
+      exit: [],
+      adjustments: [],
+    };
+    const strategy: StrategyVersion = { id: "v1", definition, structure: stockStructure };
+    const first = assertDefined(calendar[0], "arbitraries: non-empty calendar");
+    const last = assertDefined(calendar.at(-1), "arbitraries: non-empty calendar");
+    const config: BacktestConfig = {
+      strategy,
+      universe: ["PETR4"],
+      period: { from: first.date, to: last.date },
+      initialCapital: centavos(initialCapitalReais * 100_00),
+      costModel: {
+        b3FeeRate: decimalString("0.0005"),
+        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+        optionSlippageRate: decimalString("0"),
+        incomeTaxRate: decimalString("0.15"),
+        monthlyStockSalesExemption: centavos(2_000_000_00),
+      },
+      riskProfile: {
+        declaredCapital: centavos(initialCapitalReais * 100_00),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("1"),
+        },
+      },
+      limits: "enforce",
+      sizing: null,
+      walkForward: null,
+      seed: 1,
+    };
+    return {
+      config,
+      calendar,
+      candles,
+      cdiAnnualRate: decimalString((cdiBasisPoints / 10000).toFixed(6)),
+    };
+  });
