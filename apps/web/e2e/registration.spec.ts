@@ -16,8 +16,8 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   await page.getByLabel("Nome").fill("Playwright User");
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill("correct-horse-battery-staple");
-  await page.getByLabel(/Aceito os termos de uso/).check();
-  await page.getByLabel(/Aceito a política de privacidade/).check();
+  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
+  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
   await page.getByRole("button", { name: "Criar conta" }).click();
 
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
