@@ -17,11 +17,13 @@ export function ShareToggleButton({
 }) {
   const [current, setCurrent] = useState(visibility);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState(false);
 
   function toggle() {
     const previous = current;
     const next: StrategyVisibility = previous === "shared" ? "private" : "shared";
     setCurrent(next);
+    setError(false);
     setPending(true);
     startTransition(() => {
       setStrategyVisibilityAction({ strategyId, visibility: next })
@@ -29,18 +31,23 @@ export function ShareToggleButton({
           setPending(false);
           if (result.status !== "ok") {
             setCurrent(previous);
+            setError(true);
           }
         })
         .catch(() => {
           setPending(false);
           setCurrent(previous);
+          setError(true);
         });
     });
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={toggle} disabled={pending}>
-      {current === "shared" ? t.list.mine.unshare : t.list.mine.share}
-    </Button>
+    <div className="flex flex-col items-end gap-1">
+      <Button type="button" variant="outline" size="sm" onClick={toggle} disabled={pending}>
+        {current === "shared" ? t.list.mine.unshare : t.list.mine.share}
+      </Button>
+      {error && <p className="text-destructive text-xs">{t.list.mine.shareError}</p>}
+    </div>
   );
 }
