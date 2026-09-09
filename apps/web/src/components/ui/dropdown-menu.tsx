@@ -104,14 +104,19 @@ function DropdownMenuItem({
 function DropdownMenuLinkItem({
   className,
   inset,
+  closeOnClick = true,
   ...props
 }: MenuPrimitive.LinkItem.Props & {
   inset?: boolean;
 }) {
+  // MenuLinkItem defaults closeOnClick to false (unlike MenuItem's true), a
+  // dropdown-specific mismatch: a settings link should close the menu it
+  // navigated away from, same as every other item.
   return (
     <MenuPrimitive.LinkItem
       data-slot="dropdown-menu-link-item"
       data-inset={inset}
+      closeOnClick={closeOnClick}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-inset:pl-7 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
