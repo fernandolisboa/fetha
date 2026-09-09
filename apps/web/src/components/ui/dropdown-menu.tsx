@@ -104,19 +104,22 @@ function DropdownMenuItem({
 function DropdownMenuLinkItem({
   className,
   inset,
-  closeOnClick = true,
   ...props
-}: MenuPrimitive.LinkItem.Props & {
+}: MenuPrimitive.Item.Props & {
   inset?: boolean;
 }) {
-  // MenuLinkItem defaults closeOnClick to false (unlike MenuItem's true), a
-  // dropdown-specific mismatch: a settings link should close the menu it
-  // navigated away from, same as every other item.
+  // MenuPrimitive.LinkItem's focus/dismiss wiring never settles when
+  // composed with next/link's render prop: the popup's full-viewport
+  // dismiss layer stays mounted and intercepts the very click that
+  // triggered the navigation, blocking every click after (confirmed
+  // against a Vercel preview, not just locally). MenuPrimitive.Item does
+  // not have this problem and the composition docs render it as an <a> the
+  // same way; closeOnClick defaults to true on Item, unlike LinkItem's
+  // false, so no override is needed here either.
   return (
-    <MenuPrimitive.LinkItem
+    <MenuPrimitive.Item
       data-slot="dropdown-menu-link-item"
       data-inset={inset}
-      closeOnClick={closeOnClick}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-inset:pl-7 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
