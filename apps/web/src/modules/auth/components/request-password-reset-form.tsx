@@ -37,7 +37,7 @@ export function RequestPasswordResetForm() {
 
       <p className="text-muted-foreground text-sm">
         <Link href="/entrar" className="text-foreground underline underline-offset-4">
-          {t.magicLink.signInWithPasswordLink}
+          {t.shared.signInWithPasswordLink}
         </Link>
       </p>
     </form>

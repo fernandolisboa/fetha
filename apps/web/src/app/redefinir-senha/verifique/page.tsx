@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AuthShell, t } from "@/modules/auth";
+import { AuthShell, parseEmailQueryParam, t } from "@/modules/auth";
 
 export const metadata: Metadata = { title: `Fetha · ${t.passwordReset.sentTitle}` };
 
@@ -9,13 +9,16 @@ export default async function PasswordResetSentPage({
 }: {
   searchParams: Promise<{ email?: string }>;
 }) {
-  const { email } = await searchParams;
+  const { email: rawEmail } = await searchParams;
+  const email = parseEmailQueryParam(rawEmail);
 
   return (
     <AuthShell title={t.passwordReset.sentTitle}>
-      {email ? (
-        <p className="text-sm">{t.passwordReset.sentBody.replace("{email}", email)}</p>
-      ) : null}
+      <p className="text-sm">
+        {email
+          ? t.passwordReset.sentBody.replace("{email}", email)
+          : t.passwordReset.sentBodyGeneric}
+      </p>
     </AuthShell>
   );
 }

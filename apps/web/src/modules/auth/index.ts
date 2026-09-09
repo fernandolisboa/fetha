@@ -25,3 +25,4 @@ export { forCurrentUser, getSession, requireUser, UnauthenticatedError } from ".
 export { authStrings, t } from "./strings";
 export { TermsAcceptanceRepository, type TermsAcceptance } from "./terms-acceptance-repository";
 export { CURRENT_TERMS_VERSION } from "./terms";
+export { parseEmailQueryParam } from "./validation";

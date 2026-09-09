@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AuthShell, t } from "@/modules/auth";
+import { AuthShell, parseEmailQueryParam, t } from "@/modules/auth";
 
 export const metadata: Metadata = { title: `Fetha · ${t.magicLink.sentTitle}` };
 
@@ -9,11 +9,14 @@ export default async function MagicLinkSentPage({
 }: {
   searchParams: Promise<{ email?: string }>;
 }) {
-  const { email } = await searchParams;
+  const { email: rawEmail } = await searchParams;
+  const email = parseEmailQueryParam(rawEmail);
 
   return (
     <AuthShell title={t.magicLink.sentTitle}>
-      {email ? <p className="text-sm">{t.magicLink.sentBody.replace("{email}", email)}</p> : null}
+      <p className="text-sm">
+        {email ? t.magicLink.sentBody.replace("{email}", email) : t.magicLink.sentBodyGeneric}
+      </p>
     </AuthShell>
   );
 }

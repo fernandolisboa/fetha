@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   isProductionDatabaseHost,
   isProductionDeployment,
-  isUnitTestEnv,
   readAuthBaseUrl,
   readE2ESecret,
 } from "./env";
@@ -77,19 +76,5 @@ describe("isProductionDatabaseHost", () => {
         DATABASE_PRODUCTION_HOST: customHost,
       }),
     ).toBe(false);
-  });
-});
-
-describe("isUnitTestEnv", () => {
-  it("is false outside Vitest", () => {
-    expect(isUnitTestEnv({})).toBe(false);
-  });
-
-  it("is true under plain Vitest", () => {
-    expect(isUnitTestEnv({ VITEST: "true" })).toBe(true);
-  });
-
-  it("is false under the integration Vitest config, which sets VITEST_INTEGRATION", () => {
-    expect(isUnitTestEnv({ VITEST: "true", VITEST_INTEGRATION: "1" })).toBe(false);
   });
 });

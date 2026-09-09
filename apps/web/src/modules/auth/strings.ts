@@ -1,4 +1,7 @@
 const en = {
+  shared: {
+    signInWithPasswordLink: "Sign in with your password instead",
+  },
   signUp: {
     title: "Create your account",
     subtitle: "Register to start studying and backtesting your own strategies.",
@@ -42,11 +45,12 @@ const en = {
     emailLabel: "Email",
     submit: "Send magic link",
     sentTitle: "Check your email",
-    sentBody: "We sent a sign-in link to {email}. Click the link to sign in.",
-    errorTitle: "This link is invalid or has expired",
+    sentBody: "We sent a magic link to {email}. Click the link to sign in.",
+    sentBodyGeneric:
+      "We sent a magic link to the email address you entered. Click the link to sign in.",
+    errorTitle: "This magic link is invalid or has expired",
     errorBody: "Request a new magic link below.",
     requestAgainLink: "Request a new magic link",
-    signInWithPasswordLink: "Sign in with your password instead",
   },
   passwordReset: {
     requestTitle: "Reset your password",
@@ -54,7 +58,9 @@ const en = {
     emailLabel: "Email",
     requestSubmit: "Send reset link",
     sentTitle: "Check your email",
-    sentBody: "If {email} has an account, we sent a password reset link to it.",
+    sentBody: "If {email} has an account, we sent a password reset link to that address.",
+    sentBodyGeneric:
+      "If the email address you entered has an account, we sent a password reset link to it.",
     confirmTitle: "Set a new password",
     newPasswordLabel: "New password",
     confirmSubmit: "Save new password",
@@ -104,6 +110,9 @@ const en = {
 };
 
 const ptBR = {
+  shared: {
+    signInWithPasswordLink: "Entrar com sua senha",
+  },
   signUp: {
     title: "Crie sua conta",
     subtitle: "Cadastre-se para estudar e testar suas próprias estratégias.",
@@ -147,11 +156,11 @@ const ptBR = {
     emailLabel: "E-mail",
     submit: "Enviar link mágico",
     sentTitle: "Confira seu e-mail",
-    sentBody: "Enviamos um link de acesso para {email}. Clique no link para entrar.",
-    errorTitle: "Esse link é inválido ou expirou",
+    sentBody: "Enviamos um link mágico para {email}. Clique no link para entrar.",
+    sentBodyGeneric: "Enviamos um link mágico para o e-mail informado. Clique no link para entrar.",
+    errorTitle: "Esse link mágico é inválido ou expirou",
     errorBody: "Peça um novo link mágico abaixo.",
     requestAgainLink: "Pedir um novo link mágico",
-    signInWithPasswordLink: "Entrar com sua senha",
   },
   passwordReset: {
     requestTitle: "Redefinir sua senha",
@@ -159,7 +168,10 @@ const ptBR = {
     emailLabel: "E-mail",
     requestSubmit: "Enviar link de redefinição",
     sentTitle: "Confira seu e-mail",
-    sentBody: "Se {email} tiver uma conta, enviamos um link de redefinição de senha para ele.",
+    sentBody:
+      "Se {email} tiver uma conta, enviamos um link de redefinição de senha para esse endereço.",
+    sentBodyGeneric:
+      "Se o e-mail informado tiver uma conta, enviamos um link de redefinição de senha para ele.",
     confirmTitle: "Defina uma nova senha",
     newPasswordLabel: "Nova senha",
     confirmSubmit: "Salvar nova senha",

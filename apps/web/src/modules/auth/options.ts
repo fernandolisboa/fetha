@@ -5,15 +5,19 @@ import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
 import { z } from "zod";
 
+import { eq } from "drizzle-orm";
+
 import type { Database } from "@/db/client";
+import { user } from "@/db/schema";
 import { registrationMode } from "@/lib/env";
 
+import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
 import { buildMagicLinkEmail } from "./email/magic-link-email";
 import { buildPasswordResetEmail } from "./email/password-reset-email";
 import { buildVerificationEmail } from "./email/verification-email";
 import { getMailer } from "./email/select";
 import type { Mailer } from "./email/mailer";
-import { isProductionDeployment, isUnitTestEnv, readAuthBaseUrl, type AuthEnv } from "./env";
+import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
 import { consumePendingInviteSafely, hasPendingInvite } from "./invite-repository";
 import { normalizeEmail } from "./normalize-email";
 import { evaluateRegistrationMode } from "./registration-policy";
@@ -38,6 +42,29 @@ const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["cust
   "/reset-password": { window: 60, max: 5 },
   "/send-verification-email": { window: 60, max: 3 },
 };
+
+// The rules above are IP-and-path only (Better Auth has no per-account
+// dimension built in); the A-01 remediation also requires per-account limits
+// so a distributed attacker rotating IPs against one email cannot bypass the
+// IP bucket (docs/security-audit/2026-09-09.md, docs/adr/0016). Same windows
+// as the IP-based rules for the paths that have one; `/sign-in/magic-link`
+// gets the same shape as `/request-password-reset` since it has no built-in
+// special rule either.
+const ACCOUNT_RATE_LIMIT_RULES: Record<string, { windowSeconds: number; max: number }> = {
+  "/sign-in/email": { windowSeconds: 10, max: 3 },
+  "/sign-in/magic-link": { windowSeconds: 60, max: 3 },
+  "/request-password-reset": { windowSeconds: 60, max: 3 },
+  "/send-verification-email": { windowSeconds: 60, max: 3 },
+};
+
+const accountRateLimitedBodySchema = z.object({
+  email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
+});
+
+function readAccountRateLimitEmail(body: unknown): string | undefined {
+  const parsed = accountRateLimitedBodySchema.safeParse(body);
+  return parsed.success ? parsed.data.email : undefined;
+}
 
 const signUpEmailBodySchema = z.object({
   email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
@@ -79,6 +106,7 @@ export function buildAuthOptions(
   db: Database,
   env: AuthEnv = process.env,
   mailer: Mailer = getMailer(env),
+  rateLimitEnabled = true,
 ) {
   const baseURL = readAuthBaseUrl(env);
 
@@ -118,18 +146,22 @@ export function buildAuthOptions(
       enabled: true,
       requireEmailVerification: true,
       resetPasswordTokenExpiresIn: PASSWORD_RESET_EXPIRES_IN_SECONDS,
-      sendResetPassword: async ({ user, url }) => {
+      // A session minted before a password reset must not survive it: without
+      // this, a stolen session cookie keeps working even after the account
+      // owner resets their password to lock an attacker out.
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user: resetUser, url }) => {
         const email = buildPasswordResetEmail(url);
-        await mailer.send({ to: user.email, ...email });
+        await mailer.send({ to: resetUser.email, ...email });
       },
     },
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: false,
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
-      sendVerificationEmail: async ({ user, url }) => {
-        const email = buildVerificationEmail(user.name, url);
-        await mailer.send({ to: user.email, ...email });
+      sendVerificationEmail: async ({ user: verifyingUser, url }) => {
+        const email = buildVerificationEmail(verifyingUser.name, url);
+        await mailer.send({ to: verifyingUser.email, ...email });
       },
     },
     databaseHooks: {
@@ -153,6 +185,21 @@ export function buildAuthOptions(
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        const accountRule = ACCOUNT_RATE_LIMIT_RULES[ctx.path];
+        if (accountRule) {
+          const email = readAccountRateLimitEmail(ctx.body);
+          if (email) {
+            try {
+              await enforceAccountRateLimit(db, email, ctx.path, accountRule);
+            } catch (error) {
+              if (error instanceof AccountRateLimitExceededError) {
+                throw new APIError("TOO_MANY_REQUESTS", { message: "rate_limited" });
+              }
+              throw error;
+            }
+          }
+        }
+
         if (ctx.path !== "/sign-up/email") {
           return;
         }
@@ -188,20 +235,43 @@ export function buildAuthOptions(
         disableSignUp: true,
         expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
         rateLimit: { window: 60, max: 3 },
+        storeToken: "hashed",
         sendMagicLink: async ({ email, url }) => {
+          // No enumeration: a magic-link request for an email with no
+          // account gets the same 200 response as a real one (the plugin
+          // always returns `{ status: true }` regardless of what this
+          // callback does), but only an existing account actually receives
+          // mail. The lookup itself keeps the timing the same either way —
+          // there is no early return before it.
+          const existingUser = await db.query.user.findFirst({
+            where: eq(user.email, normalizeEmail(email)),
+          });
+          if (!existingUser) {
+            return;
+          }
           const content = buildMagicLinkEmail(url);
           await mailer.send({ to: email, ...content });
         },
       }),
       nextCookies(),
     ],
+    // Vercel's edge network always sets `x-real-ip` to the actual client
+    // address and `x-forwarded-for` to a single trusted value (no untrusted
+    // proxy chain to walk), so both are safe to read directly; without this,
+    // Better Auth's default falls back to a single shared bucket across every
+    // client whose IP it cannot resolve (docs/adr/0016).
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ["x-real-ip", "x-forwarded-for"],
+      },
+    },
     // Database-backed so the limit survives across Vercel's per-instance
     // serverless functions, unlike Better Auth's default in-memory Map
-    // (docs/security-audit/2026-09-09.md A-01, docs/adr/0016). Off only
-    // under plain unit tests, which never migrate a real `rate_limits`
-    // table (isUnitTestEnv, env.ts).
+    // (docs/security-audit/2026-09-09.md A-01, docs/adr/0016). `rateLimitEnabled`
+    // defaults to true; a unit test that needs it off injects `false`
+    // explicitly instead of this module inferring it from the Vitest env.
     rateLimit: {
-      enabled: !isUnitTestEnv(env),
+      enabled: rateLimitEnabled,
       storage: "database",
       customRules: RATE_LIMIT_CUSTOM_RULES,
     },

@@ -64,6 +64,8 @@ export async function signUpAction(
       return { status: "error", message: errors.termsRequired };
     case "registration_closed":
       return { status: "error", message: errors.registrationClosed };
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
     case "sign_up_failed":
       return { status: "error", message: errors.signUpFailed };
   }
@@ -121,6 +123,8 @@ export async function resendVerificationAction(
   switch (outcome.status) {
     case "ok":
       return { status: "success", message: t.verifyEmail.resent };
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
     case "failed":
       return { status: "error", message: errors.resendFailed };
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   magicLinkFormSchema,
+  parseEmailQueryParam,
   requestPasswordResetFormSchema,
   resendVerificationFormSchema,
   resetPasswordFormSchema,
@@ -98,5 +99,19 @@ describe("resetPasswordFormSchema", () => {
       newPassword: "correct-horse-battery",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("parseEmailQueryParam", () => {
+  it("returns undefined when the param is absent", () => {
+    expect(parseEmailQueryParam(undefined)).toBeUndefined();
+  });
+
+  it("normalizes a valid email", () => {
+    expect(parseEmailQueryParam("  Nova@Example.com ")).toBe("nova@example.com");
+  });
+
+  it("returns undefined for a value that is not an email", () => {
+    expect(parseEmailQueryParam("<script>alert(1)</script>")).toBeUndefined();
   });
 });
