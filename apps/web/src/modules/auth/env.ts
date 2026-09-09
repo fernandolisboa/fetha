@@ -10,10 +10,11 @@ export interface AuthEnv {
 
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
 
-// fetha-preview and CI never carry a database host that could be mistaken
-// for production; this marker mirrors the one the reset guard refuses to
-// touch (apps/web/scripts/lib/reset-guard.mjs).
-const PRODUCTION_DATABASE_HOST_MARKER = "fetha-production";
+// Neon's Vercel marketplace integration gives every project an opaque
+// per-endpoint pooler hostname, unrelated to the project's name (confirmed
+// with `vercel env pull` on 2026-09-09, docs/adr/0016), so this is an exact
+// match against the real production host, not a substring marker.
+const PRODUCTION_DATABASE_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 
 function readOptionalEnvValue(env: AuthEnv, key: string): string | undefined {
   const raw = env[key];
@@ -49,7 +50,7 @@ export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
     return false;
   }
   try {
-    return new URL(databaseUrl).hostname.includes(PRODUCTION_DATABASE_HOST_MARKER);
+    return new URL(databaseUrl).hostname === PRODUCTION_DATABASE_HOST;
   } catch {
     return false;
   }

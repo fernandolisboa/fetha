@@ -67,6 +67,7 @@ jobs:
         if: steps.preview-db.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
         run: pnpm --filter @fetha/web run db:reset
 
       - name: Migrate the shared preview database

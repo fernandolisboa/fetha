@@ -21,10 +21,11 @@ describe("getMailer", () => {
     expect(getMailer({ VERCEL_ENV: "preview", MAILER: "resend" })).toBeInstanceOf(ResendMailer);
   });
 
-  it("refuses CaptureMailer when the database host matches the production marker", () => {
+  it("refuses CaptureMailer when the database host is the production host", () => {
     expect(() =>
       getMailer({
-        DATABASE_URL: "postgres://user:pass@ep-fetha-production-abc.aws.neon.tech/db",
+        DATABASE_URL:
+          "postgres://user:pass@ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech/db",
       }),
     ).toThrow(CaptureMailerRefusedInProductionError);
   });
@@ -33,7 +34,8 @@ describe("getMailer", () => {
     expect(
       getMailer({
         MAILER: "resend",
-        DATABASE_URL: "postgres://user:pass@ep-fetha-production-abc.aws.neon.tech/db",
+        DATABASE_URL:
+          "postgres://user:pass@ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech/db",
       }),
     ).toBeInstanceOf(ResendMailer);
   });

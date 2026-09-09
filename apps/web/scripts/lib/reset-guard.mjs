@@ -1,9 +1,13 @@
-// The reset routine is destructive (drops the public and drizzle schemas), so
-// it is bound to the specific database it is allowed to touch, not to an
-// environment label: a stale or copy-pasted DATABASE_URL pointing at
-// production is refused even under CI or with an explicit override.
-const PREVIEW_HOST_MARKER = "fetha-preview";
-const PRODUCTION_HOST_MARKER = "fetha-production";
+// The reset routine is destructive (drops the public and drizzle schemas),
+// so it is bound to the specific database it is allowed to touch, not to an
+// environment label. Neon's Vercel marketplace integration gives every
+// project an opaque per-endpoint pooler hostname (e.g. "ep-lively-mode-…"),
+// unrelated to the project's name, confirmed with `vercel env pull` against
+// both environments on 2026-09-09 — so this cannot be a substring match on
+// "fetha-preview"; it is an exact match against a configured allow-list, the
+// same shape Feudo settled on (docs/adr/0016).
+const KNOWN_PRODUCTION_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
+const DEFAULT_PREVIEW_HOST = "ep-lively-mode-awapxaoj-pooler.c-12.us-east-1.aws.neon.tech";
 
 export class DatabaseResetNotAllowedError extends Error {
   constructor(reason) {
@@ -28,11 +32,14 @@ export function assertDatabaseResetAllowed(env = process.env) {
 
   const host = hostOf(databaseUrl);
 
-  if (host.includes(PRODUCTION_HOST_MARKER)) {
-    throw new DatabaseResetNotAllowedError(`host "${host}" matches the production marker`);
+  // No override bypasses this: a stale or copy-pasted DATABASE_URL pointing
+  // at production is refused even with ALLOW_DATABASE_RESET=1 set.
+  if (host === KNOWN_PRODUCTION_HOST) {
+    throw new DatabaseResetNotAllowedError(`host "${host}" is the production database`);
   }
 
-  if (host.includes(PREVIEW_HOST_MARKER)) {
+  const allowedHost = env.DATABASE_RESET_ALLOWED_HOST || DEFAULT_PREVIEW_HOST;
+  if (host === allowedHost) {
     return;
   }
 
@@ -41,7 +48,7 @@ export function assertDatabaseResetAllowed(env = process.env) {
   }
 
   throw new DatabaseResetNotAllowedError(
-    `host "${host}" is neither the fetha-preview database nor explicitly allowed ` +
-      "(set ALLOW_DATABASE_RESET=1)",
+    `host "${host}" is neither the fetha-preview database (${allowedHost}) nor explicitly ` +
+      "allowed (set ALLOW_DATABASE_RESET=1)",
   );
 }

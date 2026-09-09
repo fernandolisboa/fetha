@@ -2,11 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import { assertDatabaseResetAllowed, DatabaseResetNotAllowedError } from "./reset-guard.mjs";
 
+const PREVIEW_HOST = "ep-lively-mode-awapxaoj-pooler.c-12.us-east-1.aws.neon.tech";
+const PRODUCTION_HOST = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
+
 describe("assertDatabaseResetAllowed", () => {
-  it("allows a host that carries the fetha-preview marker", () => {
+  it("allows the default fetha-preview host with no extra configuration", () => {
+    expect(() =>
+      assertDatabaseResetAllowed({ DATABASE_URL: `postgres://user:pass@${PREVIEW_HOST}/db` }),
+    ).not.toThrow();
+  });
+
+  it("allows a host that exactly matches an explicit DATABASE_RESET_ALLOWED_HOST", () => {
     expect(() =>
       assertDatabaseResetAllowed({
-        DATABASE_URL: "postgres://user:pass@ep-fetha-preview-abc123.aws.neon.tech/db",
+        DATABASE_URL: "postgres://user:pass@some-other-host.neon.tech/db",
+        DATABASE_RESET_ALLOWED_HOST: "some-other-host.neon.tech",
       }),
     ).not.toThrow();
   });
@@ -20,17 +30,26 @@ describe("assertDatabaseResetAllowed", () => {
     ).not.toThrow();
   });
 
-  it("refuses a host with no preview marker and no override", () => {
+  it("refuses a host with no match and no override", () => {
     expect(() =>
       assertDatabaseResetAllowed({ DATABASE_URL: "postgres://user:pass@localhost:5432/db" }),
     ).toThrow(DatabaseResetNotAllowedError);
   });
 
-  it("refuses a host matching the production marker even with the override set", () => {
+  it("refuses the production host even with the override set", () => {
     expect(() =>
       assertDatabaseResetAllowed({
-        DATABASE_URL: "postgres://user:pass@ep-fetha-production-abc123.aws.neon.tech/db",
+        DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
         ALLOW_DATABASE_RESET: "1",
+      }),
+    ).toThrow(DatabaseResetNotAllowedError);
+  });
+
+  it("refuses the production host even if it were passed as DATABASE_RESET_ALLOWED_HOST", () => {
+    expect(() =>
+      assertDatabaseResetAllowed({
+        DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
+        DATABASE_RESET_ALLOWED_HOST: PRODUCTION_HOST,
       }),
     ).toThrow(DatabaseResetNotAllowedError);
   });

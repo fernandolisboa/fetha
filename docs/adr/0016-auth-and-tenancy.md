@@ -101,9 +101,9 @@ mechanism the system uses to run itself, and only the system writes them — nev
 - `mail_outbox` exists only because Vercel functions are separate, stateless processes: it is how
   `CaptureMailer` hands a verification link to the E2E-only route
   (`/api/e2e/verification-link`) running in a different invocation. **It is empty in production**
-  — `CaptureMailer` is refused outright against a database whose host matches the production
-  marker (`CaptureMailerRefusedInProductionError`), so captured email can structurally never
-  accumulate there. Every row is single-use and short-lived even outside production: reading the
+  — `CaptureMailer` is refused outright against a database whose host exactly matches the real
+  production Neon pooler host (`CaptureMailerRefusedInProductionError`), so captured email can
+  structurally never accumulate there. Every row is single-use and short-lived even outside production: reading the
   latest link for an email (`findLatestVerificationLink`) deletes the row in the same call, and
   every `CaptureMailer.send()` purges anything older than a day before inserting.
 
@@ -117,8 +117,8 @@ mechanism the system uses to run itself, and only the system writes them — nev
   from `VERCEL_ENV` with no override — an explicit switch is occasionally needed (e.g. verifying
   Resend from a preview deployment) and mirrors Feudo's `EMAIL_PROVIDER` more closely than the
   original ADR argued for, while keeping the safe default. Regardless of the switch, `capture` is
-  refused when the database host matches the production marker, so a misconfigured `MAILER=capture`
-  can never run against production data.
+  refused when the database host exactly matches the production Neon pooler host, so a
+  misconfigured `MAILER=capture` can never run against production data.
 - `buildAuthOptions(db, env, mailer)` takes the mailer as a constructor argument (default
   `getMailer(env)`), so unit tests can inject `FakeMailer` without touching a database or the
   `VERCEL_ENV`/`MAILER` env resolution — this **supersedes** an earlier shape where `FakeMailer`
@@ -157,10 +157,16 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 @fetha/web run db:reset` (drops and recreates the `public` and `drizzle` schemas, cascading,
   wiping schema drift left over by any other branch) then `db:migrate` then
   `pnpm --filter @fetha/web run test:integration`. `db:reset` (`scripts/reset-database.mjs`)
-  refuses to run — before issuing any query — unless the host of `DATABASE_URL` carries the
-  `fetha-preview` marker or `ALLOW_DATABASE_RESET=1` is set explicitly, and refuses unconditionally,
-  even with that override, when the host carries the production marker
-  (`scripts/lib/reset-guard.mjs`, `assertDatabaseResetAllowed`). Because the database is reset
+  refuses to run — before issuing any query — unless the host of `DATABASE_URL` exactly matches
+  the `fetha-preview` pooler host or `ALLOW_DATABASE_RESET=1` is set explicitly, and refuses
+  unconditionally, even with that override, when the host exactly matches the production pooler
+  host (`scripts/lib/reset-guard.mjs`, `assertDatabaseResetAllowed`). Both hosts are Neon's opaque
+  per-endpoint pooler hostnames (e.g. `ep-lively-mode-…`), unrelated to either project's name —
+  confirmed with `vercel env pull` against both environments, not assumed — so the guard is an
+  exact match against a known/configured host, not a substring "marker" on the project name; the
+  preview host has a safe-by-default fallback baked into the script, overridable through the
+  `DATABASE_RESET_ALLOWED_HOST` GitHub Actions variable (a hostname, not a secret) the same way
+  Feudo's `DATABASE_RESET_ALLOWED_HOST` works. Because the database is reset
   every run, integration tests' own row cleanup (`src/db/test/cleanup.ts`) is a courtesy for local
   runs and interleaved test files, not what tenant isolation or test independence relies on; a
   cleanup failure is logged and swallowed rather than failing the test that already asserted what
