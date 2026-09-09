@@ -112,6 +112,10 @@ describe("priceOperation (concrete legs)", () => {
       code: "no_market_price",
       message: "no market price visible for this leg",
     });
+    expect(result.value.notes).toContainEqual({
+      code: "no_market_price",
+      message: "at least one leg has no visible market price",
+    });
   });
 
   it("prices a Hull-consistent long call leg from a given volatility and reports positive delta", () => {
@@ -1034,6 +1038,39 @@ describe("priceOperation (selection: quantity resolution)", () => {
       },
     ],
   };
+
+  it("returns insufficient_data when sizing a structure with an unpriced leg", () => {
+    const unpricedView: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+    };
+    const result = priceOperation(
+      {
+        view: unpricedView,
+        at,
+        legs: {
+          structure: oneLegStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
 
   it("returns unsizeable(no_declared_capital) for a SizingRule quantity without a risk profile", () => {
     const result = priceOperation(

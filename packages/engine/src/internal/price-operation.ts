@@ -394,11 +394,21 @@ function priceConcreteLegs(
   const notes: Note[] = [...riskFreeRateResolution.notes, ...dividendResolution.notes];
 
   const priced: PricedLeg[] = [];
+  let anyLegUnpriced = false;
   for (const leg of legs) {
     const result = valueOneLeg(view, at, underlying, spot, riskFreeRate, dividendYield, leg);
     if (!result.ok) return err(result.error);
     priced.push(result.leg);
     notes.push(...result.leg.valuation.notes.filter((n) => n.code === "european_pricing"));
+    if (result.leg.valuation.notes.some((n) => n.code === "no_market_price")) {
+      anyLegUnpriced = true;
+    }
+  }
+  if (anyLegUnpriced) {
+    notes.push({
+      code: "no_market_price",
+      message: "at least one leg has no visible market price",
+    });
   }
 
   const netPremiumCentavos = priced.reduce(
@@ -508,6 +518,21 @@ function resolveSizingUnits(
     },
   );
   if (!preview.ok) return { ok: false, error: preview.error };
+  if (preview.value.notes.some((n) => n.code === "no_market_price")) {
+    return {
+      ok: false,
+      error: {
+        code: "insufficient_data",
+        needed: {
+          from: at,
+          to: at,
+          instruments: [underlying],
+          timeframes: [],
+          collections: ["optionPrices"],
+        },
+      },
+    };
+  }
 
   const capital = new Decimal(riskProfile.declaredCapital);
   const fraction = parseDecimal(sizing.fraction);
