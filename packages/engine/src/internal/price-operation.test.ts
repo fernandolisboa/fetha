@@ -940,7 +940,7 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.value.legs[0]?.leg.quantity).toBeGreaterThan(0);
   });
 
-  it("sizes to a minimum of one unit when the structure's per-unit premium is zero (fixed_fractional)", () => {
+  it("returns unsizeable(zero_units) when the structure's per-unit premium is zero (fixed_fractional)", () => {
     const zeroPremiumView: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -979,12 +979,12 @@ describe("priceOperation (selection: quantity resolution)", () => {
       },
       provenanceBase,
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.legs[0]?.leg.quantity).toBe(1);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
   });
 
-  it("sizes to a minimum of one unit when the structure's per-unit max loss is zero (fixed_risk)", () => {
+  it("returns unsizeable(zero_units) when the structure's per-unit max loss is zero (fixed_risk)", () => {
     const zeroPremiumView: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -1023,9 +1023,53 @@ describe("priceOperation (selection: quantity resolution)", () => {
       },
       provenanceBase,
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.legs[0]?.leg.quantity).toBe(1);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
+  });
+
+  it("returns unsizeable(zero_units) when the budget cannot afford one unit (R$100 budget, R$500 per unit)", () => {
+    const expensiveView: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("500.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: expensiveView,
+        at,
+        legs: {
+          structure: oneLegStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.01") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
   });
 
   it("returns missing_instrument when a LegSelection's underlying has no visible spot", () => {
@@ -1070,6 +1114,113 @@ describe("priceOperation (selection: quantity resolution)", () => {
           strikes: [{ kind: "nearest", price: decimalString("28.00") }],
           expiry: { kind: "business_days", min: 1, max: 30 },
           quantity: { kind: "fixed_risk", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unbounded_max_loss" });
+  });
+
+  it("sizes a fixed_fractional net-credit structure against maxLoss, not the premium received", () => {
+    const view2: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const structure: Structure = {
+      id: "bear-call-spread",
+      name: "Bear call spread",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: view2,
+        at,
+        legs: {
+          structure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.netPremium).toBeGreaterThan(0);
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    const units = result.value.legs[0]?.leg.quantity ?? 0;
+    const budget = 10_000_00 * 0.5;
+    const perUnitMaxLoss = result.value.maxLoss / units;
+    // Sizing by the strike width (max loss), not by the premium received, would clamp
+    // sizing to far fewer units than premium-based sizing on a thin net-credit spread.
+    expect(units).toBe(Math.floor(budget / perUnitMaxLoss));
+  });
+
+  it("returns unsizeable(unbounded_max_loss) for a fixed_fractional net-credit naked short call", () => {
+    const shortCallStructure: Structure = {
+      id: "naked-short-call-fractional",
+      name: "naked short call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "sell", ratio: 1, strikeRank: 1 }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: {
+          structure: shortCallStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
         },
         riskProfile: {
           declaredCapital: centavos(10_000_00),

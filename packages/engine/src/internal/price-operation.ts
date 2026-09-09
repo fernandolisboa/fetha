@@ -494,20 +494,38 @@ function resolveSizingUnits(
 
   const capital = new Decimal(riskProfile.declaredCapital);
   const fraction = parseDecimal(sizing.fraction);
-  if (sizing.kind === "fixed_risk") {
-    if (preview.value.maxLoss === "unbounded") {
-      return { ok: false, error: { code: "unsizeable", reason: "unbounded_max_loss" } };
-    }
-    const perUnit = new Decimal(preview.value.maxLoss);
-    if (perUnit.lte(0)) return { ok: true, units: 1 };
+  const zeroUnits = {
+    ok: false as const,
+    error: { code: "unsizeable", reason: "zero_units" },
+  } satisfies { ok: false; error: EngineError };
+  const unboundedMaxLoss = {
+    ok: false as const,
+    error: { code: "unsizeable", reason: "unbounded_max_loss" },
+  } satisfies { ok: false; error: EngineError };
+
+  const unitsFromPerUnit = (
+    perUnit: Decimal,
+  ): { ok: true; units: number } | { ok: false; error: EngineError } => {
+    if (perUnit.lte(0)) return zeroUnits;
     const units = capital.mul(fraction).div(perUnit).floor().toNumber();
-    return { ok: true, units: Math.max(1, units) };
+    return units >= 1 ? { ok: true, units } : zeroUnits;
+  };
+
+  if (sizing.kind === "fixed_risk") {
+    if (preview.value.maxLoss === "unbounded") return unboundedMaxLoss;
+    return unitsFromPerUnit(new Decimal(preview.value.maxLoss));
   }
 
-  const perUnit = new Decimal(Math.abs(preview.value.netPremium));
-  if (perUnit.lte(0)) return { ok: true, units: 1 };
-  const units = capital.mul(fraction).div(perUnit).floor().toNumber();
-  return { ok: true, units: Math.max(1, units) };
+  // fixed_fractional sizes against the capital actually at risk: for a net-credit
+  // structure (netPremium > 0, premium received) that is the bounded max loss
+  // (ADR-0014's stop_loss base uses the same reasoning), never the premium received,
+  // which understates the risk of a spread.
+  const isNetCredit = preview.value.netPremium > 0;
+  if (isNetCredit) {
+    if (preview.value.maxLoss === "unbounded") return unboundedMaxLoss;
+    return unitsFromPerUnit(new Decimal(preview.value.maxLoss));
+  }
+  return unitsFromPerUnit(new Decimal(preview.value.netPremium).abs());
 }
 
 function priceSelection(

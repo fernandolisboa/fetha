@@ -83,10 +83,11 @@ export const ENGINE_VERSION = "0.1.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
-export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital";
+export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital" | "zero_units";
 export const unsizeableReasons = [
   "unbounded_max_loss",
   "no_declared_capital",
+  "zero_units",
 ] as const satisfies readonly UnsizeableReason[];
 
 export type EngineError =
@@ -139,7 +140,8 @@ export type NoteCode =
   | "no_operation"
   | "unbounded_max_loss"
   | "zero_max_loss"
-  | "iv_index_not_bracketed";
+  | "iv_index_not_bracketed"
+  | "risk_free_rate_defaulted";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -159,6 +161,7 @@ export const noteCodes = [
   "unbounded_max_loss",
   "zero_max_loss",
   "iv_index_not_bracketed",
+  "risk_free_rate_defaulted",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
