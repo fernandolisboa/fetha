@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Theme } from "@fetha/contracts";
+import type { Theme } from "@/modules/preferences/theme";
 
+// Test-only support: reads and parses the theme token blocks straight out of
+// globals.css so the contrast and coverage tests assert against the real
+// shipped values, not a duplicated fixture that could drift.
 export type ThemeTokens = Record<string, string>;
 
-const GLOBALS_CSS_PATH = path.resolve(import.meta.dirname, "../../app/globals.css");
+const GLOBALS_CSS_PATH = path.resolve(import.meta.dirname, "../../../app/globals.css");
 
 function extractBlock(css: string, selector: string): string {
   const start = css.indexOf(selector);
@@ -37,7 +40,5 @@ export function readGlobalsCss(): string {
 }
 
 export function parseThemeTokens(css: string, theme: Theme): ThemeTokens {
-  const selector =
-    theme === "instrumento" ? `:root[data-theme="instrumento"]` : `:root[data-theme="${theme}"]`;
-  return parseDeclarations(extractBlock(css, selector));
+  return parseDeclarations(extractBlock(css, `[data-theme="${theme}"]`));
 }

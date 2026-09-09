@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { themes } from "@fetha/contracts";
+import { themes } from "@/modules/preferences/theme";
 
-import { parseThemeTokens, readGlobalsCss } from "./parse-theme-tokens";
+import { parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 
 // Every token DESIGN.md lists under "Tokens" (CLAUDE.md mirrors the same
 // list) must exist as a CSS custom property in each of the three themes.

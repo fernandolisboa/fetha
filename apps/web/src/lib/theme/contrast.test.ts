@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { themes } from "@fetha/contracts";
+import { themes } from "@/modules/preferences/theme";
 
 import { contrastRatio } from "./contrast";
-import { parseThemeTokens, readGlobalsCss } from "./parse-theme-tokens";
+import { parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 
 const textTokens = ["--ink", "--muted", "--faint"];
 const semanticTokens = [
@@ -38,5 +38,13 @@ describe("theme contrast (DESIGN.md's design gate)", () => {
       if (!value) throw new Error(`missing ${token}`);
       expect(contrastRatio(value, tokens["--bg"] ?? "")).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+describe("contrastRatio input validation", () => {
+  it("throws on a non-6-digit hex color", () => {
+    expect(() => contrastRatio("#fff", "#000000")).toThrow();
+    expect(() => contrastRatio("#000000", "#abc")).toThrow();
+    expect(() => contrastRatio("not-a-color", "#000000")).toThrow();
   });
 });

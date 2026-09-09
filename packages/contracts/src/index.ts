@@ -1,5 +1,4 @@
 export { registrationModeSchema, type RegistrationMode } from "./registration-mode";
-export { themeSchema, themes, type Theme } from "./theme";
 export {
   centavosSchema,
   confidenceSchema,
