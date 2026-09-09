@@ -25,33 +25,20 @@ export async function consumePendingInvite(
     .where(and(eq(invites.email, normalizeEmail(email)), isNull(invites.consumedAt)));
 }
 
-export type CreateInviteOutcome = "created" | "reopened" | "already_pending";
-
-// The owner's path (scripts/seed-invite.mjs) into a fresh database, and the
-// canonical implementation a future invite-management admin action would
-// call: idempotent, and honest about what it did rather than silently
-// no-op'ing on conflict.
-export async function createInvite(db: Database, email: string): Promise<CreateInviteOutcome> {
-  const normalized = normalizeEmail(email);
-
-  const [existing] = await db
-    .select({ consumedAt: invites.consumedAt })
-    .from(invites)
-    .where(eq(invites.email, normalized))
-    .limit(1);
-
-  if (!existing) {
-    await db.insert(invites).values({ email: normalized });
-    return "created";
+// The user row already exists by the time this runs (databaseHooks.user.create.after):
+// a transient failure to mark the invite consumed must never undo or fail a registration
+// that already succeeded (docs/adr/0016, mirrors recordTermsAcceptanceHistory).
+export async function consumePendingInviteSafely(
+  db: Database,
+  email: string,
+  userId: string,
+): Promise<void> {
+  try {
+    await consumePendingInvite(db, email, userId);
+  } catch (error) {
+    console.error(
+      "failed to consume pending invite",
+      error instanceof Error ? error.name : "Unknown",
+    );
   }
-
-  if (existing.consumedAt === null) {
-    return "already_pending";
-  }
-
-  await db
-    .update(invites)
-    .set({ consumedAt: null, consumedByUserId: null })
-    .where(eq(invites.email, normalized));
-  return "reopened";
 }

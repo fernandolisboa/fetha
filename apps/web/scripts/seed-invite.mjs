@@ -1,9 +1,10 @@
 // Run by hand, locally, with DATABASE_URL pointed at the target database:
 //   DATABASE_URL=... node scripts/seed-invite.mjs owner@example.com
-// This is how the first invite (the owner's own) gets into a fresh database,
-// since sign-up in `invite` mode requires an existing invite. Mirrors
-// src/modules/auth/invite-repository.ts's createInvite: idempotent, and
-// honest about whether it created, reopened or left the invite untouched.
+// This is the only path that writes an invite (docs/adr/0016): no admin
+// action exists to call the equivalent repository logic (YAGNI, no
+// invite-management ticket exists yet), so this script is the canonical
+// implementation, not a mirror of one. It is idempotent and honest about
+// whether it created, reopened or left the invite untouched.
 import { neon } from "@neondatabase/serverless";
 
 const email = process.argv[2];

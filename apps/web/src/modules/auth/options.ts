@@ -11,7 +11,7 @@ import { buildVerificationEmail } from "./email/verification-email";
 import { getMailer } from "./email/select";
 import type { Mailer } from "./email/mailer";
 import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
-import { consumePendingInvite, hasPendingInvite } from "./invite-repository";
+import { consumePendingInviteSafely, hasPendingInvite } from "./invite-repository";
 import { normalizeEmail } from "./normalize-email";
 import { evaluateRegistrationMode } from "./registration-policy";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
@@ -121,7 +121,7 @@ export function buildAuthOptions(
               email: createdUser.email,
               termsAcceptedAt: termsAcceptedAt instanceof Date ? termsAcceptedAt : new Date(),
             });
-            await consumePendingInvite(db, createdUser.email, createdUser.id);
+            await consumePendingInviteSafely(db, createdUser.email, createdUser.id);
           },
         },
       },
