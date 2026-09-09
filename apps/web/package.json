@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "db:auth-schema": "pnpm exec @better-auth/cli generate --config src/modules/auth/auth-schema-config.ts --output src/db/schema/auth.ts -y"
+    "db:auth-schema": "npx --yes @better-auth/cli@latest generate --config src/modules/auth/auth-schema-config.ts --output src/db/schema/auth.ts -y"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -39,7 +39,6 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@better-auth/cli": "1.4.22",
     "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "20.19.43",
