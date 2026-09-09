@@ -22,6 +22,7 @@ supersedes or amends them and says so.
 | 0014 | Evaluation, backtest and scoring rules (amends 0004, 0005, 0008)                      |
 | 0015 | Themes are per-user token sets; component anatomy is never themed                     |
 | 0016 | Better Auth for identity; the user account is the tenant                              |
+| 0017 | Reference data ingestion: sources, partitioning, retries, freshness, adjustment       |
 | 0018 | Magic link, password reset and database-backed rate limiting (amends 0016)            |
 
 Open: none.
