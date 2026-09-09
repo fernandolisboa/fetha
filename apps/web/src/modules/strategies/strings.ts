@@ -123,8 +123,7 @@ const ptBR = {
     newStrategy: "Nova estratégia",
     mine: {
       title: "Minhas estratégias",
-      empty:
-        "Você ainda não tem nenhuma estratégia no catálogo. Crie uma a partir de uma estrutura.",
+      empty: "Nenhuma estratégia no catálogo ainda. Crie uma a partir de uma Estrutura.",
       columns: {
         name: "Nome",
         visibility: "Visibilidade",
@@ -137,24 +136,23 @@ const ptBR = {
       shareError: "Não foi possível atualizar o compartilhamento. Tente novamente.",
     },
     shared: {
-      title: "Compartilhadas por outros usuários",
+      title: "Compartilhadas",
       empty: "Nenhuma estratégia compartilhada ainda.",
       copy: "Copiar",
       copyError: "Não foi possível copiar a estratégia. Tente novamente.",
     },
     visibility: { private: "Privada", shared: "Compartilhada" },
-    emptyCatalog:
-      "O catálogo de estruturas ainda não foi carregado, então não há a partir do que criar uma estratégia.",
+    emptyCatalog: "O Catálogo de Estruturas ainda não foi carregado.",
   },
   editor: {
     createOverline: "Nova estratégia",
     editOverline: "Editar estratégia",
     name: { label: "Nome" },
-    timeframe: { label: "Timeframe" },
+    timeframe: { label: "Escala de tempo" },
     structure: { label: "Estrutura" },
     entry: {
       title: "Condições de entrada",
-      subtitle: "Todas as condições precisam valer ao mesmo tempo (E).",
+      subtitle: "Todas as condições devem valer (E).",
       addCondition: "Adicionar condição",
       removeCondition: "Remover condição",
       comparator: "Comparador",
@@ -173,7 +171,7 @@ const ptBR = {
     },
     strikes: {
       title: "Seleção de strikes",
-      subtitle: "Uma linha por strike, na ordem dos ranks.",
+      subtitle: "Uma linha por strike, em ordem de ranking.",
       addStrike: "Adicionar strike",
       removeStrike: "Remover strike",
       kind: "Método",
@@ -184,8 +182,8 @@ const ptBR = {
     },
     expiry: {
       title: "Janela de vencimento",
-      min: "Mínimo de sessões",
-      max: "Máximo de sessões",
+      min: "Mínimo de dias úteis",
+      max: "Máximo de dias úteis",
     },
     sizing: {
       title: "Dimensionamento",
@@ -200,7 +198,7 @@ const ptBR = {
       removeRule: "Remover regra",
       kind: "Tipo",
       profit_target: "Alvo de lucro",
-      stop_loss: "Stop",
+      stop_loss: "Parada",
       days_before_expiry: "Dias antes do vencimento",
       condition: "Condição",
       fractionOfPremium: "Fração do prêmio",
@@ -211,7 +209,7 @@ const ptBR = {
     },
     adjustments: {
       title: "Ajustes",
-      subtitle: "Rolagens opcionais para um novo vencimento e novos strikes.",
+      subtitle: "Rolls para novo vencimento e novos strikes (opcional).",
       addAdjustment: "Adicionar ajuste",
       removeAdjustment: "Remover ajuste",
       when: "Rolar quando",
@@ -223,8 +221,8 @@ const ptBR = {
       invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
       not_found: "Essa estratégia não existe mais.",
       not_shared: "Essa estratégia não está compartilhada.",
-      conflict: "Outra pessoa acabou de alterar essa estratégia. Recarregue e tente de novo.",
-      unavailable: "Não foi possível salvar agora. Tente novamente em instantes.",
+      conflict: "Outra pessoa alterou esta estratégia. Recarregue e tente novamente.",
+      unavailable: "Não conseguimos salvar agora. Tente novamente.",
     },
     versions: { title: "Versões", createdAt: "Criada em" },
   },
@@ -241,7 +239,7 @@ const ptBR = {
     ema: "Média móvel exponencial",
     rsi: "IFR",
     atr: "ATR",
-    iv_rank: "Rank de IV",
+    iv_rank: "Ranking de IV",
   },
   operandKinds: { indicator: "Indicador", price: "Campo de preço", constant: "Constante" },
 } satisfies typeof en;
