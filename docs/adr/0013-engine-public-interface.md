@@ -1095,11 +1095,16 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   once per operation from its entry legs via `priceStockLegs` (ADR-0014 Q50): `profit_target`
   against `|netPremium|`, `stop_loss` against `maxLoss` when finite else `|netPremium|`; a zero
   base means the rule can never fire, and the evaluation record's `detail` says so. Before that
-  comparison, each leg's `entryPrice` is scaled by the product of the ticker's visible
-  corporate-action factors with `exDate` in `(op.openedAt, nominalCandle.session]` — the same
-  convention `buildCandleSeries` uses to adjust a candle series, applied here so a position opened
+  comparison, the nominal close — not the entry price — is rebased onto the entry price's own
+  scale, dividing by the product of the ticker's visible corporate-action factors with `exDate` in
+  `(op.openedAt, nominalCandle.session]` (the same factors, and the same convention,
+  `buildCandleSeries` uses to adjust a candle series, but applied in the opposite direction here).
+  Per-leg pnl is `quantity × (close / f − entryPrice)` in centavos: `quantity` and `entryPrice` are
+  true money on the scale the operation was opened at and are never touched, so a position opened
   before a split is compared to the post-split close on the same scale instead of firing a stop or
-  target on the split alone. `days_before_expiry` cannot appear on a stock-only definition
+  target on the split alone, and the money is right, not just the sign — scaling `entryPrice` by
+  `f` instead (the earlier, incorrect approach) leaves the pnl off by a factor of `1/f`.
+  `days_before_expiry` cannot appear on a stock-only definition
   (coherence rejects it), so the evaluator's exhaustive `switch` throws if it somehow does — a
   bug, not a runtime outcome. `EvaluationRecord.outcome` for an instant with an open operation is
   `signal` if any exit fired, `insufficient_data` if none fired but some `condition` rule was

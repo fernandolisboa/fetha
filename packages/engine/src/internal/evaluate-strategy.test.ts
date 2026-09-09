@@ -371,7 +371,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.value.signals).toEqual([]);
   });
 
-  it("scales entryPrice by a split factor before comparing it to the close, so stop_loss does not fire on a flat position across a 2:1 split", () => {
+  it("scales the close (not the quantity) by a 2:1 split factor, so a true +R$200 gain fires a 5% profit_target", () => {
     const view: MarketView = {
       ...emptyView,
       candles: [dailyCandle("PETR4", 3, "16.00")],
@@ -406,6 +406,58 @@ describe("evaluateStrategy — stock-only strategies", () => {
       strategy: strategyVersion(
         definition({
           entry: closeAboveSma(3),
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.05") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [preSplitOperation],
+    };
+    // Each pre-split share became 2 post-split shares: 100 old shares are worth what 200 shares
+    // at the post-split close represent, i.e. close / factor = 16.00 / 0.5 = 32.00 per old share.
+    // True pnl = 100 * (32.00 - 30.00) = +R$200, well past a 5% target on a R$3000 premium base.
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    expect(result.value.signals[0]).toMatchObject({ kind: "exit", operationId: "op-1" });
+  });
+
+  it("scales the close (not the quantity) by a 10:1 reverse split factor, so a true −R$100 loss does not fire a 10% stop_loss", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 3, "29.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T13:00:00.000Z",
+          factor: decimalString("10"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const preSplitOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(1000),
+          entryPrice: decimalString("3.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
           exit: [{ kind: "stop_loss", multipleOfMaxLoss: decimalString("0.1") }],
         }),
       ),
@@ -413,8 +465,8 @@ describe("evaluateStrategy — stock-only strategies", () => {
       at: "2024-01-04T21:00:00.000Z",
       openOperations: [preSplitOperation],
     };
-    // Unadjusted: pnl = (16.00 - 30.00) * 100 = -R$1400, well past a 10% stop on a R$3000 base.
-    // Adjusted for the 2:1 split (entry scaled to 15.00): pnl = (16.00 - 15.00) * 100 = +R$100.
+    // Every 10 pre-split shares became 1 post-split share: close / factor = 29.00 / 10 = 2.90 per
+    // old share. True pnl = 1000 * (2.90 - 3.00) = -R$100, short of a 10% stop on a R$3000 base.
     const result = evaluateStrategy(input);
     expect(result.ok).toBe(true);
     if (!result.ok) return;

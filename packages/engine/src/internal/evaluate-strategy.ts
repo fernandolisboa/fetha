@@ -284,8 +284,8 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
 }
 
 // Same scale convention buildCandleSeries uses for adjusted candles: a factor whose ex-date
-// falls after the price was recorded is folded in so the entry price and the current close
-// compare on one scale (ADR-0013 "Exit rule evaluation").
+// falls after the price was recorded is folded in so the current close can be rebased back to
+// the entry price's own, unadjusted scale (ADR-0013 "Exit rule evaluation").
 function splitFactorProduct(
   factors: readonly CorporateActionFactor[],
   openedAt: SessionDate,
@@ -304,13 +304,16 @@ function evaluateNumericExitRule(
   bases: ExitRuleBases,
   splitFactor: Decimal,
 ): { fired: boolean; zeroBase: boolean } {
-  const current = parseDecimal(currentClose);
+  // Quantity and entryPrice are true money on the scale the operation was opened at; the
+  // nominal close is on today's scale, so it is the close, not the entry price, that gets
+  // rebased before the two are compared (ADR-0013 "Exit rule evaluation").
+  const currentOnEntryScale = parseDecimal(currentClose).div(splitFactor);
   let pnlCentavos = new Decimal(0);
   for (const leg of op.legs) {
-    const entry = parseDecimal(leg.entryPrice).mul(splitFactor);
+    const entry = parseDecimal(leg.entryPrice);
     const legSign = leg.side === "buy" ? 1 : -1;
     pnlCentavos = pnlCentavos.add(
-      current.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+      currentOnEntryScale.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
     );
   }
   if (rule.kind === "profit_target") {
