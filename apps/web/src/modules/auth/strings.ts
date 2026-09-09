@@ -97,9 +97,9 @@ const en = {
     html: '<p>Hello, {name}.</p><p>Confirm your email to start using Fetha:</p><p><a href="{url}">{url}</a></p><p>If you didn\'t create this account, ignore this email.</p>',
   },
   magicLinkEmail: {
-    subject: "Your Fetha sign-in link",
-    text: "Click the link below to sign in to Fetha: {url}\n\nThis link expires soon and can only be used once. If you didn't request it, ignore this email.",
-    html: '<p>Click the link below to sign in to Fetha:</p><p><a href="{url}">{url}</a></p><p>This link expires soon and can only be used once. If you didn\'t request it, ignore this email.</p>',
+    subject: "Your Fetha magic link",
+    text: "Click the magic link below to sign in to Fetha: {url}\n\nThis link expires soon and can only be used once. If you didn't request it, ignore this email.",
+    html: '<p>Click the magic link below to sign in to Fetha:</p><p><a href="{url}">{url}</a></p><p>This link expires soon and can only be used once. If you didn\'t request it, ignore this email.</p>',
   },
   passwordResetEmail: {
     subject: "Reset your Fetha password",
@@ -208,9 +208,9 @@ const ptBR = {
     html: '<p>Olá, {name}.</p><p>Confirme seu e-mail para começar a usar o Fetha:</p><p><a href="{url}">{url}</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>',
   },
   magicLinkEmail: {
-    subject: "Seu link de acesso ao Fetha",
-    text: "Clique no link abaixo para entrar no Fetha: {url}\n\nEsse link expira em pouco tempo e só pode ser usado uma vez. Se você não pediu este link, ignore este e-mail.",
-    html: '<p>Clique no link abaixo para entrar no Fetha:</p><p><a href="{url}">{url}</a></p><p>Esse link expira em pouco tempo e só pode ser usado uma vez. Se você não pediu este link, ignore este e-mail.</p>',
+    subject: "Seu link mágico do Fetha",
+    text: "Clique no link mágico abaixo para entrar no Fetha: {url}\n\nEsse link expira em pouco tempo e só pode ser usado uma vez. Se você não pediu este link, ignore este e-mail.",
+    html: '<p>Clique no link mágico abaixo para entrar no Fetha:</p><p><a href="{url}">{url}</a></p><p>Esse link expira em pouco tempo e só pode ser usado uma vez. Se você não pediu este link, ignore este e-mail.</p>',
   },
   passwordResetEmail: {
     subject: "Redefina sua senha no Fetha",
