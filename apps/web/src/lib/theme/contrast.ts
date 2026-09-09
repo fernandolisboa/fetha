@@ -1,5 +1,10 @@
+const SIX_DIGIT_HEX = /^[0-9a-fA-F]{6}$/;
+
 function hexToRgb(hex: string): [number, number, number] {
   const normalized = hex.replace("#", "");
+  if (!SIX_DIGIT_HEX.test(normalized)) {
+    throw new Error(`expected a 6-digit hex color, got "${hex}"`);
+  }
   const value = Number.parseInt(normalized, 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }

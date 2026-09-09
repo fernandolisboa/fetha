@@ -1,17 +1,7 @@
-import type { Theme } from "@fetha/contracts";
-import { themes } from "@fetha/contracts";
+import { themes, type Theme } from "../theme";
 import { cn } from "@/lib/utils";
 import { setThemeAction } from "../actions";
 import { t as preferencesStrings } from "../strings";
-
-// Representative hex values per theme (DESIGN.md), used only to paint the
-// picker's swatches; the active theme's own tokens are what actually style
-// the page once chosen.
-const swatches: Record<Theme, { bg: string; surface: string; accent: string }> = {
-  instrumento: { bg: "#0f1115", surface: "#151922", accent: "#3fb8c8" },
-  terminal: { bg: "#0a0b0d", surface: "#111317", accent: "#e0a83a" },
-  amplo: { bg: "#13151b", surface: "#191c24", accent: "#c9a25a" },
-};
 
 export function ThemePicker({ current }: { current: Theme }) {
   return (
@@ -21,11 +11,16 @@ export function ThemePicker({ current }: { current: Theme }) {
       aria-label={preferencesStrings.themePicker.title}
     >
       {themes.map((theme) => {
-        const swatch = swatches[theme];
         const option = preferencesStrings.themePicker.options[theme];
         const active = theme === current;
         return (
-          <form action={setThemeAction} key={theme}>
+          <form
+            action={async (formData: FormData) => {
+              "use server";
+              await setThemeAction(formData);
+            }}
+            key={theme}
+          >
             <input type="hidden" name="theme" value={theme} />
             <button
               type="submit"
@@ -37,13 +32,14 @@ export function ThemePicker({ current }: { current: Theme }) {
               )}
             >
               <span
+                data-theme={theme}
                 className="border-border flex size-6 shrink-0 overflow-hidden rounded-full border"
-                style={{ background: swatch.bg }}
+                style={{ background: "var(--bg)" }}
               >
                 <span
                   className="block size-full"
                   style={{
-                    background: `linear-gradient(135deg, ${swatch.surface} 50%, ${swatch.accent} 50%)`,
+                    background: "linear-gradient(135deg, var(--ink) 50%, var(--accent) 50%)",
                   }}
                 />
               </span>
