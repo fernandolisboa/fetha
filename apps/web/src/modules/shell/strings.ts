@@ -29,23 +29,18 @@ const en = {
   emptyStates: {
     watchlist: {
       sentence: "No instrument in your watchlist yet.",
-      action: "Add an instrument",
     },
     signals: {
       sentence: "No signal in your inbox yet.",
-      action: "Add an instrument to the watchlist",
     },
     strategies: {
       sentence: "No strategy in your catalog yet.",
-      action: "Browse the catalog",
     },
     portfolio: {
       sentence: "No open position yet.",
-      action: "Import fills from the B3 investor area",
     },
     journal: {
       sentence: "No decision recorded yet.",
-      action: "Record your first decision",
     },
   },
 };
@@ -81,23 +76,18 @@ const ptBR = {
   emptyStates: {
     watchlist: {
       sentence: "Você ainda não tem nenhum ativo na watchlist.",
-      action: "Adicionar ativo",
     },
     signals: {
       sentence: "Nenhum sinal na sua caixa de entrada ainda.",
-      action: "Adicionar ativo à watchlist",
     },
     strategies: {
       sentence: "Você ainda não tem nenhuma estratégia no catálogo.",
-      action: "Ver catálogo",
     },
     portfolio: {
       sentence: "Nenhuma posição em aberto ainda.",
-      action: "Importar negociações da área do investidor B3",
     },
     journal: {
       sentence: "Nenhuma decisão registrada ainda.",
-      action: "Registrar sua primeira decisão",
     },
   },
 } satisfies typeof en;
