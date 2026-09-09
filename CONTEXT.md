@@ -78,4 +78,5 @@ See `docs/adr/`: numeric representation (0001), option pricing (0002), no broker
 (0003), backtest hygiene (0004), decision scoring (0005), engine boundary (0006), data providers
 (0007), strategy DSL (0008), AI decision contract (0009), intraday evaluation while in use
 (0010), intraday backtests (0011), strategy sharing (0012), the engine public interface (0013),
-evaluation, backtest and scoring rules settled with it (0014), themes as per-user token sets (0015).
+evaluation, backtest and scoring rules settled with it (0014), themes as per-user token sets
+(0015), auth and tenancy: Better Auth, the user account as the tenant (0016).

@@ -331,3 +331,21 @@ _Avoid_: grade, rating, performance
 The profit or loss an operation would have produced had it been entered, computed with the
 backtest fill model.
 _Avoid_: missed profit, opportunity cost, what-if
+
+### Accounts and access
+
+**User**:
+One registered account and the tenant that scopes every domain table (`user_id`). Fetha has no
+households or shared workspaces (ADR-0016).
+_Avoid_: account, tenant (in code), member
+
+**Invite**:
+An email address the owner has cleared to register while `REGISTRATION_MODE=invite`; consumed
+the moment that email completes sign-up. Not scoped to a user: it has none until consumed.
+_Avoid_: invitation code, whitelist entry
+
+**Terms acceptance**:
+The record that a user accepted the terms of use and privacy policy at registration, with the
+version accepted and the timestamp. Append-only: a later terms version adds a new row, never
+overwrites one.
+_Avoid_: consent, agreement

@@ -21,5 +21,6 @@ supersedes or amends them and says so.
 | 0013 | Engine public interface: ten methods over one market view, frozen                     |
 | 0014 | Evaluation, backtest and scoring rules (amends 0004, 0005, 0008)                      |
 | 0015 | Themes are per-user token sets; component anatomy is never themed                     |
+| 0016 | Better Auth for identity; the user account is the tenant                              |
 
 Open: none.
