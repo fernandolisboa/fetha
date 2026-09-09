@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import type {
   Candle,
   CorporateActionFactor,
+  EvaluateStrategyInput,
   ImpliedVolatilityIndexPoint,
   IndicatorsInput,
+  MarketView,
+  StrategyVersion,
 } from "../api";
+import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
 import { decimalString } from "../test/support";
@@ -162,6 +166,66 @@ describe("I3 Order-invariance", () => {
             at: assertDefined(candles.at(-1), "test setup: missing last candle").asOf,
           });
           expect(result.ok).toBe(false);
+        },
+      ),
+    );
+  });
+
+  it("any permutation of candles across a two-instrument evaluateStrategy batch yields a deep-equal artifact", () => {
+    fc.assert(
+      fc.property(
+        candleSeriesArbitrary,
+        fc.integer({ min: 0, max: 1_000_000 }),
+        (candles, seed) => {
+          fc.pre(candles.length >= 4);
+          const otherTickerCandles: Candle[] = candles.map((c) => ({ ...c, ticker: "VALE3" }));
+          const allCandles = [...candles, ...otherTickerCandles];
+          const view: MarketView = {
+            calendar: [],
+            candles: allCandles,
+            corporateActions: [],
+            optionSeries: [],
+            optionPrices: [],
+            quotes: [],
+            macro: [],
+            dividendYields: [],
+            impliedVolatilityIndex: [],
+          };
+          const strategy: StrategyVersion = {
+            id: "v1",
+            definition: {
+              name: "test",
+              timeframe: "D1",
+              entry: {
+                kind: "compare",
+                left: { kind: "price", field: "close" },
+                comparator: ">",
+                right: { kind: "indicator", indicator: { kind: "sma", length: 3 } },
+              },
+              structureId: "stock",
+              strikes: [],
+              sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+              exit: [],
+              adjustments: [],
+            },
+            structure: {
+              id: "stock",
+              name: "Stock",
+              expiry: "shared",
+              legs: [{ role: "stock", side: "buy", ratio: 1 }],
+            },
+          };
+          const input: EvaluateStrategyInput = {
+            view,
+            strategy,
+            instruments: ["PETR4", "VALE3"],
+            at: assertDefined(candles.at(-1), "test setup: missing last candle").asOf,
+          };
+          const shuffled: EvaluateStrategyInput = {
+            ...input,
+            view: { ...view, candles: shuffle(allCandles, seed) },
+          };
+          expect(evaluateStrategy(shuffled)).toEqual(evaluateStrategy(input));
         },
       ),
     );
