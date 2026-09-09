@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { StrategyDefinition } from "@fetha/contracts";
 
 import { strategies, strategyVersions, type strategyVisibilities } from "@/db/schema/strategies";
@@ -87,7 +87,7 @@ export class StrategiesRepository extends UserScopedRepository {
         updatedAt: strategies.updatedAt,
       })
       .from(strategies)
-      .where(eq(strategies.visibility, "shared"))
+      .where(and(eq(strategies.visibility, "shared"), ne(strategies.userId, this.userId)))
       .orderBy(desc(strategies.updatedAt));
 
     const summaries: StrategySummary[] = [];
