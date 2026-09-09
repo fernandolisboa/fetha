@@ -15,7 +15,7 @@
   </style>
 </helmet>
 <div style="width:1440px;height:900px;display:flex;flex-direction:column;background:#13151b;color:#ebe7dd;font-family:'Source Sans 3', 'Segoe UI', system-ui, sans-serif;overflow:hidden">
-  <div style="display:flex;align-items:center;gap:18px;height:54px;padding:0 18px;border-bottom:1px solid #2a2f3b;background:#191c24">
+  <div style="display:flex;align-items:center;gap:18px;height:48px;padding:0 18px;border-bottom:1px solid #2a2f3b;background:#191c24">
     <div style="font-family:'Source Serif 4', Georgia, serif;font-weight:600;font-size:16px;letter-spacing:.02em;color:#ebe7dd">Fetha</div>
     <div style="display:flex;align-items:center;gap:8px;width:360px;height:34px;padding:0 10px;border:1px solid #2a2f3b;border-radius:8px;background:#13151b;color:#a39d90;font-size:14px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>Buscar ativo, série ou estratégia</span><span style="margin-left:auto;font-family:'Source Code Pro', Consolas, monospace;font-size:11px;color:#8c8679">Ctrl K</span>
@@ -33,11 +33,11 @@
     <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;padding:18px 22px;gap:16px">
       <div style="display:flex;align-items:center;gap:13px">
         <div style="display:flex;flex-direction:column;gap:2px">
-          <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8c8679">Montagem · a partir do catálogo</div>
+          <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8c8679">Operação · a partir do catálogo</div>
           <div style="font-family:'Source Serif 4', Georgia, serif;font-size:23px;font-weight:500">Collar em PETR4</div>
         </div>
         <div style="display:flex;gap:8px;margin-left:9px"><div style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:8px;font-family:'Source Code Pro', Consolas, monospace;font-size:11px;color:#a39d90;border:1px solid #a39d90">vencimento 17/10/2026 · 28 sessões</div><div style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:8px;font-family:'Source Code Pro', Consolas, monospace;font-size:11px;color:#a39d90;border:1px solid #a39d90">BSM europeu</div></div>
-        <div style="display:flex;gap:8px;margin-left:auto"><div style="padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;background:transparent;color:#ebe7dd;border:1px solid #2a2f3b">Salvar montagem</div><div style="padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;background:#c9a25a;color:#1a1509;border:1px solid #c9a25a">Analisar com IA</div></div>
+        <div style="display:flex;gap:8px;margin-left:auto"><div style="padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;background:transparent;color:#ebe7dd;border:1px solid #2a2f3b">Salvar operação</div><div style="padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;background:#c9a25a;color:#1a1509;border:1px solid #c9a25a">Analisar com IA</div></div>
       </div>
       <div style="display:grid;grid-template-columns:minmax(0, 1fr) 320px;gap:16px;flex-grow:1;min-height:0">
         <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
@@ -81,12 +81,12 @@
             <div><span style="color:#c9a25a;font-weight:500">Fura o perfil de risco.</span> Perda máxima de R$ 2.080,00 acima do limite de R$ 2.000,00 por operação. Você pode registrar a decisão mesmo assim; o furo fica anotado.</div>
           </div>
           <div style="display:flex;flex-direction:column;border:1px solid #2a2f3b;border-radius:8px;background:#191c24;padding:9px 13px">
-            <div style="display:flex;justify-content:space-between;padding-bottom:7px"><span style="font-size:14px;font-weight:500">Gregas da montagem</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:11px;color:#8c8679">theta por sessão</span></div>
+            <div style="display:flex;justify-content:space-between;padding-bottom:7px"><span style="font-size:14px;font-weight:500">Gregas da operação</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:11px;color:#8c8679">theta por sessão</span></div>
             <div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #2a2f3b"><span style="color:#a39d90;font-size:14px">Delta</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:14px;font-variant-numeric:tabular-nums">470</span></div><div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #2a2f3b"><span style="color:#a39d90;font-size:14px">Gama</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:14px;font-variant-numeric:tabular-nums">−85</span></div><div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #2a2f3b"><span style="color:#a39d90;font-size:14px">Theta</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:14px;font-variant-numeric:tabular-nums">+ R$ 4,10</span></div><div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #2a2f3b"><span style="color:#a39d90;font-size:14px">Vega</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:14px;font-variant-numeric:tabular-nums">− R$ 3,80 / pt</span></div><div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #2a2f3b"><span style="color:#a39d90;font-size:14px">IV média</span><span style="font-family:'Source Code Pro', Consolas, monospace;font-size:14px;font-variant-numeric:tabular-nums">30,2%</span></div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;padding:11px 13px;border:1px dashed #2a2f3b;border-radius:8px;color:#a39d90;font-size:13px">
             <span style="color:#ebe7dd;font-weight:500">Análise</span>
-            <span>Nenhuma análise para esta montagem. A IA argumenta os dois lados sobre estes números e cita os inputs; 3 de 50 usadas este mês.</span>
+            <span>Nenhuma análise para esta operação. A IA argumenta os dois lados sobre estes números e cita os inputs; 3 de 50 usadas este mês.</span>
           </div>
         </div>
       </div>

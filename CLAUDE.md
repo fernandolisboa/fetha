@@ -218,7 +218,8 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
   hairlines, one action accent, a separate reserved color for risk. Not a fintech landing page.
 - Structure (not themeable): header 48px with command search and market bar; left rail 200px /
   56px collapsed, six destinations; page = overline + headline + chips + actions; content grid
-  `minmax(0,1fr) 320px`; hairline panels, 36px table rows, one decision bar per screen.
+  `minmax(0,1fr) 320px`; hairline panels and table rows (height by `--density`), one decision
+  bar per screen.
 - Themes (per-user, `data-theme`, ADR-0015): `instrumento` (default) · `terminal` · `amplo`.
   Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
 --accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
@@ -227,8 +228,8 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
 - Instrumento: bg `#0f1115`, surface `#151922`, ink `#e6e8ee`, muted `#8d97a8`, accent
   `#3fb8c8`, up `#2fb36a`, down `#e0524f`, warning `#e0a83a`, IBM Plex Sans + IBM Plex Mono,
   radius 4px, body 13px.
-- Type scale: 11 · 12 · body · 13 · 15 · 18 · 22 · 26; every number in `--font-mono` with tabular
-  figures.
+- Type scale (Instrumento): 11 · 12 · 13 · 15 · 18 · 22 · 26, scaled by the theme density factor
+  (Terminal 0.95, Amplo 1.06); every number in `--font-mono` with tabular figures.
 - Spacing 4px base, page padding 16px 20px, panel gap 14px; motion 120ms hover, 180ms shell;
   `prefers-reduced-motion` respected.
 - Charts: candles `--up`/`--down`; payoff line `--chart-stroke` with gain/loss areas at 12%;

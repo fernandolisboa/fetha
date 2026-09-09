@@ -25,7 +25,8 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   chips (expiry and sessions left, pricing model), primary and secondary actions on the right.
   Content is a two-column grid `minmax(0,1fr) 320px`: work on the left (tables, charts), results
   and risk on the right. Sections are hairline-bordered panels with a 13px title row.
-- **Data**: tables with an 11px uppercase header row, 36px rows, numbers right-aligned in
+- **Data**: tables with an 11px uppercase header row, hairline-ruled rows (height set by
+  `--density`), numbers right-aligned in
   `--font-mono` with tabular figures, buy/sell side colored by `--up`/`--down`; stat blocks
   (label, 18px value, 12px sub) stacked with hairlines; greek rows as label/value pairs; notices as
   bordered panels with an icon and one action; charts fill their panel.
@@ -95,11 +96,13 @@ uppercase or metadata and meets 4.5:1 on `--bg` and `--surface`.
 monospace` · radius 8px · elevation none · density: body 14px, row 40px, panel padding 12px 14px ·
 `--chart-stroke --ink`.
 
-### Type scale (all themes, px)
+### Type scale (px, Instrumento values)
 
-11 overline (uppercase, 0.06em tracking) · 12 meta · body (per theme) · 13 panel title · 15 inputs
-· 18 stat value (mono) · 22 page headline (display; Amplo 24) · 26 hero value (mono, e.g. equity).
-Numbers always `font-variant-numeric: tabular-nums` in `--font-mono`.
+11 overline (uppercase, 0.06em tracking) · 12 meta · 13 body and panel title · 15 inputs · 18 stat
+value (mono) · 22 page headline (display) · 26 hero value (mono, e.g. equity). Overline and meta
+are fixed; the other steps scale with the theme's density factor (Terminal 0.95, Amplo 1.06,
+rounded to whole px), which is how the three artboards differ. Numbers always
+`font-variant-numeric: tabular-nums` in `--font-mono`.
 
 ### Spacing and layout
 
