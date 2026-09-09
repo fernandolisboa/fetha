@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Candle, CorporateActionFactor, ImpliedVolatilityIndexPoint } from "../api";
+import type {
+  Candle,
+  CorporateActionFactor,
+  DividendYieldPoint,
+  ImpliedVolatilityIndexPoint,
+  MacroPoint,
+} from "../api";
 import { decimalString } from "../test/support";
 import { batchTruncationReport } from "./batch-truncation";
 
@@ -24,6 +30,8 @@ describe("batchTruncationReport", () => {
       ],
       corporateActions: [],
       impliedVolatilityIndex: [],
+      macro: [],
+      dividendYields: [],
       instruments: ["PETR4"],
       at: "2024-01-01T20:00:00.000Z",
       needsIv: false,
@@ -41,6 +49,8 @@ describe("batchTruncationReport", () => {
       ],
       corporateActions: [],
       impliedVolatilityIndex: [],
+      macro: [],
+      dividendYields: [],
       instruments: ["PETR4"],
       at: "2024-01-05T20:00:00.000Z",
       needsIv: false,
@@ -67,6 +77,8 @@ describe("batchTruncationReport", () => {
       candles: [],
       corporateActions: [factor],
       impliedVolatilityIndex: [ivPoint],
+      macro: [],
+      dividendYields: [],
       instruments: ["PETR4"],
       at: "2024-01-05T20:00:00.000Z",
       needsIv: true,
@@ -88,10 +100,58 @@ describe("batchTruncationReport", () => {
       candles: [],
       corporateActions: [],
       impliedVolatilityIndex: [ivPoint],
+      macro: [],
+      dividendYields: [],
       instruments: ["PETR4"],
       at: "2024-01-05T20:00:00.000Z",
       needsIv: false,
     });
     expect(report).toEqual([]);
+  });
+
+  it("counts macro points after `at`, with no ticker since a macro series is not instrument-scoped", () => {
+    const macro: MacroPoint = {
+      series: "cdi",
+      date: "2024-02-01",
+      asOf: "2024-02-01T20:00:00.000Z",
+      annualRate: decimalString("0.1"),
+    };
+    const report = batchTruncationReport({
+      candles: [],
+      corporateActions: [],
+      impliedVolatilityIndex: [],
+      macro: [macro],
+      dividendYields: [],
+      instruments: ["PETR4"],
+      at: "2024-01-05T20:00:00.000Z",
+      needsIv: false,
+    });
+    expect(report).toEqual([{ collection: "macro", ticker: null, dropped: 1, reason: "after_at" }]);
+  });
+
+  it("counts dividend-yield points after `at` and for unreferenced instruments", () => {
+    const points: DividendYieldPoint[] = [
+      { underlying: "PETR4", asOf: "2024-02-01T20:00:00.000Z", annualYield: decimalString("0.05") },
+      { underlying: "VALE3", asOf: "2024-01-01T20:00:00.000Z", annualYield: decimalString("0.05") },
+    ];
+    const report = batchTruncationReport({
+      candles: [],
+      corporateActions: [],
+      impliedVolatilityIndex: [],
+      macro: [],
+      dividendYields: points,
+      instruments: ["PETR4"],
+      at: "2024-01-05T20:00:00.000Z",
+      needsIv: false,
+    });
+    expect(report).toEqual([
+      { collection: "dividendYields", ticker: "PETR4", dropped: 1, reason: "after_at" },
+      {
+        collection: "dividendYields",
+        ticker: "VALE3",
+        dropped: 1,
+        reason: "unreferenced_instrument",
+      },
+    ]);
   });
 });

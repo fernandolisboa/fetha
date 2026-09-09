@@ -180,6 +180,8 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
     candles: input.view.candles,
     corporateActions: input.view.corporateActions,
     impliedVolatilityIndex: input.view.impliedVolatilityIndex,
+    macro: input.view.macro,
+    dividendYields: input.view.dividendYields,
     instruments: input.instruments,
     at: input.at,
     needsIv,

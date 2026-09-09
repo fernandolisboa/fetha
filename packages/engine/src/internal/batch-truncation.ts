@@ -2,7 +2,9 @@ import type { Instant, Ticker } from "@fetha/contracts";
 import type {
   Candle,
   CorporateActionFactor,
+  DividendYieldPoint,
   ImpliedVolatilityIndexPoint,
+  MacroPoint,
   MarketViewCollection,
   TruncationReport,
 } from "../api";
@@ -13,10 +15,25 @@ export type BatchTruncationInput = {
   candles: readonly Candle[];
   corporateActions: readonly CorporateActionFactor[];
   impliedVolatilityIndex: readonly ImpliedVolatilityIndexPoint[];
+  macro: readonly MacroPoint[];
+  dividendYields: readonly DividendYieldPoint[];
   instruments: readonly Ticker[];
   at: Instant;
   needsIv: boolean;
 };
+
+function accumulateGlobal<T>(
+  rows: readonly T[],
+  asOfOf: (row: T) => Instant,
+  collection: MarketViewCollection,
+  at: Instant,
+  out: TruncationReport[],
+): void {
+  const dropped = rows.filter((row) => isAfter(asOfOf(row), at)).length;
+  if (dropped > 0) {
+    out.push({ collection, ticker: null, dropped, reason: "after_at" });
+  }
+}
 
 function accumulate<T>(
   rows: readonly T[],
@@ -79,5 +96,15 @@ export function batchTruncationReport(input: BatchTruncationInput): TruncationRe
       out,
     );
   }
+  accumulateGlobal(input.macro, (p) => p.asOf, "macro", input.at, out);
+  accumulate(
+    input.dividendYields,
+    (p) => p.underlying,
+    (p) => p.asOf,
+    "dividendYields",
+    instrumentSet,
+    input.at,
+    out,
+  );
   return out;
 }

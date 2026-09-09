@@ -42,9 +42,14 @@ export function dataWindow(input: DataWindowInput): DataWindow {
         );
 
   const hasOptionLegs = strategy.structure.legs.some((leg) => leg.role !== "stock");
-  const collections: MarketViewCollection[] = ["candles", "corporateActions"];
+  const collections: MarketViewCollection[] = [
+    "candles",
+    "corporateActions",
+    "macro",
+    "dividendYields",
+  ];
   if (ivSessionsNeeded > 0) collections.push("impliedVolatilityIndex");
-  if (hasOptionLegs) collections.push("optionSeries", "optionPrices", "macro", "dividendYields");
+  if (hasOptionLegs) collections.push("optionSeries", "optionPrices");
 
   return {
     from,
