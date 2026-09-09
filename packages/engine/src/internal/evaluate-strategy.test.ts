@@ -1256,6 +1256,68 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.error).toMatchObject({ code: "invalid_input", path: "view.candles[1].close" });
   });
 
+  it("rejects a corporate-action factor with a non-positive value, at its true index in view.corporateActions", () => {
+    const badView: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 0, "10.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-01",
+          asOf: "2024-01-01T13:00:00.000Z",
+          factor: decimalString("1"),
+        } satisfies CorporateActionFactor,
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.00"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view: badView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "view.corporateActions[1].factor",
+    });
+  });
+
+  it("rejects a non-positive corporate-action factor for a ticker outside instruments, not just referenced ones", () => {
+    const badView: MarketView = {
+      ...emptyView,
+      candles: [dailyCandle("PETR4", 0, "10.00")],
+      corporateActions: [
+        {
+          ticker: "VALE3",
+          exDate: "2024-01-01",
+          asOf: "2024-01-01T13:00:00.000Z",
+          factor: decimalString("0.00"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view: badView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "view.corporateActions[0].factor",
+    });
+  });
+
   it("gates entry only from the session an open operation was actually opened at (openedAt catch-up)", () => {
     const closes = ["10.00", "10.00", "10.00", "13.00", "14.00"];
     const view: MarketView = {

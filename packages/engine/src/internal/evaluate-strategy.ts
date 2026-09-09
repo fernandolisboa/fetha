@@ -206,6 +206,15 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
     );
   }
 
+  for (const [index, f] of input.view.corporateActions.entries()) {
+    if (!isPositiveDecimal(f.factor)) {
+      return invalidInput(
+        `view.corporateActions[${String(index)}].factor`,
+        "a corporate-action factor must be strictly positive",
+      );
+    }
+  }
+
   const macroDupe = sortUnique(
     input.view.macro,
     (m) => `${m.series}|${m.asOf}`,

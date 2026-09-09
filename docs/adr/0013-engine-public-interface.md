@@ -1043,8 +1043,11 @@ that subset concrete:
   and duplicate `(series, asOf)` rows in `macro` or `(underlying, asOf)` rows in `dividendYields`
   are `invalid_input`, checked once for the whole call — including when `instruments` is empty,
   so an inconsistent view is never silently accepted just because nothing was asked of it. The
-  same pass rejects a non-positive candle price anywhere in `view.candles` (true index in the
-  path, including candles for tickers outside `instruments`) and a macro `annualRate` or dividend
+  same pass rejects a non-positive candle price anywhere in `view.candles` and a non-positive
+  corporate-action factor anywhere in `view.corporateActions` (true index in the path in both
+  cases, including rows for tickers outside `instruments` — `buildCandleSeries` also checks both,
+  but only over the per-ticker slice it is called with, so this batch-wide pass is what gives a
+  correct index and unreferenced-ticker coverage) and a macro `annualRate` or dividend
   `annualYield` of `-1` or below, which would make `ln(1 + rate)` undefined downstream.
 - **Entry gating.** At evaluation instant `c`, an open operation for the instrument participates
   only when `op.openedAt <= nominalCandle.session`; before that session the instrument is treated
