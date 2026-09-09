@@ -10,3 +10,4 @@ apps/web/drizzle
 skills-lock.json
 docs/design/workstation/*.dc.html
 docs/design/workstation/fetha-workstation.html
+docs/design/design-system/previews

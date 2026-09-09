@@ -1,0 +1,92 @@
+/* Fetha design tokens. Canonical source: DESIGN.md. Themes are per-user (ADR-0015). */
+
+:root[data-theme="instrumento"] {
+  --bg: #0f1115;
+  --surface: #151922;
+  --surface-2: #1a1f29;
+  --line: #262c38;
+  --line-soft: #1f2430;
+  --ink: #e6e8ee;
+  --muted: #8d97a8;
+  --faint: #7a8598;
+  --accent: #3fb8c8;
+  --accent-hover: #62c9d6;
+  --accent-ink: #06181b;
+  --accent-soft: #12303a;
+  --up: #2fb36a;
+  --down: #e0524f;
+  --warning: #e0a83a;
+  --danger: #f0665f;
+  --greek-delta: #3fb8c8;
+  --greek-gamma: #b688e6;
+  --greek-theta: #e0a83a;
+  --greek-vega: #6f9cf0;
+  --font-display: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, monospace;
+  --radius: 4px;
+  --elevation: none;
+  --density-body: 13px;
+  --density-row: 36px;
+  --chart-stroke: var(--accent);
+}
+:root[data-theme="terminal"] {
+  --bg: #0a0b0d;
+  --surface: #0a0b0d;
+  --surface-2: #111317;
+  --line: #22262c;
+  --line-soft: #181b20;
+  --ink: #d7d9de;
+  --muted: #8a9099;
+  --faint: #747b85;
+  --accent: #e0a83a;
+  --accent-hover: #f0bd5c;
+  --accent-ink: #15120a;
+  --accent-soft: #2a2110;
+  --up: #3ddc84;
+  --down: #ff5c5c;
+  --warning: #e0a83a;
+  --danger: #ff5c5c;
+  --greek-delta: #e0a83a;
+  --greek-gamma: #b0b6c0;
+  --greek-theta: #f0bd5c;
+  --greek-vega: #7d8794;
+  --font-display: "JetBrains Mono", Consolas, monospace;
+  --font-body: "JetBrains Mono", Consolas, monospace;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+  --radius: 0px;
+  --elevation: none;
+  --density-body: 12px;
+  --density-row: 32px;
+  --chart-stroke: var(--ink);
+}
+:root[data-theme="amplo"] {
+  --bg: #13151b;
+  --surface: #191c24;
+  --surface-2: #1f232d;
+  --line: #2a2f3b;
+  --line-soft: #232833;
+  --ink: #ebe7dd;
+  --muted: #a39d90;
+  --faint: #8c8679;
+  --accent: #c9a25a;
+  --accent-hover: #dcb66c;
+  --accent-ink: #1a1509;
+  --accent-soft: #2f2916;
+  --up: #6fbf8f;
+  --down: #d9776f;
+  --warning: #c9a25a;
+  --danger: #e0736a;
+  --greek-delta: #c9a25a;
+  --greek-gamma: #b494cf;
+  --greek-theta: #e0b46b;
+  --greek-vega: #7fa3c2;
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Source Code Pro", Consolas, monospace;
+  --radius: 8px;
+  --elevation: none;
+  --density-body: 14px;
+  --density-row: 40px;
+  --chart-stroke: var(--ink);
+}
