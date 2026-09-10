@@ -20,6 +20,8 @@ export function RiskNotice({ breaches }: { breaches: LimitBreach[] }) {
   return (
     <div
       role="alert"
+      aria-label={t.builder.riskNotice.title}
+      data-testid="risk-notice"
       className="flex flex-col gap-2 rounded-[var(--radius)] border p-3"
       style={{ borderColor: "var(--warning)" }}
     >

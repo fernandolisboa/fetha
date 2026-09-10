@@ -80,7 +80,9 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await page.getByRole("button", { name: "Precificar" }).click();
 
   await expect(page.getByText("Prêmio líquido")).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Limite excedido");
+  await expect(page.getByRole("alert", { name: "Limite excedido" })).toContainText(
+    "Limite excedido",
+  );
 
   // Post-pricing too (the `pricing.notes` branch of the chip's own
   // visibility check, not just the pre-pricing `hasRiskProfile` one).
