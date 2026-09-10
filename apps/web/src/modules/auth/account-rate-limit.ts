@@ -25,11 +25,7 @@ function buildKey(email: string, path: string): string {
   return `${email}|${path}`;
 }
 
-// Better Auth prunes its own `rate_limits` rows past the longest window it
-// has ever seen configured (better-auth/dist/api/rate-limiter/index.mjs
-// `deleteExpiredRows`); every account window here must stay at or below the
-// longest Better Auth window (currently 60s) or a row could be pruned out
-// from under a still-open account window.
+// Bounded to prevent retry storms; constraint that every account window stays at or below Better Auth's longest documented window lives in docs/adr/0018.
 const MAX_ATTEMPTS = 10;
 
 async function readRow(db: Database, key: string) {

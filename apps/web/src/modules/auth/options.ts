@@ -53,7 +53,10 @@ const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["cust
 // IP bucket (docs/security-audit/2026-09-09.md, docs/adr/0016). Same windows
 // as the IP-based rules for the paths that have one; `/sign-in/magic-link`
 // gets the same shape as `/request-password-reset` since it has no built-in
-// special rule either.
+// special rule either. Every account window here must stay at or below Better
+// Auth's longest configured window (currently 60s) or its background prune
+// could delete a live account bucket (better-auth/dist/api/rate-limiter/index.mjs
+// `deleteExpiredRows`).
 const ACCOUNT_RATE_LIMIT_RULES: Record<string, AccountRateLimitRule> = {
   "/sign-in/email": { windowSeconds: 10, max: 3 },
   "/sign-in/magic-link": { windowSeconds: 60, max: 3 },

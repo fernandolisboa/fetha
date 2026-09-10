@@ -81,11 +81,13 @@ insufficient on its own; the "Decision" section below reflects the final, accoun
   send-quota, or spam a mailbox. It mirrors Better Auth's own database-storage algorithm
   (`better-auth/dist/api/rate-limiter/index.mjs`'s `consume`): read the row, reset-and-update when
   the window has elapsed, otherwise a conditional `UPDATE ... WHERE lastRequest > windowStart AND
-count < max` so a losing concurrent writer re-reads instead of silently overwriting a winner, and
-  throws `AccountRateLimitExceededError` (mapped to a `429 APIError`) when neither branch's
-  conditional update matches. A request whose body carries no valid email for that path (i.e. Zod
-  cannot parse one) skips the account check entirely and still passes through Better Auth's own
-  IP-based one.
+count < max` so a losing concurrent writer re-reads and retries under the winner's row instead of
+  silently overwriting it, bounded by `MAX_ATTEMPTS = 10` (`apps/web/src/modules/auth/account-rate-limit.ts`);
+  exhausting the bound fails closed with the same `AccountRateLimitExceededError` (mapped to a
+  `429 APIError`). Every account window must stay at or below Better Auth's longest configured window
+  (currently 60s, docs/adr/0016) or its background prune could delete a live account bucket. A request
+  whose body carries no valid email for that path (i.e. Zod cannot parse one) skips the account check
+  entirely and still passes through Better Auth's own IP-based one.
 - `advanced.ipAddress.ipAddressHeaders: ["x-real-ip", "x-forwarded-for"]`: Vercel's edge network
   always sets `x-real-ip` to the real client address and a single, trusted `x-forwarded-for` value
   (no untrusted proxy chain to walk), so both are safe to read directly. Without this, an
