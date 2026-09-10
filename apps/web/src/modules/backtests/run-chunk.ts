@@ -1,5 +1,10 @@
 import type { Structure } from "@fetha/contracts";
-import { engine, type BacktestConfig, type EngineErrorCode } from "@fetha/engine";
+import {
+  engine,
+  type BacktestConfig,
+  type BacktestProgress,
+  type EngineErrorCode,
+} from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -144,38 +149,28 @@ export async function runBacktestChunk(
 async function persistProgress(
   repository: BacktestRunRepository,
   runId: string,
-  value: { status: "paused" | "complete" } & Record<string, unknown>,
+  value: BacktestProgress,
 ): Promise<BacktestChunkOutcome> {
   if (value.status === "paused") {
-    const progress = value as {
-      status: "paused";
-      checkpoint: Parameters<BacktestRunRepository["saveProgress"]>[1]["checkpoint"];
-      sessionsDone: number;
-      sessionsTotal: number;
-    };
     const saved = await repository.saveProgress(runId, {
       status: "paused",
-      checkpoint: progress.checkpoint,
-      configDigest: progress.checkpoint.configDigest,
-      sessionsDone: progress.sessionsDone,
-      sessionsTotal: progress.sessionsTotal,
+      checkpoint: value.checkpoint,
+      configDigest: value.checkpoint.configDigest,
+      sessionsDone: value.sessionsDone,
+      sessionsTotal: value.sessionsTotal,
     });
     return {
       status: "paused",
       run: saved,
-      sessionsDone: progress.sessionsDone,
-      sessionsTotal: progress.sessionsTotal,
+      sessionsDone: value.sessionsDone,
+      sessionsTotal: value.sessionsTotal,
     };
   }
 
-  const complete = value as {
-    status: "complete";
-    run: Parameters<BacktestRunRepository["complete"]>[1]["result"];
-  };
   const saved = await repository.complete(runId, {
-    result: complete.run,
-    configDigest: complete.run.configDigest,
-    sessionsDone: complete.run.metrics.sessions,
+    result: value.run,
+    configDigest: value.run.configDigest,
+    sessionsDone: value.run.metrics.sessions,
   });
   return { status: "complete", run: saved };
 }

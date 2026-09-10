@@ -12,15 +12,12 @@ import {
   UnauthenticatedError,
 } from "@/modules/auth";
 import { sessionByDate, sessionsBetween } from "@/modules/market-data";
-import {
-  StrategiesRepository,
-  StrategyNotFoundError,
-  StructuresRepository,
-} from "@/modules/strategies";
+import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { BacktestRunRepository } from "./backtest-run-repository";
 import { COST_MODEL_PRESETS, costModelPresetIds, defaultRiskProfile } from "./default-config";
+import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type CreateBacktestRunResult = {
   status: "error";
@@ -119,8 +116,12 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
     return { status: "error", error: "not_found" };
   }
 
-  const structures = await new StructuresRepository(db).listAll();
-  const structure = structures.find((candidate) => candidate.id === version.definition.structureId);
+  const structure = await resolveStructure(db, version.definition.structureId).catch(
+    (error: unknown) => {
+      if (error instanceof StructureNotFoundError) return null;
+      throw error;
+    },
+  );
   if (!structure) {
     return { status: "error", error: "not_found" };
   }
