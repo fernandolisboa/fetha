@@ -72,10 +72,19 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   // The picker lists every listed series, traded or not (#22); only a
   // series that actually carries a last price can be priced by the engine,
   // so the spec must not rely on `.first()` alone (#22 round 2 diagnosis).
+  // Within the priceable options, each dropdown is still ordered by
+  // ascending strike (LegsTable's stable sort), so the lowest-strike
+  // priceable put (an OTM protective put, below spot) paired with the
+  // highest-strike priceable call (an OTM covered call, above spot) is
+  // both a realistic collar and the only pairing the catalog's
+  // strikeRank ordering (put < call) can accept regardless of the day's
+  // actual chain (defect found running this spec against preview: picking
+  // the lowest strike for both legs can put the call under the put and
+  // fail save-time structure validation even though pricing succeeds).
   await page.getByLabel("Instrumento 2").click();
   await page.getByRole("option").filter({ hasNotText: "sem negócios" }).first().click();
   await page.getByLabel("Instrumento 3").click();
-  await page.getByRole("option").filter({ hasNotText: "sem negócios" }).first().click();
+  await page.getByRole("option").filter({ hasNotText: "sem negócios" }).last().click();
 
   await page.getByRole("button", { name: "Precificar" }).click();
 
