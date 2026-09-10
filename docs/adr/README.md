@@ -4,8 +4,8 @@ One file per decision: `NNNN-title.md` with a short statement of context, decisi
 optional considered options and consequences. Accepted ADRs are never edited; a later ADR
 supersedes or amends them and says so.
 
-| ADR  | decision                                                                                             |
-| ---- | ----------------------------------------------------------------------------------------------------- |
+| ADR  | decision                                                                                            |
+| ---- | --------------------------------------------------------------------------------------------------- |
 | 0001 | Numeric representation: decimal prices, integer centavos                                            |
 | 0002 | Option pricing: Black-Scholes-Merton, European for all series                                       |
 | 0003 | No broker integration, no order execution                                                           |
