@@ -42,6 +42,22 @@ function randomSession(): string {
   return `${String(year)}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+// `count` consecutive calendar days from a random anchor, oldest first: the
+// nightly evaluation's `since`/`at` catch-up range doesn't require a real B3
+// trading calendar, just a distinct sequence of `date` rows.
+function randomSessionSequence(count: number): string[] {
+  const year = 2030 + Math.floor(Math.random() * 5);
+  const month = 1 + Math.floor(Math.random() * 12);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const dates: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const date = new Date(start);
+    date.setUTCDate(date.getUTCDate() + index);
+    dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 async function insertBareUser(email: string): Promise<{ id: string; name: string; email: string }> {
   const [row] = await getDb()
     .insert(user)
@@ -265,6 +281,276 @@ describe("evaluateSignalsForSession", () => {
     const log = await repository.listEvaluationLog();
     expect(log).toHaveLength(1);
     expect(log[0]?.outcome).toBe("unsizeable");
+    expect(log[0]?.ticker).toBe(ticker);
+  });
+
+  it("evaluates a three-session catch-up as one row per session per ticker and three signals, and a second call writes nothing new (round 2 item 5)", async () => {
+    const db = getDb();
+    const [before, s1, s2, s3] = randomSessionSequence(4);
+    if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
+    createdSessions.push(before, s1, s2, s3);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("three-session");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(before);
+    for (const session of [s1, s2, s3]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const first = await evaluateSignalsForSession(db, [s1, s2, s3]);
+    expect(first.errors).toEqual([]);
+    expect(first.signalsWritten).toBe(3);
+    expect(first.evaluationsWritten).toBe(3);
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(3);
+    expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
+    expect(log.every((row) => row.ticker === ticker)).toBe(true);
+    expect(await repository.listInbox()).toHaveLength(3);
+
+    const second = await evaluateSignalsForSession(db, [s1, s2, s3]);
+    expect(second.errors).toEqual([]);
+    expect(second.signalsWritten).toBe(0);
+    expect(second.evaluationsWritten).toBe(0);
+    expect(await repository.listEvaluationLog()).toHaveLength(3);
+    expect(await repository.listInbox()).toHaveLength(3);
+  });
+
+  it("evaluates a user skipped by the deadline on session S for S on the next run (round 2 item 1)", async () => {
+    const db = getDb();
+    const [before, s1, s2, s3] = randomSessionSequence(4);
+    if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
+    createdSessions.push(before, s1, s2, s3);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("deadline-catchup");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(before);
+    for (const session of [s1, s2, s3]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    // Night 1: establishes the user's watermark at s1.
+    const night1 = await evaluateSignalsForSession(db, [s1]);
+    expect(night1.errors).toEqual([]);
+    expect(night1.usersEvaluated).toBe(1);
+
+    const repository = new SignalsRepository(db, owner);
+    expect(await repository.listEvaluationLog()).toHaveLength(1);
+
+    // Night 2: only session s2 is drained, but this user's deadline is
+    // already spent — skipped entirely, watermark stays at s1.
+    const night2 = await evaluateSignalsForSession(db, [s2], { deadlineAt: 0, now: () => 1 });
+    expect(night2.usersSkipped).toBe(1);
+    expect(night2.usersEvaluated).toBe(0);
+    expect(await repository.listEvaluationLog()).toHaveLength(1);
+
+    // Night 3: only session s3 is drained this run, no deadline this time.
+    // The user's own watermark (s1), not this run's drained range, anchors
+    // `since`, so s2 — never evaluated on night 2 — is caught up alongside
+    // s3 instead of being lost forever.
+    const night3 = await evaluateSignalsForSession(db, [s3]);
+    expect(night3.errors).toEqual([]);
+    expect(night3.usersEvaluated).toBe(1);
+
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(3);
+    expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
+    expect(await repository.listInbox()).toHaveLength(3);
+  });
+
+  it("picks up later a night's evaluation suppressed entirely (e.g. by an SGS failure gating the whole run), instead of losing it (round 2 item 1)", async () => {
+    const db = getDb();
+    const [before, s1, s2, s3] = randomSessionSequence(4);
+    if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
+    createdSessions.push(before, s1, s2, s3);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("suppressed-night");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(before);
+    for (const session of [s1, s2, s3]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const night1 = await evaluateSignalsForSession(db, [s1]);
+    expect(night1.errors).toEqual([]);
+
+    // Night 2 is never called at all (the cron's own gate — item 1's
+    // route.ts fix — skipped it entirely; s2 candles still ingested
+    // cleanly). Night 3 only drains s3.
+    const night3 = await evaluateSignalsForSession(db, [s3]);
+    expect(night3.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(3);
+    expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
+  });
+
+  it("writes one failure row per session in a multi-session catch-up, not only under the newest (round 2 item 6)", async () => {
+    const db = getDb();
+    const [before, s1, s2, s3] = randomSessionSequence(4);
+    if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
+    createdSessions.push(before, s1, s2, s3);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("unknown-structure");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(before);
+    for (const session of [s1, s2, s3]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const definition = {
+      ...alwaysFiringDefinition(),
+      structureId: `does-not-exist-${crypto.randomUUID()}`,
+    };
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition);
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const outcome = await evaluateSignalsForSession(db, [s1, s2, s3]);
+    expect(outcome.errors).toEqual(["unknown_structure"]);
+
+    const repository = new SignalsRepository(db, owner);
+    expect(await repository.listInbox()).toHaveLength(0);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(3);
+    expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
+    expect(log.every((row) => row.detail === "unknown_structure")).toBe(true);
+  });
+
+  it("resolves a genuinely missing anchor (no watermark, no session before the drained range) to a single explicit evaluation, never a crash or a silent no-op (round 2 item 7)", async () => {
+    const db = getDb();
+    // A session with nothing registered before it in the calendar at all —
+    // this user's very first-ever evaluation, the only case `since` is
+    // meant to stay `undefined`.
+    const genesisSession = "2019-06-17";
+    createdSessions.push(genesisSession);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("genesis");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(genesisSession);
+    await insertCandle(ticker, genesisSession);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const outcome = await evaluateSignalsForSession(db, [genesisSession]);
+    expect(outcome.errors).toEqual([]);
+
+    // Exactly one row for the genesis session — the explicit branch, not an
+    // implicit fall-through that could silently evaluate zero or every
+    // historical session once a real anchor eventually exists.
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]?.session).toBe(genesisSession);
+    expect(log[0]?.ticker).toBe(ticker);
+
+    // A candle with no registered trading session covering it (a halted
+    // instrument's stale close from long before this window) is excluded by
+    // the calendar-bounded query rather than picked up as an arbitrarily
+    // stale candle keyed under its own old session.
+    const staleSession = "2018-01-02";
+    await insertCandle(ticker, staleSession);
+    const rerun = await evaluateSignalsForSession(db, [genesisSession]);
+    expect(rerun.errors).toEqual([]);
+    const logAfterStaleCandle = await repository.listEvaluationLog();
+    expect(logAfterStaleCandle.map((row) => row.session)).not.toContain(staleSession);
+  });
+
+  it("records an explicit unsatisfiable-collection outcome for an iv_rank strategy instead of looping insufficient_data forever (round 2 item 8)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("iv-rank");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const definition: StrategyDefinition = {
+      name: "IV rank fixture",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 20 } },
+        comparator: ">",
+        right: { kind: "constant", value: decimalString("50") },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition);
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const outcome = await evaluateSignalsForSession(db, [session]);
+    expect(outcome.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    expect(await repository.listInbox()).toHaveLength(0);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]?.detail).toBe("unsatisfiable_collection:impliedVolatilityIndex");
     expect(log[0]?.ticker).toBe(ticker);
   });
 });

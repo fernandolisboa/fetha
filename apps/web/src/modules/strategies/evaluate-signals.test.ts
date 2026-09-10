@@ -29,9 +29,10 @@ vi.mock("./strategies-repository", () => ({
   }),
 }));
 
+const lastEvaluatedSession = vi.fn();
 vi.mock("./signals-repository", () => ({
   SignalsRepository: vi.fn().mockImplementation(function () {
-    return {};
+    return { lastEvaluatedSession };
   }),
 }));
 
@@ -67,6 +68,7 @@ beforeEach(() => {
   listActiveDaily.mockReset().mockResolvedValue([]);
   watchlistList.mockReset().mockResolvedValue([]);
   riskProfileCurrent.mockReset().mockResolvedValue(null);
+  lastEvaluatedSession.mockReset().mockResolvedValue(null);
 });
 
 describe("evaluateSignalsForSession", () => {
@@ -79,6 +81,16 @@ describe("evaluateSignalsForSession", () => {
     expect(outcome.errors).toEqual(["setup_failed"]);
     expect(outcome.errors.join()).not.toContain("connection reset");
     expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("reports a rejecting calendarUpTo as setup_failed, never a thrown error", async () => {
+    calendarUpTo.mockReset().mockRejectedValueOnce(new Error("connection reset"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const outcome = await evaluateSignalsForSession(db, ["2026-09-09"]);
+
+    expect(outcome.errors).toEqual(["setup_failed"]);
     errorSpy.mockRestore();
   });
 

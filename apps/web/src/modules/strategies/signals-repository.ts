@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import {
   adjustmentRuleSchema,
@@ -203,6 +203,21 @@ export class SignalsRepository extends UserScopedRepository {
       .update(signals)
       .set({ readAt: new Date() })
       .where(and(eq(signals.id, signalId), eq(signals.userId, this.userId)));
+  }
+
+  // This user's own watermark for the nightly evaluation (#19 round 2 item
+  // 1): the newest session this user has ever actually been evaluated for,
+  // across every strategy, `session` being a `date` column so `MAX` sorts
+  // it correctly without a timestamp tie-break. `evaluateSignalsForSession`
+  // anchors `since` on this instead of the ingestion calendar, so a night
+  // this user was skipped (a setup failure, a deadline) is caught up on the
+  // next run instead of silently lost.
+  async lastEvaluatedSession(): Promise<string | null> {
+    const [row] = await this.db
+      .select({ session: max(evaluations.session) })
+      .from(evaluations)
+      .where(eq(evaluations.userId, this.userId));
+    return row?.session ?? null;
   }
 
   async listEvaluationLog(): Promise<EvaluationLogItem[]> {

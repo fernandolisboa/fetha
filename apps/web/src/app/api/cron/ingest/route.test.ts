@@ -17,7 +17,7 @@ describe("cron ingest route", () => {
       session: "2026-09-08",
       okSessions: ["2026-09-08"],
       ok: true,
-      sources: [],
+      sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
     });
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
@@ -109,12 +109,34 @@ describe("cron ingest route", () => {
     expect(body).toMatchObject({ ok: false });
   });
 
-  it("skips the signal evaluation when ingestion reports a session but result.ok is false", async () => {
+  it("still evaluates the sessions cotahist drained when a different source failed (round 2 item 1)", async () => {
     ingestMock.mockResolvedValue({
       session: "2026-09-08",
       okSessions: ["2026-09-08"],
       ok: false,
-      sources: [{ source: "sgs", skipped: false, rowCount: 0, error: "boom" }],
+      sources: [
+        { source: "cotahist", skipped: false, rowCount: 10 },
+        { source: "sgs", skipped: false, rowCount: 0, error: "boom" },
+      ],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(500);
+    expect(evaluateSignalsMock).toHaveBeenCalledWith({}, ["2026-09-08"], expect.any(Object));
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ evaluation: { sessions: ["2026-09-08"] } });
+  });
+
+  it("skips the signal evaluation when cotahist itself failed, even if okSessions reports one", async () => {
+    ingestMock.mockResolvedValue({
+      session: "2026-09-08",
+      okSessions: ["2026-09-08"],
+      ok: false,
+      sources: [{ source: "cotahist", skipped: false, rowCount: 0, error: "boom" }],
     });
     const { GET } = await import("./route");
     const response = await GET(

@@ -1,5 +1,5 @@
 import type { Instant, Structure, Ticker } from "@fetha/contracts";
-import { engine, type Signal, type StrategyVersion } from "@fetha/engine";
+import { engine, type Signal, type StrategyVersion, type TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import {
@@ -26,6 +26,13 @@ export interface EvaluateSignalsOutcome {
 }
 
 const SETUP_FAILED = "setup_failed";
+
+// A collection `dataWindow` can ask for that no ingestion source fills
+// today (round 2 item 8, follow-up in
+// https://github.com/fernandolisboa/fetha/issues/81): a strategy that needs
+// it can never receive a value, so it is logged explicitly instead of
+// retrying `insufficient_data` forever with no clue why.
+const UNSATISFIABLE_COLLECTION_CODE = "unsatisfiable_collection:impliedVolatilityIndex";
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -79,34 +86,57 @@ function signalToNewSignal(strategyId: string, signal: Signal): NewSignal {
   };
 }
 
+// One failure/skip row per (ticker, session) in the catch-up range, not
+// only under the newest session (#19 round 2 item 6): a multi-session
+// catch-up that hits an unknown structure or an engine error leaves no
+// silent holes for the sessions in between.
 function failureEvaluations(
   strategyId: string,
   strategyVersionId: string,
   tickers: Ticker[],
-  session: string,
-  at: Date,
+  sessions: readonly TradingSession[],
   code: string,
 ): NewEvaluation[] {
-  return tickers.map((ticker) => ({
-    strategyId,
-    strategyVersionId,
-    ticker,
-    session,
-    at,
-    outcome: "insufficient_data",
-    detail: code,
-  }));
+  return sessions.flatMap((session) =>
+    tickers.map((ticker) => ({
+      strategyId,
+      strategyVersionId,
+      ticker,
+      session: session.date,
+      at: new Date(session.close),
+      outcome: "insufficient_data" as const,
+      detail: code,
+    })),
+  );
+}
+
+// The trading sessions a user's catch-up run actually covers, engine-shaped
+// (#19 round 2 items 1, 6, 7): with a defined `since`, every session whose
+// close falls in `(since, at]`; with no `since` (this user's genuine first
+// evaluation ever, no watermark and no session before the drained range),
+// explicitly just the single session closing at `at` — never every session
+// the calendar has ever seen, which an undefined lower bound would imply if
+// read as "no filter" instead of "no catch-up, single latest instant".
+// `Instant` strings are fixed-width ISO-8601 UTC (`instantSchema`), so
+// lexicographic and chronological order agree.
+function sessionsInCatchUpRange(
+  calendar: readonly TradingSession[],
+  since: Instant | undefined,
+  at: Instant,
+): TradingSession[] {
+  if (since === undefined) {
+    const atSession = calendar.find((session) => session.close === at);
+    return atSession ? [atSession] : [];
+  }
+  return calendar.filter((session) => session.close > since && session.close <= at);
 }
 
 // Chained after ingestion in the cron, per user, per active daily strategy,
 // over that user's watchlist (#19, CONTEXT.md "Nightly ingestion and daily
 // evaluation"). `sessions` are every session `ingest()` just drained, oldest
-// first (a multi-day outage drains more than one): the engine evaluates the
-// whole `(since, at]` catch-up in one call per strategy, so every session in
-// it — not only the newest — reaches the inbox and the evaluation log.
-// Every write goes through a SignalsRepository bound to the user it was
-// evaluated for, so an evaluation for user A can never land in user B's
-// inbox.
+// first (a multi-day outage drains more than one). Every write goes through
+// a SignalsRepository bound to the user it was evaluated for, so an
+// evaluation for user A can never land in user B's inbox.
 export async function evaluateSignalsForSession(
   db: Database,
   sessions: string[],
@@ -121,9 +151,13 @@ export async function evaluateSignalsForSession(
   const now = options.now ?? Date.now;
 
   let at: Instant;
-  let since: Instant | undefined;
+  // The `since` this run's *drained ingestion range* implies, used as the
+  // fallback anchor for a user with no evaluation-log watermark of their
+  // own (round 2 item 1) — never the anchor for a user who already has one.
+  let drainedRangeSince: Instant | undefined;
   let structures: Structure[];
   let userIds: string[];
+  let calendar: TradingSession[];
   try {
     const newestTrading = await tradingSessionForDate(db, newest);
     if (!newestTrading) {
@@ -131,10 +165,15 @@ export async function evaluateSignalsForSession(
     }
     at = newestTrading.close;
     const previous = await previousTradingSession(db, oldest);
-    since = previous?.close;
+    drainedRangeSince = previous?.close;
 
     structures = await new StructuresRepository(db).listAll();
-    userIds = await activeStrategyUserIds(db);
+    userIds = await activeStrategyUserIds(db, newest);
+    // Moved inside this try/catch (round 2 item 2): a transient error here
+    // must return `setup_failed` with HTTP 200 like every other setup read,
+    // not turn an ingestion that already succeeded into a 500 the cron
+    // retries for no reason.
+    calendar = await calendarUpTo(db, new Date(at));
   } catch (error) {
     console.error(
       "evaluateSignalsForSession setup failed",
@@ -143,8 +182,6 @@ export async function evaluateSignalsForSession(
     return emptyOutcome(sorted, [SETUP_FAILED]);
   }
   const structureById = new Map(structures.map((structure) => [structure.id, structure]));
-
-  const calendar = await calendarUpTo(db, new Date(at));
 
   let usersEvaluated = 0;
   let usersSkipped = 0;
@@ -180,19 +217,43 @@ export async function evaluateSignalsForSession(
 
       const signalsRepository = new SignalsRepository(db, scopedUser);
 
+      // Per-user watermark, not the ingestion calendar (#19 round 2 item 1):
+      // the max session this user was ever actually evaluated for, oldest
+      // fallback only when they have none yet (their first-ever run, or a
+      // strategy just activated). A user skipped for ten nights by a setup
+      // failure or a deadline keeps their old watermark, so the next run
+      // that reaches them catches up on every session since, not only the
+      // one this run happened to drain.
+      const watermark = await signalsRepository.lastEvaluatedSession();
+      let since: Instant | undefined;
+      if (watermark !== null) {
+        const watermarkTrading = await tradingSessionForDate(db, watermark);
+        // Explicit (round 2 item 7): a watermark session that no longer
+        // resolves (should not happen — the calendar is append-only) falls
+        // back to the drained-range anchor rather than silently losing the
+        // lower bound.
+        since = watermarkTrading?.close ?? drainedRangeSince;
+      } else {
+        since = drainedRangeSince;
+      }
+
+      // Already caught up beyond `at` (a re-run for a session this user's
+      // watermark already covers): the engine rejects `since >= at` as
+      // invalid input, so this is treated as "nothing to evaluate", not an
+      // error, and the strategy loop below is skipped entirely.
+      if (since !== undefined && since >= at) {
+        usersEvaluated += 1;
+        continue;
+      }
+
+      const userSessions = sessionsInCatchUpRange(calendar, since, at);
+
       for (const { strategyId, version } of activeDaily) {
         const structure = structureById.get(version.definition.structureId);
         if (!structure) {
           errors.push("unknown_structure");
           evaluationsWritten += await signalsRepository.createEvaluations(
-            failureEvaluations(
-              strategyId,
-              version.id,
-              tickers,
-              newest,
-              new Date(at),
-              "unknown_structure",
-            ),
+            failureEvaluations(strategyId, version.id, tickers, userSessions, "unknown_structure"),
           );
           continue;
         }
@@ -209,6 +270,24 @@ export async function evaluateSignalsForSession(
           at,
           since,
         });
+
+        // The loader can never fill `impliedVolatilityIndex` (round 2 item
+        // 8, follow-up #81): recorded explicitly per ticker/session and
+        // never handed to the engine, instead of retrying
+        // `insufficient_data` every night with no clue why.
+        if (window.collections.includes("impliedVolatilityIndex")) {
+          evaluationsWritten += await signalsRepository.createEvaluations(
+            failureEvaluations(
+              strategyId,
+              version.id,
+              tickers,
+              userSessions,
+              UNSATISFIABLE_COLLECTION_CODE,
+            ),
+          );
+          continue;
+        }
+
         const view = await loadMarketView(db, window);
 
         const result = await engine.evaluateStrategy({
@@ -227,8 +306,7 @@ export async function evaluateSignalsForSession(
               strategyId,
               version.id,
               tickers,
-              newest,
-              new Date(at),
+              userSessions,
               `engine_error:${result.error.code}`,
             ),
           );

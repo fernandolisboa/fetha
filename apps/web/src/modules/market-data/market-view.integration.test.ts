@@ -1,6 +1,9 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
+import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import type { DecimalString, Structure, StrategyDefinition } from "@fetha/contracts";
+import { engine, type StrategyVersion, type TradingSession } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
@@ -14,7 +17,7 @@ import {
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { buildOperationMarketView, loadMarketView } from "./market-view";
-import { upsertDailyCandles } from "./repositories/candle-repository";
+import { DAILY_TIMEFRAME, upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -48,6 +51,10 @@ async function seedSessions(dates: string[]): Promise<void> {
       })),
     )
     .onConflictDoNothing();
+}
+
+function decimalString(value: string): DecimalString {
+  return value as DecimalString;
 }
 
 function uniqueTicker(label: string): string {
@@ -492,9 +499,13 @@ describe("buildOperationMarketView", () => {
 
 describe("loadMarketView", () => {
   const cleanupSeries: string[] = [];
+  const cleanupTickers: string[] = [];
 
   afterEach(async () => {
     const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(candles).where(eq(candles.ticker, ticker));
+    }
     const dates = seededSessionDates.splice(0);
     if (dates.length > 0) {
       await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
@@ -531,5 +542,130 @@ describe("loadMarketView", () => {
         collections: ["macro"],
       }),
     ).rejects.toThrow(ZodError);
+  });
+
+  it("returns at least 450 candles for an ema(150) DataWindow over ~500 sessions, close to the full-history indicator value (round 2 item 5)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("EMA");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2020-01-06", 500);
+    await seedSessions(sessions);
+
+    const months = new Set(sessions.map((session) => session.slice(0, 7)));
+    for (const month of months) {
+      await ensureMonthlyPartition(db, "candles", `${month}-01`);
+    }
+
+    const rows = sessions.map((session, index) => {
+      const close = (10 + index * 0.01).toFixed(8);
+      return {
+        ticker,
+        timeframe: DAILY_TIMEFRAME,
+        session,
+        asOf: new Date(`${session}T${SESSION_CLOSE_UTC}`),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        tradedQuantity: 1000,
+      };
+    });
+    const batchSize = 500;
+    for (let start = 0; start < rows.length; start += batchSize) {
+      await db
+        .insert(candles)
+        .values(rows.slice(start, start + batchSize))
+        .onConflictDoUpdate({
+          target: [candles.ticker, candles.timeframe, candles.session],
+          set: {
+            asOf: sql`excluded.as_of`,
+            open: sql`excluded.open`,
+            high: sql`excluded.high`,
+            low: sql`excluded.low`,
+            close: sql`excluded.close`,
+            tradedQuantity: sql`excluded.traded_quantity`,
+          },
+        });
+    }
+
+    const firstSession = sessions[0];
+    const lastSession = sessions[sessions.length - 1];
+    if (!firstSession || !lastSession) throw new Error("fixture setup failed");
+
+    const calendar: TradingSession[] = sessions.map((session) => ({
+      date: sessionDateSchema.parse(session),
+      open: instantSchema.parse(`${session}T${SESSION_OPEN_UTC}`),
+      close: instantSchema.parse(`${session}T${SESSION_CLOSE_UTC}`),
+    }));
+    const at = instantSchema.parse(`${lastSession}T${SESSION_CLOSE_UTC}`);
+
+    const structure: Structure = {
+      id: "stock",
+      name: "Stock",
+      expiry: "shared",
+      legs: [{ role: "stock", side: "buy", ratio: 1 }],
+    };
+    const definition: StrategyDefinition = {
+      name: "EMA truncation fixture",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "ema", length: 150 } },
+        comparator: ">",
+        right: { kind: "price", field: "close" },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy: StrategyVersion = { id: "fixture-version", definition, structure };
+    const instruments = [tickerSchema.parse(ticker)];
+
+    const truncatedWindow = engine.dataWindow({ strategy, instruments, calendar, at });
+
+    const truncatedView = await loadMarketView(db, truncatedWindow);
+    const tickerCandles = truncatedView.candles.filter((c) => c.ticker === ticker);
+    expect(tickerCandles.length).toBeGreaterThanOrEqual(450);
+    expect(tickerCandles.length).toBeLessThan(500);
+
+    const fullWindow = engine.dataWindow({
+      strategy,
+      instruments,
+      calendar,
+      at,
+      since: calendar[0]?.close,
+    });
+    const fullView = await loadMarketView(db, fullWindow);
+    expect(fullView.candles.filter((c) => c.ticker === ticker).length).toBe(500);
+
+    const truncatedResult = await engine.indicators({
+      view: truncatedView,
+      ticker: tickerSchema.parse(ticker),
+      timeframe: "D1",
+      indicators: [{ kind: "ema", length: 150 }],
+      at,
+    });
+    const fullResult = await engine.indicators({
+      view: fullView,
+      ticker: tickerSchema.parse(ticker),
+      timeframe: "D1",
+      indicators: [{ kind: "ema", length: 150 }],
+      at,
+    });
+    if (!truncatedResult.ok || !fullResult.ok) {
+      throw new Error("indicator computation failed");
+    }
+
+    const truncatedValue = truncatedResult.value.series[0]?.values.at(-1);
+    const fullValue = fullResult.value.series[0]?.values.at(-1);
+    if (!truncatedValue || !fullValue) {
+      throw new Error("missing ema value");
+    }
+    const relativeDifference =
+      Math.abs(Number(truncatedValue) - Number(fullValue)) / Number(fullValue);
+    expect(relativeDifference).toBeLessThan(0.001);
   });
 });
