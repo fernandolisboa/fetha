@@ -11,7 +11,11 @@ import type { Database } from "@/db/client";
 import { user } from "@/db/schema";
 import { registrationMode } from "@/lib/env";
 
-import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
+import {
+  AccountRateLimitExceededError,
+  enforceAccountRateLimit,
+  type AccountRateLimitRule,
+} from "./account-rate-limit";
 import { buildMagicLinkEmail } from "./email/magic-link-email";
 import { buildPasswordResetEmail } from "./email/password-reset-email";
 import { buildVerificationEmail } from "./email/verification-email";
@@ -50,7 +54,7 @@ const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["cust
 // as the IP-based rules for the paths that have one; `/sign-in/magic-link`
 // gets the same shape as `/request-password-reset` since it has no built-in
 // special rule either.
-const ACCOUNT_RATE_LIMIT_RULES: Record<string, { windowSeconds: number; max: number }> = {
+const ACCOUNT_RATE_LIMIT_RULES: Record<string, AccountRateLimitRule> = {
   "/sign-in/email": { windowSeconds: 10, max: 3 },
   "/sign-in/magic-link": { windowSeconds: 60, max: 3 },
   "/request-password-reset": { windowSeconds: 60, max: 3 },
