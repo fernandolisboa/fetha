@@ -50,6 +50,7 @@ type PendingEntry = {
   legs: Leg[];
   maxLoss: Centavos | "unbounded";
   limitBreaches: LimitBreach[];
+  signalSession: SessionDate;
 };
 type PendingExit = { operationId: string; rule: ExitRule };
 
@@ -430,7 +431,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // same session each see the same, stale count and none alone trips maxOpenOperations;
   // this running counter re-checks the limit against fills already made this same session.
   // Returns the tickers whose fill attempt failed this same session (no candle, or no volume).
-  function resolvePendingEntryFills(session: TradingSession): Set<Ticker> {
+  function resolvePendingEntryFills(session: TradingSession): Result<Set<Ticker>> {
     const failedEntryTickers = new Set<Ticker>();
     let openCountThisSession = state.openOperations.length;
     const maxOpenOperations = config.riskProfile.limits.maxOpenOperations;
@@ -454,11 +455,41 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         openCountThisSession += 1;
         const id = operationId(state.operationSeq, config.strategy.id, ticker, session.date);
         state.operationSeq += 1;
-        const legs: OperationLeg[] = pending.legs.map((leg) => ({
+        // A split whose exDate lands on or before this fill session, strictly after the
+        // signal that sized these legs, changes the share count the signal-time sizing must
+        // land on — the size was decided against the pre-split price, so the quantity itself
+        // is rescaled the same way an existing open leg's quantity would be (ADR-0014 Q51),
+        // read at this same fill's own instant (session.open), never the pre-split count
+        // traded at a post-split price.
+        const entryFactor = corporateActionFactorThrough(
+          ticker,
+          pending.signalSession,
+          session.date,
+          session.open,
+        );
+        const rescaledQuantities: number[] = [];
+        for (const leg of pending.legs) {
+          const rescaled = entryFactor.eq(1)
+            ? leg.quantity
+            : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
+          if (!Number.isSafeInteger(rescaled) || rescaled <= 0) {
+            return invalidInput(
+              "view.corporateActions",
+              `split factor produces a non-integer-safe entry quantity for ${ticker}`,
+            );
+          }
+          rescaledQuantities.push(rescaled);
+        }
+        const legs: OperationLeg[] = pending.legs.map((leg, legIndex) => ({
           role: leg.role,
           side: leg.side,
           ticker: leg.ticker,
-          quantity: leg.quantity,
+          quantity: toQuantity(
+            assertDefined(
+              rescaledQuantities[legIndex],
+              "run-backtest: rescaledQuantities has one entry per leg",
+            ),
+          ),
           entryPrice: candle.open,
         }));
         const entryCosts: Centavos[] = [];
@@ -512,7 +543,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         Reflect.deleteProperty(state.pendingEntries, ticker);
       }
     }
-    return failedEntryTickers;
+    return { ok: true, value: failedEntryTickers };
   }
 
   // Step 1b: resolve pending exit fills targeting this session's open (retried indefinitely).
@@ -791,6 +822,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           legs: signal.proposal.legs,
           maxLoss: signal.proposal.pricing.maxLoss,
           limitBreaches: signal.proposal.pricing.limitBreaches,
+          signalSession: session.date,
         };
       } else if (signal.kind === "exit") {
         if (!(signal.operationId in state.pendingExits)) {
@@ -842,7 +874,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       state.currentMonthKey = monthKey;
     }
 
-    const failedEntryTickers = resolvePendingEntryFills(session);
+    const entryFillsResult = resolvePendingEntryFills(session);
+    if (!entryFillsResult.ok) return { ok: false, error: entryFillsResult.error };
+    const failedEntryTickers = entryFillsResult.value;
     const exitFillsResult = resolvePendingExitFills(session);
     if (!exitFillsResult.ok) return { ok: false, error: exitFillsResult.error };
     deductPendingTax(monthKey, isFinalSession, i);

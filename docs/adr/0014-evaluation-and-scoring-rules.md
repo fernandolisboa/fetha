@@ -132,9 +132,21 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   dividend. `F` need not divide `quantity` evenly; the effective count is never rounded mid-run.
   Where a fill or a close needs an integer number of shares to trade, the leg trades
   `floor(quantity / F)` shares and the fractional residue `quantity / F − floor(quantity / F)` is
-  cash-settled at that same fill's price (the ex-date price for a factor realized exactly at
-  entry-to-close, the session's own price otherwise) and folded into the operation's `pnl`; it is
-  never dropped and never made to throw on caller-supplied quantities that do not divide evenly.
+  cash-settled at that same fill's own price and folded into the operation's `pnl`; it is never
+  dropped and never made to throw on caller-supplied quantities that do not divide evenly. A
+  `period_end` close trades no shares to begin with, so it has no residue: the whole nominal
+  quantity is a mark, per "Simulated operations" above. `F` is read at the same instant as the
+  candle it rebases — a fill's own candle and a same-session mark both read visibility at that
+  session's close, never at some other instant that could disagree over which factors are
+  visible yet (I1) — and a factor that would blow the effective share count past a safe integer
+  (a near-zero factor) is `invalid_input`, never a value `toQuantity`'s own invariant throws over.
+  A **pending entry** filled on a session after its own signal is rescaled the same way before it
+  trades at all: if a split's `exDate` falls strictly after the signal session and at or before
+  the fill session, the entry's own `quantity` — decided by `evaluateStrategy` against the
+  pre-split price — is divided by that same `F` (rounded to the nearest share, read at the fill's
+  own open) before the fill, so it lands on the post-split share count the fill's post-split price
+  actually trades at, never the pre-split count at a post-split price. A factor that rounds a
+  pending entry's quantity to zero, or past a safe integer, is `invalid_input` the same way.
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same

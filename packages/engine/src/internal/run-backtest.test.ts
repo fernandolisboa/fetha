@@ -1057,6 +1057,108 @@ describe("runBacktest — corporate actions across an open position", () => {
   });
 });
 
+describe("runBacktest — corporate actions on entry fills", () => {
+  it("rescales a pending entry's quantity by the split factor between its signal and fill sessions", () => {
+    const split: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        // The entry signal at 2024-01-02's close sizes 500 shares against the pre-split
+        // 10.00 price; the ex-date 2:1 split lands on the fill session itself, so the fill
+        // must trade 1000 shares (500 / 0.5) at the post-split 5.00 open, not the pre-split
+        // count at the post-split price.
+        candle("PETR4", "2024-01-03", "5.00", "5.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills[0]).toMatchObject({
+      side: "buy",
+      quantity: quantity(1000),
+      price: decimalString("5.00"),
+      session: "2024-01-03",
+    });
+  });
+
+  it("leaves a pending entry's quantity unchanged when no split falls between signal and fill", () => {
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills[0]).toMatchObject({ quantity: quantity(500) });
+  });
+
+  it("returns invalid_input, never a throw, when a grouping factor rounds a pending entry's quantity to zero", () => {
+    const grouping: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("10000"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [grouping],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "50000.00", "50000.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("returns invalid_input, never a throw, when a factor blows a pending entry's quantity past a safe integer", () => {
+    const microFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.000000000000001"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [microFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+});
+
 describe("runBacktest — provenance", () => {
   it("reports rows after the period.to close as truncated", () => {
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
