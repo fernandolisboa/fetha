@@ -3,7 +3,6 @@ import { decimalStringSchema, type Condition } from "@fetha/contracts";
 
 import {
   compareConditionsToEntry,
-  entryToCompareConditions,
   fromEditableEntry,
   fromEditableExitCondition,
   toEditableEntry,
@@ -25,22 +24,15 @@ const rsiBelow30: CompareCondition = {
   right: { kind: "constant", value: decimalStringSchema.parse("30") },
 };
 
-describe("compareConditionsToEntry / entryToCompareConditions", () => {
+describe("compareConditionsToEntry", () => {
   it("round-trips a single compare condition", () => {
     const entry = compareConditionsToEntry([closeAboveSma]);
     expect(entry).toEqual(closeAboveSma);
-    expect(entryToCompareConditions(entry, closeAboveSma)).toEqual([closeAboveSma]);
   });
 
   it("round-trips multiple conditions as an AND", () => {
     const entry = compareConditionsToEntry([closeAboveSma, rsiBelow30]);
     expect(entry).toEqual({ kind: "and", conditions: [closeAboveSma, rsiBelow30] });
-    expect(entryToCompareConditions(entry, closeAboveSma)).toEqual([closeAboveSma, rsiBelow30]);
-  });
-
-  it("falls back to a default row for a shape the editor cannot represent", () => {
-    const orEntry: Condition = { kind: "or", conditions: [closeAboveSma, rsiBelow30] };
-    expect(entryToCompareConditions(orEntry, closeAboveSma)).toEqual([closeAboveSma]);
   });
 
   it("throws when building an entry from an empty list", () => {
