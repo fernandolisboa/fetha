@@ -1255,8 +1255,11 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   all in the engine's years), the at-the-money volatility is the implied volatility of the call
   and the put with strike nearest the forward `F = spot * e^((r - q) * T)`, averaged when both
   are visible; the index is `sqrt((w * s1^2 * T1 + (1 - w) * s2^2 * T2) / T30)` with
-  `w = (T2 - T30) / (T2 - T1)` (linear in total variance). `T30` is the sessions from the
-  session of `at` to the date 30 calendar days ahead, over 252. An expiry exactly at 30 days
+  `w = (T2 - T30) / (T2 - T1)` (linear in total variance). `T30` is `(n + (1 - f)) / 252`, the
+  same exact-tenor basis `resolveTimeToExpiryYears` gives every bracket (`n` whole sessions to
+  the date 30 calendar days ahead plus the fraction `f` of the session of `at` already elapsed):
+  a whole-session count here bracketed the same view differently at a session's open than at its
+  close (PR #53 round 3 item 2). An expiry exactly at 30 days
   is used alone. `impliedVolatility` is `null` with note `iv_index_not_bracketed` when fewer
   than two expiries bracket 30 days or no ATM volatility can be solved. Ingestion persists the
   result so `iv_rank` reads it back from `MarketView.impliedVolatilityIndex`.
@@ -1328,7 +1331,11 @@ thrown exception from the engine is a bug.
 Arrays in `MarketView` may arrive in any order; the engine sorts (I3). Duplicate keys (same
 ticker, timeframe and `asOf` for candles; same ticker and `exDate` for corporate-action factors;
 same ticker and session for option prices; same series and date for macro points) are
-`invalid_input`. `since < at`. `resume.configDigest` must equal the digest of `config` and
+`invalid_input`. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
+rejected, because a legitimate re-listing (a strike adjustment, a superseded expiry) always
+advances `asOf`, so a true tie on `(ticker, asOf)` is data noise, not a signal the caller needs
+surfaced; it resolves deterministically to the lower-strike row regardless of array order (PR
+#53 round 4 item 4). `since < at`. `resume.configDigest` must equal the digest of `config` and
 `resume.engineVersion` must equal `ENGINE_VERSION`, else `checkpoint_mismatch`; the caller
 restarts the run from `config` (runs are immutable anyway). `calendar` must cover every session a
 call touches, else `insufficient_data`. `MarketView.dataVersion` and `datasetNotes` are copied
@@ -1448,7 +1455,11 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   sizes against the structure's bounded max loss, not the premium received, which understated the
   capital actually at risk on a credit spread; an unbounded max loss on a net-credit
   `fixed_fractional` structure is `unsizeable` (`unbounded_max_loss`), the same reading
-  `fixed_risk` already gave a naked short option.
+  `fixed_risk` already gave a naked short option. `zero_units` currently conflates two
+  distinct reasons — a genuinely zero max loss or premium, and a positive per-unit cost the
+  declared capital and fraction cannot afford one unit of — pending a `UnsizeableReason`
+  member for the unaffordable-budget case
+  ([issue #59](https://github.com/fernandolisboa/fetha/issues/59)).
 - **Spot precedence matches leg precedence.** The underlying's own spot and a leg's own price
   both resolve `mid` (bid/ask average) before `last`, `last` before a day's `close`, `close`
   before `average` — one ladder, not two, so a leg that happens to be the underlying itself prices

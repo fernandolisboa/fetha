@@ -608,6 +608,10 @@ function resolveSizingUnits(
     error: { code: "unsizeable", reason: "unbounded_max_loss" },
   } satisfies { ok: false; error: EngineError };
 
+  // `zero_units` here conflates two different reasons: perUnit <= 0 is a genuinely zero
+  // max loss/premium, while floor(capital * fraction / perUnit) < 1 is a positive per-unit
+  // cost the budget cannot afford one unit of. Left unsplit pending a UnsizeableReason
+  // member for the unaffordable case (github.com/fernandolisboa/fetha/issues/59).
   const unitsFromPerUnit = (
     perUnit: Decimal,
   ): { ok: true; units: number } | { ok: false; error: EngineError } => {
