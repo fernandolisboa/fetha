@@ -1,8 +1,42 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { MarketView } from "../api";
+import type { MarketView, MonthlyTax, TradingSession } from "../api";
 import { runBacktest } from "../internal/run-backtest";
 import { BACKTEST_FIXTURE_SESSIONS, longBacktestFixtureArbitrary } from "./arbitraries";
+
+const monthKeyOf = (date: string): string => date.slice(0, 7);
+
+// Tax for month M is deducted on the last session of month M+1 (ADR-0013 "Taxes"); returns that
+// due session's own date, or null when the calendar this fixture provides has no session in
+// month M+1 at all (the tax accrued in the run's very last month).
+function dueSessionForTaxMonth(month: string, calendar: readonly TradingSession[]): string | null {
+  const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+  const nextMonthKey =
+    monthNumber === 12
+      ? `${String(year + 1)}-01`
+      : `${String(year)}-${String(monthNumber + 1).padStart(2, "0")}`;
+  const sessionsOfNextMonth = calendar.filter((s) => monthKeyOf(s.date) === nextMonthKey);
+  const last = sessionsOfNextMonth.at(-1);
+  return last === undefined ? null : last.date;
+}
+
+// A short run's own final session forces the still-open month's tax to be computed and
+// deducted right then (ADR-0013 "Taxes": "tax not yet deducted at period.to is deducted on the
+// final session") — a real, deliberate difference from the full run, which does not reach that
+// month's true due session by the cut. This sums exactly the tax entries a short run deducted
+// early relative to what a full run would already owe by the same session.
+function earlyTaxAtCut(
+  taxes: readonly MonthlyTax[],
+  cutSession: string,
+  calendar: readonly TradingSession[],
+): number {
+  let total = 0;
+  for (const t of taxes) {
+    const due = dueSessionForTaxMonth(t.month, calendar);
+    if (due === null || due > cutSession) total += t.tax;
+  }
+  return total;
+}
 
 describe("I7 Prefix-consistency", () => {
   it("a run stopped at session D agrees with the full run up to and including D", () => {
@@ -53,7 +87,20 @@ describe("I7 Prefix-consistency", () => {
           const fullRun = fullResult.value.run;
           const shortRun = shortResult.value.run;
 
-          expect(shortRun.equityCurve).toEqual(fullRun.equityCurve.slice(0, cutIndex + 1));
+          // The short run's own final session is D — "tax not yet deducted at period.to is
+          // deducted on the final session" (ADR-0013 "Taxes") forces the still-open month's tax
+          // to be computed and paid right there, while the full run, for which D is not final,
+          // has not yet reached that month's true due session. Every earlier point, and every
+          // component of D's own equity besides that early tax, must still agree exactly.
+          expect(shortRun.equityCurve.slice(0, cutIndex)).toEqual(
+            fullRun.equityCurve.slice(0, cutIndex),
+          );
+          const shortAtCut = shortRun.equityCurve[cutIndex];
+          const fullAtCut = fullRun.equityCurve[cutIndex];
+          if (!shortAtCut || !fullAtCut) throw new Error("test setup: both curves reach cutIndex");
+          const earlyTax = earlyTaxAtCut(shortRun.taxes, cutSession.date, fixture.calendar);
+          expect(shortAtCut.cash).toBe(fullAtCut.cash - earlyTax);
+          expect(shortAtCut.equity).toBe(fullAtCut.equity - earlyTax);
           const fillsUpToCut = fullRun.fills.filter((f) => f.session <= cutSession.date);
           expect(shortRun.fills).toEqual(fillsUpToCut);
 

@@ -121,20 +121,31 @@ export type LongBacktestFixture = {
 // sometimes in flight at the cut, not only a single buy-and-hold leg — without the arbitrary
 // itself needing to model limits realistically, since those invariants are about the resumption
 // plumbing, not about strategy behavior.
+// One in ten sessions draws zero volume: a fill or a mark that skips such a session (retried, or
+// simply absent for that day's candle) is exactly the path I1/I2/I7 need exercised alongside the
+// happy path of every session trading.
+const zeroVolumeFlagsArbitrary = fc.array(fc.integer({ min: 0, max: 9 }), {
+  minLength: BACKTEST_FIXTURE_SESSIONS,
+  maxLength: BACKTEST_FIXTURE_SESSIONS,
+});
+
 export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = fc
   .tuple(
     priceWalkArbitrary,
     exitFractionArbitrary,
     fc.integer({ min: 100, max: 3000 }),
     fc.integer({ min: 1, max: 2000 }),
+    zeroVolumeFlagsArbitrary,
   )
-  .map(([prices, exitFraction, cdiBasisPoints, initialCapitalReais]) => {
+  .map(([prices, exitFraction, cdiBasisPoints, initialCapitalReais, zeroVolumeFlags]) => {
     const calendar: TradingSession[] = [];
     const candles: Candle[] = [];
     for (let i = 0; i < BACKTEST_FIXTURE_SESSIONS; i += 1) {
       const s = backtestSessionAt(i);
       calendar.push(s);
       const price = assertDefined(prices[i], "arbitraries: index within bounds");
+      const isZeroVolume =
+        assertDefined(zeroVolumeFlags[i], "arbitraries: index within bounds") === 0;
       candles.push({
         ticker: "PETR4",
         timeframe: "D1",
@@ -144,7 +155,7 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
         high: price,
         low: price,
         close: price,
-        tradedQuantity: 1000,
+        tradedQuantity: isZeroVolume ? 0 : 1000,
       });
     }
     const definition: StrategyDefinition = {
@@ -170,7 +181,11 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
         brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
-        monthlyStockSalesExemption: centavos(2_000_000_00),
+        // Low enough that a month's own stock sales — even at the smallest end of
+        // initialCapitalReais's range — realistically breach it at least once across a
+        // property run's numRuns draws, so I7 actually exercises a taxable month instead of
+        // one that is always exempt.
+        monthlyStockSalesExemption: centavos(500_00),
       },
       riskProfile: {
         declaredCapital: centavos(initialCapitalReais * 100_00),
