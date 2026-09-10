@@ -1641,7 +1641,12 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   the "Operations, positions and strategy versions" section already states for every `Operation`
   entry point — an option leg's listed expiry must match `op.expiry`, and an operation with option
   legs must carry a non-null `expiry` — is enforced explicitly rather than by refusing the whole
-  shape.
+  shape. As of round 2 item 3, this runs through the same `validateOperationCoherence`
+  (`internal/operation-coherence.ts`) `markToMarket` and `proposeSettlement` share (see the #25
+  addendum below): the same underlying/right match and `openedAt <= at` checks apply to a
+  caller-supplied `openOperations[i]` here too, not only the expiry match this paragraph
+  originally described — a hand-rolled copy previously let `evaluateStrategy` accept an operation
+  either of those two would reject.
 - **`runBacktest` fills generalize per leg, atomically per operation.** A stock leg still fills at
   the next session's open (`next_session_open`); an option leg now fills at the next session's
   average traded price (`next_session_average`), reading the same `OptionDayPrice.average` a
@@ -1744,7 +1749,8 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     fixed-fee plans are usually quoted. Documented here as the intended v1 behavior rather than
     changed under a round-2 review pass: renaming the field is a `packages/contracts` schema
     change reaching every config fixture and the config digest across both packages, out of
-    scope for a fix-forward batch.
+    scope for a fix-forward batch. Tracked in issue #73: rename to `optionPerOrder` or scale by
+    contract count.
 
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 
@@ -1763,7 +1769,8 @@ records the semantic decisions the frozen types and ADR-0014 left open.
 - **Operation coherence is checked once, shared.** ADR-0013's "Operations, positions and strategy
   versions" says the engine checks `Operation.expiry` coherence wherever an `Operation` comes in;
   `markToMarket` (`operations[i]`) and `proposeSettlement` (`operation`) now share one
-  `validateOperationCoherence` (`internal/operation-coherence.ts`): a stock-only operation must
+  `validateOperationCoherence` (`internal/operation-coherence.ts`) — joined, as of the #23 round 2
+  batch, by `evaluateStrategy` (`openOperations[i]`, see the #23 addendum above): a stock-only operation must
   carry no expiry, an operation with option legs must carry one, every stock leg's ticker must
   equal the operation's `underlying`, every option leg whose series is visible in the view
   (`resolveSeries`, at the same instant the caller is truncated to — `at` for `markToMarket`, the
@@ -1772,9 +1779,12 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   (round 1 item 7; skipped when the calendar does not cover it, since `markToMarket` already
   fails the whole call with `insufficient_data` in that case — round 1 item 8). A leg whose series
   simply is not visible is not rejected here; it surfaces later as that leg's own
-  `missing_instrument`. `evaluateStrategy`'s own coherence checking (ADR-0013 "Entry gating")
-  stays separate until #23: it never receives a caller-supplied `Operation` to validate this way,
-  only ones it built itself.
+  `missing_instrument`. `evaluateStrategy`'s own coherence checking (ADR-0013 "Entry gating") was
+  still separate at this addendum's own time of writing — it only ever validated an operation it
+  built itself, never a caller-supplied one. #23 round 2 closed that gap: `evaluateStrategy` now
+  runs a caller-supplied `openOperations[i]` through this same `validateOperationCoherence` too
+  (see the #23 addendum above), so all three entry points reject the same malformed `Operation`
+  the same way.
 - **Unrealized P&L is computed per leg, on the entry price's own scale.** For each operation leg,
   the mark used is `pricing.legs[i].price ?? pricing.legs[i].fairValue`; a leg with neither
   (`no_market_price` with no solvable fair value, already noted on `pricing`) contributes zero
