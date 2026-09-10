@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { optionDailyPrices, optionSeries } from "@/db/schema/market-data";
@@ -137,22 +137,46 @@ export interface ChainSeries {
 }
 
 // The closing chain for one underlying (UBIQUITOUS_LANGUAGE.md "closing
-// chain"): every ingested series, for the builder's per-leg instrument
-// picker. Ordered by expiry then strike so a call/put ladder reads the way
-// a chain does on paper.
+// chain"): the builder's per-leg instrument picker. B3 reuses option
+// tickers across listing cycles (ADR-0017), so this is restricted to
+// series that have not yet expired as of `currentSession` and are visible
+// as of `at`, collapsed to the latest `as_of` per ticker — otherwise a
+// picker entry could resolve to an expired cycle's strike. Ordered by
+// expiry then strike so a call/put ladder reads the way a chain does on
+// paper.
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,
+  currentSession: string,
+  at: Date,
 ): Promise<ChainSeries[]> {
-  return db
+  const rows = await db
     .select({
       ticker: optionSeries.ticker,
       right: optionSeries.right,
       strike: optionSeries.strike,
       expiry: optionSeries.expiry,
       style: optionSeries.style,
+      asOf: optionSeries.asOf,
     })
     .from(optionSeries)
-    .where(eq(optionSeries.underlying, underlying))
-    .orderBy(asc(optionSeries.expiry), asc(optionSeries.strike));
+    .where(
+      and(
+        eq(optionSeries.underlying, underlying),
+        gte(optionSeries.expiry, currentSession),
+        lte(optionSeries.asOf, at),
+      ),
+    );
+
+  const latestByTicker = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const existing = latestByTicker.get(row.ticker);
+    if (!existing || row.asOf > existing.asOf) {
+      latestByTicker.set(row.ticker, row);
+    }
+  }
+
+  return [...latestByTicker.values()]
+    .sort((a, b) => a.expiry.localeCompare(b.expiry) || Number(a.strike) - Number(b.strike))
+    .map(({ ticker, right, strike, expiry, style }) => ({ ticker, right, strike, expiry, style }));
 }
