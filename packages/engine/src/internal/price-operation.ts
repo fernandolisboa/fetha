@@ -77,6 +77,7 @@ function valueOneLeg(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   leg: LegInput,
+  legPath: string,
   expiredIntrinsicBasis: DecimalString | null = null,
 ): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
   const atSession = sessionDateAtOrBefore(view.calendar, at);
@@ -119,13 +120,13 @@ function valueOneLeg(
   if (series.underlying !== underlying) {
     return {
       ok: false,
-      error: { code: "invalid_input", path: "legs", message: "leg underlying mismatch" },
+      error: { code: "invalid_input", path: legPath, message: "leg underlying mismatch" },
     };
   }
   if (!isPositive(series.strike)) {
     return {
       ok: false,
-      error: invalidInput("legs.strike", "a listed strike must be positive"),
+      error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
 
@@ -161,7 +162,7 @@ function valueOneLeg(
     if (tte.reason === "already_expired") {
       return {
         ok: false,
-        error: invalidInput("legs.expiry", "the leg's expiry precedes the session of at"),
+        error: invalidInput(`${legPath}.expiry`, "the leg's expiry precedes the session of at"),
       };
     }
     return {
@@ -185,7 +186,7 @@ function valueOneLeg(
   if (leg.volatility !== undefined && !isPositive(leg.volatility)) {
     return {
       ok: false,
-      error: invalidInput("legs.volatility", "a given volatility must be positive"),
+      error: invalidInput(`${legPath}.volatility`, "a given volatility must be positive"),
     };
   }
 
@@ -406,6 +407,11 @@ type ValuedLegs = {
 // count is known. Splitting this out means the preview no longer manufactures a fake one.
 // Not exported: markToMarket composes through priceConcreteLegs (round 1 item 12), never
 // this lower-level step directly.
+// `legPathAt` builds the error path for the leg at a given position in `legs`: `priceOperation`
+// never needs anything but the plain `legs[i]` default, but `markToMarket` (round 3 item 8)
+// needs `operations[i].legs[j]`, `j` being that leg's own position in the *operation's* legs,
+// which does not generally equal its position in `legs` here once a residue-only or an
+// unpriced-expired leg has been excluded from it (round 3 items 2, 5).
 function valueLegs(
   view: MarketView,
   at: string,
@@ -415,12 +421,13 @@ function valueLegs(
   dividendYield: DecimalString,
   legs: readonly LegInput[],
   expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt: (index: number) => string = (index) => `legs[${String(index)}]`,
 ): { ok: true; value: ValuedLegs } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
   const notes: Note[] = [];
   let anyLegUnpriced = false;
   let anyLegSettlementPending = false;
-  for (const leg of legs) {
+  for (const [index, leg] of legs.entries()) {
     const result = valueOneLeg(
       view,
       at,
@@ -429,6 +436,7 @@ function valueLegs(
       riskFreeRate,
       dividendYield,
       leg,
+      legPathAt(index),
       expiredIntrinsicBasis,
     );
     if (!result.ok) return { ok: false, error: result.error };
@@ -510,6 +518,7 @@ export function priceConcreteLegs(
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
   expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt?: (index: number) => string,
 ): Result<OperationPricing> {
   const valued = valueLegs(
     view,
@@ -520,6 +529,7 @@ export function priceConcreteLegs(
     dividendYield,
     legs,
     expiredIntrinsicBasis,
+    legPathAt,
   );
   if (!valued.ok) return err(valued.error);
   const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
@@ -599,6 +609,7 @@ export function priceLegsAt(
   provenanceBase: ProvenanceBase,
   spotPath: string,
   expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt?: (index: number) => string,
 ): Result<OperationPricing> {
   const spot = resolveUnderlyingSpot(view, underlying, at);
   if (!spot) return err({ code: "missing_instrument", ticker: underlying });
@@ -622,6 +633,7 @@ export function priceLegsAt(
     openOperationCount,
     provenanceBase,
     expiredIntrinsicBasis,
+    legPathAt,
   );
 }
 

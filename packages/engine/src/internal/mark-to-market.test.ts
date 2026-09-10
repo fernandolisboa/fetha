@@ -1114,6 +1114,44 @@ describe("markToMarket", () => {
     });
   });
 
+  it("indexes a leg-level pricing error as operations[i].legs[j], not a bare legs.strike (round 3 item 8)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), strike: decimalString("0.00") }],
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "operations[0].legs[1].strike",
+      message: "a listed strike must be positive",
+    });
+  });
+
   it("returns insufficient_data when the calendar does not cover the mark instant (item 8)", () => {
     const result = markToMarket(
       {

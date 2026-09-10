@@ -70,6 +70,7 @@ function insufficientCandlesForSession(underlying: Ticker, session: TradingSessi
 
 function settleLeg(
   leg: OperationLeg,
+  legIndex: number,
   underlying: Ticker,
   underlyingClose: Decimal,
   session: SessionDate,
@@ -88,7 +89,7 @@ function settleLeg(
   if (!parseDecimal(series.strike).gt(0)) {
     return {
       ok: false,
-      error: invalidInput(`legs[${leg.ticker}].strike`, "a listed strike must be positive"),
+      error: invalidInput(`legs[${String(legIndex)}].strike`, "a listed strike must be positive"),
     };
   }
 
@@ -201,9 +202,10 @@ export function proposeSettlement(
   const closeDecimal = parseDecimal(underlyingClose);
 
   const legs: LegSettlement[] = [];
-  for (const leg of operation.legs) {
+  for (const [legIndex, leg] of operation.legs.entries()) {
     const settled = settleLeg(
       leg,
+      legIndex,
       operation.underlying,
       closeDecimal,
       operation.expiry,

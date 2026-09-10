@@ -1694,7 +1694,13 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   that carried it; `priceConcreteLegs` now aggregates it at the operation level next to
   `no_market_price`, the same way (round 3 item 6). `validateViewIntegrity` covers a duplicate
   `optionPrices` `(ticker, asOf)` row too, the same tie-by-array-order hazard round 1 item 11
-  already fixed for `calendar` and `candles` (round 3 item 7).
+  already fixed for `calendar` and `candles` (round 3 item 7). A leg-level pricing error from
+  `markToMarket` (a non-positive listed strike, say) reported a bare `legs.strike` or
+  `legs[TICKER].strike`, not the leg's own position in its own operation; `valueOneLeg` now takes
+  its own error path from the caller (`legPathAt`, threaded through `valueLegs`,
+  `priceConcreteLegs` and `priceLegsAt`, defaulting to the plain `legs[i]` `priceOperation`
+  needs), so `markToMarket` reports `operations[i].legs[j]` and `proposeSettlement` reports
+  `legs[j]`, both indexed by the leg's own position, never its ticker (round 3 item 8).
 
 ## Considered options
 

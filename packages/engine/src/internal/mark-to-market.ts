@@ -159,6 +159,7 @@ function priceExistingOperation(
   // since `valueOneLeg` never consults `expiredIntrinsicBasis` for one.
   const legInputs: LegInput[] = [];
   const legInputIndexByLegIndex = new Map<number, number>();
+  const legIndexByLegInputIndex: number[] = [];
   const residueOnlyLegIndexes = new Set<number>();
   const unpricedExpiredLegIndexes = new Set<number>();
   for (const { leg, legIndex, rawEffectiveQuantity } of rebasedLegs) {
@@ -181,6 +182,7 @@ function priceExistingOperation(
       };
     }
     legInputIndexByLegIndex.set(legIndex, legInputs.length);
+    legIndexByLegInputIndex.push(legIndex);
     legInputs.push({
       role: leg.role,
       side: leg.side,
@@ -188,6 +190,17 @@ function priceExistingOperation(
       quantity: toQuantity(floored),
     });
   }
+
+  // A leg-level error surfacing from `priceLegsAt` (a non-positive listed strike, say) is
+  // indexed against the leg's own position in `operation.legs`, not its position in the
+  // (possibly shorter) `legInputs` array built above (round 3 item 8).
+  const legPathAt = (legInputIndex: number): string => {
+    const legIndex = assertDefined(
+      legIndexByLegInputIndex[legInputIndex],
+      "mark-to-market: every legInputs position has a matching operation.legs index",
+    );
+    return `${path}.legs[${String(legIndex)}]`;
+  };
 
   const pricingResult = priceLegsAt(
     view,
@@ -199,6 +212,7 @@ function priceExistingOperation(
     provenanceBase,
     `${path}.spot`,
     basisValue,
+    legPathAt,
   );
   if (!pricingResult.ok) return { ok: false, error: pricingResult.error };
   const pricing = pricingResult.value;

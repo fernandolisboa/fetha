@@ -562,7 +562,50 @@ describe("proposeSettlement", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "invalid_input",
-      path: "legs[PETR4C28].strike",
+      path: "legs[0].strike",
+      message: "a listed strike must be positive",
+    });
+  });
+
+  it("indexes a non-positive strike error by the leg's own position, not its ticker (round 3 item 8)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        optionSeries("PETR4C28", "call", "28.00"),
+        { ...optionSeries("PETR4C30", "call", "30.00"), strike: decimalString("0.00") },
+      ],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C30",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "legs[2].strike",
       message: "a listed strike must be positive",
     });
   });
