@@ -6,7 +6,7 @@ import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
 import { fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
-import { gaps } from "./freshness";
+import { gaps, latestSession } from "./freshness";
 import { withSourceLock } from "./repositories/advisory-lock";
 import { upsertDailyCandles } from "./repositories/candle-repository";
 import {
@@ -357,8 +357,16 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     sgsResult.outcome,
   ];
 
+  // A source that is fully caught up drains no gaps this invocation, so
+  // okSessions is empty even though a previous run already succeeded on the
+  // newest session; falling back to latestSession (the newest closed
+  // trading session as of `now`) reports that session instead of `null`
+  // (docs/adr/0017).
+  const session =
+    options.session ?? cotahistResult.okSessions.at(-1) ?? (await latestSession(db, now));
+
   return {
-    session: options.session ?? cotahistResult.okSessions.at(-1) ?? null,
+    session,
     ok: sources.every((outcome) => outcome.error === undefined),
     sources,
   };
