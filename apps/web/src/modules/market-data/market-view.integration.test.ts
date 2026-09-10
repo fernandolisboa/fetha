@@ -194,6 +194,83 @@ describe("buildOperationMarketView", () => {
     expect(pricesForTicker[0]?.close).toBe("3.500000");
   });
 
+  it("resolves an exact (ticker, asOf) tie by the engine's tie-break order (strike, then expiry, then right, then ticker; PR #76 round 2 item 2)", async () => {
+    const underlying = uniqueTicker("TIE");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}W1`;
+
+    const sessions = businessDays("2099-08-03", 5);
+    const atSession = sessions[sessions.length - 1];
+    const expiry = sessions[2];
+    const tieAsOfSession = sessions[0];
+    if (!atSession || !expiry || !tieAsOfSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const tieAsOf = new Date(`${tieAsOfSession}T13:00:00.000Z`);
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${underlying}-HIGH`,
+        ticker: optionTicker,
+        underlying,
+        right: "call",
+        strike: "20.00000000",
+        expiry,
+        style: "european",
+        asOf: tieAsOf,
+      },
+      {
+        isin: `ISIN-${underlying}-LOW`,
+        ticker: optionTicker,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry,
+        style: "european",
+        asOf: tieAsOf,
+      },
+    ]);
+
+    const sessionForHighPrice = sessions[1];
+    const sessionForLowPrice = sessions[3];
+    if (!sessionForHighPrice || !sessionForLowPrice) throw new Error("fixture setup failed");
+    await ensureMonthlyPartition(db, "option_daily_prices", sessionForHighPrice);
+    await ensureMonthlyPartition(db, "option_daily_prices", sessionForLowPrice);
+    await db.insert(optionDailyPrices).values([
+      {
+        ticker: optionTicker,
+        session: sessionForHighPrice,
+        asOf: new Date(`${sessionForHighPrice}T20:00:00.000Z`),
+        right: "call",
+        strike: "20.00000000",
+        expiry,
+        average: "5.000000",
+        close: "5.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+      {
+        ticker: optionTicker,
+        session: sessionForLowPrice,
+        asOf: new Date(`${sessionForLowPrice}T20:00:00.000Z`),
+        right: "call",
+        strike: "10.00000000",
+        expiry,
+        average: "1.000000",
+        close: "1.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+    ]);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const view = await buildOperationMarketView(db, underlying, at);
+
+    const prices = view.optionPrices.filter((price) => price.ticker === optionTicker);
+    expect(prices).toHaveLength(1);
+    expect(prices[0]?.close).toBe("1.000000");
+  });
+
   it("hides a series not yet visible as of `at`", async () => {
     const underlying = uniqueTicker("VIS");
     cleanupTickers.push(underlying);

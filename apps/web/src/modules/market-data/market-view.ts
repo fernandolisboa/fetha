@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import Decimal from "decimal.js";
 import {
   decimalStringSchema,
   instantSchema,
@@ -28,6 +29,20 @@ const CALENDAR_WINDOW_SESSIONS = 30;
 
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
+}
+
+type SeriesRow = { strike: string; expiry: string; right: string; ticker: string };
+
+// A true (ticker, asOf) duplicate must resolve to the same row regardless of query order.
+// Mirrors the engine's own tie-break (packages/engine/src/internal/resolve-series.ts,
+// `isEarlierOnExactTie`, ADR-0013's #21 addendum) so the collapsed chain the market view
+// exposes and the series `priceOperation` actually prices agree (PR #76 round 2 item 2).
+function isEarlierOnExactTie(a: SeriesRow, b: SeriesRow): boolean {
+  const strikeCompare = new Decimal(a.strike).cmp(new Decimal(b.strike));
+  if (strikeCompare !== 0) return strikeCompare < 0;
+  if (a.expiry !== b.expiry) return a.expiry < b.expiry;
+  if (a.right !== b.right) return a.right < b.right;
+  return a.ticker < b.ticker;
 }
 
 function furthestExpiry(seriesExpiries: readonly string[]): string | null {
@@ -115,7 +130,11 @@ export async function buildOperationMarketView(
   const latestSeriesByTicker = new Map<string, (typeof seriesRows)[number]>();
   for (const row of seriesRows) {
     const existing = latestSeriesByTicker.get(row.ticker);
-    if (!existing || row.asOf > existing.asOf) {
+    if (
+      !existing ||
+      row.asOf > existing.asOf ||
+      (row.asOf.getTime() === existing.asOf.getTime() && isEarlierOnExactTie(row, existing))
+    ) {
       latestSeriesByTicker.set(row.ticker, row);
     }
   }

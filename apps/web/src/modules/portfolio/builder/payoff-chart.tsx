@@ -17,26 +17,12 @@ const MARGIN = { top: 12, right: 56, bottom: 28, left: 56 };
 
 type PlotPoint = { underlying: number; pnl: number };
 
-// The engine only emits three points (0.8/1/1.2 of spot) plus the
-// break-evens it solved for exactly (pnl = 0); a smooth curve fitted
-// through the three alone fabricates values between the real kinks at
-// each leg's strike (round 1 item 5, reproduced: a drawn zero-crossing off
-// the displayed break-even). Merging the break-evens in as true zero
-// points and connecting only known values keeps the line honest.
-function plotPoints(points: PayoffPoint[], breakEvens: DecimalString[]): PlotPoint[] {
-  const merged = new Map<number, number>();
-  for (const point of points) {
-    merged.set(Number(point.underlying), point.pnl);
-  }
-  for (const breakEven of breakEvens) {
-    const underlying = Number(breakEven);
-    if (!merged.has(underlying)) {
-      merged.set(underlying, 0);
-    }
-  }
-  return [...merged.entries()]
-    .map(([underlying, pnl]) => ({ underlying, pnl }))
-    .sort((a, b) => a.underlying - b.underlying);
+// `computePayoffProfile` (packages/engine/src/internal/price-operation.ts) already samples
+// each leg's strike and each break-even alongside 0.8/1/1.2 of spot, sorted ascending and
+// de-duplicated (PR #76 round 2 item 1): every kink the line needs to be honest is a real
+// engine point, so the chart draws them as given and never fabricates a value between them.
+function plotPoints(points: PayoffPoint[]): PlotPoint[] {
+  return points.map((point) => ({ underlying: Number(point.underlying), pnl: point.pnl }));
 }
 
 function formatAxisBRL(value: number): string {
@@ -58,7 +44,7 @@ function Chart({
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
 
-  const plot = plotPoints(points, breakEvens);
+  const plot = plotPoints(points);
   const underlyings = plot.map((point) => point.underlying);
   const pnls = plot.map((point) => point.pnl);
 
