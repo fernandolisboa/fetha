@@ -798,9 +798,13 @@ describe("runBacktest — errors", () => {
     const result = runBacktest({
       view,
       config,
+      // The engineVersion must actually match (ENGINE_VERSION, not a hardcoded literal
+      // that could drift out of sync with it — round 2 item 9), or this test would pass
+      // even with a broken configDigest check, short-circuiting on the version mismatch
+      // instead of ever reaching it.
       resume: {
         schema: 1,
-        engineVersion: "0.1.0",
+        engineVersion: ENGINE_VERSION,
         configDigest: "deadbeef",
         cursor: "2024-01-02",
         state: null,
@@ -1829,7 +1833,48 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
             settlement: [],
             pnlSoFar: 0,
             residualQuantity: "nope",
-            residualAvgCostCentavos: 0,
+            residualAvgCostCentavos: "0",
+            expirySession: "2024-01-02",
+          },
+        },
+      }),
+    ],
+    // Round 2 item 4: a pendingSettlements entry only ever exists for a residual still
+    // awaiting its own close; one with residualQuantity: 0 is corrupt input (never a shape
+    // this engine's own writers produce — see the type's own comment), and must be rejected
+    // here, before toQuantity(Math.abs(0)) can throw on the next session's own residual-fill
+    // step.
+    [
+      "a pendingSettlements entry has residualQuantity: 0",
+      (valid: object) => ({
+        ...valid,
+        pendingSettlements: {
+          "op-1": {
+            op: {},
+            settlement: [],
+            pnlSoFar: 0,
+            optionGainSoFarCentavos: 0,
+            residualQuantity: 0,
+            residualAvgCostCentavos: "0",
+            expirySession: "2024-01-02",
+          },
+        },
+      }),
+    ],
+    // Round 2 item 5: residualAvgCostCentavos is a DecimalString (full precision), never a
+    // rounded number.
+    [
+      "a pendingSettlements entry has a non-string residualAvgCostCentavos",
+      (valid: object) => ({
+        ...valid,
+        pendingSettlements: {
+          "op-1": {
+            op: {},
+            settlement: [],
+            pnlSoFar: 0,
+            optionGainSoFarCentavos: 0,
+            residualQuantity: 100,
+            residualAvgCostCentavos: 1000.5,
             expirySession: "2024-01-02",
           },
         },
@@ -2493,6 +2538,75 @@ describe("runBacktest — option structures (#23)", () => {
     ]);
   });
 
+  it("carries a pending settlement's residualAvgCostCentavos through a checkpoint resume at full precision, never rounded to a whole centavo (round 2 item 5)", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bullCallSpread,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    // Paused right after the expiry session is processed: the trava's residual long stock
+    // is a pendingSettlement in the checkpoint, its own residualAvgCostCentavos the exact
+    // strike (11.00 × 100 = "1100.000000") since only the exercised leg contributed to
+    // buyCost/buyQty here. Mutated to "1100.5" (half a centavo of cost basis per share,
+    // never reachable from a real strike × 100 alone, but exactly the shape a genuine
+    // multi-source weighted average — a matched stock leg netting against an exercised one
+    // — can produce) before resuming: rounding it to 1101 before storing it, as round 2
+    // item 5 found, would silently mis-net the residual's own pnl.
+    const paused = runBacktest({ view, config, maxSessions: 11 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+    const state = paused.value.checkpoint.state as {
+      pendingSettlements: Record<string, { residualAvgCostCentavos: string }>;
+    };
+    const opId = Object.keys(state.pendingSettlements)[0] as string;
+    expect(state.pendingSettlements[opId]?.residualAvgCostCentavos).toBe("1100.000000");
+    state.pendingSettlements[opId] = {
+      ...state.pendingSettlements[opId],
+      residualAvgCostCentavos: "1100.5",
+    };
+    const resumed = runBacktest({
+      view,
+      config,
+      resume: { ...paused.value.checkpoint, state },
+    });
+    expect(resumed.ok).toBe(true);
+    if (!resumed.ok || resumed.value.status !== "complete") throw new Error("expected complete");
+    const op = resumed.value.run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    // Residual close (2024-01-17, next session's open @ 15.00, cost 1038): (15.00 −
+    // 11.005) × 1250 × 100 − 1038 + pnlSoFar(−501 100) = 499 375 − 1038 − 501 100 = −2 763
+    // — exactly 625 centavos (0.5 × 1250) below the exact-cost-basis run's −2 138 (the
+    // fixture above), never −2 138 rounded some other way and never the −2 764/-2 762 a
+    // half-centavo-per-share rounding of the stored cost basis itself would produce.
+    expect(op.pnl).toBe(centavos(-2763));
+  });
+
   it("taxes a worthless long call's premium loss as optionGain, never stockGain (item 11, round 1)", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
@@ -2607,21 +2721,110 @@ describe("runBacktest — option structures (#23)", () => {
     // The stock leg's own quantity is untouched by either settlement (no fills, both legs
     // worthless): the residual closes the whole stock leg at the next session's own open.
     const stockLegQuantity = op.legs.find((l) => l.role === "stock")?.quantity;
-    expect(stockLegQuantity).toBeDefined();
+    expect(stockLegQuantity).toBe(300);
     const nextSession = days[11] as string;
     const residualFill = run.fills.find(
       (f) => f.operationId === op.id && f.session === nextSession,
     );
+    // Entry: buy 300 PETR4 @ 15.00 (cost 325) + buy 3 PETR4P11 @ 0.70 (cost 0) + sell 3
+    // PETR4C18 @ 0.50 (cost 0), the stock's fixed_fractional 0.5 budget against the flat
+    // 15.00 spot. At expiry neither option strike is touched: the residual is the whole
+    // 300-share stock leg, closed at the next session's own open (still 15.00, cost 325).
+    // Stock leg's own pnl: (15.00 − 15.00) × 300 × 100 − 325(entry) − 325(exit) = −650.
+    // Both options expire worthless: −0.70 × 3 × 100 + 0.50 × 3 × 100 = −60 (optionGain,
+    // item 11, round 1). op.pnl = −650 + (−60) = −710.
     expect(residualFill).toMatchObject({
       side: "sell",
       quantity: stockLegQuantity,
+      price: decimalString("15.00"),
       source: "next_session_open",
     });
-    // Both option legs expire worthless: the put (bought at 0.70) loses its whole premium,
-    // the call (sold at 0.50) keeps its whole premium, at the same 3-unit quantity —
-    // −0.70 × 3 × 100 + 0.50 × 3 × 100 = −60, the operation's own optionGain (item 11,
-    // round 1): a real, non-zero sum of a loss and a gain, not the absence of either.
+    expect(op.pnl).toBe(centavos(-710));
     expect(run.taxes[0]?.optionGain).toBe(centavos(-60));
+  });
+
+  it("resolves a pending exit rule for an operation that settled with a deferred residual (round 2 item 1): a days_before_expiry rule that never filled on a zero-volume expiry session must not throw on the following session", () => {
+    const days = businessDays(20);
+    const expiry = days[5] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [{ kind: "days_before_expiry", businessDays: 1 }],
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 6 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[8] as string },
+      costModel: {
+        b3FeeRate: decimalString("0.0005"),
+        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(50) },
+        optionSlippageRate: decimalString("0"),
+        incomeTaxRate: decimalString("0.15"),
+        monthlyStockSalesExemption: centavos(2_000_000_00),
+      },
+    });
+    // The underlying stays flat and strictly above the strike (ITM at expiry). The exit
+    // rule's own trigger session (index 5, the expiry session itself, one business day out)
+    // never trades this option (tradedQuantity 0): resolvePendingExitFills leaves the
+    // pending exit unfilled and the operation still open through that same session, then
+    // resolveExpiringOperations settles it as an exercise on that same session — before
+    // round 2 item 1's fix, the next session's resolvePendingExitFills still found the
+    // now-stale pending exit and threw on its own "a currently open operation" invariant.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days
+        .slice(0, 9)
+        .map((d, i) => optionDayPrice("PETR4C11", d, "4.50", i === 5 ? 0 : 10)),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.closedAt).toBe(expiry);
+    expect(op.settlement).toMatchObject([{ leg: { role: "call" }, outcome: "exercised" }]);
+    // Entry: buy 1111 PETR4C11 @ 4.50 (cost 300: fee 250 + brokerage 50). Exercise at
+    // strike 11.00: buy 1111 PETR4 @ 11.00 (cost 711: fee 611 + brokerage 100). pnlSoFar =
+    // −4.50 × 1111 × 100 (option premium) − 300 (entry costs) − 711 (exercise costs) =
+    // −500 961, deferred since the exercise leaves a 1111-share residual. Residual close
+    // the next session with real volume (2024-01-10, next session's open @ 15.00, cost
+    // 933): (15.00 − 11.00) × 1111 × 100 − 933 + (−500 961) = 444 400 − 933 − 500 961 =
+    // −57 494 = op.pnl.
+    const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
+    expect(residualFill).toMatchObject({
+      side: "sell",
+      quantity: 1111,
+      price: decimalString("15.00"),
+      source: "next_session_open",
+    });
+    expect(op.pnl).toBe(centavos(-57494));
+    // stockSales (16 665.00) sits under the default monthly exemption: the whole month is
+    // exempt, so a negative stockGain contributes neither an exempt gain nor a taxable one
+    // (backtest-taxes.ts clamps exemptGain at 0 and drops stockGain from netGain once
+    // exempt), leaving netGain at optionGain alone (0) and no tax.
+    expect(run.taxes).toEqual([
+      {
+        month: "2024-01",
+        stockSales: centavos(1_666_500),
+        stockGain: centavos(-57494),
+        optionGain: centavos(0),
+        exemptGain: centavos(0),
+        netGain: centavos(0),
+        tax: centavos(0),
+      },
+    ]);
   });
 
   it("marks a residual at the period_end close when expiry falls on the run's last session (no next session to close it at)", () => {

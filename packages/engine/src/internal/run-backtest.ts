@@ -74,18 +74,24 @@ type SlippageEntry = { session: SessionDate; amount: Centavos };
 // against the operation's own stock leg (a covered call assigned against its stock, a
 // vertical with both legs in the money). residualQuantity is what does not net out (ADR:
 // "residual stock ... is closed at the next session's open"), signed (+long/-short),
-// residualAvgCost its cost basis; both are meaningless when residualQuantity is zero.
+// residualAvgCost its cost basis; both are meaningless when residualQuantity is zero (and
+// never stored: a zero residual always closes the same session, through finalizeSettlement,
+// never through state.pendingSettlements — round 2 item 4).
 // optionGainSoFarCentavos is the slice of pnlSoFar contributed by a worthless-expiring option
 // leg (ADR-0013 "Taxes" optionGain bucket, item 11 round 1): the rest of pnlSoFar — matched
 // stock netting and an exercised/assigned leg's own premium — stays in the stock bucket, since
 // that premium folds into the stock trade the exercise or assignment produced.
+// residualAvgCostCentavos is a `DecimalString`, not a rounded `number` (round 2 item 5): it is
+// a cost basis *per share*, `buyCost.div(buyQty)` (or the sell-side equivalent), which does
+// not generally land on a whole centavo — rounding it here, before the residual close ever
+// reads it back, silently mis-nets the residual's own pnl by up to half a centavo per share.
 type PendingSettlement = {
   op: Operation;
   settlement: LegSettlement[];
   pnlSoFar: number;
   optionGainSoFarCentavos: number;
   residualQuantity: number;
-  residualAvgCostCentavos: number;
+  residualAvgCostCentavos: DecimalString;
   expirySession: SessionDate;
 };
 
@@ -188,7 +194,14 @@ function isValidPendingSettlement(value: unknown): boolean {
     Number.isFinite(value.pnlSoFar) &&
     Number.isFinite(value.optionGainSoFarCentavos) &&
     Number.isSafeInteger(value.residualQuantity) &&
-    Number.isFinite(value.residualAvgCostCentavos) &&
+    // A pending settlement only ever exists for a residual still awaiting its own close
+    // (round 2 item 4): `resolveExpiringOperations` never stores one for
+    // residualQuantity === 0, and `resolvePendingSettlementResidualFills` /
+    // `closePeriodEnd` always remove it in the same step that closes the residual, so a
+    // resumed checkpoint carrying one with a zero residualQuantity is corrupt input, not a
+    // shape `toQuantity(Math.abs(0))` should throw an invariant over on the next session.
+    value.residualQuantity !== 0 &&
+    typeof value.residualAvgCostCentavos === "string" &&
     typeof value.expirySession === "string"
   );
 }
@@ -1326,6 +1339,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
       const optionGainSoFarCentavos = worthlessOptionPnl.round().toNumber();
       const residualQuantity = buyQty.sub(sellQty).round().toNumber();
+      // This operation leaves state.openOperations at the end of this function's loop
+      // (stillOpen never carries it, its expiry matched session.date): any exit rule still
+      // pending for it from an earlier session (a days_before_expiry that never filled on a
+      // zero-volume session, say) must be dropped right here, at the same moment, whichever
+      // branch below follows — finalizeSettlement already does this for the
+      // residualQuantity === 0 branch, but the pendingSettlements branch never ran through
+      // finalizeSettlement, so the next session's resolvePendingExitFills found a pending
+      // exit whose invariant("...a currently open operation") this op no longer satisfied
+      // (round 2 item 1).
+      Reflect.deleteProperty(state.pendingExits, op.id);
       if (residualQuantity === 0) {
         const pnlSoFarCentavos = pnlSoFar.round().toNumber();
         state.currentMonthStockGain += pnlSoFarCentavos - optionGainSoFarCentavos;
@@ -1337,7 +1360,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             pnlSoFar: 0,
             optionGainSoFarCentavos: 0,
             residualQuantity: 0,
-            residualAvgCostCentavos: 0,
+            residualAvgCostCentavos: toDecimalString(new Decimal(0), RATIO_SCALE),
             expirySession: session.date,
           },
           pnlSoFarCentavos,
@@ -1351,9 +1374,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           pnlSoFar: pnlSoFar.round().toNumber(),
           optionGainSoFarCentavos,
           residualQuantity,
-          residualAvgCostCentavos: (residualQuantity > 0 ? avgBuyPrice : avgSellPrice)
-            .round()
-            .toNumber(),
+          // Full precision (round 2 item 5), never rounded to a whole centavo here: this is
+          // a per-share cost basis (`buyCost.div(buyQty)` or its sell-side equivalent), read
+          // back by the residual's own close at resolvePendingSettlementResidualFills or
+          // closePeriodEnd, both of which already carry full decimal precision through to
+          // op.pnl.
+          residualAvgCostCentavos: toDecimalString(
+            residualQuantity > 0 ? avgBuyPrice : avgSellPrice,
+            RATIO_SCALE,
+          ),
           expirySession: session.date,
         };
       }
