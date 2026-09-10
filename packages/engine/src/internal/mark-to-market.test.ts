@@ -189,6 +189,117 @@ describe("markToMarket", () => {
     expect(result.value.totals.greeks.delta).toBe(decimalString("0.000000"));
   });
 
+  it("aggregates a hand-computed, non-zero totals.greeks across two stock-only operations (item 6)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null },
+        { ticker: "VALE3", asOf: at, last: decimalString("60.00"), bid: null, ask: null },
+      ],
+    };
+    const longPetr = stockOperation({
+      id: "op-long-petr",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+        },
+      ],
+    });
+    const shortVale = stockOperation({
+      id: "op-short-vale",
+      underlying: "VALE3",
+      legs: [
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "VALE3",
+          quantity: quantity(40),
+          entryPrice: decimalString("55.00"),
+        },
+      ],
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [longPetr, shortVale], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A stock leg always prices delta 1 per unit (price-operation.ts); a long 100-share
+    // operation contributes +100, a short 40-share operation contributes -40: 100 - 40 = 60.
+    expect(result.value.totals.greeks).toEqual({
+      delta: decimalString("60.000000"),
+      gamma: decimalString("0.000000"),
+      theta: decimalString("0.000000"),
+      vega: decimalString("0.000000"),
+      rho: decimalString("0.000000"),
+    });
+  });
+
+  it("does not double count a ticker held both as a standalone position and inside an operation (item 6)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+    };
+    const position: Position = {
+      ticker: "PETR4",
+      quantity: signedQuantity(50),
+      averageCost: decimalString("10.00"),
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+    });
+    const result = markToMarket(
+      { view, at, positions: [position], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // ADR-0013 "totals are cash plus position values only": the operation's own
+    // unrealizedPnl (100 shares * R$2.00 = R$200.00) must not add to the portfolio total on
+    // top of the standalone position's own (50 shares * R$2.00 = R$100.00).
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(200_00));
+    expect(result.value.positions[0]?.unrealizedPnl).toBe(centavos(100_00));
+    expect(result.value.totals.unrealizedPnl).toBe(centavos(100_00));
+  });
+
+  it("computes openOperationCount as operations.length - 1 for every operation in the same call (item 6)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+    };
+    const profile: RiskProfile = {
+      declaredCapital: centavos(1_000_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1.00"),
+        maxExposurePerOperation: decimalString("1.00"),
+        maxOpenOperations: 2,
+        maxPremiumBought: decimalString("1.00"),
+      },
+    };
+    const operations = [stockOperation({ id: "op-1" }), stockOperation({ id: "op-2" })];
+    const result = markToMarket(
+      { view, at, positions: [], operations, cash: centavos(0), riskProfile: profile },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Two operations at a limit of 2 must not breach: each operation's own
+    // openOperationCount is operations.length - 1 = 1, so 1 + 1 = 2, at the limit, not over.
+    expect(result.value.limitBreaches.filter((b) => b.limit === "maxOpenOperations")).toEqual([]);
+  });
+
   it("reports a breach on the portfolio's limitBreaches when an operation exceeds a risk-profile limit", () => {
     const view: MarketView = {
       ...baseView,
