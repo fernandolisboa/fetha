@@ -12,6 +12,8 @@ const en = {
     save: "Save operation",
     saved: "Operation saved.",
     saveError: "Could not save this operation.",
+    saveErrorNoMarketPrice:
+      "One or more legs no longer have a market price; re-price before saving again.",
     notes: {
       no_market_price: "No market price for one or more legs; using the fair value estimate.",
       risk_free_rate_defaulted: "No CDI rate found; a default risk-free rate was used.",
@@ -112,6 +114,8 @@ const ptBR = {
     save: "Salvar operação",
     saved: "Operação salva.",
     saveError: "Não foi possível salvar esta operação.",
+    saveErrorNoMarketPrice:
+      "Uma ou mais pernas perderam o preço de mercado; precifique novamente antes de salvar.",
     notes: {
       no_market_price:
         "Faltou preço de mercado para uma ou mais pernas; usando a estimativa de valor justo.",

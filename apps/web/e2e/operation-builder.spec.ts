@@ -89,11 +89,12 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await expect(page.getByText("sem perfil de risco")).not.toBeVisible();
 
   // The breach is re-confirmed against a fresh re-pricing before it is
-  // ever persisted (round 2 item 3): the first click only re-prices and
-  // arms confirmation, the second one actually saves.
+  // ever persisted (round 2 item 3), but since the fresh breach set
+  // matches the one the user is already looking at, the click that says
+  // "record anyway" both re-prices and saves in one step (defect found in
+  // E2E against preview: the two-step confirm must not make a breached
+  // save unreachable).
   const recordAnyway = page.getByRole("button", { name: "Registrar mesmo assim" });
-  await recordAnyway.click();
-  await expect(page.getByText("Operação salva.")).not.toBeVisible();
   await recordAnyway.click();
   await expect(page.getByText("Operação salva.")).toBeVisible();
 });

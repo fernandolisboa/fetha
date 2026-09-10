@@ -9,7 +9,7 @@ import {
   type ContemplatedLeg,
   type Structure,
 } from "@fetha/contracts";
-import type { NoteCode, OperationPricing } from "@fetha/engine";
+import type { LimitBreach, NoteCode, OperationPricing } from "@fetha/engine";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,13 @@ function applyValuations(legs: BuilderLeg[], pricing: OperationPricing): Builder
   }));
 }
 
+function breachSignature(breaches: LimitBreach[]): string {
+  return breaches
+    .map((breach) => breach.limit)
+    .sort()
+    .join(",");
+}
+
 export function OperationBuilderForm({
   structures,
   hasRiskProfile,
@@ -90,7 +97,6 @@ export function OperationBuilderForm({
   const [priceError, setPriceError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [breachesConfirmed, setBreachesConfirmed] = useState(false);
   const [pending, setPending] = useState(false);
   const pricingRequestId = useRef(0);
   const chainRequestId = useRef(0);
@@ -108,7 +114,6 @@ export function OperationBuilderForm({
     invalidateInFlightPricing();
     setPricing(null);
     setSavedId(null);
-    setBreachesConfirmed(false);
   }
 
   function selectStructure(nextId: string) {
@@ -180,7 +185,6 @@ export function OperationBuilderForm({
     setPriceError(null);
     setSaveError(null);
     setSavedId(null);
-    setBreachesConfirmed(false);
     setPending(true);
     const requestId = pricingRequestId.current + 1;
     pricingRequestId.current = requestId;
@@ -216,6 +220,8 @@ export function OperationBuilderForm({
             setPricing(result.pricing);
             setLegs((current) => applyValuations(current, result.pricing));
             router.refresh();
+          } else if (result.error === "no_market_price") {
+            setSaveError(t.builder.saveErrorNoMarketPrice);
           } else {
             setSaveError(t.builder.saveError);
           }
@@ -230,24 +236,23 @@ export function OperationBuilderForm({
   // A second click on an already-saved operation must not write a
   // duplicate row (round 2 item 3): once `savedId` is set the button is
   // disabled below, and this guard covers the click that can still land
-  // before that re-render does. When the current pricing carries a limit
-  // breach the user has not yet confirmed, the first click only re-prices
-  // (fresh data, not the possibly stale snapshot already on screen) and
-  // arms confirmation; only the next click — against that fresh
-  // re-pricing — actually persists, so a breach introduced by the market
-  // moving between `price()` and this click is never saved silently.
+  // before that re-render does.
+  //
+  // Every click re-prices before persisting, because the on-screen pricing
+  // can be stale by the time the user commits. If that fresh pricing
+  // carries the same set of limit breaches the user is already looking at
+  // (including none), the save proceeds in the same click: the breach was
+  // seen and confirmed by the "Registrar mesmo assim" click itself. Only
+  // when the fresh pricing introduces a breach that was not part of what
+  // the user acknowledged does it stop, show the updated notice, and wait
+  // for one more explicit click — now checked against that new baseline.
   function save() {
     const readyLegs = readyToPrice(legs);
     if (!readyLegs || !structure || savedId) return;
     setSaveError(null);
     setPending(true);
 
-    const hasUnconfirmedBreaches = (pricing?.limitBreaches.length ?? 0) > 0 && !breachesConfirmed;
-    if (!hasUnconfirmedBreaches) {
-      persist(readyLegs);
-      return;
-    }
-
+    const acknowledgedBreaches = breachSignature(pricing?.limitBreaches ?? []);
     const requestId = pricingRequestId.current + 1;
     pricingRequestId.current = requestId;
     startTransition(() => {
@@ -261,9 +266,9 @@ export function OperationBuilderForm({
           }
           setPricing(result.pricing);
           setLegs((current) => applyValuations(current, result.pricing));
-          if (result.pricing.limitBreaches.length > 0) {
+          const freshBreaches = breachSignature(result.pricing.limitBreaches);
+          if (freshBreaches !== acknowledgedBreaches) {
             setPending(false);
-            setBreachesConfirmed(true);
             return;
           }
           persist(readyLegs);
