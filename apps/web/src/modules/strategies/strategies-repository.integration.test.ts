@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 function decimalString(value: string): DecimalString {
@@ -7,6 +8,7 @@ function decimalString(value: string): DecimalString {
 
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { strategyVersions } from "@/db/schema/strategies";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import {
@@ -180,6 +182,40 @@ describe("StrategiesRepository immutability", () => {
 
     const final = await repository.findMine(created.id);
     expect(final.versions.map((v) => v.versionNumber)).toEqual([1, 2, 3]);
+  });
+
+  it("the database refuses an UPDATE on strategy_versions, from any code path", async () => {
+    const db = getDb();
+    const email = uniqueEmail("trigger");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+
+    const created = await repository.createWithVersion(definition({ name: "V1" }));
+    const versionId = created.versions[0]?.id;
+    if (!versionId) {
+      throw new Error("expected a version to be created");
+    }
+
+    let caught: unknown;
+    try {
+      await db
+        .update(strategyVersions)
+        .set({ definitionDigest: "tampered" })
+        .where(eq(strategyVersions.id, versionId));
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    const cause = caught instanceof Error ? caught.cause : undefined;
+    const causeMessage = cause instanceof Error ? cause.message : String(cause);
+    expect(causeMessage).toMatch(/immutable/);
+
+    const [row] = await db
+      .select({ definitionDigest: strategyVersions.definitionDigest })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, versionId));
+    expect(row?.definitionDigest).not.toBe("tampered");
   });
 });
 
