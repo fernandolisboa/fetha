@@ -2837,4 +2837,45 @@ describe("runBacktest — option structures (#23)", () => {
     const fillsAfterExpiry = run.fills.filter((f) => f.operationId === op.id && f.session > expiry);
     expect(fillsAfterExpiry).toEqual([]);
   });
+
+  it("retries an option entry across three untraded sessions then records a MissedEntry with reason no_trades (ADR-0014 Q38)", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[4] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      // Priced (so the signal-time selection and sizing preview succeed) but never traded
+      // (tradedQuantity 0) for the three retry sessions: the fill itself never happens.
+      optionPrices: days
+        .slice(0, 5)
+        .map((d, i) => optionDayPrice("PETR4C11", d, "1.00", i === 0 ? 10 : 0)),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(run.fills).toEqual([]);
+    expect(run.missedEntries).toHaveLength(1);
+    expect(run.missedEntries[0]).toMatchObject({
+      ticker: "PETR4",
+      sessionsTried: 3,
+      reason: "no_trades",
+    });
+  });
 });
