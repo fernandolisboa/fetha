@@ -813,6 +813,8 @@ describe("runBacktest — errors", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("checkpoint_mismatch");
+    if (result.error.code !== "checkpoint_mismatch") return;
+    expect(result.error.receivedDigest).toBe("deadbeef");
   });
 });
 
@@ -1887,6 +1889,42 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         slippageEntries: [{ session: "2024-01-02", amount: "nope" }],
       }),
     ],
+    // Round 3 item 1: residualAvgCostCentavos passes typeof === "string" but is not a decimal
+    // string a caller hand-edited or truncated a checkpoint field into — new Decimal("nope")
+    // must never reach the resumed run as a thrown DecimalError.
+    [
+      "a pendingSettlements entry has a non-decimal residualAvgCostCentavos string",
+      (valid: object) => ({
+        ...valid,
+        pendingSettlements: {
+          "op-1": {
+            op: {},
+            settlement: [],
+            pnlSoFar: 0,
+            optionGainSoFarCentavos: 0,
+            residualQuantity: 100,
+            residualAvgCostCentavos: "nope",
+            expirySession: "2024-01-02",
+          },
+        },
+      }),
+    ],
+    // Round 3 item 1: an openOperations leg's entryPrice is the same class of caller-owned
+    // DecimalString field; a corrupt one must never reach parseDecimal deep in the resumed run.
+    [
+      "an openOperations leg has a non-decimal entryPrice string",
+      (valid: object) => ({
+        ...valid,
+        openOperations: [
+          {
+            id: "op-1",
+            legs: [
+              { role: "stock", side: "buy", ticker: "PETR4", quantity: 100, entryPrice: "nope" },
+            ],
+          },
+        ],
+      }),
+    ],
   ])(
     "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
     (_label, corrupt: (valid: object) => unknown) => {
@@ -2521,6 +2559,11 @@ describe("runBacktest — option structures (#23)", () => {
     const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
     expect(totalPnl).toBe(finalCash - config.initialCapital);
     expect(op.pnl).toBe(centavos(-1359968));
+    // The expiry-session equity point still marks the 229-share residual short at the
+    // session's own close (45.00, before the next session's own fill closes it): cash
+    // 671 147 minus that mark-to-market liability nets to −359 353.
+    const expiryEquityPoint = run.equityCurve.find((p) => p.session === expiry);
+    expect(expiryEquityPoint).toMatchObject({ cash: centavos(671147), equity: centavos(-359353) });
   });
 
   const bullCallSpread: Structure = {
@@ -3052,6 +3095,11 @@ describe("runBacktest — option structures (#23)", () => {
     // No fill trades the residual: it is a mark, not a trade, when the period ends first.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
     expect(residualFill).toBeUndefined();
+    expect(op.residualSettledBy).toBe("period_end");
+    // A period_end residual is a mark, not a realized trade: it is excluded from both
+    // winRate and profitFactor, leaving neither computable from this run's single operation.
+    expect(run.metrics.winRate).toBeNull();
+    expect(run.metrics.profitFactor).toBeNull();
   });
 
   // Round 2 item 9 (coverage restoration): resolveOperationExpiry's own missing_instrument
@@ -3358,6 +3406,11 @@ describe("runBacktest — option structures (#23)", () => {
     // No fill trades the residual: it is a mark, not a trade, when the period ends first.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
     expect(residualFill).toBeUndefined();
+    expect(op.residualSettledBy).toBe("period_end");
+    // A period_end residual is a mark, not a realized trade: it is excluded from both
+    // winRate and profitFactor, leaving neither computable from this run's single operation.
+    expect(run.metrics.winRate).toBeNull();
+    expect(run.metrics.profitFactor).toBeNull();
   });
 
   it("closes an option operation still open at period_end at its own market mark, before its own expiry", () => {
@@ -3594,6 +3647,48 @@ describe("runBacktest — option structures (#23)", () => {
       sessionsTried: 3,
       reason: "no_trades",
     });
+  });
+
+  // Round 3 item 6: no_series_match is reachable at fill time, not only at signal time
+  // (already covered in evaluate-strategy.test.ts), when the series a signal selected
+  // expires between the signal session and the retry that follows a failed fill.
+  it("finalizes a missed entry as no_series_match when the signaled series expires before the failed fill can be retried", () => {
+    const days = businessDays(20);
+    const expiry = days[1] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 1 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[2] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      // Priced only at the signal session (so the signal-time selection succeeds); no row on
+      // the fill session itself, so the fill fails and the pending entry is retried one
+      // session later — by which point the only listed series has already expired
+      // (business_days min:1 max:1 requires an expiry strictly after that same later
+      // session's own instant), leaving no candidate series to re-select: no_series_match,
+      // not no_trades.
+      optionPrices: [optionDayPrice("PETR4C11", days[0] as string, "1.00")],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(run.fills).toEqual([]);
+    expect(run.missedEntries).toHaveLength(1);
+    expect(run.missedEntries[0]).toMatchObject({ ticker: "PETR4", reason: "no_series_match" });
   });
 
   it("returns insufficient_data (option collection) when a resumed view can't mark an open option leg mid-run", () => {

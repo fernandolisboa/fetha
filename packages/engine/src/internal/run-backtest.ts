@@ -186,6 +186,27 @@ function isValidPendingExit(value: unknown): boolean {
   return isPlainObject(value) && typeof value.operationId === "string" && isPlainObject(value.rule);
 }
 
+// Every `DecimalString` field on a resumed checkpoint is only `typeof === "string"` away from
+// user-editable JSON: a value like `"nope"` passes that check but blows up `new Decimal(...)`
+// deep inside the run. Checked once here so every corrupt decimal field is a typed
+// checkpoint_mismatch, never a thrown DecimalError partway through the resumed run.
+function isDecimalString(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    return new Decimal(value).isFinite();
+  } catch {
+    return false;
+  }
+}
+
+function isValidOperationLeg(value: unknown): boolean {
+  return isPlainObject(value) && isDecimalString(value.entryPrice);
+}
+
+function isValidOperation(value: unknown): boolean {
+  return isPlainObject(value) && Array.isArray(value.legs) && value.legs.every(isValidOperationLeg);
+}
+
 function isValidPendingSettlement(value: unknown): boolean {
   return (
     isPlainObject(value) &&
@@ -201,7 +222,7 @@ function isValidPendingSettlement(value: unknown): boolean {
     // resumed checkpoint carrying one with a zero residualQuantity is corrupt input, not a
     // shape `toQuantity(Math.abs(0))` should throw an invariant over on the next session.
     value.residualQuantity !== 0 &&
-    typeof value.residualAvgCostCentavos === "string" &&
+    isDecimalString(value.residualAvgCostCentavos) &&
     typeof value.expirySession === "string"
   );
 }
@@ -264,6 +285,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
   }
 
   if (!(raw.equityCurve as unknown[]).every(isValidEquityPoint)) return false;
+  if (!(raw.openOperations as unknown[]).every(isValidOperation)) return false;
   if (!Object.values(raw.pendingEntries as Record<string, unknown>).every(isValidPendingEntry)) {
     return false;
   }
