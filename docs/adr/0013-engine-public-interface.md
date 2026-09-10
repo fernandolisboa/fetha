@@ -1588,12 +1588,14 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
 ### #23 addendum: option structures in `evaluateStrategy` and `runBacktest`
 
 Issue #23 lifts the stock-only scope #15 and #16 imposed: both `evaluateStrategy` and
-`runBacktest` now evaluate and backtest structures with option legs, by delegating strike/expiry
-selection and pricing to `priceOperation`'s own internals (`resolveLegSelection`,
-`priceConcreteLegs`, `valueLegs`) rather than a second pricing path. This closes the interim
-contradiction the #21 addendum flagged: `capabilities().strikeSelections` already reported
-`delta`/`moneyness`/`nearest` as implemented while `evaluateStrategy` refused every one of them;
-now the vocabulary and the evaluator agree everywhere a caller can check.
+`runBacktest` now evaluate and backtest structures with option legs. Neither invents a second
+pricing path: entry signals delegate strike/expiry selection and pricing to `priceOperation`
+itself; exit rules and `runBacktest`'s own fills delegate to `priceLegsAt`, `priceOperation`'s
+public per-instant pricing seam (`price-operation.ts`'s own internals — `resolveLegSelection`,
+`priceConcreteLegs`, `valueLegs` — stay private, called only from within that module). This
+closes the interim contradiction the #21 addendum flagged: `capabilities().strikeSelections`
+already reported `delta`/`moneyness`/`nearest` as implemented while `evaluateStrategy` refused
+every one of them; now the vocabulary and the evaluator agree everywhere a caller can check.
 
 - **`evaluateStrategy` entry signals for an option structure.** At an evaluation instant with no
   active operation, the engine builds the same `LegSelection` a human-priced proposal would
@@ -1607,19 +1609,28 @@ now the vocabulary and the evaluator agree everywhere a caller can check.
   the batch-wide validation this ADR already runs (positive candle prices, valid rates) leaves a
   reachable path to one from a well-formed call, so this is defense in depth, not a designed
   outcome.
-- **Exit rules unify stock and option legs through one pricing path.** `profit_target` and
-  `stop_loss`'s bases (ADR-0014 Q50) are computed once per operation by pricing every leg "given"
-  at its own `entryPrice` through `priceConcreteLegs` — the same function for a stock-only or an
-  option-legged operation, never a second formula. The per-instant comparison still rebases only a
-  stock leg's own ticker onto the entry scale for a corporate action (Q51): an option leg's listed
-  series is exchange-adjusted instead (a new ticker is listed post-adjustment), so its current
-  premium — read off the same mid/last/close/average ladder `priceOperation` uses, falling back to
-  the model's fair value when no market price is visible — is compared to `entryPrice` directly,
-  with no rebasing. When an operation's exit-rule bases cannot be priced at all (a caller-supplied
-  view missing a leg's series or candle history, the same class of gap `runBacktest`'s own
-  `missingMarkError` already reports elsewhere), the instant is recorded `insufficient_data` rather
-  than failing the whole call; a live evaluator degrading one operation's exit read for one instant
-  is preferable to refusing every other ticker's evaluation in the same batch.
+- **Exit rules unify stock and option legs through one pricing path, resolved per instant, never
+  once per batch (round 2 review item 2).** `profit_target` and `stop_loss` price every leg twice
+  per operation per evaluated instant `c`, both times through `priceLegsAt` — never a second,
+  hand-rolled ladder: once with every leg "given" at its own `entryPrice` (`computeExitRuleBases`,
+  ADR-0014 Q50's base), and once with no given price at all, so `priceLegsAt` resolves each leg's
+  own current market price off the same mid/last/close/average ladder `priceOperation` uses,
+  falling back to the model's fair value when no market price is visible
+  (`evaluateNumericExitRule`). Both calls share `priceLegsAt`'s own spot resolution
+  (`resolveUnderlyingSpot`'s quote-mid/last/close ladder) and rate resolution, so the base and the
+  current read are never computed against a different spot than each other. The current-side
+  comparison rebases only a stock leg's own premium onto the entry scale for a corporate action
+  (Q51, `splitFactor`): an option leg's listed series is exchange-adjusted instead (a new ticker
+  is listed post-adjustment), and `splitFactor` is always 1 for one, so dividing by it there is a
+  no-op. Resolved fresh at every instant `c` a since..at catch-up batch visits, not once for the
+  whole batch at `at`: an option leg's time-to-expiry and rates both move within a catch-up, so a
+  base resolved once at the batch's own end would let an earlier instant see a later instant's
+  rates (round 1 item 13). When either pricing call cannot price an operation at all (a
+  caller-supplied view missing a leg's series or candle history, the same class of gap
+  `runBacktest`'s own `missingMarkError` already reports elsewhere), the instant is recorded
+  `insufficient_data` rather than failing the whole call; a live evaluator degrading one
+  operation's exit read for one instant is preferable to refusing every other ticker's evaluation
+  in the same batch.
 - **`days_before_expiry` is implemented.** The number of sessions strictly after the evaluation
   instant's own session up to and including `op.expiry`, read from the same `view.calendar` every
   other calendar lookup in this ADR uses; the rule fires when that count is at or below
@@ -1640,16 +1651,20 @@ now the vocabulary and the evaluator agree everywhere a caller can check.
   half its legs and leaves the rest pending, which would leave an unhedged position the strategy
   never asked for. Corporate-action rebasing (Q51) stays scoped to a stock leg's own ticker for the
   same exchange-adjustment reason exit rules do; an option leg's fill quantity is never rescaled.
-- **Settlement in a run is implemented in `run-backtest.ts` directly**, not by calling a
-  `proposeSettlement` seam: at this ADR's time of writing `proposeSettlement` is itself still
-  unimplemented (the #21 addendum), so #23 implements the exercise/assignment rule ADR-0014 Q41
-  already specifies (in-the-money by any amount, at the expiry session's close) inline, once, in
-  `resolveExpiringOperations`. **This is a seam left for #25** (mark-to-market and
-  `proposeSettlement`, `origin/25-engine-mark-to-market` at the time #23 was implemented): once
-  `propose-settlement.ts` lands, `resolveExpiringOperations`'s settlement-decision logic (which leg
-  is in the money, its intrinsic value, the outcome) is a candidate to delegate to that module the
-  same way fills already delegate to `priceOperation`, leaving `run-backtest.ts` only the
-  scheduling, fill and residual-accounting concerns proper to a backtester.
+- **Settlement in a run is implemented in `run-backtest.ts` directly**, not by calling
+  `propose-settlement.ts`'s own settlement decision: at #23's own time of writing
+  `proposeSettlement` was itself still unimplemented (the #21 addendum), so #23 implemented the
+  exercise/assignment rule ADR-0014 Q41 already specifies (in-the-money by any amount, at the
+  expiry session's close) inline, once, in `resolveExpiringOperations`. `propose-settlement.ts`
+  has since landed (#25, merged as #61): `proposeSettlement` now exists, and its own `settleLeg`
+  makes exactly this same in-the-money/intrinsic-value/outcome decision — currently a private
+  function, called only from within that module, never from `run-backtest.ts`. **This is a seam
+  left for #72**: `resolveExpiringOperations`'s settlement-decision block
+  (`run-backtest.ts:1236-1300` at #23 round 2's own time of writing) is a candidate to delegate to
+  an exported `settleLeg` (or a thin wrapper around it) the same way fills already delegate to
+  `priceOperation`, leaving `run-backtest.ts` only the scheduling, fill-cost overlay, residual
+  bucketing, cash and tax concerns proper to a backtester — never the settlement decision itself,
+  duplicated a second time.
   - **Residual accounting is average-cost matching, not a leg-by-leg pairing.** Every stock-typed
     contribution touching an operation's expiry session — its own stock leg, if any, and every
     settlement fill an exercise or assignment produces — is bucketed into a total bought quantity

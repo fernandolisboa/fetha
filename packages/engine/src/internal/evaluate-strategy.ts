@@ -38,6 +38,7 @@ import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
+import { validateViewIntegrity } from "./validate-view-integrity";
 
 const sizingDetail: Record<StockSizingReason, string> = {
   no_declared_capital: "no declared capital to size against",
@@ -157,6 +158,13 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
 }
 
 function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluation> | null {
+  // Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
+  // (round 2 item 13), the same seam markToMarket and proposeSettlement already share:
+  // this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
+  // never had.
+  const viewIntegrityError = validateViewIntegrity(input.view);
+  if (viewIntegrityError) return { ok: false, error: viewIntegrityError };
+
   const instrumentDupe = sortUnique(input.instruments, (t) => t, codeUnitCompare);
   if (!instrumentDupe.ok) {
     return invalidInput("instruments", `duplicate instrument ${instrumentDupe.duplicateKey}`);
@@ -170,18 +178,6 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   );
   if (!operationIdDupe.ok) {
     return invalidInput("openOperations", `duplicate operation id ${operationIdDupe.duplicateKey}`);
-  }
-
-  const candleDupe = sortUnique(
-    input.view.candles,
-    (c) => `${c.ticker}|${c.timeframe}|${c.asOf}`,
-    (a, b) =>
-      codeUnitCompare(a.ticker, b.ticker) ||
-      codeUnitCompare(a.timeframe, b.timeframe) ||
-      compareInstants(a.asOf, b.asOf),
-  );
-  if (!candleDupe.ok) {
-    return invalidInput("view.candles", `duplicate candle row for ${candleDupe.duplicateKey}`);
   }
 
   for (const [index, c] of input.view.candles.entries()) {

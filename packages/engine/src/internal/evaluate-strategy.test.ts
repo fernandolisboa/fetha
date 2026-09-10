@@ -1313,6 +1313,30 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.error).toMatchObject({ path: "view.corporateActions" });
   });
 
+  // Round 2 item 13: validateBatchInvariants now delegates to validateViewIntegrity, which
+  // it never called before — this is a genuinely new check, not a message-only rename.
+  it("rejects a duplicate (ticker, asOf) pair in optionPrices as invalid_input", () => {
+    const dayPrice = {
+      ticker: "PETR4C40",
+      session: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      average: decimalString("1.00"),
+      close: decimalString("1.00"),
+      trades: 1,
+      tradedQuantity: 10,
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, optionPrices: [dayPrice, dayPrice] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.optionPrices" });
+  });
+
   it("rejects a duplicate (series, asOf) pair in macro as invalid_input", () => {
     const point = {
       series: "cdi" as const,

@@ -405,7 +405,7 @@ function applyRiskLimits(
   return limitBreaches;
 }
 
-export type ValuedLegs = {
+type ValuedLegs = {
   priced: PricedLeg[];
   notes: Note[];
   netPremiumCentavos: Decimal;
