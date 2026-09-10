@@ -86,17 +86,23 @@ the advisory lock: that is what makes it visible to `reapStaleRunningRuns` the m
 starts, instead of only once it has already moved off `running` (which made the stale-run reaper
 permanently unreachable in an earlier version). Everything after that — the re-check for a
 `succeeded` row a concurrent winner already wrote, the fetch-plus-write `run()` callback, and the
-`succeeded` marker itself — runs inside the same locked transaction (`withSourceLock`). The
-`succeeded` write is nested in its own savepoint (`tx.transaction(...)`), not the lock's own
-transaction directly: two invocations that both call `startRun` before either acquires the lock
-will, once the second one gets the lock, always find the first's `succeeded` row already committed
-and skip without redoing the work — but if that race were ever lost (e.g. a hash collision on
-`hashtext(source)` serializing something unrelated), the savepoint means a `23505` on the
+`succeeded` marker itself — happens while `withSourceLock` holds `pg_advisory_xact_lock(source)`
+inside its own transaction. The `run()` callback itself still writes through the plain `db`
+handle, not the `tx` `withSourceLock` hands it: those writes autocommit statement by statement as
+they happen, never inside a database transaction the lock's own transaction could roll back;
+`pg_advisory_xact_lock` only serializes concurrent invocations at the application level, one at a
+time per source, for as long as the transaction holding it is open. The `succeeded` write is
+nested in its own savepoint (`tx.transaction(...)`) inside that same locked transaction: two
+invocations that both call `startRun` before either acquires the lock will, once the second one
+gets the lock, always find the first's `succeeded` row already committed and skip without redoing
+the work — but if that race were ever lost (e.g. a hash collision on `hashtext(source)`
+serializing something unrelated), the savepoint means a `23505` on the
 `(source, session) WHERE status = 'succeeded'` partial unique index rolls back only the marker
-write, not the `run()` writes already made in the surrounding transaction, and the loser's
-`running` row is deleted (`deleteRun`) rather than marked `failed`: the work already succeeded
-under the other run's id, so this was never a failure. A `failed` marker for a genuine error is
-still written with the plain `db` handle after the lock releases, unchanged.
+write; the loser's already-autocommitted `run()` writes are untouched, which is harmless because
+they wrote the same rows the winner did. The loser's `running` row is then deleted (`deleteRun`)
+rather than marked `failed`: the work already succeeded under the other run's id, so this was
+never a failure. A `failed` marker for a genuine error is still written with the plain `db` handle
+after the lock releases, unchanged.
 
 ## COTAHIST parser (`adapters/cotahist/parser.ts`, `adapters/cotahist/fetch.ts`)
 

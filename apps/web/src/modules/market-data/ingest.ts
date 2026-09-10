@@ -130,19 +130,23 @@ function isUniqueViolation(error: unknown): boolean {
 
 // Only the initial `running` row is inserted and committed with the plain
 // `db` handle before the lock is acquired, so `reapStaleRunningRuns` can see
-// and age it out even while this invocation waits on the lock. The
-// `succeeded` marker is written and committed from inside the same locked
-// transaction as the fetch-plus-write `run()` callback (docs/adr/0017): if it
-// were written after the lock released, a second invocation could acquire
-// the lock in the gap, find no succeeded row yet, redo the work, and then
-// collide on the partial unique index when it tries to record its own
-// `succeeded` row for the same (source, session). That collision is still
-// possible for two runs that both started concurrently before either
-// acquired the lock: the losing run's `finishRun` is attempted inside its
-// own savepoint (not the outer transaction directly), so a unique-violation
-// there rolls back only the marker write, never the `run()` writes already
-// made in the surrounding transaction, and is treated as `skipped`, not
-// `failed`, since the work already succeeded under the other run's id.
+// and age it out even while this invocation waits on the lock. The `run()`
+// callback itself still writes through the plain `db` handle, not the `tx`
+// `withSourceLock` hands it (docs/adr/0017): those writes autocommit
+// statement by statement as they happen and are never inside a database
+// transaction the lock could roll back; `pg_advisory_xact_lock` only
+// serializes concurrent invocations at the application level, holding the
+// lock until the transaction it lives in — the one that also writes the
+// `succeeded` marker — ends. The `succeeded` marker is written from inside
+// that same locked transaction so a second invocation that acquires the
+// lock next always finds it before deciding whether to redo the work. Two
+// runs that both started before either acquired the lock can still both
+// attempt the same (source, session): the loser's `finishRun` runs inside
+// its own savepoint (not the lock's transaction directly), so its
+// unique-violation on the partial index rolls back only that marker write —
+// never the loser's already-committed `run()` writes, which is fine because
+// they wrote the same rows the winner did — and is treated as `skipped`,
+// not `failed`, since the work already succeeded under the other run's id.
 export async function runSource(
   db: Database,
   source: IngestionSource,
