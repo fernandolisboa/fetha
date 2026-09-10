@@ -146,6 +146,36 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
     });
   });
 
+  it("does not note iv_from_average_price when the solve was suppressed for a stale mark across a corporate action (round 4 item 3)", () => {
+    const marketPrice = bsmPriceRaw({
+      s: 42,
+      k: 40,
+      t: 0.5,
+      r: 0.1,
+      q: 0,
+      sigma: 0.2,
+      right: "call",
+    });
+    const valuation = priceOptionLeg({
+      leg: hullCallLeg,
+      strike: decimalString("40.00"),
+      spot: decimalString("42.00"),
+      riskFreeRate: decimalString("0.10"),
+      dividendYield: decimalString("0.00"),
+      timeToExpiryYears: 0.5,
+      marketPrice: {
+        value: decimalString(marketPrice.toFixed(2)),
+        source: "average",
+        stale: { session: "2024-01-01" },
+      },
+      givenVolatility: null,
+      suppressStaleImpliedVolatility: true,
+    });
+    expect(valuation.notes).not.toContainEqual(
+      expect.objectContaining({ code: "iv_from_average_price" }),
+    );
+  });
+
   it("notes no_market_price and leaves fairValue null when there is neither a market price nor a given volatility", () => {
     const valuation = priceOptionLeg({
       leg: hullCallLeg,

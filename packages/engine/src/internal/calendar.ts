@@ -1,4 +1,4 @@
-import type { Instant } from "@fetha/contracts";
+import type { Instant, SessionDate } from "@fetha/contracts";
 import type { TradingSession } from "../api";
 import { compareInstants, isAtOrBefore } from "./instant";
 
@@ -20,4 +20,14 @@ export function sessionAtOrBefore(
     if (isAtOrBefore(session.open, at)) found = session;
   }
   return found;
+}
+
+// proposeSettlement's truncation instant is the expiry session's own close, which the
+// caller supplies only as a SessionDate (ADR-0013 #25 addendum): the exact session, not the
+// last one at or before an instant.
+export function sessionByDate(
+  calendar: readonly TradingSession[],
+  date: SessionDate,
+): TradingSession | null {
+  return calendar.find((session) => session.date === date) ?? null;
 }
