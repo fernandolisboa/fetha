@@ -684,6 +684,53 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
+  it("suppresses the implied-volatility solve for a stale option mark whose session precedes a visible ex-date on the underlying (round 3 item 9)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const leg = result.value.legs[0];
+    expect(leg?.stale).toEqual({ session: "2024-01-01" });
+    expect(leg?.impliedVolatility).toBeNull();
+    expect(leg?.volatilitySource).toBeNull();
+    expect(leg?.fairValue).toBeNull();
+    expect(leg?.greeks).toBeNull();
+    expect(leg?.notes).toContainEqual({
+      code: "stale_price_across_corporate_action",
+      message:
+        "the last traded price predates a corporate-action ex-date on the underlying; implied volatility is not solved from it",
+    });
+  });
+
   it("marks a stock leg's mark stale when the price row's session is earlier than the session of at", () => {
     const view: MarketView = {
       ...baseView,

@@ -191,6 +191,21 @@ function valueOneLeg(
   }
 
   const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
+  // A stale price whose own session predates a corporate-action ex-date visible on the
+  // underlying sits on a pre-action scale the current spot no longer shares: solving implied
+  // volatility from it would read the split itself as a phantom volatility move, not a real
+  // market view (round 3 item 9). `resolveLegMarketPrice` already gives the stale row's own
+  // session; suppress the solve whenever an ex-date falls strictly after it and at or before
+  // the mark session.
+  const staleSession = marketPrice?.stale?.session ?? null;
+  const suppressStaleImpliedVolatility =
+    staleSession !== null &&
+    view.corporateActions.some(
+      (f) =>
+        f.ticker === underlying &&
+        f.exDate > staleSession &&
+        (atSession === null || f.exDate <= atSession),
+    );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: series.strike,
@@ -200,6 +215,7 @@ function valueOneLeg(
     timeToExpiryYears: tte.years,
     marketPrice,
     givenVolatility: leg.volatility ?? null,
+    suppressStaleImpliedVolatility,
   });
   const premiumPerUnit = valuation.price
     ? parseDecimal(valuation.price)

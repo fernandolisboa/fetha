@@ -21,6 +21,12 @@ export type PriceOptionLegInput = {
   timeToExpiryYears: number;
   marketPrice: ResolvedMarketPrice | null;
   givenVolatility: DecimalString | null;
+  // A stale market price whose own session precedes a corporate-action ex-date visible on the
+  // underlying sits on a different price scale than the current spot: solving implied
+  // volatility from it against today's spot would read a phantom vol from the split itself,
+  // not a real market view (round 3 item 9). The caller (`valueOneLeg`) is the one that knows
+  // the underlying's own corporate-actions timeline, so it decides when to suppress this.
+  suppressStaleImpliedVolatility?: boolean;
 };
 
 const VOLATILITY_POINT = 0.01;
@@ -58,24 +64,33 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
 
   if (input.marketPrice) {
     const price = Number(input.marketPrice.value);
-    const solved = solveImpliedVolatilityRaw({ s, k, t, r, q, right, price });
-    if (solved.ok) {
-      impliedVolatility = toDecimalString(new Decimal(solved.sigma), RATIO_SCALE);
-      if (!input.givenVolatility) {
-        sigma = solved.sigma;
-        volatilitySource = input.marketPrice.stale ? "last_trade_implied" : "own_implied";
-      }
-    } else {
+    const suppressIv = Boolean(input.marketPrice.stale) && input.suppressStaleImpliedVolatility;
+    if (suppressIv) {
       notes.push({
-        code: "iv_not_converged",
-        message: "implied volatility did not converge from the visible market price",
+        code: "stale_price_across_corporate_action",
+        message:
+          "the last traded price predates a corporate-action ex-date on the underlying; implied volatility is not solved from it",
       });
-      const intrinsicFloor = right === "call" ? Math.max(s - k, 0) : Math.max(k - s, 0);
-      if (price < intrinsicFloor) {
+    } else {
+      const solved = solveImpliedVolatilityRaw({ s, k, t, r, q, right, price });
+      if (solved.ok) {
+        impliedVolatility = toDecimalString(new Decimal(solved.sigma), RATIO_SCALE);
+        if (!input.givenVolatility) {
+          sigma = solved.sigma;
+          volatilitySource = input.marketPrice.stale ? "last_trade_implied" : "own_implied";
+        }
+      } else {
         notes.push({
-          code: "below_intrinsic",
-          message: "market price is below the model's intrinsic value floor",
+          code: "iv_not_converged",
+          message: "implied volatility did not converge from the visible market price",
         });
+        const intrinsicFloor = right === "call" ? Math.max(s - k, 0) : Math.max(k - s, 0);
+        if (price < intrinsicFloor) {
+          notes.push({
+            code: "below_intrinsic",
+            message: "market price is below the model's intrinsic value floor",
+          });
+        }
       }
     }
     if (input.marketPrice.source === "average") {

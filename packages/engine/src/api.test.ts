@@ -260,6 +260,7 @@ describe("closed vocabularies", () => {
       "settlement_pending",
       "settlement_costs_not_modeled",
       "less_than_one_effective_unit",
+      "stale_price_across_corporate_action",
     ]);
   });
 

@@ -145,7 +145,8 @@ export type NoteCode =
   | "negative_cash"
   | "settlement_pending"
   | "settlement_costs_not_modeled"
-  | "less_than_one_effective_unit";
+  | "less_than_one_effective_unit"
+  | "stale_price_across_corporate_action";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -170,6 +171,7 @@ export const noteCodes = [
   "settlement_pending",
   "settlement_costs_not_modeled",
   "less_than_one_effective_unit",
+  "stale_price_across_corporate_action",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1700,7 +1702,15 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   its own error path from the caller (`legPathAt`, threaded through `valueLegs`,
   `priceConcreteLegs` and `priceLegsAt`, defaulting to the plain `legs[i]` `priceOperation`
   needs), so `markToMarket` reports `operations[i].legs[j]` and `proposeSettlement` reports
-  `legs[j]`, both indexed by the leg's own position, never its ticker (round 3 item 8).
+  `legs[j]`, both indexed by the leg's own position, never its ticker (round 3 item 8). A stale
+  option mark (Q42) whose own session predates a corporate-action ex-date visible on the
+  underlying sits on a pre-action price scale the current spot no longer shares; solving implied
+  volatility from it would read the split itself as a phantom volatility move. `priceOptionLeg`
+  gained `suppressStaleImpliedVolatility`, set by `valueOneLeg` whenever such an ex-date falls
+  strictly after the stale row's own session and at or before the mark session: the solve is
+  skipped, `impliedVolatility`, `volatilitySource`, `fairValue` and `greeks` stay `null`, and the
+  additive `stale_price_across_corporate_action` note explains why, alongside `stale_price`
+  (round 3 item 9).
 
 ## Considered options
 
