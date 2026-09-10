@@ -31,17 +31,13 @@ import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
-import { priceOptionLeg } from "./option-pricing";
+import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
-import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
-import { resolveLegMarketPrice } from "./resolve-market-price";
-import { resolveSeries } from "./resolve-series";
 import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
-import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 const sizingDetail: Record<StockSizingReason, string> = {
   no_declared_capital: "no declared capital to size against",
@@ -135,6 +131,10 @@ function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | n
   return null;
 }
 
+// Delegates the rest of an open operation's coherence to `validateOperationCoherence`
+// (round 2 item 3): a hand-rolled copy here previously skipped `series.underlying`,
+// `series.right` and `openedAt <= at`, so `evaluateStrategy` accepted an operation
+// `markToMarket` would reject.
 function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const instrumentSet = new Set(input.instruments);
   const openOperations = input.openOperations ?? [];
@@ -145,37 +145,13 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
         "an open operation's underlying must be among the batch's instruments",
       );
     }
-    const hasOptionLegs = op.legs.some((leg) => leg.role !== "stock");
-    if (!hasOptionLegs && op.expiry !== null) {
-      return invalidInput(
-        `openOperations[${String(index)}].expiry`,
-        "a stock-only operation must not have an expiry",
-      );
-    }
-    if (hasOptionLegs && op.expiry === null) {
-      return invalidInput(
-        `openOperations[${String(index)}].expiry`,
-        "an operation with option legs must carry the expiry those legs share",
-      );
-    }
-    for (const [legIndex, leg] of op.legs.entries()) {
-      if (leg.role === "stock") {
-        if (leg.ticker !== op.underlying) {
-          return invalidInput(
-            `openOperations[${String(index)}].legs[${String(legIndex)}].ticker`,
-            "a stock leg's ticker must match the operation's underlying",
-          );
-        }
-        continue;
-      }
-      const series = resolveSeries(input.view, leg.ticker, input.at);
-      if (series && series.expiry !== op.expiry) {
-        return invalidInput(
-          `openOperations[${String(index)}].legs[${String(legIndex)}].ticker`,
-          "an option leg's listed expiry must match the operation's own expiry",
-        );
-      }
-    }
+    const coherenceError = validateOperationCoherence(
+      input.view,
+      op,
+      input.at,
+      `openOperations[${String(index)}]`,
+    );
+    if (coherenceError) return { ok: false, error: coherenceError };
   }
   return null;
 }
@@ -294,6 +270,18 @@ function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Ma
 
 type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
 
+const exitRuleProvenanceBase: {
+  engineVersion: string;
+  pricingModel: "bsm_continuous_yield";
+  dataVersion: null;
+  datasetNotes: string[];
+} = {
+  engineVersion: ENGINE_VERSION,
+  pricingModel: "bsm_continuous_yield",
+  dataVersion: null,
+  datasetNotes: [],
+};
+
 // Both a stock-only and an option operation share one pricing path (priceLegsAt): every leg
 // is priced "given" at its own entryPrice, so the base never drifts as the position moves
 // (ADR-0014 Q50). `priceLegsAt` resolves the underlying's own current spot and rates itself
@@ -321,12 +309,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
     legs,
     undefined,
     undefined,
-    {
-      engineVersion: ENGINE_VERSION,
-      pricingModel: "bsm_continuous_yield",
-      dataVersion: null,
-      datasetNotes: [],
-    },
+    exitRuleProvenanceBase,
     "spot",
   );
   if (!result.ok) return null;
@@ -336,74 +319,58 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   return { premiumBase, maxLossBase };
 }
 
-// An option leg's own listed series is exchange-adjusted for a corporate action of the
-// underlying (a new ticker is listed post-adjustment); only the stock leg's own ticker
-// persists unchanged through a split, so only a stock leg's comparison is rebased onto the
-// entry scale (ADR-0013 "Exit rule evaluation", extended by the #23 addendum).
-function currentLegPnlCentavos(
-  leg: OperationLeg,
-  view: MarketView,
-  at: Instant,
-  currentClose: DecimalString,
-  splitFactor: Decimal,
-  riskFreeRate: DecimalString,
-  dividendYield: DecimalString,
-): Decimal | null {
-  const legSign = leg.side === "buy" ? 1 : -1;
-  if (leg.role === "stock") {
-    const currentOnEntryScale = parseDecimal(currentClose).div(splitFactor);
-    const entry = parseDecimal(leg.entryPrice);
-    return currentOnEntryScale.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity);
-  }
-  const series = resolveSeries(view, leg.ticker, at);
-  if (!series) return null;
-  const tteResult = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
-  if (!tteResult.ok) return null;
-  const marketPrice = resolveLegMarketPrice(view, leg.ticker, at);
-  const valuation = priceOptionLeg({
-    leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
-    strike: series.strike,
-    spot: currentClose,
-    riskFreeRate,
-    dividendYield,
-    timeToExpiryYears: tteResult.years,
-    marketPrice,
-    givenVolatility: null,
-  });
-  const currentPremium = valuation.price
-    ? parseDecimal(valuation.price)
-    : valuation.fairValue
-      ? parseDecimal(valuation.fairValue)
-      : null;
-  if (currentPremium === null) return null;
-  const entry = parseDecimal(leg.entryPrice);
-  return currentPremium.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity);
-}
-
+// The current side of a profit_target/stop_loss comparison prices every leg through the
+// same `priceLegsAt` seam `computeExitRuleBases` already uses for the base side (round 2
+// item 2): one call, one spot (priceLegsAt's own quote-mid/last/close ladder), one rate
+// resolution, per operation per instant — never a second, stale-unaware pricing ladder
+// re-implemented here leg by leg against a different spot (`currentClose`) than the base
+// was computed against. An option leg's own listed series is exchange-adjusted for a
+// corporate action of the underlying (a new ticker is listed post-adjustment); only the
+// stock leg's own ticker persists unchanged through a split, so only a stock leg's premium
+// is rebased onto `op.legs[i].entryPrice`'s own scale before the diff (ADR-0013 "Exit rule
+// evaluation", extended by the #23 addendum) — `splitFactor` is always 1 for an option leg
+// (Q51: a split forces a series rollover, never a factor on the option's own ticker), so
+// dividing by it is a no-op there.
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
   view: MarketView,
   at: Instant,
-  currentClose: DecimalString,
   bases: ExitRuleBases,
   splitFactor: Decimal,
-  riskFreeRate: DecimalString,
-  dividendYield: DecimalString,
 ): { fired: boolean; zeroBase: boolean; unknown: boolean } {
+  const legs: LegInput[] = op.legs.map((leg) => ({
+    role: leg.role,
+    side: leg.side,
+    ticker: leg.ticker,
+    quantity: leg.quantity,
+  }));
+  const pricingResult = priceLegsAt(
+    view,
+    at,
+    op.underlying,
+    legs,
+    undefined,
+    undefined,
+    exitRuleProvenanceBase,
+    "spot",
+  );
+  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true };
   let pnlCentavos = new Decimal(0);
-  for (const leg of op.legs) {
-    const legPnl = currentLegPnlCentavos(
-      leg,
-      view,
-      at,
-      currentClose,
-      splitFactor,
-      riskFreeRate,
-      dividendYield,
+  for (const [index, leg] of op.legs.entries()) {
+    const valuation = pricingResult.value.legs[index];
+    const rawPremium = valuation?.price
+      ? parseDecimal(valuation.price)
+      : valuation?.fairValue
+        ? parseDecimal(valuation.fairValue)
+        : null;
+    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };
+    const currentPremium = leg.role === "stock" ? rawPremium.div(splitFactor) : rawPremium;
+    const legSign = leg.side === "buy" ? 1 : -1;
+    const entry = parseDecimal(leg.entryPrice);
+    pnlCentavos = pnlCentavos.add(
+      currentPremium.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
     );
-    if (legPnl === null) return { fired: false, zeroBase: false, unknown: true };
-    pnlCentavos = pnlCentavos.add(legPnl);
   }
   if (rule.kind === "profit_target") {
     if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
@@ -769,14 +736,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
       let instantFired = false;
       let instantUnknown = false;
       let zeroBaseDetail: string | null = null;
-      const riskFreeRateResult = resolveRiskFreeRate(input.view.macro, c);
-      const dividendYieldResult = resolveDividendYield(input.view.dividendYields, ticker, c);
-      // Every rate feeding an active operation's exit rules was already validated
-      // batch-wide (validateBatchInvariants), so neither can fail once an operation exists.
-      invariant(riskFreeRateResult.ok, "evaluateStrategy: view invariants were already validated");
-      invariant(dividendYieldResult.ok, "evaluateStrategy: view invariants were already validated");
-      const riskFreeRate = riskFreeRateResult.value;
-      const dividendYield = dividendYieldResult.value;
       for (const op of activeOps) {
         // Resolved at this same instant `c`, not once for the whole since..at batch at
         // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
@@ -801,17 +760,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           switch (rule.kind) {
             case "profit_target":
             case "stop_loss": {
-              const outcome = evaluateNumericExitRule(
-                rule,
-                op,
-                input.view,
-                c,
-                nominalCandle.close,
-                bases,
-                splitFactor,
-                riskFreeRate,
-                dividendYield,
-              );
+              const outcome = evaluateNumericExitRule(rule, op, input.view, c, bases, splitFactor);
               if (outcome.unknown) {
                 instantUnknown = true;
                 break;

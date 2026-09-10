@@ -933,8 +933,136 @@ describe("evaluateStrategy — stock-only strategies", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "invalid_input",
-      path: "openOperations[0].legs[0].ticker",
-      message: "an option leg's listed expiry must match the operation's own expiry",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's listed expiry does not match the operation's expiry",
+    });
+  });
+
+  // Round 2 item 3: `validateOpenOperations` used to be a hand-rolled copy of
+  // `validateOperationCoherence` that skipped `series.underlying`, `series.right` and
+  // `openedAt <= at`, so `evaluateStrategy` accepted an operation `markToMarket` would
+  // reject. It now delegates to `validateOperationCoherence` and rejects the same three
+  // shapes markToMarket already does.
+  it("rejects an open operation whose option leg's listed underlying does not match the operation's underlying", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "VALE3C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-19",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [
+        {
+          ...callSeries("VALE3C40", "40.00", "2024-01-19", "2024-01-01T21:00:00.000Z"),
+          underlying: "VALE3",
+        },
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's listed underlying does not match the operation's underlying",
+    });
+  });
+
+  it("rejects an open operation whose option leg's role does not match its listed series' right", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-19",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-01-19", "2024-01-01T21:00:00.000Z")],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's role does not match its listed series' right",
+    });
+  });
+
+  it("rejects an open operation opened after the instant it is evaluated at", () => {
+    const stockOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: sessionAt(10),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(12),
+      candles: [dailyCandle("PETR4", 3, "10.00")],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: `${sessionAt(3)}T21:00:00.000Z`,
+      openOperations: [stockOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].openedAt",
+      message: "an operation cannot be opened after the instant it is valued at",
     });
   });
 
@@ -2261,7 +2389,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.error).toEqual({
       code: "invalid_input",
       path: "openOperations[0].expiry",
-      message: "an operation with option legs must carry the expiry those legs share",
+      message: "an operation with option legs must have an expiry",
     });
   });
 
