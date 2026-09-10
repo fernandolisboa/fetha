@@ -26,10 +26,18 @@ import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/opti
 
 const DEFAULT_MAX_DURATION_MS = 300_000;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
-// SGS is never backfilled before the calendar's own coverage starts;
-// resolveAsOfInstant throws for any point older than the earliest recorded
-// session (docs/adr/0017), so starting earlier would only fail loudly.
-const SGS_DEFAULT_START = `${String(FIRST_INGESTED_CALENDAR_YEAR)}-01-01`;
+// The sentinel used when no macro point has ever been ingested for a series
+// is the day *before* the calendar's own coverage starts, not that first day
+// itself: nextDay(sentinel) must land on the first calendar day so it is
+// requested, not treated as already ingested (docs/adr/0017). SGS is never
+// backfilled earlier than this: resolveAsOfInstant throws for any point
+// older than the earliest recorded session, so starting earlier would only
+// fail loudly.
+const SGS_DEFAULT_SINCE = `${String(FIRST_INGESTED_CALENDAR_YEAR - 1)}-12-31`;
+
+export function resolveSgsFromDate(latestIngested: string | undefined): string {
+  return nextDay(latestIngested ?? SGS_DEFAULT_SINCE);
+}
 
 export interface SourceOutcome {
   source: IngestionSource;
@@ -268,8 +276,8 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     async (session) => {
       let total = 0;
       for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
-        const since = (await latestMacroPointDate(db, series)) ?? SGS_DEFAULT_START;
-        const from = nextDay(since);
+        const latest = await latestMacroPointDate(db, series);
+        const from = resolveSgsFromDate(latest);
         if (from > session) {
           continue;
         }

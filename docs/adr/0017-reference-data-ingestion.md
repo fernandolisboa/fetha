@@ -162,8 +162,12 @@ annual Selic rate — a documented gap, not an oversight.
 
 `resolveAsOfInstant` also throws if the reference `date` it is given precedes the earliest session
 in the calendar it was handed, instead of silently resolving forward to that earliest session:
-`ingest()`'s `SGS_DEFAULT_START` is the first ingested calendar year (2024), not an earlier
-backfill date, so this only fires if a caller passes a date outside calendar coverage.
+`ingest()`'s `resolveSgsFromDate` requests from the first ingested calendar day (2024-01-01)
+onward, not an earlier backfill date, so this only fires if a caller passes a date outside
+calendar coverage. Its sentinel for "no macro point ever ingested" is 2023-12-31, one day
+_before_ that first calendar day, not the day itself: `resolveSgsFromDate` always resumes the day
+_after_ whatever it is given, so a same-day sentinel would skip requesting the first calendar
+day's own point (e.g. IPCA dated exactly 2024-01-01) forever.
 
 **`asOf` is the publication instant, not the reference date's open** (ADR-0013). The session close
 each point refers to is not when the rate becomes knowable:
