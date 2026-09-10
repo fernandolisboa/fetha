@@ -354,7 +354,21 @@ export function markToMarket(
     { ...zeroGreeks },
   );
 
-  const limitBreaches = operationValuations.flatMap((ov) => ov.pricing.limitBreaches);
+  // `maxOpenOperations` is a portfolio-wide count, not a per-operation one: every operation's
+  // own pricing call checks it against the same `operations.length` (ADR-0013 "totals ...
+  // openOperationCount"), so a breach shows up identically on every operation's own
+  // `pricing.limitBreaches` and flattening them naively reported N identical breaches
+  // (round 1 item 4). Report it at most once here, at the portfolio level, and flatten only
+  // the genuinely per-operation limits from each operation's own pricing.
+  const perOperationBreaches = operationValuations.flatMap((ov) =>
+    ov.pricing.limitBreaches.filter((b) => b.limit !== "maxOpenOperations"),
+  );
+  const openOperationsBreach = operationValuations
+    .flatMap((ov) => ov.pricing.limitBreaches)
+    .find((b) => b.limit === "maxOpenOperations");
+  const limitBreaches = openOperationsBreach
+    ? [...perOperationBreaches, openOperationsBreach]
+    : perOperationBreaches;
 
   return {
     ok: true,

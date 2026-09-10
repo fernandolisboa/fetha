@@ -220,6 +220,42 @@ describe("markToMarket", () => {
     expect(result.value.limitBreaches).toEqual(result.value.operations[0]?.pricing.limitBreaches);
   });
 
+  it("reports maxOpenOperations once on the portfolio even when every operation breaches it (item 4)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+    };
+    const profile: RiskProfile = {
+      declaredCapital: centavos(1_000_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1.00"),
+        maxExposurePerOperation: decimalString("1.00"),
+        maxOpenOperations: 2,
+        maxPremiumBought: decimalString("1.00"),
+      },
+    };
+    const operations = [
+      stockOperation({ id: "op-1" }),
+      stockOperation({ id: "op-2" }),
+      stockOperation({ id: "op-3" }),
+    ];
+    const result = markToMarket(
+      { view, at, positions: [], operations, cash: centavos(0), riskProfile: profile },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const openOperationsBreaches = result.value.limitBreaches.filter(
+      (b) => b.limit === "maxOpenOperations",
+    );
+    expect(openOperationsBreaches).toHaveLength(1);
+    expect(openOperationsBreaches[0]).toEqual({
+      limit: "maxOpenOperations",
+      value: decimalString("3.000000"),
+      allowed: decimalString("2.000000"),
+    });
+  });
+
   it("notes no_risk_profile when none is supplied", () => {
     const view: MarketView = {
       ...baseView,
