@@ -217,6 +217,25 @@ describe("StrategiesRepository immutability", () => {
       .where(eq(strategyVersions.id, versionId));
     expect(row?.definitionDigest).not.toBe("tampered");
   });
+
+  it("findMine parses each version's definition through strategyDefinitionSchema, rejecting a corrupt row", async () => {
+    const db = getDb();
+    const email = uniqueEmail("parse-on-read");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+
+    const created = await repository.createWithVersion(definition({ name: "V1" }));
+
+    await db.insert(strategyVersions).values({
+      strategyId: created.id,
+      versionNumber: 2,
+      definition: { name: "corrupt" } as unknown as StrategyDefinition,
+      definitionDigest: "irrelevant",
+    });
+
+    await expect(repository.findMine(created.id)).rejects.toThrow();
+  });
 });
 
 describe("StrategiesRepository sharing and copy", () => {

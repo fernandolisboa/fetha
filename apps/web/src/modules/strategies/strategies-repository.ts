@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import type { StrategyDefinition } from "@fetha/contracts";
+import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import { strategies, strategyVersions, strategyVisibilities } from "@/db/schema/strategies";
@@ -229,7 +229,23 @@ export class StrategiesRepository extends UserScopedRepository {
       .where(eq(strategyVersions.strategyId, strategyId))
       .orderBy(desc(strategyVersions.versionNumber))
       .limit(1);
-    return row;
+    return row ? this.parseVersionRow(row) : undefined;
+  }
+
+  private parseVersionRow(row: {
+    id: string;
+    versionNumber: number;
+    definition: unknown;
+    definitionDigest: string;
+    createdAt: Date;
+  }): StrategyVersionRecord {
+    return {
+      id: row.id,
+      versionNumber: row.versionNumber,
+      definition: strategyDefinitionSchema.parse(row.definition),
+      definitionDigest: row.definitionDigest,
+      createdAt: row.createdAt,
+    };
   }
 
   private async insertVersion(
@@ -281,7 +297,7 @@ export class StrategiesRepository extends UserScopedRepository {
       copiedFromStrategyId: string | null;
     },
   ): Promise<StrategyWithVersions> {
-    const versions = await db
+    const rows = await db
       .select()
       .from(strategyVersions)
       .where(eq(strategyVersions.strategyId, row.id))
@@ -293,7 +309,7 @@ export class StrategiesRepository extends UserScopedRepository {
       userId: row.userId,
       visibility: strategyVisibilitySchema.parse(row.visibility),
       copiedFromStrategyId: row.copiedFromStrategyId,
-      versions,
+      versions: rows.map((r) => this.parseVersionRow(r)),
     };
   }
 }
