@@ -115,11 +115,41 @@ describe("computeBacktestMetrics", () => {
       slippage: centavos(0),
     });
     expect(negativeMetrics.cagr).toBeNull();
-    expect(negativeMetrics.sharpe).not.toBeNull();
+    expect(negativeMetrics.sharpe).toBeNull();
     expect(negativeNotes).toEqual([
       {
         code: "non_positive_equity",
         message: "final equity is non-positive; cagr has no real value",
+      },
+    ]);
+  });
+
+  it("nulls sharpe (but not cagr) on a non-positive equity point strictly inside the window", () => {
+    const equityCurve: EquityPoint[] = [];
+    for (let i = 0; i < MIN_ANNUALIZED_SESSIONS; i += 1) {
+      equityCurve.push(point(`s${String(i)}`, 100_000_00 + i * 100, "0"));
+    }
+    const dippedEquityCurve = equityCurve.map((p, i) =>
+      i === 5 ? { ...p, equity: centavos(-1_00) } : p,
+    );
+    const rf = equityCurve.map(() => decimalString("0"));
+    const { metrics, notes } = computeBacktestMetrics({
+      equityCurve: dippedEquityCurve,
+      initialCapital: centavos(100_000_00),
+      rfPerSession: rf,
+      held: equityCurve.map(() => true),
+      settledOperationPnls: [],
+      operationsCount: 0,
+      fees: centavos(0),
+      taxes: centavos(0),
+      slippage: centavos(0),
+    });
+    expect(metrics.sharpe).toBeNull();
+    expect(metrics.cagr).not.toBeNull();
+    expect(notes).toEqual([
+      {
+        code: "non_positive_equity",
+        message: "an equity point inside the window is non-positive; sharpe is undefined",
       },
     ]);
   });

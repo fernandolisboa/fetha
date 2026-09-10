@@ -83,6 +83,11 @@ export function computeBacktestMetrics(input: MetricsInput): {
     RATIO_SCALE,
   );
 
+  // Sharpe is a path statistic (every return divides by the previous equity point), so any
+  // non-positive point anywhere in the series — not only the baseline or the final point —
+  // corrupts it; cagr only reads the two endpoints and stays valid whenever both are positive.
+  const anyNonPositiveEquity = equitySeries.some((e) => e.lte(0));
+
   let cagr: DecimalString | null = null;
   let sharpeFinal: DecimalString | null = null;
   const annualized = sessions >= MIN_ANNUALIZED_SESSIONS;
@@ -101,7 +106,16 @@ export function computeBacktestMetrics(input: MetricsInput): {
       code: "non_positive_equity",
       message: "final equity is non-positive; cagr has no real value",
     });
-    sharpeFinal = sharpe;
+  } else if (anyNonPositiveEquity) {
+    notes.push({
+      code: "non_positive_equity",
+      message: "an equity point inside the window is non-positive; sharpe is undefined",
+    });
+    const base = equityLast.div(input.initialCapital);
+    cagr = toDecimalString(
+      base.pow(new Decimal(SESSIONS_PER_YEAR).div(sessions)).sub(1),
+      RATIO_SCALE,
+    );
   } else {
     const base = equityLast.div(input.initialCapital);
     cagr = toDecimalString(
