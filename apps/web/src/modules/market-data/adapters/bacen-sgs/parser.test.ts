@@ -39,9 +39,11 @@ const septemberSessions = [
 // July point rolls to the Monday session; every other 15th here is a
 // weekday. 2026-04-16 is kept as a second April session to exercise the
 // same roll-forward behaviour without reaching into May. The 2026-01-01
-// session covers the January reference point itself (resolveAsOfInstant
-// requires every reference date to be within calendar coverage, not just
-// its resolved lookup target) without affecting any asOf assertion below.
+// session covers the January point's lookup target's coverage floor: it is
+// not the 15th of February (the January point's actual resolved target),
+// but it establishes an earliest-session date early enough that
+// 2026-02-15 (< 2026-02-16, the next session in this list) is still within
+// coverage.
 const ipcaSessions = [
   { date: "2026-01-01", open: "2026-01-01T13:00:00.000Z" },
   { date: "2026-02-16", open: "2026-02-16T13:00:00.000Z" },
@@ -131,6 +133,23 @@ describe("resolveAsOfInstant", () => {
 
   it("throws for a date older than the calendar's earliest recorded session", () => {
     expect(() => resolveAsOfInstant("cdi", "2015-01-05", septemberSessions)).toThrow(
+      /precedes the first recorded trading session/,
+    );
+  });
+
+  it("ipca: resolves forward when the reference date precedes the earliest session but its lookup target does not (first-ever ingestion)", () => {
+    const freshCalendarSessions = [
+      { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z" },
+      { date: "2024-02-15", open: "2024-02-15T13:00:00.000Z" },
+    ];
+    expect(resolveAsOfInstant("ipca", "2024-01-01", freshCalendarSessions)).toBe(
+      "2024-02-15T13:00:00.000Z",
+    );
+  });
+
+  it("ipca: still throws when even the resolved lookup target precedes calendar coverage", () => {
+    const freshCalendarSessions = [{ date: "2026-09-01", open: "2026-09-01T13:00:00.000Z" }];
+    expect(() => resolveAsOfInstant("ipca", "2015-01-01", freshCalendarSessions)).toThrow(
       /precedes the first recorded trading session/,
     );
   });

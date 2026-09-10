@@ -79,22 +79,25 @@ function earliestSessionDate(sessions: SessionOpen[]): string | undefined {
 // becomes visible at the first session on or after the 15th of the month
 // following the reference month.
 //
-// A reference `date` that precedes the earliest session the caller knows
-// about throws rather than silently resolving forward to that session: the
-// calendar starts in 2024, so backfilling SGS from an earlier year would
-// otherwise stamp years of history with the same wrong asOf instead of
-// failing loudly (docs/adr/0017). A legitimate caller always passes the full
-// calendar it has recorded for the years it needs, so this never fires for a
-// reference date within calendar coverage even when the resolved *lookup*
-// target (e.g. IPCA's 15th-of-next-month) briefly precedes the earliest
-// session in that same coverage.
+// The coverage guard below checks the *lookup target* each series actually
+// resolves against, not the raw reference `date`: for ipca that target is
+// already a month or more forward of `date` (fifteenthOfNextMonth), so the
+// very first ipca point of a fresh calendar (dated the first day of the
+// first ingested year) legitimately resolves forward into that calendar's
+// coverage even though the reference date itself precedes it (docs/adr/0017)
+// — checking the raw date there made the first-ever SGS run on a fresh
+// database fail forever. For cdi and selic the target is `date` itself (or
+// the next session after it), so an old backfill date is still rejected
+// instead of silently resolving to the first modern session in `sessions`,
+// which is the look-ahead leak this guard exists to prevent.
 export function resolveAsOfInstant(
   series: MacroSeriesKind,
   date: string,
   sessions: SessionOpen[],
 ): string {
   const earliest = earliestSessionDate(sessions);
-  if (earliest !== undefined && date < earliest) {
+  const target = series === "ipca" ? fifteenthOfNextMonth(date) : date;
+  if (earliest !== undefined && target < earliest) {
     throw new Error(
       `${date} precedes the first recorded trading session (${earliest}): calendar coverage does not reach back this far`,
     );
@@ -103,7 +106,7 @@ export function resolveAsOfInstant(
     return nextSessionStrictlyAfter(date, sessions).open;
   }
   if (series === "ipca") {
-    return sessionOnOrAfter(fifteenthOfNextMonth(date), sessions).open;
+    return sessionOnOrAfter(target, sessions).open;
   }
   return sessionOf(date, sessions).open;
 }
