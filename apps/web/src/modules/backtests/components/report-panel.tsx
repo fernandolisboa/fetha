@@ -96,16 +96,34 @@ function Stat({ label, value, notes }: { label: string; value: string; notes?: R
 
 const equityDrawdownCodes: NoteCode[] = ["negative_cash"];
 const annualizedCodes: NoteCode[] = ["short_window_not_annualized", "non_positive_equity"];
-const missedEntryCodes: NoteCode[] = ["missed_entry"];
 const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
-const costCodes: NoteCode[] = ["settlement_pending", "settlement_costs_not_modeled"];
+// The one rollup note `run-backtest.ts` (packages/engine) ever attaches for
+// an option operation across a corporate action: it explains an operation's
+// P&L, so it surfaces with the operations table, not the generic notes
+// panel (round 2 item 6). `missed_entry`, `settlement_pending` and
+// `settlement_costs_not_modeled` used to be filtered for here too, but the
+// engine never rolls any of them into `BacktestRun.notes` (they are
+// per-leg valuation notes `priceOperation` and settlement produce, not a
+// run-level note), so those filters were dead code; dropped rather than
+// wired to a rollup the ticket did not ask for.
+const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
 const surfacedCodes: NoteCode[] = [
   ...equityDrawdownCodes,
   ...annualizedCodes,
-  ...missedEntryCodes,
   ...limitBreachCodes,
-  ...costCodes,
+  ...operationCodes,
 ];
+
+// Every note code this panel surfaces beside a specific chart, stat or
+// table: anything a run carries outside this set falls through to the
+// generic notes panel instead (`generalNotesFor`, below). Exported so the
+// operations-table attachment (round 2 item 6) has something other than a
+// rendered DOM to assert against.
+export const surfacedNoteCodes: NoteCode[] = surfacedCodes;
+
+export function generalNotesFor(run: BacktestRun): BacktestRun["notes"] {
+  return run.notes.filter((note) => !surfacedCodes.includes(note.code));
+}
 
 // Per-session equity returns, not operation P&L over starting capital:
 // an operation's P&L divided by the run's *starting* capital ignores
@@ -127,7 +145,7 @@ export function sessionReturns(equityCurve: EquityPoint[]): number[] {
 export function ReportPanel({ run }: { run: BacktestRun }) {
   const { metrics } = run;
   const returns = sessionReturns(run.equityCurve);
-  const generalNotes = run.notes.filter((note) => !surfacedCodes.includes(note.code));
+  const generalNotes = generalNotesFor(run);
 
   return (
     <div className="flex flex-col gap-6">
@@ -169,17 +187,14 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
             value={metrics.profitFactor ? formatDecimal(metrics.profitFactor) : "—"}
           />
           <Stat label={t.report.metrics.exposure} value={formatPercent(metrics.exposure)} />
-          <Stat
-            label={t.report.metrics.fees}
-            value={formatBRL(metrics.fees)}
-            notes={<NotesFor run={run} codes={costCodes} />}
-          />
+          <Stat label={t.report.metrics.fees} value={formatBRL(metrics.fees)} />
           <Stat label={t.report.metrics.taxes} value={formatBRL(metrics.taxes)} />
           <Stat label={t.report.metrics.slippage} value={formatBRL(metrics.slippage)} />
         </div>
       </Panel>
 
       <Panel title={t.report.operationsTable.title}>
+        <NotesFor run={run} codes={operationCodes} />
         {run.operations.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.operationsTable.empty}</p>
         ) : (
@@ -217,7 +232,6 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
       </Panel>
 
       <Panel title={t.report.missedEntries.title}>
-        <NotesFor run={run} codes={missedEntryCodes} />
         {run.missedEntries.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.missedEntries.empty}</p>
         ) : (

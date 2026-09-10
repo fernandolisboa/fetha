@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { RiskProfile } from "@fetha/contracts";
-import type { EquityPoint } from "@fetha/engine";
+import type { BacktestRun, EquityPoint, Note } from "@fetha/engine";
 
-import { declaredLimitValues, limitModeLabel, sessionReturns } from "./report-panel";
+import {
+  declaredLimitValues,
+  generalNotesFor,
+  limitModeLabel,
+  sessionReturns,
+  surfacedNoteCodes,
+} from "./report-panel";
 
 function point(session: string, equity: number): EquityPoint {
   return { session, equity: equity as never, cash: 0 as never, drawdown: "0" as never };
@@ -40,5 +46,26 @@ describe("declaredLimitValues", () => {
 describe("limitModeLabel", () => {
   it("labels enforce and warn distinctly", () => {
     expect(limitModeLabel("enforce")).not.toBe(limitModeLabel("warn"));
+  });
+});
+
+function note(code: Note["code"]): Note {
+  return { code, message: code };
+}
+
+function runWithNotes(notes: Note[]): BacktestRun {
+  return { notes } as unknown as BacktestRun;
+}
+
+describe("generalNotesFor", () => {
+  it("excludes the option-strike-across-corporate-action note, which the operations table surfaces instead (round 2 item 6)", () => {
+    expect(surfacedNoteCodes).toContain("option_strike_unadjusted_across_corporate_action");
+    const run = runWithNotes([note("option_strike_unadjusted_across_corporate_action")]);
+    expect(generalNotesFor(run)).toEqual([]);
+  });
+
+  it("keeps a note whose code no panel already surfaces", () => {
+    const run = runWithNotes([note("stale_price")]);
+    expect(generalNotesFor(run)).toEqual([note("stale_price")]);
   });
 });
