@@ -591,7 +591,13 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           "evaluateStrategy: missing precomputed exit rule bases",
         );
         const visibleFactors = tickerView.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
-        const splitFactor = splitFactorProduct(visibleFactors, op.openedAt, nominalCandle.session);
+        const splitFactorResult = splitFactorProduct(
+          visibleFactors,
+          op.openedAt,
+          nominalCandle.session,
+        );
+        if (!splitFactorResult.ok) return { ok: false, error: splitFactorResult.error };
+        const splitFactor = splitFactorResult.value;
         let fired = false;
         for (const rule of input.strategy.definition.exit) {
           if (fired) break;

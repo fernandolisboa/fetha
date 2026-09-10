@@ -9,7 +9,7 @@
   "scripts": {
     "typecheck": "pnpm -r run typecheck",
     "lint": "pnpm -r run lint",
-    "test": "pnpm -r --if-present run test && sh apps/web/scripts/vercel-ignore-build.test.sh",
+    "test": "pnpm -r --if-present run test && sh apps/web/scripts/vercel-ignore-build.test.sh && sh scripts/check-adr-0013-frozen-block.sh",
     "build": "pnpm -r run build",
     "db:check": "pnpm --filter @fetha/web run db:check",
     "format": "prettier --write .",
