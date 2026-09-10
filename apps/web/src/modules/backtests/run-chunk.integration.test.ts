@@ -282,4 +282,93 @@ describe("runBacktestChunk", () => {
       db.update(backtestRuns).set({ error: "tampered" }).where(eq(backtestRuns.id, run.id)),
     ).rejects.toThrow();
   });
+
+  it("persists a checkpoint after each inner call and pauses at the wall-clock deadline even though the session budget allows more (round 1 item 19)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    // A session budget generous enough to finish the whole 15-session
+    // fixture in one inner call, but a wall-clock deadline that expires the
+    // instant it is checked: the loop must still take its first 5-session
+    // inner step, persist that checkpoint, and pause there rather than
+    // either finishing anyway or losing the progress it already made.
+    const outcome = await runBacktestChunk(db, setup.testUser, run.id, {
+      maxSessions: 999,
+      innerStepSessions: 5,
+      wallClockBudgetMs: 0,
+    });
+
+    if (outcome.status !== "paused") {
+      throw new Error(`expected "paused", got "${outcome.status}"`);
+    }
+    expect(outcome.sessionsDone).toBe(5);
+    expect(outcome.sessionsTotal).toBe(SESSION_COUNT);
+
+    const saved = await repository.findMine(run.id);
+    expect(saved.status).toBe("paused");
+    expect(saved.checkpoint).not.toBeNull();
+    expect(saved.sessionsDone).toBe(5);
+
+    // Resuming with a generous budget makes the rest of the progress and
+    // reaches the same result the uninterrupted run does.
+    let status: "paused" | "complete" = "paused";
+    let guard = 0;
+    while (status === "paused" && guard < 10) {
+      guard += 1;
+      const resumed = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+      if (resumed.status === "failed") {
+        throw new Error(`chunk failed: ${resumed.error}`);
+      }
+      status = resumed.status;
+    }
+    expect(status).toBe("complete");
+  });
+
+  it("fails the run rather than mix datasets when the market data changes between chunks (round 1 item 21)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+    const stamped = await repository.findMine(run.id);
+    expect(stamped.dataVersion).not.toBeNull();
+
+    // A revision to an already-loaded candle between chunks, on the run's
+    // *last* session: dataVersion is `max(asOf)` over every loaded row, so
+    // revising an earlier session's asOf to a later wall-clock time would
+    // not move that maximum forward (its own session date still sorts
+    // first); revising the last session's own asOf always does.
+    const lastSession = SESSIONS.at(-1) ?? "";
+    const revisedClose = decimalString("999.99");
+    await upsertDailyCandles(db, lastSession, new Date(`${lastSession}T23:00:00.000Z`), [
+      {
+        kind: "stock",
+        session: lastSession,
+        ticker: TICKER,
+        open: revisedClose,
+        high: revisedClose,
+        low: revisedClose,
+        average: revisedClose,
+        close: revisedClose,
+        trades: 10,
+        tradedQuantity: 1000,
+      },
+    ]);
+
+    const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+    expect(secondChunk.status).toBe("failed");
+    if (secondChunk.status === "failed") {
+      expect(secondChunk.error).toBe("data_version_changed");
+    }
+
+    const failed = await repository.findMine(run.id);
+    expect(failed.status).toBe("failed");
+    expect(failed.error).toBe("data_version_changed");
+  });
 });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { RiskProfile } from "@fetha/contracts";
 import type { EquityPoint } from "@fetha/engine";
 
-import { sessionReturns } from "./report-panel";
+import { declaredLimitValues, limitModeLabel, sessionReturns } from "./report-panel";
 
 function point(session: string, equity: number): EquityPoint {
   return { session, equity: equity as never, cash: 0 as never, drawdown: "0" as never };
@@ -16,5 +17,28 @@ describe("sessionReturns", () => {
   it("skips a session whose predecessor's equity is zero rather than dividing by zero", () => {
     const equityCurve = [point("2024-01-02", 0), point("2024-01-03", 1_000_00)];
     expect(sessionReturns(equityCurve)).toEqual([]);
+  });
+});
+
+describe("declaredLimitValues", () => {
+  it("formats every limit so an empty breaches table still shows what was checked", () => {
+    const limits: RiskProfile["limits"] = {
+      maxLossPerOperation: "0.02" as never,
+      maxExposurePerOperation: "0.1" as never,
+      maxOpenOperations: 5,
+      maxPremiumBought: "0.05" as never,
+    };
+    expect(declaredLimitValues(limits)).toEqual({
+      maxLossPerOperation: "2%",
+      maxExposurePerOperation: "10%",
+      maxOpenOperations: "5",
+      maxPremiumBought: "5%",
+    });
+  });
+});
+
+describe("limitModeLabel", () => {
+  it("labels enforce and warn distinctly", () => {
+    expect(limitModeLabel("enforce")).not.toBe(limitModeLabel("warn"));
   });
 });

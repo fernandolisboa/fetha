@@ -12,16 +12,17 @@ import {
   UnauthenticatedError,
 } from "@/modules/auth";
 import { sessionByDate, sessionsBetween } from "@/modules/market-data";
+import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { BacktestRunRepository } from "./backtest-run-repository";
-import { COST_MODEL_PRESETS, costModelPresetIds, defaultRiskProfile } from "./default-config";
+import { COST_MODEL_PRESETS, costModelPresetIds } from "./default-config";
 import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type CreateBacktestRunResult = {
   status: "error";
-  error: "invalid" | "not_found" | "rate_limited";
+  error: "invalid" | "not_found" | "rate_limited" | "no_risk_profile";
 };
 
 const createInputSchema = z.strictObject({
@@ -75,6 +76,16 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
   }
 
   const db = getDb();
+
+  // A run's limits are the user's own declared RiskProfile (portfolio module,
+  // CONTEXT.md), never a fabricated unconstrained one: a run created before
+  // any profile is declared is refused rather than silently running with
+  // limits that can never breach, which would make the "Enforce / Warn only"
+  // control unable to change any outcome.
+  const riskProfile = await getCurrentRiskProfile();
+  if (!riskProfile) {
+    return { status: "error", error: "no_risk_profile" };
+  }
 
   // A `from` that never traded (weekend, holiday, before the calendar's
   // own start) must never silently produce a candle-less MarketView: the
@@ -134,7 +145,7 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
     period,
     initialCapital: parsed.data.initialCapital,
     costModel: COST_MODEL_PRESETS[parsed.data.costModel as keyof typeof COST_MODEL_PRESETS],
-    riskProfile: defaultRiskProfile(parsed.data.initialCapital),
+    riskProfile,
     limits: parsed.data.limits,
     sizing: version.definition.sizing,
     seed: randomSeed(),

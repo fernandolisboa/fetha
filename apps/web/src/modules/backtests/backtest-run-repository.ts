@@ -74,6 +74,7 @@ export interface BacktestRunRecord {
   result: BacktestRun | null;
   sessionsDone: number | null;
   sessionsTotal: number | null;
+  dataVersion: string | null;
   error: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -133,6 +134,7 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
     result: row.result ? asEngineRun(row.result) : null,
     sessionsDone: row.sessionsDone,
     sessionsTotal: row.sessionsTotal,
+    dataVersion: row.dataVersion,
     error: row.error,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
@@ -221,6 +223,30 @@ export class BacktestRunRepository extends UserScopedRepository {
     return toRecord(row);
   }
 
+  // Persists progress after one inner `engine.runBacktest` call without
+  // changing status away from "running": a chunk that loops several inner
+  // calls under a wall-clock budget (run-chunk.ts) calls this after each
+  // one, so a process killed mid-loop by the platform's own timeout still
+  // resumes from real progress instead of repeating the whole chunk.
+  async saveCheckpoint(
+    id: string,
+    progress: {
+      checkpoint: BacktestCheckpoint;
+      configDigest: string;
+      sessionsDone: number;
+      sessionsTotal: number;
+      dataVersion?: string | null;
+    },
+  ): Promise<BacktestRunRecord> {
+    return this.guardedUpdate(id, {
+      checkpoint: progress.checkpoint,
+      configDigest: progress.configDigest,
+      sessionsDone: progress.sessionsDone,
+      sessionsTotal: progress.sessionsTotal,
+      ...(progress.dataVersion !== undefined ? { dataVersion: progress.dataVersion } : {}),
+    });
+  }
+
   async saveProgress(
     id: string,
     progress: {
@@ -229,6 +255,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       configDigest: string;
       sessionsDone: number;
       sessionsTotal: number;
+      dataVersion?: string | null;
     },
   ): Promise<BacktestRunRecord> {
     return this.guardedUpdate(id, {
@@ -237,12 +264,18 @@ export class BacktestRunRepository extends UserScopedRepository {
       configDigest: progress.configDigest,
       sessionsDone: progress.sessionsDone,
       sessionsTotal: progress.sessionsTotal,
+      ...(progress.dataVersion !== undefined ? { dataVersion: progress.dataVersion } : {}),
     });
   }
 
   async complete(
     id: string,
-    outcome: { result: BacktestRun; configDigest: string; sessionsDone: number },
+    outcome: {
+      result: BacktestRun;
+      configDigest: string;
+      sessionsDone: number;
+      dataVersion?: string | null;
+    },
   ): Promise<BacktestRunRecord> {
     return this.guardedUpdate(id, {
       status: "complete",
@@ -251,6 +284,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       configDigest: outcome.configDigest,
       sessionsDone: outcome.sessionsDone,
       sessionsTotal: outcome.sessionsDone,
+      ...(outcome.dataVersion !== undefined ? { dataVersion: outcome.dataVersion } : {}),
       completedAt: new Date(),
     });
   }

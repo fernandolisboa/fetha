@@ -60,7 +60,7 @@ export function CreateRunForm({
         // createBacktestRunAction only ever returns on the error path: a
         // successful create redirects, which surfaces here as a thrown
         // NEXT_REDIRECT rather than a resolved value (see the catch below).
-        await createBacktestRunAction({
+        const result = await createBacktestRunAction({
           strategyId,
           strategyVersionId,
           universe,
@@ -70,7 +70,7 @@ export function CreateRunForm({
           limits,
           costModel,
         });
-        setError(t.create.error);
+        setError(result.error === "no_risk_profile" ? t.create.noRiskProfile : t.create.error);
         setPending(false);
       } catch (submitError) {
         if (submitError instanceof Error && submitError.message.includes("NEXT_REDIRECT")) {

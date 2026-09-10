@@ -41,11 +41,11 @@ export const COST_MODEL_PRESETS = {
 export type CostModelPresetId = keyof typeof COST_MODEL_PRESETS;
 export const costModelPresetIds = Object.keys(COST_MODEL_PRESETS) as CostModelPresetId[];
 
-// Effectively unconstrained per-operation limits (leftOpenUnitIntervalSchema
-// tops out at "1" = 100%) plus a generous open-operations ceiling: a
-// backtest run declares its own capital as declaredCapital, and its risk
-// limits only start mattering once the owner tightens them, tracked the
-// same way as the cost model above.
+// Test fixture only: production run creation (actions.ts) takes the run's
+// RiskProfile from the user's own declaration in `portfolio`
+// (`getCurrentRiskProfile()`) and refuses to create a run when none is
+// declared, rather than fabricating an unconstrained one that would make
+// the "Enforce / Warn only" control unable to change any outcome.
 export function defaultRiskProfile(declaredCapital: Centavos): RiskProfile {
   return {
     declaredCapital,

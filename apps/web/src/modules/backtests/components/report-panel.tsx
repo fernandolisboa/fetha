@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { Decimal } from "decimal.js";
+import type { RiskProfile } from "@fetha/contracts";
 import type {
   BacktestRun,
   EquityPoint,
+  LimitMode,
   MissedEntryReason,
   NoteCode,
   RiskLimit,
@@ -35,6 +37,23 @@ const riskLimitLabel: Record<RiskLimit, string> = {
   maxPremiumBought: "prêmio máximo comprado",
 };
 
+// The run's own declared limits, formatted for display beside the limit
+// breaches panel: an empty breaches table alone reads as "no limits were
+// ever checked", not as "these specific limits were checked and never
+// breached" (round 1 item 30).
+export function declaredLimitValues(limits: RiskProfile["limits"]): Record<RiskLimit, string> {
+  return {
+    maxLossPerOperation: formatPercent(limits.maxLossPerOperation),
+    maxExposurePerOperation: formatPercent(limits.maxExposurePerOperation),
+    maxOpenOperations: String(limits.maxOpenOperations),
+    maxPremiumBought: formatPercent(limits.maxPremiumBought),
+  };
+}
+
+export function limitModeLabel(mode: LimitMode): string {
+  return mode === "enforce" ? t.report.limitBreaches.modeEnforce : t.report.limitBreaches.modeWarn;
+}
+
 function NotesFor({ run, codes }: { run: BacktestRun; codes: NoteCode[] }) {
   const notes = run.notes.filter((note) => codes.includes(note.code));
   if (notes.length === 0) {
@@ -46,6 +65,22 @@ function NotesFor({ run, codes }: { run: BacktestRun; codes: NoteCode[] }) {
         <li key={`${note.code}-${String(index)}`}>{noteMessage(note.code)}</li>
       ))}
     </ul>
+  );
+}
+
+function DeclaredLimits({ riskProfile, mode }: { riskProfile: RiskProfile; mode: LimitMode }) {
+  const values = declaredLimitValues(riskProfile.limits);
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+      <span className="text-muted-foreground tracking-[0.06em] uppercase">
+        {t.report.limitBreaches.declaredLimits} · {limitModeLabel(mode)}
+      </span>
+      {(Object.keys(riskLimitLabel) as RiskLimit[]).map((limit) => (
+        <span key={limit} className="font-mono tabular-nums">
+          {riskLimitLabel[limit]}: {values[limit]}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -209,7 +244,12 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
         )}
       </Panel>
 
+      {/* Walk-forward windows are the immutable run's own creation-time
+          concern (issue #30 — a run cannot gain walk-forward retroactively)
+          and are out of this panel's scope; only the declared limits, which
+          every existing run already carries, render here. */}
       <Panel title={t.report.limitBreaches.title}>
+        <DeclaredLimits riskProfile={run.config.riskProfile} mode={run.config.limits} />
         <NotesFor run={run} codes={limitBreachCodes} />
         {run.limitBreaches.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.limitBreaches.empty}</p>
@@ -249,6 +289,23 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
           </ul>
         </Panel>
       ) : null}
+
+      <Panel title={t.report.provenance.title}>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          <span>
+            <span className="text-muted-foreground">{t.report.provenance.engineVersion}: </span>
+            <span className="font-mono">{run.provenance.engineVersion}</span>
+          </span>
+          <span>
+            <span className="text-muted-foreground">{t.report.provenance.dataVersion}: </span>
+            <span className="font-mono tabular-nums">
+              {run.provenance.dataVersion
+                ? formatDateTime(new Date(run.provenance.dataVersion))
+                : t.report.provenance.dataVersionUnknown}
+            </span>
+          </span>
+        </div>
+      </Panel>
     </div>
   );
 }

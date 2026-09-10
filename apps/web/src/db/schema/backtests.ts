@@ -75,6 +75,11 @@ export const backtestRuns = pgTable(
     result: jsonb("result").$type<BacktestRun | null>(),
     sessionsDone: integer("sessions_done"),
     sessionsTotal: integer("sessions_total"),
+    // Stamped at the run's first chunk as `max(asOf)` over the loaded
+    // MarketView, then compared on every resume: a candle or calendar
+    // revision between chunks changes it, and the run fails rather than
+    // silently mixing two datasets in one immutable result.
+    dataVersion: text("data_version"),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

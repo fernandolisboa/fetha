@@ -21,6 +21,8 @@ const en = {
     submit: "Run backtest",
     error: "Couldn't create the run. Check the fields and try again.",
     invalidCapital: "Enter the initial capital as a valid amount, e.g. 10.000,00.",
+    noRiskProfile:
+      "Declare a risk profile in Settings before running a backtest, so its limits can be enforced.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
   },
   report: {
@@ -62,6 +64,15 @@ const en = {
       title: "Limit breaches",
       columns: { session: "Session", ticker: "Instrument", limit: "Limit" },
       empty: "No limit breaches.",
+      declaredLimits: "Declared limits",
+      modeEnforce: "Enforced",
+      modeWarn: "Warn only",
+    },
+    provenance: {
+      title: "Data provenance",
+      engineVersion: "Engine version",
+      dataVersion: "Data as of",
+      dataVersionUnknown: "No dated row loaded",
     },
     notes: "Notes",
   },
@@ -103,6 +114,13 @@ const en = {
     unsizeable: "The strategy could not be sized.",
     checkpoint_mismatch: "The engine was updated; the run restarted from the beginning.",
   } satisfies Record<EngineErrorCode, string>,
+  // Web-layer error codes runBacktestChunk can also store in the run's
+  // `error` column, distinct from the engine's own EngineErrorCode: not a
+  // Record<> since the set is open-ended by design (see runErrorMessage).
+  webErrors: {
+    data_version_changed:
+      "The underlying data changed between chunks; the run was stopped rather than mix two datasets.",
+  },
   networkError: "Network error. Try again.",
 };
 
@@ -127,6 +145,8 @@ const ptBR = {
     submit: "Rodar backtest",
     error: "Não foi possível criar a simulação. Confira os campos e tente novamente.",
     invalidCapital: "Informe o capital inicial como um valor válido, por exemplo 10.000,00.",
+    noRiskProfile:
+      "Declare um perfil de risco em Configurações antes de rodar um backtest, para que os limites possam ser aplicados.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
   },
   report: {
@@ -168,6 +188,15 @@ const ptBR = {
       title: "Estouros de limite",
       columns: { session: "Pregão", ticker: "Ativo", limit: "Limite" },
       empty: "Nenhum estouro de limite.",
+      declaredLimits: "Limites declarados",
+      modeEnforce: "Aplicado",
+      modeWarn: "Só aviso",
+    },
+    provenance: {
+      title: "Procedência dos dados",
+      engineVersion: "Versão do motor",
+      dataVersion: "Dados até",
+      dataVersionUnknown: "Nenhuma linha datada carregada",
     },
     notes: "Notas",
   },
@@ -213,6 +242,10 @@ const ptBR = {
     unsizeable: "Não foi possível dimensionar a estratégia.",
     checkpoint_mismatch: "O motor foi atualizado; a simulação recomeçou do início.",
   } satisfies Record<EngineErrorCode, string>,
+  webErrors: {
+    data_version_changed:
+      "Os dados de mercado mudaram entre os pedaços da simulação; ela foi interrompida em vez de misturar dois conjuntos de dados.",
+  },
   networkError: "Erro de rede. Tente novamente.",
 } satisfies typeof en;
 
@@ -225,5 +258,7 @@ export function noteMessage(code: NoteCode): string {
 }
 
 export function engineErrorMessage(code: string): string {
-  return code in t.engineErrors ? t.engineErrors[code as EngineErrorCode] : code;
+  if (code in t.engineErrors) return t.engineErrors[code as EngineErrorCode];
+  if (code in t.webErrors) return t.webErrors[code as keyof typeof t.webErrors];
+  return code;
 }

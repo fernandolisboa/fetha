@@ -26,6 +26,14 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
 
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
+  // A backtest run refuses to create without a declared risk profile (its
+  // limits are the user's own, never a fabricated unconstrained default).
+  await page.goto("/configuracoes");
+  await page.getByLabel("Capital declarado").fill("10.000,00");
+  await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
+  await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
+
+  await page.goto("/");
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
   await page.getByPlaceholder("Buscar pelo código").fill(TICKER);
   await page.getByRole("option", { name: TICKER, exact: true }).click();

@@ -1,6 +1,7 @@
 import type { Structure } from "@fetha/contracts";
 import {
   engine,
+  type BacktestCheckpoint,
   type BacktestConfig,
   type BacktestProgress,
   type EngineErrorCode,
@@ -8,16 +9,29 @@ import {
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
+import { loadMarketView } from "@/modules/market-data";
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
 import { BacktestRunRepository, type BacktestRunRecord } from "./backtest-run-repository";
-import { loadBacktestMarketView } from "./market-view";
 
-// A generous per-call ceiling under a raised `maxDuration`: the route
+// A generous total-session ceiling under a raised `maxDuration`: the route
 // handler leans on this default; the chunk-invariance integration test
 // overrides it with a small value to force the same run across several
-// calls without needing hundreds of ingested sessions.
+// outer calls without needing hundreds of ingested sessions.
 export const DEFAULT_SESSION_BUDGET = 250;
+
+// The size of each *inner* `engine.runBacktest` call inside one outer
+// `runBacktestChunk` call: small enough that the checkpoint persisted after
+// it (saveCheckpoint, below) is never far behind, so a process the platform
+// kills mid-chunk still resumes from real progress instead of repeating the
+// whole chunk from its start.
+export const DEFAULT_INNER_STEP_SESSIONS = 25;
+
+// route.ts raises `maxDuration` to 300s; this budget stays comfortably
+// under it, leaving headroom for the DB round trip around each inner call,
+// so the platform's own timeout — not this budget — is never what kills a
+// chunk's progress.
+export const DEFAULT_WALL_CLOCK_BUDGET_MS = 240_000;
 
 export class StrategyVersionNotFoundError extends Error {
   constructor() {
@@ -61,15 +75,27 @@ export async function resolveStructure(db: Database, structureId: string): Promi
   return structure;
 }
 
-// Runs one budgeted chunk of a backtest and persists exactly what the
-// engine returned: a "paused" checkpoint to resume from on the next call,
-// or the final "complete" result, which the database then refuses to ever
-// overwrite (backtest_runs_no_update_once_complete trigger).
+export interface RunBacktestChunkOptions {
+  maxSessions?: number;
+  innerStepSessions?: number;
+  wallClockBudgetMs?: number;
+  now?: () => number;
+}
+
+// Runs one budgeted chunk of a backtest, looping several small inner
+// `engine.runBacktest` calls under a wall-clock deadline (not just a
+// session count) and persisting a checkpoint after each one: a chunk large
+// enough to threaten the platform's `maxDuration` still makes progress
+// instead of dying with nothing saved and repeating forever on retry
+// (round 1 item 19). The MarketView's own `dataVersion` is stamped on the
+// run at its first chunk and compared on every resume, so a candle or
+// calendar revision between chunks fails the run rather than silently
+// mixing two datasets into one immutable result (round 1 item 21).
 export async function runBacktestChunk(
   db: Database,
   user: ScopedUser,
   runId: string,
-  options: { maxSessions?: number } = {},
+  options: RunBacktestChunkOptions = {},
 ): Promise<BacktestChunkOutcome> {
   const repository = new BacktestRunRepository(db, user);
   const claimed = await repository.findMine(runId);
@@ -106,50 +132,106 @@ export async function runBacktestChunk(
     seed: run.seed,
   };
 
-  const view = await loadBacktestMarketView(db, {
+  const view = await loadMarketView(db, {
     strategy,
     universe: run.universe,
     period: run.period,
   });
 
-  const result = await engine.runBacktest({
-    view,
-    config,
-    ...(run.checkpoint ? { resume: run.checkpoint } : {}),
-    maxSessions: options.maxSessions ?? DEFAULT_SESSION_BUDGET,
-  });
-
-  if (!result.ok) {
-    if (result.error.code === "checkpoint_mismatch" && run.checkpoint) {
-      // An engine-version or schema bump between chunks: the checkpoint
-      // the run holds can never resume against the current engine, but a
-      // full restart from session zero against the same immutable config
-      // still produces the same deterministic result (ADR-0004), so this
-      // is recoverable rather than terminal.
-      const restarted = await engine.runBacktest({
-        view,
-        config,
-        maxSessions: options.maxSessions ?? DEFAULT_SESSION_BUDGET,
-      });
-      if (restarted.ok) {
-        return persistProgress(repository, runId, restarted.value);
-      }
-      const message = describeEngineError(restarted.error);
-      await repository.fail(runId, message);
-      return { status: "failed", error: message };
-    }
-    const message = describeEngineError(result.error);
+  if (run.dataVersion && view.dataVersion && run.dataVersion !== view.dataVersion) {
+    const message = "data_version_changed";
     await repository.fail(runId, message);
     return { status: "failed", error: message };
   }
+  const dataVersion = run.dataVersion ?? view.dataVersion ?? null;
 
-  return persistProgress(repository, runId, result.value);
+  const now = options.now ?? Date.now;
+  const deadline = now() + (options.wallClockBudgetMs ?? DEFAULT_WALL_CLOCK_BUDGET_MS);
+  const innerStep = options.innerStepSessions ?? DEFAULT_INNER_STEP_SESSIONS;
+  const sessionBudget = options.maxSessions ?? DEFAULT_SESSION_BUDGET;
+
+  let checkpoint: BacktestCheckpoint | null = run.checkpoint;
+  let sessionsUsed = 0;
+  let lastPaused: Extract<BacktestProgress, { status: "paused" }> | null = null;
+
+  while (sessionsUsed < sessionBudget) {
+    const step = Math.min(innerStep, sessionBudget - sessionsUsed);
+    const result = await engine.runBacktest({
+      view,
+      config,
+      ...(checkpoint ? { resume: checkpoint } : {}),
+      maxSessions: step,
+    });
+
+    if (!result.ok) {
+      if (result.error.code === "checkpoint_mismatch" && checkpoint) {
+        // An engine-version or schema bump between chunks: the checkpoint
+        // this loop holds can never resume against the current engine, but
+        // a full restart from session zero against the same immutable
+        // config still produces the same deterministic result (ADR-0004),
+        // so this is recoverable rather than terminal.
+        const restarted = await engine.runBacktest({
+          view,
+          config,
+          maxSessions: sessionBudget - sessionsUsed,
+        });
+        if (restarted.ok) {
+          return persistProgress(repository, runId, restarted.value, dataVersion);
+        }
+        const message = describeEngineError(restarted.error);
+        await repository.fail(runId, message);
+        return { status: "failed", error: message };
+      }
+      const message = describeEngineError(result.error);
+      await repository.fail(runId, message);
+      return { status: "failed", error: message };
+    }
+
+    if (result.value.status === "complete") {
+      return persistProgress(repository, runId, result.value, dataVersion);
+    }
+
+    // Persisted immediately, status left "running": a process the platform
+    // kills right after this write still resumes from here on retry.
+    await repository.saveCheckpoint(runId, {
+      checkpoint: result.value.checkpoint,
+      configDigest: result.value.checkpoint.configDigest,
+      sessionsDone: result.value.sessionsDone,
+      sessionsTotal: result.value.sessionsTotal,
+      dataVersion,
+    });
+    checkpoint = result.value.checkpoint;
+    lastPaused = result.value;
+    sessionsUsed += step;
+
+    if (now() >= deadline) break;
+  }
+
+  if (!lastPaused) {
+    throw new Error("runBacktestChunk: no progress was made (maxSessions must be positive)");
+  }
+
+  const saved = await repository.saveProgress(runId, {
+    status: "paused",
+    checkpoint: lastPaused.checkpoint,
+    configDigest: lastPaused.checkpoint.configDigest,
+    sessionsDone: lastPaused.sessionsDone,
+    sessionsTotal: lastPaused.sessionsTotal,
+    dataVersion,
+  });
+  return {
+    status: "paused",
+    run: saved,
+    sessionsDone: lastPaused.sessionsDone,
+    sessionsTotal: lastPaused.sessionsTotal,
+  };
 }
 
 async function persistProgress(
   repository: BacktestRunRepository,
   runId: string,
   value: BacktestProgress,
+  dataVersion: string | null,
 ): Promise<BacktestChunkOutcome> {
   if (value.status === "paused") {
     const saved = await repository.saveProgress(runId, {
@@ -158,6 +240,7 @@ async function persistProgress(
       configDigest: value.checkpoint.configDigest,
       sessionsDone: value.sessionsDone,
       sessionsTotal: value.sessionsTotal,
+      dataVersion,
     });
     return {
       status: "paused",
@@ -171,6 +254,7 @@ async function persistProgress(
     result: value.run,
     configDigest: value.run.configDigest,
     sessionsDone: value.run.metrics.sessions,
+    dataVersion,
   });
   return { status: "complete", run: saved };
 }

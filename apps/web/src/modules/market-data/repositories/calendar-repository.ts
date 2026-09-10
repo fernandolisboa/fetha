@@ -65,6 +65,18 @@ export async function recentSessions(
   return rows.reverse();
 }
 
+// The calendar's own lower bound, never a hand-copied constant: a range
+// MarketView's calendar can only reach back as far as the calendar itself
+// has ever been ingested (loadMarketView, market-view.ts).
+export async function earliestSession(db: Database): Promise<string | undefined> {
+  const [row] = await db
+    .select({ date: tradingSessions.date })
+    .from(tradingSessions)
+    .orderBy(asc(tradingSessions.date))
+    .limit(1);
+  return row?.date;
+}
+
 export async function sessionByDate(
   db: Database,
   date: string,
