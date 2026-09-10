@@ -781,6 +781,123 @@ describe("loadMarketView", () => {
     expect(prices[0]?.close).toBe("0.750000");
   });
 
+  it("extends the calendar through an option expiry past period.to (round 4 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("EXP");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDaysFrom(2097, 10, 6, 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions[29] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const view = await loadMarketView(db, {
+      strategy,
+      universe: [ticker],
+      period: { from: periodFrom, to: periodTo },
+    });
+
+    expect(expiry > periodTo).toBe(true);
+    expect(view.calendar.some((session) => session.date === expiry)).toBe(true);
+  });
+
+  it("excludes a series that expired before the warmup session (round 4 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("PEX");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDaysFrom(2097, 11, 3, 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions.at(-1) ?? "";
+    const expiredExpiry = sessions[0] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry: expiredExpiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const view = await loadMarketView(db, {
+      strategy,
+      universe: [ticker],
+      period: { from: periodFrom, to: periodTo },
+    });
+
+    expect(view.optionSeries.some((series) => series.ticker === optionTicker)).toBe(false);
+  });
+
   it("does not query option series or prices for a stock-only strategy", async () => {
     const db = getDb();
     const ticker = uniqueTicker("STK");
