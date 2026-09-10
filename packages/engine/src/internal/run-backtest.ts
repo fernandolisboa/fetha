@@ -112,6 +112,13 @@ function invalidInput(path: string, message: string): Result<BacktestProgress> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
+function checkpointMismatch(
+  expectedDigest: string,
+  receivedDigest: string,
+): Result<BacktestProgress> {
+  return { ok: false, error: { code: "checkpoint_mismatch", expectedDigest, receivedDigest } };
+}
+
 function monthKeyOf(session: SessionDate): string {
   return session.slice(0, 7);
 }
@@ -271,21 +278,22 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   if (input.resume !== undefined) {
     // BacktestCheckpoint.schema is typed as the literal 1, but a caller round-tripping a
     // checkpoint through storage passes plain JSON at runtime, not a type-checked value, so this
-    // still needs a real runtime check.
+    // still needs a real runtime check. The frozen EngineError shape for checkpoint_mismatch
+    // (ADR-0013) carries only expectedDigest/receivedDigest, so each distinct cause is tagged
+    // with its own field name inside those two strings rather than left to read as an
+    // (incorrectly) failed digest comparison.
     const receivedSchema: number = input.resume.schema;
-    if (
-      receivedSchema !== 1 ||
-      input.resume.configDigest !== digest ||
-      input.resume.engineVersion !== ENGINE_VERSION
-    ) {
-      return {
-        ok: false,
-        error: {
-          code: "checkpoint_mismatch",
-          expectedDigest: digest,
-          receivedDigest: input.resume.configDigest,
-        },
-      };
+    if (receivedSchema !== 1) {
+      return checkpointMismatch("schema:1", `schema:${String(receivedSchema)}`);
+    }
+    if (input.resume.engineVersion !== ENGINE_VERSION) {
+      return checkpointMismatch(
+        `engineVersion:${ENGINE_VERSION}`,
+        `engineVersion:${input.resume.engineVersion}`,
+      );
+    }
+    if (input.resume.configDigest !== digest) {
+      return checkpointMismatch(digest, input.resume.configDigest);
     }
   }
 
@@ -367,6 +375,17 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     input.resume === undefined
       ? initialState(config.initialCapital)
       : (input.resume.state as BacktestState);
+
+  // A digest and schema match only prove the checkpoint targets this same config; a state whose
+  // own equity curve does not already cover every session up to (not including) the resume
+  // cursor is corrupt or was produced against a different calendar slice, and would silently
+  // re-derive metrics from the wrong starting point.
+  if (input.resume !== undefined && state.equityCurve.length !== startIndex) {
+    return checkpointMismatch(
+      `equityCurve.length:${String(startIndex)}`,
+      `equityCurve.length:${String(state.equityCurve.length)}`,
+    );
+  }
 
   function finalizeMissedEntry(ticker: Ticker, signalAt: Instant, reason: MissedEntryReason): void {
     state.missedEntries.push({

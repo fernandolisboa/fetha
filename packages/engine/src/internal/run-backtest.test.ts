@@ -1289,6 +1289,74 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("checkpoint_mismatch");
+    if (result.error.code !== "checkpoint_mismatch") return;
+    expect(result.error.expectedDigest).toBe("schema:1");
+    expect(result.error.receivedDigest).toBe("schema:2");
+  });
+
+  it("returns checkpoint_mismatch, distinguishable from a schema or digest mismatch, when the resumed engineVersion does not match", () => {
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const digest = runBacktest({ view, config });
+    expect(digest.ok).toBe(true);
+    if (!digest.ok || digest.value.status !== "complete") throw new Error("expected complete");
+    const result = runBacktest({
+      view,
+      config,
+      resume: {
+        schema: 1,
+        engineVersion: "0.0.1",
+        configDigest: digest.value.run.configDigest,
+        cursor: "2024-01-02",
+        state: null,
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("checkpoint_mismatch");
+    if (result.error.code !== "checkpoint_mismatch") return;
+    expect(result.error.expectedDigest).not.toBe(result.error.receivedDigest);
+    expect(result.error.expectedDigest.startsWith("engineVersion:")).toBe(true);
+    expect(result.error.receivedDigest).toBe("engineVersion:0.0.1");
+  });
+
+  it("returns checkpoint_mismatch when the resumed state's equity curve does not already cover the resume cursor", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const paused = runBacktest({ view, config, maxSessions: 1 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+    const corruptedCheckpoint = {
+      ...paused.value.checkpoint,
+      state: {
+        ...(paused.value.checkpoint.state as Record<string, unknown>),
+        equityCurve: [],
+      },
+    };
+    const result = runBacktest({ view, config, resume: corruptedCheckpoint });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("checkpoint_mismatch");
+    if (result.error.code !== "checkpoint_mismatch") return;
+    expect(result.error.expectedDigest).toBe("equityCurve.length:1");
+    expect(result.error.receivedDigest).toBe("equityCurve.length:0");
   });
 
   it("returns invalid_input when resuming with a cursor that is not a session of the period", () => {
