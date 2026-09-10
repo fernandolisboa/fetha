@@ -62,6 +62,18 @@ function contentHash(value: string): number {
 
 const DAYS_IN_HASH_RANGE = 365;
 
+// The closure count is folded into the hashed string, not only the joined
+// content: a content-only hash of the joined dates can put two different
+// closure lists on the same day offset by coincidence (e.g. "14" and "110"
+// both land on 111), and folding the count in shifts that collision to a
+// different, still-possible-but-less-likely pair rather than eliminating it
+// outright — a full fix would need its own column, tracked as a possible
+// follow-up, not this ticket's scope (docs/adr/0017).
+export function dayOffsetForClosures(closures: readonly string[]): number {
+  const joined = [...closures].sort().join(",");
+  return contentHash(`${String(closures.length)}:${joined}`) % DAYS_IN_HASH_RANGE;
+}
+
 // Keyed on a hash of the year's holiday list and B3 closures folded into a
 // day offset within the year, not a static `{year}-01-01` marker: `session`
 // is a Postgres `date` column, so the marker must stay a valid calendar
@@ -69,8 +81,7 @@ const DAYS_IN_HASH_RANGE = 365;
 // changes the marker and re-runs the year instead of the old fixed marker
 // permanently reporting it as already ingested (docs/adr/0017).
 export function calendarMarkerSession(year: number): string {
-  const closures = [...closuresForYear(year)].sort().join(",");
-  const dayOffset = contentHash(closures) % DAYS_IN_HASH_RANGE;
+  const dayOffset = dayOffsetForClosures(closuresForYear(year));
   const date = new Date(Date.UTC(year, 0, 1));
   date.setUTCDate(date.getUTCDate() + dayOffset);
   return date.toISOString().slice(0, 10);

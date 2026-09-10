@@ -69,7 +69,11 @@ Postgres `date` column, but a fixed marker means a corrected ANBIMA source file 
 B3 closure is never re-ingested, since the marker already has a `succeeded` row.
 `calendarMarkerSession(year)` (`ingest.ts`) instead hashes that year's ANBIMA holidays plus B3's Dec
 24 / Dec 31 closures and folds the hash into a day offset within `year`, so the marker date itself
-changes whenever the underlying holiday list does, and stays a valid date.
+changes whenever the underlying holiday list does, and stays a valid date. `dayOffsetForClosures`
+folds the closure _count_ into the hashed string, not only the joined content, since a content-only
+hash can put two different closure lists on the same offset by coincidence; this shifts where a
+collision can happen rather than ruling it out, which would need its own column — an accepted,
+documented risk for this ticket, not a full fix.
 
 ## Bookkeeping: only the `running` insert is outside the lock
 
