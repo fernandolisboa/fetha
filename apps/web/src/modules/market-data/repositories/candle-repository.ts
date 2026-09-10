@@ -1,5 +1,13 @@
 import { and, asc, desc, eq, ilike } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import {
+  decimalStringSchema,
+  sessionDateSchema,
+  tickerSchema,
+  type DecimalString,
+  type SessionDate,
+  type Ticker,
+} from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import { candles } from "@/db/schema/market-data";
@@ -11,6 +19,23 @@ const DAILY_TIMEFRAME = "1d";
 const CHUNK_SIZE = 1000;
 
 export interface CandleRow {
+  ticker: Ticker;
+  session: SessionDate;
+  asOf: Date;
+  open: DecimalString;
+  high: DecimalString;
+  low: DecimalString;
+  close: DecimalString;
+  tradedQuantity: number;
+}
+
+export interface InstrumentSearchResult {
+  ticker: Ticker;
+  session: SessionDate;
+  close: DecimalString;
+}
+
+interface RawCandleRow {
   ticker: string;
   session: string;
   asOf: Date;
@@ -21,10 +46,20 @@ export interface CandleRow {
   tradedQuantity: number;
 }
 
-export interface InstrumentSearchResult {
-  ticker: string;
-  session: string;
-  close: string;
+// The repository is the one edge storage-shaped rows cross (CLAUDE.md
+// "validation at the edges"): every caller downstream gets `Ticker`,
+// `SessionDate` and `DecimalString`, never a raw `string` to re-parse.
+function toCandleRow(row: RawCandleRow): CandleRow {
+  return {
+    ticker: tickerSchema.parse(row.ticker),
+    session: sessionDateSchema.parse(row.session),
+    asOf: row.asOf,
+    open: decimalStringSchema.parse(row.open),
+    high: decimalStringSchema.parse(row.high),
+    low: decimalStringSchema.parse(row.low),
+    close: decimalStringSchema.parse(row.close),
+    tradedQuantity: row.tradedQuantity,
+  };
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -103,34 +138,43 @@ export async function latestCandle(db: Database, ticker: string): Promise<Candle
     .where(and(eq(candles.ticker, ticker), eq(candles.timeframe, DAILY_TIMEFRAME)))
     .orderBy(desc(candles.session))
     .limit(1);
-  return row ?? null;
+  return row ? toCandleRow(row) : null;
 }
 
-// Reference data only (ADR-0017): no per-user scope. Bounded to `limit`
-// distinct tickers and resolved with one query per match rather than a
-// window function, since a search-as-you-type call stays well under a
-// couple dozen matches (the instrument combobox, #13).
+// Reference data only (ADR-0017): no per-user scope. `SEARCH_PATTERN` only
+// accepts a plain alphanumeric prefix so the caller's query can never carry
+// a live `ILIKE` wildcard (`%`, `_`, `\`) into the pattern built below.
+// `DISTINCT ON` collapses "match + latest close per ticker" into the one
+// query a search-as-you-type call (the instrument combobox, #13) needs,
+// instead of a follow-up round trip per match.
+const SEARCH_PATTERN = /^[A-Za-z0-9]{1,12}$/;
+
 export async function searchInstruments(
   db: Database,
   query: string,
   limit: number,
 ): Promise<InstrumentSearchResult[]> {
   const trimmed = query.trim();
-  if (trimmed.length === 0) {
+  if (!SEARCH_PATTERN.test(trimmed)) {
     return [];
   }
   const pattern = `${trimmed}%`;
-  const matches = await db
-    .selectDistinct({ ticker: candles.ticker })
+  const rows = await db
+    .selectDistinctOn([candles.ticker], {
+      ticker: candles.ticker,
+      session: candles.session,
+      close: candles.close,
+    })
     .from(candles)
     .where(and(eq(candles.timeframe, DAILY_TIMEFRAME), ilike(candles.ticker, pattern)))
-    .orderBy(asc(candles.ticker))
+    .orderBy(asc(candles.ticker), desc(candles.session))
     .limit(limit);
 
-  const results = await Promise.all(matches.map(async ({ ticker }) => latestCandle(db, ticker)));
-  return results
-    .filter((row): row is CandleRow => row !== null)
-    .map((row) => ({ ticker: row.ticker, session: row.session, close: row.close }));
+  return rows.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    session: sessionDateSchema.parse(row.session),
+    close: decimalStringSchema.parse(row.close),
+  }));
 }
 
 // Oldest first, bounded to the last `limit` sessions: the shape a candle
@@ -156,5 +200,5 @@ export async function recentDailyCandles(
     .where(and(eq(candles.ticker, ticker), eq(candles.timeframe, DAILY_TIMEFRAME)))
     .orderBy(desc(candles.session))
     .limit(limit);
-  return rows.reverse();
+  return rows.reverse().map(toCandleRow);
 }

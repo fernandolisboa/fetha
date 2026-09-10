@@ -1,3 +1,4 @@
+import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Ticker } from "@fetha/contracts";
 import type { CurrentUser } from "@/modules/auth";
@@ -7,6 +8,7 @@ import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 import { getDb } from "@/db/client";
 import { candles } from "@/db/schema/market-data";
 import { user } from "@/db/schema/auth";
+import { watchlistItems } from "@/db/schema/watchlist";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
@@ -44,6 +46,10 @@ const { WatchlistRepository } = await import("./watchlist-repository");
 
 const TICKER_A = "ACWL3" as Ticker;
 const TICKER_B = "ACWM3" as Ticker;
+const CAP_TICKERS = Array.from(
+  { length: 101 },
+  (_, index) => `CAP${String(index).padStart(4, "0")}`,
+);
 
 function isRedirectError(error: unknown): boolean {
   return (
@@ -76,6 +82,36 @@ async function insertBareUser(email: string): Promise<CurrentUser> {
   return row;
 }
 
+function stockRow(ticker: string) {
+  return cotahistStockRowSchema.parse({
+    kind: "stock",
+    session: "2026-05-11",
+    ticker,
+    open: "10.000000",
+    high: "11.000000",
+    low: "9.000000",
+    average: "10.500000",
+    close: "10.750000",
+    trades: 100,
+    tradedQuantity: 5000,
+  });
+}
+
+async function upsertCandle(ticker: string): Promise<void> {
+  await upsertDailyCandles(getDb(), "2026-05-11", new Date("2026-05-11T21:00:00.000Z"), [
+    stockRow(ticker),
+  ]);
+}
+
+async function upsertCandles(tickers: string[]): Promise<void> {
+  await upsertDailyCandles(
+    getDb(),
+    "2026-05-11",
+    new Date("2026-05-11T21:00:00.000Z"),
+    tickers.map(stockRow),
+  );
+}
+
 const createdEmails: string[] = [];
 
 afterEach(async () => {
@@ -86,13 +122,15 @@ afterEach(async () => {
   }
   await db.delete(candles).where(eq(candles.ticker, TICKER_A));
   await db.delete(candles).where(eq(candles.ticker, TICKER_B));
+  await db.delete(candles).where(inArray(candles.ticker, CAP_TICKERS));
 });
 
 describe("addToWatchlistAction", () => {
-  it("adds a valid ticker for the current user", async () => {
+  it("adds a valid, ingested ticker for the current user", async () => {
     const email = uniqueEmail("add-ok");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
+    await upsertCandle(TICKER_A);
 
     const result = await addToWatchlistAction({ ticker: TICKER_A });
 
@@ -110,6 +148,39 @@ describe("addToWatchlistAction", () => {
 
     expect(result).toEqual({ status: "error", error: "invalid" });
   });
+
+  it("rejects a well-formed ticker with no ingested candles", async () => {
+    const email = uniqueEmail("add-unknown");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const result = await addToWatchlistAction({ ticker: "NADA3" });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+    const repository = new WatchlistRepository(getDb(), currentUser);
+    expect(await repository.list()).toEqual([]);
+  });
+
+  it("rejects adding a 101st instrument once the watchlist is at its cap", async () => {
+    const email = uniqueEmail("add-cap");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const [overflowTicker, ...capTickers] = CAP_TICKERS;
+    if (!overflowTicker || capTickers.length !== 100) {
+      throw new Error("test setup: expected 100 tickers at cap plus one overflow ticker");
+    }
+    await upsertCandles(CAP_TICKERS);
+    await getDb()
+      .insert(watchlistItems)
+      .values(capTickers.map((ticker) => ({ userId: owner.id, ticker })));
+    const repository = new WatchlistRepository(getDb(), owner);
+
+    const result = await addToWatchlistAction({ ticker: overflowTicker });
+
+    expect(result).toEqual({ status: "error", error: "cap" });
+    expect(await repository.list()).toHaveLength(100);
+  }, 30_000);
 
   it("redirects an unauthenticated caller instead of writing anything", async () => {
     currentUser = null;
@@ -145,24 +216,37 @@ describe("searchInstrumentsAction", () => {
     const email = uniqueEmail("search-ok");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
-    await upsertDailyCandles(getDb(), "2026-05-11", new Date("2026-05-11T21:00:00.000Z"), [
-      cotahistStockRowSchema.parse({
-        kind: "stock",
-        session: "2026-05-11",
-        ticker: TICKER_A,
-        open: "10.000000",
-        high: "11.000000",
-        low: "9.000000",
-        average: "10.500000",
-        close: "10.750000",
-        trades: 100,
-        tradedQuantity: 5000,
-      }),
-    ]);
+    await upsertCandle(TICKER_A);
 
     const results = await searchInstrumentsAction({ query: "ACWL" });
 
     expect(results.map((result) => result.ticker)).toEqual([TICKER_A]);
+  });
+
+  it("returns nothing for a query carrying a live ILIKE wildcard", async () => {
+    const email = uniqueEmail("search-wildcard");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    await upsertCandle(TICKER_A);
+
+    const results = await searchInstrumentsAction({ query: "%" });
+
+    expect(results).toEqual([]);
+  });
+
+  it("stops answering once the account rate limit is hit", async () => {
+    const email = uniqueEmail("search-rate-limited");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    await upsertCandle(TICKER_A);
+
+    type SearchResults = Awaited<ReturnType<typeof searchInstrumentsAction>>;
+    const outcomes: SearchResults[] = [];
+    for (let attempt = 0; attempt < 35; attempt += 1) {
+      outcomes.push(await searchInstrumentsAction({ query: "ACWL" }));
+    }
+
+    expect(outcomes.some((outcome) => outcome.length === 0)).toBe(true);
   });
 
   it("redirects an unauthenticated caller", async () => {

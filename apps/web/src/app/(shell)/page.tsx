@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { decimalStringSchema } from "@fetha/contracts";
 
 import { formatDate } from "@/lib/format/date-time";
 import { formatPriceBRL } from "@/lib/format/brl";
@@ -70,9 +69,7 @@ export default async function WatchlistPage() {
                   </Link>
                 </td>
                 <td className="py-2 text-right font-mono tabular-nums">
-                  {item.lastClose
-                    ? formatPriceBRL(decimalStringSchema.parse(item.lastClose.close))
-                    : t.table.noClose}
+                  {item.lastClose ? formatPriceBRL(item.lastClose.close) : t.table.noClose}
                 </td>
                 <td className="text-muted-foreground py-2 text-right font-mono tabular-nums">
                   {item.lastClose

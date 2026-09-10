@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { candleForms, type CandleForm } from "@fetha/engine";
-import { decimalStringSchema, tickerSchema } from "@fetha/contracts";
+import { tickerSchema } from "@fetha/contracts";
 
+import { getDb } from "@/db/client";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
-import { describeCloseFreshness } from "@/modules/market-data";
-import { Panel } from "@/modules/shell";
 import {
   CandleChart,
   CandleFormToggle,
-  getInstrumentLastClose,
-  getInstrumentSeries,
   InstrumentMarketBar,
+  latestCandle,
+  loadCandleSeries,
   t,
-} from "@/modules/watchlist";
+} from "@/modules/market-data";
+import { Panel } from "@/modules/shell";
 
 export async function generateMetadata({
   params,
@@ -46,10 +46,19 @@ export default async function InstrumentPage({
   const ticker = parsedTicker.data;
   const form = resolveForm(rawForm);
 
+  const db = getDb();
   const [lastClose, seriesResult] = await Promise.all([
-    getInstrumentLastClose(ticker),
-    getInstrumentSeries(ticker, form),
+    latestCandle(db, ticker),
+    loadCandleSeries(db, ticker, form),
   ]);
+
+  if (!seriesResult.ok) {
+    console.error("loadCandleSeries failed", {
+      code: seriesResult.error.code,
+      path: "path" in seriesResult.error ? seriesResult.error.path : undefined,
+      message: "message" in seriesResult.error ? seriesResult.error.message : undefined,
+    });
+  }
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
@@ -57,8 +66,8 @@ export default async function InstrumentPage({
         <InstrumentMarketBar
           instrument={{
             ticker,
-            lastClose: formatPriceBRL(decimalStringSchema.parse(lastClose.close)),
-            freshness: describeCloseFreshness(lastClose.session),
+            lastClose: formatPriceBRL(lastClose.close),
+            session: lastClose.session,
           }}
         />
       )}

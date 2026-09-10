@@ -1,11 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { SessionDate } from "@fetha/contracts";
 
 export interface MarketBarInstrument {
   ticker: string;
   lastClose: string;
-  freshness: string;
+  session: SessionDate;
 }
 
 interface MarketBarContextValue {
@@ -45,5 +46,5 @@ export function usePublishMarketBarInstrument(instrument: MarketBarInstrument | 
       setInstrument(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per navigated instrument, not per render
-  }, [instrument?.ticker, instrument?.lastClose, instrument?.freshness]);
+  }, [instrument?.ticker, instrument?.lastClose, instrument?.session]);
 }

@@ -85,6 +85,41 @@ describe("loadCandleSeries", () => {
     expect(result.value.candles[0]?.close).toBe("5.00");
   });
 
+  it("does not adjust by a corporate-action factor not yet visible at `now` (no look-ahead)", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-11", new Date("2026-05-11T21:00:00.000Z"), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: "2026-05-11",
+        ticker: TICKER,
+        open: "10.000000",
+        high: "11.000000",
+        low: "9.000000",
+        average: "10.500000",
+        close: "10.000000",
+        trades: 100,
+        tradedQuantity: 5000,
+      }),
+    ]);
+    await db.insert(corporateActionFactors).values({
+      ticker: TICKER,
+      exDate: "2026-05-12",
+      asOf: new Date("2026-05-12T13:00:00.000Z"),
+      factor: "0.5",
+    });
+
+    const result = await loadCandleSeries(
+      db,
+      TICKER,
+      "adjusted",
+      new Date("2026-05-12T10:00:00.000Z"),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candles[0]?.close).toBe("10.000000");
+  });
+
   it("returns an empty series for a ticker with no candles", async () => {
     const db = getDb();
     const result = await loadCandleSeries(db, "NADA3", "adjusted");

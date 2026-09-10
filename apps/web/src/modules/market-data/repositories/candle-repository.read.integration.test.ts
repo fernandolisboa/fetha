@@ -74,6 +74,20 @@ describe("candle-repository reads", () => {
     expect(results).toHaveLength(1);
   });
 
+  it.each(["%", "_", "\\", "PE_R4", "AB%CD", "A\\B"])(
+    "searchInstruments rejects a query carrying a live ILIKE wildcard (%j)",
+    async (query) => {
+      const db = getDb();
+      await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
+        stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
+      ]);
+
+      const results = await searchInstruments(db, query, 20);
+
+      expect(results).toEqual([]);
+    },
+  );
+
   it("latestCandle returns null when the ticker has no candles", async () => {
     const db = getDb();
     expect(await latestCandle(db, "NADA3")).toBeNull();

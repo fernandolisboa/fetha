@@ -72,10 +72,10 @@ function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["candles"][n
     timeframe: ENGINE_TIMEFRAME,
     session: row.session,
     asOf: instantSchema.parse(row.asOf.toISOString()),
-    open: decimalStringSchema.parse(row.open),
-    high: decimalStringSchema.parse(row.high),
-    low: decimalStringSchema.parse(row.low),
-    close: decimalStringSchema.parse(row.close),
+    open: row.open,
+    high: row.high,
+    low: row.low,
+    close: row.close,
     tradedQuantity: row.tradedQuantity,
   };
 }

@@ -1,7 +1,5 @@
 import type { SessionDate } from "@fetha/contracts";
 
-import { formatDate } from "@/lib/format/date-time";
-
 const TIME_ZONE = "America/Sao_Paulo";
 
 const isoDateFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -32,18 +30,30 @@ function daysBefore(isoDate: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// The market bar's freshness phrase for a daily close (DESIGN.md's "Stale"
-// state, "fechamento de ontem"): the session is a plain calendar date
-// (SessionDate), so "today"/"yesterday" compare calendar days in
-// America/Sao_Paulo rather than elapsed hours.
-export function describeCloseFreshness(session: SessionDate, now: Date = new Date()): string {
+export type CloseFreshness =
+  { kind: "today" } | { kind: "yesterday" } | { kind: "older"; session: SessionDate };
+
+// A typed close-freshness state (DESIGN.md's "Stale" state, "fechamento de
+// ontem"): the session is a plain calendar date (SessionDate), so
+// "today"/"yesterday" compare calendar days in America/Sao_Paulo rather
+// than elapsed hours. Kept free of copy so a client component can recompute
+// it against a live `now` (an installed PWA left open past midnight) and
+// render the pt-BR phrase from `shell/strings.ts` itself.
+export function closeFreshnessKind(session: SessionDate, now: Date = new Date()): CloseFreshness {
   const today = isoDateInSaoPaulo(now);
   if (session === today) {
-    return "fechamento de hoje";
+    return { kind: "today" };
   }
   if (session === daysBefore(today, 1)) {
-    return "fechamento de ontem";
+    return { kind: "yesterday" };
   }
+  return { kind: "older", session };
+}
+
+// Session dates are plain calendar dates with no time of day; noon UTC
+// keeps the display date from shifting a day when formatted back through
+// America/Sao_Paulo.
+export function sessionDateToDisplayDate(session: SessionDate): Date {
   const { year, month, day } = parseIsoDate(session);
-  return `fechamento de ${formatDate(new Date(Date.UTC(year, month - 1, day, 12)))}`;
+  return new Date(Date.UTC(year, month - 1, day, 12));
 }

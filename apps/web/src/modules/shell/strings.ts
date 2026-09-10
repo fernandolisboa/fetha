@@ -7,6 +7,9 @@ const en = {
   },
   marketBar: {
     noData: "no data yet",
+    closeFreshnessToday: "today's close",
+    closeFreshnessYesterday: "yesterday's close",
+    closeFreshnessOlder: (date: string) => `close on ${date}`,
   },
   rail: {
     navigationLabel: "Main navigation",
@@ -54,6 +57,9 @@ const ptBR = {
   },
   marketBar: {
     noData: "sem dados",
+    closeFreshnessToday: "fechamento de hoje",
+    closeFreshnessYesterday: "fechamento de ontem",
+    closeFreshnessOlder: (date: string) => `fechamento de ${date}`,
   },
   rail: {
     navigationLabel: "Navegação principal",

@@ -7,7 +7,9 @@ const en = {
     trigger: "Add instrument",
     placeholder: "Search by ticker",
     empty: "No instrument found.",
+    searchError: "Couldn't search instruments. Try again.",
     error: "Couldn't add the instrument. Try again.",
+    cap: "Your watchlist is full (100 instruments). Remove one to add another.",
   },
   remove: {
     action: "Remove",
@@ -16,14 +18,6 @@ const en = {
   table: {
     columns: { ticker: "Ticker", lastClose: "Last close", session: "Session" },
     noClose: "no close yet",
-  },
-  instrument: {
-    overline: "Instrument",
-    adjusted: "Adjusted",
-    nominal: "Nominal",
-    volume: "Volume",
-    noData: "No candle for this instrument yet.",
-    unavailable: "Couldn't load the chart. Try again.",
   },
 };
 
@@ -36,7 +30,9 @@ const ptBR = {
     trigger: "Adicionar ativo",
     placeholder: "Buscar pelo código",
     empty: "Nenhum ativo encontrado.",
+    searchError: "Não foi possível buscar ativos. Tente novamente.",
     error: "Não foi possível adicionar o ativo. Tente novamente.",
+    cap: "Sua watchlist está cheia (100 ativos). Remova um para adicionar outro.",
   },
   remove: {
     action: "Remover",
@@ -45,14 +41,6 @@ const ptBR = {
   table: {
     columns: { ticker: "Código", lastClose: "Último fechamento", session: "Pregão" },
     noClose: "sem fechamento ainda",
-  },
-  instrument: {
-    overline: "Ativo",
-    adjusted: "Ajustada",
-    nominal: "Nominal",
-    volume: "Volume",
-    noData: "Ainda não há candle para este ativo.",
-    unavailable: "Não foi possível carregar o gráfico. Tente novamente.",
   },
 } satisfies typeof en;
 

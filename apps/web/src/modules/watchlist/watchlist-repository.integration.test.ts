@@ -107,4 +107,34 @@ describe("WatchlistRepository", () => {
     await expect(repository.remove("PETR4")).resolves.toBeUndefined();
     expect(await repository.list()).toEqual([]);
   });
+
+  it("count reflects the number of instruments on the list", async () => {
+    const db = getDb();
+    const email = uniqueEmail("count");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new WatchlistRepository(db, owner);
+
+    expect(await repository.count()).toBe(0);
+    await repository.add("BBAS3");
+    await repository.add("PETR4");
+    expect(await repository.count()).toBe(2);
+  });
+});
+
+describe("WatchlistRepository count isolation", () => {
+  it("count only reflects the current user's own instruments", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("count-a");
+    const emailB = uniqueEmail("count-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    await new WatchlistRepository(db, userB).add("VALE3");
+    await new WatchlistRepository(db, userB).add("ITUB4");
+
+    expect(await new WatchlistRepository(db, userA).count()).toBe(0);
+    expect(await new WatchlistRepository(db, userB).count()).toBe(2);
+  });
 });

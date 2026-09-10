@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import type { Ticker } from "@fetha/contracts";
 
 import { watchlistItems } from "@/db/schema/watchlist";
@@ -21,6 +21,14 @@ export class WatchlistRepository extends UserScopedRepository {
       .where(eq(watchlistItems.userId, this.userId))
       .orderBy(desc(watchlistItems.addedAt));
     return rows;
+  }
+
+  async count(): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(watchlistItems)
+      .where(eq(watchlistItems.userId, this.userId));
+    return row?.value ?? 0;
   }
 
   async add(ticker: Ticker): Promise<void> {

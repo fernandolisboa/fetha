@@ -20,12 +20,18 @@ import { t } from "../strings";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
+interface SearchOutcome {
+  query: string;
+  results: InstrumentSearchResult[];
+  failed: boolean;
+}
+
 export function AddInstrumentCombobox() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<InstrumentSearchResult[]>([]);
-  const [error, setError] = useState(false);
+  const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const trimmedQuery = query.trim();
 
@@ -38,12 +44,12 @@ export function AddInstrumentCombobox() {
       searchInstrumentsAction({ query: trimmedQuery })
         .then((found) => {
           if (!cancelled) {
-            setResults(found);
+            setOutcome({ query: trimmedQuery, results: found, failed: false });
           }
         })
         .catch(() => {
           if (!cancelled) {
-            setResults([]);
+            setOutcome({ query: trimmedQuery, results: [], failed: true });
           }
         });
     }, SEARCH_DEBOUNCE_MS);
@@ -53,23 +59,30 @@ export function AddInstrumentCombobox() {
     };
   }, [open, trimmedQuery]);
 
-  const displayResults = open && trimmedQuery.length > 0 ? results : [];
+  // The outcome is scoped to the query it answers: a query that changed
+  // (or was cleared) while a search was in flight never shows a
+  // superseded query's results, so a fast Enter cannot select an
+  // instrument the current query never matched.
+  const currentOutcome = open && outcome?.query === trimmedQuery ? outcome : null;
+  const displayResults = trimmedQuery.length > 0 ? (currentOutcome?.results ?? []) : [];
+  const searchFailed = trimmedQuery.length > 0 && currentOutcome?.failed === true;
 
   function select(ticker: string) {
-    setError(false);
+    setAddError(null);
     startTransition(() => {
       addToWatchlistAction({ ticker })
         .then((result) => {
           if (result.status === "ok") {
             setOpen(false);
             setQuery("");
+            setOutcome(null);
             router.refresh();
           } else {
-            setError(true);
+            setAddError(result.error === "cap" ? t.add.cap : t.add.error);
           }
         })
         .catch(() => {
-          setError(true);
+          setAddError(t.add.error);
         });
     });
   }
@@ -82,6 +95,7 @@ export function AddInstrumentCombobox() {
           setOpen(nextOpen);
           if (!nextOpen) {
             setQuery("");
+            setOutcome(null);
           }
         }}
       >
@@ -97,23 +111,24 @@ export function AddInstrumentCombobox() {
           <Command shouldFilter={false}>
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
             <CommandList>
-              <CommandEmpty>{t.add.empty}</CommandEmpty>
-              {displayResults.map((result) => (
-                <CommandItem
-                  key={result.ticker}
-                  value={result.ticker}
-                  onSelect={() => {
-                    select(result.ticker);
-                  }}
-                >
-                  {result.ticker}
-                </CommandItem>
-              ))}
+              <CommandEmpty>{searchFailed ? t.add.searchError : t.add.empty}</CommandEmpty>
+              {!searchFailed &&
+                displayResults.map((result) => (
+                  <CommandItem
+                    key={result.ticker}
+                    value={result.ticker}
+                    onSelect={() => {
+                      select(result.ticker);
+                    }}
+                  >
+                    {result.ticker}
+                  </CommandItem>
+                ))}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
-      {error && <p className="text-destructive text-xs">{t.add.error}</p>}
+      {addError && <p className="text-destructive text-xs">{addError}</p>}
     </div>
   );
 }
