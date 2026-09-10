@@ -10,10 +10,12 @@ import { Rail } from "./rail";
 export function AppShell({
   user,
   preferences,
+  unreadSignalCount,
   children,
 }: {
   user: CurrentUser;
   preferences: Preferences;
+  unreadSignalCount: number;
   children: ReactNode;
 }) {
   return (
@@ -21,7 +23,10 @@ export function AppShell({
       <div className="grid min-h-full grid-rows-[48px_1fr]">
         <Header email={user.email} />
         <div className="flex min-h-0 flex-1">
-          <Rail initialCollapsed={preferences.railCollapsed} />
+          <Rail
+            initialCollapsed={preferences.railCollapsed}
+            unreadSignalCount={unreadSignalCount}
+          />
           <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
         </div>
       </div>

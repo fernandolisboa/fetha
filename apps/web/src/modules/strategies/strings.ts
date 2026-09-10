@@ -11,6 +11,7 @@ const en = {
       share: "Share",
       unshare: "Stop sharing",
       shareError: "Couldn't update sharing. Try again.",
+      active: "Active",
     },
     shared: {
       title: "Shared by other users",
@@ -115,6 +116,38 @@ const en = {
   },
   indicatorKinds: { sma: "SMA", ema: "EMA", rsi: "RSI", atr: "ATR", iv_rank: "IV rank" },
   operandKinds: { indicator: "Indicator", price: "Price field", constant: "Constant" },
+  active: {
+    label: "Active",
+    hint: "Evaluated every night over your watchlist.",
+    error: "Couldn't update. Try again.",
+  },
+  inbox: {
+    overline: "Signals",
+    title: "Inbox",
+    columns: {
+      strategy: "Strategy",
+      instrument: "Instrument",
+      evaluatedAt: "Evaluated at",
+      proposal: "Proposal",
+    },
+    kind: { entry: "Entry", exit: "Exit", adjust: "Adjust" },
+    late: "late",
+    markRead: "Mark as read",
+    read: "Read",
+    entryProposal: (legs: number, netPremium: string) =>
+      `${String(legs)} leg(s) · net premium ${netPremium}`,
+    exitProposal: "Exit condition met on an open operation",
+    adjustProposal: "Adjustment condition met",
+    evaluationLog: { title: "Evaluation log", empty: "No evaluation recorded yet." },
+    outcomes: {
+      signal: "Signal",
+      conditions_not_met: "Conditions not met",
+      no_series_match: "No series match",
+      degenerate_strikes: "Degenerate strikes",
+      insufficient_data: "Insufficient data",
+      unsizeable: "Unsizeable",
+    },
+  },
 };
 
 const ptBR = {
@@ -135,6 +168,7 @@ const ptBR = {
       share: "Compartilhar",
       unshare: "Parar de compartilhar",
       shareError: "Não foi possível atualizar o compartilhamento. Tente novamente.",
+      active: "Ativa",
     },
     shared: {
       title: "Compartilhadas",
@@ -244,6 +278,38 @@ const ptBR = {
     iv_rank: "Ranking de IV",
   },
   operandKinds: { indicator: "Indicador", price: "Campo de preço", constant: "Constante" },
+  active: {
+    label: "Ativa",
+    hint: "Avaliada todas as noites na sua watchlist.",
+    error: "Não foi possível atualizar. Tente novamente.",
+  },
+  inbox: {
+    overline: "Sinais",
+    title: "Caixa de entrada",
+    columns: {
+      strategy: "Estratégia",
+      instrument: "Ativo",
+      evaluatedAt: "Avaliado em",
+      proposal: "Proposta",
+    },
+    kind: { entry: "Entrada", exit: "Saída", adjust: "Ajuste" },
+    late: "atrasado",
+    markRead: "Marcar como lida",
+    read: "Lida",
+    entryProposal: (legs: number, netPremium: string) =>
+      `${String(legs)} ponta(s) · prêmio líquido ${netPremium}`,
+    exitProposal: "Condição de saída atingida em uma operação em aberto",
+    adjustProposal: "Condição de ajuste atingida",
+    evaluationLog: { title: "Log de avaliações", empty: "Nenhuma avaliação registrada ainda." },
+    outcomes: {
+      signal: "Sinal",
+      conditions_not_met: "Condições não atendidas",
+      no_series_match: "Nenhuma série correspondente",
+      degenerate_strikes: "Strikes degenerados",
+      insufficient_data: "Dados insuficientes",
+      unsizeable: "Não dimensionável",
+    },
+  },
 } satisfies typeof en;
 
 export const strategiesStrings = { en, ptBR } as const;
