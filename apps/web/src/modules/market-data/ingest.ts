@@ -44,6 +44,19 @@ export interface SourceOutcome {
   skipped: boolean;
   rowCount: number;
   error?: string;
+  // Rows a source's own parser dropped as non-conforming (e.g. the
+  // instruments registry's out-of-scope commodity/FX option rows) rather
+  // than a write failure; only sources that can partially skip rows set it.
+  skippedRows?: number;
+}
+
+// A run callback normally just reports how many rows it wrote; one that also
+// dropped non-conforming rows (the instruments registry) reports that count
+// too so it survives into the SourceOutcome instead of only a console.warn.
+type RunResult = number | { rowCount: number; skippedRows: number };
+
+function normalizeRunResult(result: RunResult): { rowCount: number; skippedRows?: number } {
+  return typeof result === "number" ? { rowCount: result } : result;
 }
 
 export interface IngestOutcome {
@@ -94,11 +107,13 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
   const errors = outcomes
     .map((outcome) => outcome.error)
     .filter((error): error is string => Boolean(error));
+  const skippedRows = outcomes.reduce((total, outcome) => total + (outcome.skippedRows ?? 0), 0);
   return {
     source,
     skipped: outcomes.every((outcome) => outcome.skipped),
     rowCount: outcomes.reduce((total, outcome) => total + outcome.rowCount, 0),
     ...(errors.length > 0 ? { error: errors.join("; ") } : {}),
+    ...(skippedRows > 0 ? { skippedRows } : {}),
   };
 }
 
@@ -133,7 +148,7 @@ export async function runSource(
   source: IngestionSource,
   session: string,
   maxDurationMs: number,
-  run: () => Promise<number>,
+  run: () => Promise<RunResult>,
 ): Promise<SourceOutcome> {
   // runId is only known once startRun resolves; a transient DB error before
   // that (reapStaleRunningRuns, the pre-lock findSucceededRun, startRun
@@ -156,7 +171,7 @@ export async function runSource(
       if (alreadySucceeded) {
         return { rowCount: alreadySucceeded.rowCount ?? 0, skipped: true };
       }
-      const rowCount = await run();
+      const { rowCount, skippedRows } = normalizeRunResult(await run());
       const committed = await tx
         .transaction(async (savepoint) => {
           // Same nominal-type gap as withSourceLock's own cast: the
@@ -174,12 +189,19 @@ export async function runSource(
           }
           return false;
         });
-      return { rowCount, skipped: !committed };
+      return { rowCount, skipped: !committed, skippedRows };
     });
     if (result.skipped) {
       await deleteRun(db, startedRunId);
     }
-    return { source, skipped: result.skipped, rowCount: result.rowCount };
+    return {
+      source,
+      skipped: result.skipped,
+      rowCount: result.rowCount,
+      ...("skippedRows" in result && result.skippedRows !== undefined
+        ? { skippedRows: result.skippedRows }
+        : {}),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     if (runId) {
@@ -210,7 +232,7 @@ export async function runSessionBoundSource(
   source: IngestionSource,
   sessions: string[],
   maxDurationMs: number,
-  run: (session: string) => Promise<number>,
+  run: (session: string) => Promise<RunResult>,
 ): Promise<SessionBoundResult> {
   const outcomes: SourceOutcome[] = [];
   const okSessions: string[] = [];
@@ -296,8 +318,9 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
       if (!trading) {
         throw new Error(`no trading session recorded for ${session}`);
       }
-      const series = await fetchInstrumentsRegistry(session, fetchImpl);
-      return upsertOptionSeries(db, trading.close, series);
+      const { series, skipped } = await fetchInstrumentsRegistry(session, fetchImpl);
+      const rowCount = await upsertOptionSeries(db, trading.close, series);
+      return { rowCount, skippedRows: skipped };
     },
   );
 

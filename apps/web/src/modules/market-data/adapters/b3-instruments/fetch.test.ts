@@ -46,8 +46,9 @@ describe("requestNameUrl / downloadUrl", () => {
 
 describe("fetchInstrumentsRegistry", () => {
   it("requests a token then downloads and parses the CSV", async () => {
-    const series = await fetchInstrumentsRegistry("2026-09-08", twoStepFetch(200, fixture));
-    expect(series).toHaveLength(12);
+    const result = await fetchInstrumentsRegistry("2026-09-08", twoStepFetch(200, fixture));
+    expect(result.series).toHaveLength(13);
+    expect(result.skipped).toBe(0);
   });
 
   it("throws InstrumentsFetchError when the token request fails", async () => {

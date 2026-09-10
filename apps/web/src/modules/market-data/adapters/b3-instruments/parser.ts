@@ -20,6 +20,19 @@ const IN_SCOPE_CATEGORIES = new Set([
   "OPTION ON INDEX",
 ]);
 
+// An in-scope option row that fails validation (missing required field or a
+// value the schema rejects) is a data-quality problem the file itself
+// caused, not something this parser can repair; a handful is an
+// occasional oddity worth a warning, but a registry with more than this
+// many is more likely malformed or shifted than merely noisy, so the whole
+// fetch fails loudly instead of silently persisting a partial file.
+const MAX_SKIPPED_ROWS = 10;
+
+export interface ParsedInstrumentsRegistry {
+  series: InstrumentOptionSeries[];
+  skipped: number;
+}
+
 function styleFrom(optionStyle: string): "american" | "european" | null {
   if (optionStyle === "AMER") return "american";
   if (optionStyle === "EURO") return "european";
@@ -33,7 +46,7 @@ function rightFrom(optionType: string): "call" | "put" | null {
 }
 
 function commaToDot(value: string): string {
-  return value.replace(",", ".");
+  return value.replaceAll(",", ".");
 }
 
 // B3's InstrumentsConsolidated registry (endpoints verified 2026-09-09,
@@ -41,10 +54,10 @@ function commaToDot(value: string): string {
 // "Status do Arquivo: Final", header on the second line. Only option rows
 // (`OptnTp` "Call"/"Put") carry the fields we need; every other row (stocks,
 // ETFs, ...) is skipped since candles come from COTAHIST instead.
-export function parseInstrumentsRegistry(content: string): InstrumentOptionSeries[] {
+export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegistry {
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length <= 1) {
-    return [];
+    return { series: [], skipped: 0 };
   }
   const [, header, ...rows] = lines;
   const columns = (header ?? "").split(";");
@@ -83,6 +96,7 @@ export function parseInstrumentsRegistry(content: string): InstrumentOptionSerie
     const rawStrike = fields[strikeIndex]?.trim();
     const isin = fields[isinIndex]?.trim();
     if (!style || !expiry || !rawStrike || !isin) {
+      skipped += 1;
       continue;
     }
     try {
@@ -106,8 +120,14 @@ export function parseInstrumentsRegistry(content: string): InstrumentOptionSerie
       throw error;
     }
   }
+  if (skipped > MAX_SKIPPED_ROWS) {
+    throw new Error(
+      `instruments registry: skipped ${String(skipped)} non-conforming in-scope row(s), ` +
+        `more than the ${String(MAX_SKIPPED_ROWS)} allowed`,
+    );
+  }
   if (skipped > 0) {
     console.warn(`instruments registry: skipped ${String(skipped)} non-conforming row(s)`);
   }
-  return series;
+  return { series, skipped };
 }

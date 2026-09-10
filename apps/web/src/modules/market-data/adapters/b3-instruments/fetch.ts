@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { InstrumentOptionSeries } from "./schema";
+import type { ParsedInstrumentsRegistry } from "./parser";
 import { parseInstrumentsRegistry } from "./parser";
 
 export class InstrumentsFetchError extends Error {
@@ -28,7 +28,7 @@ const requestNameResponseSchema = z.object({ token: z.string().min(1) });
 export async function fetchInstrumentsRegistry(
   reportDate: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<InstrumentOptionSeries[]> {
+): Promise<ParsedInstrumentsRegistry> {
   const tokenResponse = await fetchImpl(requestNameUrl(reportDate));
   if (!tokenResponse.ok) {
     throw new InstrumentsFetchError(

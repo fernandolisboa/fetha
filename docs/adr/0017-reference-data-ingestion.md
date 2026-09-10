@@ -151,8 +151,13 @@ day's registry. Within the in-scope categories, rows with `OptnTp` `Call`/`Put` 
 maps `AMER`/`EURO` to `american`/`european`, `ExrcPric` has a comma decimal separator converted to
 a dot, and the underlying comes from `Asst` (for an option row, `Asst` already carries the full
 underlying ticker, e.g. `PETR4`, not just the root `PETR`). `ISIN` is kept and becomes
-`option_series.isin`. Any remaining in-scope row that still fails validation is a counted skip
-(logged), not a thrown error, for the same reason.
+`option_series.isin`. Any remaining in-scope row that still fails validation (missing a required
+field, or the field the schema rejects) is a counted skip, not a thrown error, for the same reason;
+`parseInstrumentsRegistry` returns `{ series, skipped }` instead of the bare array, and that count
+survives into `SourceOutcome.skippedRows` (`ingest.ts`) rather than only a `console.warn`. More than
+`MAX_SKIPPED_ROWS` (10) in-scope-but-invalid rows in one file throws instead of silently persisting
+a registry that is more likely malformed or shifted than merely noisy; `commaToDot` uses
+`replaceAll`, not `replace`, in case a strike ever carries more than one comma.
 
 **Option series identity**: B3 reuses option tickers across listing cycles and adjusts strikes, so
 `ticker` alone is not a stable natural key; `isin` is (`option_series.isin`, unique, primary key).
