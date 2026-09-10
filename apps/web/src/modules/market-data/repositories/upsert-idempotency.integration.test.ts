@@ -101,7 +101,34 @@ describe("repository upsert idempotency", () => {
       .from(optionDailyPrices)
       .where(eq(optionDailyPrices.ticker, OPTION_TICKER));
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ close: "1.100000", strike: "12.00000000", right: "call" });
+    expect(rows[0]).toMatchObject({
+      close: "1.100000",
+      strike: "12.00000000",
+      right: "call",
+      factor: "1.000000",
+    });
+  });
+
+  it("upsertOptionDailyPrices: persists the quotation factor distinct from the strike's own unit", async () => {
+    const db = getDb();
+    const asOf = new Date(`${SESSION}T20:00:00.000Z`);
+    const indexOptionRow = cotahistOptionRowSchema.parse({
+      ...optionRow,
+      ticker: `${OPTION_TICKER}I`,
+      strike: "183000.000000",
+      factor: "100",
+    });
+
+    await upsertOptionDailyPrices(db, SESSION, asOf, [indexOptionRow]);
+
+    const [row] = await db
+      .select()
+      .from(optionDailyPrices)
+      .where(eq(optionDailyPrices.ticker, `${OPTION_TICKER}I`));
+    expect(row?.strike).toBe("183000.00000000");
+    expect(row?.factor).toBe("100.000000");
+
+    await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, `${OPTION_TICKER}I`));
   });
 
   it("upsertOptionSeries: inserting the same isin twice yields one row and never advances as_of backward-set on the first insert", async () => {

@@ -55,6 +55,7 @@ CREATE TABLE "option_daily_prices" (
 	"expiry" date NOT NULL,
 	"average" numeric(18, 6),
 	"close" numeric(18, 6),
+	"factor" numeric(18, 6) DEFAULT '1' NOT NULL,
 	"trades" integer NOT NULL,
 	"traded_quantity" bigint NOT NULL,
 	CONSTRAINT "option_daily_prices_ticker_session_pk" PRIMARY KEY("ticker","session")

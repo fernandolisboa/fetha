@@ -56,6 +56,11 @@ export const optionDailyPrices = pgTable(
     expiry: date("expiry", { mode: "string" }).notNull(),
     average: numeric("average", { precision: 18, scale: 6 }),
     close: numeric("close", { precision: 18, scale: 6 }),
+    // COTAHIST FATCOT (quotation-lot factor): average/close are premiums per
+    // contract already divided by it, while strike is always in raw points
+    // (docs/adr/0017, "PREEXE divides by 100 only"). Persisted so a reader
+    // can tell the two fields are on different units for the same row.
+    factor: numeric("factor", { precision: 18, scale: 6 }).notNull().default("1"),
     trades: integer("trades").notNull(),
     tradedQuantity: bigint("traded_quantity", { mode: "number" }).notNull(),
   },

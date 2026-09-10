@@ -111,6 +111,11 @@ raw `PREEXE` `18300000` / `100` = `183000`, exactly the instruments registry's `
 same series (`option_series.strike`), while `/ (100 x FATCOT)` with that day's `FATCOT` of `100`
 gave the wrong `1830`. Covered by a cross-source consistency test against both real files.
 
+Because `strike` and the price fields (`average`, `close`) are on different units for the same
+index-option row — strike in raw points, prices in R$ per contract already divided by `FATCOT` —
+`option_daily_prices.factor` persists the `FATCOT` used for that row's price fields, so a later
+reader can tell the two columns apart instead of assuming a shared unit.
+
 `fetchCotahist`/`parseCotahist` reject a file whose `DATA` field does not match the requested
 session (`CotahistParseError`), so a stale or mismatched download fails loudly instead of silently
 mis-dating every row it ingests.
