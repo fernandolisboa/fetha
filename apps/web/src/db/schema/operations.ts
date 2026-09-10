@@ -1,5 +1,5 @@
-import { pgTable, text, integer, jsonb, timestamp, date, index } from "drizzle-orm/pg-core";
-import type { OperationLeg } from "@fetha/contracts";
+import { pgTable, text, bigint, jsonb, timestamp, date, index } from "drizzle-orm/pg-core";
+import type { ContemplatedLeg } from "@fetha/contracts";
 
 import { user } from "./auth";
 import { structures } from "./structures";
@@ -22,11 +22,11 @@ export const contemplatedOperations = pgTable(
       .notNull()
       .references(() => structures.id),
     underlying: text("underlying").notNull(),
-    legs: jsonb("legs").$type<OperationLeg[]>().notNull(),
+    legs: jsonb("legs").$type<ContemplatedLeg[]>().notNull(),
     session: date("session", { mode: "string" }).notNull(),
-    netPremiumCentavos: integer("net_premium_centavos").notNull(),
-    maxLossCentavos: integer("max_loss_centavos"),
-    maxGainCentavos: integer("max_gain_centavos"),
+    netPremiumCentavos: bigint("net_premium_centavos", { mode: "number" }).notNull(),
+    maxLossCentavos: bigint("max_loss_centavos", { mode: "number" }),
+    maxGainCentavos: bigint("max_gain_centavos", { mode: "number" }),
     breachedLimits: jsonb("breached_limits").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

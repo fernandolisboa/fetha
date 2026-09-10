@@ -59,6 +59,6 @@ export {
   type Structure,
 } from "./structure";
 export { strategyDefinitionSchema, type StrategyDefinition } from "./strategy-definition";
-export { operationLegSchema, type OperationLeg } from "./operation-leg";
+export { contemplatedLegSchema, type ContemplatedLeg } from "./contemplated-leg";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
 export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";

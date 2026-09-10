@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, bigint, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 import type { RiskProfile } from "@fetha/contracts";
 
 import { user } from "./auth";
@@ -16,7 +16,7 @@ export const riskProfiles = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    declaredCapital: integer("declared_capital").notNull(),
+    declaredCapital: bigint("declared_capital", { mode: "number" }).notNull(),
     limits: jsonb("limits").$type<RiskProfile["limits"]>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

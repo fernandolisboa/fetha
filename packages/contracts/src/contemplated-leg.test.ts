@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { operationLegSchema } from "./operation-leg";
+import { contemplatedLegSchema } from "./contemplated-leg";
 
-describe("operationLegSchema", () => {
+describe("contemplatedLegSchema", () => {
   it("accepts a concrete leg with a ticker and a positive quantity", () => {
-    const result = operationLegSchema.safeParse({
+    const result = contemplatedLegSchema.safeParse({
       role: "call",
       side: "buy",
       ticker: "PETRJ400",
@@ -13,7 +13,7 @@ describe("operationLegSchema", () => {
   });
 
   it("rejects a strikeRank field: legs are concrete, not templated", () => {
-    const result = operationLegSchema.safeParse({
+    const result = contemplatedLegSchema.safeParse({
       role: "call",
       side: "buy",
       ticker: "PETRJ400",
@@ -24,7 +24,7 @@ describe("operationLegSchema", () => {
   });
 
   it("rejects a zero or negative quantity", () => {
-    const result = operationLegSchema.safeParse({
+    const result = contemplatedLegSchema.safeParse({
       role: "stock",
       side: "buy",
       ticker: "PETR4",

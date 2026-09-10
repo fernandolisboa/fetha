@@ -5,9 +5,9 @@ CREATE TABLE "contemplated_operations" (
 	"underlying" text NOT NULL,
 	"legs" jsonb NOT NULL,
 	"session" date NOT NULL,
-	"net_premium_centavos" integer NOT NULL,
-	"max_loss_centavos" integer,
-	"max_gain_centavos" integer,
+	"net_premium_centavos" bigint NOT NULL,
+	"max_loss_centavos" bigint,
+	"max_gain_centavos" bigint,
 	"breached_limits" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -15,7 +15,7 @@ CREATE TABLE "contemplated_operations" (
 CREATE TABLE "risk_profiles" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
-	"declared_capital" integer NOT NULL,
+	"declared_capital" bigint NOT NULL,
 	"limits" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );

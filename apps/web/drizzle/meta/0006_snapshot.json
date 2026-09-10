@@ -1,5 +1,5 @@
 {
-  "id": "6fae5bd1-6cdf-4411-a508-d4618a84c33c",
+  "id": "75ff73d9-db6d-44bb-b9bc-02f4210f4d91",
   "prevId": "0b51abff-ce62-4e90-95c7-49ed45930dff",
   "version": "7",
   "dialect": "postgresql",
@@ -959,19 +959,19 @@
         },
         "net_premium_centavos": {
           "name": "net_premium_centavos",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "max_loss_centavos": {
           "name": "max_loss_centavos",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "max_gain_centavos": {
           "name": "max_gain_centavos",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -1140,7 +1140,7 @@
         },
         "declared_capital": {
           "name": "declared_capital",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
