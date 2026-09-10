@@ -7,7 +7,7 @@ import type {
   OptionSeries,
   TradingSession,
 } from "@fetha/engine";
-import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, Ticker } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
@@ -56,16 +56,16 @@ export async function buildOperationMarketView(
   ]);
 
   const calendar: TradingSession[] = calendarRows.map((row) => ({
-    date: row.date as SessionDate,
-    open: row.open.toISOString() as Instant,
-    close: row.close.toISOString() as Instant,
+    date: row.date,
+    open: row.open.toISOString(),
+    close: row.close.toISOString(),
   }));
 
   const candleView: Candle[] = [...candleRows].reverse().map((row) => ({
-    ticker: row.ticker as Ticker,
+    ticker: row.ticker,
     timeframe: "D1",
-    session: row.session as SessionDate,
-    asOf: row.asOf.toISOString() as Instant,
+    session: row.session,
+    asOf: row.asOf.toISOString(),
     open: toDecimal(row.open),
     high: toDecimal(row.high),
     low: toDecimal(row.low),
@@ -74,13 +74,13 @@ export async function buildOperationMarketView(
   }));
 
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
-    ticker: row.ticker as Ticker,
-    underlying: row.underlying as Ticker,
+    ticker: row.ticker,
+    underlying: row.underlying,
     right: row.right as OptionSeries["right"],
     strike: toDecimal(row.strike),
-    expiry: row.expiry as SessionDate,
+    expiry: row.expiry,
     style: row.style as OptionSeries["style"],
-    asOf: row.asOf.toISOString() as Instant,
+    asOf: row.asOf.toISOString(),
   }));
 
   const optionTickers = [...new Set(optionSeriesView.map((series) => series.ticker))];
@@ -106,9 +106,9 @@ export async function buildOperationMarketView(
   }
 
   const optionPrices: OptionDayPrice[] = [...optionPricesByTicker.values()].map((row) => ({
-    ticker: row.ticker as Ticker,
-    session: row.session as SessionDate,
-    asOf: row.asOf.toISOString() as Instant,
+    ticker: row.ticker,
+    session: row.session,
+    asOf: row.asOf.toISOString(),
     average: row.average ? toDecimal(row.average) : null,
     close: row.close ? toDecimal(row.close) : null,
     trades: row.trades,
@@ -120,8 +120,8 @@ export async function buildOperationMarketView(
     ? [
         {
           series: "cdi",
-          date: latestCdi.date as SessionDate,
-          asOf: latestCdi.asOf.toISOString() as Instant,
+          date: latestCdi.date,
+          asOf: latestCdi.asOf.toISOString(),
           annualRate: toDecimal(latestCdi.annualRate),
         },
       ]

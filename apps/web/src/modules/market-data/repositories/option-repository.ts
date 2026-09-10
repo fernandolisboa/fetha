@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { optionDailyPrices, optionSeries } from "@/db/schema/market-data";
@@ -126,4 +126,33 @@ function hasTrades(row: CotahistOptionRow): boolean {
   // repeats the last quoted price with zero trades, which would otherwise
   // look like a real fill.
   return row.trades > 0;
+}
+
+export interface ChainSeries {
+  ticker: string;
+  right: string;
+  strike: string;
+  expiry: string;
+  style: string;
+}
+
+// The closing chain for one underlying (UBIQUITOUS_LANGUAGE.md "closing
+// chain"): every ingested series, for the builder's per-leg instrument
+// picker. Ordered by expiry then strike so a call/put ladder reads the way
+// a chain does on paper.
+export async function optionChainForUnderlying(
+  db: Database,
+  underlying: string,
+): Promise<ChainSeries[]> {
+  return db
+    .select({
+      ticker: optionSeries.ticker,
+      right: optionSeries.right,
+      strike: optionSeries.strike,
+      expiry: optionSeries.expiry,
+      style: optionSeries.style,
+    })
+    .from(optionSeries)
+    .where(eq(optionSeries.underlying, underlying))
+    .orderBy(asc(optionSeries.expiry), asc(optionSeries.strike));
 }
