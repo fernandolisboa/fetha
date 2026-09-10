@@ -14,7 +14,7 @@ function isDuplicateTableError(error: unknown): boolean {
 }
 
 // create_monthly_partitions is defined in the market-data migration
-// (drizzle/0002_market_data_reference_tables.sql). Calling it here before an
+// (drizzle/0003_market_data_reference_tables.sql). Calling it here before an
 // ingestion write is idempotent (CREATE TABLE IF NOT EXISTS internally), so a
 // month that already has a partition is a no-op and a new month never needs
 // its own migration (docs/adr/0017). Two concurrent callers can still race
