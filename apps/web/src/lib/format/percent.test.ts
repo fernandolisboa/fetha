@@ -1,34 +1,78 @@
+import { decimalStringSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
-import type { DecimalString } from "@fetha/contracts";
 
-import { formatPercent } from "./percent";
-
-function decimalString(value: string): DecimalString {
-  return value as DecimalString;
-}
+import { formatPercent, fractionToPercentInputValue, parsePercentToFraction } from "./percent";
 
 describe("formatPercent", () => {
+  it("formats a whole percent", () => {
+    expect(formatPercent(decimalStringSchema.parse("0.02"))).toBe("2%");
+  });
+
+  it("formats a percent with a decimal, comma separated", () => {
+    expect(formatPercent(decimalStringSchema.parse("0.025"))).toBe("2,5%");
+  });
+
+  it("formats 100%", () => {
+    expect(formatPercent(decimalStringSchema.parse("1"))).toBe("100%");
+  });
+
   it("formats a positive fraction with a comma decimal", () => {
-    expect(formatPercent(decimalString("0.0208"))).toBe("2,08%");
+    expect(formatPercent(decimalStringSchema.parse("0.0208"))).toBe("2,08%");
   });
 
   it("formats a negative fraction with a true minus sign", () => {
-    expect(formatPercent(decimalString("-0.015"))).toBe("−1,5%");
+    expect(formatPercent(decimalStringSchema.parse("-0.015"))).toBe("−1,5%");
   });
 
   it("formats zero without a sign", () => {
-    expect(formatPercent(decimalString("0"))).toBe("0%");
+    expect(formatPercent(decimalStringSchema.parse("0"))).toBe("0%");
   });
 
-  // DESIGN.md "Formatting (pt-BR)": "at most two decimals (2,08%, 28,4%)",
-  // i.e. no forced trailing zero.
   it("drops a trailing zero rather than forcing two decimals", () => {
-    expect(formatPercent(decimalString("0.284"))).toBe("28,4%");
+    expect(formatPercent(decimalStringSchema.parse("0.284"))).toBe("28,4%");
   });
 
-  // A value so small it rounds to 0,00% at two decimals must never show a
-  // sign: the sign has to come from the rounded value, not the raw one.
   it("shows no sign for a negative fraction that rounds to zero", () => {
-    expect(formatPercent(decimalString("-0.0000001"))).toBe("0%");
+    expect(formatPercent(decimalStringSchema.parse("-0.0000001"))).toBe("0%");
+  });
+});
+
+describe("fractionToPercentInputValue", () => {
+  it("preserves precision beyond two decimals", () => {
+    expect(fractionToPercentInputValue(decimalStringSchema.parse("0.02345"))).toBe("2,345");
+  });
+
+  it("trims a whole percent to no decimals", () => {
+    expect(fractionToPercentInputValue(decimalStringSchema.parse("0.02"))).toBe("2");
+  });
+});
+
+describe("parsePercentToFraction", () => {
+  it("parses a whole percent", () => {
+    expect(parsePercentToFraction("2")).toBe("0.02");
+  });
+
+  it("parses a comma-decimal percent", () => {
+    expect(parsePercentToFraction("2,5")).toBe("0.025");
+  });
+
+  it("parses 100 as the fraction 1", () => {
+    expect(parsePercentToFraction("100")).toBe("1");
+  });
+
+  it("rejects 0", () => {
+    expect(parsePercentToFraction("0")).toBeNull();
+  });
+
+  it("rejects a value above 100", () => {
+    expect(parsePercentToFraction("101")).toBeNull();
+  });
+
+  it("rejects a negative value", () => {
+    expect(parsePercentToFraction("-2")).toBeNull();
+  });
+
+  it("rejects a non-numeric input", () => {
+    expect(parsePercentToFraction("abc")).toBeNull();
   });
 });

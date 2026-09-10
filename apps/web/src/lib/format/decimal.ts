@@ -3,19 +3,21 @@ import type { DecimalString } from "@fetha/contracts";
 
 const MINUS_SIGN = "−";
 
-const decimalFormatter = new Intl.NumberFormat("pt-BR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-// For plain ratios that aren't currency or a percentage (Sharpe, profit
-// factor): same pt-BR comma decimal and true minus as formatBRL and
-// formatPercent (DESIGN.md "Formatting (pt-BR)"), but no unit suffix. The
-// engine's own precision (six decimal places, ADR-0013) is never shown
-// verbatim on screen.
-export function formatDecimal(value: DecimalString): string {
+// pt-BR decimal formatting for prices, strikes, greeks and plain ratios
+// (Sharpe, profit factor): comma decimal separator, no thousands
+// separator (these are per-unit values, never money), true minus sign as
+// formatBRL and formatPercent (DESIGN.md "Formatting (pt-BR)"). Default two
+// decimals; greeks pass 4 (DESIGN.md: "two decimals for stocks and
+// options, four for rates/greeks"). The engine's own precision (six
+// decimal places, ADR-0013) is never shown verbatim on screen.
+export function formatDecimal(value: DecimalString, decimals = 2): string {
   const decimal = new Decimal(value);
-  const formatted = decimalFormatter.format(decimal.abs().toNumber());
-  const sign = decimal.isNegative() ? MINUS_SIGN : "";
+  const formatter = new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  const rounded = decimal.abs().toDecimalPlaces(decimals);
+  const formatted = formatter.format(rounded.toNumber());
+  const sign = decimal.isNegative() && !rounded.isZero() ? MINUS_SIGN : "";
   return `${sign}${formatted}`;
 }

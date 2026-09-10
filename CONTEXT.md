@@ -24,7 +24,7 @@ data, the catalog and strategies a user chose to share.
 | `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)               |
 | `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                         | the structure catalog, strategy versions, signals                                      |
 | `watchlist`   | each user's list of followed instruments                                                                                                                                                                                         | the current user's watchlist                                                           |
-| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, mark to market, risk profile and limit checks                                                                                          | the portfolio view, operation lifecycle commands                                       |
+| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                 | the portfolio view, operation lifecycle commands, the operation builder                |
 | `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                         |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
@@ -45,6 +45,8 @@ exposing module's interface, never through its tables.
    legs on an underlying (series, strikes, expiry, quantities), and the engine returns payoff,
    fair value per leg, implied volatility, greeks, break-evens, max loss and max gain, checked
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
+   Saving the priced structure records a Contemplated Operation, a snapshot the user can revisit
+   before deciding; it is not an Operation and opens no position.
 4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
    curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
