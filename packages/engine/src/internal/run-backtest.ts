@@ -387,10 +387,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     }
   }
 
+  // A checkpoint object is a caller-owned value that may be resumed from more than once (a
+  // caller retrying a failed downstream step, or exploring more than one continuation from the
+  // same pause point); mutating it in place here would leave the second resume looking at a
+  // state whose equityCurve already grew past what its own cursor promises, failing
+  // checkpoint_mismatch instead of reproducing the first resume's result (I4).
   const state: BacktestState =
     input.resume === undefined
       ? initialState(config.initialCapital)
-      : (input.resume.state as BacktestState);
+      : (JSON.parse(JSON.stringify(input.resume.state)) as BacktestState);
 
   // A digest and schema match only prove the checkpoint targets this same config; a state whose
   // own equity curve does not already cover every session up to (not including) the resume

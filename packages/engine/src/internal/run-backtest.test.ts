@@ -1312,6 +1312,28 @@ describe("runBacktest — chunking and determinism", () => {
     expect(last.value.run).toEqual(whole.value.run);
   });
 
+  it("resuming twice from the same checkpoint object yields the same run both times (I4)", () => {
+    const first = runBacktest({ view: chunkingView, config: chunkingConfig, maxSessions: 1 });
+    expect(first.ok).toBe(true);
+    if (!first.ok || first.value.status !== "paused") throw new Error("expected a paused run");
+    const checkpoint = first.value.checkpoint;
+
+    const resumedOnce = runBacktest({
+      view: chunkingView,
+      config: chunkingConfig,
+      resume: checkpoint,
+    });
+    const resumedTwice = runBacktest({
+      view: chunkingView,
+      config: chunkingConfig,
+      resume: checkpoint,
+    });
+    expect(resumedOnce.ok).toBe(true);
+    expect(resumedTwice.ok).toBe(true);
+    if (!resumedOnce.ok || !resumedTwice.ok) throw new Error("expected both resumes to succeed");
+    expect(resumedTwice).toEqual(resumedOnce);
+  });
+
   it("prefix-consistency: a run stopped at session D agrees with the full run up to D (I7)", () => {
     const shortConfig = baseConfig({
       ...chunkingConfig,
