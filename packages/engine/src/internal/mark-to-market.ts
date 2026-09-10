@@ -26,7 +26,7 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { validateOperationCoherence } from "./operation-coherence";
 import { priceConcreteLegs, resolveOperationRates } from "./price-operation";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
-import { toCentavos } from "./scalars";
+import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 
 type ProvenanceBase = Pick<
@@ -84,11 +84,31 @@ function priceExistingOperation(
   const rates = resolveOperationRates(view, at, operation.underlying);
   if (!rates.ok) return { ok: false, error: rates.error };
 
-  const legInputs: LegInput[] = operation.legs.map((leg) => ({
+  // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
+  // count (`quantity / F`) and effective entry price (`entryPrice × F`) are computed here, on
+  // the ticker's own visible split/reverse-split factors between `openedAt` and the mark
+  // session — never just the stock leg's, since an unrebased quantity fed into pricing reads
+  // exposure, greeks and max loss off by F (round 1 item 2). An option leg's own ticker never
+  // carries a corporate-action factor (a split forces a series rollover, ADR-0013 #25
+  // addendum), so this naturally leaves option legs untouched (F = 1).
+  const rebasedLegs = operation.legs.map((leg) => {
+    const visibleFactors =
+      markSession === null
+        ? []
+        : view.corporateActions.filter((f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at));
+    const factor =
+      markSession === null
+        ? new Decimal(1)
+        : splitFactorProduct(visibleFactors, operation.openedAt, markSession);
+    const effectiveQuantity = new Decimal(leg.quantity).div(factor).floor().toNumber();
+    return { leg, factor, effectiveQuantity };
+  });
+
+  const legInputs: LegInput[] = rebasedLegs.map(({ leg, effectiveQuantity }) => ({
     role: leg.role,
     side: leg.side,
     ticker: leg.ticker,
-    quantity: leg.quantity,
+    quantity: toQuantity(effectiveQuantity),
   }));
 
   const pricingResult = priceConcreteLegs(
@@ -108,30 +128,25 @@ function priceExistingOperation(
   const pricing = pricingResult.value;
 
   let unrealizedPnl = new Decimal(0);
-  operation.legs.forEach((leg, index) => {
+  rebasedLegs.forEach(({ leg, factor, effectiveQuantity }, index) => {
     const valuation = pricing.legs[index];
     const mark = valuation?.price ?? valuation?.fairValue ?? null;
-    const entry = parseDecimal(leg.entryPrice);
+    const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
 
     // A leg with neither a market price nor a solvable fair value (`no_market_price` /
     // `iv_not_converged`, already noted on `pricing`) contributes zero unrealized P&L rather
     // than an unknown or fabricated one, since `OperationValuation.unrealizedPnl` is a plain
-    // `Centavos`, never `null` (ADR-0013 #25 addendum).
-    let markOnEntryScale: Decimal;
-    if (mark === null) {
-      markOnEntryScale = entry;
-    } else if (leg.role === "stock" && markSession !== null) {
-      const visibleFactors = view.corporateActions.filter(
-        (f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at),
-      );
-      const factor = splitFactorProduct(visibleFactors, operation.openedAt, markSession);
-      markOnEntryScale = parseDecimal(mark).div(factor);
-    } else {
-      markOnEntryScale = parseDecimal(mark);
-    }
+    // `Centavos`, never `null` (ADR-0013 #25 addendum). Both the mark (from `pricing`, already
+    // on the post-factor scale) and `effectiveEntry` sit on the same scale as
+    // `effectiveQuantity`, the count fed to `pricing` above (ADR-0014 Q51).
+    const markOnEffectiveScale = mark === null ? effectiveEntry : parseDecimal(mark);
 
     unrealizedPnl = unrealizedPnl.add(
-      markOnEntryScale.sub(entry).mul(sign(leg.side)).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+      markOnEffectiveScale
+        .sub(effectiveEntry)
+        .mul(sign(leg.side))
+        .mul(CENTAVOS_PER_REAL)
+        .mul(effectiveQuantity),
     );
   });
 

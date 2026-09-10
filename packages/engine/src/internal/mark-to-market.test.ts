@@ -262,6 +262,71 @@ describe("markToMarket", () => {
     expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(2_200_00));
   });
 
+  it("rebases a covered call's stock leg quantity across a 2:1 split (ADR-0014 Q51)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("10.00"), bid: null, ask: null }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("0.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const op = stockOperation({
+      openedAt: "2024-01-01",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("20.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const stockLeg = result.value.operations[0]?.pricing.legs[0];
+    // Pre-split 100 shares are 200 post-split shares; the legInput fed to pricing must carry
+    // the post-split count, or exposure/greeks/maxLoss read off by the split factor.
+    expect(stockLeg?.leg.quantity).toBe(quantity(200));
+    expect(stockLeg?.greeks?.delta).toBe(decimalString("1.000000"));
+    const optionLeg = result.value.operations[0]?.pricing.legs[1];
+    expect(optionLeg?.leg.quantity).toBe(quantity(1));
+    // The stock entry price is rebased to the post-split scale too (20.00 * 0.5 = 10.00), so
+    // marking at the post-split spot of 10.00 shows no phantom gain on the stock leg from the
+    // split itself; the short call (untouched by the stock's split factor) contributes
+    // (2.00 - 0.50) * 1 unit = R$150 of unrealized gain.
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(150));
+  });
+
   it("prices standalone positions, aggregating equity and unrealized P&L with cash", () => {
     const view: MarketView = {
       ...baseView,
