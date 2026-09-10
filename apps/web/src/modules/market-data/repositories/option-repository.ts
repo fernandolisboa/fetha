@@ -1,7 +1,7 @@
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gt, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { optionDailyPrices, optionSeries } from "@/db/schema/market-data";
+import { optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";
@@ -139,11 +139,14 @@ export interface ChainSeries {
 // The closing chain for one underlying (UBIQUITOUS_LANGUAGE.md "closing
 // chain"): the builder's per-leg instrument picker. B3 reuses option
 // tickers across listing cycles (ADR-0017), so this is restricted to
-// series that have not yet expired as of `currentSession` and are visible
-// as of `at`, collapsed to the latest `as_of` per ticker — otherwise a
-// picker entry could resolve to an expired cycle's strike. Ordered by
-// expiry then strike so a call/put ladder reads the way a chain does on
-// paper.
+// series that have not yet expired and are visible as of `at`, collapsed
+// to the latest `as_of` per ticker — otherwise a picker entry could
+// resolve to an expired cycle's strike. A series expiring on
+// `currentSession` itself drops out of the picker once that session's own
+// close has passed (an inner join on its trading session), rather than
+// staying selectable into the evening and pricing at t = 0 with null
+// greeks (PR #76 round 2 item 8). Ordered by expiry then strike so a
+// call/put ladder reads the way a chain does on paper.
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,
@@ -160,11 +163,13 @@ export async function optionChainForUnderlying(
       asOf: optionSeries.asOf,
     })
     .from(optionSeries)
+    .innerJoin(tradingSessions, eq(tradingSessions.date, optionSeries.expiry))
     .where(
       and(
         eq(optionSeries.underlying, underlying),
         gte(optionSeries.expiry, currentSession),
         lte(optionSeries.asOf, at),
+        gt(tradingSessions.close, at),
       ),
     );
 
