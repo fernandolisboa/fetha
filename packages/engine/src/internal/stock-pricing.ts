@@ -11,6 +11,7 @@ import type {
   PayoffPoint,
   PriceSource,
   Provenance,
+  Result,
 } from "../api";
 import {
   CENTAVOS_PER_REAL,
@@ -51,38 +52,26 @@ function sign(side: OperationLeg["side"]): 1 | -1 {
   return side === "buy" ? 1 : -1;
 }
 
-export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
+export function priceStockLegs(input: PriceStockLegsInput): Result<OperationPricing> {
   const notes: Note[] = [];
 
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
-  const riskFreeRate = riskFreeRateResolution.ok ? riskFreeRateResolution.value : ZERO_RATIO;
-  if (riskFreeRateResolution.ok) {
-    notes.push(...riskFreeRateResolution.notes);
-  } else {
-    // A stock leg carries no rate-sensitive pricing (its greeks are a fixed unsigned
-    // delta), so an invalid CDI rate cannot fail this pricing the way it fails an
-    // option leg's; it must still be visible in notes, not silently become 0
-    // (PR #53 round 3 item 8).
-    notes.push({
-      code: "risk_free_rate_defaulted",
-      message: "the visible cdi rate is invalid (annual rate <= -1); defaulted to 0",
-    });
-  }
+  // ADR-0013's rates addendum applies the same rule to a stock leg's rate resolution as
+  // to an option leg's: an annualRate/annualYield at or below -1 is invalid_input before
+  // conversion, never a silent zero default (PR #53 round 4 item 3; superseding round 3
+  // item 8's note-only fix).
+  if (!riskFreeRateResolution.ok) return { ok: false, error: riskFreeRateResolution.error };
+  const riskFreeRate = riskFreeRateResolution.value;
+  notes.push(...riskFreeRateResolution.notes);
 
   const dividendResolution = resolveDividendYield(
     input.view.dividendYields,
     input.underlying,
     input.at,
   );
-  const dividendYield = dividendResolution.ok ? dividendResolution.value : ZERO_RATIO;
-  if (dividendResolution.ok) {
-    notes.push(...dividendResolution.notes);
-  } else {
-    notes.push({
-      code: "dividend_yield_defaulted",
-      message: "the visible dividend yield is invalid (annual yield <= -1); defaulted to 0",
-    });
-  }
+  if (!dividendResolution.ok) return { ok: false, error: dividendResolution.error };
+  const dividendYield = dividendResolution.value;
+  notes.push(...dividendResolution.notes);
 
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,
@@ -230,20 +219,23 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   }
 
   return {
-    at: input.at,
-    underlying: input.underlying,
-    spot,
-    riskFreeRate,
-    dividendYield,
-    legs: legValuations,
-    netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
-    greeks,
-    payoff,
-    breakEvens,
-    maxLoss,
-    maxGain,
-    limitBreaches,
-    notes,
-    provenance: { ...input.provenanceBase, truncated: [] },
+    ok: true,
+    value: {
+      at: input.at,
+      underlying: input.underlying,
+      spot,
+      riskFreeRate,
+      dividendYield,
+      legs: legValuations,
+      netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
+      greeks,
+      payoff,
+      breakEvens,
+      maxLoss,
+      maxGain,
+      limitBreaches,
+      notes,
+      provenance: { ...input.provenanceBase, truncated: [] },
+    },
   };
 }
