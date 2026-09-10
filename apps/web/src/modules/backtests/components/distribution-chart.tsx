@@ -16,6 +16,12 @@ interface Bin {
   isZeroBin: boolean;
 }
 
+// True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
+// `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
+function percentLabel(value: number): string {
+  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(0)}%`;
+}
+
 function buildBins(returns: number[]): Bin[] {
   if (returns.length === 0) {
     return [];
@@ -28,7 +34,7 @@ function buildBins(returns: number[]): Bin[] {
   const bins: Bin[] = Array.from({ length: BIN_COUNT }, (_, index) => {
     const lower = min + index * width;
     return {
-      label: `${(lower * 100).toFixed(0)}%`,
+      label: percentLabel(lower * 100),
       count: 0,
       isZeroBin: lower <= 0 && lower + width > 0,
     };

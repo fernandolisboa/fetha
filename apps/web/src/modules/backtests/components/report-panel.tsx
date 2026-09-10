@@ -3,6 +3,7 @@ import type { BacktestRun, MissedEntryReason, NoteCode, RiskLimit } from "@fetha
 
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
+import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
@@ -90,14 +91,17 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
           <Stat label={t.report.metrics.maxDrawdown} value={formatPercent(metrics.maxDrawdown)} />
           <Stat
             label={t.report.metrics.sharpe}
-            value={metrics.sharpe ?? "—"}
+            value={metrics.sharpe ? formatDecimal(metrics.sharpe) : "—"}
             notes={<NotesFor run={run} codes={annualizedCodes} />}
           />
           <Stat
             label={t.report.metrics.winRate}
             value={metrics.winRate ? formatPercent(metrics.winRate) : "—"}
           />
-          <Stat label={t.report.metrics.profitFactor} value={metrics.profitFactor ?? "—"} />
+          <Stat
+            label={t.report.metrics.profitFactor}
+            value={metrics.profitFactor ? formatDecimal(metrics.profitFactor) : "—"}
+          />
           <Stat label={t.report.metrics.exposure} value={formatPercent(metrics.exposure)} />
           <Stat label={t.report.metrics.fees} value={formatBRL(metrics.fees)} />
           <Stat label={t.report.metrics.taxes} value={formatBRL(metrics.taxes)} />
@@ -191,7 +195,7 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
                     {formatDate(sessionDateToDisplayDate(breach.session))}
                   </td>
                   <td className="py-2 font-mono uppercase">{breach.ticker}</td>
-                  <td className="py-2">{riskLimitLabel[breach.limit]}</td>
+                  <td className="text-warning py-2">{riskLimitLabel[breach.limit]}</td>
                 </tr>
               ))}
             </tbody>

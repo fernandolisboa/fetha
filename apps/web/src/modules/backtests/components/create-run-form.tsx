@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { createBacktestRunAction } from "../actions";
 import { t } from "../strings";
@@ -129,17 +136,22 @@ export function CreateRunForm({
 
       <div>
         <Label htmlFor="backtest-limits">{t.create.limits}</Label>
-        <select
-          id="backtest-limits"
-          className="border-border bg-background w-full rounded-[var(--radius)] border px-3 py-2 text-sm"
+        <Select
           value={limits}
-          onChange={(event) => {
-            setLimits(event.target.value as "enforce" | "warn");
+          onValueChange={(next) => {
+            if (next === "enforce" || next === "warn") {
+              setLimits(next);
+            }
           }}
         >
-          <option value="warn">{t.create.limitsWarn}</option>
-          <option value="enforce">{t.create.limitsEnforce}</option>
-        </select>
+          <SelectTrigger id="backtest-limits" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="warn">{t.create.limitsWarn}</SelectItem>
+            <SelectItem value="enforce">{t.create.limitsEnforce}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {error ? <p className="text-destructive text-xs">{error}</p> : null}

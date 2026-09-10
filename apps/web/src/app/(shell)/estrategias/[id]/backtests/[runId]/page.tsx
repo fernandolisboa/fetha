@@ -9,6 +9,8 @@ import {
   RunBacktestButton,
   t,
 } from "@/modules/backtests";
+import { formatDate } from "@/lib/format/date-time";
+import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.report.overline}` };
@@ -37,7 +39,13 @@ export default async function BacktestReportPage({
           {t.report.overline}
         </p>
         <h1 className="text-[22px] font-semibold tracking-tight">
-          {run.period.from} — {run.period.to}
+          <span className="font-mono tabular-nums">
+            {formatDate(sessionDateToDisplayDate(run.period.from))}
+          </span>{" "}
+          —{" "}
+          <span className="font-mono tabular-nums">
+            {formatDate(sessionDateToDisplayDate(run.period.to))}
+          </span>
         </h1>
       </div>
 

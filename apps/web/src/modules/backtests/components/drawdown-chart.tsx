@@ -11,6 +11,12 @@ import type { EquityPoint } from "@fetha/engine";
 const MARGIN = { top: 8, right: 16, bottom: 28, left: 64 };
 const HEIGHT = 120;
 
+// True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
+// `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
+function percentTick(value: number): string {
+  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(0)}%`;
+}
+
 function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -42,7 +48,7 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-          tickFormat={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+          tickFormat={(value) => percentTick(Number(value) * 100)}
           numTicks={3}
         />
         <AxisBottom
