@@ -71,16 +71,24 @@ B3 closure is never re-ingested, since the marker already has a `succeeded` row.
 24 / Dec 31 closures and folds the hash into a day offset within `year`, so the marker date itself
 changes whenever the underlying holiday list does, and stays a valid date.
 
-## Bookkeeping: the lock does not wrap it
+## Bookkeeping: only the `running` insert is outside the lock
 
-`runSource` (`ingest.ts`) inserts the `running` row and later updates it to `succeeded`/`failed`
-using the plain `db` handle, not inside the advisory-lock transaction: only the fetch-plus-write
-`run()` callback runs inside `withSourceLock`, re-checking for a `succeeded` row written by a
-concurrent winner before doing the work. Committing the `running` row before acquiring the lock is
-what makes it visible to `reapStaleRunningRuns` the moment a run starts; wrapping the row's insert
-and its own status update in the same transaction as the lock (the earlier version) meant the row
-was only ever visible to other transactions once it had _already_ moved off `running`, which made
-the stale-run reaper permanently unreachable.
+`runSource` (`ingest.ts`) inserts the `running` row with the plain `db` handle, before acquiring
+the advisory lock: that is what makes it visible to `reapStaleRunningRuns` the moment a run
+starts, instead of only once it has already moved off `running` (which made the stale-run reaper
+permanently unreachable in an earlier version). Everything after that — the re-check for a
+`succeeded` row a concurrent winner already wrote, the fetch-plus-write `run()` callback, and the
+`succeeded` marker itself — runs inside the same locked transaction (`withSourceLock`). The
+`succeeded` write is nested in its own savepoint (`tx.transaction(...)`), not the lock's own
+transaction directly: two invocations that both call `startRun` before either acquires the lock
+will, once the second one gets the lock, always find the first's `succeeded` row already committed
+and skip without redoing the work — but if that race were ever lost (e.g. a hash collision on
+`hashtext(source)` serializing something unrelated), the savepoint means a `23505` on the
+`(source, session) WHERE status = 'succeeded'` partial unique index rolls back only the marker
+write, not the `run()` writes already made in the surrounding transaction, and the loser's
+`running` row is deleted (`deleteRun`) rather than marked `failed`: the work already succeeded
+under the other run's id, so this was never a failure. A `failed` marker for a genuine error is
+still written with the plain `db` handle after the lock releases, unchanged.
 
 ## COTAHIST parser (`adapters/cotahist/parser.ts`, `adapters/cotahist/fetch.ts`)
 
