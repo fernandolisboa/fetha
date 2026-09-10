@@ -10,7 +10,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { deleteTestUser } from "@/db/test/cleanup";
 
-import { SignalsRepository, type NewSignal } from "./signals-repository";
+import { SignalsRepository, type NewEvaluation, type NewSignal } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 
 function decimalString(value: string): DecimalString {
@@ -78,6 +78,18 @@ function newSignal(strategyId: string, versionId: string, ticker: Ticker): NewSi
   };
 }
 
+function newEvaluation(strategyId: string, versionId: string, ticker: Ticker): NewEvaluation {
+  return {
+    strategyId,
+    strategyVersionId: versionId,
+    ticker,
+    session: "2031-06-01",
+    at: new Date("2031-06-01T21:00:00.000Z"),
+    outcome: "conditions_not_met",
+    detail: null,
+  };
+}
+
 const createdEmails: string[] = [];
 
 afterEach(async () => {
@@ -133,5 +145,29 @@ describe("SignalsRepository isolation", () => {
     expect(first).toBe(1);
     expect(second).toBe(0);
     expect(await repository.listInbox()).toHaveLength(1);
+  });
+
+  it("user A's evaluation log is empty after user B writes an evaluation", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("eval-a");
+    const emailB = uniqueEmail("eval-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const strategyB = await new StrategiesRepository(db, userB).createWithVersion(definition());
+    const versionB = strategyB.versions[0];
+    if (!versionB) throw new Error("test setup: expected a version");
+
+    const tickerB = randomTicker();
+    const repoB = new SignalsRepository(db, userB);
+    await repoB.createEvaluations([newEvaluation(strategyB.id, versionB.id, tickerB)]);
+
+    const repoA = new SignalsRepository(db, userA);
+    expect(await repoA.listEvaluationLog()).toEqual([]);
+
+    const logB = await repoB.listEvaluationLog();
+    expect(logB).toHaveLength(1);
+    expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
   });
 });

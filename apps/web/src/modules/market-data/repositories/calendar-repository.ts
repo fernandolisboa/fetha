@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { tradingSessions } from "@/db/schema/market-data";
@@ -136,4 +136,34 @@ export async function sessionsFrom(
     .where(gte(tradingSessions.date, from))
     .orderBy(asc(tradingSessions.date));
   return rows.map((row) => ({ date: row.date, open: row.open.toISOString() }));
+}
+
+// The calendar `buildOperationMarketView` needs to resolve time to expiry
+// for every leg of a chain (`resolveTimeToExpiryYears`, ADR-0013): the
+// engine's calendar walk requires the session containing `at` (found by
+// `open <= at`, not `close <= at` — the current session is live until its
+// close) and every session between it and the furthest expiry in the
+// chain, with no gap, or `resolveTimeToExpiryYears` reports `calendar_gap`.
+export async function calendarWindowThroughExpiry(
+  db: Database,
+  at: Date,
+  pastWindow: number,
+  throughExpiry: string | null,
+): Promise<Array<{ date: string; open: Date; close: Date }>> {
+  const pastRows = await db
+    .select()
+    .from(tradingSessions)
+    .where(lte(tradingSessions.open, at))
+    .orderBy(desc(tradingSessions.date))
+    .limit(pastWindow);
+
+  const futureRows = throughExpiry
+    ? await db
+        .select()
+        .from(tradingSessions)
+        .where(and(gt(tradingSessions.open, at), lte(tradingSessions.date, throughExpiry)))
+        .orderBy(asc(tradingSessions.date))
+    : [];
+
+  return [...pastRows.reverse(), ...futureRows];
 }

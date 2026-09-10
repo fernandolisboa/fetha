@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  riskProfileSchema,
   tickerSchema,
   type DecimalString,
+  type RiskProfile,
   type StrategyDefinition,
   type Ticker,
 } from "@fetha/contracts";
@@ -13,6 +15,7 @@ import { candles, tradingSessions } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
+import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { evaluateSignalsForSession } from "./evaluate-signals";
@@ -55,6 +58,22 @@ async function insertBareUser(email: string): Promise<{ id: string; name: string
     throw new Error("failed to insert test user");
   }
   return row;
+}
+
+function generousRiskProfile(): RiskProfile {
+  return riskProfileSchema.parse({
+    declaredCapital: 100_000_00,
+    limits: {
+      maxLossPerOperation: "1",
+      maxExposurePerOperation: "1",
+      maxOpenOperations: 1000,
+      maxPremiumBought: "1",
+    },
+  });
+}
+
+async function declareRiskProfile(owner: { id: string }): Promise<void> {
+  await new RiskProfileRepository(getDb(), owner).declare(generousRiskProfile());
 }
 
 async function insertSession(session: string): Promise<void> {
@@ -140,6 +159,8 @@ describe("evaluateSignalsForSession", () => {
     await insertCandle(tickerA, session);
     await insertCandle(tickerB, session);
 
+    await declareRiskProfile(userA);
+    await declareRiskProfile(userB);
     await new WatchlistRepository(db, userA).add(tickerA);
     await new WatchlistRepository(db, userB).add(tickerB);
 
@@ -169,6 +190,11 @@ describe("evaluateSignalsForSession", () => {
     // Neither user's inbox carries the other's strategy or ticker.
     expect(inboxA.some((signal) => signal.strategyId === strategyB.id)).toBe(false);
     expect(inboxB.some((signal) => signal.strategyId === strategyA.id)).toBe(false);
+
+    const logA = await new SignalsRepository(db, userA).listEvaluationLog();
+    const logB = await new SignalsRepository(db, userB).listEvaluationLog();
+    expect(logA.every((row) => row.ticker === tickerA)).toBe(true);
+    expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
   });
 
   it("is idempotent: re-running the evaluation for the same session writes no duplicate signal or evaluation", async () => {
@@ -184,6 +210,7 @@ describe("evaluateSignalsForSession", () => {
 
     await insertSession(session);
     await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
     await new WatchlistRepository(db, owner).add(ticker);
 
     const strategy = await new StrategiesRepository(db, owner).createWithVersion(
@@ -203,5 +230,39 @@ describe("evaluateSignalsForSession", () => {
     const repository = new SignalsRepository(db, owner);
     expect(await repository.listInbox()).toHaveLength(1);
     expect(await repository.listEvaluationLog()).toHaveLength(1);
+  });
+
+  it("records an unsizeable evaluation and no inbox row for a user with no declared risk profile", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("no-risk-profile");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    // Deliberately no declareRiskProfile(owner) call: PLACEHOLDER_RISK_PROFILE
+    // no longer fabricates one (round-1 review item 1).
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const outcome = await evaluateSignalsForSession(db, [session]);
+    expect(outcome.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    expect(await repository.listInbox()).toHaveLength(0);
+
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]?.outcome).toBe("unsizeable");
+    expect(log[0]?.ticker).toBe(ticker);
   });
 });

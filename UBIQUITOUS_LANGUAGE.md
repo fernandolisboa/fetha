@@ -179,6 +179,13 @@ expiry, quantities, entry prices and entry date. It has a lifecycle: open, adjus
 expired. A rolled operation is a new operation that records which operation it rolled from.
 _Avoid_: trade (reserved for a single fill), position, order, montagem, operação (in code)
 
+**Contemplated operation**:
+A priced structure snapshot the builder saves before a decision is made: the structure, the
+underlying, the legs the user picked, the engine's valuation at the moment of pricing (net
+premium, max loss, max gain, any limit breaches) and the session it was priced in. Distinct from
+an Operation: it carries no lifecycle and no fills, and saving one does not open a position.
+_Avoid_: operation, draft, simulation
+
 **Fill**:
 One executed buy or sell of one instrument at one price and quantity, on one date. Fills are the
 atomic facts behind operations and positions.

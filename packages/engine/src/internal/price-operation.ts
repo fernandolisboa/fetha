@@ -324,13 +324,27 @@ function computePayoffProfile(
     );
   }
 
-  const payoff: PayoffPoint[] = [0.8, 1, 1.2].map((factor) => {
-    const roundedUnderlying = parseDecimal(spot).mul(factor).toDecimalPlaces(PRICE_SCALE);
-    return {
-      underlying: toDecimalString(roundedUnderlying, PRICE_SCALE),
-      pnl: toCentavos(payoffAt(legs, roundedUnderlying).mul(CENTAVOS_PER_REAL).round().toNumber()),
-    };
-  });
+  // The three coarse samples alone hide every kink: a collar's payoff between 0.8x and 1x
+  // spot looks like a straight line unless the put and call strikes are sampled explicitly,
+  // so the chart (which only ever draws these points, never interpolates them itself) drew a
+  // capped/floored payoff as if it were unprotected (PR #76 round 2 item 1). Emit each leg's
+  // strike and each break-even as additional samples, sorted ascending and de-duplicated by
+  // their rounded decimal value; `PayoffPoint[]` itself is unchanged.
+  const sampleSpots = [0.8, 1, 1.2].map((factor) =>
+    parseDecimal(spot).mul(factor).toDecimalPlaces(PRICE_SCALE),
+  );
+  const strikeSpots = strikes.map((s) => s.toDecimalPlaces(PRICE_SCALE));
+  const breakEvenSpots = breakEvens.map((b) => parseDecimal(b).toDecimalPlaces(PRICE_SCALE));
+  const uniqueSpots = new Map<string, Decimal>();
+  for (const s of [...sampleSpots, ...strikeSpots, ...breakEvenSpots]) {
+    uniqueSpots.set(toDecimalString(s, PRICE_SCALE), s);
+  }
+  const sortedSpots = [...uniqueSpots.values()].sort((a, b) => a.cmp(b));
+
+  const payoff: PayoffPoint[] = sortedSpots.map((underlyingSpot) => ({
+    underlying: toDecimalString(underlyingSpot, PRICE_SCALE),
+    pnl: toCentavos(payoffAt(legs, underlyingSpot).mul(CENTAVOS_PER_REAL).round().toNumber()),
+  }));
 
   return { payoff, breakEvens, maxLoss, maxGain };
 }

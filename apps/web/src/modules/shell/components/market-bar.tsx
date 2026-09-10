@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { closeFreshnessKind } from "@/modules/market-data/close-freshness";
+import { closeFreshnessKind } from "@/modules/market-data/client";
 
 import { closeFreshnessPhrase } from "../close-freshness-phrase";
 import { t } from "../strings";

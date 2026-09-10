@@ -1,6 +1,6 @@
 import { centavosSchema, decimalStringSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
-import { formatBRL, formatPriceBRL } from "./brl";
+import { formatBRL, formatPriceBRL, parseBRLToCentavos } from "./brl";
 
 describe("formatBRL", () => {
   it("formats a positive amount with thousands separators", () => {
@@ -39,5 +39,32 @@ describe("formatPriceBRL", () => {
 
   it("formats a price with thousands separators", () => {
     expect(formatPriceBRL(decimalStringSchema.parse("1234.5"))).toBe("R$ 1.234,50");
+  });
+});
+
+describe("parseBRLToCentavos", () => {
+  it("parses a thousands-separated amount", () => {
+    expect(parseBRLToCentavos("1.234,56")).toBe(123456);
+  });
+
+  it("parses an amount without thousands separators", () => {
+    expect(parseBRLToCentavos("50000,00")).toBe(5000000);
+  });
+
+  it("parses a whole amount without cents", () => {
+    expect(parseBRLToCentavos("1234")).toBe(123400);
+  });
+
+  it("rejects zero", () => {
+    expect(parseBRLToCentavos("0")).toBeNull();
+  });
+
+  it("rejects a negative amount", () => {
+    expect(parseBRLToCentavos("-10,00")).toBeNull();
+  });
+
+  it("rejects an empty or non-numeric input", () => {
+    expect(parseBRLToCentavos("")).toBeNull();
+    expect(parseBRLToCentavos("abc")).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
-import type { CloseFreshness } from "@/modules/market-data/close-freshness";
-import { sessionDateToDisplayDate } from "@/modules/market-data/close-freshness";
+import type { CloseFreshness } from "@/modules/market-data/client";
+import { sessionDateToDisplayDate } from "@/modules/market-data/client";
 import { formatDate } from "@/lib/format/date-time";
 
 import { t } from "./strings";

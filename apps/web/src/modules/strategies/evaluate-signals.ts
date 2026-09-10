@@ -1,10 +1,4 @@
-import {
-  riskProfileSchema,
-  type Instant,
-  type Structure,
-  type Ticker,
-  type RiskProfile,
-} from "@fetha/contracts";
+import type { Instant, Structure, Ticker } from "@fetha/contracts";
 import { engine, type Signal, type StrategyVersion } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -14,30 +8,13 @@ import {
   previousTradingSession,
   tradingSessionForDate,
 } from "@/modules/market-data";
+import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { activeStrategyUserIds } from "./active-strategy-users";
 import { SignalsRepository, type NewEvaluation, type NewSignal } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
-
-// Sizing an entry always needs a declared risk profile (packages/engine's
-// `sizeStockEntry`: no `declaredCapital` is `unsizeable`, never a signal).
-// The portfolio module (#7's later tickets) is where a user declares their
-// real capital and limits; until it ships, every user is evaluated against
-// this generous, effectively unconstrained placeholder so the nightly
-// evaluation can still size and deposit real entry signals rather than
-// leaving every strategy permanently `unsizeable`. Replace this with the
-// user's own declared profile the day the portfolio module exposes one.
-const PLACEHOLDER_RISK_PROFILE: RiskProfile = riskProfileSchema.parse({
-  declaredCapital: 100_000_00,
-  limits: {
-    maxLossPerOperation: "1",
-    maxExposurePerOperation: "1",
-    maxOpenOperations: 1000,
-    maxPremiumBought: "1",
-  },
-});
 
 export interface EvaluateSignalsOutcome {
   sessions: string[];
@@ -189,6 +166,13 @@ export async function evaluateSignalsForSession(
         continue;
       }
 
+      // No declared profile is not a placeholder-worthy gap (UBIQUITOUS_LANGUAGE.md
+      // "Risk profile" is append-only, never inferred): `riskProfile` stays
+      // undefined and the engine's own documented `unsizeable` /
+      // `no_declared_capital` path records that to the evaluation log, never
+      // to the inbox, instead of sizing against invented capital.
+      const riskProfile = await new RiskProfileRepository(db, scopedUser).current();
+
       const signalsRepository = new SignalsRepository(db, scopedUser);
 
       for (const { strategyId, version } of activeDaily) {
@@ -228,7 +212,7 @@ export async function evaluateSignalsForSession(
           instruments: tickers,
           at,
           since,
-          riskProfile: PLACEHOLDER_RISK_PROFILE,
+          ...(riskProfile ? { riskProfile } : {}),
         });
 
         if (!result.ok) {

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   checkStrategyCoherence,
@@ -10,7 +9,7 @@ import {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { forCurrentUser, UnauthenticatedError } from "@/modules/auth";
+import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 
 import { classifyPersistenceError } from "./pg-error";
 import { SignalsRepository } from "./signals-repository";
@@ -67,15 +66,10 @@ function mapKnownError(
 async function withRepository<T>(
   run: (repository: StrategiesRepository) => Promise<T>,
 ): Promise<T> {
-  try {
+  return withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), StrategiesRepository);
-    return await run(repository);
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) {
-      redirect("/entrar");
-    }
-    throw error;
-  }
+    return run(repository);
+  });
 }
 
 class IncoherentDefinitionError extends Error {
@@ -236,15 +230,10 @@ export async function markSignalReadAction(input: {
     return { status: "error", error: "invalid" };
   }
 
-  try {
+  await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), SignalsRepository);
     await repository.markRead(parsed.data.signalId);
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) {
-      redirect("/entrar");
-    }
-    throw error;
-  }
+  });
   revalidatePath("/sinais");
   return { status: "ok" };
 }

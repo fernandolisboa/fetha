@@ -3,7 +3,7 @@
 import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import type { InstrumentSearchResult } from "@/modules/market-data";
+import type { InstrumentSearchResult } from "@/modules/market-data/client";
 
 import { Button } from "@/components/ui/button";
 import {

@@ -25,3 +25,6 @@ export { CandleChart } from "./components/candle-chart";
 export { CandleFormToggle } from "./components/candle-form-toggle";
 export { InstrumentMarketBar } from "./components/instrument-market-bar";
 export { marketDataStrings, t } from "./strings";
+export { buildOperationMarketView } from "./market-view";
+export { optionChainForUnderlying, type ChainSeries } from "./repositories/option-repository";
+export { latestSessionOnOrBefore } from "./repositories/calendar-repository";
