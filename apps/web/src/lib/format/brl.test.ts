@@ -1,6 +1,6 @@
-import { centavosSchema } from "@fetha/contracts";
+import { centavosSchema, decimalStringSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
-import { formatBRL } from "./brl";
+import { formatBRL, formatPriceBRL } from "./brl";
 
 describe("formatBRL", () => {
   it("formats a positive amount with thousands separators", () => {
@@ -25,5 +25,19 @@ describe("formatBRL", () => {
 
   it("pads single-digit centavos", () => {
     expect(formatBRL(centavosSchema.parse(105))).toBe("R$ 1,05");
+  });
+});
+
+describe("formatPriceBRL", () => {
+  it("formats a six-decimal candle price rounded to centavos", () => {
+    expect(formatPriceBRL(decimalStringSchema.parse("10.750000"))).toBe("R$ 10,75");
+  });
+
+  it("rounds half up at the third decimal", () => {
+    expect(formatPriceBRL(decimalStringSchema.parse("10.755"))).toBe("R$ 10,76");
+  });
+
+  it("formats a price with thousands separators", () => {
+    expect(formatPriceBRL(decimalStringSchema.parse("1234.5"))).toBe("R$ 1.234,50");
   });
 });
