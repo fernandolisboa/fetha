@@ -87,7 +87,7 @@ export function AddInstrumentCombobox() {
       >
         <PopoverTrigger
           render={
-            <Button type="button" variant="default" size="sm">
+            <Button type="button" variant="default">
               <Plus aria-hidden />
               {t.add.trigger}
             </Button>

@@ -68,7 +68,7 @@ export default async function InstrumentPage({
           <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
             {t.instrument.overline}
           </p>
-          <h1 className="text-[22px] font-semibold tracking-tight">{ticker}</h1>
+          <h1 className="font-mono text-[22px] font-semibold tracking-tight uppercase">{ticker}</h1>
         </div>
         <CandleFormToggle ticker={ticker} form={form} />
       </div>

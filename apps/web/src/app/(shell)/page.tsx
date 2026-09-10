@@ -64,7 +64,7 @@ export default async function WatchlistPage() {
                 <td className="py-2">
                   <Link
                     href={`/ativos/${item.ticker}`}
-                    className="underline-offset-4 hover:underline"
+                    className="font-mono uppercase underline-offset-4 hover:underline"
                   >
                     {item.ticker}
                   </Link>
