@@ -1,5 +1,5 @@
-import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { inArray } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import { ingestionRuns, tradingSessions } from "@/db/schema/market-data";
@@ -7,14 +7,17 @@ import { ingestionRuns, tradingSessions } from "@/db/schema/market-data";
 import { freshness, latestSession } from "./freshness";
 
 const SESSION = "2026-03-10";
+const OTHER_SESSION = "2026-03-09";
+const SESSIONS = [SESSION, OTHER_SESSION];
 const SOURCE = "cotahist" as const;
 
 async function cleanup(): Promise<void> {
   const db = getDb();
-  await db.delete(ingestionRuns).where(eq(ingestionRuns.session, SESSION));
-  await db.delete(tradingSessions).where(eq(tradingSessions.date, SESSION));
+  await db.delete(ingestionRuns).where(inArray(ingestionRuns.session, SESSIONS));
+  await db.delete(tradingSessions).where(inArray(tradingSessions.date, SESSIONS));
 }
 
+beforeEach(cleanup);
 afterEach(cleanup);
 
 describe("freshness", () => {
@@ -41,7 +44,7 @@ describe("freshness", () => {
     await db.insert(ingestionRuns).values([
       {
         source: SOURCE,
-        session: "2026-03-09",
+        session: OTHER_SESSION,
         status: "succeeded",
         startedAt: new Date("2026-03-09T22:00:00.000Z"),
         finishedAt: new Date("2026-03-09T22:05:00.000Z"),
@@ -61,8 +64,6 @@ describe("freshness", () => {
     const cotahist = report.filter((entry) => entry.source === SOURCE);
     expect(cotahist).toHaveLength(1);
     expect(cotahist[0]?.session).toBe(SESSION);
-
-    await db.delete(ingestionRuns).where(eq(ingestionRuns.session, "2026-03-09"));
   });
 });
 
