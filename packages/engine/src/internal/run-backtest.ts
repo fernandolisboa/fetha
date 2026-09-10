@@ -1122,6 +1122,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
       const residualQuantity = buyQty.sub(sellQty).round().toNumber();
       if (residualQuantity === 0) {
+        const pnlSoFarCentavos = pnlSoFar.round().toNumber();
+        state.currentMonthStockGain += pnlSoFarCentavos;
         finalizeSettlement(
           {
             op,
@@ -1131,7 +1133,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             residualAvgCostCentavos: 0,
             expirySession: session.date,
           },
-          pnlSoFar.round().toNumber(),
+          pnlSoFarCentavos,
           session.date,
         );
       } else {
@@ -1312,6 +1314,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           .add(pending.pnlSoFar)
           .round()
           .toNumber();
+        // Only pnlSoFar is a real, already-filled trade (the settlement's exercise or
+        // assignment); the residual's own mark here is a valuation, not a trade, and is not
+        // a taxable event (ADR-0013 "Simulated operations", the same rule a period_end
+        // close already follows for a stock-only run).
+        state.currentMonthStockGain += pending.pnlSoFar;
         finalizeSettlement(pending, residualPnl, pending.expirySession);
         Reflect.deleteProperty(state.pendingSettlements, opId);
       }
