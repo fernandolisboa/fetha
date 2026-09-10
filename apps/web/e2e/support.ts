@@ -40,9 +40,11 @@ export interface SignUpFields {
 // The module-level throttle state above only holds across sign-ups within a
 // single worker process; Playwright restarts the worker after a failed test,
 // which loses it. This owns the whole /cadastro submission as the backstop:
-// on a rate-limited response the Server Action re-renders the form with
-// empty text inputs (checkboxes stay checked), so a retry has to re-fill
-// name/e-mail/senha rather than just re-clicking submit.
+// on a rate-limited or a terms-not-accepted response, the Server Action
+// re-renders the form with empty text inputs and checkboxes that report
+// `isChecked() === true` even though nothing was submitted, so a retry
+// re-navigates to /cadastro and re-fills and re-checks everything rather
+// than trusting the DOM state or just re-clicking submit.
 const SIGN_UP_MAX_ATTEMPTS = 3;
 
 export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
@@ -57,20 +59,20 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
   });
   const createAccountButton = page.getByRole("button", { name: "Criar conta" });
   const rateLimitedAlert = page.getByText("Muitas tentativas seguidas", { exact: false });
+  const termsAlert = page.getByText(
+    "Você precisa aceitar os termos de uso e a política de privacidade.",
+    { exact: false },
+  );
 
   const fillForm = async (): Promise<void> => {
+    await page.goto("/cadastro");
     await nameInput.fill(fields.name);
     await emailInput.fill(fields.email);
     await passwordInput.fill(fields.password);
-    if (!(await termsCheckbox.isChecked())) {
-      await termsCheckbox.check();
-    }
-    if (!(await privacyCheckbox.isChecked())) {
-      await privacyCheckbox.check();
-    }
+    await termsCheckbox.check();
+    await privacyCheckbox.check();
   };
 
-  await page.goto("/cadastro");
   await fillForm();
 
   for (let attempt = 1; attempt <= SIGN_UP_MAX_ATTEMPTS; attempt += 1) {
@@ -78,6 +80,7 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
     await Promise.race([
       page.waitForURL(/\/verificar-email\?email=/, { timeout: 15_000 }).catch(() => undefined),
       rateLimitedAlert.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined),
+      termsAlert.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined),
     ]);
     if (!page.url().includes("/cadastro")) {
       break;
