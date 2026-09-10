@@ -115,6 +115,14 @@ provide an export named 'kAPIErrorHeaderSymbol'` before the CLI ever reads `DATA
 - Reference data, the catalog and shared strategies (ADR-0012) remain the only read-only
   exceptions to tenant scoping (CLAUDE.md, principle 5); `invites` and `mail_outbox` are a third
   class, described below.
+- A child table can carry no `user_id` of its own as long as every read and write reaches it only
+  through an already-scoped parent row: `strategy_versions` (#17) has no `user_id` column, but
+  `StrategiesRepository` never selects from it except by a `strategy_id` obtained from a
+  `strategies` row already filtered by `user_id` (`findMine`) or by visibility (`findShared`), so
+  the parent lookup is the access check. This is narrower than the read-only reference-data
+  exception above: `strategy_versions` is regular, per-user, mutable-by-insert domain data: it
+  costs a second row read where a denormalized `user_id` would cost a column, chosen here because
+  a version can never be read, listed or created except through its strategy.
 
 **Operational tables (`invites`, `mail_outbox`): unscoped, system-written, not user data**
 
@@ -211,7 +219,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   (guarded by whether `DATABASE_URL_PREVIEW` is configured, checked once and exposed as a step
   output, since secrets cannot be read directly in an `if:`), not a second job: `pnpm --filter
 @fetha/web run db:reset` (drops and recreates the `public` and `drizzle` schemas, cascading,
-  wiping schema drift left over by any other branch) then `db:migrate` then
+  wiping schema drift left over by any other branch) then `db:migrate` then `db:seed-structures`
+  (`scripts/seed-structures.mjs`, an idempotent upsert on the structure catalog's primary key, so
+  a catalog edit ships by editing the script and letting the next migrate run reseed it) then
   `pnpm --filter @fetha/web run test:integration`. `db:reset` (`scripts/reset-database.mjs`)
   refuses to run — before issuing any query — unless the host of `DATABASE_URL` exactly matches
   the `fetha-preview` pooler host or `ALLOW_DATABASE_RESET=1` is set explicitly, and refuses
@@ -229,8 +239,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   it needed to.
 - **Production is migrated by a separate workflow**, `migrate-production.yml`, triggered on push to
   `main` only, `concurrency: { group: migrate-production, cancel-in-progress: false }`, running
-  `pnpm --filter @fetha/web run db:migrate` with `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`.
-  It is lean — install and migrate, no build — because `apps/web/vercel.json`'s `buildCommand` no
+  `pnpm --filter @fetha/web run db:migrate` then `db:seed-structures`, both with
+  `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`.
+  It is lean — install, migrate and seed, no build — because `apps/web/vercel.json`'s `buildCommand` no
   longer runs a migration itself (`pnpm build` only); Vercel's own build must never be the thing
   that mutates the production schema, since a build can run for a preview or be retried.
 - **No per-PR Neon branch.** This deviates from Feudo's stated preview-branch-per-PR plan in

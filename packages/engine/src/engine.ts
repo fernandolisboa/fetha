@@ -11,9 +11,13 @@ import type {
   ImpliedVolatilityIndexInput,
   IndicatorSeries,
   IndicatorsInput,
+  MarketView,
+  MarkToMarketInput,
   OperationPricing,
   PortfolioValuation,
   PriceOperationInput,
+  ProposeSettlementInput,
+  Provenance,
   Result,
   RunBacktestInput,
   Score,
@@ -25,19 +29,31 @@ import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
 import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
+import { markToMarket as computeMarkToMarket } from "./internal/mark-to-market";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
+import { proposeSettlement as computeProposeSettlement } from "./internal/propose-settlement";
 import { runBacktest as computeRunBacktest } from "./internal/run-backtest";
-import {
-  unsupportedAdjustmentRuleKinds,
-  unsupportedThesisClaimKinds,
-} from "./internal/vocabularies";
+import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
 const thesisClaimKind = unsupportedThesisClaimKinds[0];
-const adjustmentRuleKind = unsupportedAdjustmentRuleKinds[0];
 
 function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
   return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
+}
+
+// Every method that computes an artifact stamps it with the same four fields, read off the
+// view it was handed (round 1 item 12): one place instead of five copies of the same object
+// literal.
+function provenanceBaseFor(
+  view: MarketView,
+): Pick<Provenance, "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"> {
+  return {
+    engineVersion: ENGINE_VERSION,
+    pricingModel: pricingModelKind,
+    dataVersion: view.dataVersion ?? null,
+    datasetNotes: view.datasetNotes ?? [],
+  };
 }
 
 export const engine: Engine = {
@@ -54,14 +70,7 @@ export const engine: Engine = {
   },
 
   priceOperation(input: PriceOperationInput): Promise<Result<OperationPricing>> {
-    return Promise.resolve(
-      computePriceOperation(input, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
-    );
+    return Promise.resolve(computePriceOperation(input, provenanceBaseFor(input.view)));
   },
 
   evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {
@@ -72,12 +81,12 @@ export const engine: Engine = {
     return Promise.resolve(computeRunBacktest(input));
   },
 
-  markToMarket(): Promise<Result<PortfolioValuation>> {
-    return unsupported("adjustmentRules", adjustmentRuleKind);
+  markToMarket(input: MarkToMarketInput): Promise<Result<PortfolioValuation>> {
+    return Promise.resolve(computeMarkToMarket(input, provenanceBaseFor(input.view)));
   },
 
-  proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return unsupported("adjustmentRules", adjustmentRuleKind);
+  proposeSettlement(input: ProposeSettlementInput): Promise<Result<SettlementProposal>> {
+    return Promise.resolve(computeProposeSettlement(input, provenanceBaseFor(input.view)));
   },
 
   score(): Promise<Result<Score>> {
@@ -88,12 +97,12 @@ export const engine: Engine = {
     input: ImpliedVolatilityIndexInput,
   ): Promise<Result<ImpliedVolatilityIndex>> {
     return Promise.resolve(
-      computeImpliedVolatilityIndex(input.view, input.underlying, input.at, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
+      computeImpliedVolatilityIndex(
+        input.view,
+        input.underlying,
+        input.at,
+        provenanceBaseFor(input.view),
+      ),
     );
   },
 };

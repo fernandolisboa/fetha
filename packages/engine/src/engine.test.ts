@@ -107,27 +107,6 @@ describe("engine", () => {
 
   it.each([
     [
-      "markToMarket",
-      () =>
-        engine.markToMarket({
-          view: emptyView,
-          at: "2024-01-01T00:00:00.000Z",
-          positions: [],
-          operations: [],
-          cash: centavos(0),
-        } satisfies MarkToMarketInput),
-      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
-    ],
-    [
-      "proposeSettlement",
-      () =>
-        engine.proposeSettlement({
-          view: emptyView,
-          operation: stockOperation,
-        } satisfies ProposeSettlementInput),
-      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
-    ],
-    [
       "score",
       () =>
         engine.score({
@@ -158,6 +137,48 @@ describe("engine", () => {
       expect(result.error).toEqual(expected);
     },
   );
+
+  it("marks a stock-only portfolio to market end to end through the Engine interface", async () => {
+    const result = await engine.markToMarket({
+      view: {
+        ...emptyView,
+        calendar: [
+          {
+            date: "2024-01-02",
+            open: "2024-01-02T13:00:00.000Z",
+            close: "2024-01-02T21:00:00.000Z",
+          },
+        ],
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-02T13:00:00.000Z",
+            last: decimalString("12.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      at: "2024-01-02T13:00:00.000Z",
+      positions: [],
+      operations: [stockOperation],
+      cash: centavos(0),
+    } satisfies MarkToMarketInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(2_00 * 100));
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+  });
+
+  it("proposes settlement for a stock-only operation end to end through the Engine interface", async () => {
+    const result = await engine.proposeSettlement({
+      view: emptyView,
+      operation: stockOperation,
+    } satisfies ProposeSettlementInput);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
 
   it("prices a concrete stock-only operation end to end through the Engine interface", async () => {
     const result = await engine.priceOperation({

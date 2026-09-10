@@ -11,7 +11,9 @@ copies it into their own space to run or change it, and versions diverge from th
 sharing by invitation, no comments, and no sharing of operations, decisions, analyses,
 portfolios or risk profiles, which stay strictly private. This keeps the tenant-isolation
 invariant simple (one more read-only exception, like the catalog) while letting the owner and
-friends exchange strategies.
+friends exchange strategies. `listShared` excludes the caller's own shared strategies
+(`StrategiesRepository.listShared`, `strategies.userId <> caller`): the caller already sees those
+under "mine", so the shared list is strictly other users' work.
 
 ## Considered options
 

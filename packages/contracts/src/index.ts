@@ -4,7 +4,12 @@ export {
   confidenceSchema,
   decimalStringSchema,
   instantSchema,
+  leftOpenUnitIntervalSchema,
+  nonNegativeDecimalSchema,
+  openUnitIntervalSchema,
+  positiveDecimalSchema,
   quantitySchema,
+  rightOpenUnitIntervalSchema,
   sessionDateSchema,
   signedQuantitySchema,
   tickerSchema,
@@ -32,8 +37,10 @@ export {
 export { sizingRuleKinds, sizingRuleSchema, type SizingRule } from "./sizing-rule";
 export {
   comparators,
+  conditionDepth,
   conditionKinds,
   conditionSchema,
+  MAX_CONDITION_DEPTH,
   operandSchema,
   priceFields,
   type Condition,
@@ -52,4 +59,5 @@ export {
   type Structure,
 } from "./structure";
 export { strategyDefinitionSchema, type StrategyDefinition } from "./strategy-definition";
+export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
 export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";

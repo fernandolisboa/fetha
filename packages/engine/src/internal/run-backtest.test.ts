@@ -1641,6 +1641,42 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     expect(resumed.error.code).toBe("insufficient_data");
   });
 
+  it("returns invalid_input instead of throwing when a resumed chunk's view carries a non-positive corporate-action factor (round 3 item 4)", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const paused = runBacktest({ view: fullView, config, maxSessions: 2 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+    // A resumed chunk fills and marks its own open operations (carried over from the
+    // checkpoint) before `evaluateStrategy` ever validates this same session's view: a
+    // non-positive factor must be caught by `runBacktest`'s own upfront validation, not reach
+    // `splitFactorProduct`'s invariant through a still-unvalidated view.
+    const zeroFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("0"),
+    };
+    const invalidView: MarketView = { ...fullView, corporateActions: [zeroFactor] };
+    const resumed = runBacktest({
+      view: invalidView,
+      config,
+      resume: paused.value.checkpoint,
+    });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("invalid_input");
+  });
+
   it("returns checkpoint_mismatch when the resumed schema does not match", () => {
     const calendar = ["2024-01-02", "2024-01-03"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });

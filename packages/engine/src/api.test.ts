@@ -257,6 +257,10 @@ describe("closed vocabularies", () => {
       "iv_index_not_bracketed",
       "risk_free_rate_defaulted",
       "negative_cash",
+      "settlement_pending",
+      "settlement_costs_not_modeled",
+      "less_than_one_effective_unit",
+      "stale_price_across_corporate_action",
     ]);
   });
 

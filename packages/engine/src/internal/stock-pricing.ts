@@ -21,6 +21,7 @@ import {
   toDecimalString,
   ZERO_RATIO,
 } from "./decimal";
+import { NO_RISK_PROFILE_NOTE } from "./notes";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { toCentavos } from "./scalars";
 
@@ -156,10 +157,7 @@ export function priceStockLegs(input: PriceStockLegsInput): Result<OperationPric
 
   const limitBreaches: LimitBreach[] = [];
   if (!input.riskProfile) {
-    notes.push({
-      code: "no_risk_profile",
-      message: "no risk profile supplied; limits not checked",
-    });
+    notes.push(NO_RISK_PROFILE_NOTE);
   } else {
     const capital = new Decimal(input.riskProfile.declaredCapital);
     if (maxLoss !== "unbounded" && capital.gt(0)) {

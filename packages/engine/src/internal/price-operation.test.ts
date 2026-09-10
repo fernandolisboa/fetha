@@ -1,20 +1,9 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { Structure } from "@fetha/contracts";
-import type { MarketView, OptionSeries, TradingSession } from "../api";
-import { centavos, decimalString, quantity } from "../test/support";
+import type { MarketView, OptionSeries } from "../api";
+import { centavos, dailyCalendar, decimalString, quantity } from "../test/support";
 import { priceOperation } from "./price-operation";
-
-function dailyCalendar(fromDay: number, count: number): TradingSession[] {
-  return Array.from({ length: count }, (_, i) => {
-    const day = String(fromDay + i).padStart(2, "0");
-    return {
-      date: `2024-01-${day}`,
-      open: `2024-01-${day}T13:00:00.000Z`,
-      close: `2024-01-${day}T21:00:00.000Z`,
-    };
-  });
-}
 
 const calendar = dailyCalendar(2, 20);
 const at = "2024-01-02T21:00:00.000Z";
@@ -695,6 +684,138 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
+  it("suppresses the implied-volatility solve for a stale option mark whose session precedes a visible ex-date on the underlying (round 3 item 9)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const leg = result.value.legs[0];
+    expect(leg?.stale).toEqual({ session: "2024-01-01" });
+    expect(leg?.impliedVolatility).toBeNull();
+    expect(leg?.volatilitySource).toBeNull();
+    expect(leg?.fairValue).toBeNull();
+    expect(leg?.greeks).toBeNull();
+    expect(leg?.notes).toContainEqual({
+      code: "stale_price_across_corporate_action",
+      message:
+        "the last traded price predates a corporate-action ex-date on the underlying; implied volatility is not solved from it",
+    });
+  });
+
+  it("does not flag the operation-level iv_not_converged note for a leg whose solve was only suppressed across a corporate action (round 4 item 2)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).not.toContainEqual(
+      expect.objectContaining({ code: "iv_not_converged" }),
+    );
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at` (round 4 item 1)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T21:00:00.001Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const leg = result.value.legs[0];
+    expect(leg?.stale).toEqual({ session: "2024-01-01" });
+    expect(leg?.impliedVolatility).not.toBeNull();
+    expect(leg?.greeks).not.toBeNull();
+    expect(leg?.notes).not.toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
   it("marks a stock leg's mark stale when the price row's session is earlier than the session of at", () => {
     const view: MarketView = {
       ...baseView,
@@ -703,24 +824,13 @@ describe("priceOperation (concrete legs)", () => {
         {
           ticker: "PETR4",
           timeframe: "D1",
-          session: "2024-01-02",
+          session: "2024-01-01",
           asOf: at,
           open: decimalString("29.00"),
           high: decimalString("30.00"),
           low: decimalString("28.50"),
-          close: decimalString("29.50"),
-          tradedQuantity: 1000,
-        },
-      ],
-      optionPrices: [
-        {
-          ticker: "PETR4",
-          session: "2024-01-01",
-          asOf: at,
-          average: null,
           close: decimalString("29.00"),
-          trades: 1,
-          tradedQuantity: 1,
+          tradedQuantity: 1000,
         },
       ],
     };

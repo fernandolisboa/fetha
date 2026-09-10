@@ -12,35 +12,30 @@ import type {
   OperationPricing,
   PayoffPoint,
   PriceOperationInput,
-  Provenance,
   Result,
   TradingSession,
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
+import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
   PRICE_SCALE,
   RATIO_SCALE,
-  ZERO_RATIO,
   parseDecimal,
   toDecimalString,
 } from "./decimal";
+import { invalidInput } from "./errors";
+import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
+import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
 import { priceOptionLeg } from "./option-pricing";
+import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
-
-const zeroGreeks: Greeks = {
-  delta: ZERO_RATIO,
-  gamma: ZERO_RATIO,
-  theta: ZERO_RATIO,
-  vega: ZERO_RATIO,
-  rho: ZERO_RATIO,
-};
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;
@@ -52,10 +47,6 @@ function err(error: EngineError): Result<OperationPricing> {
 
 function isPositive(value: DecimalString): boolean {
   return parseDecimal(value).gt(0);
-}
-
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
 }
 
 // ADR-0014 Q42: a mark is `stale` when the price row it came from belongs to an earlier
@@ -73,6 +64,13 @@ type PricedLeg = {
   premiumPerUnit: Decimal;
 };
 
+// `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
+// supplied only when the caller (markToMarket, round 1 item 3) already knows the operation's
+// listed expiry has passed: the usual time-to-expiry lookup below would reject every option
+// leg with `invalid_input` ("already_expired"), aborting the whole portfolio's valuation on
+// any day after an expiry the user has not yet confirmed a settlement for. `priceOperation`
+// never passes this (a caller building a *new* position on an already-expired series is still
+// a genuine error), so the parameter defaults to `null`.
 function valueOneLeg(
   view: MarketView,
   at: string,
@@ -81,10 +79,12 @@ function valueOneLeg(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   leg: LegInput,
+  legPath: string,
+  expiredIntrinsicBasis: DecimalString | null = null,
 ): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
   const atSession = sessionDateAtOrBefore(view.calendar, at);
   if (leg.role === "stock") {
-    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
+    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession, "stock");
     const price = resolved?.value ?? null;
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
@@ -98,12 +98,7 @@ function valueOneLeg(
       timeToExpiryYears: null,
       notes: price
         ? resolved?.stale
-          ? [
-              {
-                code: "stale_price",
-                message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
-              },
-            ]
+          ? [STALE_PRICE_NOTE]
           : []
         : [{ code: "no_market_price", message: "no market price visible for this leg" }],
     };
@@ -122,14 +117,41 @@ function valueOneLeg(
   if (series.underlying !== underlying) {
     return {
       ok: false,
-      error: { code: "invalid_input", path: "legs", message: "leg underlying mismatch" },
+      error: { code: "invalid_input", path: legPath, message: "leg underlying mismatch" },
     };
   }
   if (!isPositive(series.strike)) {
     return {
       ok: false,
-      error: invalidInput("legs.strike", "a listed strike must be positive"),
+      error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
+  }
+
+  if (expiredIntrinsicBasis !== null) {
+    const strike = parseDecimal(series.strike);
+    const basis = parseDecimal(expiredIntrinsicBasis);
+    const intrinsic =
+      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
+    const fairValue = toDecimalString(intrinsic, PRICE_SCALE);
+    const valuation: LegValuation = {
+      leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
+      price: null,
+      priceSource: null,
+      stale: null,
+      fairValue,
+      impliedVolatility: null,
+      volatilitySource: null,
+      greeks: null,
+      timeToExpiryYears: toDecimalString(new Decimal(0), RATIO_SCALE),
+      notes: [
+        {
+          code: "settlement_pending",
+          message:
+            "the operation's listed expiry has passed; valued at intrinsic pending settlement (ADR-0014 Q41)",
+        },
+      ],
+    };
+    return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit: intrinsic } };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -137,7 +159,7 @@ function valueOneLeg(
     if (tte.reason === "already_expired") {
       return {
         ok: false,
-        error: invalidInput("legs.expiry", "the leg's expiry precedes the session of at"),
+        error: invalidInput(`${legPath}.expiry`, "the leg's expiry precedes the session of at"),
       };
     }
     return {
@@ -161,11 +183,27 @@ function valueOneLeg(
   if (leg.volatility !== undefined && !isPositive(leg.volatility)) {
     return {
       ok: false,
-      error: invalidInput("legs.volatility", "a given volatility must be positive"),
+      error: invalidInput(`${legPath}.volatility`, "a given volatility must be positive"),
     };
   }
 
   const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
+  // A stale price whose own session predates a corporate-action ex-date visible on the
+  // underlying sits on a pre-action scale the current spot no longer shares: solving implied
+  // volatility from it would read the split itself as a phantom volatility move, not a real
+  // market view (round 3 item 9). `resolveLegMarketPrice` already gives the stale row's own
+  // session; suppress the solve whenever an ex-date falls strictly after it and at or before
+  // the mark session.
+  const staleSession = marketPrice?.stale?.session ?? null;
+  const suppressStaleImpliedVolatility =
+    staleSession !== null &&
+    view.corporateActions.some(
+      (f) =>
+        f.ticker === underlying &&
+        f.exDate > staleSession &&
+        (atSession === null || f.exDate <= atSession) &&
+        isAtOrBefore(f.asOf, at),
+    );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: series.strike,
@@ -175,6 +213,7 @@ function valueOneLeg(
     timeToExpiryYears: tte.years,
     marketPrice,
     givenVolatility: leg.volatility ?? null,
+    suppressStaleImpliedVolatility,
   });
   const premiumPerUnit = valuation.price
     ? parseDecimal(valuation.price)
@@ -306,10 +345,7 @@ function applyRiskLimits(
 ): LimitBreach[] {
   const limitBreaches: LimitBreach[] = [];
   if (!riskProfile) {
-    notes.push({
-      code: "no_risk_profile",
-      message: "no risk profile supplied; limits not checked",
-    });
+    notes.push(NO_RISK_PROFILE_NOTE);
     return limitBreaches;
   }
 
@@ -380,7 +416,14 @@ export type ValuedLegs = {
 // the payoff profile, aggregate greeks, risk-limit checks and provenance — is either
 // unneeded for sizing or, for provenance, has no real value to report before the leg
 // count is known. Splitting this out means the preview no longer manufactures a fake one.
-export function valueLegs(
+// Not exported: markToMarket composes through priceConcreteLegs (round 1 item 12), never
+// this lower-level step directly.
+// `legPathAt` builds the error path for the leg at a given position in `legs`: `priceOperation`
+// never needs anything but the plain `legs[i]` default, but `markToMarket` (round 3 item 8)
+// needs `operations[i].legs[j]`, `j` being that leg's own position in the *operation's* legs,
+// which does not generally equal its position in `legs` here once a residue-only or an
+// unpriced-expired leg has been excluded from it (round 3 items 2, 5).
+function valueLegs(
   view: MarketView,
   at: string,
   underlying: string,
@@ -388,23 +431,50 @@ export function valueLegs(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   legs: readonly LegInput[],
+  expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt: (index: number) => string = (index) => `legs[${String(index)}]`,
 ): { ok: true; value: ValuedLegs } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
   const notes: Note[] = [];
   let anyLegUnpriced = false;
-  for (const leg of legs) {
-    const result = valueOneLeg(view, at, underlying, spot, riskFreeRate, dividendYield, leg);
+  let anyLegSettlementPending = false;
+  for (const [index, leg] of legs.entries()) {
+    const result = valueOneLeg(
+      view,
+      at,
+      underlying,
+      spot,
+      riskFreeRate,
+      dividendYield,
+      leg,
+      legPathAt(index),
+      expiredIntrinsicBasis,
+    );
     if (!result.ok) return { ok: false, error: result.error };
     priced.push(result.leg);
     notes.push(...result.leg.valuation.notes.filter((n) => n.code === "european_pricing"));
     if (result.leg.valuation.notes.some((n) => n.code === "no_market_price")) {
       anyLegUnpriced = true;
     }
+    if (result.leg.valuation.notes.some((n) => n.code === "settlement_pending")) {
+      anyLegSettlementPending = true;
+    }
   }
   if (anyLegUnpriced) {
     notes.push({
       code: "no_market_price",
       message: "at least one leg has no visible market price",
+    });
+  }
+  // Aggregated at the operation level next to `no_market_price` above (round 3 item 6): a
+  // per-leg `settlement_pending` note alone does not surface on `OperationPricing.notes`,
+  // where markToMarket's own portfolio-level aggregation (`ov.pricing.notes.some(...)`) and a
+  // caller scanning an operation's own notes without walking every leg both look first.
+  if (anyLegSettlementPending) {
+    notes.push({
+      code: "settlement_pending",
+      message:
+        "at least one leg's listed expiry has passed; valued at intrinsic pending settlement",
     });
   }
 
@@ -426,8 +496,9 @@ export function valueLegs(
 // by every step that happens to need a rate: the concrete-legs path resolves it once for
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
-// (PR #53 round 1 item 19).
-export function resolveOperationRates(
+// (PR #53 round 1 item 19). Not exported: `priceLegsAt` and `priceOperation` are the only
+// public surface of this module (round 3 item 10).
+function resolveOperationRates(
   view: MarketView,
   at: string,
   underlying: string,
@@ -446,7 +517,9 @@ export function resolveOperationRates(
   };
 }
 
-export function priceConcreteLegs(
+// Not exported (round 3 item 10): `priceLegsAt` and `priceOperation` are the only public
+// surface of this module.
+function priceConcreteLegs(
   view: MarketView,
   at: string,
   underlying: string,
@@ -457,12 +530,21 @@ export function priceConcreteLegs(
   legs: readonly LegInput[],
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
+  expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt?: (index: number) => string,
 ): Result<OperationPricing> {
-  const valued = valueLegs(view, at, underlying, spot, riskFreeRate, dividendYield, legs);
+  const valued = valueLegs(
+    view,
+    at,
+    underlying,
+    spot,
+    riskFreeRate,
+    dividendYield,
+    legs,
+    expiredIntrinsicBasis,
+    legPathAt,
+  );
   if (!valued.ok) return err(valued.error);
   const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
   const notes: Note[] = [...rateNotes, ...legNotes];
@@ -471,17 +553,32 @@ export function priceConcreteLegs(
   // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
   // exclude it from the sum, but silently dropping it left a covered call's short leg
   // out of the reported delta with no signal that the aggregate is incomplete
-  // (PR #53 round 3 item 3).
-  if (priced.some((leg) => leg.valuation.price !== null && !leg.valuation.greeks)) {
+  // (PR #53 round 3 item 3). A leg whose solve was only suppressed across a corporate
+  // action (`stale_price_across_corporate_action`, round 3 item 9) already carries its own
+  // leg-level note explaining why it has no greeks; flagging the operation-level
+  // `iv_not_converged` on top of it would misreport a genuine non-convergence that never
+  // happened (round 4 item 2).
+  const unpricedGreeksLegs = priced.filter(
+    (leg) => leg.valuation.price !== null && !leg.valuation.greeks,
+  );
+  const suppressedAcrossCorporateAction = (leg: (typeof unpricedGreeksLegs)[number]): boolean =>
+    leg.valuation.notes.some((note) => note.code === "stale_price_across_corporate_action");
+  if (unpricedGreeksLegs.some((leg) => !suppressedAcrossCorporateAction(leg))) {
     notes.push({
       code: "iv_not_converged",
       message: "at least one priced leg has no greeks; the aggregate excludes it",
+    });
+  } else if (unpricedGreeksLegs.some(suppressedAcrossCorporateAction)) {
+    notes.push({
+      code: "stale_price_across_corporate_action",
+      message:
+        "at least one priced leg's implied volatility was suppressed across a corporate action; the aggregate excludes it",
     });
   }
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 
-  const greeks: Greeks = (["delta", "gamma", "theta", "vega", "rho"] as const).reduce(
+  const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
       const total = priced.reduce((sum, leg) => {
         if (!leg.valuation.greeks) return sum;
@@ -525,6 +622,48 @@ export function priceConcreteLegs(
       provenance: { ...provenanceBase, truncated: [] },
     },
   };
+}
+
+// Shared by priceOperation's concrete-legs branch and markToMarket's per-operation pricing
+// (round 1 item 12): both resolve the underlying's spot and rates, then price a fixed set of
+// legs through priceConcreteLegs, differing only in the error path a non-positive spot
+// reports (an operation-indexed path for markToMarket, a bare "spot" for a fresh proposal).
+export function priceLegsAt(
+  view: MarketView,
+  at: string,
+  underlying: string,
+  legs: readonly LegInput[],
+  riskProfile: RiskProfile | undefined,
+  openOperationCount: number | undefined,
+  provenanceBase: ProvenanceBase,
+  spotPath: string,
+  expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt?: (index: number) => string,
+): Result<OperationPricing> {
+  const spot = resolveUnderlyingSpot(view, underlying, at);
+  if (!spot) return err({ code: "missing_instrument", ticker: underlying });
+  if (!isPositive(spot)) {
+    return err(invalidInput(spotPath, "the underlying's spot must be positive"));
+  }
+
+  const ratesResolution = resolveOperationRates(view, at, underlying);
+  if (!ratesResolution.ok) return err(ratesResolution.error);
+
+  return priceConcreteLegs(
+    view,
+    at,
+    underlying,
+    spot,
+    ratesResolution.riskFreeRate,
+    ratesResolution.dividendYield,
+    ratesResolution.notes,
+    legs,
+    riskProfile,
+    openOperationCount,
+    provenanceBase,
+    expiredIntrinsicBasis,
+    legPathAt,
+  );
 }
 
 // Concrete `LegInput[]` legs are not built by `resolveLegSelection`, so nothing else
@@ -651,10 +790,7 @@ function resolveSizingUnits(
 function priceSelection(
   input: PriceOperationInput,
   selection: LegSelection,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
   const spot = resolveUnderlyingSpot(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
@@ -722,10 +858,7 @@ function priceSelection(
 
 export function priceOperation(
   input: PriceOperationInput,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
   if (Array.isArray(input.legs)) {
     const [firstLeg] = input.legs;
@@ -744,29 +877,15 @@ export function priceOperation(
       input.legs,
     );
     if (consistencyError) return err(consistencyError);
-    const spot = resolveUnderlyingSpot(input.view, underlyingResult.underlying, input.at);
-    if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
-    if (!isPositive(spot)) {
-      return err(invalidInput("spot", "the underlying's spot must be positive"));
-    }
-    const ratesResolution = resolveOperationRates(
+    return priceLegsAt(
       input.view,
       input.at,
       underlyingResult.underlying,
-    );
-    if (!ratesResolution.ok) return err(ratesResolution.error);
-    return priceConcreteLegs(
-      input.view,
-      input.at,
-      underlyingResult.underlying,
-      spot,
-      ratesResolution.riskFreeRate,
-      ratesResolution.dividendYield,
-      ratesResolution.notes,
       input.legs,
       input.riskProfile,
       input.openOperationCount,
       provenanceBase,
+      "spot",
     );
   }
   return priceSelection(input, input.legs, provenanceBase);

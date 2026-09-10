@@ -33,7 +33,8 @@ import { compareInstants, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
 import { codeUnitCompare, sortUnique } from "./order";
-import { priceConcreteLegs, priceOperation, resolveOperationRates } from "./price-operation";
+import { priceLegsAt, priceOperation } from "./price-operation";
+import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toQuantity } from "./scalars";
@@ -75,6 +76,11 @@ function sessionForInstant(calendar: readonly TradingSession[], at: Instant): Se
   return found ?? at.slice(0, 10);
 }
 
+// Mirrored by `checkStrategyCoherence` in `packages/contracts/src/strategy-coherence.ts`
+// (ADR-0013): this package cannot import that one at runtime, and that one
+// cannot import this one, so the two copies are kept in sync by
+// `apps/web/src/modules/strategies/coherence-conformance.test.ts` rather than
+// by a shared function.
 function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const { definition, structure } = input.strategy;
   if (definition.structureId !== structure.id) {
@@ -288,21 +294,19 @@ function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Ma
 
 type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
 
-// Both a stock-only and an option operation share one pricing path (priceConcreteLegs):
-// every leg is priced "given" at its own entryPrice, so the base never drifts as the
-// position moves (ADR-0014 Q50). Rates fail only when a macro/dividendYields point is
-// invalid, which validateBatchInvariants already rejected before evaluation reaches an
-// operation's exit rules, so rate resolution is asserted to succeed here. Pricing itself can
-// still fail for an option leg whose series has fallen out of the view (a caller passing a
-// stale or incomplete window for an operation it still holds open): that is reported to the
-// caller as "cannot evaluate this operation's exit rules right now", not an invariant.
+// Both a stock-only and an option operation share one pricing path (priceLegsAt): every leg
+// is priced "given" at its own entryPrice, so the base never drifts as the position moves
+// (ADR-0014 Q50). `priceLegsAt` resolves the underlying's own current spot and rates itself
+// (round 1 item 13: an earlier draft passed the first leg's own entryPrice as the spot, which
+// for an option-led leg order priced an underlying against an option premium); called once
+// per instant `c` a caller's evaluation batch visits, not once for the whole batch at `at`
+// (an option leg's time-to-expiry and its rates both move within a since..at catch-up, so a
+// base resolved once at the batch's own `at` would let an earlier instant see a later
+// instant's rates). Pricing itself can still fail for an option leg whose series has fallen
+// out of the view (a caller passing a stale or incomplete window for an operation it still
+// holds open), or the underlying's own spot being momentarily unresolvable: that is reported
+// to the caller as "cannot evaluate this operation's exit rules right now", not an invariant.
 function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): ExitRuleBases | null {
-  const firstLeg = assertDefined(
-    op.legs[0],
-    "evaluateStrategy: an operation always carries at least one leg",
-  );
-  const ratesResult = resolveOperationRates(view, at, op.underlying);
-  invariant(ratesResult.ok, "computeExitRuleBases: view invariants were already validated");
   const legs: LegInput[] = op.legs.map((leg) => ({
     role: leg.role,
     side: leg.side,
@@ -310,14 +314,10 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
     quantity: leg.quantity,
     price: leg.entryPrice,
   }));
-  const result = priceConcreteLegs(
+  const result = priceLegsAt(
     view,
     at,
     op.underlying,
-    firstLeg.entryPrice,
-    ratesResult.riskFreeRate,
-    ratesResult.dividendYield,
-    ratesResult.notes,
     legs,
     undefined,
     undefined,
@@ -327,6 +327,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
       dataVersion: null,
       datasetNotes: [],
     },
+    "spot",
   );
   if (!result.ok) return null;
   const pricing = result.value;
@@ -534,9 +535,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
     }
 
     const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
-    const basesByOpId = new Map(
-      opsForTicker.map((op) => [op.id, computeExitRuleBases(op, input.view, input.at)] as const),
-    );
 
     for (const nominalCandle of instants) {
       const c = nominalCandle.asOf;
@@ -771,27 +769,32 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
       let instantFired = false;
       let instantUnknown = false;
       let zeroBaseDetail: string | null = null;
-      const opRatesResult = resolveOperationRates(input.view, c, ticker);
+      const riskFreeRateResult = resolveRiskFreeRate(input.view.macro, c);
+      const dividendYieldResult = resolveDividendYield(input.view.dividendYields, ticker, c);
       // Every rate feeding an active operation's exit rules was already validated
-      // batch-wide (validateBatchInvariants), so this cannot fail once an operation exists.
-      invariant(opRatesResult.ok, "evaluateStrategy: view invariants were already validated");
-      const { riskFreeRate, dividendYield } = opRatesResult;
+      // batch-wide (validateBatchInvariants), so neither can fail once an operation exists.
+      invariant(riskFreeRateResult.ok, "evaluateStrategy: view invariants were already validated");
+      invariant(dividendYieldResult.ok, "evaluateStrategy: view invariants were already validated");
+      const riskFreeRate = riskFreeRateResult.value;
+      const dividendYield = dividendYieldResult.value;
       for (const op of activeOps) {
-        const precomputedBases = basesByOpId.get(op.id);
-        // basesByOpId is built from this exact opsForTicker, so every op reaching this loop
-        // (a filter over that same array) always has an entry, undefined or not.
-        /* v8 ignore start */
-        if (precomputedBases === undefined) {
-          throw new Error("evaluateStrategy: missing precomputed exit rule bases");
-        }
-        /* v8 ignore stop */
-        if (precomputedBases === null) {
+        // Resolved at this same instant `c`, not once for the whole since..at batch at
+        // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
+        // within a catch-up batch, so a base resolved once at the batch's own end would let
+        // an earlier instant see a later instant's rates.
+        const bases = computeExitRuleBases(op, input.view, c);
+        if (bases === null) {
           instantUnknown = true;
           continue;
         }
-        const bases = precomputedBases;
         const visibleFactors = tickerView.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
-        const splitFactor = splitFactorProduct(visibleFactors, op.openedAt, nominalCandle.session);
+        const splitFactorResult = splitFactorProduct(
+          visibleFactors,
+          op.openedAt,
+          nominalCandle.session,
+        );
+        if (!splitFactorResult.ok) return { ok: false, error: splitFactorResult.error };
+        const splitFactor = splitFactorResult.value;
         let fired = false;
         for (const rule of input.strategy.definition.exit) {
           if (fired) break;

@@ -2303,7 +2303,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "invalid_input",
-      path: "legs.strike",
+      path: "legs[1].strike",
       message: "a listed strike must be positive",
     });
   });

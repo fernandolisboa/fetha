@@ -18,7 +18,9 @@ exemption applies to stocks only, never to options; no loss carry-forward yet). 
 limits are enforced by default and a run may be configured to only warn. Every dataset used by
 backtests documents its survivorship-bias properties (COTAHIST includes delisted instruments and
 is not adjusted for corporate actions; adjustments are applied and versioned by the ingestion
-layer).
+layer). Recording real corporate-action factors from labeled events is tracked in #50: the
+`corporate_action_factors` table exists and the engine reads it (ADR-0013), but no source
+ingestion #12 (ADR-0017) added currently writes to it.
 
 ## Considered options
 

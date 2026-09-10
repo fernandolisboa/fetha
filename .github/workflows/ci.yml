@@ -111,6 +111,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @fetha/web run db:migrate
 
+      - name: Seed the structure catalog
+        if: steps.preview-db.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @fetha/web run db:seed-structures
+
       - name: Integration tests
         if: steps.preview-db.outputs.configured == 'true'
         env:
