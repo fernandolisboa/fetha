@@ -13,6 +13,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 
 import {
   StrategiesRepository,
+  StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
 } from "./strategies-repository";
@@ -276,7 +277,7 @@ describe("StrategiesRepository sharing and copy", () => {
     await ownerRepository.setVisibility(created.id, "shared");
 
     const copierRepository = new StrategiesRepository(db, copier);
-    const copy = await copierRepository.copyShared(created.id);
+    const copy = await copierRepository.copyShared(created.id, 200);
 
     expect(copy.userId).toBe(copier.id);
     expect(copy.visibility).toBe("private");
@@ -302,7 +303,7 @@ describe("StrategiesRepository sharing and copy", () => {
     );
 
     await expect(
-      new StrategiesRepository(db, copier).copyShared(created.id),
+      new StrategiesRepository(db, copier).copyShared(created.id, 200),
     ).rejects.toBeInstanceOf(StrategyNotFoundError);
   });
 
@@ -316,9 +317,32 @@ describe("StrategiesRepository sharing and copy", () => {
       definition({ name: "Privada" }),
     );
 
-    await expect(new StrategiesRepository(db, owner).copyShared(created.id)).rejects.toBeInstanceOf(
-      StrategyNotSharedError,
+    await expect(
+      new StrategiesRepository(db, owner).copyShared(created.id, 200),
+    ).rejects.toBeInstanceOf(StrategyNotSharedError);
+  });
+
+  it("copying refuses once the copier is at the strategy cap, counted inside the transaction", async () => {
+    const db = getDb();
+    const emailOwner = uniqueEmail("owner-cap");
+    const emailCopier = uniqueEmail("copier-cap");
+    createdEmails.push(emailOwner, emailCopier);
+    const owner = await insertBareUser(emailOwner);
+    const copier = await insertBareUser(emailCopier);
+
+    const ownerRepository = new StrategiesRepository(db, owner);
+    const created = await ownerRepository.createWithVersion(definition({ name: "Original" }));
+    await ownerRepository.setVisibility(created.id, "shared");
+
+    const copierRepository = new StrategiesRepository(db, copier);
+    await copierRepository.createWithVersion(definition({ name: "Já existente" }));
+
+    await expect(copierRepository.copyShared(created.id, 1)).rejects.toBeInstanceOf(
+      StrategyLimitReachedError,
     );
+
+    const copierStrategies = await copierRepository.listMine();
+    expect(copierStrategies).toHaveLength(1);
   });
 
   it("listShared returns strategies from every user, not only the caller's", async () => {

@@ -36,6 +36,15 @@ function decimalString(value: string): DecimalString {
   return value as DecimalString;
 }
 
+function isRedirectError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "digest" in error &&
+    typeof error.digest === "string" &&
+    error.digest.startsWith("NEXT_REDIRECT;")
+  );
+}
+
 function uniqueEmail(label: string): string {
   return `fetha-strategy-actions-${label}-${crypto.randomUUID()}@example.com`;
 }
@@ -141,6 +150,24 @@ describe("createStrategyAction", () => {
 
     expect(result.status).toBe("ok");
   });
+
+  it("resolves the session before running the coherence query: an unauthenticated caller is redirected, not told the definition is invalid", async () => {
+    currentUser = null;
+
+    let caught: unknown;
+    try {
+      await createStrategyAction({
+        definition: definition({
+          strikes: [{ kind: "delta", target: decimalString("0.3") }],
+          expiry: { kind: "business_days", min: 5, max: 20 },
+        }),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(isRedirectError(caught)).toBe(true);
+  });
 });
 
 describe("addStrategyVersionAction", () => {
@@ -166,5 +193,32 @@ describe("addStrategyVersionAction", () => {
     const repository = new StrategiesRepository(getDb(), currentUser);
     const found = await repository.findMine(created.strategyId);
     expect(found.versions).toHaveLength(1);
+  });
+
+  it("resolves the session before running the coherence query: an unauthenticated caller is redirected, not told the definition is invalid", async () => {
+    const email = uniqueEmail("add-version-session-order");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+
+    currentUser = null;
+
+    let caught: unknown;
+    try {
+      await addStrategyVersionAction({
+        strategyId: created.strategyId,
+        definition: definition({
+          name: "V2",
+          strikes: [{ kind: "delta", target: decimalString("0.3") }],
+          expiry: { kind: "business_days", min: 5, max: 20 },
+        }),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(isRedirectError(caught)).toBe(true);
   });
 });

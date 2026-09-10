@@ -61,6 +61,13 @@ export class StrategyNotSharedError extends Error {
   }
 }
 
+export class StrategyLimitReachedError extends Error {
+  constructor() {
+    super("Strategy limit reached");
+    this.name = "StrategyLimitReachedError";
+  }
+}
+
 export class StrategiesRepository extends UserScopedRepository {
   async listMine(): Promise<StrategySummary[]> {
     const rows = await this.db
@@ -183,7 +190,7 @@ export class StrategiesRepository extends UserScopedRepository {
     }
   }
 
-  async copyShared(sourceStrategyId: string): Promise<StrategyWithVersions> {
+  async copyShared(sourceStrategyId: string, maxStrategies: number): Promise<StrategyWithVersions> {
     return this.db.transaction(async (tx) => {
       const [source] = await tx
         .select()
@@ -200,6 +207,14 @@ export class StrategiesRepository extends UserScopedRepository {
       const latest = await this.latestVersion(tx, sourceStrategyId);
       if (!latest) {
         throw new StrategyNotFoundError();
+      }
+
+      const mine = await tx
+        .select({ id: strategies.id })
+        .from(strategies)
+        .where(eq(strategies.userId, this.userId));
+      if (mine.length >= maxStrategies) {
+        throw new StrategyLimitReachedError();
       }
 
       const [copy] = await tx

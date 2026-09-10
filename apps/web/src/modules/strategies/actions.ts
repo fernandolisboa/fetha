@@ -14,6 +14,7 @@ import { forCurrentUser, UnauthenticatedError } from "@/modules/auth";
 
 import {
   StrategiesRepository,
+  StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
 } from "./strategies-repository";
@@ -56,6 +57,7 @@ function mapKnownError(
 ): "not_found" | "not_shared" | "conflict" | "unavailable" | null {
   if (error instanceof StrategyNotFoundError) return "not_found";
   if (error instanceof StrategyNotSharedError) return "not_shared";
+  if (error instanceof StrategyLimitReachedError) return "unavailable";
   if (isPgError(error)) {
     if (error.code === "23505" || error.code === "40001" || error.code === "40P01") {
       return "conflict";
@@ -79,13 +81,19 @@ async function withRepository<T>(
   }
 }
 
-async function definitionIsCoherent(definition: StrategyDefinition): Promise<boolean> {
+class IncoherentDefinitionError extends Error {
+  constructor() {
+    super("Strategy definition is incoherent with its structure");
+    this.name = "IncoherentDefinitionError";
+  }
+}
+
+async function assertDefinitionIsCoherent(definition: StrategyDefinition): Promise<void> {
   const structures = await new StructuresRepository(getDb()).listAll();
   const structure = structures.find((candidate) => candidate.id === definition.structureId);
-  if (!structure) {
-    return false;
+  if (!structure || !checkStrategyCoherence(definition, structure).ok) {
+    throw new IncoherentDefinitionError();
   }
-  return checkStrategyCoherence(definition, structure).ok;
 }
 
 export async function createStrategyAction(input: {
@@ -95,12 +103,10 @@ export async function createStrategyAction(input: {
   if (!parsed.success) {
     return { status: "error", error: "invalid" };
   }
-  if (!(await definitionIsCoherent(parsed.data.definition))) {
-    return { status: "error", error: "invalid" };
-  }
 
   try {
     const created = await withRepository(async (repository) => {
+      await assertDefinitionIsCoherent(parsed.data.definition);
       const mine = await repository.listMine();
       if (mine.length >= MAX_STRATEGIES_PER_USER) {
         throw new StrategyLimitReachedError();
@@ -110,8 +116,8 @@ export async function createStrategyAction(input: {
     revalidatePath("/estrategias");
     return { status: "ok", strategyId: created.id };
   } catch (error) {
-    if (error instanceof StrategyLimitReachedError) {
-      return { status: "error", error: "unavailable" };
+    if (error instanceof IncoherentDefinitionError) {
+      return { status: "error", error: "invalid" };
     }
     const mapped = mapKnownError(error);
     if (mapped) {
@@ -129,18 +135,19 @@ export async function addStrategyVersionAction(input: {
   if (!parsed.success) {
     return { status: "error", error: "invalid" };
   }
-  if (!(await definitionIsCoherent(parsed.data.definition))) {
-    return { status: "error", error: "invalid" };
-  }
 
   try {
-    const updated = await withRepository((repository) =>
-      repository.addVersion(parsed.data.strategyId, parsed.data.definition),
-    );
+    const updated = await withRepository(async (repository) => {
+      await assertDefinitionIsCoherent(parsed.data.definition);
+      return repository.addVersion(parsed.data.strategyId, parsed.data.definition);
+    });
     revalidatePath("/estrategias");
     revalidatePath(`/estrategias/${updated.id}`);
     return { status: "ok", strategyId: updated.id };
   } catch (error) {
+    if (error instanceof IncoherentDefinitionError) {
+      return { status: "error", error: "invalid" };
+    }
     const mapped = mapKnownError(error);
     if (mapped) {
       return { status: "error", error: mapped };
@@ -184,7 +191,7 @@ export async function copySharedStrategyAction(input: {
 
   try {
     const copy = await withRepository((repository) =>
-      repository.copyShared(parsed.data.sourceStrategyId),
+      repository.copyShared(parsed.data.sourceStrategyId, MAX_STRATEGIES_PER_USER),
     );
     revalidatePath("/estrategias");
     return { status: "ok", strategyId: copy.id };
@@ -194,12 +201,5 @@ export async function copySharedStrategyAction(input: {
       return { status: "error", error: mapped };
     }
     throw error;
-  }
-}
-
-class StrategyLimitReachedError extends Error {
-  constructor() {
-    super("Strategy limit reached");
-    this.name = "StrategyLimitReachedError";
   }
 }
