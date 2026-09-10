@@ -95,6 +95,7 @@ const en = {
     submit: { create: "Create strategy", save: "Save new version" },
     cancel: "Cancel",
     invalid: "Some fields are invalid. Review the values before saving.",
+    fieldInvalid: "Invalid value",
     errors: {
       invalid: "Some fields are invalid. Review the values before saving.",
       not_found: "This strategy no longer exists.",
@@ -217,6 +218,7 @@ const ptBR = {
     submit: { create: "Criar estratégia", save: "Salvar nova versão" },
     cancel: "Cancelar",
     invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
+    fieldInvalid: "Valor inválido",
     errors: {
       invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
       not_found: "Essa estratégia não existe mais.",

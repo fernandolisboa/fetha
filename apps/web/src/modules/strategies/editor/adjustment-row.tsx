@@ -45,6 +45,7 @@ export function AdjustmentRow({
       />
       <StrikeList
         strikes={value.strikes}
+        minStrikes={1}
         onChange={(strikes: StrikeSelection[]) => {
           onChange({ ...value, strikes });
         }}

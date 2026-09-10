@@ -1,6 +1,12 @@
 "use client";
 
-import { strikeSelectionKinds, decimalStringSchema, type StrikeSelection } from "@fetha/contracts";
+import {
+  strikeSelectionKinds,
+  decimalStringSchema,
+  openUnitIntervalSchema,
+  positiveDecimalSchema,
+  type StrikeSelection,
+} from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 
@@ -24,11 +30,13 @@ export function StrikeRow({
   onChange,
   onRemove,
   rank,
+  removable = true,
 }: {
   value: StrikeSelection;
   onChange: (value: StrikeSelection) => void;
   onRemove: () => void;
   rank: number;
+  removable?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
@@ -52,6 +60,7 @@ export function StrikeRow({
         <DecimalField
           ariaLabel={`${t.editor.strikes.delta.target} #${String(rank)}`}
           value={value.target}
+          schema={openUnitIntervalSchema}
           onChange={(target) => {
             onChange({ kind: "delta", target });
           }}
@@ -70,15 +79,18 @@ export function StrikeRow({
         <DecimalField
           ariaLabel={`${t.editor.strikes.nearest.price} #${String(rank)}`}
           value={value.price}
+          schema={positiveDecimalSchema}
           onChange={(price) => {
             onChange({ kind: "nearest", price });
           }}
         />
       )}
 
-      <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-        {t.editor.strikes.removeStrike}
-      </Button>
+      {removable && (
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          {t.editor.strikes.removeStrike}
+        </Button>
+      )}
     </div>
   );
 }

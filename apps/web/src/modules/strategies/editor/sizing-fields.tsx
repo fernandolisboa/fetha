@@ -1,6 +1,6 @@
 "use client";
 
-import { sizingRuleKinds, type SizingRule } from "@fetha/contracts";
+import { leftOpenUnitIntervalSchema, sizingRuleKinds, type SizingRule } from "@fetha/contracts";
 
 import { t } from "../strings";
 import { DecimalField } from "./decimal-field";
@@ -31,6 +31,7 @@ export function SizingFields({
         <DecimalField
           ariaLabel={t.editor.sizing.fraction}
           value={value.fraction}
+          schema={leftOpenUnitIntervalSchema}
           onChange={(fraction) => {
             onChange({ kind: value.kind, fraction });
           }}
