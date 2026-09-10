@@ -21,7 +21,7 @@ export function SizingFields({
           ariaLabel={t.editor.sizing.kind}
           value={value.kind}
           onValueChange={(kind) => {
-            onChange({ kind: kind as SizingRule["kind"], fraction: value.fraction });
+            onChange({ kind, fraction: value.fraction });
           }}
           options={sizingRuleKinds.map((kind) => ({ value: kind, label: t.editor.sizing[kind] }))}
         />

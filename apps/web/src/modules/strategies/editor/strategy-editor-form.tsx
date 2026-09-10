@@ -138,9 +138,7 @@ export function StrategyEditorForm({
           <SimpleSelect
             ariaLabel={t.editor.timeframe.label}
             value={timeframe}
-            onValueChange={(value) => {
-              setTimeframe(value as StrategyDefinition["timeframe"]);
-            }}
+            onValueChange={setTimeframe}
             options={timeframes.map((value) => ({ value, label: value }))}
           />
         </div>

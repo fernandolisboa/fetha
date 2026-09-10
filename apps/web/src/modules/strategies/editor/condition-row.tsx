@@ -35,7 +35,7 @@ export function ConditionRow({
           ariaLabel={t.editor.entry.comparator}
           value={value.comparator}
           onValueChange={(comparator) => {
-            onChange({ ...value, comparator: comparator as CompareCondition["comparator"] });
+            onChange({ ...value, comparator });
           }}
           options={comparators.map((comparator) => ({
             value: comparator,

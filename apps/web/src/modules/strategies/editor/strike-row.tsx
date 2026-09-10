@@ -39,7 +39,7 @@ export function StrikeRow({
           ariaLabel={`${t.editor.strikes.kind} #${String(rank)}`}
           value={value.kind}
           onValueChange={(kind) => {
-            onChange(defaultForKind(kind as StrikeSelection["kind"]));
+            onChange(defaultForKind(kind));
           }}
           options={strikeSelectionKinds.map((kind) => ({
             value: kind,

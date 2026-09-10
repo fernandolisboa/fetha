@@ -47,7 +47,7 @@ export function ExitRuleRow({
             ariaLabel={`${t.editor.exit.kind} #${String(index + 1)}`}
             value={value.kind}
             onValueChange={(kind) => {
-              onChange(defaultForKind(kind as ExitRule["kind"]));
+              onChange(defaultForKind(kind));
             }}
             options={exitRuleKinds.map((kind) => ({ value: kind, label: t.editor.exit[kind] }))}
           />

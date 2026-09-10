@@ -60,7 +60,7 @@ export function OperandField({
               } else {
                 onChange({
                   kind: "indicator",
-                  indicator: { kind: kind as "sma" | "ema" | "rsi" | "atr", length: 20 },
+                  indicator: { kind, length: 20 },
                 });
               }
             }}
@@ -96,7 +96,7 @@ export function OperandField({
           ariaLabel={`${label} · ${t.editor.operand.priceField}`}
           value={value.field}
           onValueChange={(field) => {
-            onChange({ kind: "price", field: field as (typeof priceFields)[number] });
+            onChange({ kind: "price", field });
           }}
           options={priceFields.map((field) => ({ value: field, label: t.priceFields[field] }))}
         />
