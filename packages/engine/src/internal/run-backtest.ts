@@ -113,9 +113,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Every field runBacktest dereferences off a resumed state, checked once so a caller's corrupt
-// or hand-edited checkpoint is always a typed checkpoint_mismatch, never a thrown TypeError from
-// a `.push`, `.length` or `Object.entries` call partway through the run.
+function isValidEquityPoint(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    Number.isFinite(value.equity) &&
+    Number.isFinite(value.cash) &&
+    typeof value.drawdown === "string"
+  );
+}
+
+function isValidPendingEntry(value: unknown): boolean {
+  return isPlainObject(value) && Array.isArray(value.legs);
+}
+
+function isValidPendingExit(value: unknown): boolean {
+  return isPlainObject(value) && typeof value.operationId === "string" && isPlainObject(value.rule);
+}
+
+function isValidMonthlyTax(value: unknown): boolean {
+  return isPlainObject(value) && Number.isFinite(value.tax);
+}
+
+// Every field runBacktest dereferences off a resumed state — every element of equityCurve,
+// pendingEntries, pendingExits and taxesFinalized, and every numeric field including a NaN or
+// Infinity a JSON round-trip would otherwise smuggle through as "typeof number" — checked once so
+// a caller's corrupt or hand-edited checkpoint is always a typed checkpoint_mismatch, never a
+// thrown TypeError or a silently NaN-poisoned run partway through.
 function isValidCheckpointState(raw: unknown): raw is BacktestState {
   if (!isPlainObject(raw)) return false;
   const arrayFields = [
@@ -147,11 +170,23 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     "currentMonthStockGain",
     "operationSeq",
   ] as const;
-  if (numberFields.some((field) => typeof raw[field] !== "number")) return false;
+  if (numberFields.some((field) => !Number.isFinite(raw[field]))) return false;
 
   if (typeof raw.currentMonthKey !== "string" && raw.currentMonthKey !== null) return false;
   if (typeof raw.equityClampEngaged !== "boolean") return false;
-  if (raw.pendingTaxDeduction !== null && !isPlainObject(raw.pendingTaxDeduction)) return false;
+  if (raw.pendingTaxDeduction !== null) {
+    if (!isPlainObject(raw.pendingTaxDeduction)) return false;
+    if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
+  }
+
+  if (!(raw.equityCurve as unknown[]).every(isValidEquityPoint)) return false;
+  if (!Object.values(raw.pendingEntries as Record<string, unknown>).every(isValidPendingEntry)) {
+    return false;
+  }
+  if (!Object.values(raw.pendingExits as Record<string, unknown>).every(isValidPendingExit)) {
+    return false;
+  }
+  if (!(raw.taxesFinalized as unknown[]).every(isValidMonthlyTax)) return false;
 
   return true;
 }
@@ -419,23 +454,28 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   const budget = input.maxSessions ?? periodSessions.length - startIndex;
   const endIndex = Math.min(periodSessions.length, startIndex + Math.max(0, budget));
 
-  // A caller round-trips `state` through storage as plain JSON, so it can carry any shape at
-  // runtime regardless of what BacktestCheckpoint['state'] says at compile time — every field
-  // this module later dereferences is checked here, once, so a malformed shape is always a typed
-  // checkpoint_mismatch, never a thrown TypeError partway through the run.
-  if (input.resume !== undefined && !isValidCheckpointState(input.resume.state)) {
-    return checkpointMismatch("equityCurve.length:object", "equityCurve.length:not-an-object");
-  }
-
   // A checkpoint object is a caller-owned value that may be resumed from more than once (a
   // caller retrying a failed downstream step, or exploring more than one continuation from the
   // same pause point); mutating it in place here would leave the second resume looking at a
   // state whose equityCurve already grew past what its own cursor promises, failing
-  // checkpoint_mismatch instead of reproducing the first resume's result (I4).
+  // checkpoint_mismatch instead of reproducing the first resume's result (I4). `structuredClone`,
+  // unlike a JSON round-trip, preserves a corrupt `NaN` or `Infinity` numeric field rather than
+  // silently coercing it to `null`, so the validity check below still catches it.
+  const clonedResumeState =
+    input.resume === undefined ? undefined : structuredClone(input.resume.state);
+
+  // A caller round-trips `state` through storage as plain JSON, so it can carry any shape at
+  // runtime regardless of what BacktestCheckpoint['state'] says at compile time — every field
+  // this module later dereferences is checked here, once, so a malformed shape is always a typed
+  // checkpoint_mismatch, never a thrown TypeError partway through the run.
+  if (input.resume !== undefined && !isValidCheckpointState(clonedResumeState)) {
+    return checkpointMismatch("equityCurve.length:object", "equityCurve.length:not-an-object");
+  }
+
   const state: BacktestState =
     input.resume === undefined
       ? initialState(config.initialCapital)
-      : (JSON.parse(JSON.stringify(input.resume.state)) as BacktestState);
+      : (clonedResumeState as BacktestState);
 
   // A digest and schema match only prove the checkpoint targets this same config; a state whose
   // own equity curve does not already cover every session up to (not including) the resume

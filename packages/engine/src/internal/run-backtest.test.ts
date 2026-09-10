@@ -1727,6 +1727,24 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       "an object whose pendingTaxDeduction is neither null nor a plain object",
       (valid: object) => ({ ...valid, pendingTaxDeduction: "nope" }),
     ],
+    ["cash is NaN", (valid: object) => ({ ...valid, cash: NaN })],
+    ["cash is Infinity", (valid: object) => ({ ...valid, cash: Infinity })],
+    [
+      "an equityCurve element is not an object",
+      (valid: object) => ({ ...valid, equityCurve: [null] }),
+    ],
+    [
+      "a pendingEntries ticker's value has no legs array",
+      (valid: object) => ({ ...valid, pendingEntries: { PETR4: {} } }),
+    ],
+    [
+      "a pendingExits id's value has neither operationId nor rule",
+      (valid: object) => ({ ...valid, pendingExits: { "op-1": {} } }),
+    ],
+    [
+      "a taxesFinalized element has a non-finite tax",
+      (valid: object) => ({ ...valid, taxesFinalized: [{}] }),
+    ],
   ])(
     "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
     (_label, corrupt: (valid: object) => unknown) => {
