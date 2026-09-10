@@ -1092,6 +1092,68 @@ describe("runBacktest — corporate actions on entry fills", () => {
     });
   });
 
+  it.each([
+    ["session open", "2024-01-03T13:00:00.000Z"],
+    ["intraday", "2024-01-03T16:00:00.000Z"],
+    ["session close", "2024-01-03T20:00:00.000Z"],
+  ])(
+    "rescales a pending entry's quantity the same way regardless of the factor's asOf within the fill session (%s)",
+    (_label, asOf) => {
+      const split: CorporateActionFactor = {
+        ticker: "PETR4",
+        exDate: "2024-01-03",
+        asOf,
+        factor: decimalString("0.5"),
+      };
+      const calendar = ["2024-01-02", "2024-01-03"].map(session);
+      const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+      const view: MarketView = {
+        ...emptyView,
+        calendar,
+        corporateActions: [split],
+        candles: [
+          candle("PETR4", "2024-01-02", "10.00", "10.00"),
+          candle("PETR4", "2024-01-03", "5.00", "5.00"),
+        ],
+      };
+      const result = runBacktest({ view, config });
+      expect(result.ok).toBe(true);
+      if (!result.ok || result.value.status !== "complete")
+        throw new Error("expected a complete run");
+      expect(result.value.run.fills[0]).toMatchObject({
+        side: "buy",
+        quantity: quantity(1000),
+        price: decimalString("5.00"),
+      });
+      expect(result.value.run.limitBreaches).toEqual([]);
+    },
+  );
+
+  it("leaves a pending entry's quantity unchanged when the factor's asOf is only visible the next day", () => {
+    const split: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "5.00", "5.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills[0]).toMatchObject({ quantity: quantity(500) });
+  });
+
   it("leaves a pending entry's quantity unchanged when no split falls between signal and fill", () => {
     const calendar = ["2024-01-02", "2024-01-03"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });

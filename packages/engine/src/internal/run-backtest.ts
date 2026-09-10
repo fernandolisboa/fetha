@@ -330,10 +330,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   }
   // `Operation.legs` themselves stay nominal — the evaluator already rebases its own exit-rule
   // comparisons the same way (ADR-0014 Q51) — so this is applied only where runBacktest computes
-  // marks, fills and P&L on its own. `visibleAt` is the reading instant: a factor's own asOf
-  // convention is the ex-date session's open (ADR-0013 "Candles and corporate actions"), so a
-  // fill reads it against that same session's open, while a mark or the period-end sweep reads
-  // it against that session's close; a factor not yet visible there is excluded (I1), matching
+  // marks, fills and P&L on its own. `visibleAt` is the reading instant: every caller — an entry
+  // fill, an exit fill, a mark or the period-end sweep — reads it against that same session's
+  // close, the one reading instant Q51 settles on so no two of them can disagree over which
+  // factors are visible yet (I1); a factor not yet visible there is excluded, matching
   // provenance.truncated for the same rows.
   function corporateActionFactorThrough(
     ticker: Ticker,
@@ -459,13 +459,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // signal that sized these legs, changes the share count the signal-time sizing must
         // land on — the size was decided against the pre-split price, so the quantity itself
         // is rescaled the same way an existing open leg's quantity would be (ADR-0014 Q51),
-        // read at this same fill's own instant (session.open), never the pre-split count
-        // traded at a post-split price.
+        // read at this same session's close, the same reading instant every other fill, mark
+        // and the sweep already use (I1): a factor stamped intraday must apply here exactly
+        // when it would also apply to a same-session mark, never left invisible to this fill
+        // alone because it reads a stale earlier instant.
         const entryFactor = corporateActionFactorThrough(
           ticker,
           pending.signalSession,
           session.date,
-          session.open,
+          session.close,
         );
         const rescaledQuantities: number[] = [];
         for (const leg of pending.legs) {
