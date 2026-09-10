@@ -16,13 +16,20 @@ function proposalSummary(signal: SignalListItem): ReactNode {
     return t.inbox.adjustProposal;
   }
   if (signal.proposal) {
+    // A stock-only proposal has no premium: `netPremium` is the gross cost
+    // of the shares before costs, not a premium, so it gets its own label
+    // (#19 round-1 review, item 18).
+    const isStockOnly = signal.proposal.legs.every((leg) => leg.role === "stock");
+    const label = isStockOnly
+      ? t.inbox.entryProposalCostLabel
+      : t.inbox.entryProposalNetPremiumLabel;
     return (
       <>
         <span className="font-mono tabular-nums">
           {t.inbox.entryProposalLegs(signal.proposal.legs.length)}
         </span>
         {" · "}
-        {t.inbox.entryProposalNetPremiumLabel}{" "}
+        {label}{" "}
         <span className="font-mono tabular-nums">
           {formatBRL(signal.proposal.pricing.netPremium)}
         </span>

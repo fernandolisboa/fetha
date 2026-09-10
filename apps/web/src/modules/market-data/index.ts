@@ -6,8 +6,15 @@ export {
 } from "./close-freshness";
 export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } from "./ingest";
 export { loadCandleSeries } from "./candle-series";
-export { loadMarketView } from "./market-view";
-export { sessionByDate } from "./repositories/calendar-repository";
+export {
+  calendarUpTo,
+  emptyMarketView,
+  loadMarketView,
+  previousTradingSession,
+  toEngineCandle,
+  toTradingSession,
+  tradingSessionForDate,
+} from "./market-view";
 export {
   latestCandle,
   searchInstruments,

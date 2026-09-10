@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { and, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { optionDailyPrices, optionSeries } from "@/db/schema/market-data";
@@ -119,6 +119,68 @@ export async function upsertOptionDailyPrices(
   }
 
   return deduped.length;
+}
+
+// Every option series registered for `underlyings`, no time bound: the
+// registry is reference data, not a time series (#19, matching
+// `corporateActionsForTicker`'s own unbounded shape).
+export async function optionSeriesForUnderlyings(
+  db: Database,
+  underlyings: string[],
+): Promise<
+  Array<{
+    isin: string;
+    ticker: string;
+    underlying: string;
+    right: string;
+    strike: string;
+    expiry: string;
+    style: string;
+    asOf: Date;
+  }>
+> {
+  if (underlyings.length === 0) {
+    return [];
+  }
+  return db.select().from(optionSeries).where(inArray(optionSeries.underlying, underlyings));
+}
+
+// Every option daily price for `tickers` whose session falls in
+// [fromSession, toSession]: the bounded slice a `DataWindow`-driven
+// MarketView asks for (#19).
+export async function optionPricesInSessionRange(
+  db: Database,
+  tickers: string[],
+  fromSession: string,
+  toSession: string,
+): Promise<
+  Array<{
+    ticker: string;
+    session: string;
+    asOf: Date;
+    right: string;
+    strike: string;
+    expiry: string;
+    average: string | null;
+    close: string | null;
+    factor: string;
+    trades: number;
+    tradedQuantity: number;
+  }>
+> {
+  if (tickers.length === 0) {
+    return [];
+  }
+  return db
+    .select()
+    .from(optionDailyPrices)
+    .where(
+      and(
+        inArray(optionDailyPrices.ticker, tickers),
+        gte(optionDailyPrices.session, fromSession),
+        lte(optionDailyPrices.session, toSession),
+      ),
+    );
 }
 
 function hasTrades(row: CotahistOptionRow): boolean {

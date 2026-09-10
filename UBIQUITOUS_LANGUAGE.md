@@ -108,6 +108,13 @@ One immutable revision of a strategy definition. Backtests, signals and decision
 version, never a mutable strategy.
 _Avoid_: strategy snapshot, revision
 
+**Active strategy**:
+A strategy flagged for the nightly evaluation (daily strategies) or catch-up evaluation
+(intraday strategies) over the owner's watchlist. The flag lives on the strategy, not one
+version: flipping it takes effect the next evaluation using whatever version is latest then, the
+same way the editor always edits the latest version.
+_Avoid_: enabled strategy, running strategy, live strategy
+
 **Catalog**:
 The shared, read-only library of structures and reference strategies available to every user.
 _Avoid_: library, templates

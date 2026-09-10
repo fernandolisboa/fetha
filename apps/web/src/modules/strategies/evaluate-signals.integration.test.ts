@@ -152,7 +152,7 @@ describe("evaluateSignalsForSession", () => {
     );
     await new StrategiesRepository(db, userB).setActive(strategyB.id, true);
 
-    const outcome = await evaluateSignalsForSession(db, session);
+    const outcome = await evaluateSignalsForSession(db, [session]);
     expect(outcome.errors).toEqual([]);
 
     const inboxA = await new SignalsRepository(db, userA).listInbox();
@@ -191,11 +191,11 @@ describe("evaluateSignalsForSession", () => {
     );
     await new StrategiesRepository(db, owner).setActive(strategy.id, true);
 
-    const first = await evaluateSignalsForSession(db, session);
+    const first = await evaluateSignalsForSession(db, [session]);
     expect(first.errors).toEqual([]);
     expect(first.signalsWritten).toBe(1);
 
-    const second = await evaluateSignalsForSession(db, session);
+    const second = await evaluateSignalsForSession(db, [session]);
     expect(second.errors).toEqual([]);
     expect(second.signalsWritten).toBe(0);
     expect(second.evaluationsWritten).toBe(0);

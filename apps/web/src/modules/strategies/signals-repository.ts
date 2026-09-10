@@ -1,8 +1,22 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
-import type { AdjustmentRule, ExitRule, Ticker } from "@fetha/contracts";
-import type { EvaluationOutcome, IndicatorReading, Proposal, SignalKind } from "@fetha/engine";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
+import {
+  adjustmentRuleSchema,
+  exitRuleSchema,
+  type AdjustmentRule,
+  type ExitRule,
+  type Ticker,
+} from "@fetha/contracts";
+import {
+  evaluationOutcomes,
+  signalKinds,
+  type EvaluationOutcome,
+  type IndicatorReading,
+  type Proposal,
+  type SignalKind,
+} from "@fetha/engine";
 
-import { evaluations, signals, strategies } from "@/db/schema";
+import { evaluations, signals, strategies, NO_OPERATION_ID } from "@/db/schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface NewSignal {
@@ -60,6 +74,18 @@ export interface EvaluationLogItem {
 const INBOX_LIMIT = 200;
 const EVALUATION_LOG_LIMIT = 200;
 
+const signalKindSchema = z.enum(signalKinds);
+const evaluationOutcomeSchema = z.enum(evaluationOutcomes);
+const signalRuleSchema = z.union([exitRuleSchema, adjustmentRuleSchema]).nullable();
+
+function toStoredOperationId(operationId: string | null): string {
+  return operationId ?? NO_OPERATION_ID;
+}
+
+function fromStoredOperationId(operationId: string): string | null {
+  return operationId === NO_OPERATION_ID ? null : operationId;
+}
+
 // Owned by the strategies module (CONTEXT.md: "signal evaluation and the
 // signal inbox"). The nightly cron constructs one instance per user it
 // evaluates (never from a session), the inbox and evaluation-log screens
@@ -84,12 +110,19 @@ export class SignalsRepository extends UserScopedRepository {
           kind: row.kind,
           indicators: row.indicators,
           proposal: row.proposal,
-          operationId: row.operationId,
+          operationId: toStoredOperationId(row.operationId),
           rule: row.rule,
         })),
       )
       .onConflictDoNothing({
-        target: [signals.userId, signals.strategyVersionId, signals.ticker, signals.session],
+        target: [
+          signals.userId,
+          signals.strategyVersionId,
+          signals.ticker,
+          signals.session,
+          signals.kind,
+          signals.operationId,
+        ],
       })
       .returning({ id: signals.id });
     return inserted.length;
@@ -146,12 +179,14 @@ export class SignalsRepository extends UserScopedRepository {
       .from(signals)
       .innerJoin(strategies, eq(strategies.id, signals.strategyId))
       .where(eq(signals.userId, this.userId))
-      .orderBy(desc(signals.at))
+      .orderBy(desc(signals.at), desc(signals.createdAt), asc(signals.ticker), asc(signals.id))
       .limit(INBOX_LIMIT);
 
     return rows.map((row) => ({
       ...row,
-      kind: row.kind as SignalKind,
+      kind: signalKindSchema.parse(row.kind),
+      rule: signalRuleSchema.parse(row.rule),
+      operationId: fromStoredOperationId(row.operationId),
     }));
   }
 
@@ -185,12 +220,17 @@ export class SignalsRepository extends UserScopedRepository {
       .from(evaluations)
       .innerJoin(strategies, eq(strategies.id, evaluations.strategyId))
       .where(eq(evaluations.userId, this.userId))
-      .orderBy(desc(evaluations.at))
+      .orderBy(
+        desc(evaluations.at),
+        desc(evaluations.createdAt),
+        asc(evaluations.ticker),
+        asc(evaluations.id),
+      )
       .limit(EVALUATION_LOG_LIMIT);
 
     return rows.map((row) => ({
       ...row,
-      outcome: row.outcome as EvaluationOutcome,
+      outcome: evaluationOutcomeSchema.parse(row.outcome),
     }));
   }
 }

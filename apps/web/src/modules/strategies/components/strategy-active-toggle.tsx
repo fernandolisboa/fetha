@@ -56,6 +56,7 @@ export function StrategyActiveToggle({
           aria-label={t.active.label}
         />
       </div>
+      <p className="text-faint text-xs">{t.active.hint}</p>
       {error && <p className="text-destructive text-xs">{t.active.error}</p>}
     </div>
   );

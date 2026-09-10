@@ -9,6 +9,11 @@ import { ingest } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 export const maxDuration = 300;
+// Ingestion and evaluation share this one `maxDuration` budget; the deadline
+// below leaves this much headroom for the evaluation's in-flight user to
+// finish and the response to serialize, rather than letting the platform
+// hard-kill the function mid-write (#19).
+const EVALUATION_SAFETY_MARGIN_MS = 15_000;
 
 function isAuthorized(authorizationHeader: string | null): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -25,14 +30,23 @@ const manualTriggerBodySchema = z.object({ session: sessionDateSchema.optional()
 
 // Evaluation is chained after ingestion in the same run, same bearer (#19,
 // CONTEXT.md "Nightly ingestion and daily evaluation"): it only runs when
-// ingestion reports a session, and its own failures never turn an otherwise
-// successful ingestion response into a 500 — they are reported alongside it
-// so the owner can see them without the ingestion retry (ADR-0010) firing
-// for a session that already ingested cleanly.
+// ingestion fully succeeded (`result.ok`) and reports at least one drained
+// session, so a partially failed ingestion — one `onConflictDoNothing`
+// retries can no longer correct — never produces a signal from data that
+// was never actually confirmed. The evaluation's own failures never turn an
+// otherwise successful ingestion response into a 500 — they are reported
+// alongside it so the owner can see them without the ingestion retry
+// (docs/adr/0010-intraday-evaluation-while-in-use.md's addendum) firing for
+// a session that already ingested cleanly.
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
   const db = getDb();
+  const startedAt = Date.now();
   const result = await ingest(db, session ? { session } : {});
-  const evaluation = result.session ? await evaluateSignalsForSession(db, result.session) : null;
+  const deadlineAt = startedAt + maxDuration * 1000 - EVALUATION_SAFETY_MARGIN_MS;
+  const evaluation =
+    result.ok && result.okSessions.length > 0
+      ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt })
+      : null;
   return NextResponse.json({ ...result, evaluation }, { status: result.ok ? 200 : 500 });
 }
 

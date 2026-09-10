@@ -22,3 +22,11 @@ and consume the owner's scarce minutes.
   the benefit accrues only when someone is looking.
 - GitHub Actions on a 5-minute schedule: free but unreliable timing and it competes with CI
   minutes.
+
+## Addendum (2026-09-10, #19 round 1)
+
+The nightly cron's ingest-then-evaluate route reports the evaluation's own failures (per-user
+errors, `usersSkipped`) in the response body alongside `ok`/`sources`, never as the route's own
+5xx: only ingestion failing turns the response into a 5xx that triggers this ADR's retry, since a
+session that ingested cleanly must never be re-ingested just because the unrelated evaluation
+step had a transient error.

@@ -186,6 +186,7 @@ const en = {
     read: "Read",
     entryProposalLegs: (legs: number) => `${String(legs)} leg(s)`,
     entryProposalNetPremiumLabel: "net premium",
+    entryProposalCostLabel: "entry cost",
     exitProposal: "Exit condition met on an open operation",
     adjustProposal: "Adjustment condition met",
     evaluationLog: {
@@ -352,6 +353,7 @@ const ptBR = {
     read: "Lida",
     entryProposalLegs: (legs: number) => `${String(legs)} ponta(s)`,
     entryProposalNetPremiumLabel: "prêmio líquido",
+    entryProposalCostLabel: "custo da entrada",
     exitProposal: "Condição de saída atingida em uma operação em aberto",
     adjustProposal: "Condição de ajuste atingida",
     evaluationLog: {

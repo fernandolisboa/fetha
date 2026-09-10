@@ -25,11 +25,6 @@ export {
   getStructures,
 } from "./queries";
 export {
-  type EvaluationLogItem,
-  SignalsRepository,
-  type SignalListItem,
-} from "./signals-repository";
-export {
   StrategiesRepository,
   StrategyNotFoundError,
   StrategyNotSharedError,

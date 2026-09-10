@@ -1,22 +1,27 @@
 import { pgTable, text, timestamp, jsonb, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdjustmentRule, ExitRule } from "@fetha/contracts";
-import type { IndicatorReading, Proposal, SignalKind } from "@fetha/engine";
+import { signalKinds, type IndicatorReading, type Proposal } from "@fetha/engine";
 
 import { user } from "./auth";
 import { strategies, strategyVersions } from "./strategies";
 
-export const signalKindValues = [
-  "entry",
-  "exit",
-  "adjust",
-] as const satisfies readonly SignalKind[];
+// No operation exists to reference yet (the portfolio module ships later),
+// so every signal's operation_id is this sentinel rather than SQL NULL: a
+// NULL would make every no-operation row distinct under Postgres' "NULLs are
+// never equal" unique-index rule, defeating the idempotency this table
+// exists for (docs/agents unique index below).
+export const NO_OPERATION_ID = "";
 
 // One actionable evaluation outcome (UBIQUITOUS_LANGUAGE.md "Signal"),
 // deposited in the owner's inbox by the nightly evaluation (#19). The
 // unique index is what makes re-running the evaluation for an
-// already-evaluated (strategy version, instrument, session) a no-op instead
-// of a duplicate row: the writer always inserts with onConflictDoNothing.
+// already-evaluated (strategy version, instrument, session, kind,
+// operation) a no-op instead of a duplicate row: the writer always inserts
+// with onConflictDoNothing. `kind` and `operation_id` are both part of the
+// key, not just ticker/session, so once the portfolio module feeds open
+// operations, two different exits on the same ticker/session no longer
+// collapse into one row.
 export const signals = pgTable(
   "signals",
   {
@@ -44,31 +49,27 @@ export const signals = pgTable(
     // Present for "entry" and "adjust" kinds (the engine's Proposal), null
     // for "exit" (an exit carries no new legs).
     proposal: jsonb("proposal").$type<Proposal | null>(),
-    operationId: text("operation_id"),
+    operationId: text("operation_id").notNull().default(NO_OPERATION_ID),
     rule: jsonb("rule").$type<ExitRule | AdjustmentRule | null>(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("signals_user_version_ticker_session_idx").on(
+    uniqueIndex("signals_user_version_ticker_session_kind_operation_idx").on(
       table.userId,
       table.strategyVersionId,
       table.ticker,
       table.session,
+      table.kind,
+      table.operationId,
     ),
     index("signals_user_id_read_at_idx").on(table.userId, table.readAt),
-    check("signals_kind_check", sql`${table.kind} in ('entry', 'exit', 'adjust')`),
+    check(
+      "signals_kind_check",
+      sql`${table.kind} in (${sql.raw(signalKinds.map((kind) => `'${kind}'`).join(", "))})`,
+    ),
   ],
 );
-
-export const evaluationOutcomeValues = [
-  "signal",
-  "conditions_not_met",
-  "no_series_match",
-  "degenerate_strikes",
-  "insufficient_data",
-  "unsizeable",
-] as const;
 
 // The evaluation log (UBIQUITOUS_LANGUAGE.md "Evaluation record"): one row
 // per evaluation of one strategy version on one instrument at one
