@@ -937,8 +937,19 @@ export interface Engine {
   When the structure has no option legs, a definition with `strikes`, an `expiry`, a
   `days_before_expiry` exit or a `roll` adjustment is `invalid_input`; when it has option legs, a
   definition without `expiry` is `invalid_input` and `strikes.length` must equal the number of
-  distinct strike ranks. The schema cannot see the structure, so these checks live here and only
-  here.
+  distinct strike ranks. The schema cannot see the structure, so these checks must run wherever a
+  `StrategyDefinition` meets a `Structure` before the engine ever sees them — the strategy editor,
+  at save time, needs to reject an incoherent definition without a round trip through the engine.
+  Since the engine may import `@fetha/contracts` as types only (no runtime call across that
+  boundary) and `@fetha/contracts` cannot depend on the engine, the rule set exists as two
+  independent implementations: the engine's own `validateCoherence`
+  (`packages/engine/src/internal/evaluate-strategy.ts`) and `checkStrategyCoherence`
+  (`packages/contracts/src/strategy-coherence.ts`), the latter used by `apps/web` at the action
+  edge. A conformance test
+  (`apps/web/src/modules/strategies/coherence-conformance.test.ts`) runs both implementations
+  over the same fixture matrix — every rule, one passing and one failing case — through the
+  engine's public `evaluateStrategy` and the contracts function respectively, and fails the day
+  they drift. Any change to this rule set must edit both files and add a fixture to that matrix.
 
 #### `priceOperation`
 

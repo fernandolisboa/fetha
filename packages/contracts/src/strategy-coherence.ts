@@ -3,12 +3,13 @@ import type { Structure } from "./structure";
 
 export type StrategyCoherenceResult = { ok: true } | { ok: false; path: string; message: string };
 
-// Mirrors `validateCoherence` in `packages/engine/src/internal/evaluate-strategy.ts`
-// (ADR-0013: the engine's public interface is frozen and nothing outside the
-// package may depend on its internals). This is a deliberate, reviewed
-// duplication of that rule set at the contracts boundary so the editor can
-// reject an incoherent definition before it ever reaches the engine; both
-// copies must change together if the engine's coherence rules ever change.
+// Mirrors `validateCoherence` in `packages/engine/src/internal/evaluate-strategy.ts`.
+// ADR-0013: the engine may import this package's types only, and this package
+// may not import the engine, so the rule set is two independent
+// implementations by necessity — not a shortcut. Whoever edits one must edit
+// the other and add a fixture to
+// `apps/web/src/modules/strategies/coherence-conformance.test.ts`, which runs
+// both over the same matrix and fails the day they drift.
 export function checkStrategyCoherence(
   definition: StrategyDefinition,
   structure: Structure,

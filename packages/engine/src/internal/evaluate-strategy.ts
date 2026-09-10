@@ -67,6 +67,11 @@ function sessionForInstant(calendar: readonly TradingSession[], at: Instant): Se
   return found ?? at.slice(0, 10);
 }
 
+// Mirrored by `checkStrategyCoherence` in `packages/contracts/src/strategy-coherence.ts`
+// (ADR-0013): this package cannot import that one at runtime, and that one
+// cannot import this one, so the two copies are kept in sync by
+// `apps/web/src/modules/strategies/coherence-conformance.test.ts` rather than
+// by a shared function.
 function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const { definition, structure } = input.strategy;
   if (definition.structureId !== structure.id) {
