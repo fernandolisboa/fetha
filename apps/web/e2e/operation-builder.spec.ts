@@ -56,6 +56,12 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
 
   await page.goto("/carteira/nova-operacao");
+
+  // A risk profile is declared above, so the chip must not be visible even
+  // before pricing (PR #76 round 2 item 11): a regression that always shows
+  // it must fail this assertion, not just the inverse one in the other test.
+  await expect(page.getByText("sem perfil de risco")).not.toBeVisible();
+
   await page.getByLabel("Estrutura").click();
   await page.getByRole("option", { name: "Collar" }).click();
 
@@ -73,6 +79,16 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await expect(page.getByText("Prêmio líquido")).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Limite excedido");
 
-  await page.getByRole("button", { name: "Registrar mesmo assim" }).click();
+  // Post-pricing too (the `pricing.notes` branch of the chip's own
+  // visibility check, not just the pre-pricing `hasRiskProfile` one).
+  await expect(page.getByText("sem perfil de risco")).not.toBeVisible();
+
+  // The breach is re-confirmed against a fresh re-pricing before it is
+  // ever persisted (round 2 item 3): the first click only re-prices and
+  // arms confirmation, the second one actually saves.
+  const recordAnyway = page.getByRole("button", { name: "Registrar mesmo assim" });
+  await recordAnyway.click();
+  await expect(page.getByText("Operação salva.")).not.toBeVisible();
+  await recordAnyway.click();
   await expect(page.getByText("Operação salva.")).toBeVisible();
 });

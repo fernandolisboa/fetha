@@ -90,27 +90,51 @@ export function OperationBuilderForm({
   const [priceError, setPriceError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [breachesConfirmed, setBreachesConfirmed] = useState(false);
   const [pending, setPending] = useState(false);
   const pricingRequestId = useRef(0);
+  const chainRequestId = useRef(0);
+
+  // Any edit invalidates whatever pricing request is still in flight (round
+  // 2 item 3): without this, a slow response from a leg set the user has
+  // since changed can still land and repaint StatBlocks/Greeks for legs no
+  // longer on screen, because `price()` alone only ever compares against
+  // the request it itself started.
+  function invalidateInFlightPricing() {
+    pricingRequestId.current += 1;
+  }
+
+  function resetPricingState() {
+    invalidateInFlightPricing();
+    setPricing(null);
+    setSavedId(null);
+    setBreachesConfirmed(false);
+  }
 
   function selectStructure(nextId: string) {
     setStructureId(nextId);
     const next = structures.find((candidate) => candidate.id === nextId);
     setLegs(next ? legsForStructure(next, underlying) : []);
-    setPricing(null);
-    setSavedId(null);
+    resetPricingState();
   }
 
   async function loadUnderlying(nextUnderlying: string) {
     setUnderlying(nextUnderlying);
-    setPricing(null);
-    setSavedId(null);
+    resetPricingState();
     if (!structure) return;
     setLegs(legsForStructure(structure, nextUnderlying));
+    // Sequenced against `chainRequestId` (round 2 item 3): blurring PETR4
+    // then VALE3 must not let a slow PETR4 chain response land after
+    // VALE3's own, faster one, and repaint the picker for the wrong
+    // underlying.
+    const requestId = chainRequestId.current + 1;
+    chainRequestId.current = requestId;
     if (tickerSchema.safeParse(nextUnderlying).success) {
       const series = await loadChainAction(nextUnderlying);
+      if (chainRequestId.current !== requestId) return;
       setChain(series);
     } else {
+      if (chainRequestId.current !== requestId) return;
       setChain([]);
     }
   }
@@ -133,7 +157,7 @@ export function OperationBuilderForm({
           : builderLeg,
       ),
     );
-    setPricing(null);
+    resetPricingState();
   }
 
   function changeQuantity(index: number, quantity: number) {
@@ -144,7 +168,7 @@ export function OperationBuilderForm({
           : builderLeg,
       ),
     );
-    setPricing(null);
+    resetPricingState();
   }
 
   function price() {
@@ -156,6 +180,7 @@ export function OperationBuilderForm({
     setPriceError(null);
     setSaveError(null);
     setSavedId(null);
+    setBreachesConfirmed(false);
     setPending(true);
     const requestId = pricingRequestId.current + 1;
     pricingRequestId.current = requestId;
@@ -180,11 +205,8 @@ export function OperationBuilderForm({
     });
   }
 
-  function save() {
-    const readyLegs = readyToPrice(legs);
-    if (!readyLegs || !structure) return;
-    setSaveError(null);
-    setPending(true);
+  function persist(readyLegs: ContemplatedLeg[]) {
+    if (!structure) return;
     startTransition(() => {
       saveOperationAction({ structureId: structure.id, underlying, legs: readyLegs })
         .then((result) => {
@@ -199,6 +221,55 @@ export function OperationBuilderForm({
           }
         })
         .catch(() => {
+          setPending(false);
+          setSaveError(t.builder.saveError);
+        });
+    });
+  }
+
+  // A second click on an already-saved operation must not write a
+  // duplicate row (round 2 item 3): once `savedId` is set the button is
+  // disabled below, and this guard covers the click that can still land
+  // before that re-render does. When the current pricing carries a limit
+  // breach the user has not yet confirmed, the first click only re-prices
+  // (fresh data, not the possibly stale snapshot already on screen) and
+  // arms confirmation; only the next click — against that fresh
+  // re-pricing — actually persists, so a breach introduced by the market
+  // moving between `price()` and this click is never saved silently.
+  function save() {
+    const readyLegs = readyToPrice(legs);
+    if (!readyLegs || !structure || savedId) return;
+    setSaveError(null);
+    setPending(true);
+
+    const hasUnconfirmedBreaches = (pricing?.limitBreaches.length ?? 0) > 0 && !breachesConfirmed;
+    if (!hasUnconfirmedBreaches) {
+      persist(readyLegs);
+      return;
+    }
+
+    const requestId = pricingRequestId.current + 1;
+    pricingRequestId.current = requestId;
+    startTransition(() => {
+      priceOperationAction({ underlying, legs: readyLegs })
+        .then((result) => {
+          if (pricingRequestId.current !== requestId) return;
+          if (result.status !== "ok") {
+            setPending(false);
+            setSaveError(t.builder.saveError);
+            return;
+          }
+          setPricing(result.pricing);
+          setLegs((current) => applyValuations(current, result.pricing));
+          if (result.pricing.limitBreaches.length > 0) {
+            setPending(false);
+            setBreachesConfirmed(true);
+            return;
+          }
+          persist(readyLegs);
+        })
+        .catch(() => {
+          if (pricingRequestId.current !== requestId) return;
           setPending(false);
           setSaveError(t.builder.saveError);
         });
@@ -344,7 +415,7 @@ export function OperationBuilderForm({
             <Button
               type="button"
               onClick={save}
-              disabled={pending || blocksSave}
+              disabled={pending || blocksSave || savedId !== null}
               className="self-start"
             >
               {hasBreaches ? t.builder.riskNotice.recordAnyway : t.builder.save}
