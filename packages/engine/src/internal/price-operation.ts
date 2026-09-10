@@ -154,6 +154,17 @@ function valueOneLeg(
       },
     };
   }
+  // A given volatility feeds bsmPriceRaw directly (option-pricing.ts), which is undefined
+  // at sigma <= 0; reject before pricing so the operation-level iv_not_converged note keeps
+  // meaning only non-convergence, never a caller-supplied invalid input (PR #53 round 4
+  // item 5).
+  if (leg.volatility !== undefined && !isPositive(leg.volatility)) {
+    return {
+      ok: false,
+      error: invalidInput("legs.volatility", "a given volatility must be positive"),
+    };
+  }
+
   const marketPrice = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },

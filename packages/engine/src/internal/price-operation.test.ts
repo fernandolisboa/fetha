@@ -95,6 +95,29 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C40" });
   });
 
+  it("rejects a non-positive given volatility as invalid_input (round 4 item 5)", () => {
+    const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("marks a leg with no visible price and no given volatility as null fairValue via a note, never a whole-call error", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
     const result = priceOperation(
