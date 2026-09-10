@@ -18,6 +18,13 @@ function moneyOrUnbounded(value: Centavos | "unbounded"): string {
   return value === "unbounded" ? t.builder.statBlocks.unbounded : formatBRL(value);
 }
 
+// DESIGN.md's money convention: a credit (money received, positive net
+// premium) is prefixed "+ R$"; a debit already reads negative through
+// `formatBRL`'s own minus sign.
+function formatNetPremium(value: Centavos): string {
+  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
+}
+
 export function StatBlocks({
   netPremium,
   maxLoss,
@@ -31,7 +38,7 @@ export function StatBlocks({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <StatBlock label={t.builder.statBlocks.netPremium} value={formatBRL(netPremium)} />
+      <StatBlock label={t.builder.statBlocks.netPremium} value={formatNetPremium(netPremium)} />
       <StatBlock label={t.builder.statBlocks.maxLoss} value={moneyOrUnbounded(maxLoss)} />
       <StatBlock label={t.builder.statBlocks.maxGain} value={moneyOrUnbounded(maxGain)} />
       <StatBlock

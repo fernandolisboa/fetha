@@ -45,6 +45,8 @@ exposing module's interface, never through its tables.
    legs on an underlying (series, strikes, expiry, quantities), and the engine returns payoff,
    fair value per leg, implied volatility, greeks, break-evens, max loss and max gain, checked
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
+   Saving the priced structure records a Contemplated Operation, a snapshot the user can revisit
+   before deciding; it is not an Operation and opens no position.
 4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
    curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)

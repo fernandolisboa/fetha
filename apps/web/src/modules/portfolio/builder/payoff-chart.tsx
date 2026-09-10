@@ -5,14 +5,43 @@ import { scaleLinear } from "@visx/scale";
 import { AreaClosed, Line, LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
-import type { DecimalString } from "@fetha/contracts";
+import { centavosSchema, type DecimalString } from "@fetha/contracts";
 import type { PayoffPoint } from "@fetha/engine";
 
+import { formatBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 
 import { t } from "../strings";
 
-const MARGIN = { top: 12, right: 16, bottom: 28, left: 56 };
+const MARGIN = { top: 12, right: 56, bottom: 28, left: 56 };
+
+type PlotPoint = { underlying: number; pnl: number };
+
+// The engine only emits three points (0.8/1/1.2 of spot) plus the
+// break-evens it solved for exactly (pnl = 0); a smooth curve fitted
+// through the three alone fabricates values between the real kinks at
+// each leg's strike (round 1 item 5, reproduced: a drawn zero-crossing off
+// the displayed break-even). Merging the break-evens in as true zero
+// points and connecting only known values keeps the line honest.
+function plotPoints(points: PayoffPoint[], breakEvens: DecimalString[]): PlotPoint[] {
+  const merged = new Map<number, number>();
+  for (const point of points) {
+    merged.set(Number(point.underlying), point.pnl);
+  }
+  for (const breakEven of breakEvens) {
+    const underlying = Number(breakEven);
+    if (!merged.has(underlying)) {
+      merged.set(underlying, 0);
+    }
+  }
+  return [...merged.entries()]
+    .map(([underlying, pnl]) => ({ underlying, pnl }))
+    .sort((a, b) => a.underlying - b.underlying);
+}
+
+function formatAxisBRL(value: number): string {
+  return formatBRL(centavosSchema.parse(Math.round(value)));
+}
 
 function Chart({
   width,
@@ -29,8 +58,9 @@ function Chart({
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
 
-  const underlyings = points.map((point) => Number(point.underlying));
-  const pnls = points.map((point) => point.pnl);
+  const plot = plotPoints(points, breakEvens);
+  const underlyings = plot.map((point) => point.underlying);
+  const pnls = plot.map((point) => point.pnl);
 
   const xScale = scaleLinear({
     domain: [Math.min(...underlyings), Math.max(...underlyings)],
@@ -58,24 +88,24 @@ function Chart({
           strokeDasharray="2,2"
         />
         <AreaClosed
-          data={points}
-          x={(point) => xScale(Number(point.underlying))}
+          data={plot}
+          x={(point) => xScale(point.underlying)}
           y={(point) => (point.pnl >= 0 ? yScale(point.pnl) : yScale(0))}
           yScale={yScale}
           fill="var(--up)"
           opacity={0.12}
         />
         <AreaClosed
-          data={points}
-          x={(point) => xScale(Number(point.underlying))}
+          data={plot}
+          x={(point) => xScale(point.underlying)}
           y={(point) => (point.pnl < 0 ? yScale(point.pnl) : yScale(0))}
           yScale={yScale}
           fill="var(--down)"
           opacity={0.12}
         />
         <LinePath
-          data={points}
-          x={(point) => xScale(Number(point.underlying))}
+          data={plot}
+          x={(point) => xScale(point.underlying)}
           y={(point) => yScale(point.pnl)}
           stroke="var(--chart-stroke)"
           strokeWidth={1.5}
@@ -121,6 +151,7 @@ function Chart({
           scale={yScale}
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
+          tickFormat={(value) => formatAxisBRL(Number(value))}
           tickLabelProps={() => ({
             fill: "var(--muted)",
             fontSize: 11,

@@ -2,11 +2,8 @@ import type { Metadata } from "next";
 
 import { requireUser, SignOutButton } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
-import {
-  getCurrentRiskProfile,
-  RiskProfileForm,
-  t as riskProfileStrings,
-} from "@/modules/risk-profile";
+import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
+import { RiskProfileForm } from "@/modules/portfolio/client";
 import { t } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}` };
@@ -35,8 +32,10 @@ export default async function SettingsPage() {
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
         <div>
-          <h2 className="text-sm font-medium">{riskProfileStrings.form.title}</h2>
-          <p className="text-muted-foreground text-xs">{riskProfileStrings.form.subtitle}</p>
+          <h2 className="text-sm font-medium">{portfolioStrings.riskProfileForm.title}</h2>
+          <p className="text-muted-foreground text-xs">
+            {portfolioStrings.riskProfileForm.subtitle}
+          </p>
         </div>
         <RiskProfileForm current={riskProfile} />
       </section>

@@ -2,8 +2,15 @@ import { TriangleAlert } from "lucide-react";
 import type { LimitBreach } from "@fetha/engine";
 
 import { formatDecimal } from "@/lib/format/decimal";
+import { formatPercent } from "@/lib/format/percent";
 
 import { t } from "../strings";
+
+function formatLimitValue(breach: LimitBreach): string {
+  return breach.limit === "maxOpenOperations"
+    ? formatDecimal(breach.value, 0)
+    : formatPercent(breach.value);
+}
 
 export function RiskNotice({ breaches }: { breaches: LimitBreach[] }) {
   if (breaches.length === 0) {
@@ -24,18 +31,15 @@ export function RiskNotice({ breaches }: { breaches: LimitBreach[] }) {
         {t.builder.riskNotice.title}
       </p>
       <ul className="flex flex-col gap-1">
-        {breaches.map((breach) => {
-          const decimals = breach.limit === "maxOpenOperations" ? 0 : 4;
-          return (
-            <li
-              key={breach.limit}
-              className="text-muted-foreground font-mono text-[12px] tabular-nums"
-            >
-              {t.builder.riskNotice.limits[breach.limit]}: {formatDecimal(breach.value, decimals)}{" "}
-              &gt; {formatDecimal(breach.allowed, decimals)}
-            </li>
-          );
-        })}
+        {breaches.map((breach) => (
+          <li
+            key={breach.limit}
+            className="text-muted-foreground font-mono text-[12px] tabular-nums"
+          >
+            {t.builder.riskNotice.limits[breach.limit]}: {formatLimitValue(breach)} &gt;{" "}
+            {formatLimitValue({ ...breach, value: breach.allowed })}
+          </li>
+        ))}
       </ul>
     </div>
   );

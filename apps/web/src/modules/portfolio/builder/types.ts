@@ -1,4 +1,4 @@
-import type { LegTemplate, OperationLeg } from "@fetha/contracts";
+import type { LegTemplate, ContemplatedLeg } from "@fetha/contracts";
 import type { LegValuation } from "@fetha/engine";
 import type { ChainSeries } from "@/modules/market-data";
 
@@ -8,7 +8,7 @@ import type { ChainSeries } from "@/modules/market-data";
 // operation has been priced.
 export interface BuilderLeg {
   template: LegTemplate;
-  leg: OperationLeg | null;
+  leg: ContemplatedLeg | null;
   valuation: LegValuation | null;
 }
 

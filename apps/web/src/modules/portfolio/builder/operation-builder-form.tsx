@@ -1,10 +1,15 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { quantitySchema, tickerSchema, type OperationLeg, type Structure } from "@fetha/contracts";
-import type { LegValuation, OperationPricing } from "@fetha/engine";
+import {
+  quantitySchema,
+  tickerSchema,
+  type ContemplatedLeg,
+  type Structure,
+} from "@fetha/contracts";
+import type { NoteCode, OperationPricing } from "@fetha/engine";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Panel } from "@/modules/shell";
 
-import { loadChainAction, priceOperationAction, saveOperationAction } from "../actions";
+import { loadChainAction, priceOperationAction, saveOperationAction } from "../operations-actions";
 import { t } from "../strings";
 import { GreeksPanel } from "./greeks-panel";
 import { LegsTable } from "./legs-table";
@@ -27,6 +32,14 @@ import { PayoffChart } from "./payoff-chart";
 import { RiskNotice } from "./risk-notice";
 import { StatBlocks } from "./stat-blocks";
 import type { BuilderLeg, ChainSeries } from "./types";
+
+const DISPLAYED_NOTE_CODES = [
+  "no_market_price",
+  "risk_free_rate_defaulted",
+  "dividend_yield_defaulted",
+  "iv_not_converged",
+  "stale_price",
+] as const satisfies readonly NoteCode[];
 
 function legsForStructure(structure: Structure, underlying: string): BuilderLeg[] {
   return structure.legs.map((template) => ({
@@ -44,13 +57,20 @@ function legsForStructure(structure: Structure, underlying: string): BuilderLeg[
   }));
 }
 
-function readyToPrice(legs: BuilderLeg[]): OperationLeg[] | null {
-  const result: OperationLeg[] = [];
+function readyToPrice(legs: BuilderLeg[]): ContemplatedLeg[] | null {
+  const result: ContemplatedLeg[] = [];
   for (const builderLeg of legs) {
     if (!builderLeg.leg) return null;
     result.push(builderLeg.leg);
   }
   return result;
+}
+
+function applyValuations(legs: BuilderLeg[], pricing: OperationPricing): BuilderLeg[] {
+  return legs.map((builderLeg, index) => ({
+    ...builderLeg,
+    valuation: pricing.legs[index] ?? null,
+  }));
 }
 
 export function OperationBuilderForm({
@@ -71,6 +91,7 @@ export function OperationBuilderForm({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const pricingRequestId = useRef(0);
 
   function selectStructure(nextId: string) {
     setStructureId(nextId);
@@ -136,27 +157,23 @@ export function OperationBuilderForm({
     setSaveError(null);
     setSavedId(null);
     setPending(true);
+    const requestId = pricingRequestId.current + 1;
+    pricingRequestId.current = requestId;
     startTransition(() => {
       priceOperationAction({ underlying, legs: readyLegs })
         .then((result) => {
+          if (pricingRequestId.current !== requestId) return;
           setPending(false);
           if (result.status === "ok") {
             setPricing(result.pricing);
-            setLegs((current) =>
-              current.map((builderLeg) => ({
-                ...builderLeg,
-                valuation:
-                  result.pricing.legs.find(
-                    (valuation: LegValuation) => valuation.leg.ticker === builderLeg.leg?.ticker,
-                  ) ?? null,
-              })),
-            );
+            setLegs((current) => applyValuations(current, result.pricing));
           } else {
             setPricing(null);
             setPriceError(t.builder.priceError);
           }
         })
         .catch(() => {
+          if (pricingRequestId.current !== requestId) return;
           setPending(false);
           setPriceError(t.builder.priceError);
         });
@@ -174,6 +191,8 @@ export function OperationBuilderForm({
           setPending(false);
           if (result.status === "ok") {
             setSavedId(result.operationId);
+            setPricing(result.pricing);
+            setLegs((current) => applyValuations(current, result.pricing));
             router.refresh();
           } else {
             setSaveError(t.builder.saveError);
@@ -191,6 +210,11 @@ export function OperationBuilderForm({
     : !hasRiskProfile;
 
   const hasBreaches = (pricing?.limitBreaches.length ?? 0) > 0;
+  const displayedNotes = (pricing?.notes ?? []).filter((note) =>
+    (DISPLAYED_NOTE_CODES as readonly string[]).includes(note.code),
+  );
+  const staleLegCount = (pricing?.legs ?? []).filter((leg) => leg.stale !== null).length;
+  const blocksSave = displayedNotes.some((note) => note.code === "no_market_price");
 
   return (
     <div className="flex flex-col gap-6">
@@ -238,7 +262,7 @@ export function OperationBuilderForm({
               variant="outline"
               style={{ borderColor: "var(--warning)", color: "var(--warning)" }}
             >
-              {t.builder.noRiskProfileChip}
+              {t.chip.noRiskProfile}
             </Badge>
           </Link>
         ) : null}
@@ -277,6 +301,28 @@ export function OperationBuilderForm({
 
         {pricing ? (
           <div className="flex flex-col gap-[14px]">
+            {displayedNotes.length > 0 || staleLegCount > 0 ? (
+              <ul
+                className="flex flex-col gap-1 rounded-[var(--radius)] border p-3"
+                style={{ borderColor: "var(--warning)" }}
+              >
+                {displayedNotes.map((note) => (
+                  <li
+                    key={note.code}
+                    className="font-mono text-[12px]"
+                    style={{ color: "var(--warning)" }}
+                  >
+                    {t.builder.notes[note.code as (typeof DISPLAYED_NOTE_CODES)[number]]}
+                  </li>
+                ))}
+                {staleLegCount > 0 ? (
+                  <li className="font-mono text-[12px]" style={{ color: "var(--warning)" }}>
+                    {t.builder.legsTable.stale} ({staleLegCount})
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
+
             <Panel title={t.builder.statBlocks.title}>
               <StatBlocks
                 netPremium={pricing.netPremium}
@@ -295,7 +341,12 @@ export function OperationBuilderForm({
             {saveError ? <p className="text-destructive text-xs">{saveError}</p> : null}
             {savedId ? <p className="text-muted-foreground text-xs">{t.builder.saved}</p> : null}
 
-            <Button type="button" onClick={save} disabled={pending} className="self-start">
+            <Button
+              type="button"
+              onClick={save}
+              disabled={pending || blocksSave}
+              className="self-start"
+            >
               {hasBreaches ? t.builder.riskNotice.recordAnyway : t.builder.save}
             </Button>
           </div>

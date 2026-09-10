@@ -1,5 +1,10 @@
 import { desc, eq } from "drizzle-orm";
-import { operationLegSchema, type Centavos, type OperationLeg } from "@fetha/contracts";
+import {
+  centavosSchema,
+  contemplatedLegSchema,
+  type Centavos,
+  type ContemplatedLeg,
+} from "@fetha/contracts";
 
 import { contemplatedOperations } from "@/db/schema/operations";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -7,7 +12,7 @@ import { UserScopedRepository } from "@/lib/user-scoped-repository";
 export interface SaveContemplatedOperationInput {
   structureId: string;
   underlying: string;
-  legs: OperationLeg[];
+  legs: ContemplatedLeg[];
   session: string;
   netPremiumCentavos: Centavos;
   maxLossCentavos: Centavos | null;
@@ -54,11 +59,13 @@ export class OperationsRepository extends UserScopedRepository {
       id: row.id,
       structureId: row.structureId,
       underlying: row.underlying,
-      legs: row.legs.map((leg) => operationLegSchema.parse(leg)),
+      legs: row.legs.map((leg) => contemplatedLegSchema.parse(leg)),
       session: row.session,
-      netPremiumCentavos: row.netPremiumCentavos as Centavos,
-      maxLossCentavos: row.maxLossCentavos as Centavos | null,
-      maxGainCentavos: row.maxGainCentavos as Centavos | null,
+      netPremiumCentavos: centavosSchema.parse(row.netPremiumCentavos),
+      maxLossCentavos:
+        row.maxLossCentavos === null ? null : centavosSchema.parse(row.maxLossCentavos),
+      maxGainCentavos:
+        row.maxGainCentavos === null ? null : centavosSchema.parse(row.maxGainCentavos),
       breachedLimits: row.breachedLimits,
       createdAt: row.createdAt,
     }));

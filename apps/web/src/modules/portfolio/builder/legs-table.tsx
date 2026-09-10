@@ -30,6 +30,19 @@ function roleLabel(role: BuilderLeg["template"]["role"]): string {
   return t.builder.legsTable.stock;
 }
 
+// The expiry of the first option leg the user has picked, locking every
+// other option leg's picker to the same cycle: a structure's legs share
+// one expiry, and the chain alone allows a call from one cycle next to a
+// put from another (round 1 item 3).
+function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
+  for (const builderLeg of legs) {
+    if (builderLeg.template.role === "stock" || !builderLeg.leg) continue;
+    const series = chain.find((candidate) => candidate.ticker === builderLeg.leg?.ticker);
+    if (series) return series.expiry;
+  }
+  return null;
+}
+
 export function LegsTable({
   underlying,
   legs,
@@ -43,6 +56,7 @@ export function LegsTable({
   onChangeTicker: (index: number, ticker: string) => void;
   onChangeQuantity: (index: number, quantity: number) => void;
 }) {
+  const expiry = lockedExpiry(legs, chain);
   return (
     <Table>
       <TableHeader>
@@ -62,7 +76,9 @@ export function LegsTable({
         {legs.map((builderLeg, index) => {
           const { template, leg, valuation } = builderLeg;
           const isStock = template.role === "stock";
-          const options = chain.filter((series) => series.right === template.role);
+          const options = chain.filter(
+            (series) => series.right === template.role && (!expiry || series.expiry === expiry),
+          );
           const selected = options.find((series) => series.ticker === leg?.ticker);
 
           return (
@@ -121,6 +137,11 @@ export function LegsTable({
               </TableCell>
               <TableCell className="text-right font-mono tabular-nums">
                 {valuation?.price ? formatDecimal(valuation.price) : "—"}
+                {valuation?.stale ? (
+                  <span className="ml-1 text-[10px]" style={{ color: "var(--warning)" }}>
+                    {t.builder.legsTable.stale}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell className="text-right font-mono tabular-nums">
                 {valuation?.greeks ? formatDecimal(valuation.greeks.delta, 4) : "—"}

@@ -1,4 +1,5 @@
 const en = {
+  chip: { noRiskProfile: "no risk profile" },
   builder: {
     overline: "New operation",
     title: "Operation builder",
@@ -8,10 +9,16 @@ const en = {
     price: "Price",
     pricing: "Pricing…",
     priceError: "Could not price this operation with the current data.",
-    noRiskProfileChip: "no risk profile",
     save: "Save operation",
     saved: "Operation saved.",
     saveError: "Could not save this operation.",
+    notes: {
+      no_market_price: "No market price for one or more legs; using the fair value estimate.",
+      risk_free_rate_defaulted: "No CDI rate found; a default risk-free rate was used.",
+      dividend_yield_defaulted: "No dividend yield found; assuming zero.",
+      iv_not_converged: "Implied volatility did not converge for one or more legs.",
+      stale_price: "The market price used is from a previous session.",
+    },
     legsTable: {
       title: "Legs",
       side: "Side",
@@ -29,6 +36,7 @@ const en = {
       put: "Put",
       stock: "Stock",
       pickInstrument: "Pick an instrument",
+      stale: "stale",
     },
     statBlocks: {
       title: "Result",
@@ -71,9 +79,26 @@ const en = {
       breach: "Breach",
     },
   },
+  riskProfileForm: {
+    overline: "Risk profile",
+    title: "Declared capital and limits",
+    subtitle: "Fetha never reads your balance from a bank or broker; you declare it here.",
+    declaredCapital: "Declared capital",
+    maxLossPerOperation: "Max loss per operation",
+    maxExposurePerOperation: "Max exposure per operation",
+    maxOpenOperations: "Max open operations",
+    maxPremiumBought: "Max option premium bought",
+    asPercentOfCapital: "% of declared capital",
+    submit: "Save risk profile",
+    saved: "Risk profile saved.",
+    errors: {
+      invalid: "Check the values: capital must be positive and limits between 0 and 100%.",
+    },
+  },
 };
 
 const ptBR = {
+  chip: { noRiskProfile: "sem perfil de risco" },
   builder: {
     overline: "Nova operação",
     title: "Montador de operações",
@@ -83,10 +108,17 @@ const ptBR = {
     price: "Precificar",
     pricing: "Precificando…",
     priceError: "Não foi possível precificar esta operação com os dados atuais.",
-    noRiskProfileChip: "sem perfil de risco",
     save: "Salvar operação",
     saved: "Operação salva.",
     saveError: "Não foi possível salvar esta operação.",
+    notes: {
+      no_market_price:
+        "Faltou preço de mercado para uma ou mais pernas; usando a estimativa de valor justo.",
+      risk_free_rate_defaulted: "CDI não encontrado; foi usada uma taxa livre de risco padrão.",
+      dividend_yield_defaulted: "Dividend yield não encontrado; assumindo zero.",
+      iv_not_converged: "A volatilidade implícita não convergiu para uma ou mais pernas.",
+      stale_price: "O preço de mercado usado é de uma sessão anterior.",
+    },
     legsTable: {
       title: "Pernas",
       side: "Lado",
@@ -104,6 +136,7 @@ const ptBR = {
       put: "Put",
       stock: "Ação",
       pickInstrument: "Escolha um instrumento",
+      stale: "atrasado",
     },
     statBlocks: {
       title: "Resultado",
@@ -146,8 +179,24 @@ const ptBR = {
       breach: "Limite",
     },
   },
+  riskProfileForm: {
+    overline: "Perfil de risco",
+    title: "Capital declarado e limites",
+    subtitle: "A Fetha nunca lê seu saldo de um banco ou corretora; você declara aqui.",
+    declaredCapital: "Capital declarado",
+    maxLossPerOperation: "Perda máxima por operação",
+    maxExposurePerOperation: "Exposição máxima por operação",
+    maxOpenOperations: "Máximo de operações abertas",
+    maxPremiumBought: "Prêmio máximo comprado em opções",
+    asPercentOfCapital: "% do capital declarado",
+    submit: "Salvar perfil de risco",
+    saved: "Perfil de risco salvo.",
+    errors: {
+      invalid: "Confira os valores: o capital deve ser positivo e os limites entre 0 e 100%.",
+    },
+  },
 } satisfies typeof en;
 
-export const operationsStrings = { en, ptBR } as const;
+export const portfolioStrings = { en, ptBR } as const;
 
-export const t = operationsStrings.ptBR;
+export const t = portfolioStrings.ptBR;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { centavosSchema, quantitySchema, type OperationLeg } from "@fetha/contracts";
+import { centavosSchema, quantitySchema, type ContemplatedLeg } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
@@ -42,7 +42,7 @@ async function ensureStockStructure(): Promise<void> {
 }
 
 function stockOperation(underlying: string): SaveContemplatedOperationInput {
-  const legs: OperationLeg[] = [
+  const legs: ContemplatedLeg[] = [
     { role: "stock", side: "buy", ticker: underlying, quantity: quantitySchema.parse(100) },
   ];
   return {

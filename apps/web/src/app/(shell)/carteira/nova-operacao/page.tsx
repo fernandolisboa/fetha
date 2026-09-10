@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import { requireUser } from "@/modules/auth";
 import { EmptyState, t as shellStrings } from "@/modules/shell";
-import { OperationBuilderForm, t } from "@/modules/operations";
-import { getCurrentRiskProfile } from "@/modules/risk-profile";
+import { getCurrentRiskProfile, t } from "@/modules/portfolio";
+import { OperationBuilderForm } from "@/modules/portfolio/client";
 import { getStructures } from "@/modules/strategies";
 
 export const metadata: Metadata = { title: `Fetha · ${t.builder.title}` };

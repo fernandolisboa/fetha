@@ -13,7 +13,7 @@ import {
 import { requireUser } from "@/modules/auth";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { getMyOperations, t } from "@/modules/operations";
+import { getMyOperations, t } from "@/modules/portfolio";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
