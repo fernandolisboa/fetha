@@ -1,3 +1,4 @@
+import { and, asc, desc, eq, ilike } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
@@ -8,6 +9,23 @@ import { ensureMonthlyPartition } from "./partitions";
 
 const DAILY_TIMEFRAME = "1d";
 const CHUNK_SIZE = 1000;
+
+export interface CandleRow {
+  ticker: string;
+  session: string;
+  asOf: Date;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  tradedQuantity: number;
+}
+
+export interface InstrumentSearchResult {
+  ticker: string;
+  session: string;
+  close: string;
+}
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -67,4 +85,76 @@ export async function upsertDailyCandles(
   }
 
   return deduped.length;
+}
+
+export async function latestCandle(db: Database, ticker: string): Promise<CandleRow | null> {
+  const [row] = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
+    .from(candles)
+    .where(and(eq(candles.ticker, ticker), eq(candles.timeframe, DAILY_TIMEFRAME)))
+    .orderBy(desc(candles.session))
+    .limit(1);
+  return row ?? null;
+}
+
+// Reference data only (ADR-0017): no per-user scope. Bounded to `limit`
+// distinct tickers and resolved with one query per match rather than a
+// window function, since a search-as-you-type call stays well under a
+// couple dozen matches (the instrument combobox, #13).
+export async function searchInstruments(
+  db: Database,
+  query: string,
+  limit: number,
+): Promise<InstrumentSearchResult[]> {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    return [];
+  }
+  const pattern = `${trimmed}%`;
+  const matches = await db
+    .selectDistinct({ ticker: candles.ticker })
+    .from(candles)
+    .where(and(eq(candles.timeframe, DAILY_TIMEFRAME), ilike(candles.ticker, pattern)))
+    .orderBy(asc(candles.ticker))
+    .limit(limit);
+
+  const results = await Promise.all(matches.map(async ({ ticker }) => latestCandle(db, ticker)));
+  return results
+    .filter((row): row is CandleRow => row !== null)
+    .map((row) => ({ ticker: row.ticker, session: row.session, close: row.close }));
+}
+
+// Oldest first, bounded to the last `limit` sessions: the shape a candle
+// chart and the engine's `indicators()` both want (CONTEXT.md's "data views
+// by instrument, timeframe and date range").
+export async function recentDailyCandles(
+  db: Database,
+  ticker: string,
+  limit: number,
+): Promise<CandleRow[]> {
+  const rows = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
+    .from(candles)
+    .where(and(eq(candles.ticker, ticker), eq(candles.timeframe, DAILY_TIMEFRAME)))
+    .orderBy(desc(candles.session))
+    .limit(limit);
+  return rows.reverse();
 }
