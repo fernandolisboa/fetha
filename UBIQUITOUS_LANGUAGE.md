@@ -356,3 +356,14 @@ The record that a user accepted the terms of use and privacy policy at registrat
 version accepted and the timestamp. Append-only: a later terms version adds a new row, never
 overwrites one.
 _Avoid_: consent, agreement
+
+**Magic link**:
+A one-time, time-limited link that signs an existing, already-registered user in without a
+password. Sign-in only: clicking it never creates a new account, so it cannot be used to bypass
+terms/privacy acceptance or `REGISTRATION_MODE` (ADR-0018). pt-BR: "link mágico".
+_Avoid_: passwordless login, one-time login link
+
+**Password reset**:
+The flow that lets a user set a new password after proving control of their email through a
+one-time link, revoking every session that predates the reset (ADR-0018).
+_Avoid_: forgot password, password recovery

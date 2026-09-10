@@ -40,4 +40,69 @@ describe("buildAuthOptions", () => {
 
     expect(drizzleAdapter).toHaveBeenCalledWith(fakeDb, { provider: "pg", transaction: true });
   });
+
+  it("enables the database-backed rate limiter by default, but lets a caller inject it off", () => {
+    const fakeDb = {} as Database;
+    const base = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const runtimeOptions = buildAuthOptions(fakeDb, base, new FakeMailer());
+    expect(runtimeOptions.rateLimit.enabled).toBe(true);
+
+    const disabledOptions = buildAuthOptions(fakeDb, base, new FakeMailer(), false);
+    expect(disabledOptions.rateLimit.enabled).toBe(false);
+  });
+
+  it("stores rate limit counters in the database, keyed per auth endpoint", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(options.rateLimit.storage).toBe("database");
+    expect(options.rateLimit.customRules?.["/sign-in/email"]).toEqual({ window: 10, max: 3 });
+    expect(options.rateLimit.customRules?.["/sign-up/email"]).toEqual({ window: 10, max: 3 });
+    expect(options.rateLimit.customRules?.["/request-password-reset"]).toEqual({
+      window: 60,
+      max: 3,
+    });
+    expect(options.rateLimit.customRules?.["/reset-password"]).toEqual({ window: 60, max: 5 });
+    expect(options.rateLimit.customRules?.["/send-verification-email"]).toEqual({
+      window: 60,
+      max: 3,
+    });
+  });
+
+  it("registers the magic-link plugin, sign-in only (never sign-up)", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+    const magicLinkPlugin = options.plugins.find(
+      (plugin): plugin is typeof plugin & { options: { disableSignUp?: boolean } } =>
+        plugin.id === "magic-link",
+    );
+
+    if (!magicLinkPlugin) {
+      throw new Error("magic-link plugin not registered");
+    }
+    expect(magicLinkPlugin.options.disableSignUp).toBe(true);
+  });
+
+  it("revokes existing sessions when a password is reset", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(options.emailAndPassword.revokeSessionsOnPasswordReset).toBe(true);
+  });
+
+  it("resolves the client IP from Vercel's headers instead of a shared fallback bucket", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(options.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip", "x-forwarded-for"]);
+  });
 });

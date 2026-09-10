@@ -85,6 +85,13 @@ async function readJson<T>(response: Response): Promise<T | undefined> {
   }
 }
 
+// Every outcome union in this module has a `rate_limited` member with the
+// same meaning: the auth handler answered 429. One guard, checked first by
+// every caller that has that member, instead of repeating the status check.
+function isRateLimited(response: Response): boolean {
+  return response.status === 429;
+}
+
 export interface SignUpInput {
   name: string;
   email: string;
@@ -97,6 +104,7 @@ export type SignUpOutcome =
   | { status: "ok"; userId?: string }
   | { status: "terms_not_accepted" }
   | { status: "registration_closed" }
+  | { status: "rate_limited" }
   | { status: "sign_up_failed" };
 
 export async function signUp(input: SignUpInput, requestHeaders: Headers): Promise<SignUpOutcome> {
@@ -115,6 +123,10 @@ export async function signUp(input: SignUpInput, requestHeaders: Headers): Promi
 
   if (!response) {
     return { status: "sign_up_failed" };
+  }
+
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
   }
 
   if (!response.ok) {
@@ -163,7 +175,7 @@ export async function signIn(input: SignInInput, requestHeaders: Headers): Promi
     return { status: "ok" };
   }
 
-  if (response.status === 429) {
+  if (isRateLimited(response)) {
     return { status: "rate_limited" };
   }
 
@@ -177,7 +189,8 @@ export async function signIn(input: SignInInput, requestHeaders: Headers): Promi
   return { status: "failed" };
 }
 
-export type ResendVerificationOutcome = { status: "ok" } | { status: "failed" };
+export type ResendVerificationOutcome =
+  { status: "ok" } | { status: "rate_limited" } | { status: "failed" };
 
 export async function resendVerification(
   email: string,
@@ -189,11 +202,120 @@ export async function resendVerification(
     requestHeaders,
   );
 
-  if (!response?.ok) {
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
+  }
+  if (!response.ok) {
     return { status: "failed" };
   }
 
   return { status: "ok" };
+}
+
+export interface SignInMagicLinkInput {
+  email: string;
+}
+
+export type SignInMagicLinkOutcome =
+  { status: "ok" } | { status: "rate_limited" } | { status: "failed" };
+
+export async function signInMagicLink(
+  input: SignInMagicLinkInput,
+  requestHeaders: Headers,
+): Promise<SignInMagicLinkOutcome> {
+  const response = await callAuthHandler(
+    "/sign-in/magic-link",
+    {
+      email: input.email,
+      callbackURL: "/",
+      errorCallbackURL: "/link-magico/erro",
+    },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
+  }
+  if (!response.ok) {
+    return { status: "failed" };
+  }
+  return { status: "ok" };
+}
+
+export interface RequestPasswordResetInput {
+  email: string;
+}
+
+export type RequestPasswordResetOutcome =
+  { status: "ok" } | { status: "rate_limited" } | { status: "failed" };
+
+export async function requestPasswordReset(
+  input: RequestPasswordResetInput,
+  requestHeaders: Headers,
+): Promise<RequestPasswordResetOutcome> {
+  const response = await callAuthHandler(
+    "/request-password-reset",
+    {
+      email: input.email,
+      redirectTo: "/redefinir-senha/confirmar",
+    },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
+  }
+  if (!response.ok) {
+    return { status: "failed" };
+  }
+  return { status: "ok" };
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
+export type ResetPasswordOutcome =
+  | { status: "ok" }
+  | { status: "invalid_token" }
+  | { status: "rate_limited" }
+  | { status: "failed" };
+
+export async function resetPassword(
+  input: ResetPasswordInput,
+  requestHeaders: Headers,
+): Promise<ResetPasswordOutcome> {
+  const response = await callAuthHandler(
+    "/reset-password",
+    { token: input.token, newPassword: input.newPassword },
+    requestHeaders,
+  );
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
+  }
+  if (response.ok) {
+    return { status: "ok" };
+  }
+
+  const body = await readJson<{ code?: string }>(response);
+  if (body?.code === "INVALID_TOKEN") {
+    return { status: "invalid_token" };
+  }
+  return { status: "failed" };
 }
 
 export async function signOut(requestHeaders: Headers): Promise<void> {
