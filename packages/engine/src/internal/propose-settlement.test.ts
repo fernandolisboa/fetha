@@ -409,7 +409,91 @@ describe("proposeSettlement", () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error.code).toBe("insufficient_data");
+    expect(result.error).toEqual({
+      code: "insufficient_data",
+      needed: {
+        from: expiry + "T13:00:00.000Z",
+        to: expiryClose,
+        instruments: ["PETR4"],
+        timeframes: ["D1"],
+        collections: ["candles"],
+      },
+    });
+  });
+
+  it("returns a midnight-UTC insufficient_data window when the calendar does not cover the expiry session at all (item 10)", () => {
+    const op = operation({
+      expiry: "2099-01-01",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view: baseView, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "insufficient_data",
+      needed: {
+        from: "2099-01-01T00:00:00.000Z",
+        to: "2099-01-01T00:00:00.000Z",
+        instruments: ["PETR4"],
+        timeframes: ["D1"],
+        collections: ["candles"],
+      },
+    });
+  });
+
+  it("notes that a settlement proposal's fills carry no costs (item 10)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toContainEqual({
+      code: "settlement_costs_not_modeled",
+      message: "the proposed fill(s) carry no B3 fee or brokerage; costs apply once recorded",
+    });
+  });
+
+  it("does not note settlement_costs_not_modeled when every leg expires worthless", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [optionSeries("PETR4C40", "call", "40.00")],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C40",
+          quantity: quantity(1),
+          entryPrice: decimalString("0.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toEqual([]);
   });
 
   it("prefers the latest visible underlying candle when a session has more than one row, regardless of array order", () => {

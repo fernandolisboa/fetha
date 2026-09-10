@@ -5,6 +5,7 @@ import type {
   Fill,
   LegSettlement,
   MarketView,
+  Note,
   Operation,
   OperationLeg,
   ProposeSettlementInput,
@@ -12,6 +13,7 @@ import type {
   Result,
   SettlementProposal,
   Side,
+  TradingSession,
 } from "../api";
 import { sessionByDate } from "./calendar";
 import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
@@ -42,6 +44,10 @@ function sessionDateToInstant(date: SessionDate): Instant {
   return `${date}T00:00:00.000Z`;
 }
 
+// The calendar-gap case: no `TradingSession` at all for this date, so there is no real
+// open/close instant to name and the midnight-UTC placeholder above is the best hint the
+// caller gets. Distinct from `insufficientCandlesForSession` below, whose calendar coverage
+// gives a real window (round 1 item 10).
 function insufficientCandles(underlying: Ticker, session: SessionDate): EngineError {
   const at = sessionDateToInstant(session);
   return {
@@ -49,6 +55,19 @@ function insufficientCandles(underlying: Ticker, session: SessionDate): EngineEr
     needed: {
       from: at,
       to: at,
+      instruments: [underlying],
+      timeframes: ["D1"],
+      collections: ["candles"],
+    },
+  };
+}
+
+function insufficientCandlesForSession(underlying: Ticker, session: TradingSession): EngineError {
+  return {
+    code: "insufficient_data",
+    needed: {
+      from: session.open,
+      to: session.close,
       instruments: [underlying],
       timeframes: ["D1"],
       collections: ["candles"],
@@ -180,7 +199,7 @@ export function proposeSettlement(
     ),
     expiryClose,
   );
-  if (!underlyingCandle) return err(insufficientCandles(operation.underlying, operation.expiry));
+  if (!underlyingCandle) return err(insufficientCandlesForSession(operation.underlying, session));
 
   const underlyingClose = underlyingCandle.close;
   const closeDecimal = parseDecimal(underlyingClose);
@@ -199,6 +218,19 @@ export function proposeSettlement(
     legs.push(settled.value);
   }
 
+  // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
+  // non-worthless leg implies carries zero costs, since no B3 fee or brokerage applies until
+  // the user confirms it. Note that plainly whenever at least one leg actually proposes a
+  // fill (round 1 item 10), so the zero is never read as "this trade is free."
+  const notes: Note[] = legs.some((l) => l.fills.length > 0)
+    ? [
+        {
+          code: "settlement_costs_not_modeled",
+          message: "the proposed fill(s) carry no B3 fee or brokerage; costs apply once recorded",
+        },
+      ]
+    : [];
+
   return {
     ok: true,
     value: {
@@ -206,7 +238,7 @@ export function proposeSettlement(
       expiry: operation.expiry,
       underlyingClose,
       legs,
-      notes: [],
+      notes,
       provenance: { ...provenanceBase, truncated: [] },
     },
   };
