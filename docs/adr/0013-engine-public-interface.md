@@ -1692,7 +1692,9 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   every other operation in the same call to value normally (round 3 item 5). A per-leg
   `settlement_pending` note never surfaced on `OperationPricing.notes` itself, only on the leg
   that carried it; `priceConcreteLegs` now aggregates it at the operation level next to
-  `no_market_price`, the same way (round 3 item 6).
+  `no_market_price`, the same way (round 3 item 6). `validateViewIntegrity` covers a duplicate
+  `optionPrices` `(ticker, asOf)` row too, the same tie-by-array-order hazard round 1 item 11
+  already fixed for `calendar` and `candles` (round 3 item 7).
 
 ## Considered options
 

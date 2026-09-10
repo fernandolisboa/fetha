@@ -75,4 +75,39 @@ describe("validateViewIntegrity", () => {
     const later = { ...candle, asOf: "2024-01-02T21:05:00.000Z" };
     expect(validateViewIntegrity({ ...baseView, candles: [candle, later] })).toBeNull();
   });
+
+  it("rejects optionPrices with a duplicate (ticker, asOf) (round 3 item 7)", () => {
+    const dayPrice = {
+      ticker: "PETR4C28",
+      session: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      average: null,
+      close: decimalString("2.30"),
+      trades: 1,
+      tradedQuantity: 1,
+    };
+    const view: MarketView = {
+      ...baseView,
+      optionPrices: [dayPrice, { ...dayPrice, close: decimalString("2.40") }],
+    };
+    expect(validateViewIntegrity(view)).toEqual({
+      code: "invalid_input",
+      path: "view.optionPrices",
+      message: "duplicate option day price for PETR4C28|2024-01-02T21:00:00.000Z",
+    });
+  });
+
+  it("allows two optionPrices rows for the same ticker with different asOf", () => {
+    const dayPrice = {
+      ticker: "PETR4C28",
+      session: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      average: null,
+      close: decimalString("2.30"),
+      trades: 1,
+      tradedQuantity: 1,
+    };
+    const later = { ...dayPrice, asOf: "2024-01-02T21:05:00.000Z" };
+    expect(validateViewIntegrity({ ...baseView, optionPrices: [dayPrice, later] })).toBeNull();
+  });
 });
