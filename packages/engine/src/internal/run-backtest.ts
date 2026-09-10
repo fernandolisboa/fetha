@@ -162,12 +162,12 @@ function lastKnownClose(
 // (ADR-0013): if it doesn't, an open operation's underlying can be missing every candle a mark
 // needs. That is a caller error, not an engine bug, so it is a typed insufficient_data result,
 // never a thrown exception.
-function missingMarkError(
+function missingMarkError<T>(
   ticker: Ticker,
   openedAt: SessionDate,
   sortedCalendar: readonly TradingSession[],
   through: Instant,
-): Result<BacktestProgress> {
+): Result<T> {
   const openedAtSession = sortedCalendar.find((s) => s.date === openedAt);
   // openedAt always names a session this same sortedCalendar carries (it was set from one of
   // its own sessions when the operation opened); the fallback only guards the type.
@@ -410,40 +410,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     state.currentMonthStockGain = 0;
   }
 
-  for (let i = startIndex; i < endIndex; i += 1) {
-    const session = assertDefined(periodSessions[i], "run-backtest: index within bounds");
-    const monthKey = monthKeyOf(session.date);
-    // The last session inside the period, not the session that happens to fall on
-    // config.period.to itself: a period.to on a non-trading day (a holiday or a
-    // weekend) would otherwise leave the final session's sweep and tax finalization
-    // never run.
-    const isFinalSession = i === periodSessions.length - 1;
-
-    if (state.currentMonthKey === null) {
-      state.currentMonthKey = monthKey;
-    } else if (monthKey !== state.currentMonthKey) {
-      // Step 2 below already pays off any pendingTaxDeduction whose target month is the one
-      // that just finished, on that month's own last session in periodSessions — whichever
-      // session follows it, gap or not — so by the time a new month is seen here there is
-      // never one left in flight to overwrite.
-      invariant(
-        state.pendingTaxDeduction === null,
-        "run-backtest: a month transition never finds a still-pending tax deduction",
-      );
-      const finishedMonth = state.currentMonthKey;
-      finalizeMonth(finishedMonth);
-      const tax = assertDefined(
-        state.taxesFinalized.at(-1),
-        "run-backtest: finalizeMonth always pushes one entry",
-      );
-      state.pendingTaxDeduction = { monthKey, tax: tax.tax };
-      state.currentMonthKey = monthKey;
-    }
-
-    // Step 1: resolve pending entry fills targeting this session's open. evaluateStrategy
-    // computes openOperationCount once per call, so several tickers signalling entry in the
-    // same session each see the same, stale count and none alone trips maxOpenOperations;
-    // this running counter re-checks the limit against fills already made this same session.
+  // Step 1: resolve pending entry fills targeting this session's open. evaluateStrategy
+  // computes openOperationCount once per call, so several tickers signalling entry in the
+  // same session each see the same, stale count and none alone trips maxOpenOperations;
+  // this running counter re-checks the limit against fills already made this same session.
+  // Returns the tickers whose fill attempt failed this same session (no candle, or no volume).
+  function resolvePendingEntryFills(session: TradingSession): Set<Ticker> {
     const failedEntryTickers = new Set<Ticker>();
     let openCountThisSession = state.openOperations.length;
     const maxOpenOperations = config.riskProfile.limits.maxOpenOperations;
@@ -525,8 +497,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         Reflect.deleteProperty(state.pendingEntries, ticker);
       }
     }
+    return failedEntryTickers;
+  }
 
-    // Step 1b: resolve pending exit fills targeting this session's open (retried indefinitely).
+  // Step 1b: resolve pending exit fills targeting this session's open (retried indefinitely).
+  function resolvePendingExitFills(session: TradingSession): void {
     for (const [opId] of Object.entries(state.pendingExits)) {
       const opIndex = state.openOperations.findIndex((op) => op.id === opId);
       invariant(
@@ -610,8 +585,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       Reflect.deleteProperty(state.entryCosts, op.id);
       Reflect.deleteProperty(state.entryMaxLoss, op.id);
     }
+  }
 
-    // Step 2: tax deduction.
+  // Step 2: tax deduction. A month's own tax, computed the day its last session was seen, is
+  // deducted on the next session (or, for the run's very last month, on that same last session).
+  function deductPendingTax(monthKey: string, isFinalSession: boolean, i: number): void {
     if (
       state.pendingTaxDeduction !== null &&
       state.pendingTaxDeduction.monthKey === monthKey &&
@@ -622,17 +600,24 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     }
     if (isFinalSession) {
       // The final session is always the last session of its own month as far as this run is
-      // concerned (there is no later session to prove otherwise), so step 2 above already paid
-      // off a pending deduction whose target month matches this one; nothing can be left over
-      // here except the current, not-yet-finalized month.
-      finalizeMonth(state.currentMonthKey);
+      // concerned (there is no later session to prove otherwise), so the deduction above already
+      // paid off a pending deduction whose target month matches this one; nothing can be left
+      // over here except the current, not-yet-finalized month. `monthKey` (this session's own
+      // month) is state.currentMonthKey's value at this point — read as a parameter, not off
+      // `state`, since a plain object property does not carry the caller's null-check narrowing
+      // across a function boundary.
+      finalizeMonth(monthKey);
       const finalTax = assertDefined(state.taxesFinalized.at(-1), "run-backtest: finalized above");
       state.cash -= finalTax.tax;
     }
+  }
 
-    // Step 3: equity for this session. Marks are kept (per ticker) for Step 4/5's period-end
-    // sweep to reuse: it processes the same state.openOperations at the same session.date, so a
-    // second lookup would always find exactly what this one already did.
+  // Step 3: equity for this session. Marks are kept (per ticker) for the period-end sweep to
+  // reuse: it processes the same state.openOperations at the same session.date, so a second
+  // lookup would always find exactly what this one already did.
+  function markOpenOperations(
+    session: TradingSession,
+  ): Result<{ equity: Centavos; marksThisSession: Map<Ticker, DecimalString> }> {
     let markValue = 0;
     const marksThisSession = new Map<Ticker, DecimalString>();
     for (const op of state.openOperations) {
@@ -676,13 +661,24 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     });
     state.held.push(state.openOperations.length > 0);
     state.rfPerSession.push(rfAt(session.close));
+    return { ok: true, value: { equity, marksThisSession } };
+  }
 
-    // Step 4/5: period end sweep, or next signals.
+  // Step 4/5: period end sweep (closes every still-open operation at its own mark, finalizes
+  // stranded pending entries, and signals the caller to stop this session's processing), or,
+  // on every other session, evaluates the strategy for the next signals and queues them.
+  function sweepOrQueueNextSignals(
+    session: TradingSession,
+    isFinalSession: boolean,
+    equity: Centavos,
+    marksThisSession: Map<Ticker, DecimalString>,
+    failedEntryTickers: Set<Ticker>,
+  ): Result<"continue" | "proceed"> {
     if (isFinalSession) {
       for (const op of state.openOperations) {
         const price = assertDefined(
           marksThisSession.get(op.underlying),
-          "run-backtest: Step 3 already marked every currently open operation this same session",
+          "run-backtest: markOpenOperations already marked every currently open operation this same session",
         );
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
         const splitFactor = corporateActionFactorThrough(
@@ -722,7 +718,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         finalizeMissedEntry(ticker, session.close, "no_trades");
       }
       state.pendingExits = {};
-      continue;
+      return { ok: true, value: "continue" };
     }
 
     if (equity <= 0) state.equityClampEngaged = true;
@@ -782,6 +778,56 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       );
       finalizeMissedEntry(ticker, session.close, missedEntryReasonFor(record?.outcome));
     }
+    return { ok: true, value: "proceed" };
+  }
+
+  for (let i = startIndex; i < endIndex; i += 1) {
+    const session = assertDefined(periodSessions[i], "run-backtest: index within bounds");
+    const monthKey = monthKeyOf(session.date);
+    // The last session inside the period, not the session that happens to fall on
+    // config.period.to itself: a period.to on a non-trading day (a holiday or a
+    // weekend) would otherwise leave the final session's sweep and tax finalization
+    // never run.
+    const isFinalSession = i === periodSessions.length - 1;
+
+    if (state.currentMonthKey === null) {
+      state.currentMonthKey = monthKey;
+    } else if (monthKey !== state.currentMonthKey) {
+      // deductPendingTax already pays off any pendingTaxDeduction whose target month is the
+      // one that just finished, on that month's own last session in periodSessions —
+      // whichever session follows it, gap or not — so by the time a new month is seen here
+      // there is never one left in flight to overwrite.
+      invariant(
+        state.pendingTaxDeduction === null,
+        "run-backtest: a month transition never finds a still-pending tax deduction",
+      );
+      const finishedMonth = state.currentMonthKey;
+      finalizeMonth(finishedMonth);
+      const tax = assertDefined(
+        state.taxesFinalized.at(-1),
+        "run-backtest: finalizeMonth always pushes one entry",
+      );
+      state.pendingTaxDeduction = { monthKey, tax: tax.tax };
+      state.currentMonthKey = monthKey;
+    }
+
+    const failedEntryTickers = resolvePendingEntryFills(session);
+    resolvePendingExitFills(session);
+    deductPendingTax(monthKey, isFinalSession, i);
+
+    const marked = markOpenOperations(session);
+    if (!marked.ok) return { ok: false, error: marked.error };
+    const { equity, marksThisSession } = marked.value;
+
+    const next = sweepOrQueueNextSignals(
+      session,
+      isFinalSession,
+      equity,
+      marksThisSession,
+      failedEntryTickers,
+    );
+    if (!next.ok) return { ok: false, error: next.error };
+    if (next.value === "continue") continue;
   }
 
   const cursorSession = assertDefined(
