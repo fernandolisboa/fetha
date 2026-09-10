@@ -104,7 +104,8 @@ export async function runBacktestChunk(
     return { status: "complete", run: claimed };
   }
 
-  const run = await repository.claim(runId);
+  const claimNow = options.now ? new Date(options.now()) : new Date();
+  const run = await repository.claim(runId, claimNow);
 
   const { definition } = await loadStrategyDefinition(
     db,

@@ -17,7 +17,11 @@ import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-re
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
 import { StrategiesRepository } from "@/modules/strategies";
 
-import { BacktestRunRepository, type BacktestRunConfigInput } from "./backtest-run-repository";
+import {
+  BacktestRunClaimError,
+  BacktestRunRepository,
+  type BacktestRunConfigInput,
+} from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL } from "./default-config";
 import { runBacktestChunk } from "./run-chunk";
 
@@ -370,5 +374,28 @@ describe("runBacktestChunk", () => {
     const failed = await repository.findMine(run.id);
     expect(failed.status).toBe("failed");
     expect(failed.error).toBe("data_version_changed");
+  });
+
+  it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError (round 2 item 3)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const results = await Promise.allSettled([
+      runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 }),
+      runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 }),
+    ]);
+
+    const fulfilled = results.filter((entry) => entry.status === "fulfilled");
+    const rejected = results.filter((entry) => entry.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    const [rejection] = rejected;
+    if (rejection?.status !== "rejected") throw new Error("expected a rejection");
+    expect(rejection.reason).toBeInstanceOf(BacktestRunClaimError);
+
+    const final = await repository.findMine(run.id);
+    expect(final.status === "paused" || final.status === "complete").toBe(true);
   });
 });

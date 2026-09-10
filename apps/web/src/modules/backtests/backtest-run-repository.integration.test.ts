@@ -1,15 +1,20 @@
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fetha/contracts";
+import type { BacktestRun } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { backtestRuns } from "@/db/schema/backtests";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import {
   BacktestRunAlreadyCompleteError,
+  BacktestRunClaimError,
   BacktestRunNotFoundError,
   BacktestRunRepository,
+  STALE_LEASE_MS,
 } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL, defaultRiskProfile } from "./default-config";
 
@@ -67,6 +72,57 @@ const STOCK_STRUCTURE: Structure = {
   expiry: "shared",
   legs: [{ role: "stock", side: "buy", ratio: 1 }],
 };
+
+function completedResult(version: { id: string; definition: StrategyDefinition }): BacktestRun {
+  return {
+    config: {
+      strategy: {
+        id: version.id,
+        definition: version.definition,
+        structure: STOCK_STRUCTURE,
+      },
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      walkForward: null,
+      seed: 1,
+    },
+    configDigest: "x",
+    operations: [],
+    fills: [],
+    missedEntries: [],
+    limitBreaches: [],
+    equityCurve: [],
+    metrics: {
+      sessions: 0,
+      operations: 0,
+      totalReturn: decimalString("0"),
+      cagr: null,
+      maxDrawdown: decimalString("0"),
+      sharpe: null,
+      winRate: null,
+      profitFactor: null,
+      exposure: decimalString("0"),
+      fees: centavos(0),
+      taxes: centavos(0),
+      slippage: centavos(0),
+    },
+    walkForward: null,
+    taxes: [],
+    notes: [],
+    provenance: {
+      engineVersion: "0.2.0",
+      pricingModel: "bsm_continuous_yield",
+      truncated: [],
+      dataVersion: null,
+      datasetNotes: [],
+    },
+  };
+}
 
 const createdEmails: string[] = [];
 
@@ -183,59 +239,7 @@ describe("BacktestRunRepository isolation", () => {
     });
 
     await repository.complete(run.id, {
-      result: {
-        config: {
-          strategy: {
-            id: version.id,
-            definition: version.definition,
-            structure: {
-              id: "stock",
-              name: "Compra de ação",
-              expiry: "shared",
-              legs: [{ role: "stock", side: "buy", ratio: 1 }],
-            },
-          },
-          universe: ["ZQIS3"],
-          period: { from: "2025-01-02", to: "2025-01-10" },
-          initialCapital: centavos(1_000_000),
-          costModel: DEFAULT_COST_MODEL,
-          riskProfile: defaultRiskProfile(centavos(1_000_000)),
-          limits: "warn",
-          sizing: version.definition.sizing,
-          walkForward: null,
-          seed: 1,
-        },
-        configDigest: "x",
-        operations: [],
-        fills: [],
-        missedEntries: [],
-        limitBreaches: [],
-        equityCurve: [],
-        metrics: {
-          sessions: 0,
-          operations: 0,
-          totalReturn: decimalString("0"),
-          cagr: null,
-          maxDrawdown: decimalString("0"),
-          sharpe: null,
-          winRate: null,
-          profitFactor: null,
-          exposure: decimalString("0"),
-          fees: centavos(0),
-          taxes: centavos(0),
-          slippage: centavos(0),
-        },
-        walkForward: null,
-        taxes: [],
-        notes: [],
-        provenance: {
-          engineVersion: "0.2.0",
-          pricingModel: "bsm_continuous_yield",
-          truncated: [],
-          dataVersion: null,
-          datasetNotes: [],
-        },
-      },
+      result: completedResult(version),
       configDigest: "x",
       sessionsDone: 0,
     });
@@ -243,5 +247,102 @@ describe("BacktestRunRepository isolation", () => {
     await expect(repository.fail(run.id, "too late")).rejects.toBeInstanceOf(
       BacktestRunAlreadyCompleteError,
     );
+  });
+
+  it("claims a stale running run but rejects a fresh one still within its lease (round 2 item 2)", async () => {
+    const db = getDb();
+    const email = uniqueEmail("stale-lease");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const repository = new BacktestRunRepository(db, owner);
+    const runInput = {
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn" as const,
+      sizing: version.definition.sizing,
+      seed: 1,
+    };
+
+    const staleRun = await repository.create(runInput);
+    const freshRun = await repository.create(runInput);
+
+    const checkpoint = {
+      schema: 1 as const,
+      engineVersion: "0.2.0",
+      configDigest: "x",
+      cursor: "2025-01-02",
+      state: null,
+    };
+
+    await db
+      .update(backtestRuns)
+      .set({
+        status: "running",
+        checkpoint,
+        updatedAt: new Date(Date.now() - STALE_LEASE_MS - 1_000),
+      })
+      .where(eq(backtestRuns.id, staleRun.id));
+
+    await db
+      .update(backtestRuns)
+      .set({ status: "running", updatedAt: new Date() })
+      .where(eq(backtestRuns.id, freshRun.id));
+
+    const reclaimed = await repository.claim(staleRun.id);
+    expect(reclaimed.status).toBe("running");
+    expect(reclaimed.checkpoint).toEqual(checkpoint);
+
+    await expect(repository.claim(freshRun.id)).rejects.toBeInstanceOf(BacktestRunClaimError);
+  });
+
+  it("lets exactly one of two racing completions through, the other surfaces BacktestRunAlreadyCompleteError rather than the trigger's own raw driver error (round 2 item 3)", async () => {
+    const db = getDb();
+    const email = uniqueEmail("race-complete");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const repository = new BacktestRunRepository(db, owner);
+    const run = await repository.create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      seed: 1,
+    });
+
+    const result = completedResult(version);
+    const results = await Promise.allSettled([
+      repository.complete(run.id, { result, configDigest: "x", sessionsDone: 0 }),
+      repository.complete(run.id, { result, configDigest: "x", sessionsDone: 0 }),
+    ]);
+
+    const fulfilled = results.filter((entry) => entry.status === "fulfilled");
+    const rejected = results.filter((entry) => entry.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    const [rejection] = rejected;
+    if (rejection?.status !== "rejected") throw new Error("expected a rejection");
+    expect(rejection.reason).toBeInstanceOf(BacktestRunAlreadyCompleteError);
   });
 });

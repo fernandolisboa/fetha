@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt, or, sql } from "drizzle-orm";
 import {
   backtestCheckpointSchema,
   backtestRunSchema,
@@ -93,6 +93,14 @@ export class BacktestRunAlreadyCompleteError extends Error {
     this.name = "BacktestRunAlreadyCompleteError";
   }
 }
+
+// route.ts raises `maxDuration` to 300s; a lease this much longer than that
+// gives one invocation room to finish its own checkpoint write before a
+// second caller could ever see it as stale, while still bounding how long a
+// run a `maxDuration` kill or a Neon blip between the claim and the first
+// checkpoint (round 1's own per-inner-call checkpointing exists to survive)
+// can stay bricked in "running" with no path back to "pending" or "paused".
+export const STALE_LEASE_MS = 360_000;
 
 export class BacktestRunClaimError extends Error {
   constructor() {
@@ -196,8 +204,14 @@ export class BacktestRunRepository extends UserScopedRepository {
   // Claims the run for this call with a single conditional UPDATE instead
   // of a read-then-write: a concurrent second call for the same run finds
   // zero rows and fails with BacktestRunClaimError (mapped to 409 by the
-  // route), rather than both calls racing a full engine chunk.
-  async claim(id: string): Promise<BacktestRunRecord> {
+  // route), rather than both calls racing a full engine chunk. A "running"
+  // row is also claimable once its own `updatedAt` is older than the stale
+  // lease (round 2 item 2): nothing else ever moves a run out of "running"
+  // except the invocation that set it, so without this a kill mid-chunk
+  // would brick the run in "running" forever with a valid checkpoint and no
+  // way back to it.
+  async claim(id: string, now: Date = new Date()): Promise<BacktestRunRecord> {
+    const staleCutoff = new Date(now.getTime() - STALE_LEASE_MS);
     const [row] = await this.db
       .update(backtestRuns)
       .set({ status: "running" })
@@ -205,7 +219,10 @@ export class BacktestRunRepository extends UserScopedRepository {
         and(
           eq(backtestRuns.id, id),
           eq(backtestRuns.userId, this.userId),
-          sql`${backtestRuns.status} in ('pending', 'paused')`,
+          or(
+            sql`${backtestRuns.status} in ('pending', 'paused')`,
+            and(eq(backtestRuns.status, "running"), lt(backtestRuns.updatedAt, staleCutoff)),
+          ),
         ),
       )
       .returning();
