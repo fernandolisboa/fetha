@@ -28,6 +28,9 @@
 8. **[2026-09-09] Two parallel tickets both generated `drizzle/0001_*`**
    Do instead: whichever merges second rebases, deletes its migration and regenerates it as the next number with `pnpm db:generate` (never renumber by hand); check `drizzle/meta/_journal.json` before opening the PR.
 
+9. **[2026-09-10] Engine branch reshaping a shared internal module (e.g. `price-operation.ts` exports) while a sibling branch imports those exports creates reconciliation conflict**
+   Do instead: decide the merge order up front, merge the more advanced branch first, put reconciliation in the other branch's next fix round rather than stacking PRs.
+
 ## Shell & Command Reliability
 
 0. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**
@@ -46,6 +49,9 @@
    Do instead: copy `.claude/skills/impeccable` and the `impeccable-*` agents from `../feudo` (v4.1.3).
 6. **[2026-09-02] `cd` in Bash resets cwd after the call**
    Do instead: use absolute paths or `cd ../feudo && ...` in a single command.
+
+7. **[2026-09-10] CI `integration` jobs share the `preview-db` concurrency group with `cancel-in-progress: false`; GitHub keeps at most one pending job per group**
+   Do instead: when several branches push at once the older pending job is cancelled (shows as `cancelled`, not failed); rerun the run once the queue is quiet, and expect this whenever more than one implementer pushes.
 
 ## Domain Behavior Guardrails
 
