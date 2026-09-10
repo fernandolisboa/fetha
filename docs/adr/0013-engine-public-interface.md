@@ -1552,6 +1552,87 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   `non_positive_equity` on the run ("equity was non-positive at least once during the run and was
   clamped to a positive sizing budget") whenever the clamp changed the value at least once.
 
+### #25 addendum: `markToMarket` and `proposeSettlement`
+
+Issue #25 implements both remaining stubbed methods. Neither needed an additive change to
+`api.ts` or a new ADR: every type both methods return (`PortfolioValuation`, `OperationValuation`,
+`PositionValuation`, `SettlementProposal`, `LegSettlement`) was already frozen. This addendum
+records the semantic decisions the frozen types and ADR-0014 left open.
+
+- **`markToMarket` composes, never re-implements.** Both methods reuse the `priceOperation` seam:
+  `valueLegs`/`priceConcreteLegs` and `resolveOperationRates` (`price-operation.ts`) are now
+  exported internally and called directly on an `Operation`'s own legs (mapped to `LegInput`,
+  entry prices dropped) at the mark instant, giving each operation's `OperationValuation.pricing`
+  through the exact same mid/last/close/average ladder, stale-mark (Q42) and fair-value logic a
+  `priceOperation` call gives. Nothing in `mark-to-market.ts` computes a price, a greek or a
+  payoff on its own.
+- **Operation coherence is checked once, shared.** ADR-0013's "Operations, positions and strategy
+  versions" says the engine checks `Operation.expiry` coherence wherever an `Operation` comes in;
+  `markToMarket` (`operations[i]`) and `proposeSettlement` (`operation`) now share one
+  `validateOperationCoherence` (`internal/operation-coherence.ts`): a stock-only operation must
+  carry no expiry, an operation with option legs must carry one, every stock leg's ticker must
+  equal the operation's `underlying`, and every option leg whose series is visible in the view
+  (`resolveSeries`, at the same instant the caller is truncated to — `at` for `markToMarket`, the
+  expiry session close for `proposeSettlement`) must list that same expiry. A leg whose series
+  simply is not visible is not rejected here; it surfaces later as that leg's own
+  `missing_instrument`.
+- **Unrealized P&L is computed per leg, on the entry price's own scale.** For each operation leg,
+  the mark used is `pricing.legs[i].price ?? pricing.legs[i].fairValue`; a leg with neither
+  (`no_market_price` with no solvable fair value, already noted on `pricing`) contributes zero
+  unrealized P&L, since `OperationValuation.unrealizedPnl` is a plain `Centavos`, never `null` —
+  there is no honest non-zero number to report and no field to carry an "unknown" flag on. A
+  stock leg's mark is rebased onto the scale `leg.entryPrice` was recorded at by the same
+  `splitFactorProduct` rebasing ADR-0014 Q51 defines, now shared from `internal/split-factor.ts`
+  rather than duplicated; an option
+  leg's mark is not rebased, since a split forces a series rollover (a new listed contract, not a
+  factor) that is out of scope for both this ticket and #23. `unrealizedPnl` is
+  `sum(sign(side) * quantity * (markOnEntryScale − entryPrice))` in centavos, the same formula
+  `evaluate-strategy.ts`'s exit-rule P&L uses.
+- **Totals come from positions only; greeks are the one exception.** ADR-0013 already says
+  `totals.equity = cash + sum(position values)` and that operations are "an attribution view ...
+  and never add to totals"; this addendum extends the same rule to `totals.unrealizedPnl` (also
+  summed over `positions` only), for the same double-counting reason — a stock leg opened through
+  a tracked `Operation` is expected to also appear in `positions`. `totals.greeks` is the one
+  field with no analogue on a bare `Position` (`{ ticker, quantity, averageCost }` carries no
+  role, strike or expiry to compute a greek from), so it is instead the sum of every operation's
+  own aggregate `pricing.greeks` — the only artifact in the call with the structured leg
+  information greeks need. `PortfolioValuation.limitBreaches` is the flattened
+  `pricing.limitBreaches` of every operation, each re-checked against the caller's `riskProfile`
+  at the mark instant (not the operation's entry); `openOperationCount` passed to each operation's
+  pricing is `operations.length - 1`, so every operation in the same call reports consistently
+  whether the total open count exceeds `riskProfile.limits.maxOpenOperations`.
+- **A standalone `Position` is priced through the same market-price ladder as a leg,
+  never rebased.** `PositionValuation` uses `resolveLegMarketPrice` (mid/last/close/average,
+  `stale` when the price row's session precedes the mark session, Q42) exactly as a leg would;
+  `value = price * quantity` and `unrealizedPnl = (price − averageCost) * quantity`, both correct
+  for a short position because `quantity` is already signed (`SignedQuantity`). `Position` carries
+  no `openedAt`, so — unlike an `Operation` leg — its `averageCost` is never rebased by a
+  corporate-action factor here; keeping a position's average cost on the current scale as splits
+  occur is the caller's responsibility on ingestion, not this call's.
+- **`proposeSettlement`'s in-the-money test reads the underlying's own nominal close on the
+  expiry session,** resolved by `latestVisible` (asOf ≤ the expiry session's close, latest wins)
+  rather than the first array match, so a same-session candle revision resolves the same way
+  regardless of `MarketView.candles` order (I3) and a revision published after the expiry close
+  stays invisible to the proposal (I1) — the same reasoning `resolve-series.ts` already documents
+  for a re-listed option series. `sessionByDate` (`internal/calendar.ts`) resolves the exact
+  `TradingSession` for `operation.expiry`, distinct from `sessionAtOrBefore`'s "last session at or
+  before an instant": `proposeSettlement` receives no `at`, only the operation's own `expiry`
+  date, and needs that session's own close as the truncation instant. When the calendar does not
+  cover the expiry session at all, `insufficient_data` names a midnight-UTC instant on that date
+  purely as an informational hint for the caller to fetch — never fed back into a computation,
+  since resolving a real instant is exactly what is missing.
+- **Settlement outcome and fills follow ADR-0014 Q41 exactly**: in the money by any amount at the
+  expiry close, mirroring B3's automatic exercise; a stock leg is always `kept`; a long option leg
+  is `exercised` or `expired_worthless`; a short option leg is `assigned` or `expired_worthless`;
+  every option leg reports `intrinsicValue` (zero when worthless), never `null`. The one fill a
+  non-worthless option leg implies is priced at the strike, dated at the expiry session's close,
+  with zero cost (`Fill.costs`): a settlement proposal is not itself a trade, it is what the user
+  confirms or corrects before one is recorded (ADR-0014 Q41), so no B3 fee or brokerage applies
+  yet. Multiple legs of a covered structure (a covered call, a vertical) each settle
+  independently; netting the resulting stock fills into the structure's own position, and
+  attributing the residual, is a `runBacktest`/`portfolio` concern (ADR-0013 "Settlement in a
+  run"), not this proposal.
+
 ## Considered options
 
 - **A, minimal**: two functions (`compute(view, query)` and `step(view, input, budget)`) over a

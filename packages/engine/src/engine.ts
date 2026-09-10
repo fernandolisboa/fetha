@@ -11,9 +11,11 @@ import type {
   ImpliedVolatilityIndexInput,
   IndicatorSeries,
   IndicatorsInput,
+  MarkToMarketInput,
   OperationPricing,
   PortfolioValuation,
   PriceOperationInput,
+  ProposeSettlementInput,
   Result,
   RunBacktestInput,
   Score,
@@ -25,16 +27,14 @@ import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
 import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
+import { markToMarket as computeMarkToMarket } from "./internal/mark-to-market";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
+import { proposeSettlement as computeProposeSettlement } from "./internal/propose-settlement";
 import { runBacktest as computeRunBacktest } from "./internal/run-backtest";
-import {
-  unsupportedAdjustmentRuleKinds,
-  unsupportedThesisClaimKinds,
-} from "./internal/vocabularies";
+import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
 const thesisClaimKind = unsupportedThesisClaimKinds[0];
-const adjustmentRuleKind = unsupportedAdjustmentRuleKinds[0];
 
 function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
   return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
@@ -72,12 +72,26 @@ export const engine: Engine = {
     return Promise.resolve(computeRunBacktest(input));
   },
 
-  markToMarket(): Promise<Result<PortfolioValuation>> {
-    return unsupported("adjustmentRules", adjustmentRuleKind);
+  markToMarket(input: MarkToMarketInput): Promise<Result<PortfolioValuation>> {
+    return Promise.resolve(
+      computeMarkToMarket(input, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 
-  proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return unsupported("adjustmentRules", adjustmentRuleKind);
+  proposeSettlement(input: ProposeSettlementInput): Promise<Result<SettlementProposal>> {
+    return Promise.resolve(
+      computeProposeSettlement(input, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 
   score(): Promise<Result<Score>> {
