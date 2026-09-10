@@ -23,6 +23,11 @@
 6. **[2026-09-09] Review batching works: collect all lenses, send one consolidated fix brief to the author agent, then re-check only the blocking lens**
    Do instead: number the items, mark blocking vs advisory, require gate outputs and ADR-block == code confirmation in the report.
 
+7. **[2026-09-09] The shell's global `TEST_DATABASE_URL` belongs to Feudo's test database, not to Fetha**
+   Do instead: never let an agent export it as `DATABASE_URL`; local integration tests use `apps/web/.env.local` from `vercel link` + `vercel env pull --environment=preview` (host `ep-lively-mode-awapxaoj`, the `fetha-preview` project); tell every implementer and reviewer explicitly; guard tracked in #49. Two implementers (#11, #12) migrated Fetha tables into Feudo's test DB before this was caught.
+8. **[2026-09-09] Two parallel tickets both generated `drizzle/0001_*`**
+   Do instead: whichever merges second rebases, deletes its migration and regenerates it as the next number with `pnpm db:generate` (never renumber by hand); check `drizzle/meta/_journal.json` before opening the PR.
+
 ## Shell & Command Reliability
 
 0. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**

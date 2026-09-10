@@ -95,13 +95,19 @@ provide an export named 'kAPIErrorHeaderSymbol'` before the CLI ever reads `DATA
   user-scoped repository built on `UserScopedRepository`
   (`src/lib/user-scoped-repository.ts`): the constructor takes `(db, currentUser)` — the session
   type `CurrentUser`, not a bare string — and no method on a subclass may accept a user id as a
-  parameter. A static `forCurrentUser(db)` factory calls `requireUser()` and constructs the
-  repository from the live session, which is how every call site outside a Better Auth hook is
-  expected to obtain one; `databaseHooks.user.create.after` is the one exception, since it runs
-  before any session exists and constructs `TermsAcceptanceRepository` directly from the just-
-  created user's identity. `TermsAcceptanceRepository` is the first concrete repository and the
-  first isolation test (`terms-acceptance-repository.integration.test.ts`). Every future module
-  reuses this base.
+  parameter. `Repository.forCurrentUser(db)` was tried as a static factory on
+  `UserScopedRepository` itself but reverted (fix-forward on ticket #11's review pass): it needed a
+  lazy `import("@/modules/auth/session")` inside `lib/` to avoid a class-initialization cycle with
+  `options.ts`, which wires repositories whose `extends UserScopedRepository` clause needs the base
+  class already fully evaluated. The factory now lives where the cycle cannot occur:
+  `modules/auth/session.ts` exports `forCurrentUser(db, Repository)`, which calls `requireUser()`
+  and constructs `new Repository(db, user)`; `lib/user-scoped-repository.ts` stays pure, importing
+  only the `CurrentUser` type. `forCurrentUser` is how every call site outside a Better Auth hook is
+  expected to bind a repository to the live session; `databaseHooks.user.create.after` is the one
+  exception, since it runs before any session exists and constructs `TermsAcceptanceRepository`
+  directly from the just-created user's identity. `TermsAcceptanceRepository` is the first concrete
+  repository and the first isolation test (`terms-acceptance-repository.integration.test.ts`).
+  Every future module reuses this base.
 - Reference data, the catalog and shared strategies (ADR-0012) remain the only read-only
   exceptions to tenant scoping (CLAUDE.md, principle 5); `invites` and `mail_outbox` are a third
   class, described below.

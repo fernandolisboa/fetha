@@ -75,6 +75,14 @@ uppercase or metadata and meets 4.5:1 on `--bg` and `--surface`.
 | `--density`      | body 13px, row 36px, panel padding 10px 12px         |                                                 |
 | `--chart-stroke` | `--accent`                                           | payoff and equity lines                         |
 
+`globals.css` also derives implementation-only aliases of `--density` per theme —
+`--text-overline`, `--text-meta`, `--text-body`, `--text-input`, `--text-stat`, `--text-headline`,
+`--text-hero` (the type scale below, already scaled by density), `--row-height` and
+`--panel-padding` — so components read a concrete size instead of recomputing it from `--density`
+at each call site. They are not part of the token contract itself: a fourth theme only has to set
+`--density` and these seven text steps plus `--row-height`/`--panel-padding` consistently with it,
+the same way Terminal and Amplo do today.
+
 ### Terminal
 
 `--bg #0a0b0d` · `--surface #0a0b0d` · `--surface-2 #111317` · `--line #22262c` · `--line-soft

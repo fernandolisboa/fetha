@@ -14,6 +14,13 @@ theme. Three themes ship at launch, born from the three directions explored in P
 air, warm palette, gold accent). Adding a theme is adding a token set and passing the contrast
 test; no component changes. Same model as Feudo's themes, so the two repos share the pipeline.
 
+The choice, and the rail's collapsed/expanded state, are stored in the `preferences` module
+(`apps/web/src/modules/preferences`): a single `preferences` table (`user_id` unique, `theme`,
+`rail_collapsed`), reached only through `PreferencesRepository`, a `UserScopedRepository`
+constructed from the live session via `modules/auth/session.ts`'s `forCurrentUser` (docs/adr/0016).
+`[data-theme="x"]` selectors in `globals.css` are not scoped to `:root`, so a themed swatch can
+nest inside a page styled by a different theme (the theme picker's own preview).
+
 ## Considered options
 
 - One fixed theme: simpler, but the owner wants the choice and the exploration already produced
