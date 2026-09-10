@@ -99,5 +99,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "invalid session date" }, { status: 400 });
   }
 
+  // `force`'s only stated purpose is re-running one corrected session
+  // (#19 round 4 item 3): a bare `{"force": true}` during a multi-day
+  // backlog would otherwise turn the whole drained range into overwrite
+  // mode for every user, so it is rejected with its own message rather than
+  // the generic "invalid session date" above.
+  if (parsed.data.force === true && parsed.data.session === undefined) {
+    return NextResponse.json(
+      { ok: false, error: "force requires an explicit session" },
+      { status: 400 },
+    );
+  }
+
   return runIngestion(parsed.data.session, parsed.data.force);
 }

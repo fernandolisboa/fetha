@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -119,15 +120,21 @@ async function insertSession(session: string): Promise<void> {
     .onConflictDoNothing();
 }
 
+// `high`/`low`/`open`/`average` all derived from `close` (round 4 item 9):
+// hardcoded values produced impossible bars once a test started passing a
+// `close` outside their fixed 9-11 band (e.g. 22.50), harmless while only
+// `close` is read but a trap for the first test that adds a range-based
+// condition.
 async function insertCandle(ticker: Ticker, session: string, close = "10.750000"): Promise<void> {
+  const closeValue = new Decimal(close);
   const row = cotahistStockRowSchema.parse({
     kind: "stock",
     session,
     ticker,
-    open: "10.000000",
-    high: "11.000000",
-    low: "9.000000",
-    average: "10.500000",
+    open: closeValue.toFixed(6),
+    high: closeValue.times("1.02").toFixed(6),
+    low: closeValue.times("0.98").toFixed(6),
+    average: closeValue.toFixed(6),
     close,
     trades: 100,
     tradedQuantity: 5000,
@@ -604,6 +611,16 @@ describe("evaluateSignalsForSession", () => {
     const log = await repository.listEvaluationLog();
     expect(new Set(log.map((row) => row.session))).toEqual(new Set([s3, s4]));
     expect(log.map((row) => row.session)).not.toContain(staleSession);
+
+    // The session set alone is fixed by `since`/`at` and would pass even if
+    // the window never actually widened past s4 (round 4 item 8): only the
+    // newest row's `outcome` depends on the sma(3) warm-up genuinely
+    // reaching back through s2 and s3's real candles rather than the stale
+    // one — too narrow a window computes no sma value at s4 and records
+    // `insufficient_data` instead of a fired signal.
+    const newestRow = log.find((row) => row.session === s4);
+    expect(newestRow?.outcome).toBe("signal");
+    expect(newestRow?.detail).toBeNull();
   });
 
   it("records an explicit unsatisfiable-collection outcome for an iv_rank strategy instead of looping insufficient_data forever (round 2 item 8)", async () => {
@@ -894,5 +911,140 @@ describe("evaluateSignalsForSession", () => {
     const inboxAfterForce = await repository.listInbox();
     expect(inboxAfterForce).toHaveLength(1);
     expect(inboxAfterForce[0]?.proposal?.pricing.spot).toBe("12.340000");
+  });
+
+  it("still catches up a backlogged strategy's skipped sessions on a forced re-run, instead of jumping its watermark to the corrected session alone (round 4 item 1)", async () => {
+    const db = getDb();
+    const [s0, s1, s2, s3] = randomSessionSequence(4);
+    if (!s0 || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
+    createdSessions.push(s0, s1, s2, s3);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("force-backlog");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of [s0, s1, s2, s3]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    // Establishes the watermark at s0. s1 and s2 are then never evaluated —
+    // the strategy going a week without a successful run — before tonight's
+    // ingestion drains only s3, the session the owner corrects and re-runs.
+    const first = await evaluateSignalsForSession(db, [s0]);
+    expect(first.errors).toEqual([]);
+
+    await insertCandle(ticker, s3, "12.340000");
+    const forced = await evaluateSignalsForSession(db, [s3], { force: true });
+    expect(forced.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    // The backlog (s1, s2) is caught up in the same forced run as s3, not
+    // silently lost the moment `force` narrowed `since` to `drainedRangeSince`
+    // (yesterday's close, s2) instead of the strategy's own watermark (s0).
+    expect(new Set(log.map((row) => row.session))).toEqual(new Set([s0, s1, s2, s3]));
+  });
+
+  it("leaves an empty inbox and a conditions_not_met row when a forced re-run's corrected data no longer fires (round 4 item 2)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("force-retract");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session, "12.000000");
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const definition: StrategyDefinition = {
+      name: "Fires above 10",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: ">",
+        right: { kind: "constant", value: decimalString("10") },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition);
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const first = await evaluateSignalsForSession(db, [session]);
+    expect(first.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    expect(await repository.listInbox()).toHaveLength(1);
+
+    // The correction: the real close never crossed the threshold.
+    await insertCandle(ticker, session, "5.000000");
+    const forced = await evaluateSignalsForSession(db, [session], { force: true });
+    expect(forced.errors).toEqual([]);
+
+    expect(await repository.listInbox()).toHaveLength(0);
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]?.session).toBe(session);
+    expect(log[0]?.outcome).toBe("conditions_not_met");
+  });
+
+  it("keeps an unchanged signal's readAt across a forced re-run (round 4 items 2, 4)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("force-readat");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const first = await evaluateSignalsForSession(db, [session]);
+    expect(first.errors).toEqual([]);
+
+    const repository = new SignalsRepository(db, owner);
+    const [signal] = await repository.listInbox();
+    if (!signal) throw new Error("test setup: expected a signal");
+    await repository.markRead(signal.id);
+    const readInbox = await repository.listInbox();
+    expect(readInbox[0]?.readAt).not.toBeNull();
+
+    // No correction this time: a forced re-run over byte-identical data.
+    const forced = await evaluateSignalsForSession(db, [session], { force: true });
+    expect(forced.errors).toEqual([]);
+
+    const afterForce = await repository.listInbox();
+    expect(afterForce).toHaveLength(1);
+    expect(afterForce[0]?.readAt).not.toBeNull();
+    expect(afterForce[0]?.id).toBe(signal.id);
   });
 });

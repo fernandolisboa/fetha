@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, max, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, max, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   adjustmentRuleSchema,
@@ -16,8 +16,11 @@ import {
   type SignalKind,
 } from "@fetha/engine";
 
+import type { Database } from "@/db/client";
 import { evaluations, signals, strategies, NO_OPERATION_ID } from "@/db/schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
+
+type DbOrTx = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export interface NewSignal {
   strategyId: string;
@@ -95,10 +98,84 @@ export class SignalsRepository extends UserScopedRepository {
   // `upsert` (#19 round 3 item 3) is the manual re-run's own path: a
   // corrected candle changes what the engine computes for a session already
   // written once, so `onConflictDoNothing`'s ordinary idempotency would
-  // silently keep the stale row. Forced re-runs overwrite it instead;
-  // `readAt` is reset to null because a materially different proposal is
-  // effectively a new signal, not the one the user already read.
+  // silently keep the stale row. Forced re-runs overwrite it instead. The
+  // update itself only fires when `proposal`, `indicators` or `rule`
+  // genuinely differ from what is already stored (round 4 item 4, via
+  // `setWhere`): an unchanged signal recomputed byte-identical is left
+  // alone, `readAt` included, instead of every triaged signal for a
+  // corrected session going unread again over one unrelated ticker.
   async createSignals(rows: NewSignal[], options: { upsert?: boolean } = {}): Promise<number> {
+    return this.insertSignals(this.db, rows, options.upsert === true);
+  }
+
+  async createEvaluations(
+    rows: NewEvaluation[],
+    options: { upsert?: boolean } = {},
+  ): Promise<number> {
+    return this.insertEvaluations(this.db, rows, options.upsert === true);
+  }
+
+  // The forced re-run's own write path (#19 round 4 items 1-2), one
+  // transaction covering the retraction and both writes: a corrected candle
+  // can make a strategy stop firing, and an upsert alone can only insert or
+  // overwrite, never remove the now-stale signal it can no longer produce.
+  // Every signal in `(strategyVersionId, tickers, sessions)` whose key is
+  // not among `signalRows` is deleted first, then the new evaluations and
+  // signals are upserted (readAt preserved on genuinely unchanged signals,
+  // as in `createSignals` above) — so a correction that no longer fires
+  // actually empties the inbox row instead of leaving a proposal priced off
+  // data that no longer exists.
+  async replaceForForcedRun(
+    strategyVersionId: string,
+    tickers: Ticker[],
+    sessions: string[],
+    signalRows: NewSignal[],
+    evaluationRows: NewEvaluation[],
+  ): Promise<{ signalsWritten: number; evaluationsWritten: number }> {
+    return this.db.transaction(async (tx) => {
+      if (tickers.length > 0 && sessions.length > 0) {
+        await this.retractStaleSignals(tx, strategyVersionId, tickers, sessions, signalRows);
+      }
+      const evaluationsWritten = await this.insertEvaluations(tx, evaluationRows, true);
+      const signalsWritten = await this.insertSignals(tx, signalRows, true);
+      return { signalsWritten, evaluationsWritten };
+    });
+  }
+
+  private async retractStaleSignals(
+    executor: DbOrTx,
+    strategyVersionId: string,
+    tickers: Ticker[],
+    sessions: string[],
+    keepRows: NewSignal[],
+  ): Promise<void> {
+    const keepConditions = keepRows.map((row) =>
+      and(
+        eq(signals.ticker, row.ticker),
+        eq(signals.session, row.session),
+        eq(signals.kind, row.kind),
+        eq(signals.operationId, toStoredOperationId(row.operationId)),
+      ),
+    );
+    const keepAny = or(...keepConditions);
+    await executor
+      .delete(signals)
+      .where(
+        and(
+          eq(signals.userId, this.userId),
+          eq(signals.strategyVersionId, strategyVersionId),
+          inArray(signals.ticker, tickers),
+          inArray(signals.session, sessions),
+          keepAny ? not(keepAny) : undefined,
+        ),
+      );
+  }
+
+  private async insertSignals(
+    executor: DbOrTx,
+    rows: NewSignal[],
+    upsert: boolean,
+  ): Promise<number> {
     if (rows.length === 0) {
       return 0;
     }
@@ -110,7 +187,7 @@ export class SignalsRepository extends UserScopedRepository {
       signals.kind,
       signals.operationId,
     ];
-    const query = this.db.insert(signals).values(
+    const query = executor.insert(signals).values(
       rows.map((row) => ({
         userId: this.userId,
         strategyId: row.strategyId,
@@ -126,7 +203,7 @@ export class SignalsRepository extends UserScopedRepository {
         rule: row.rule,
       })),
     );
-    const inserted = options.upsert
+    const inserted = upsert
       ? await query
           .onConflictDoUpdate({
             target,
@@ -138,15 +215,19 @@ export class SignalsRepository extends UserScopedRepository {
               rule: sql`excluded.rule`,
               readAt: null,
             },
+            setWhere: sql`${signals.proposal} is distinct from excluded.proposal
+              or ${signals.indicators} is distinct from excluded.indicators
+              or ${signals.rule} is distinct from excluded.rule`,
           })
           .returning({ id: signals.id })
       : await query.onConflictDoNothing({ target }).returning({ id: signals.id });
     return inserted.length;
   }
 
-  async createEvaluations(
+  private async insertEvaluations(
+    executor: DbOrTx,
     rows: NewEvaluation[],
-    options: { upsert?: boolean } = {},
+    upsert: boolean,
   ): Promise<number> {
     if (rows.length === 0) {
       return 0;
@@ -157,7 +238,7 @@ export class SignalsRepository extends UserScopedRepository {
       evaluations.ticker,
       evaluations.session,
     ];
-    const query = this.db.insert(evaluations).values(
+    const query = executor.insert(evaluations).values(
       rows.map((row) => ({
         userId: this.userId,
         strategyId: row.strategyId,
@@ -169,7 +250,7 @@ export class SignalsRepository extends UserScopedRepository {
         detail: row.detail,
       })),
     );
-    const inserted = options.upsert
+    const inserted = upsert
       ? await query
           .onConflictDoUpdate({
             target,

@@ -176,4 +176,42 @@ describe("SignalsRepository isolation", () => {
     expect(await repoA.lastEvaluatedSession(versionB.id)).toBeNull();
     expect(await repoB.lastEvaluatedSession(versionB.id)).toBe("2031-06-01");
   });
+
+  it("a forced upsert from user A never touches user B's signal or its read state (round 4 item 5)", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("force-a");
+    const emailB = uniqueEmail("force-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const strategyA = await new StrategiesRepository(db, userA).createWithVersion(definition());
+    const versionA = strategyA.versions[0];
+    if (!versionA) throw new Error("test setup: expected a version");
+    const strategyB = await new StrategiesRepository(db, userB).createWithVersion(definition());
+    const versionB = strategyB.versions[0];
+    if (!versionB) throw new Error("test setup: expected a version");
+
+    const tickerB = randomTicker();
+    const repoB = new SignalsRepository(db, userB);
+    await repoB.createSignals([newSignal(strategyB.id, versionB.id, tickerB)]);
+    const [signalB] = await repoB.listInbox();
+    if (!signalB) throw new Error("test setup: expected a signal");
+    await repoB.markRead(signalB.id);
+
+    const tickerA = randomTicker();
+    const repoA = new SignalsRepository(db, userA);
+    await repoA.replaceForForcedRun(
+      versionA.id,
+      [tickerA],
+      ["2031-06-01"],
+      [newSignal(strategyA.id, versionA.id, tickerA)],
+      [newEvaluation(strategyA.id, versionA.id, tickerA)],
+    );
+
+    const inboxB = await repoB.listInbox();
+    expect(inboxB).toHaveLength(1);
+    expect(inboxB[0]?.id).toBe(signalB.id);
+    expect(inboxB[0]?.readAt).not.toBeNull();
+  });
 });
