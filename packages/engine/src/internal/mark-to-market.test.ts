@@ -1244,6 +1244,41 @@ describe("markToMarket", () => {
     });
   });
 
+  it("returns invalid_input, never throwing, for a corporate-action row keyed by an option leg's own ticker (round 4 item 4)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4C28",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("10"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("returns invalid_input, never throwing, when a near-zero corporate-action factor overflows a safe integer effective quantity (round 3 item 2)", () => {
     const view: MarketView = {
       ...baseView,

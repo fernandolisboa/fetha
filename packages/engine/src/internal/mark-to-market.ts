@@ -154,6 +154,20 @@ function priceExistingOperation(
     }
     const floored = rawEffectiveQuantity.floor().toNumber();
     if (floored <= 0) {
+      // Only a stock leg's own ticker is ever meant to carry a factor != 1 (Q51: an option
+      // leg's factor is always 1, a split forces a series rollover instead); a corporate-action
+      // row keyed by an option leg's own ticker with a factor large enough to dissolve it is
+      // type-valid but domain-invalid input, not the impossible branch the invariant below
+      // still guards (round 4 item 4).
+      if (leg.role !== "stock") {
+        return {
+          ok: false,
+          error: invalidInput(
+            `${path}.legs[${String(legIndex)}]`,
+            "a corporate-action factor dissolves a non-stock leg below one effective unit; only a stock leg's own ticker may carry a factor other than 1",
+          ),
+        };
+      }
       residueOnlyLegIndexes.add(legIndex);
       continue;
     }
