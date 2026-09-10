@@ -426,7 +426,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const factors = (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
       isAtOrBefore(f.asOf, visibleAt),
     );
-    return splitFactorProduct(factors, openedAt, through);
+    const result = splitFactorProduct(factors, openedAt, through);
+    // Every session's evaluateStrategy call below validates the whole, unfiltered
+    // view.corporateActions upfront and fails the run with invalid_input before this ever reads
+    // a factor from it, so a non-positive factor can never reach this call.
+    invariant(result.ok, "run-backtest: evaluateStrategy already rejected a non-positive factor");
+    return result.value;
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
