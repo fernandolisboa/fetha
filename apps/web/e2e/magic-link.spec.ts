@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { clickCreateAccount, readLatestLink, throttleSignUp } from "./support";
+import { readLatestLink, signUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -15,15 +15,11 @@ test("magic link sign-in for a verified account", async ({ page, baseURL, reques
   const email = `fetha-e2e-magic-link-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
-  await page.goto("/cadastro");
-  await page.getByLabel("Nome").fill("Magic Link User");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse-battery-staple");
-  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
-  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
-  await throttleSignUp();
-  await clickCreateAccount(page);
-  await expect(page).toHaveURL(/\/verificar-email\?email=/);
+  await signUp(page, {
+    name: "Magic Link User",
+    email,
+    password: "correct-horse-battery-staple",
+  });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
   await page.goto(verificationLink);
@@ -49,15 +45,11 @@ test("an expired or reused magic link shows the error screen", async ({
   const email = `fetha-e2e-magic-link-invalid-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
-  await page.goto("/cadastro");
-  await page.getByLabel("Nome").fill("Magic Link Invalid");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse-battery-staple");
-  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
-  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
-  await throttleSignUp();
-  await clickCreateAccount(page);
-  await expect(page).toHaveURL(/\/verificar-email\?email=/);
+  await signUp(page, {
+    name: "Magic Link Invalid",
+    email,
+    password: "correct-horse-battery-staple",
+  });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
   await page.goto(verificationLink);

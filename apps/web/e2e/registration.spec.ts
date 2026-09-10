@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { clickCreateAccount, readLatestLink, throttleSignUp } from "./support";
+import { readLatestLink, signUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -14,16 +14,11 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   const email = `fetha-e2e-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
-  await page.goto("/cadastro");
-  await page.getByLabel("Nome").fill("Playwright User");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse-battery-staple");
-  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
-  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
-  await throttleSignUp();
-  await clickCreateAccount(page);
-
-  await expect(page).toHaveURL(/\/verificar-email\?email=/);
+  await signUp(page, {
+    name: "Playwright User",
+    email,
+    password: "correct-horse-battery-staple",
+  });
 
   const link = await readLatestLink(request, baseURL, email, secret);
 
