@@ -1510,6 +1510,7 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
 - **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
   `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
   with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+
 ### #16 addendum: `runBacktest` for stock-only strategies
 
 Issue #16 implements `runBacktest` for the same stock-only subset #15 implements in
