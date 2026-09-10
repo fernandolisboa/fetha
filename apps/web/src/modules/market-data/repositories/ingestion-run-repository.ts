@@ -92,6 +92,14 @@ export async function reapStaleRunningRuns(
     );
 }
 
+// A run's own `running` row is discarded, not marked "failed", when a
+// concurrent invocation already committed a `succeeded` row for the same
+// (source, session): the work was superseded, not lost or broken, and
+// marking it "failed" would misreport a benign race as an ingestion failure.
+export async function deleteRun(db: Database, id: string): Promise<void> {
+  await db.delete(ingestionRuns).where(eq(ingestionRuns.id, id));
+}
+
 export async function latestRunPerSource(db: Database): Promise<IngestionRun[]> {
   const rows = await db.select().from(ingestionRuns).orderBy(desc(ingestionRuns.startedAt));
   const latestBySource = new Map<IngestionSource, IngestionRun>();

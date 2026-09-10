@@ -293,4 +293,35 @@ describe("ingest", () => {
     expect(succeededSessions).toContain(OLDER_SESSION);
     expect(succeededSessions).toContain(TEST_SESSION);
   }, 120_000);
+
+  it("two concurrent invocations for the same session never both record a failed run", async () => {
+    const db = getDb();
+    const fetchSpy = fakeFetch(TEST_SESSION);
+
+    const [first, second] = await Promise.all([
+      ingest(db, {
+        session: TEST_SESSION,
+        now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+        fetchImpl: fetchSpy,
+      }),
+      ingest(db, {
+        session: TEST_SESSION,
+        now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+        fetchImpl: fetchSpy,
+      }),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const cotahistRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "cotahist"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(cotahistRuns.filter((run) => run.status === "failed")).toHaveLength(0);
+    expect(cotahistRuns.filter((run) => run.status === "succeeded")).toHaveLength(1);
+
+    const [candleRow] = await db.select().from(candles).where(eq(candles.ticker, STOCK_TICKER));
+    expect(candleRow?.close).toBe("1.080000");
+  });
 });

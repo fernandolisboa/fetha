@@ -15,6 +15,7 @@ import {
   upsertTradingSessions,
 } from "./repositories/calendar-repository";
 import {
+  deleteRun,
   finishRun,
   findSucceededRun,
   reapStaleRunningRuns,
@@ -82,12 +83,32 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
   };
 }
 
-// The running row is inserted and committed with the plain `db` handle
-// before the locked work starts, and finished (succeeded/failed) with `db`
-// again after the lock is released: the advisory lock only ever wraps the
-// fetch-plus-write `run()` callback, never the bookkeeping around it, so a
-// `running` row is visible to `reapStaleRunningRuns` the moment a run starts
-// instead of only becoming visible once it has already finished (docs/adr/0017).
+const UNIQUE_VIOLATION = "23505";
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === UNIQUE_VIOLATION
+  );
+}
+
+// Only the initial `running` row is inserted and committed with the plain
+// `db` handle before the lock is acquired, so `reapStaleRunningRuns` can see
+// and age it out even while this invocation waits on the lock. The
+// `succeeded` marker is written and committed from inside the same locked
+// transaction as the fetch-plus-write `run()` callback (docs/adr/0017): if it
+// were written after the lock released, a second invocation could acquire
+// the lock in the gap, find no succeeded row yet, redo the work, and then
+// collide on the partial unique index when it tries to record its own
+// `succeeded` row for the same (source, session). That collision is still
+// possible for two runs that both started concurrently before either
+// acquired the lock: the losing run's `finishRun` is attempted inside its
+// own savepoint (not the outer transaction directly), so a unique-violation
+// there rolls back only the marker write, never the `run()` writes already
+// made in the surrounding transaction, and is treated as `skipped`, not
+// `failed`, since the work already succeeded under the other run's id.
 async function runSource(
   db: Database,
   source: IngestionSource,
@@ -104,15 +125,35 @@ async function runSource(
 
   const runId = await startRun(db, source, session);
   try {
-    const rowCount = await withSourceLock(db, source, async (tx) => {
+    const result = await withSourceLock(db, source, async (tx) => {
       const alreadySucceeded = await findSucceededRun(tx, source, session);
       if (alreadySucceeded) {
-        return alreadySucceeded.rowCount ?? 0;
+        return { rowCount: alreadySucceeded.rowCount ?? 0, skipped: true };
       }
-      return run();
+      const rowCount = await run();
+      const committed = await tx
+        .transaction(async (savepoint) => {
+          // Same nominal-type gap as withSourceLock's own cast: the
+          // savepoint handle implements the query builder surface this
+          // module needs, just under a stricter internal Drizzle type.
+          await finishRun(savepoint as unknown as Database, runId, {
+            status: "succeeded",
+            rowCount,
+          });
+        })
+        .then(() => true)
+        .catch((error: unknown) => {
+          if (!isUniqueViolation(error)) {
+            throw error;
+          }
+          return false;
+        });
+      return { rowCount, skipped: !committed };
     });
-    await finishRun(db, runId, { status: "succeeded", rowCount });
-    return { source, skipped: false, rowCount };
+    if (result.skipped) {
+      await deleteRun(db, runId);
+    }
+    return { source, skipped: result.skipped, rowCount: result.rowCount };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     await finishRun(db, runId, { status: "failed", error: message });
