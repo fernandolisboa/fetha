@@ -4,3 +4,8 @@
 // component needs types like `InstrumentSearchResult` without dragging that
 // server graph into its bundle.
 export type { InstrumentSearchResult } from "./repositories/candle-repository";
+export {
+  closeFreshnessKind,
+  sessionDateToDisplayDate,
+  type CloseFreshness,
+} from "./close-freshness";
