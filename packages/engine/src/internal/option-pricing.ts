@@ -63,9 +63,10 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
     sigma = Number(input.givenVolatility);
   }
 
+  let suppressIv = false;
   if (input.marketPrice) {
     const price = Number(input.marketPrice.value);
-    const suppressIv = Boolean(input.marketPrice.stale) && input.suppressStaleImpliedVolatility;
+    suppressIv = Boolean(input.marketPrice.stale) && Boolean(input.suppressStaleImpliedVolatility);
     if (suppressIv) {
       notes.push({
         code: "stale_price_across_corporate_action",
@@ -94,7 +95,7 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
         }
       }
     }
-    if (input.marketPrice.source === "average") {
+    if (input.marketPrice.source === "average" && !suppressIv) {
       notes.push({
         code: "iv_from_average_price",
         message: "implied volatility solved from the session average price",
