@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 
 import { requireUser, SignOutButton } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
+import {
+  getCurrentRiskProfile,
+  RiskProfileForm,
+  t as riskProfileStrings,
+} from "@/modules/risk-profile";
 import { t } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}` };
@@ -9,6 +14,7 @@ export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}`
 export default async function SettingsPage() {
   await requireUser();
   const preferences = await getPreferences();
+  const riskProfile = await getCurrentRiskProfile();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
@@ -25,6 +31,14 @@ export default async function SettingsPage() {
           <p className="text-muted-foreground text-xs">{preferencesStrings.themePicker.subtitle}</p>
         </div>
         <ThemePicker current={preferences.theme} />
+      </section>
+
+      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+        <div>
+          <h2 className="text-sm font-medium">{riskProfileStrings.form.title}</h2>
+          <p className="text-muted-foreground text-xs">{riskProfileStrings.form.subtitle}</p>
+        </div>
+        <RiskProfileForm current={riskProfile} />
       </section>
 
       <section>
