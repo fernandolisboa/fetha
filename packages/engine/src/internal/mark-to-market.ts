@@ -12,16 +12,18 @@ import type {
   PortfolioValuation,
   Result,
 } from "../api";
-import { sessionAtOrBefore, sessionByDate } from "./calendar";
+import { sessionAtOrBefore } from "./calendar";
 import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined, invariant } from "./invariant";
 import { isAtOrBefore } from "./instant";
+import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { validateOperationCoherence } from "./operation-coherence";
 import { priceLegsAt } from "./price-operation";
 import type { ProvenanceBase } from "./provenance";
+import { resolveExpiryClose } from "./resolve-expiry-close";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -34,19 +36,6 @@ function err(error: EngineError): Result<PortfolioValuation> {
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;
-}
-
-function insufficientCandles(underlying: string, at: Instant): EngineError {
-  return {
-    code: "insufficient_data",
-    needed: {
-      from: at,
-      to: at,
-      instruments: [underlying],
-      timeframes: ["D1"],
-      collections: ["candles"],
-    },
-  };
 }
 
 type ExpiredIntrinsicBasis =
@@ -74,13 +63,9 @@ function resolveExpiredIntrinsicBasis(
   if (operation.expiry === null) return { kind: "not_expired" };
   if (markSession < operation.expiry) return { kind: "not_expired" };
 
-  const expirySession = sessionByDate(view.calendar, operation.expiry);
-  if (!expirySession) {
-    return {
-      kind: "error",
-      error: insufficientCandles(operation.underlying, `${operation.expiry}T00:00:00.000Z`),
-    };
-  }
+  const expirySessionResult = resolveExpiryClose(view, operation);
+  if (!expirySessionResult.ok) return { kind: "error", error: expirySessionResult.error };
+  const expirySession = expirySessionResult.session;
   // On the expiry session itself, the operation is only actually expired once the session's
   // own close has passed: pricing it at intrinsic any earlier — even a moment before close —
   // would read the expiry candle before it is visible at `at` (I1). `at`'s own session already
@@ -363,10 +348,7 @@ export function markToMarket(
 
   const notes: Note[] = [];
   if (!input.riskProfile) {
-    notes.push({
-      code: "no_risk_profile",
-      message: "no risk profile supplied; limits not checked",
-    });
+    notes.push(NO_RISK_PROFILE_NOTE);
   }
 
   // A generic "at least one leg/position has no visible market price" note does not say
@@ -400,10 +382,7 @@ export function markToMarket(
         message: "no market price visible for this position",
       });
     } else if (resolved?.stale) {
-      positionNotes.push({
-        code: "stale_price",
-        message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
-      });
+      positionNotes.push(STALE_PRICE_NOTE);
     }
 
     const value =

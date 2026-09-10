@@ -5,6 +5,7 @@ import { bsmGreeksRaw, bsmPriceRaw, type OptionRightRaw } from "./black-scholes"
 import { SESSIONS_PER_YEAR } from "./calendar";
 import { PRICE_SCALE, RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
+import { STALE_PRICE_NOTE } from "./notes";
 
 export type ResolvedMarketPrice = {
   value: DecimalString;
@@ -100,10 +101,7 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
       });
     }
     if (input.marketPrice.stale) {
-      notes.push({
-        code: "stale_price",
-        message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
-      });
+      notes.push(STALE_PRICE_NOTE);
     }
   } else {
     notes.push({ code: "no_market_price", message: "no market price visible for this leg" });

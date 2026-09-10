@@ -26,6 +26,7 @@ import {
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
+import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
 import { priceOptionLeg } from "./option-pricing";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -96,12 +97,7 @@ function valueOneLeg(
       timeToExpiryYears: null,
       notes: price
         ? resolved?.stale
-          ? [
-              {
-                code: "stale_price",
-                message: "mark carried forward from the series' last trade (ADR-0014 Q42)",
-              },
-            ]
+          ? [STALE_PRICE_NOTE]
           : []
         : [{ code: "no_market_price", message: "no market price visible for this leg" }],
     };
@@ -347,10 +343,7 @@ function applyRiskLimits(
 ): LimitBreach[] {
   const limitBreaches: LimitBreach[] = [];
   if (!riskProfile) {
-    notes.push({
-      code: "no_risk_profile",
-      message: "no risk profile supplied; limits not checked",
-    });
+    notes.push(NO_RISK_PROFILE_NOTE);
     return limitBreaches;
   }
 
@@ -501,8 +494,9 @@ function valueLegs(
 // by every step that happens to need a rate: the concrete-legs path resolves it once for
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
-// (PR #53 round 1 item 19).
-export function resolveOperationRates(
+// (PR #53 round 1 item 19). Not exported: `priceLegsAt` and `priceOperation` are the only
+// public surface of this module (round 3 item 10).
+function resolveOperationRates(
   view: MarketView,
   at: string,
   underlying: string,
@@ -521,7 +515,9 @@ export function resolveOperationRates(
   };
 }
 
-export function priceConcreteLegs(
+// Not exported (round 3 item 10): `priceLegsAt` and `priceOperation` are the only public
+// surface of this module.
+function priceConcreteLegs(
   view: MarketView,
   at: string,
   underlying: string,

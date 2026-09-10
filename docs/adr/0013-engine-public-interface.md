@@ -1710,7 +1710,13 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   strictly after the stale row's own session and at or before the mark session: the solve is
   skipped, `impliedVolatility`, `volatilitySource`, `fairValue` and `greeks` stay `null`, and the
   additive `stale_price_across_corporate_action` note explains why, alongside `stale_price`
-  (round 3 item 9).
+  (round 3 item 9). `resolveOperationRates` and `priceConcreteLegs` are un-exported: `priceLegsAt`
+  and `priceOperation` are the module's only public surface. `resolveExpiryClose(view,
+operation)` (`internal/resolve-expiry-close.ts`) replaces `markToMarket`'s and
+  `proposeSettlement`'s own duplicate `sessionByDate` calls and matching `insufficient_data`
+  shape for a calendar gap on an operation's own expiry. The `stale_price` and `no_risk_profile`
+  `Note` messages, independently declared a third time each, are now the shared
+  `STALE_PRICE_NOTE`/`NO_RISK_PROFILE_NOTE` constants (`internal/notes.ts`) (round 3 item 10).
 
 ## Considered options
 

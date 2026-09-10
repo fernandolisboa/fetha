@@ -14,11 +14,11 @@ import type {
   Side,
   TradingSession,
 } from "../api";
-import { sessionByDate } from "./calendar";
 import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
 import type { ProvenanceBase } from "./provenance";
+import { resolveExpiryClose } from "./resolve-expiry-close";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos } from "./scalars";
 import { validateViewIntegrity } from "./validate-view-integrity";
@@ -28,33 +28,10 @@ function err(error: EngineError): Result<SettlementProposal> {
   return { ok: false, error };
 }
 
-// A `SessionDate` alone (no candle asOf, no session close) is what `insufficient_data` has to
-// report when the calendar does not cover the expiry session at all: there is no real Instant
-// to name yet, since resolving one is exactly what is missing. A midnight-UTC instant on that
-// date is informational only (never fed back into a computation) and tells the caller which
-// day to fetch (ADR-0013 #25 addendum).
-function sessionDateToInstant(date: SessionDate): Instant {
-  return `${date}T00:00:00.000Z`;
-}
-
-// The calendar-gap case: no `TradingSession` at all for this date, so there is no real
-// open/close instant to name and the midnight-UTC placeholder above is the best hint the
-// caller gets. Distinct from `insufficientCandlesForSession` below, whose calendar coverage
-// gives a real window (round 1 item 10).
-function insufficientCandles(underlying: Ticker, session: SessionDate): EngineError {
-  const at = sessionDateToInstant(session);
-  return {
-    code: "insufficient_data",
-    needed: {
-      from: at,
-      to: at,
-      instruments: [underlying],
-      timeframes: ["D1"],
-      collections: ["candles"],
-    },
-  };
-}
-
+// The calendar-gap case (no `TradingSession` at all for the expiry date) is `resolveExpiryClose`
+// (round 3 item 10, shared with markToMarket). Distinct from `insufficientCandlesForSession`
+// below, whose calendar coverage gives a real open/close window (round 1 item 10) instead of
+// the midnight-UTC placeholder a calendar gap has to fall back on.
 function insufficientCandlesForSession(underlying: Ticker, session: TradingSession): EngineError {
   return {
     code: "insufficient_data",
@@ -173,8 +150,9 @@ export function proposeSettlement(
     );
   }
 
-  const session = sessionByDate(input.view.calendar, operation.expiry);
-  if (!session) return err(insufficientCandles(operation.underlying, operation.expiry));
+  const expiryCloseResult = resolveExpiryClose(input.view, operation);
+  if (!expiryCloseResult.ok) return err(expiryCloseResult.error);
+  const session = expiryCloseResult.session;
   const expiryClose = session.close;
 
   const coherenceError = validateOperationCoherence(
