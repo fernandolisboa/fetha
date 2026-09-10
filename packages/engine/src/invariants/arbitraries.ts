@@ -90,6 +90,10 @@ const priceWalkArbitrary = fc
     });
   });
 
+const exitFractionArbitrary = fc
+  .integer({ min: 2, max: 20 })
+  .map((percent) => decimalString((percent / 100).toFixed(2)));
+
 const stockStructure: Structure = {
   id: "stock",
   name: "Stock",
@@ -111,14 +115,20 @@ export type LongBacktestFixture = {
   cdiAnnualRate: DecimalString;
 };
 
-// A single buy-and-hold operation over a long, randomly walking price series with a non-zero
-// CDI: enough to exercise annualized sharpe/cagr and give a chunked run and a prefix run
-// something non-trivial to diverge on if the checkpoint state is wrong (I2, I7), without the
-// arbitrary itself needing to model entries, exits or limits realistically — those invariants
-// are about the resumption plumbing, not about strategy behavior.
+// A long, randomly walking price series with a non-zero CDI and a real exit rule: enough to
+// exercise annualized sharpe/cagr and give a chunked run and a prefix run something non-trivial
+// to diverge on if the checkpoint state is wrong (I2, I7) — pendingExits and realized sales
+// sometimes in flight at the cut, not only a single buy-and-hold leg — without the arbitrary
+// itself needing to model limits realistically, since those invariants are about the resumption
+// plumbing, not about strategy behavior.
 export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = fc
-  .tuple(priceWalkArbitrary, fc.integer({ min: 100, max: 3000 }), fc.integer({ min: 1, max: 2000 }))
-  .map(([prices, cdiBasisPoints, initialCapitalReais]) => {
+  .tuple(
+    priceWalkArbitrary,
+    exitFractionArbitrary,
+    fc.integer({ min: 100, max: 3000 }),
+    fc.integer({ min: 1, max: 2000 }),
+  )
+  .map(([prices, exitFraction, cdiBasisPoints, initialCapitalReais]) => {
     const calendar: TradingSession[] = [];
     const candles: Candle[] = [];
     for (let i = 0; i < BACKTEST_FIXTURE_SESSIONS; i += 1) {
@@ -138,13 +148,13 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
       });
     }
     const definition: StrategyDefinition = {
-      name: "buy and hold",
+      name: "buy, take profit and re-enter",
       timeframe: "D1",
       structureId: "stock",
       strikes: [],
       sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
       entry: alwaysTrueEntry,
-      exit: [],
+      exit: [{ kind: "profit_target", fractionOfPremium: exitFraction }],
       adjustments: [],
     };
     const strategy: StrategyVersion = { id: "v1", definition, structure: stockStructure };

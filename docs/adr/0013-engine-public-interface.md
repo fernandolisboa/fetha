@@ -1383,7 +1383,11 @@ and landing with the first implementation ticket that makes it testable.
   and a run over `[from, to]` with `to > D` produce identical fills and equity curve up to and
   including session D, and identical operations except those still held at D's close: the
   shorter run closes them with reason `period_end` at that close's mark (no fill, no cost, so
-  equity at D agrees), the longer run carries them on. A checkpoint paused at cursor D carries no
+  equity at D agrees modulo the period-end tax sweep), the longer run carries them on. `D` being
+  the shorter run's own `period.to` finalizes and deducts that month's tax there even when the
+  month is not yet over, which the longer run only does at the month's real last session — the
+  two only disagree on `equity`/`cash` at `D` when that month already has a non-zero stock gain
+  or sale by `D`, and only by exactly that tax. A checkpoint paused at cursor D carries no
   information from rows with `asOf` later than D's close.
 
 An eighth test, `capabilities.conformance.test.ts`, asserts that every `kind` reported by

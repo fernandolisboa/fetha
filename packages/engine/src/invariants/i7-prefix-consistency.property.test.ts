@@ -67,9 +67,12 @@ describe("I7 Prefix-consistency", () => {
 
           // Whatever is still open in the full run at the cut's close is closed with
           // period_end in the short run instead (no fill, no cost — same mark, same
-          // equity), per ADR-0013's I7.
+          // equity), per ADR-0013's I7. "Still open at the cut" means the operation was
+          // already opened by then, not merely closed at some later date — with an exit
+          // rule and re-entry in play, a later operation the full run hasn't even opened
+          // yet by the cut also has closedAt > cutSession.date and must not be counted.
           const stillOpenAtCutInFullRun = fullRun.operations.filter(
-            (op) => op.closedAt > cutSession.date,
+            (op) => op.openedAt <= cutSession.date && op.closedAt > cutSession.date,
           );
           const shortOpsAtPeriodEnd = shortRun.operations.filter(
             (op) => op.status === "closed" && op.closeReason.kind === "period_end",
