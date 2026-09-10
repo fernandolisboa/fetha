@@ -8,8 +8,11 @@ import type {
   MacroPoint,
   MarketView,
   Operation,
+  OptionDayPrice,
+  OptionSeries,
   Signal,
   StrategyVersion,
+  TradingSession,
 } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
 import { evaluateStrategy } from "./evaluate-strategy";
@@ -44,6 +47,44 @@ const dailyCandle = (ticker: string, index: number, close: string): Candle => {
     close: decimalString(close),
     tradedQuantity: 1000,
   };
+};
+
+const calendarSessions = (count: number): TradingSession[] =>
+  Array.from({ length: count }, (_, i) => {
+    const session = sessionAt(i);
+    return { date: session, open: `${session}T13:00:00.000Z`, close: `${session}T21:00:00.000Z` };
+  });
+
+const callSeries = (
+  ticker: string,
+  strike: string,
+  expiry: string,
+  asOf: string,
+): OptionSeries => ({
+  ticker,
+  underlying: "PETR4",
+  right: "call",
+  strike: decimalString(strike),
+  expiry,
+  style: "european",
+  asOf,
+});
+
+const optionClose = (ticker: string, session: string, close: string): OptionDayPrice => ({
+  ticker,
+  session,
+  asOf: `${session}T21:00:00.000Z`,
+  average: null,
+  close: decimalString(close),
+  trades: 1,
+  tradedQuantity: 10,
+});
+
+const alwaysTrue: Condition = {
+  kind: "compare",
+  left: { kind: "price", field: "close" },
+  comparator: ">",
+  right: { kind: "constant", value: decimalString("0") },
 };
 
 const stockStructure: Structure = {
@@ -495,7 +536,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.value.signals).toEqual([]);
   });
 
-  it("returns unsupported for a structure with option legs, citing the strike selection kind", () => {
+  it("records no_series_match for a structure with option legs when no listed series matches", () => {
     const optionStructure: Structure = {
       id: "covered_call",
       name: "Covered call",
@@ -505,28 +546,31 @@ describe("evaluateStrategy — stock-only strategies", () => {
         { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
       ] as LegTemplate[],
     };
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+    };
     const input: EvaluateStrategyInput = {
-      view: emptyView,
+      view,
       strategy: strategyVersion(
         definition({
-          entry: closeAboveSma(3),
+          entry: alwaysTrue,
           structureId: "covered_call",
           strikes: [{ kind: "moneyness", percent: decimalString("0.05") }],
-          expiry: { kind: "business_days", min: 20, max: 45 },
+          expiry: { kind: "business_days", min: 1, max: 20 },
         }),
         optionStructure,
       ),
       instruments: ["PETR4"],
-      at: "2024-01-04T21:00:00.000Z",
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
     };
     const result = evaluateStrategy(input);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toEqual({
-      code: "unsupported",
-      vocabulary: "strikeSelections",
-      kind: "moneyness",
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("no_series_match");
+    expect(result.value.signals).toEqual([]);
   });
 
   it("rejects a stock-only definition with strikes as invalid_input", () => {
@@ -855,7 +899,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     });
   });
 
-  it("rejects an open operation with an option leg as invalid_input", () => {
+  it("rejects an open operation whose option leg's listed expiry does not match the operation's own expiry", () => {
     const optionOperation: Operation = {
       id: "op-1",
       underlying: "PETR4",
@@ -873,8 +917,12 @@ describe("evaluateStrategy — stock-only strategies", () => {
       strategyVersionId: "v1",
       rolledFrom: null,
     };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-01-19", "2024-01-01T21:00:00.000Z")],
+    };
     const input: EvaluateStrategyInput = {
-      view: emptyView,
+      view,
       strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
       instruments: ["PETR4"],
       at: "2024-01-04T21:00:00.000Z",
@@ -885,8 +933,136 @@ describe("evaluateStrategy — stock-only strategies", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "invalid_input",
-      path: "openOperations[0].legs",
-      message: "evaluateStrategy only evaluates stock-only operations for now",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's listed expiry does not match the operation's expiry",
+    });
+  });
+
+  // Round 2 item 3: `validateOpenOperations` used to be a hand-rolled copy of
+  // `validateOperationCoherence` that skipped `series.underlying`, `series.right` and
+  // `openedAt <= at`, so `evaluateStrategy` accepted an operation `markToMarket` would
+  // reject. It now delegates to `validateOperationCoherence` and rejects the same three
+  // shapes markToMarket already does.
+  it("rejects an open operation whose option leg's listed underlying does not match the operation's underlying", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "VALE3C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-19",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [
+        {
+          ...callSeries("VALE3C40", "40.00", "2024-01-19", "2024-01-01T21:00:00.000Z"),
+          underlying: "VALE3",
+        },
+      ],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's listed underlying does not match the operation's underlying",
+    });
+  });
+
+  it("rejects an open operation whose option leg's role does not match its listed series' right", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-19",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-01-19", "2024-01-01T21:00:00.000Z")],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].legs[0]",
+      message: "an option leg's role does not match its listed series' right",
+    });
+  });
+
+  it("rejects an open operation opened after the instant it is evaluated at", () => {
+    const stockOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: sessionAt(10),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(12),
+      candles: [dailyCandle("PETR4", 3, "10.00")],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: `${sessionAt(3)}T21:00:00.000Z`,
+      openOperations: [stockOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].openedAt",
+      message: "an operation cannot be opened after the instant it is valued at",
     });
   });
 
@@ -1135,6 +1311,30 @@ describe("evaluateStrategy — stock-only strategies", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
     expect(result.error).toMatchObject({ path: "view.corporateActions" });
+  });
+
+  // Round 2 item 13: validateBatchInvariants now delegates to validateViewIntegrity, which
+  // it never called before — this is a genuinely new check, not a message-only rename.
+  it("rejects a duplicate (ticker, asOf) pair in optionPrices as invalid_input", () => {
+    const dayPrice = {
+      ticker: "PETR4C40",
+      session: "2024-01-02",
+      asOf: "2024-01-02T21:00:00.000Z",
+      average: decimalString("1.00"),
+      close: decimalString("1.00"),
+      trades: 1,
+      tradedQuantity: 10,
+    };
+    const input: EvaluateStrategyInput = {
+      view: { ...emptyView, optionPrices: [dayPrice, dayPrice] },
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.optionPrices" });
   });
 
   it("rejects a duplicate (series, asOf) pair in macro as invalid_input", () => {
@@ -1707,5 +1907,615 @@ describe("evaluateStrategy — stock-only strategies", () => {
       detail: "fixed_risk sizing is unsizeable against an unbounded max loss",
     });
     expect(result.value.signals).toEqual([]);
+  });
+});
+
+describe("evaluateStrategy — option structures (#23)", () => {
+  const petr4Quote = (at: string) => ({
+    ticker: "PETR4" as const,
+    asOf: at,
+    last: decimalString("30.00"),
+    bid: null,
+    ask: null,
+  });
+
+  const coveredCall: Structure = {
+    id: "covered_call",
+    name: "Covered call",
+    expiry: "shared",
+    legs: [
+      { role: "stock", side: "buy", ratio: 100 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+    ] as LegTemplate[],
+  };
+
+  const bullCallSpread: Structure = {
+    id: "bull_call_spread",
+    name: "Trava de alta",
+    expiry: "shared",
+    legs: [
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+    ] as LegTemplate[],
+  };
+
+  const optionDef = (
+    overrides: Partial<StrategyDefinition> & Pick<StrategyDefinition, "entry" | "structureId">,
+  ): StrategyDefinition => ({
+    name: "test",
+    timeframe: "D1",
+    strikes: [],
+    sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+    exit: [],
+    adjustments: [],
+    expiry: { kind: "business_days", min: 1, max: 20 },
+    ...overrides,
+  });
+
+  it("fires an entry signal for a covered call when a listed call series is visible", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "33.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C33", sessionAt(0), "2.00")],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    expect(result.value.signals).toHaveLength(1);
+    const signal = result.value.signals[0] as Extract<Signal, { kind: "entry" }>;
+    expect(signal.proposal.legs.map((l) => l.role)).toEqual(["stock", "call"]);
+    expect(signal.proposal.legs[1]?.ticker).toBe("PETR4C33");
+    expect(signal.proposal.pricing.legs[1]?.leg.side).toBe("sell");
+  });
+
+  it("records unsizeable for an option entry when the sizing rule yields fewer than one unit", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "33.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C33", sessionAt(0), "2.00")],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile: {
+        declaredCapital: centavos(100_00),
+        limits: riskProfile.limits,
+      },
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("unsizeable");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("records degenerate_strikes for a trava de alta whose two ranks resolve to the same listed strike", () => {
+    const expiry = sessionAt(15);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+      optionPrices: [optionClose("PETR4C33", sessionAt(0), "2.00")],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("33.00") },
+            { kind: "nearest", price: decimalString("33.00") },
+          ],
+        }),
+        bullCallSpread,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("degenerate_strikes");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("records insufficient_data for an option entry when a leg has no visible market price to size against", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "33.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          sizing: { kind: "fixed_risk", fraction: decimalString("0.5") },
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("fires an exit signal for an option operation on a profit target", () => {
+    const expiry = sessionAt(15);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00"), dailyCandle("PETR4", 1, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C32", "32.00", expiry, `${sessionAt(0)}T21:00:00.000Z`),
+        { ...callSeries("PETR4C35", "35.00", expiry, `${sessionAt(0)}T21:00:00.000Z`) },
+      ],
+      optionPrices: [
+        optionClose("PETR4C32", sessionAt(1), "3.00"),
+        optionClose("PETR4C35", sessionAt(1), "0.05"),
+      ],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C32",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C35",
+          quantity: quantity(1),
+          entryPrice: decimalString("0.30"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("32.00") },
+            { kind: "nearest", price: decimalString("35.00") },
+          ],
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.1") }],
+        }),
+        bullCallSpread,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(1)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    const signal = result.value.signals[0] as Extract<Signal, { kind: "exit" }>;
+    expect(signal.kind).toBe("exit");
+    expect(signal.operationId).toBe("op-1");
+  });
+
+  // Round 2 item 2 coverage: computeExitRuleBases's own legs price at `leg.entryPrice`
+  // ("given"), so it succeeds with no optionPrices data at all — evaluateNumericExitRule's
+  // own priceLegsAt call resolves a real market price instead, and with none visible for
+  // this leg, neither `price` nor `fairValue` (never solved without one) exists, so the
+  // rule reports insufficient_data rather than silently comparing against a zero pnl.
+  it("reports insufficient_data for a profit_target exit when an option leg has no visible market price", () => {
+    const expiry = sessionAt(9);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(10),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(0)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("fires a days_before_expiry exit when fewer sessions than businessDays remain", () => {
+    const expiry = sessionAt(2);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(10),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          exit: [{ kind: "days_before_expiry", businessDays: 3 }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(0)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    const signal = result.value.signals[0] as Extract<Signal, { kind: "exit" }>;
+    expect(signal.kind).toBe("exit");
+    expect(signal.rule).toEqual({ kind: "days_before_expiry", businessDays: 3 });
+  });
+
+  it("does not fire a days_before_expiry exit when more sessions than businessDays remain", () => {
+    const expiry = sessionAt(9);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(10),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          exit: [{ kind: "days_before_expiry", businessDays: 3 }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(0)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("records insufficient_data for a numeric exit rule when an option leg has no current market price or volatility source", () => {
+    const expiry = sessionAt(15);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00"), dailyCandle("PETR4", 1, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C32", "32.00", expiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C35", "35.00", expiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      // PETR4C35 never traded: no market price and no given volatility means the model
+      // cannot solve a fair value for it either, so its current premium is unknowable.
+      optionPrices: [optionClose("PETR4C32", sessionAt(1), "3.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C32",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C35",
+          quantity: quantity(1),
+          entryPrice: decimalString("0.30"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("32.00") },
+            { kind: "nearest", price: decimalString("35.00") },
+          ],
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.1") }],
+        }),
+        bullCallSpread,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(1)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("records insufficient_data for a days_before_expiry exit when the calendar does not cover the expiry", () => {
+    const expiry = "2099-12-31";
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(10),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          exit: [{ kind: "days_before_expiry", businessDays: 3 }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(0)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("rejects an open operation with option legs and expiry: null as invalid_input", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].expiry",
+      message: "an operation with option legs must have an expiry",
+    });
+  });
+
+  it("propagates a priceOperation invalid_input (a non-positive listed strike) as the entry pricing error", () => {
+    const coveredCall: Structure = {
+      id: "covered_call",
+      name: "Covered call",
+      expiry: "shared",
+      legs: [
+        { role: "stock", side: "buy", ratio: 100 },
+        { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+      ] as LegTemplate[],
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "-1.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("-1.00") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "legs[1].strike",
+      message: "a listed strike must be positive",
+    });
   });
 });

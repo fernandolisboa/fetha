@@ -8,12 +8,12 @@ export function computeMonthlyTax(
   month: string,
   stockSales: Centavos,
   stockGain: Centavos,
+  optionGain: Centavos,
   costModel: CostModel,
 ): MonthlyTax {
   const exempt = stockSales <= costModel.monthlyStockSalesExemption;
   const exemptGain = exempt ? toCentavos(Math.max(stockGain, 0)) : toCentavos(0);
   const taxableStockGain = exempt ? 0 : stockGain;
-  const optionGain = 0;
   const netGain = toCentavos(taxableStockGain + optionGain);
   const tax = toCentavos(
     Math.max(netGain, 0) === 0
@@ -27,7 +27,7 @@ export function computeMonthlyTax(
     month,
     stockSales,
     stockGain,
-    optionGain: toCentavos(optionGain),
+    optionGain,
     exemptGain,
     netGain,
     tax,
