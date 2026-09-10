@@ -66,7 +66,7 @@ export async function loadCandleSeries(
   });
 }
 
-function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["candles"][number] {
+export function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["candles"][number] {
   return {
     ticker,
     timeframe: ENGINE_TIMEFRAME,

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ingestMock = vi.hoisted(() => vi.fn());
+const evaluateSignalsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
+vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -12,6 +14,14 @@ describe("cron ingest route", () => {
     process.env.CRON_SECRET = "test-secret";
     ingestMock.mockReset();
     ingestMock.mockResolvedValue({ session: "2026-09-08", ok: true, sources: [] });
+    evaluateSignalsMock.mockReset();
+    evaluateSignalsMock.mockResolvedValue({
+      session: "2026-09-08",
+      usersEvaluated: 0,
+      signalsWritten: 0,
+      evaluationsWritten: 0,
+      errors: [],
+    });
   });
 
   afterEach(() => {
@@ -44,6 +54,35 @@ describe("cron ingest route", () => {
     );
     expect(response.status).toBe(200);
     expect(ingestMock).toHaveBeenCalledWith({}, {});
+  });
+
+  it("chains the signal evaluation onto the session ingestion just reported", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(evaluateSignalsMock).toHaveBeenCalledWith({}, "2026-09-08");
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({
+      evaluation: { session: "2026-09-08", usersEvaluated: 0, signalsWritten: 0 },
+    });
+  });
+
+  it("skips the signal evaluation when ingestion reports no session", async () => {
+    ingestMock.mockResolvedValue({ session: null, ok: true, sources: [] });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(evaluateSignalsMock).not.toHaveBeenCalled();
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ evaluation: null });
   });
 
   it("returns 500 and ok:false when a source failed", async () => {

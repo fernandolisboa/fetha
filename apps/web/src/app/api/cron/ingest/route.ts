@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { ingest } from "@/modules/market-data";
+import { evaluateSignalsForSession } from "@/modules/strategies";
 
 export const maxDuration = 300;
 
@@ -22,9 +23,17 @@ function isAuthorized(authorizationHeader: string | null): boolean {
 
 const manualTriggerBodySchema = z.object({ session: sessionDateSchema.optional() }).strict();
 
+// Evaluation is chained after ingestion in the same run, same bearer (#19,
+// CONTEXT.md "Nightly ingestion and daily evaluation"): it only runs when
+// ingestion reports a session, and its own failures never turn an otherwise
+// successful ingestion response into a 500 — they are reported alongside it
+// so the owner can see them without the ingestion retry (ADR-0010) firing
+// for a session that already ingested cleanly.
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
-  const result = await ingest(getDb(), session ? { session } : {});
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  const db = getDb();
+  const result = await ingest(db, session ? { session } : {});
+  const evaluation = result.session ? await evaluateSignalsForSession(db, result.session) : null;
+  return NextResponse.json({ ...result, evaluation }, { status: result.ok ? 200 : 500 });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
