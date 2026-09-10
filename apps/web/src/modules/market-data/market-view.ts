@@ -56,6 +56,20 @@ export function toTradingSession(row: { date: string; open: Date; close: Date })
   };
 }
 
+// Thrown instead of an empty-but-typed-as-valid MarketView whenever the
+// requested range simply has nothing behind it: no calendar ingested at
+// all, or neither endpoint of `period` lands on a trading session (round 2
+// item 9). A degenerate MarketView the caller cannot distinguish from "a
+// strategy that legitimately needs zero of some collection" is exactly the
+// shape round-1 item 2 and round-2 item 10 both had to work around from the
+// outside; every caller must now handle this explicitly instead.
+export class MarketViewUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Market view unavailable: ${reason}`);
+    this.name = "MarketViewUnavailableError";
+  }
+}
+
 export function emptyMarketView(): MarketView {
   return {
     calendar: [],
@@ -132,7 +146,7 @@ export async function loadMarketView(
 
   const calendarFloor = await earliestSession(db);
   if (!calendarFloor) {
-    return emptyMarketView();
+    throw new MarketViewUnavailableError("no trading calendar has been ingested");
   }
 
   const calendarRows = await sessionsBetween(db, calendarFloor, period.to);
@@ -142,7 +156,7 @@ export async function loadMarketView(
   const toSession = calendar.find((session) => session.date === period.to) ?? calendar.at(-1);
 
   if (!fromSession || !toSession) {
-    return { ...emptyMarketView(), calendar };
+    throw new MarketViewUnavailableError("period has no trading session in the calendar");
   }
 
   const window = engine.dataWindow({

@@ -9,7 +9,7 @@ import {
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
-import { loadMarketView } from "@/modules/market-data";
+import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
 import { BacktestRunRepository, type BacktestRunRecord } from "./backtest-run-repository";
@@ -25,7 +25,19 @@ export const DEFAULT_SESSION_BUDGET = 250;
 // it (saveCheckpoint, below) is never far behind, so a process the platform
 // kills mid-chunk still resumes from real progress instead of repeating the
 // whole chunk from its start.
-export const DEFAULT_INNER_STEP_SESSIONS = 25;
+//
+// Measured (round 2 item 18) against a realistic view (250 sessions x 50
+// tickers, the DEFAULT_SESSION_BUDGET x the create-run universe ceiling):
+// one full chunk in a single `engine.runBacktest` call (its own setup and
+// O(candles) index builds paid once) took ~23.5s; the same chunk split
+// into ten inner calls of 25 sessions each (this constant's old value, each
+// paying that setup again) took ~27.4s — about 17% pure repeated-setup
+// overhead. Raising the step to 50 (five inner calls instead of ten) roughly
+// halves that overhead while still checkpointing often enough that a kill
+// mid-chunk loses at most 50 sessions of progress, not materially different
+// from the 25-session loss the wall-clock budget (240s) was already
+// generous enough to absorb.
+export const DEFAULT_INNER_STEP_SESSIONS = 50;
 
 // route.ts raises `maxDuration` to 300s; this budget stays comfortably
 // under it, leaving headroom for the DB round trip around each inner call,
@@ -133,13 +145,29 @@ export async function runBacktestChunk(
     seed: run.seed,
   };
 
-  const view = await loadMarketView(db, {
-    strategy,
-    universe: run.universe,
-    period: run.period,
-  });
+  let view;
+  try {
+    view = await loadMarketView(db, {
+      strategy,
+      universe: run.universe,
+      period: run.period,
+    });
+  } catch (error) {
+    if (error instanceof MarketViewUnavailableError) {
+      const message = "no_market_data";
+      await repository.fail(runId, message);
+      return { status: "failed", error: message };
+    }
+    throw error;
+  }
 
-  if (run.dataVersion && view.dataVersion && run.dataVersion !== view.dataVersion) {
+  // A run that already stamped a dataVersion on an earlier chunk must see
+  // that exact version again, including a view that now has none at all
+  // (round 2 item 8): a degenerate, candle-less view is not "no data to
+  // compare", it is proof the dataset moved under the run, and running the
+  // rest of the budget against zero candles would complete silently instead
+  // of failing loudly.
+  if (run.dataVersion && run.dataVersion !== view.dataVersion) {
     const message = "data_version_changed";
     await repository.fail(runId, message);
     return { status: "failed", error: message };

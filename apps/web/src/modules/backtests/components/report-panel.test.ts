@@ -17,12 +17,31 @@ function point(session: string, equity: number): EquityPoint {
 describe("sessionReturns", () => {
   it("computes each session's return over the previous session's equity, not the starting capital", () => {
     const equityCurve = [point("2024-01-02", 100_000_00), point("2024-01-03", 101_000_00)];
-    expect(sessionReturns(equityCurve)).toEqual([0.01]);
+    expect(sessionReturns(100_000_00 as never, equityCurve)).toEqual([0, 0.01]);
+  });
+
+  it("includes the first session's own return, from initialCapital into the first equity point (round 2 item 13)", () => {
+    const equityCurve = [point("2024-01-02", 110_000_00)];
+    expect(sessionReturns(100_000_00 as never, equityCurve)).toEqual([0.1]);
   });
 
   it("skips a session whose predecessor's equity is zero rather than dividing by zero", () => {
     const equityCurve = [point("2024-01-02", 0), point("2024-01-03", 1_000_00)];
-    expect(sessionReturns(equityCurve)).toEqual([]);
+    expect(sessionReturns(0 as never, equityCurve)).toEqual([]);
+  });
+
+  it("skips every session whose predecessor's equity is negative rather than sign-flipping the return (round 2 item 13)", () => {
+    // A recovery from −R$10,00 to −R$5,00 is a 50% improvement, not the
+    // 50% loss the unsigned ratio of two negatives (500 / −1000) would
+    // otherwise report; both negative-base sessions are skipped, and only
+    // the session with a genuinely positive predecessor contributes.
+    const equityCurve = [
+      point("2024-01-02", -1_000),
+      point("2024-01-03", -500),
+      point("2024-01-04", 500_00),
+      point("2024-01-05", 550_00),
+    ];
+    expect(sessionReturns(-2_000 as never, equityCurve)).toEqual([0.1]);
   });
 });
 
@@ -61,6 +80,19 @@ describe("generalNotesFor", () => {
   it("excludes the option-strike-across-corporate-action note, which the operations table surfaces instead (round 2 item 6)", () => {
     expect(surfacedNoteCodes).toContain("option_strike_unadjusted_across_corporate_action");
     const run = runWithNotes([note("option_strike_unadjusted_across_corporate_action")]);
+    expect(generalNotesFor(run)).toEqual([]);
+  });
+
+  it("excludes no_operation and less_than_one_effective_unit, which the operations table surfaces instead (round 2 item 15)", () => {
+    expect(surfacedNoteCodes).toContain("no_operation");
+    expect(surfacedNoteCodes).toContain("less_than_one_effective_unit");
+    const run = runWithNotes([note("no_operation"), note("less_than_one_effective_unit")]);
+    expect(generalNotesFor(run)).toEqual([]);
+  });
+
+  it("excludes no_risk_profile, which the limit breaches panel surfaces instead (round 2 item 15)", () => {
+    expect(surfacedNoteCodes).toContain("no_risk_profile");
+    const run = runWithNotes([note("no_risk_profile")]);
     expect(generalNotesFor(run)).toEqual([]);
   });
 

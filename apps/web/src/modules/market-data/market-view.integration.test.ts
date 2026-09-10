@@ -14,7 +14,11 @@ import {
 } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
-import { buildOperationMarketView, loadMarketView } from "./market-view";
+import {
+  buildOperationMarketView,
+  loadMarketView,
+  MarketViewUnavailableError,
+} from "./market-view";
 import { upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
@@ -815,5 +819,25 @@ describe("loadMarketView", () => {
 
     expect(view.optionSeries).toEqual([]);
     expect(view.optionPrices).toEqual([]);
+  });
+
+  it("throws MarketViewUnavailableError instead of a candle-less view when the period has no trading session (round 2 item 9)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("NOS");
+    cleanupTickers.push(ticker);
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    await expect(
+      loadMarketView(db, {
+        strategy,
+        universe: [ticker],
+        period: { from: "1990-01-01", to: "1990-01-02" },
+      }),
+    ).rejects.toBeInstanceOf(MarketViewUnavailableError);
   });
 });

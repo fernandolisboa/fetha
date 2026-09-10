@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Decimal } from "decimal.js";
-import type { RiskProfile } from "@fetha/contracts";
+import type { Centavos, RiskProfile } from "@fetha/contracts";
 import type {
   BacktestRun,
   EquityPoint,
@@ -96,17 +96,22 @@ function Stat({ label, value, notes }: { label: string; value: string; notes?: R
 
 const equityDrawdownCodes: NoteCode[] = ["negative_cash"];
 const annualizedCodes: NoteCode[] = ["short_window_not_annualized", "non_positive_equity"];
-const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
-// The one rollup note `run-backtest.ts` (packages/engine) ever attaches for
-// an option operation across a corporate action: it explains an operation's
-// P&L, so it surfaces with the operations table, not the generic notes
-// panel (round 2 item 6). `missed_entry`, `settlement_pending` and
-// `settlement_costs_not_modeled` used to be filtered for here too, but the
-// engine never rolls any of them into `BacktestRun.notes` (they are
-// per-leg valuation notes `priceOperation` and settlement produce, not a
-// run-level note), so those filters were dead code; dropped rather than
-// wired to a rollup the ticket did not ask for.
-const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
+const limitBreachCodes: NoteCode[] = ["limit_breach_warned", "no_risk_profile"];
+// The rollup notes `run-backtest.ts` (packages/engine) attaches that
+// explain the operations table's own contents: the corporate-action strike
+// note explains a specific operation's P&L (round 2 item 6); `no_operation`
+// and `less_than_one_effective_unit` explain why the table is empty or
+// smaller than the signals would suggest (round 2 item 15). `missed_entry`,
+// `settlement_pending` and `settlement_costs_not_modeled` used to be
+// filtered for here too, but the engine never rolls any of them into
+// `BacktestRun.notes` (they are per-leg valuation notes `priceOperation`
+// and settlement produce, not a run-level note), so those filters were dead
+// code; dropped rather than wired to a rollup the ticket did not ask for.
+const operationCodes: NoteCode[] = [
+  "option_strike_unadjusted_across_corporate_action",
+  "no_operation",
+  "less_than_one_effective_unit",
+];
 const surfacedCodes: NoteCode[] = [
   ...equityDrawdownCodes,
   ...annualizedCodes,
@@ -128,23 +133,30 @@ export function generalNotesFor(run: BacktestRun): BacktestRun["notes"] {
 // Per-session equity returns, not operation P&L over starting capital:
 // an operation's P&L divided by the run's *starting* capital ignores
 // compounding and folds in period_end marks the engine already excludes
-// from winRate/profitFactor, both of which distort the histogram.
-export function sessionReturns(equityCurve: EquityPoint[]): number[] {
+// from winRate/profitFactor, both of which distort the histogram. The
+// first session's own return (from `initialCapital` into the first equity
+// point) is included, not dropped: it is as real a session as any other
+// (round 2 item 13). A base that is zero *or negative* is skipped rather
+// than only a base of exactly zero: a run that went insolvent and then
+// recovered (equity −R$10,00 → −R$5,00) is a 50% improvement, not the 50%
+// loss the unsigned ratio of two negatives would otherwise report.
+export function sessionReturns(initialCapital: Centavos, equityCurve: EquityPoint[]): number[] {
   const returns: number[] = [];
-  for (let i = 1; i < equityCurve.length; i += 1) {
-    const previous = equityCurve[i - 1];
-    const current = equityCurve[i];
-    if (!previous || !current || previous.equity === 0) continue;
-    returns.push(
-      new Decimal(current.equity).minus(previous.equity).div(previous.equity).toNumber(),
-    );
+  let previousEquity: number = initialCapital;
+  for (const point of equityCurve) {
+    if (previousEquity <= 0) {
+      previousEquity = point.equity;
+      continue;
+    }
+    returns.push(new Decimal(point.equity).minus(previousEquity).div(previousEquity).toNumber());
+    previousEquity = point.equity;
   }
   return returns;
 }
 
 export function ReportPanel({ run }: { run: BacktestRun }) {
   const { metrics } = run;
-  const returns = sessionReturns(run.equityCurve);
+  const returns = sessionReturns(run.config.initialCapital, run.equityCurve);
   const generalNotes = generalNotesFor(run);
 
   return (
@@ -158,7 +170,7 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
         <DrawdownChart points={run.equityCurve} />
       </Panel>
 
-      <Panel title={t.report.distribution}>
+      <Panel title={t.report.distribution} subtitle={t.report.distributionBasis}>
         <DistributionChart returns={returns} />
       </Panel>
 

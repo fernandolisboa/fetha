@@ -22,4 +22,24 @@ describe("buildBins", () => {
     const occupied = bins.filter((bin) => bin.count > 0);
     expect(occupied.length).toBeGreaterThan(1);
   });
+
+  it("scales label precision with a sub-1% bin width so neighbouring bins get distinct labels (round 2 item 14)", () => {
+    const returns = [
+      0.0001, 0.0002, -0.0001, 0.00015, -0.00005, 0.00009, -0.00012, 0.00003, 0.00007, -0.00002,
+    ];
+    const bins = buildBins(returns);
+    const labels = bins.map((bin) => bin.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("never renders a signed zero label, even for a bin whose lower edge rounds to zero (round 2 item 14)", () => {
+    const returns = [
+      0.0001, 0.0002, -0.0001, 0.00015, -0.00005, 0.00009, -0.00012, 0.00003, 0.00007, -0.00002,
+    ];
+    const bins = buildBins(returns);
+    const signedZero = /^−0(\.0+)?%$/;
+    for (const bin of bins) {
+      expect(signedZero.test(bin.label)).toBe(false);
+    }
+  });
 });

@@ -9,9 +9,14 @@ import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
   requireUser,
-  UnauthenticatedError,
+  withAuthenticatedAction,
 } from "@/modules/auth";
-import { sessionByDate, sessionsBetween } from "@/modules/market-data";
+import {
+  loadMarketView,
+  MarketViewUnavailableError,
+  sessionByDate,
+  sessionsBetween,
+} from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -37,7 +42,18 @@ const createInputSchema = z.strictObject({
 });
 
 const CREATE_RATE_LIMIT = { windowSeconds: 60, max: 10 };
-const MAX_SESSIONS_TIMES_UNIVERSE = 10_000 * 50;
+// `10_000 * 50` (a full ~40-year B3 calendar x the universe ceiling) is
+// above anything the calendar has ever actually been ingested to, so it
+// never fires (round 2 item 17). Every chunk re-materialises the *whole*
+// MarketView on every call regardless of how many sessions it then
+// simulates (run-chunk.ts), so the real constraint is what one such call
+// can load and index before its own wall-clock budget: measured (round 2
+// item 18) at ~23.5s for 250 sessions x 50 tickers (12,500 candles) against
+// a 240s per-chunk budget, i.e. roughly 8-10x headroom before that budget
+// itself would be the failure mode. 100,000 stays comfortably under that
+// measured capacity with margin, while still being small enough that a
+// realistic multi-year, near-full-universe request can actually hit it.
+const MAX_SESSIONS_TIMES_UNIVERSE = 100_000;
 
 // Signed 32-bit range: the column is a signed Postgres `integer`, while
 // `crypto.getRandomValues(Uint32Array)` draws from the unsigned range, so
@@ -56,15 +72,13 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
     return { status: "error", error: "invalid" };
   }
 
-  let user;
-  try {
-    user = await requireUser();
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) {
-      redirect("/entrar");
-    }
-    throw error;
-  }
+  return withAuthenticatedAction(() => createBacktestRun(parsed.data));
+}
+
+async function createBacktestRun(
+  parsed: z.infer<typeof createInputSchema>,
+): Promise<CreateBacktestRunResult> {
+  const user = await requireUser();
 
   try {
     await enforceAccountRateLimit(getDb(), user.email, "backtests/create", CREATE_RATE_LIMIT);
@@ -93,11 +107,11 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
   // reach `complete` with 0 operations. `to` is clamped to the last
   // session actually in range rather than rejected, since an end date in
   // the future is a common and harmless request ("run until today").
-  const fromSession = await sessionByDate(db, parsed.data.from);
+  const fromSession = await sessionByDate(db, parsed.from);
   if (!fromSession) {
     return { status: "error", error: "invalid" };
   }
-  const rangeSessions = await sessionsBetween(db, parsed.data.from, parsed.data.to);
+  const rangeSessions = await sessionsBetween(db, parsed.from, parsed.to);
   const lastSession = rangeSessions.at(-1);
   if (!lastSession) {
     return { status: "error", error: "invalid" };
@@ -105,24 +119,24 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
   // Every chunk re-materialises the whole-period MarketView: bounding
   // sessions x universe at creation keeps a single run's data footprint
   // sane rather than letting the request body alone decide it.
-  if (rangeSessions.length * parsed.data.universe.length > MAX_SESSIONS_TIMES_UNIVERSE) {
+  if (rangeSessions.length * parsed.universe.length > MAX_SESSIONS_TIMES_UNIVERSE) {
     return { status: "error", error: "invalid" };
   }
-  const period = { from: parsed.data.from, to: lastSession.date };
+  const period = { from: parsed.from, to: lastSession.date };
 
   const watchlist = await new WatchlistRepository(db, user).list();
   const watchlistTickers = new Set(watchlist.map((item) => item.ticker));
-  if (!parsed.data.universe.every((ticker) => watchlistTickers.has(ticker))) {
+  if (!parsed.universe.every((ticker) => watchlistTickers.has(ticker))) {
     return { status: "error", error: "invalid" };
   }
 
   const strategy = await new StrategiesRepository(db, user)
-    .findMine(parsed.data.strategyId)
+    .findMine(parsed.strategyId)
     .catch((error: unknown) => {
       if (error instanceof StrategyNotFoundError) return null;
       throw error;
     });
-  const version = strategy?.versions.find((v) => v.id === parsed.data.strategyVersionId);
+  const version = strategy?.versions.find((v) => v.id === parsed.strategyVersionId);
   if (!strategy || !version) {
     return { status: "error", error: "not_found" };
   }
@@ -137,16 +151,33 @@ export async function createBacktestRunAction(input: unknown): Promise<CreateBac
     return { status: "error", error: "not_found" };
   }
 
+  // sessionByDate alone only proves the calendar carries `from`; a `from`
+  // in a year with no ingested candles for this universe would still pass
+  // it and yield a green, complete, zero-operation run (round 2 item 10).
+  // Loading the whole-period view here, the same one run-chunk loads for
+  // every chunk, is the one check that can actually see that.
+  const preflightView = await loadMarketView(db, {
+    strategy: { id: version.id, definition: version.definition, structure },
+    universe: parsed.universe,
+    period,
+  }).catch((error: unknown) => {
+    if (error instanceof MarketViewUnavailableError) return null;
+    throw error;
+  });
+  if (!preflightView || preflightView.candles.length === 0) {
+    return { status: "error", error: "invalid" };
+  }
+
   const run = await new BacktestRunRepository(db, user).create({
     strategyId: strategy.id,
     strategyVersionId: version.id,
     structure,
-    universe: parsed.data.universe,
+    universe: parsed.universe,
     period,
-    initialCapital: parsed.data.initialCapital,
-    costModel: COST_MODEL_PRESETS[parsed.data.costModel as keyof typeof COST_MODEL_PRESETS],
+    initialCapital: parsed.initialCapital,
+    costModel: COST_MODEL_PRESETS[parsed.costModel as keyof typeof COST_MODEL_PRESETS],
     riskProfile,
-    limits: parsed.data.limits,
+    limits: parsed.limits,
     sizing: version.definition.sizing,
     seed: randomSeed(),
   });

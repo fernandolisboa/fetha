@@ -306,6 +306,50 @@ describe("BacktestRunRepository isolation", () => {
     await expect(repository.claim(freshRun.id)).rejects.toBeInstanceOf(BacktestRunClaimError);
   });
 
+  it("reclaims a failed run so a retry has a path back in (round 2 item 12)", async () => {
+    const db = getDb();
+    const email = uniqueEmail("reclaim-failed");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const repository = new BacktestRunRepository(db, owner);
+    const run = await repository.create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      seed: 1,
+    });
+
+    const checkpoint = {
+      schema: 1 as const,
+      engineVersion: "0.2.0",
+      configDigest: "x",
+      cursor: "2025-01-02",
+      state: null,
+    };
+    await db
+      .update(backtestRuns)
+      .set({ status: "running", checkpoint })
+      .where(eq(backtestRuns.id, run.id));
+
+    await repository.fail(run.id, "data_version_changed");
+
+    const reclaimed = await repository.claim(run.id);
+    expect(reclaimed.status).toBe("running");
+    expect(reclaimed.checkpoint).toEqual(checkpoint);
+  });
+
   it("lets exactly one of two racing completions through, the other surfaces BacktestRunAlreadyCompleteError rather than the trigger's own raw driver error (round 2 item 3)", async () => {
     const db = getDb();
     const email = uniqueEmail("race-complete");

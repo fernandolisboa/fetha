@@ -17,14 +17,30 @@ interface Bin {
   isZeroBin: boolean;
 }
 
+// One decimal is enough to tell consecutive bins apart when the spread is
+// a few percent wide, but a sub-1% spread (common for per-session, not
+// per-operation, returns — round 2 item 13) rounds every bin to the same
+// "0.0%" at one decimal: duplicate axis labels, and a bin straddling zero
+// rounds to a signed "−0.0%" that DESIGN.md forbids. Precision scales with
+// the bin's own width in percentage points so neighbouring bins keep
+// distinct labels regardless of how narrow the spread is (round 2 item 14).
+function decimalsForBinWidth(widthPercent: number): number {
+  if (!Number.isFinite(widthPercent) || widthPercent <= 0) return 1;
+  if (widthPercent >= 1) return 1;
+  const magnitude = Math.floor(Math.log10(widthPercent));
+  return Math.min(4, Math.max(1, 1 - magnitude));
+}
+
 // True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
 // `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
-// One decimal, not zero: whole-percent rounding collapses the typical
-// per-operation return spread this chart receives into a single "0%"
-// label, which also collapsed the band scale's domain (see `bin.id`
-// below, which is what the domain and React key are actually keyed on).
-function percentLabel(value: number): string {
-  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(1)}%`;
+// A value that rounds to zero at the chosen precision never carries the
+// minus sign: DESIGN.md never shows a signed zero, and a bin whose true
+// value is a small negative number straddling zero is exactly the case
+// that produced one before precision scaled with bin width.
+function percentLabel(value: number, decimals: number): string {
+  const rounded = Math.abs(value).toFixed(decimals);
+  const isZero = Number(rounded) === 0;
+  return `${!isZero && value < 0 ? "−" : ""}${rounded}%`;
 }
 
 export function buildBins(returns: number[]): Bin[] {
@@ -35,12 +51,13 @@ export function buildBins(returns: number[]): Bin[] {
   const max = Math.max(...returns, 0);
   const span = max - min || 1;
   const width = span / BIN_COUNT;
+  const decimals = decimalsForBinWidth(width * 100);
 
   const bins: Bin[] = Array.from({ length: BIN_COUNT }, (_, index) => {
     const lower = min + index * width;
     return {
       id: String(index),
-      label: percentLabel(lower * 100),
+      label: percentLabel(lower * 100, decimals),
       count: 0,
       isZeroBin: lower <= 0 && lower + width > 0,
     };

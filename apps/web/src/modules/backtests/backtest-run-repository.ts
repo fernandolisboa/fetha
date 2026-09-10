@@ -209,7 +209,12 @@ export class BacktestRunRepository extends UserScopedRepository {
   // lease (round 2 item 2): nothing else ever moves a run out of "running"
   // except the invocation that set it, so without this a kill mid-chunk
   // would brick the run in "running" forever with a valid checkpoint and no
-  // way back to it.
+  // way back to it. "failed" is claimable too (round 2 item 12): fail() only
+  // records the terminal state itself and never revokes it, so without this
+  // a run that failed on a transient error (a Neon blip, a stale data
+  // version between chunks) would have no way back into the loop even
+  // though its checkpoint is still whatever the last successful inner call
+  // left behind.
   async claim(id: string, now: Date = new Date()): Promise<BacktestRunRecord> {
     const staleCutoff = new Date(now.getTime() - STALE_LEASE_MS);
     const [row] = await this.db
@@ -220,7 +225,7 @@ export class BacktestRunRepository extends UserScopedRepository {
           eq(backtestRuns.id, id),
           eq(backtestRuns.userId, this.userId),
           or(
-            sql`${backtestRuns.status} in ('pending', 'paused')`,
+            sql`${backtestRuns.status} in ('pending', 'paused', 'failed')`,
             and(eq(backtestRuns.status, "running"), lt(backtestRuns.updatedAt, staleCutoff)),
           ),
         ),

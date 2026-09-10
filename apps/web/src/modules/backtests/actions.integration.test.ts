@@ -4,8 +4,11 @@ import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 
+import { and, gte, lte } from "drizzle-orm";
+
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { tradingSessions } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
@@ -256,4 +259,204 @@ describe("createBacktestRunAction", () => {
     const eleventh = await createBacktestRunAction(input);
     expect(eleventh).toEqual({ status: "error", error: "rate_limited" });
   });
+
+  it("persists the create request's own costModel, not the default preset, back on the run (round 2 item 16)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+    const { BacktestRunRepository } = await import("./backtest-run-repository");
+    const { DISCOUNT_BROKER_COST_MODEL } = await import("./default-config");
+
+    const db = getDb();
+    const email = uniqueEmail("cost-model");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    await upsertTradingSessions(
+      db,
+      SESSIONS.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+    for (const session of SESSIONS) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker: TICKER,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    let redirected = false;
+    try {
+      await createBacktestRunAction({
+        strategyId: strategy.id,
+        strategyVersionId: version.id,
+        universe: [TICKER],
+        from: SESSIONS[0] ?? "",
+        to: SESSIONS.at(-1) ?? "",
+        initialCapital: centavos(500_000_00),
+        limits: "enforce",
+        costModel: "discount_broker",
+      });
+    } catch (error) {
+      if (!isRedirectError(error)) throw error;
+      redirected = true;
+    }
+    expect(redirected).toBe(true);
+
+    const runs = await new BacktestRunRepository(db, currentUser).listMineForStrategy(strategy.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.costModel).toEqual(DISCOUNT_BROKER_COST_MODEL);
+  });
+
+  it("refuses a `from` the calendar carries but that has no ingested candle for any ticker in the universe (round 2 item 10)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+
+    const db = getDb();
+    const email = uniqueEmail("no-candles");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    const uncoveredSessions = businessDays(5, 2093, 3, 1);
+    await upsertTradingSessions(
+      db,
+      uncoveredSessions.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const result = await createBacktestRunAction({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      universe: [TICKER],
+      from: uncoveredSessions[0] ?? "",
+      to: uncoveredSessions.at(-1) ?? "",
+      initialCapital: centavos(500_000_00),
+      limits: "enforce",
+      costModel: "b3_default",
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+
+    await db
+      .delete(tradingSessions)
+      .where(
+        and(
+          gte(tradingSessions.date, uncoveredSessions[0] ?? ""),
+          lte(tradingSessions.date, uncoveredSessions.at(-1) ?? ""),
+        ),
+      );
+  });
+
+  it("refuses a request whose sessions x universe exceeds what one chunk can hold (round 2 item 17)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+
+    const db = getDb();
+    const email = uniqueEmail("session-ceiling");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    // 2,001 sessions x the 50-ticker universe ceiling = 100,050, just over
+    // the 100,000 cap (round 2 item 17): only the calendar needs seeding
+    // for this check, since it runs before the strategy, watchlist and
+    // candle lookups.
+    const hugeRange = businessDays(2001, 2050, 1, 3);
+    await upsertTradingSessions(
+      db,
+      hugeRange.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+
+    const universe = Array.from({ length: 50 }, (_, i) => `ZQ${i.toString().padStart(2, "0")}3`);
+
+    const result = await createBacktestRunAction({
+      strategyId: "does-not-matter",
+      strategyVersionId: "does-not-matter",
+      universe,
+      from: hugeRange[0] ?? "",
+      to: hugeRange.at(-1) ?? "",
+      initialCapital: centavos(1_000_000),
+      limits: "warn",
+      costModel: "b3_default",
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+
+    await db
+      .delete(tradingSessions)
+      .where(
+        and(
+          gte(tradingSessions.date, hugeRange[0] ?? ""),
+          lte(tradingSessions.date, hugeRange.at(-1) ?? ""),
+        ),
+      );
+  }, 30_000);
 });

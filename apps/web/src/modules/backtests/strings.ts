@@ -50,6 +50,7 @@ const en = {
     equityCurve: "Equity curve",
     drawdown: "Drawdown",
     distribution: "Distribution of returns",
+    distributionBasis: "One bar per trading session's own equity return.",
     operationsTable: {
       title: "Operations",
       columns: { underlying: "Instrument", openedAt: "Opened", closedAt: "Closed", pnl: "P&L" },
@@ -120,6 +121,7 @@ const en = {
   webErrors: {
     data_version_changed:
       "The underlying data changed between chunks; the run was stopped rather than mix two datasets.",
+    no_market_data: "No market data is available for this period; the run was stopped.",
   },
   networkError: "Network error. Try again.",
 };
@@ -174,6 +176,7 @@ const ptBR = {
     equityCurve: "Curva de patrimônio",
     drawdown: "Drawdown",
     distribution: "Distribuição de retornos",
+    distributionBasis: "Uma barra por pregão, com o retorno de patrimônio daquele próprio pregão.",
     operationsTable: {
       title: "Operações",
       columns: { underlying: "Ativo", openedAt: "Aberta em", closedAt: "Fechada em", pnl: "P&L" },
@@ -245,6 +248,8 @@ const ptBR = {
   webErrors: {
     data_version_changed:
       "Os dados de mercado mudaram entre os pedaços da simulação; ela foi interrompida em vez de misturar dois conjuntos de dados.",
+    no_market_data:
+      "Não há dados de mercado disponíveis para esse período; a simulação foi interrompida.",
   },
   networkError: "Erro de rede. Tente novamente.",
 } satisfies typeof en;
