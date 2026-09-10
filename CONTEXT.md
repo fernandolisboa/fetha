@@ -31,10 +31,10 @@ exposing module's interface, never through its tables.
 
 ## Key flows
 
-1. **Nightly ingestion and daily evaluation.** A nightly job with scheduled retries (ADR-0010)
-   ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar, records
-   corporate-action factors (the engine derives adjusted series point in time, ADR-0013), then
-   evaluates every active daily
+1. **Nightly ingestion and daily evaluation.** A nightly job with scheduled retries (ADR-0010,
+   ADR-0017) ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar
+   (corporate-action factor recording is a follow-up, #50; the engine derives adjusted series
+   point in time from whatever factors exist, ADR-0013), then evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox.
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
@@ -80,5 +80,6 @@ See `docs/adr/`: numeric representation (0001), option pricing (0002), no broker
 (0007), strategy DSL (0008), AI decision contract (0009), intraday evaluation while in use
 (0010), intraday backtests (0011), strategy sharing (0012), the engine public interface (0013),
 evaluation, backtest and scoring rules settled with it (0014), themes as per-user token sets
-(0015), auth and tenancy: Better Auth, the user account as the tenant (0016), magic link,
-password reset and database-backed rate limiting (0018).
+(0015), auth and tenancy: Better Auth, the user account as the tenant (0016), reference data
+ingestion: sources, partitioning, retries, freshness, adjustment (0017), magic link, password
+reset and database-backed rate limiting (0018).
