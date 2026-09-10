@@ -369,7 +369,7 @@ function applyRiskLimits(
   return limitBreaches;
 }
 
-type ValuedLegs = {
+export type ValuedLegs = {
   priced: PricedLeg[];
   notes: Note[];
   netPremiumCentavos: Decimal;
@@ -380,7 +380,7 @@ type ValuedLegs = {
 // the payoff profile, aggregate greeks, risk-limit checks and provenance — is either
 // unneeded for sizing or, for provenance, has no real value to report before the leg
 // count is known. Splitting this out means the preview no longer manufactures a fake one.
-function valueLegs(
+export function valueLegs(
   view: MarketView,
   at: string,
   underlying: string,
@@ -427,7 +427,7 @@ function valueLegs(
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
 // (PR #53 round 1 item 19).
-function resolveOperationRates(
+export function resolveOperationRates(
   view: MarketView,
   at: string,
   underlying: string,
@@ -446,7 +446,7 @@ function resolveOperationRates(
   };
 }
 
-function priceConcreteLegs(
+export function priceConcreteLegs(
   view: MarketView,
   at: string,
   underlying: string,

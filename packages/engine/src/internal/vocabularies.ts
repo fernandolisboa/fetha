@@ -46,11 +46,11 @@ export const implementedExpirySelectionKinds = [
 export const unsupportedExpirySelectionKinds =
   [] as const satisfies readonly ExpirySelection["kind"][];
 
-// #15 implements evaluateStrategy for stock-only strategies: both sizing rules apply
-// to a stock leg (fixed_fractional and fixed_risk, the latter unsizeable on a short
-// leg's unbounded max loss), so nothing is left unsupported there. Of the exit rules,
-// only days_before_expiry stays unsupported: it needs an expiry, which a stock-only
-// structure's coherence check already forbids.
+// #15 implemented evaluateStrategy for stock-only strategies; #23 extends it to
+// structures with option legs by delegating strike/expiry selection and pricing to
+// priceOperation's own internals. Both sizing rules apply to any leg mix
+// (fixed_fractional and fixed_risk, the latter unsizeable on any short leg's unbounded
+// max loss), so nothing is left unsupported there.
 export const implementedSizingRuleKinds = [
   "fixed_fractional",
   "fixed_risk",
@@ -58,18 +58,20 @@ export const implementedSizingRuleKinds = [
 
 export const unsupportedSizingRuleKinds = [] as const satisfies readonly SizingRule["kind"][];
 
+// days_before_expiry needed an expiry, which #15's stock-only scope's coherence check
+// forbade outright; #23 lifts that scope, so it is implemented for every structure with
+// option legs, the only kind of structure that can carry it.
 export const implementedExitRuleKinds = [
   "profit_target",
   "stop_loss",
   "condition",
-] as const satisfies readonly ExitRule["kind"][];
-
-export const unsupportedExitRuleKinds = [
   "days_before_expiry",
 ] as const satisfies readonly ExitRule["kind"][];
 
-// roll only makes sense on a structure with option legs (#23); a stock-only
-// structure's coherence check rejects it outright.
+export const unsupportedExitRuleKinds = [] as const satisfies readonly ExitRule["kind"][];
+
+// roll (a strike/expiry adjustment mid-operation) is out of #23's scope: it needs its own
+// settlement-and-reopen semantics in runBacktest, tracked separately.
 export const unsupportedAdjustmentRuleKinds = [
   "roll",
 ] as const satisfies readonly AdjustmentRule["kind"][];
