@@ -12,6 +12,7 @@ import {
 import { getDb } from "@/db/client";
 import { forCurrentUser, UnauthenticatedError } from "@/modules/auth";
 
+import { classifyPersistenceError } from "./pg-error";
 import {
   StrategiesRepository,
   StrategyLimitReachedError,
@@ -46,25 +47,13 @@ const shareInputSchema = z.strictObject({
 
 const copyInputSchema = z.strictObject({ sourceStrategyId: z.string().min(1).max(200) });
 
-function isPgError(error: unknown): error is { code: string } {
-  return (
-    typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-  );
-}
-
 function mapKnownError(
   error: unknown,
 ): "not_found" | "not_shared" | "conflict" | "unavailable" | null {
   if (error instanceof StrategyNotFoundError) return "not_found";
   if (error instanceof StrategyNotSharedError) return "not_shared";
   if (error instanceof StrategyLimitReachedError) return "unavailable";
-  if (isPgError(error)) {
-    if (error.code === "23505" || error.code === "40001" || error.code === "40P01") {
-      return "conflict";
-    }
-    return "unavailable";
-  }
-  return null;
+  return classifyPersistenceError(error);
 }
 
 async function withRepository<T>(
