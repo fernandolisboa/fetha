@@ -11,6 +11,7 @@ import type {
   PayoffPoint,
   PriceSource,
   Provenance,
+  Result,
 } from "../api";
 import {
   CENTAVOS_PER_REAL,
@@ -18,8 +19,9 @@ import {
   PRICE_SCALE,
   RATIO_SCALE,
   toDecimalString,
+  ZERO_RATIO,
 } from "./decimal";
-import { compareInstants } from "./instant";
+import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { toCentavos } from "./scalars";
 
 export type StockLegInput = OperationLeg & { priceSource: PriceSource };
@@ -38,51 +40,38 @@ export type PriceStockLegsInput = {
   >;
 };
 
-const zero = toDecimalString(new Decimal(0), RATIO_SCALE);
 const zeroGreeks: Greeks = {
-  delta: zero,
-  gamma: zero,
-  theta: zero,
-  vega: zero,
-  rho: zero,
+  delta: ZERO_RATIO,
+  gamma: ZERO_RATIO,
+  theta: ZERO_RATIO,
+  vega: ZERO_RATIO,
+  rho: ZERO_RATIO,
 };
-
-function latestVisible<T extends { asOf: Instant }>(rows: readonly T[], at: Instant): T | null {
-  let latest: T | null = null;
-  for (const row of rows) {
-    if (compareInstants(row.asOf, at) > 0) continue;
-    if (latest === null || compareInstants(row.asOf, latest.asOf) > 0) latest = row;
-  }
-  return latest;
-}
 
 function sign(side: OperationLeg["side"]): 1 | -1 {
   return side === "buy" ? 1 : -1;
 }
 
-export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
+export function priceStockLegs(input: PriceStockLegsInput): Result<OperationPricing> {
   const notes: Note[] = [];
 
-  const cdiPoint = latestVisible(
-    input.view.macro.filter((m) => m.series === "cdi"),
-    input.at,
-  );
-  const riskFreeRate = cdiPoint
-    ? toDecimalString(new Decimal(1).add(parseDecimal(cdiPoint.annualRate)).ln(), RATIO_SCALE)
-    : toDecimalString(new Decimal(0), RATIO_SCALE);
+  const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
+  // ADR-0013's rates addendum applies the same rule to a stock leg's rate resolution as
+  // to an option leg's: an annualRate/annualYield at or below -1 is invalid_input before
+  // conversion, never a silent zero default (PR #53 round 4 item 3; superseding round 3
+  // item 8's note-only fix).
+  if (!riskFreeRateResolution.ok) return { ok: false, error: riskFreeRateResolution.error };
+  const riskFreeRate = riskFreeRateResolution.value;
+  notes.push(...riskFreeRateResolution.notes);
 
-  const dividendPoint = latestVisible(
-    input.view.dividendYields.filter((d) => d.underlying === input.underlying),
+  const dividendResolution = resolveDividendYield(
+    input.view.dividendYields,
+    input.underlying,
     input.at,
   );
-  const dividendYield = dividendPoint
-    ? toDecimalString(new Decimal(1).add(parseDecimal(dividendPoint.annualYield)).ln(), RATIO_SCALE)
-    : toDecimalString(new Decimal(0), RATIO_SCALE);
-  if (!dividendPoint)
-    notes.push({
-      code: "dividend_yield_defaulted",
-      message: "no dividend yield visible; defaulted to 0",
-    });
+  if (!dividendResolution.ok) return { ok: false, error: dividendResolution.error };
+  const dividendYield = dividendResolution.value;
+  notes.push(...dividendResolution.notes);
 
   const legValuations: LegValuation[] = input.legs.map((leg) => ({
     leg,
@@ -230,20 +219,23 @@ export function priceStockLegs(input: PriceStockLegsInput): OperationPricing {
   }
 
   return {
-    at: input.at,
-    underlying: input.underlying,
-    spot,
-    riskFreeRate,
-    dividendYield,
-    legs: legValuations,
-    netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
-    greeks,
-    payoff,
-    breakEvens,
-    maxLoss,
-    maxGain,
-    limitBreaches,
-    notes,
-    provenance: { ...input.provenanceBase, truncated: [] },
+    ok: true,
+    value: {
+      at: input.at,
+      underlying: input.underlying,
+      spot,
+      riskFreeRate,
+      dividendYield,
+      legs: legValuations,
+      netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
+      greeks,
+      payoff,
+      breakEvens,
+      maxLoss,
+      maxGain,
+      limitBreaches,
+      notes,
+      provenance: { ...input.provenanceBase, truncated: [] },
+    },
   };
 }

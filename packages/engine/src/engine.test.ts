@@ -12,6 +12,7 @@ import type {
   ScoreInput,
   StrategyVersion,
 } from "./api";
+import { ENGINE_VERSION } from "./api";
 import { centavos, confidence, decimalString, quantity } from "./test/support";
 
 const emptyView: IndicatorsInput["view"] = {
@@ -106,11 +107,6 @@ describe("engine", () => {
 
   it.each([
     [
-      "priceOperation",
-      () => engine.priceOperation({ view: emptyView, at: "2024-01-01T00:00:00.000Z", legs: [] }),
-      { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
-    ],
-    [
       "runBacktest",
       () =>
         engine.runBacktest({
@@ -154,7 +150,7 @@ describe("engine", () => {
           operations: [],
           cash: centavos(0),
         } satisfies MarkToMarketInput),
-      { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
+      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
     ],
     [
       "proposeSettlement",
@@ -163,7 +159,7 @@ describe("engine", () => {
           view: emptyView,
           operation: stockOperation,
         } satisfies ProposeSettlementInput),
-      { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
+      { code: "unsupported", vocabulary: "adjustmentRules", kind: "roll" },
     ],
     [
       "score",
@@ -187,16 +183,6 @@ describe("engine", () => {
         } satisfies ScoreInput),
       { code: "unsupported", vocabulary: "thesisClaims", kind: "close_above" },
     ],
-    [
-      "impliedVolatilityIndex",
-      () =>
-        engine.impliedVolatilityIndex({
-          view: emptyView,
-          underlying: "PETR4",
-          at: "2024-01-01T00:00:00.000Z",
-        }),
-      { code: "unsupported", vocabulary: "pricingModels", kind: "bsm_continuous_yield" },
-    ],
   ] as const)(
     "%s returns its documented unsupported error without throwing",
     async (_name, call, expected) => {
@@ -206,6 +192,106 @@ describe("engine", () => {
       expect(result.error).toEqual(expected);
     },
   );
+
+  it("prices a concrete stock-only operation end to end through the Engine interface", async () => {
+    const result = await engine.priceOperation({
+      view: {
+        ...emptyView,
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-01T00:00:00.000Z",
+            last: decimalString("25.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      at: "2024-01-01T00:00:00.000Z",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          price: decimalString("25.00"),
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.netPremium).toBe(centavos(-25_00 * 100));
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+  });
+
+  it("computes the implied-volatility index end to end through the Engine interface", async () => {
+    const result = await engine.impliedVolatilityIndex({
+      view: {
+        ...emptyView,
+        calendar: [
+          {
+            date: "2024-01-01",
+            open: "2024-01-01T13:00:00.000Z",
+            close: "2024-01-01T21:00:00.000Z",
+          },
+        ],
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-01T21:00:00.000Z",
+            last: decimalString("50.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      underlying: "PETR4",
+      at: "2024-01-01T21:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.method).toBe("atm_30d_variance_interpolated");
+    expect(result.value.impliedVolatility).toBeNull();
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "iv_index_not_bracketed" }),
+    );
+    expect(result.value.provenance.engineVersion).toBe(ENGINE_VERSION);
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+    expect(result.value.provenance.dataVersion).toBeNull();
+    expect(result.value.provenance.datasetNotes).toEqual([]);
+  });
+
+  it("threads the view's dataVersion and datasetNotes into the implied-volatility index provenance", async () => {
+    const result = await engine.impliedVolatilityIndex({
+      view: {
+        ...emptyView,
+        dataVersion: "2024-01-01T00:00:00.000Z",
+        datasetNotes: ["b3-cotahist-2024"],
+        calendar: [
+          {
+            date: "2024-01-01",
+            open: "2024-01-01T13:00:00.000Z",
+            close: "2024-01-01T21:00:00.000Z",
+          },
+        ],
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: "2024-01-01T21:00:00.000Z",
+            last: decimalString("50.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+      },
+      underlying: "PETR4",
+      at: "2024-01-01T21:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.provenance.dataVersion).toBe("2024-01-01T00:00:00.000Z");
+    expect(result.value.provenance.datasetNotes).toEqual(["b3-cotahist-2024"]);
+  });
 
   it("evaluates a stock-only strategy, including fixed_risk sizing, end to end with no candles to evaluate", async () => {
     const result = await engine.evaluateStrategy({
