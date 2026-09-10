@@ -1,4 +1,4 @@
-import { asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { tradingSessions } from "@/db/schema/market-data";
@@ -75,6 +75,21 @@ export async function sessionByDate(
     .where(eq(tradingSessions.date, date))
     .limit(1);
   return row;
+}
+
+// A backtest's calendar (open and close, not just the date): the engine's
+// dataWindow() needs both to compute a strategy's warmup lookback from an
+// arbitrary anchor session (CONTEXT.md "Backtest run").
+export async function sessionsBetween(
+  db: Database,
+  from: string,
+  to: string,
+): Promise<Array<{ date: string; open: Date; close: Date }>> {
+  return db
+    .select()
+    .from(tradingSessions)
+    .where(and(gte(tradingSessions.date, from), lte(tradingSessions.date, to)))
+    .orderBy(asc(tradingSessions.date));
 }
 
 export async function sessionsFrom(

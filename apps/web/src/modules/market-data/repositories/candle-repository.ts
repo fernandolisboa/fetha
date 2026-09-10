@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
@@ -175,6 +175,40 @@ export async function searchInstruments(
     session: sessionDateSchema.parse(row.session),
     close: decimalStringSchema.parse(row.close),
   }));
+}
+
+// Every daily candle for `ticker` between two sessions, inclusive, oldest
+// first: the shape a backtest's MarketView needs for its whole warmup-to-
+// period-end span (CONTEXT.md "Backtest run"), unlike recentDailyCandles's
+// fixed session count for a chart.
+export async function candlesForPeriod(
+  db: Database,
+  ticker: string,
+  from: string,
+  to: string,
+): Promise<CandleRow[]> {
+  const rows = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
+    .from(candles)
+    .where(
+      and(
+        eq(candles.ticker, ticker),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        gte(candles.session, from),
+        lte(candles.session, to),
+      ),
+    )
+    .orderBy(asc(candles.session));
+  return rows.map(toCandleRow);
 }
 
 // Oldest first, bounded to the last `limit` sessions: the shape a candle

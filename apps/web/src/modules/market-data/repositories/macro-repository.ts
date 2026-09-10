@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { macroPoints } from "@/db/schema/market-data";
@@ -34,6 +34,18 @@ export async function latestMacroPointDate(
     .orderBy(desc(macroPoints.date))
     .limit(1);
   return row?.date;
+}
+
+export async function macroPointsBetween(
+  db: Database,
+  from: string,
+  to: string,
+): Promise<Array<{ series: string; date: string; asOf: Date; annualRate: string }>> {
+  return db
+    .select()
+    .from(macroPoints)
+    .where(and(gte(macroPoints.date, from), lte(macroPoints.date, to)))
+    .orderBy(asc(macroPoints.date));
 }
 
 export async function upsertMacroPoints(db: Database, rows: MacroPoint[]): Promise<number> {

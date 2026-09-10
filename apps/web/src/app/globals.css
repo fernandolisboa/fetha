@@ -14,6 +14,9 @@
   --color-border: var(--line);
   --color-destructive: var(--danger);
   --color-destructive-foreground: var(--bg);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--ink);
   --color-accent: var(--accent-soft);
   --color-muted-foreground: var(--muted);
