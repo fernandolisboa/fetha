@@ -1602,19 +1602,24 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   own close at the expiry session, the same instant `proposeSettlement` uses) with note
   `settlement_pending`, so the portfolio can still be marked on any day after an expiry the user
   has not yet confirmed a settlement for.
-- **Totals come from positions only; greeks are the one exception, and delta a partial one.**
-  ADR-0013 already says `totals.equity = cash + sum(position values)` and that operations are "an
-  attribution view ... and never add to totals"; this addendum extends the same rule to
-  `totals.unrealizedPnl` (also summed over `positions` only), for the same double-counting reason
+- **Totals come from positions only, greeks included.** ADR-0013 already says
+  `totals.equity = cash + sum(position values)` and that operations are "an attribution view ...
+  and never add to totals"; this addendum extends the same rule to `totals.unrealizedPnl` (also
+  summed over `positions` only) and to `totals.greeks.delta`, for the same double-counting reason
   — a stock leg opened through a tracked `Operation` is expected to also appear in `positions`.
-  `totals.greeks` sums every operation's own aggregate `pricing.greeks`, the only artifact in the
-  call with the structured leg information most greeks need; `delta` also adds every priced
-  position's own signed quantity (round 1 item 9), since a stock position's delta is always 1 per
-  share regardless of role, strike or expiry. `PortfolioValuation.limitBreaches` flattens each
-  operation's own per-operation limit breaches (`maxLossPerOperation`, `maxExposurePerOperation`,
-  `maxPremiumBought`); `maxOpenOperations` is reported at most once at the portfolio level instead
-  (round 1 item 4), since every operation's own pricing call checks it against the same
-  `operations.length - 1` and would otherwise report the identical breach once per operation.
+  `delta` sums every priced position's own signed quantity (a stock position's delta is always 1
+  per share regardless of role, strike or expiry) plus every operation's own _option_-leg deltas
+  only, never a stock leg's (round 3 item 3, superseding an earlier round 1 draft of this
+  paragraph that summed every operation's whole `pricing.greeks.delta`, stock legs included, and
+  so double-counted a ticker held both ways). The other four greeks have no stock-leg
+  contribution to begin with, so summing every operation's own aggregate `pricing.greeks` for
+  them is unaffected by this restriction; they stay operations-only, the only artifact in the
+  call with the structured leg information they need. `PortfolioValuation.limitBreaches` flattens
+  each operation's own per-operation limit breaches (`maxLossPerOperation`,
+  `maxExposurePerOperation`, `maxPremiumBought`); `maxOpenOperations` is reported at most once at
+  the portfolio level instead (round 1 item 4), since every operation's own pricing call checks
+  it against the same `operations.length - 1` and would otherwise report the identical breach
+  once per operation.
 - **A standalone `Position` is priced through the same market-price ladder as a leg,
   never rebased.** `PositionValuation` uses `resolveLegMarketPrice` (mid/last/close/average,
   `stale` when the price row's session precedes the mark session, Q42) exactly as a leg would;

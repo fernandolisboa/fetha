@@ -402,10 +402,16 @@ export function markToMarket(
   // attribution view over the same fills and never add to totals (ADR-0013 #25 addendum
   // extends this to `unrealizedPnl`, for the same double-counting reason). `Position` carries
   // no role, strike or expiry, so most greeks have no meaning for a bare position, but delta
-  // does: a stock position's delta is always 1 per share, signed by its `SignedQuantity`
-  // (round 1 item 9), so `totals.greeks.delta` sums every operation's own aggregate delta
-  // *and* every priced position's own quantity; the other four greeks stay operations-only,
-  // the only artifact with the structured leg information they need.
+  // does: a stock position's delta is always 1 per share, signed by its `SignedQuantity`.
+  // `totals.greeks.delta` sums every priced position's own quantity plus every operation's own
+  // *option*-leg greeks only: an operation's own stock leg's delta is excluded from this sum,
+  // since a stock leg opened through a tracked `Operation` is expected to also appear in
+  // `positions` (the same reasoning `unrealizedPnl` above already follows) and summing both
+  // would double count those shares (round 3 item 3, superseding round 1 item 9's "adds every
+  // operation's own aggregate delta"). The other four greeks have no stock-leg contribution to
+  // begin with (`valueOneLeg`'s stock branch only ever sets `delta`), so restricting them to
+  // option legs changes nothing for them; they stay operations-only, the only artifact with
+  // the structured leg information they need.
   const equity = toCentavos(
     input.cash + positionValuations.reduce((acc, p) => acc + (p.value ?? 0), 0),
   );
@@ -418,11 +424,19 @@ export function markToMarket(
   );
   const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
-      const operationsTotal = operationValuations.reduce(
-        (sum, ov) => sum.add(parseDecimal(ov.pricing.greeks[key])),
-        new Decimal(0),
-      );
-      const total = key === "delta" ? operationsTotal.add(positionsDelta) : operationsTotal;
+      const operationsOptionLegsTotal = operationValuations.reduce((sum, ov) => {
+        const legsTotal = ov.pricing.legs.reduce((legSum, legValuation) => {
+          if (legValuation.leg.role === "stock" || !legValuation.greeks) return legSum;
+          return legSum.add(
+            new Decimal(sign(legValuation.leg.side))
+              .mul(legValuation.leg.quantity)
+              .mul(legValuation.greeks[key]),
+          );
+        }, new Decimal(0));
+        return sum.add(legsTotal);
+      }, new Decimal(0));
+      const total =
+        key === "delta" ? operationsOptionLegsTotal.add(positionsDelta) : operationsOptionLegsTotal;
       return { ...acc, [key]: toDecimalString(total, RATIO_SCALE) };
     },
     { ...zeroGreeks },

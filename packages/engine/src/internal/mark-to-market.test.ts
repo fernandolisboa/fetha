@@ -178,7 +178,7 @@ describe("markToMarket", () => {
     expect(result.value.totals.greeks.delta).toBe(decimalString("0.000000"));
   });
 
-  it("aggregates a hand-computed, non-zero totals.greeks across two stock-only operations (item 6)", () => {
+  it("aggregates a hand-computed, non-zero totals.greeks.delta from standalone positions, not stock-only operations (round 3 item 3)", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [
@@ -211,14 +211,20 @@ describe("markToMarket", () => {
         },
       ],
     });
+    const positions: Position[] = [
+      { ticker: "PETR4", quantity: signedQuantity(100), averageCost: decimalString("25.00") },
+      { ticker: "VALE3", quantity: signedQuantity(-40), averageCost: decimalString("55.00") },
+    ];
     const result = markToMarket(
-      { view, at, positions: [], operations: [longPetr, shortVale], cash: centavos(0) },
+      { view, at, positions, operations: [longPetr, shortVale], cash: centavos(0) },
       provenanceBase,
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // A stock leg always prices delta 1 per unit (price-operation.ts); a long 100-share
-    // operation contributes +100, a short 40-share operation contributes -40: 100 - 40 = 60.
+    // A stock-only operation's own leg is excluded from totals.greeks (round 3 item 3): a
+    // priced position's own signed quantity is delta 1 per share, a long 100-share position
+    // contributes +100, a short 40-share position contributes -40: 100 - 40 = 60. The two
+    // operations above are the same shares' attribution view and contribute nothing further.
     expect(result.value.totals.greeks).toEqual({
       delta: decimalString("60.000000"),
       gamma: decimalString("0.000000"),
@@ -261,6 +267,63 @@ describe("markToMarket", () => {
     expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(200_00));
     expect(result.value.positions[0]?.unrealizedPnl).toBe(centavos(100_00));
     expect(result.value.totals.unrealizedPnl).toBe(centavos(100_00));
+  });
+
+  it("does not double count a covered call's own stock leg delta against the same shares tracked as a position (round 3 item 3)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("2.30"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const position: Position = {
+      ticker: "PETR4",
+      quantity: signedQuantity(100),
+      averageCost: decimalString("25.00"),
+    };
+    const op = stockOperation({
+      id: "op-covered",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [position], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const callLeg = result.value.operations[0]?.pricing.legs[1];
+    expect(callLeg?.leg.role).toBe("call");
+    expect(callLeg?.greeks?.delta).toBe(decimalString("0.800505"));
+    // The position's own 100 shares already give delta 100; the covered call's own stock
+    // leg tracks the same shares (item 6) and must not add its own +100 again, only the
+    // short call's own delta contribution: 100 + (-1 * 1 * 0.800505) = 99.199495.
+    expect(result.value.totals.greeks.delta).toBe(decimalString("99.199495"));
   });
 
   it("computes openOperationCount as operations.length - 1 for every operation in the same call (item 6)", () => {
