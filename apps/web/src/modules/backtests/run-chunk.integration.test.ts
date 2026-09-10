@@ -13,7 +13,8 @@ import { backtestRuns } from "@/db/schema/backtests";
 import { user } from "@/db/schema/auth";
 import { candles } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { upsertDailyCandles, upsertTradingSessions } from "@/modules/market-data";
+import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
+import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import { BacktestRunRepository, type BacktestRunConfigInput } from "./backtest-run-repository";

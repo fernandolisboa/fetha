@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 
 import { t } from "../strings";
 
-// Chunk-and-resume from the client (ADR-0013 "Checkpoints"): each click
-// only awaits one budgeted call to the route handler, then refreshes the
+// Chunk-and-resume from the client: each click only awaits one budgeted
+// call to the route handler, then refreshes the
 // Server Component with the freshly persisted status; a paused run shows
 // the same button labeled "Continuar" for the next chunk instead of the
 // client looping on its own, so a page reload never loses progress.

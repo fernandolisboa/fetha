@@ -5,7 +5,8 @@ import type { StrategyVersion } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { candles } from "@/db/schema/market-data";
-import { upsertDailyCandles, upsertTradingSessions } from "@/modules/market-data";
+import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
+import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
 
 import { loadBacktestMarketView } from "./market-view";
 
