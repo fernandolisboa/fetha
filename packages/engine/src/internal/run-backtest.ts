@@ -108,7 +108,7 @@ function initialState(initialCapital: Centavos): BacktestState {
   };
 }
 
-function invalidInput(path: string, message: string): Result<BacktestProgress> {
+function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
@@ -371,6 +371,21 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   const budget = input.maxSessions ?? periodSessions.length - startIndex;
   const endIndex = Math.min(periodSessions.length, startIndex + Math.max(0, budget));
 
+  // A caller round-trips `state` through storage as plain JSON, so it can carry any shape at
+  // runtime regardless of what BacktestCheckpoint['state'] says at compile time — a non-object,
+  // or one missing an array equityCurve, must be a typed checkpoint_mismatch, never a thrown
+  // TypeError from dereferencing a field that isn't there.
+  if (input.resume !== undefined) {
+    const rawState: unknown = input.resume.state;
+    if (
+      typeof rawState !== "object" ||
+      rawState === null ||
+      !Array.isArray((rawState as { equityCurve?: unknown }).equityCurve)
+    ) {
+      return checkpointMismatch("equityCurve.length:object", "equityCurve.length:not-an-object");
+    }
+  }
+
   const state: BacktestState =
     input.resume === undefined
       ? initialState(config.initialCapital)
@@ -501,7 +516,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   }
 
   // Step 1b: resolve pending exit fills targeting this session's open (retried indefinitely).
-  function resolvePendingExitFills(session: TradingSession): void {
+  function resolvePendingExitFills(session: TradingSession): Result<void> {
     for (const [opId] of Object.entries(state.pendingExits)) {
       const opIndex = state.openOperations.findIndex((op) => op.id === opId);
       invariant(
@@ -513,14 +528,20 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       if (!candle || candle.tradedQuantity <= 0) continue;
 
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
+      // Read at this same session's close, the instant `candleFor` above already used to decide
+      // this candle is visible: a factor whose own asOf sits between this session's open and
+      // close must apply to this fill exactly when it would also apply to a same-session mark of
+      // an operation that stayed open instead of exiting (I1), never on some other instant that
+      // could disagree over which factors are visible yet.
       const splitFactor = corporateActionFactorThrough(
         op.underlying,
         op.openedAt,
         session.date,
-        session.open,
+        session.close,
       );
       let pnl = new Decimal(0);
-      op.legs.forEach((leg, legIndex) => {
+      for (let legIndex = 0; legIndex < op.legs.length; legIndex += 1) {
+        const leg = assertDefined(op.legs[legIndex], "run-backtest: legIndex within bounds");
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
         // The exit trades an integer number of shares; a grouping factor that does not divide
         // `leg.quantity` evenly leaves a sub-one-share residue, cash-settled at this same fill's
@@ -529,6 +550,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // already accounts for both the traded shares and the residue.
         const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const effectiveShares = Math.floor(rawEffectiveQuantity.toNumber());
+        // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
+        // a real share count can be; that is invalid input, not a value toQuantity should throw
+        // an invariant over.
+        if (effectiveShares > 0 && !Number.isSafeInteger(effectiveShares)) {
+          return invalidInput(
+            "view.corporateActions",
+            `split factor produces a non-integer-safe effective share count for ${op.underlying}`,
+          );
+        }
         const residue = rawEffectiveQuantity.sub(effectiveShares);
         let costs = toCentavos(0);
         if (effectiveShares > 0) {
@@ -559,7 +589,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           .add(legPnlCentavos(leg, candle.open, splitFactor))
           .sub(costs)
           .sub(entryCost);
-      });
+      }
       const pnlCentavos = toCentavos(pnl.round().toNumber());
       state.currentMonthStockGain += pnlCentavos;
       const pendingExit = assertDefined(
@@ -585,6 +615,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       Reflect.deleteProperty(state.entryCosts, op.id);
       Reflect.deleteProperty(state.entryMaxLoss, op.id);
     }
+    return { ok: true, value: undefined };
   }
 
   // Step 2: tax deduction. A month's own tax, computed the day its last session was seen, is
@@ -812,7 +843,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     }
 
     const failedEntryTickers = resolvePendingEntryFills(session);
-    resolvePendingExitFills(session);
+    const exitFillsResult = resolvePendingExitFills(session);
+    if (!exitFillsResult.ok) return { ok: false, error: exitFillsResult.error };
     deductPendingTax(monthKey, isFinalSession, i);
 
     const marked = markOpenOperations(session);

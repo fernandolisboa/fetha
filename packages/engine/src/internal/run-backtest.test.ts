@@ -842,6 +842,55 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(op.pnl).toBe(centavos(19_290));
   });
 
+  it.each([
+    ["at the ex-date session's open", "2024-01-04T13:00:00.000Z", true],
+    ["intraday on the ex-date session", "2024-01-04T16:00:00.000Z", true],
+    ["at the ex-date session's close", "2024-01-04T20:00:00.000Z", true],
+    ["after the ex-date session's close", "2024-01-05T00:00:00.000Z", false],
+  ])(
+    "reads the exit fill's split factor at the same instant as the candle it rebases: %s",
+    (_label, asOf, factorApplies) => {
+      const alwaysTrue: Condition = {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: ">",
+        right: { kind: "constant", value: decimalString("0") },
+      };
+      const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+      const sweptSplit: CorporateActionFactor = { ...split, asOf };
+      const config = baseConfig({
+        strategy: strategyVersion(
+          definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+        ),
+        period: { from: "2024-01-02", to: "2024-01-04" },
+      });
+      const view: MarketView = {
+        ...emptyView,
+        calendar,
+        corporateActions: [sweptSplit],
+        candles: [
+          candle("PETR4", "2024-01-02", "10.00", "10.00"),
+          candle("PETR4", "2024-01-03", "10.00", "10.00"),
+          candle("PETR4", "2024-01-04", "5.20", "5.20"),
+        ],
+      };
+      const result = runBacktest({ view, config });
+      expect(result.ok).toBe(true);
+      if (!result.ok || result.value.status !== "complete")
+        throw new Error("expected a complete run");
+      // The candle used for this exit fill (candleFor) is checked against this same session's
+      // close; the factor must be checked at that identical instant, so a factor visible by
+      // that close is applied to the fill exactly when it would also be applied to a same-session
+      // mark of an operation that stayed open instead of exiting (I1, ADR-0014 Q51).
+      expect(result.value.run.fills[1]).toMatchObject({
+        quantity: factorApplies ? quantity(1000) : quantity(500),
+      });
+      const op = result.value.run.operations[0];
+      if (op?.status !== "closed") throw new Error("expected a closed operation");
+      expect(op.pnl).toBe(factorApplies ? centavos(19_290) : centavos(-240_580));
+    },
+  );
+
   it("never applies a factor whose asOf is not yet visible, even when its exDate is inside the run (I1)", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
@@ -922,7 +971,7 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(result.value.run.taxes.every((t) => t.tax === centavos(0))).toBe(true);
   });
 
-  it("1:200 grouping rounds an open leg to zero effective shares without throwing", () => {
+  it("1:1000 grouping rounds an open leg to zero effective shares without throwing", () => {
     const alwaysTrue: Condition = {
       kind: "compare",
       left: { kind: "price", field: "close" },
@@ -933,7 +982,7 @@ describe("runBacktest — corporate actions across an open position", () => {
       ticker: "PETR4",
       exDate: "2024-01-04",
       asOf: "2024-01-04T13:00:00.000Z",
-      factor: decimalString("200"),
+      factor: decimalString("1000"),
     };
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({
@@ -948,18 +997,63 @@ describe("runBacktest — corporate actions across an open position", () => {
       corporateActions: [deepGrouping],
       candles: [
         candle("PETR4", "2024-01-02", "10.00", "10.00"),
-        // Entry: 500 shares at 10.00 on 2024-01-03; 500 / 200 = 2.5 effective shares, floored
-        // to 0 — the fill must be skipped, not throw, and the residue cash-settled.
+        // Entry: 500 shares at 10.00 on 2024-01-03; the effective post-grouping entry price
+        // rebases to 10.00 * 1000 = 10,000.00, and 500 / 1000 = 0.5 effective shares, floored
+        // to 0 — the fill is skipped (a single fill for the whole run, the entry), the residue
+        // cash-settled, no shares traded on the exit.
         candle("PETR4", "2024-01-03", "10.00", "10.00"),
-        candle("PETR4", "2024-01-04", "2000.00", "2000.00"),
+        // The rebased close exactly matches the rebased entry price (10,000.00), so the raw
+        // price move nets to zero and the operation's pnl is exactly the entry's own costs
+        // (b3FeeRate 0.0005 on a 5,000.00 gross plus the flat 100-centavo brokerage — 250 + 100
+        // = 350 centavos), never rounded into a phantom share.
+        candle("PETR4", "2024-01-04", "10000.00", "10000.00"),
       ],
     };
     const result = runBacktest({ view, config });
     expect(result.ok).toBe(true);
     if (!result.ok || result.value.status !== "complete")
       throw new Error("expected a complete run");
+    expect(result.value.run.fills).toHaveLength(1);
     const op = result.value.run.operations[0];
     expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    expect(op.pnl).toBe(centavos(-350));
+  });
+
+  it("returns invalid_input, never throws, when a split factor blows the effective share count past a safe integer", () => {
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const microFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("0.000000000000001"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+      ),
+      period: { from: "2024-01-02", to: "2024-01-04" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [microFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 });
 
@@ -1400,6 +1494,36 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     expect(result.error.expectedDigest).toBe("equityCurve.length:1");
     expect(result.error.receivedDigest).toBe("equityCurve.length:0");
   });
+
+  it.each([
+    ["null", null],
+    ["a non-object", "not-a-state"],
+    ["an object missing equityCurve", {}],
+    ["an object whose equityCurve is not an array", { equityCurve: "nope" }],
+  ])(
+    "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
+    (_label, malformedState) => {
+      const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+      const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+      const view: MarketView = {
+        ...emptyView,
+        calendar,
+        candles: [
+          candle("PETR4", "2024-01-02", "10.00", "10.00"),
+          candle("PETR4", "2024-01-03", "10.00", "10.00"),
+          candle("PETR4", "2024-01-04", "10.00", "10.00"),
+        ],
+      };
+      const paused = runBacktest({ view, config, maxSessions: 1 });
+      expect(paused.ok).toBe(true);
+      if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+      const corruptedCheckpoint = { ...paused.value.checkpoint, state: malformedState };
+      const result = runBacktest({ view, config, resume: corruptedCheckpoint });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("checkpoint_mismatch");
+    },
+  );
 
   it("returns invalid_input when resuming with a cursor that is not a session of the period", () => {
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
