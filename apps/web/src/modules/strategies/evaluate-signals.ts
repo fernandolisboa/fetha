@@ -23,8 +23,7 @@ export interface EvaluateSignalsOutcome {
   // Distinct from `usersEvaluated` (#19 round 3 item 3): a user whose every
   // active strategy's watermark already covers `at` did no engine work this
   // run, so counting them as "evaluated" hides that the manual re-run the
-  // cron POST handler documents was a silent no-op. `force` (below) is the
-  // way to actually redo it.
+  // cron POST handler documents was a silent no-op.
   usersAlreadyCaughtUp: number;
   // Strategies left unprocessed when the in-loop deadline (round 3 item 2)
   // broke the per-strategy loop early, across every user this run touched
@@ -63,12 +62,6 @@ export interface EvaluateSignalsOptions {
   // have to).
   deadlineAt?: number;
   now?: () => number;
-  // The manual re-run after a corrected candle (#19 round 3 item 3): bypass
-  // every strategy's own watermark for the sessions this call was asked to
-  // evaluate and upsert their signals/evaluations instead of relying on
-  // `onConflictDoNothing`, rather than silently doing nothing because the
-  // watermark already covers them.
-  force?: boolean;
 }
 
 function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignalsOutcome {
@@ -274,12 +267,6 @@ export async function evaluateSignalsForSession(
   let signalsWritten = 0;
   let evaluationsWritten = 0;
   const errors: string[] = [];
-  // Only the clamp record (the older, dropped span — never re-evaluated,
-  // so never a candidate for retraction) still goes through the plain
-  // upsert path; every session actually re-evaluated goes through
-  // `replaceForForcedRun` below so a correction that stops firing can
-  // retract the stale signal it can no longer produce (round 4 item 2).
-  const clampUpsert = { upsert: options.force === true };
 
   for (const userId of userIds) {
     if (options.deadlineAt !== undefined && now() >= options.deadlineAt) {
@@ -338,11 +325,7 @@ export async function evaluateSignalsForSession(
         // strategy skipped for ten nights by a setup failure, a deadline or
         // a sibling strategy's thrown error keeps its old watermark, so the
         // next run that reaches it catches up on every session since, not
-        // only the one this run drained. Read unconditionally, force
-        // included (round 4 item 1): force must never substitute
-        // `drainedRangeSince` for this, or a backlogged strategy silently
-        // loses everything before tonight's drained range the moment it is
-        // force-re-run for an unrelated correction.
+        // only the one this run drained.
         const watermark = await signalsRepository.lastEvaluatedSession(version.id);
         let watermarkSince: Instant | undefined;
         if (watermark !== null) {
@@ -356,28 +339,12 @@ export async function evaluateSignalsForSession(
           watermarkSince = drainedRangeSince;
         }
 
-        // `force` only ever bypasses the already-caught-up short-circuit
-        // below and switches the writes to upsert (round 4 item 1) — it
-        // never moves the lower bound forward. It may move it *back*: the
-        // older (more historical) of the watermark anchor and
-        // `drainedRangeSince`, so a corrected candle re-run still catches up
-        // on a backlog instead of jumping straight to tonight's session. An
-        // undefined anchor is treated as older than any defined one (no
-        // session resolves before it), never as "no constraint".
-        let since: Instant | undefined = options.force
-          ? watermarkSince === undefined || drainedRangeSince === undefined
-            ? undefined
-            : watermarkSince < drainedRangeSince
-              ? watermarkSince
-              : drainedRangeSince
-          : watermarkSince;
+        let since: Instant | undefined = watermarkSince;
 
         // Already caught up beyond `at` (a re-run for a session this
         // strategy's watermark already covers): the engine rejects
-        // `since >= at` as invalid input, so this is "nothing to
-        // evaluate", not an error — unless `force` says redo it anyway
-        // (round 3 item 3).
-        if (!options.force && since !== undefined && since >= at) {
+        // `since >= at` as invalid input, so this is "nothing to evaluate".
+        if (since !== undefined && since >= at) {
           strategiesAlreadyCaughtUp += 1;
           continue;
         }
@@ -385,42 +352,32 @@ export async function evaluateSignalsForSession(
         const fullSessions = sessionsInCatchUpRange(calendar, since, at);
         const clampResult = clampCatchUpRange(fullSessions, since);
         const userSessions = clampResult.sessions;
-        const userSessionDates = userSessions.map((session) => session.date);
         since = clampResult.since;
 
-        if (clampResult.clamped.length > 0) {
-          evaluationsWritten += await signalsRepository.createEvaluations(
-            clampEvaluations(strategyId, version.id, tickers, clampResult.clamped),
-            clampUpsert,
-          );
-        }
+        // The clamp record (if any) is folded into the same
+        // `createEvaluations` call as the strategy's own evaluation rows
+        // below, not written separately beforehand: a single multi-row
+        // INSERT is atomic, so a failure partway through this strategy's
+        // write can never leave the clamp recorded with nothing else
+        // written for it.
+        const clampRecords =
+          clampResult.clamped.length > 0
+            ? clampEvaluations(strategyId, version.id, tickers, clampResult.clamped)
+            : [];
 
         strategiesProcessed += 1;
 
-        // The write for whatever this strategy/session batch produces
-        // (round 4 items 1-2): forced runs go through `replaceForForcedRun`
-        // so a session that no longer fires actually retracts its stale
-        // signal, everyone else keeps the plain idempotent insert.
         const writeResult = async (
           signalRows: NewSignal[],
           evaluationRows: NewEvaluation[],
         ): Promise<void> => {
-          if (options.force) {
-            const written = await signalsRepository.replaceForForcedRun(
-              version.id,
-              tickers,
-              userSessionDates,
-              signalRows,
-              evaluationRows,
-            );
-            signalsWritten += written.signalsWritten;
-            evaluationsWritten += written.evaluationsWritten;
-            return;
-          }
           if (signalRows.length > 0) {
             signalsWritten += await signalsRepository.createSignals(signalRows);
           }
-          evaluationsWritten += await signalsRepository.createEvaluations(evaluationRows);
+          evaluationsWritten += await signalsRepository.createEvaluations([
+            ...clampRecords,
+            ...evaluationRows,
+          ]);
         };
 
         const structure = structureById.get(version.definition.structureId);

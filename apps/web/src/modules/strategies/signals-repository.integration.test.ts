@@ -177,17 +177,19 @@ describe("SignalsRepository isolation", () => {
     expect(await repoB.lastEvaluatedSession(versionB.id)).toBe("2031-06-01");
   });
 
-  it("a forced upsert from user A never touches user B's signal or its read state (round 4 item 5)", async () => {
+  // Strengthened over a prior version of this case that shared no key axis
+  // between the two users and so would have passed even with the tenant
+  // predicate removed from `markRead` (round 5 item 2 advisory): user A's
+  // `markRead` targets user B's own signal id directly, colliding on the
+  // write's own predicate (`id`), with only `userId` distinguishing them.
+  it("markRead's own predicate, not merely a different key, keeps user A from marking user B's signal read", async () => {
     const db = getDb();
-    const emailA = uniqueEmail("force-a");
-    const emailB = uniqueEmail("force-b");
+    const emailA = uniqueEmail("markread-a");
+    const emailB = uniqueEmail("markread-b");
     createdEmails.push(emailA, emailB);
     const userA = await insertBareUser(emailA);
     const userB = await insertBareUser(emailB);
 
-    const strategyA = await new StrategiesRepository(db, userA).createWithVersion(definition());
-    const versionA = strategyA.versions[0];
-    if (!versionA) throw new Error("test setup: expected a version");
     const strategyB = await new StrategiesRepository(db, userB).createWithVersion(definition());
     const versionB = strategyB.versions[0];
     if (!versionB) throw new Error("test setup: expected a version");
@@ -197,21 +199,13 @@ describe("SignalsRepository isolation", () => {
     await repoB.createSignals([newSignal(strategyB.id, versionB.id, tickerB)]);
     const [signalB] = await repoB.listInbox();
     if (!signalB) throw new Error("test setup: expected a signal");
-    await repoB.markRead(signalB.id);
+    expect(signalB.readAt).toBeNull();
 
-    const tickerA = randomTicker();
     const repoA = new SignalsRepository(db, userA);
-    await repoA.replaceForForcedRun(
-      versionA.id,
-      [tickerA],
-      ["2031-06-01"],
-      [newSignal(strategyA.id, versionA.id, tickerA)],
-      [newEvaluation(strategyA.id, versionA.id, tickerA)],
-    );
+    await repoA.markRead(signalB.id);
 
-    const inboxB = await repoB.listInbox();
-    expect(inboxB).toHaveLength(1);
-    expect(inboxB[0]?.id).toBe(signalB.id);
-    expect(inboxB[0]?.readAt).not.toBeNull();
+    const [stillUnread] = await repoB.listInbox();
+    expect(stillUnread?.readAt).toBeNull();
+    expect(await repoB.unreadCount()).toBe(1);
   });
 });

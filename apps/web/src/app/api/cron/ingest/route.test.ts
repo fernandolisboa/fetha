@@ -209,37 +209,4 @@ describe("cron ingest route", () => {
     expect(response.status).toBe(200);
     expect(ingestMock).toHaveBeenCalledWith({}, {});
   });
-
-  it("rejects `force` without an explicit session, with its own message (round 4 item 3)", async () => {
-    const { POST } = await import("./route");
-    const response = await POST(
-      new Request("http://localhost/api/cron/ingest", {
-        method: "POST",
-        headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
-        body: JSON.stringify({ force: true }),
-      }),
-    );
-    expect(response.status).toBe(400);
-    const body: unknown = await response.json();
-    expect(body).toMatchObject({ error: "force requires an explicit session" });
-    expect(ingestMock).not.toHaveBeenCalled();
-  });
-
-  it("passes `force` through to evaluateSignalsForSession when paired with a session (round 4 item 6)", async () => {
-    const { POST } = await import("./route");
-    const response = await POST(
-      new Request("http://localhost/api/cron/ingest", {
-        method: "POST",
-        headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
-        body: JSON.stringify({ session: "2026-09-08", force: true }),
-      }),
-    );
-    expect(response.status).toBe(200);
-    expect(ingestMock).toHaveBeenCalledWith({}, { session: "2026-09-08" });
-    expect(evaluateSignalsMock).toHaveBeenCalledWith(
-      {},
-      ["2026-09-08"],
-      expect.objectContaining({ force: true }),
-    );
-  });
 });
