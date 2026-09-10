@@ -1556,8 +1556,20 @@ describe("runBacktest — short stock legs, exit retries and error propagation",
     expect(middlePoint?.equity).toBeGreaterThan(centavos(1_000_000));
   });
 
-  it("counts a short entry's sell fill toward the month's stockSales, not only exit-side sells", () => {
+  it("counts a short entry's sell fill toward the month's stockSales, crossing the exemption and owing tax", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"].map(session);
+    // Capital large enough that the entry's own sell (250,000 shares at 10.00 = R$2,500,000)
+    // alone crosses the R$2,000,000 monthly stock-sales exemption on the entry fill, not the
+    // exit.
+    const largeRiskProfile = {
+      declaredCapital: centavos(5_000_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("1"),
+        maxOpenOperations: 5,
+        maxPremiumBought: decimalString("1"),
+      },
+    };
     const config = baseConfig({
       strategy: strategyVersion(
         definition({
@@ -1567,6 +1579,8 @@ describe("runBacktest — short stock legs, exit retries and error propagation",
         }),
         shortStructure,
       ),
+      initialCapital: centavos(5_000_000_00),
+      riskProfile: largeRiskProfile,
     });
     const view: MarketView = {
       ...emptyView,
@@ -1588,6 +1602,12 @@ describe("runBacktest — short stock legs, exit retries and error propagation",
     expect(tax?.stockSales).toBe(
       centavos(Number(entryFill?.quantity) * Number(entryFill?.price) * 100),
     );
+    expect(tax?.stockSales).toBeGreaterThan(centavos(2_000_000_00));
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    expect(op.pnl).toBeGreaterThan(0);
+    expect(tax?.tax).toBeGreaterThan(centavos(0));
   });
 
   it("retries an exit fill across a zero-volume session without duplicating the pending exit", () => {
