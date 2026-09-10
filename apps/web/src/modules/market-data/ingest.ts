@@ -117,22 +117,29 @@ function isUniqueViolation(error: unknown): boolean {
 // there rolls back only the marker write, never the `run()` writes already
 // made in the surrounding transaction, and is treated as `skipped`, not
 // `failed`, since the work already succeeded under the other run's id.
-async function runSource(
+export async function runSource(
   db: Database,
   source: IngestionSource,
   session: string,
   maxDurationMs: number,
   run: () => Promise<number>,
 ): Promise<SourceOutcome> {
-  await reapStaleRunningRuns(db, source, new Date(Date.now() - maxDurationMs));
-
-  const existing = await findSucceededRun(db, source, session);
-  if (existing) {
-    return { source, skipped: true, rowCount: existing.rowCount ?? 0 };
-  }
-
-  const runId = await startRun(db, source, session);
+  // runId is only known once startRun resolves; a transient DB error before
+  // that (reapStaleRunningRuns, the pre-lock findSucceededRun, startRun
+  // itself) has no run row to mark failed, so it is reported as a
+  // SourceOutcome error directly instead of crashing the whole invocation
+  // and every other source in it.
+  let runId: string | undefined;
   try {
+    await reapStaleRunningRuns(db, source, new Date(Date.now() - maxDurationMs));
+
+    const existing = await findSucceededRun(db, source, session);
+    if (existing) {
+      return { source, skipped: true, rowCount: existing.rowCount ?? 0 };
+    }
+
+    const startedRunId = await startRun(db, source, session);
+    runId = startedRunId;
     const result = await withSourceLock(db, source, async (tx) => {
       const alreadySucceeded = await findSucceededRun(tx, source, session);
       if (alreadySucceeded) {
@@ -144,7 +151,7 @@ async function runSource(
           // Same nominal-type gap as withSourceLock's own cast: the
           // savepoint handle implements the query builder surface this
           // module needs, just under a stricter internal Drizzle type.
-          await finishRun(savepoint as unknown as Database, runId, {
+          await finishRun(savepoint as unknown as Database, startedRunId, {
             status: "succeeded",
             rowCount,
           });
@@ -159,12 +166,14 @@ async function runSource(
       return { rowCount, skipped: !committed };
     });
     if (result.skipped) {
-      await deleteRun(db, runId);
+      await deleteRun(db, startedRunId);
     }
     return { source, skipped: result.skipped, rowCount: result.rowCount };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    await finishRun(db, runId, { status: "failed", error: message });
+    if (runId) {
+      await finishRun(db, runId, { status: "failed", error: message });
+    }
     return { source, skipped: false, rowCount: 0, error: message };
   }
 }
