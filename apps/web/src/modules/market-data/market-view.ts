@@ -2,7 +2,10 @@ import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
 import {
   decimalStringSchema,
+  exerciseStyleSchema,
   instantSchema,
+  macroSeriesKindSchema,
+  optionRightSchema,
   sessionDateSchema,
   tickerSchema,
   type DecimalString,
@@ -164,8 +167,10 @@ export async function loadMarketView(
   }
 
   const collections = new Set(window.collections);
+  const wantsOptionSeries = collections.has("optionSeries");
+  const wantsOptionPrices = collections.has("optionPrices");
 
-  const [candlesByTicker, corporateActionsByTicker, macroRows] = await Promise.all([
+  const [candlesByTicker, corporateActionsByTicker, macroRows, seriesRows] = await Promise.all([
     collections.has("candles")
       ? Promise.all(
           universe.map((ticker) => candlesForPeriod(db, ticker, warmupSession.date, period.to)),
@@ -176,6 +181,22 @@ export async function loadMarketView(
       : Promise.resolve([]),
     collections.has("macro")
       ? macroPointsBetween(db, warmupSession.date, period.to)
+      : Promise.resolve([]),
+    // A strategy's chain window: every series listed on an underlying in
+    // this universe that had not yet expired at the start of warmup, seen
+    // on or before the period's own last session (the engine, not this
+    // module, decides per-step visibility off each row's own `asOf`).
+    wantsOptionSeries || wantsOptionPrices
+      ? db
+          .select()
+          .from(optionSeries)
+          .where(
+            and(
+              inArray(optionSeries.underlying, universe),
+              lte(optionSeries.asOf, new Date(toSession.close)),
+              gte(optionSeries.expiry, warmupSession.date),
+            ),
+          )
       : Promise.resolve([]),
   ]);
 
@@ -191,11 +212,60 @@ export async function loadMarketView(
   }));
 
   const macro: MacroPoint[] = macroRows.map((row) => ({
-    series: row.series as MacroPoint["series"],
+    series: macroSeriesKindSchema.parse(row.series),
     date: sessionDateSchema.parse(row.date),
     asOf: instantSchema.parse(row.asOf.toISOString()),
     annualRate: toDecimal(row.annualRate),
   }));
+
+  const optionSeriesView: OptionSeries[] = wantsOptionSeries
+    ? seriesRows.map((row) => ({
+        ticker: tickerSchema.parse(row.ticker),
+        underlying: tickerSchema.parse(row.underlying),
+        right: optionRightSchema.parse(row.right),
+        strike: toDecimal(row.strike),
+        expiry: sessionDateSchema.parse(row.expiry),
+        style: exerciseStyleSchema.parse(row.style),
+        asOf: instantSchema.parse(row.asOf.toISOString()),
+      }))
+    : [];
+
+  const seriesTickers = [...new Set(seriesRows.map((row) => row.ticker))];
+  const priceRows =
+    wantsOptionPrices && seriesTickers.length > 0
+      ? await db
+          .select()
+          .from(optionDailyPrices)
+          .where(
+            and(
+              inArray(optionDailyPrices.ticker, seriesTickers),
+              gte(optionDailyPrices.session, warmupSession.date),
+              lte(optionDailyPrices.session, period.to),
+            ),
+          )
+      : [];
+
+  const optionPrices: OptionDayPrice[] = priceRows.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    session: sessionDateSchema.parse(row.session),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    average: row.average ? toDecimal(row.average) : null,
+    close: row.close ? toDecimal(row.close) : null,
+    trades: row.trades,
+    tradedQuantity: row.tradedQuantity,
+  }));
+
+  // A strategy's chain can carry an expiry beyond the period's own last
+  // session (a leg entered near the end of the window, still live when the
+  // run stops): without extending the calendar to reach it, every such leg
+  // would report `calendar_gap` on time-to-expiry instead of pricing
+  // (mirrors `buildOperationMarketView`'s own forward extension below).
+  const furthestOptionExpiry = furthestExpiry(seriesRows.map((row) => row.expiry));
+  const extendedCalendarRows =
+    furthestOptionExpiry && furthestOptionExpiry > period.to
+      ? await sessionsBetween(db, calendarFloor, furthestOptionExpiry)
+      : calendarRows;
+  const calendarView = extendedCalendarRows.map(toTradingSession);
 
   // No implied-volatility-index ingestion pipeline exists yet (same gap
   // buildOperationMarketView already documents for dividendYields): the
@@ -205,14 +275,16 @@ export async function loadMarketView(
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
+    ...optionSeriesView.map((row) => row.asOf),
+    ...optionPrices.map((row) => row.asOf),
   ]);
 
   return {
-    calendar,
+    calendar: calendarView,
     candles: candleView,
     corporateActions,
-    optionSeries: [],
-    optionPrices: [],
+    optionSeries: optionSeriesView,
+    optionPrices,
     quotes: [],
     macro,
     dividendYields: [],
@@ -334,10 +406,10 @@ export async function buildOperationMarketView(
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
     ticker: row.ticker,
     underlying: row.underlying,
-    right: row.right as OptionSeries["right"],
+    right: optionRightSchema.parse(row.right),
     strike: toDecimal(row.strike),
     expiry: row.expiry,
-    style: row.style as OptionSeries["style"],
+    style: exerciseStyleSchema.parse(row.style),
     asOf: row.asOf.toISOString(),
   }));
 

@@ -516,8 +516,19 @@ function businessDaysFrom(
   return dates;
 }
 
+const COVERED_CALL_STRUCTURE: Structure = {
+  id: "covered-call",
+  name: "Covered call",
+  expiry: "shared",
+  legs: [
+    { role: "stock", side: "buy", ratio: 1 },
+    { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+  ],
+};
+
 describe("loadMarketView", () => {
   const cleanupTickers: string[] = [];
+  const cleanupOptionTickers: string[] = [];
   const cleanupDates: string[] = [];
 
   afterEach(async () => {
@@ -525,6 +536,10 @@ describe("loadMarketView", () => {
     for (const ticker of cleanupTickers.splice(0)) {
       await db.delete(candles).where(eq(candles.ticker, ticker));
       await db.delete(corporateActionFactors).where(eq(corporateActionFactors.ticker, ticker));
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+    for (const optionTicker of cleanupOptionTickers.splice(0)) {
+      await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, optionTicker));
     }
     const dates = cleanupDates.splice(0);
     if (dates.length > 0) {
@@ -684,5 +699,121 @@ describe("loadMarketView", () => {
     });
 
     expect(view.dataVersion).toBe(lastAsOf);
+  });
+
+  it("populates the option chain when the strategy's structure carries an option leg (round 2 item 1)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("OPT");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDaysFrom(2097, 7, 7, 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions.at(-1) ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    const priceSession = sessions[26] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await ensureMonthlyPartition(db, "option_daily_prices", priceSession);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: priceSession,
+      asOf: new Date(`${priceSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      average: "0.750000",
+      close: "0.750000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const view = await loadMarketView(db, {
+      strategy,
+      universe: [ticker],
+      period: { from: periodFrom, to: periodTo },
+    });
+
+    expect(view.optionSeries.some((series) => series.ticker === optionTicker)).toBe(true);
+    const prices = view.optionPrices.filter((price) => price.ticker === optionTicker);
+    expect(prices).toHaveLength(1);
+    expect(prices[0]?.close).toBe("0.750000");
+  });
+
+  it("does not query option series or prices for a stock-only strategy", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("STK");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDaysFrom(2097, 8, 4, 25);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const view = await loadMarketView(db, {
+      strategy,
+      universe: [ticker],
+      period: { from: sessions[0] ?? "", to: sessions.at(-1) ?? "" },
+    });
+
+    expect(view.optionSeries).toEqual([]);
+    expect(view.optionPrices).toEqual([]);
   });
 });
