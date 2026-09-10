@@ -32,6 +32,7 @@ import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
+import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
 
 const sizingDetail: Record<StockSizingReason, string> = {
@@ -295,20 +296,6 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
   return { premiumBase, maxLossBase };
-}
-
-// Same scale convention buildCandleSeries uses for adjusted candles: a factor whose ex-date
-// falls after the price was recorded is folded in so the current close can be rebased back to
-// the entry price's own, unadjusted scale (ADR-0013 "Exit rule evaluation").
-function splitFactorProduct(
-  factors: readonly CorporateActionFactor[],
-  openedAt: SessionDate,
-  through: SessionDate,
-): Decimal {
-  return factors.reduce((acc, f) => {
-    if (f.exDate > openedAt && f.exDate <= through) return acc.mul(new Decimal(f.factor));
-    return acc;
-  }, new Decimal(1));
 }
 
 function evaluateNumericExitRule(

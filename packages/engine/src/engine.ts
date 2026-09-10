@@ -26,6 +26,7 @@ import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate
 import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
+import { runBacktest as computeRunBacktest } from "./internal/run-backtest";
 import {
   unsupportedAdjustmentRuleKinds,
   unsupportedThesisClaimKinds,
@@ -68,7 +69,7 @@ export const engine: Engine = {
   },
 
   runBacktest(input: RunBacktestInput): Promise<Result<BacktestProgress>> {
-    return unsupported("sizingRules", input.config.strategy.definition.sizing.kind);
+    return Promise.resolve(computeRunBacktest(input));
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
