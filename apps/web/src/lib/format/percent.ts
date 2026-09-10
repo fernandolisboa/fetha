@@ -1,3 +1,4 @@
+import { Decimal } from "decimal.js";
 import { leftOpenUnitIntervalSchema, type DecimalString } from "@fetha/contracts";
 
 // Renders a fraction ("0.02") as a pt-BR percentage string ("2%"), matching
@@ -6,6 +7,15 @@ export function formatPercent(fraction: DecimalString): string {
   const value = Number(fraction) * 100;
   const rounded = Math.round(value * 100) / 100;
   return `${rounded.toString().replace(".", ",")}%`;
+}
+
+// Seeds an editable percent input from a stored fraction without the
+// two-decimal rounding `formatPercent` applies for display, so re-opening
+// the risk profile form never silently narrows a declared limit (round 1
+// item 16: 0.02345 stored as "2%" would save back as 0.02, not 0.02345).
+export function fractionToPercentInputValue(fraction: DecimalString): string {
+  const percent = new Decimal(fraction).times(100).toFixed(6);
+  return trimTrailingZeros(percent).replace(".", ",");
 }
 
 function trimTrailingZeros(decimal: string): string {

@@ -26,11 +26,14 @@ export function formatPriceBRL(price: DecimalString): string {
 // Parses a pt-BR money input ("1.234,56" or "1234,56" or "1234") into
 // centavos; returns null for anything that is not a positive amount, since
 // the only caller (declared capital) never accepts zero or negative money.
+// Decimal, not floating-point multiplication (ADR-0001: never JS `number`
+// for money), so an input on the edge of a centavo never rounds wrong.
 export function parseBRLToCentavos(input: string): Centavos | null {
   const trimmed = input.trim().replace(/\./g, "").replace(",", ".");
-  if (trimmed === "") return null;
-  const value = Number(trimmed);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  const result = centavosSchema.safeParse(Math.round(value * 100));
+  if (trimmed === "" || !/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const value = new Decimal(trimmed);
+  if (value.isZero() || value.isNegative()) return null;
+  const centavos = value.times(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+  const result = centavosSchema.safeParse(centavos.toNumber());
   return result.success ? result.data : null;
 }
