@@ -396,6 +396,20 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return invalidInput("config.period", "no calendar session falls inside the requested period");
   }
 
+  // Validated here, upfront, rather than left to `evaluateStrategy`'s own per-session check
+  // (round 3 item 4): a resumed chunk's own fills and marks read `view.corporateActions`
+  // through `corporateActionFactorThrough` for this session's still-open operations before
+  // `evaluateStrategy` is ever called for it, so that per-session check alone left this
+  // reachable through `splitFactorProduct`'s invariant on a resumed run's very first session.
+  for (const [index, f] of view.corporateActions.entries()) {
+    if (!parseDecimal(f.factor).gt(0)) {
+      return invalidInput(
+        `view.corporateActions[${String(index)}].factor`,
+        "a corporate-action factor must be strictly positive",
+      );
+    }
+  }
+
   const candlesByTicker = new Map<Ticker, Candle[]>();
   for (const c of view.candles) {
     if (c.timeframe !== "D1") continue;
@@ -426,7 +440,17 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const factors = (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
       isAtOrBefore(f.asOf, visibleAt),
     );
-    return splitFactorProduct(factors, openedAt, through);
+    const result = splitFactorProduct(factors, openedAt, through);
+    // runBacktest's own upfront validation above rejects the whole, unfiltered
+    // view.corporateActions with invalid_input before the session loop below ever starts
+    // (round 3 item 4: a resumed chunk's first session fills and marks before evaluateStrategy
+    // is ever called for it, so that per-session check alone left this reachable), so a
+    // non-positive factor can never reach this call.
+    invariant(
+      result.ok,
+      "run-backtest: the upfront corporateActions validation already rejected a non-positive factor",
+    );
+    return result.value;
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
