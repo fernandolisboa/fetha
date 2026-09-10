@@ -56,6 +56,7 @@ function insufficientCandles(underlying: string, at: Instant): EngineError {
 function resolveExpiredIntrinsicBasis(
   view: MarketView,
   operation: Operation,
+  at: Instant,
   markSession: SessionDate,
 ): { ok: true; value: DecimalString | null } | { ok: false; error: EngineError } {
   if (operation.expiry === null) return { ok: true, value: null };
@@ -68,15 +69,24 @@ function resolveExpiredIntrinsicBasis(
       error: insufficientCandles(operation.underlying, `${operation.expiry}T00:00:00.000Z`),
     };
   }
+  // On the expiry session itself, the operation is only actually expired once the session's
+  // own close has passed: pricing it at intrinsic any earlier — even a moment before close —
+  // would read the expiry candle before it is visible at `at` (I1). `at`'s own session already
+  // being strictly later than `operation.expiry` (the `markSession < operation.expiry` guard
+  // above already ruled out the earlier case) means `at` is necessarily at or after that close.
+  if (markSession === operation.expiry && !isAtOrBefore(expirySession.close, at)) {
+    return { ok: true, value: null };
+  }
+  const truncationInstant = isAtOrBefore(at, expirySession.close) ? at : expirySession.close;
   const candle = latestVisible(
     view.candles.filter(
       (c) =>
         c.ticker === operation.underlying && c.timeframe === "D1" && c.session === operation.expiry,
     ),
-    expirySession.close,
+    truncationInstant,
   );
   if (!candle) {
-    return { ok: false, error: insufficientCandles(operation.underlying, expirySession.close) };
+    return { ok: false, error: insufficientCandles(operation.underlying, truncationInstant) };
   }
   return { ok: true, value: candle.close };
 }
@@ -95,7 +105,7 @@ function priceExistingOperation(
   markSession: SessionDate,
   path: string,
 ): { ok: true; value: OperationValuation } | { ok: false; error: EngineError } {
-  const expiredBasis = resolveExpiredIntrinsicBasis(view, operation, markSession);
+  const expiredBasis = resolveExpiredIntrinsicBasis(view, operation, at, markSession);
   if (!expiredBasis.ok) return { ok: false, error: expiredBasis.error };
 
   // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective

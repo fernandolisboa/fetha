@@ -854,6 +854,92 @@ describe("markToMarket", () => {
     expect(stockLeg?.price).toBe(decimalString("30.00"));
   });
 
+  it("prices a short call normally, never at intrinsic, before its own expiry session's close (round 3 item 1)", () => {
+    const expirySessionOpen = "2024-01-05T13:00:00.000Z";
+    const expirySessionClose = "2024-01-05T21:00:00.000Z";
+    const sweep: Record<string, boolean> = {
+      "2024-01-05T13:00:00.000Z": false,
+      "2024-01-05T15:00:00.000Z": false,
+      "2024-01-05T21:00:00.000Z": true,
+      "2024-01-05T21:00:00.001Z": true,
+      "2024-01-06T21:00:00.000Z": true,
+    };
+    for (const [markAt, expectSettlementPending] of Object.entries(sweep)) {
+      const view: MarketView = {
+        ...baseView,
+        quotes: [
+          {
+            ticker: "PETR4",
+            asOf: expirySessionOpen,
+            last: decimalString("30.00"),
+            bid: null,
+            ask: null,
+          },
+        ],
+        optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+        optionPrices: [
+          {
+            ticker: "PETR4C28",
+            session: "2024-01-04",
+            asOf: expirySessionOpen,
+            average: null,
+            close: decimalString("2.30"),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+        ],
+        candles: [
+          {
+            ticker: "PETR4",
+            timeframe: "D1",
+            session: "2024-01-05",
+            asOf: expirySessionClose,
+            open: decimalString("30.00"),
+            high: decimalString("30.00"),
+            low: decimalString("30.00"),
+            close: decimalString("30.00"),
+            tradedQuantity: 1000,
+          },
+        ],
+      };
+      const op = stockOperation({
+        id: "op-covered",
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            entryPrice: decimalString("25.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            entryPrice: decimalString("2.00"),
+          },
+        ],
+        expiry: "2024-01-05",
+      });
+      const result = markToMarket(
+        { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+        provenanceBase,
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      const optionLeg = result.value.operations[0]?.pricing.legs[1];
+      const hasSettlementPending =
+        optionLeg?.notes.some((n) => n.code === "settlement_pending") ?? false;
+      expect(hasSettlementPending).toBe(expectSettlementPending);
+      if (expectSettlementPending) {
+        expect(optionLeg?.greeks).toBeNull();
+      } else {
+        expect(optionLeg?.greeks).not.toBeNull();
+      }
+    }
+  });
+
   it("returns insufficient_data when an expired operation's expiry session has no underlying candle", () => {
     const markAt = "2024-01-10T21:00:00.000Z";
     const view: MarketView = {

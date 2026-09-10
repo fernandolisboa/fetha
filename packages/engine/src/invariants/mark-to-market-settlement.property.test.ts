@@ -219,6 +219,71 @@ describe("I1 Future-blind — markToMarket", () => {
   });
 });
 
+describe("I1 Future-blind — markToMarket at an operation's own expiry session (round 3 item 1)", () => {
+  it("an expiry-session candle with asOf > at never changes the valuation before the session's close", () => {
+    fc.assert(
+      fc.property(candlePriceArbitrary, candlePriceArbitrary, (spot, futureClose) => {
+        const expiry = "2024-01-02";
+        const expirySessionOpen = "2024-01-02T13:00:00.000Z";
+        const expirySessionMidday = "2024-01-02T15:00:00.000Z";
+        const expirySessionClose = "2024-01-02T21:00:00.000Z";
+        const series: OptionSeries = {
+          ticker: "PETR4C28",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("28.00"),
+          expiry,
+          style: "european",
+          asOf: expirySessionOpen,
+        };
+        const op: Operation = {
+          id: "op-covered",
+          underlying: "PETR4",
+          legs: [
+            {
+              role: "call",
+              side: "sell",
+              ticker: "PETR4C28",
+              quantity: quantity(1),
+              entryPrice: decimalString("2.00"),
+            },
+          ],
+          expiry,
+          openedAt: "2024-01-01",
+          strategyVersionId: null,
+          rolledFrom: null,
+        };
+        const view = (extra: Candle[]): MarketView => ({
+          ...emptyView,
+          quotes: [{ ticker: "PETR4", asOf: expirySessionOpen, last: spot, bid: null, ask: null }],
+          optionSeries: [series],
+          candles: extra,
+        });
+        const futureCandle: Candle = {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: expiry,
+          asOf: expirySessionClose,
+          open: futureClose,
+          high: futureClose,
+          low: futureClose,
+          close: futureClose,
+          tradedQuantity: 1,
+        };
+        const input = {
+          view: view([]),
+          at: expirySessionMidday,
+          positions: [],
+          operations: [op],
+          cash: centavos(0),
+        };
+        const extended = { ...input, view: view([futureCandle]) };
+        expect(markToMarket(extended, provenanceBase)).toEqual(markToMarket(input, provenanceBase));
+      }),
+    );
+  });
+});
+
 describe("I1 Future-blind — proposeSettlement", () => {
   it("appending a later candle revision for the expiry session never changes the settlement instant already at the session close", () => {
     fc.assert(
