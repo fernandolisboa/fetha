@@ -1053,6 +1053,73 @@ describe("markToMarket", () => {
     });
   });
 
+  it("values a stock leg dissolved below one effective unit by a grouping instead of throwing (round 3 item 2)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("120.00"), bid: null, ask: null }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("10"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const op = stockOperation({
+      openedAt: "2024-01-01",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(5),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 5 pre-grouping shares over a 10:1 grouping dissolve to 0.5 effective shares: no Quantity
+    // can represent that, so the leg is excluded from pricing.legs and the aggregate greeks and
+    // payoff, but its residual value is still folded into unrealizedPnl on the unrounded 0.5
+    // (effective entry 10.00 * 10 = 100.00; mark 120.00; (120 - 100) * 0.5 = R$10.00).
+    expect(result.value.operations[0]?.pricing.legs).toEqual([]);
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(1000));
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual({
+      code: "less_than_one_effective_unit",
+      message:
+        "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
+    });
+  });
+
+  it("returns invalid_input, never throwing, when a near-zero corporate-action factor overflows a safe integer effective quantity (round 3 item 2)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.000000000000001"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const op = stockOperation({ openedAt: "2024-01-01" });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("returns insufficient_data when an expired operation's expiry session is missing from the calendar", () => {
     const shortCalendar: TradingSession[] = [
       { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T21:00:00.000Z" },

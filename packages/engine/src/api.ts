@@ -87,7 +87,8 @@ export type NoteCode =
   | "risk_free_rate_defaulted"
   | "negative_cash"
   | "settlement_pending"
-  | "settlement_costs_not_modeled";
+  | "settlement_costs_not_modeled"
+  | "less_than_one_effective_unit";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -111,6 +112,7 @@ export const noteCodes = [
   "negative_cash",
   "settlement_pending",
   "settlement_costs_not_modeled",
+  "less_than_one_effective_unit",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };

@@ -16,6 +16,7 @@ import { sessionAtOrBefore, sessionByDate } from "./calendar";
 import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
+import { assertDefined, invariant } from "./invariant";
 import { isAtOrBefore } from "./instant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { validateOperationCoherence } from "./operation-coherence";
@@ -114,28 +115,59 @@ function priceExistingOperation(
   // session — never just the stock leg's, since an unrebased quantity fed into pricing reads
   // exposure, greeks and max loss off by F (round 1 item 2). An option leg's own ticker never
   // carries a corporate-action factor (a split forces a series rollover, ADR-0013 #25
-  // addendum), so this naturally leaves option legs untouched (F = 1).
+  // addendum), so this naturally leaves option legs untouched (F = 1). `rawEffectiveQuantity`
+  // is kept unrounded throughout: the effective count is never rounded mid-run (Q51), so every
+  // leg's own unrealized P&L below is computed on it directly, matching `runBacktest`'s own
+  // mark and P&L (round 3 item 2) rather than the integer count `toQuantity` needs for pricing.
   const rebasedLegs: {
     leg: (typeof operation.legs)[number];
+    legIndex: number;
     factor: Decimal;
-    effectiveQuantity: number;
+    rawEffectiveQuantity: Decimal;
   }[] = [];
-  for (const leg of operation.legs) {
+  for (const [legIndex, leg] of operation.legs.entries()) {
     const visibleFactors = view.corporateActions.filter(
       (f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at),
     );
     const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, markSession);
     if (!factorResult.ok) return { ok: false, error: factorResult.error };
-    const effectiveQuantity = new Decimal(leg.quantity).div(factorResult.value).floor().toNumber();
-    rebasedLegs.push({ leg, factor: factorResult.value, effectiveQuantity });
+    const rawEffectiveQuantity = new Decimal(leg.quantity).div(factorResult.value);
+    rebasedLegs.push({ leg, legIndex, factor: factorResult.value, rawEffectiveQuantity });
   }
 
-  const legInputs: LegInput[] = rebasedLegs.map(({ leg, effectiveQuantity }) => ({
-    role: leg.role,
-    side: leg.side,
-    ticker: leg.ticker,
-    quantity: toQuantity(effectiveQuantity),
-  }));
+  // `toQuantity` throws for a floored effective count of zero (an odd lot dissolved below one
+  // unit by a grouping — `F >= leg.quantity`) and for one a near-zero `F` blows past a safe
+  // integer; neither is a caller mistake `toQuantity`'s own invariant should catch (round 3
+  // item 2, mirroring `runBacktest`'s identical guard). The former excludes the leg from
+  // `legInputs` — there is no positive `Quantity` below one to give it, so it cannot appear in
+  // `pricing.legs` or the aggregate greeks/payoff `priceConcreteLegs` computes from that array
+  // — the latter is `invalid_input`, indexed at this leg.
+  const legInputs: LegInput[] = [];
+  const legInputIndexByLegIndex = new Map<number, number>();
+  const residueOnlyLegIndexes = new Set<number>();
+  for (const { leg, legIndex, rawEffectiveQuantity } of rebasedLegs) {
+    const floored = rawEffectiveQuantity.floor().toNumber();
+    if (floored <= 0) {
+      residueOnlyLegIndexes.add(legIndex);
+      continue;
+    }
+    if (!Number.isSafeInteger(floored)) {
+      return {
+        ok: false,
+        error: invalidInput(
+          `${path}.legs[${String(legIndex)}]`,
+          "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
+        ),
+      };
+    }
+    legInputIndexByLegIndex.set(legIndex, legInputs.length);
+    legInputs.push({
+      role: leg.role,
+      side: leg.side,
+      ticker: leg.ticker,
+      quantity: toQuantity(floored),
+    });
+  }
 
   const pricingResult = priceLegsAt(
     view,
@@ -152,17 +184,38 @@ function priceExistingOperation(
   const pricing = pricingResult.value;
 
   let unrealizedPnl = new Decimal(0);
-  rebasedLegs.forEach(({ leg, factor, effectiveQuantity }, index) => {
-    const valuation = pricing.legs[index];
-    const mark = valuation?.price ?? valuation?.fairValue ?? null;
+  for (const { leg, legIndex, factor, rawEffectiveQuantity } of rebasedLegs) {
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
+    let mark: DecimalString | null;
+    if (residueOnlyLegIndexes.has(legIndex)) {
+      // Only a stock leg's own ticker ever carries a factor != 1 (Q51: an option leg's factor
+      // is always 1, a split forces a series rollover instead), so a residue-only leg can only
+      // ever be a stock leg; its mark is resolved the same way a standalone `Position`'s is
+      // below, never through `pricing.legs` since it was excluded from `legInputs` above.
+      invariant(
+        leg.role === "stock",
+        "mark-to-market: only a stock leg's own factor can dissolve it below one effective unit",
+      );
+      const resolved = resolveLegMarketPrice(view, leg.ticker, at, undefined, markSession, "stock");
+      // `leg.ticker` equals `operation.underlying` here (operation-coherence.ts), the same
+      // ticker `priceLegsAt` already resolved a spot for through the identical quote/candle
+      // ladder to get this far — a stale, but never a null, mark for a residue-only leg.
+      /* v8 ignore next */
+      mark = resolved?.value ?? null;
+    } else {
+      const legInputIndex = assertDefined(
+        legInputIndexByLegIndex.get(legIndex),
+        "mark-to-market: every non-residue leg has a legInputs entry",
+      );
+      const valuation = pricing.legs[legInputIndex];
+      mark = valuation?.price ?? valuation?.fairValue ?? null;
+    }
 
     // A leg with neither a market price nor a solvable fair value (`no_market_price` /
     // `iv_not_converged`, already noted on `pricing`) contributes zero unrealized P&L rather
     // than an unknown or fabricated one, since `OperationValuation.unrealizedPnl` is a plain
-    // `Centavos`, never `null` (ADR-0013 #25 addendum). Both the mark (from `pricing`, already
-    // on the post-factor scale) and `effectiveEntry` sit on the same scale as
-    // `effectiveQuantity`, the count fed to `pricing` above (ADR-0014 Q51).
+    // `Centavos`, never `null` (ADR-0013 #25 addendum). Both the mark and `effectiveEntry` sit
+    // on the same post-factor scale as `rawEffectiveQuantity`.
     const markOnEffectiveScale = mark === null ? effectiveEntry : parseDecimal(mark);
 
     unrealizedPnl = unrealizedPnl.add(
@@ -170,15 +223,27 @@ function priceExistingOperation(
         .sub(effectiveEntry)
         .mul(sign(leg.side))
         .mul(CENTAVOS_PER_REAL)
-        .mul(effectiveQuantity),
+        .mul(rawEffectiveQuantity),
     );
-  });
+  }
+
+  const notes: Note[] =
+    residueOnlyLegIndexes.size > 0
+      ? [
+          ...pricing.notes,
+          {
+            code: "less_than_one_effective_unit",
+            message:
+              "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
+          },
+        ]
+      : pricing.notes;
 
   return {
     ok: true,
     value: {
       operation,
-      pricing,
+      pricing: { ...pricing, notes },
       unrealizedPnl: toCentavos(unrealizedPnl.round().toNumber()),
     },
   };

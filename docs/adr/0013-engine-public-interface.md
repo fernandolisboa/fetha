@@ -144,7 +144,8 @@ export type NoteCode =
   | "risk_free_rate_defaulted"
   | "negative_cash"
   | "settlement_pending"
-  | "settlement_costs_not_modeled";
+  | "settlement_costs_not_modeled"
+  | "less_than_one_effective_unit";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -168,6 +169,7 @@ export const noteCodes = [
   "negative_cash",
   "settlement_pending",
   "settlement_costs_not_modeled",
+  "less_than_one_effective_unit",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1657,6 +1659,26 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   the same way, shared with `evaluate-strategy.ts`'s exit-rule rebasing (item 8). Two `NoteCode`
   members are additive: `settlement_pending` (an operation valued at intrinsic past its own
   expiry) and `settlement_costs_not_modeled` (a settlement proposal's fill costs).
+- **Round 3 hardening, briefly.** An operation's own expiry session is only actually expired
+  once that session's own close has passed: `markToMarket` treating the whole session as expired
+  from its open read the expiry candle before it was visible at `at`, a look-ahead (I1, round 3
+  item 1); the intrinsic path now gates on `at >= expirySession.close`. A stock leg's own
+  corporate-action factor can dissolve its effective count (`quantity / F`) below one unit
+  (an odd lot across a grouping) or, for a near-zero `F`, past a safe integer; the latter is
+  `invalid_input`, the same as `runBacktest`'s own guard, and the former excludes the leg from
+  `pricing.legs` and the aggregate greeks/payoff (there is no `Quantity` below one to give it)
+  while still folding its residual value into `unrealizedPnl` on the unrounded effective
+  quantity, noted with the additive `less_than_one_effective_unit`; every leg's own
+  `unrealizedPnl` contribution now always uses the unrounded effective quantity, matching
+  `runBacktest`'s own P&L (Q51 — "the effective count is never rounded mid-run"), not just the
+  dissolved ones (round 3 item 2). `totals.greeks.delta` summed both `operations[].pricing.greeks`
+  (which already includes each operation's own stock legs) and every position's own quantity —
+  double counting a ticker held both ways; delta now sums only priced positions' own quantity
+  plus every operation's option-leg greeks, stock legs excluded (round 3 item 3). A resumed
+  `runBacktest` chunk could fill or mark against a view whose `corporateActions` had never been
+  validated by `evaluateStrategy` in that same session, reaching `splitFactorProduct`'s
+  now-actually-reachable invariant; `runBacktest` validates `view.corporateActions` positivity
+  itself, upfront, before its own session loop (round 3 item 4).
 
 ## Considered options
 
