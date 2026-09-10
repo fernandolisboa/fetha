@@ -556,7 +556,7 @@ describe("markToMarket", () => {
     expect(result.value.positions[0]?.unrealizedPnl).toBeNull();
     expect(result.value.notes).toContainEqual({
       code: "no_market_price",
-      message: "at least one position has no visible market price",
+      message: "no visible market price for position(s): PETR4",
     });
   });
 
@@ -679,6 +679,83 @@ describe("markToMarket", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(0));
+  });
+
+  it("names the operation on the portfolio's no_market_price note (item 9)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+    };
+    const op = stockOperation({
+      id: "op-unpriced-leg",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toContainEqual({
+      code: "no_market_price",
+      message: "operation op-unpriced-leg has at least one leg with no visible market price",
+    });
+  });
+
+  it("adds a priced stock position's signed quantity to totals.greeks.delta (item 9)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-02",
+          asOf: at,
+          open: decimalString("12.00"),
+          high: decimalString("12.00"),
+          low: decimalString("12.00"),
+          close: decimalString("12.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    const position: Position = {
+      ticker: "PETR4",
+      quantity: signedQuantity(-30),
+      averageCost: decimalString("10.00"),
+    };
+    const result = markToMarket(
+      { view, at, positions: [position], operations: [], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.totals.greeks.delta).toBe(decimalString("-30.000000"));
+  });
+
+  it("does not add an unpriced position's quantity to totals.greeks.delta", () => {
+    const position: Position = {
+      ticker: "PETR4",
+      quantity: signedQuantity(30),
+      averageCost: decimalString("10.00"),
+    };
+    const result = markToMarket(
+      { view: baseView, at, positions: [position], operations: [], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.totals.greeks.delta).toBe(decimalString("0.000000"));
   });
 
   it("flags a stale mark on a standalone position with the session of its last trade", () => {

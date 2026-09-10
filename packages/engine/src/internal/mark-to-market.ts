@@ -288,8 +288,19 @@ export function markToMarket(
     });
   }
 
+  // A generic "at least one leg/position has no visible market price" note does not say
+  // which one; the portfolio level is the one place that can name it (round 1 item 9).
+  for (const ov of operationValuations) {
+    if (ov.pricing.notes.some((n) => n.code === "no_market_price")) {
+      notes.push({
+        code: "no_market_price",
+        message: `operation ${ov.operation.id} has at least one leg with no visible market price`,
+      });
+    }
+  }
+
   const positionValuations: PortfolioValuation["positions"] = [];
-  let anyPositionUnpriced = false;
+  const unpricedPositionTickers: string[] = [];
   for (const position of input.positions) {
     const resolved = resolveLegMarketPrice(
       input.view,
@@ -302,7 +313,7 @@ export function markToMarket(
     const price = resolved?.value ?? null;
     const positionNotes: Note[] = [];
     if (price === null) {
-      anyPositionUnpriced = true;
+      unpricedPositionTickers.push(position.ticker);
       positionNotes.push({
         code: "no_market_price",
         message: "no market price visible for this position",
@@ -342,31 +353,38 @@ export function markToMarket(
       notes: positionNotes,
     });
   }
-  if (anyPositionUnpriced) {
+  if (unpricedPositionTickers.length > 0) {
     notes.push({
       code: "no_market_price",
-      message: "at least one position has no visible market price",
+      message: `no visible market price for position(s): ${unpricedPositionTickers.join(", ")}`,
     });
   }
 
   // ADR-0013 "markToMarket": totals are cash plus position values only; operations are an
   // attribution view over the same fills and never add to totals (ADR-0013 #25 addendum
   // extends this to `unrealizedPnl`, for the same double-counting reason). `Position` carries
-  // no role, strike or expiry, so greeks have no meaning for a bare position; `totals.greeks`
-  // is therefore the sum of the operations' own aggregate greeks, the only artifact in this
-  // call with the structured leg information greeks need.
+  // no role, strike or expiry, so most greeks have no meaning for a bare position, but delta
+  // does: a stock position's delta is always 1 per share, signed by its `SignedQuantity`
+  // (round 1 item 9), so `totals.greeks.delta` sums every operation's own aggregate delta
+  // *and* every priced position's own quantity; the other four greeks stay operations-only,
+  // the only artifact with the structured leg information they need.
   const equity = toCentavos(
     input.cash + positionValuations.reduce((acc, p) => acc + (p.value ?? 0), 0),
   );
   const unrealizedPnlTotal = toCentavos(
     positionValuations.reduce((acc, p) => acc + (p.unrealizedPnl ?? 0), 0),
   );
+  const positionsDelta = positionValuations.reduce(
+    (sum, p) => (p.price !== null ? sum.add(p.position.quantity) : sum),
+    new Decimal(0),
+  );
   const greeks: Greeks = (["delta", "gamma", "theta", "vega", "rho"] as const).reduce(
     (acc, key) => {
-      const total = operationValuations.reduce(
+      const operationsTotal = operationValuations.reduce(
         (sum, ov) => sum.add(parseDecimal(ov.pricing.greeks[key])),
         new Decimal(0),
       );
+      const total = key === "delta" ? operationsTotal.add(positionsDelta) : operationsTotal;
       return { ...acc, [key]: toDecimalString(total, RATIO_SCALE) };
     },
     { ...zeroGreeks },
