@@ -83,17 +83,10 @@ describe("generalNotesFor", () => {
     expect(generalNotesFor(run)).toEqual([]);
   });
 
-  it("excludes no_operation and less_than_one_effective_unit, which the operations table surfaces instead (round 2 item 15)", () => {
-    expect(surfacedNoteCodes).toContain("no_operation");
-    expect(surfacedNoteCodes).toContain("less_than_one_effective_unit");
-    const run = runWithNotes([note("no_operation"), note("less_than_one_effective_unit")]);
-    expect(generalNotesFor(run)).toEqual([]);
-  });
-
-  it("excludes no_risk_profile, which the limit breaches panel surfaces instead (round 2 item 15)", () => {
-    expect(surfacedNoteCodes).toContain("no_risk_profile");
-    const run = runWithNotes([note("no_risk_profile")]);
-    expect(generalNotesFor(run)).toEqual([]);
+  it("never filters no_operation, less_than_one_effective_unit or no_risk_profile, which the run never emits (round 3 item 3)", () => {
+    expect(surfacedNoteCodes).not.toContain("no_operation");
+    expect(surfacedNoteCodes).not.toContain("less_than_one_effective_unit");
+    expect(surfacedNoteCodes).not.toContain("no_risk_profile");
   });
 
   it("keeps a note whose code no panel already surfaces", () => {

@@ -6,6 +6,7 @@ import { candles } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "../adapters/cotahist/schema";
 import {
+  hasCandlesInRange,
   latestCandle,
   recentDailyCandles,
   searchInstruments,
@@ -118,5 +119,41 @@ describe("candle-repository reads", () => {
     const rows = await recentDailyCandles(db, TICKER_A, 10);
 
     expect(rows.every((row) => row.ticker === TICKER_A)).toBe(true);
+  });
+});
+
+describe("hasCandlesInRange", () => {
+  it("is true when any ticker in the universe has a candle inside the range (round 3 item 1)", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
+    ]);
+
+    const result = await hasCandlesInRange(db, [TICKER_A, TICKER_B], {
+      from: "2026-05-01",
+      to: "2026-05-31",
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it("is false when the calendar carries the range but no ticker in the universe has a candle in it (round 3 item 1)", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
+    ]);
+
+    const result = await hasCandlesInRange(db, [TICKER_A], {
+      from: "2026-06-01",
+      to: "2026-06-30",
+    });
+
+    expect(result).toBe(false);
+  });
+
+  it("is false for an empty universe", async () => {
+    const db = getDb();
+    const result = await hasCandlesInRange(db, [], { from: "2026-05-01", to: "2026-05-31" });
+    expect(result).toBe(false);
   });
 });

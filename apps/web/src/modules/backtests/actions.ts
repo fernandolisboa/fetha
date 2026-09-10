@@ -11,12 +11,7 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import {
-  loadMarketView,
-  MarketViewUnavailableError,
-  sessionByDate,
-  sessionsBetween,
-} from "@/modules/market-data";
+import { hasCandlesInRange, sessionByDate, sessionsBetween } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -154,17 +149,14 @@ async function createBacktestRun(
   // sessionByDate alone only proves the calendar carries `from`; a `from`
   // in a year with no ingested candles for this universe would still pass
   // it and yield a green, complete, zero-operation run (round 2 item 10).
-  // Loading the whole-period view here, the same one run-chunk loads for
-  // every chunk, is the one check that can actually see that.
-  const preflightView = await loadMarketView(db, {
-    strategy: { id: version.id, definition: version.definition, structure },
-    universe: parsed.universe,
-    period,
-  }).catch((error: unknown) => {
-    if (error instanceof MarketViewUnavailableError) return null;
-    throw error;
-  });
-  if (!preflightView || preflightView.candles.length === 0) {
+  // A narrow existence check answers exactly that, one indexed query
+  // against the primary key, rather than the whole-period MarketView
+  // `run-chunk.ts` needs a 300-second route budget to load: a legal
+  // near-ceiling create ran that same load in a Server Action with no
+  // raised duration at all, so the platform's own default killed it with
+  // no run written after already spending one of ten creation slots
+  // (round 3 item 1).
+  if (!(await hasCandlesInRange(db, parsed.universe, period))) {
     return { status: "error", error: "invalid" };
   }
 

@@ -17,6 +17,7 @@ import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import {
   buildOperationMarketView,
   loadMarketView,
+  MarketViewTooLargeError,
   MarketViewUnavailableError,
 } from "./market-view";
 import { upsertDailyCandles } from "./repositories/candle-repository";
@@ -819,6 +820,64 @@ describe("loadMarketView", () => {
 
     expect(view.optionSeries).toEqual([]);
     expect(view.optionPrices).toEqual([]);
+  });
+
+  it("refuses an option chain past the ticker cap with a typed error instead of an unbounded load (round 3 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("CAP");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDaysFrom(2097, 9, 3, 10);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    for (let i = 0; i < 4; i += 1) {
+      const optionTicker = `${ticker}W${String(i)}`;
+      cleanupOptionTickers.push(optionTicker);
+      await db.insert(optionSeries).values({
+        isin: `ISIN-${optionTicker}`,
+        ticker: optionTicker,
+        underlying: ticker,
+        right: "call",
+        strike: `${String(10 + i)}.00000000`,
+        expiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      });
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    await expect(
+      loadMarketView(db, {
+        strategy,
+        universe: [ticker],
+        period: { from: sessions[0] ?? "", to: sessions.at(-1) ?? "" },
+        optionChainTickerCap: 3,
+      }),
+    ).rejects.toBeInstanceOf(MarketViewTooLargeError);
   });
 
   it("throws MarketViewUnavailableError instead of a candle-less view when the period has no trading session (round 2 item 9)", async () => {

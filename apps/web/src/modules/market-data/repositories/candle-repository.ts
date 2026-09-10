@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
@@ -212,6 +212,37 @@ export async function candlesForPeriod(
     )
     .orderBy(asc(candles.session));
   return rows.map(toCandleRow);
+}
+
+// A single indexed existence check, not a whole-period load: the
+// creation-time refusal for a `from` the calendar carries but that has no
+// ingested candle for any ticker in the universe (round 2 item 10) used to
+// answer this with `loadMarketView(...).candles.length === 0`, the same
+// whole-period MarketView materialisation `run-chunk.ts` needs a 300-second
+// route budget for — paid in a Server Action with no raised duration at all
+// (round 3 item 1). `LIMIT 1` against the `(ticker, timeframe, session)`
+// primary key stops at the first matching row.
+export async function hasCandlesInRange(
+  db: Database,
+  universe: string[],
+  period: { from: string; to: string },
+): Promise<boolean> {
+  if (universe.length === 0) {
+    return false;
+  }
+  const [row] = await db
+    .select({ ticker: candles.ticker })
+    .from(candles)
+    .where(
+      and(
+        inArray(candles.ticker, universe),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        gte(candles.session, period.from),
+        lte(candles.session, period.to),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 // Oldest first, bounded to the last `limit` sessions: the shape a candle

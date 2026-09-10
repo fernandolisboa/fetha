@@ -96,22 +96,23 @@ function Stat({ label, value, notes }: { label: string; value: string; notes?: R
 
 const equityDrawdownCodes: NoteCode[] = ["negative_cash"];
 const annualizedCodes: NoteCode[] = ["short_window_not_annualized", "non_positive_equity"];
-const limitBreachCodes: NoteCode[] = ["limit_breach_warned", "no_risk_profile"];
-// The rollup notes `run-backtest.ts` (packages/engine) attaches that
-// explain the operations table's own contents: the corporate-action strike
-// note explains a specific operation's P&L (round 2 item 6); `no_operation`
-// and `less_than_one_effective_unit` explain why the table is empty or
-// smaller than the signals would suggest (round 2 item 15). `missed_entry`,
-// `settlement_pending` and `settlement_costs_not_modeled` used to be
-// filtered for here too, but the engine never rolls any of them into
-// `BacktestRun.notes` (they are per-leg valuation notes `priceOperation`
-// and settlement produce, not a run-level note), so those filters were dead
-// code; dropped rather than wired to a rollup the ticket did not ask for.
-const operationCodes: NoteCode[] = [
-  "option_strike_unadjusted_across_corporate_action",
-  "no_operation",
-  "less_than_one_effective_unit",
-];
+const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
+// `run-backtest.ts` (packages/engine) assembles `BacktestRun.notes` from the
+// metrics notes plus exactly four run-level codes: `negative_cash`,
+// `limit_breach_warned`, `non_positive_equity` and
+// `option_strike_unadjusted_across_corporate_action`. `no_operation`,
+// `less_than_one_effective_unit` and `no_risk_profile` are valid `NoteCode`
+// union members but the run never emits them here — the first two are
+// per-operation/per-fill notes `priceOperation` and settlement produce and
+// the engine does not roll up onto the run, `no_risk_profile` is never
+// engine-emitted at all (round 3 item 3, correcting round 2 item 15's
+// mistaken instruction to filter them as if they were). Only the one code
+// the run does emit is filtered here, to keep it out of the general notes
+// panel since the operations table surfaces it per-row instead (round 2
+// item 6). If the report should ever show the per-operation notes, the
+// engine needs to roll them up onto the run first (see the follow-up issue
+// filed for this).
+const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
 const surfacedCodes: NoteCode[] = [
   ...equityDrawdownCodes,
   ...annualizedCodes,

@@ -12,6 +12,7 @@ export { loadCandleSeries } from "./candle-series";
 // path directly (see watchlist/actions.integration.test.ts).
 export {
   candlesForPeriod,
+  hasCandlesInRange,
   latestCandle,
   searchInstruments,
   type CandleRow,
@@ -27,6 +28,7 @@ export { marketDataStrings, t } from "./strings";
 export {
   buildOperationMarketView,
   loadMarketView,
+  MarketViewTooLargeError,
   MarketViewUnavailableError,
 } from "./market-view";
 export { optionChainForUnderlying, type ChainSeries } from "./repositories/option-repository";

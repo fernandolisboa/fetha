@@ -15,6 +15,22 @@ import { upsertTradingSessions } from "@/modules/market-data/repositories/calend
 import { WatchlistRepository } from "@/modules/watchlist";
 
 let currentUser: CurrentUser | null = null;
+const loadMarketViewSpy = vi.fn();
+
+// Wraps the real loadMarketView rather than replacing it: run-chunk.ts still
+// needs it at run time, so the spy only proves *when* it is called, never
+// changes what it returns (round 3 item 1).
+vi.mock("@/modules/market-data", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/modules/market-data")>("@/modules/market-data");
+  return {
+    ...actual,
+    loadMarketView: (...args: Parameters<typeof actual.loadMarketView>) => {
+      loadMarketViewSpy(...args);
+      return actual.loadMarketView(...args);
+    },
+  };
+});
 
 vi.mock("@/modules/auth", async () => {
   const actual = await vi.importActual<typeof import("@/modules/auth")>("@/modules/auth");
@@ -337,6 +353,81 @@ describe("createBacktestRunAction", () => {
     const runs = await new BacktestRunRepository(db, currentUser).listMineForStrategy(strategy.id);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.costModel).toEqual(DISCOUNT_BROKER_COST_MODEL);
+  });
+
+  it("never materialises the whole-period MarketView at creation time, only the narrow candle check (round 3 item 1)", async () => {
+    vi.resetModules();
+    loadMarketViewSpy.mockClear();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+
+    const db = getDb();
+    const email = uniqueEmail("no-preflight-view");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    await upsertTradingSessions(
+      db,
+      SESSIONS.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+    for (const session of SESSIONS) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker: TICKER,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    let redirected = false;
+    try {
+      await createBacktestRunAction({
+        strategyId: strategy.id,
+        strategyVersionId: version.id,
+        universe: [TICKER],
+        from: SESSIONS[0] ?? "",
+        to: SESSIONS.at(-1) ?? "",
+        initialCapital: centavos(500_000_00),
+        limits: "enforce",
+        costModel: "b3_default",
+      });
+    } catch (error) {
+      if (!isRedirectError(error)) throw error;
+      redirected = true;
+    }
+    expect(redirected).toBe(true);
+    expect(loadMarketViewSpy).not.toHaveBeenCalled();
   });
 
   it("refuses a `from` the calendar carries but that has no ingested candle for any ticker in the universe (round 2 item 10)", async () => {

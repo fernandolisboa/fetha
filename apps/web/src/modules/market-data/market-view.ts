@@ -44,6 +44,16 @@ import { macroPointsBetween } from "./repositories/macro-repository";
 const CANDLE_WINDOW_SESSIONS = 30;
 const CALENDAR_WINDOW_SESSIONS = 30;
 
+// `option_series` is keyed by ISIN (ADR-0017): distinct series tickers can
+// exceed universe size by an order of magnitude once every listing cycle
+// with an expiry on or after warmup is counted, and the create-time ceiling
+// (MAX_SESSIONS_TIMES_UNIVERSE, backtests/actions.ts) bounds sessions x
+// underlyings, not sessions x series, so it cannot stand in for this. Well
+// under Postgres's 65,535 bind-parameter limit, which the follow-on
+// `optionDailyPrices` query hits directly via `inArray(..., seriesTickers)`
+// (round 3 item 2).
+const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
+
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
 }
@@ -67,6 +77,20 @@ export class MarketViewUnavailableError extends Error {
   constructor(reason: string) {
     super(`Market view unavailable: ${reason}`);
     this.name = "MarketViewUnavailableError";
+  }
+}
+
+// A subclass, not a sibling: every caller that already catches
+// `MarketViewUnavailableError` (run-chunk.ts) handles this the same way
+// without change, while `instanceof MarketViewTooLargeError` stays
+// available to a caller that wants to tell "no data" from "too much data"
+// apart. Thrown instead of letting the chain query's own `inArray` bind
+// list grow past what the driver accepts and throw a raw, uncaught error
+// (round 3 item 2).
+export class MarketViewTooLargeError extends MarketViewUnavailableError {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "MarketViewTooLargeError";
   }
 }
 
@@ -129,6 +153,10 @@ export interface MarketViewRangeInput {
   strategy: StrategyVersion;
   universe: Ticker[];
   period: { from: SessionDate; to: SessionDate };
+  // Overridable only for tests that need a tractable number of seeded rows
+  // to cross it; every production caller gets DEFAULT_OPTION_CHAIN_TICKER_CAP
+  // (mirrors RunBacktestChunkOptions's own test-only overrides, run-chunk.ts).
+  optionChainTickerCap?: number;
 }
 
 // Builds a whole-period MarketView from the database, driven by the
@@ -143,6 +171,7 @@ export async function loadMarketView(
   input: MarketViewRangeInput,
 ): Promise<MarketView> {
   const { strategy, universe, period } = input;
+  const optionChainTickerCap = input.optionChainTickerCap ?? DEFAULT_OPTION_CHAIN_TICKER_CAP;
 
   const calendarFloor = await earliestSession(db);
   if (!calendarFloor) {
@@ -175,9 +204,15 @@ export async function loadMarketView(
   // against `session.open` alone, with a same-session fallback, silently
   // resolved to `fromSession` on every run whose warmup reaches back
   // further than the requested period, loading zero warm-up history.
+  // Unreachable by construction: `window.from` is derived from `calendar`
+  // and `fromSession`/`toSession`, both already proven to exist above, so
+  // `resolveWarmupSession` always finds a match against the same calendar
+  // it was given (round 3 item 9). An invariant, not a degenerate-but-typed
+  // MarketView, so a future change to the window contract that breaks this
+  // fails loudly instead of silently shipping a candle-less view again.
   const warmupSession = resolveWarmupSession(calendar, window.from);
   if (!warmupSession) {
-    return { ...emptyMarketView(), calendar };
+    throw new Error("loadMarketView: dataWindow().from did not resolve against its own calendar");
   }
 
   const collections = new Set(window.collections);
@@ -200,6 +235,12 @@ export async function loadMarketView(
     // this universe that had not yet expired at the start of warmup, seen
     // on or before the period's own last session (the engine, not this
     // module, decides per-step visibility off each row's own `asOf`).
+    // Bounded below by `warmupSession.date` (the same floor
+    // `buildOperationMarketView` applies via its own `calendarFloor`,
+    // widened here to the whole warmup-to-period span a range view needs)
+    // and above by `optionChainTickerCap + 1`, so a chain this large is
+    // caught by row count instead of by the driver rejecting the follow-on
+    // `optionDailyPrices` query's `inArray` bind list (round 3 item 2).
     wantsOptionSeries || wantsOptionPrices
       ? db
           .select()
@@ -211,8 +252,15 @@ export async function loadMarketView(
               gte(optionSeries.expiry, warmupSession.date),
             ),
           )
+          .limit(optionChainTickerCap + 1)
       : Promise.resolve([]),
   ]);
+
+  if ((wantsOptionSeries || wantsOptionPrices) && seriesRows.length > optionChainTickerCap) {
+    throw new MarketViewTooLargeError(
+      `option chain for this universe and period lists more than ${String(optionChainTickerCap)} series`,
+    );
+  }
 
   const candleRows = candlesByTicker.flat();
   const candleView = candleRows.map(toEngineCandle);
