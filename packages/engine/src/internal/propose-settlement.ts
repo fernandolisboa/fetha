@@ -9,7 +9,6 @@ import type {
   Operation,
   OperationLeg,
   ProposeSettlementInput,
-  Provenance,
   Result,
   SettlementProposal,
   Side,
@@ -17,20 +16,13 @@ import type {
 } from "../api";
 import { sessionByDate } from "./calendar";
 import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
+import type { ProvenanceBase } from "./provenance";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos } from "./scalars";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
-
-type ProvenanceBase = Pick<
-  Provenance,
-  "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
->;
-
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
-}
 
 function err(error: EngineError): Result<SettlementProposal> {
   return { ok: false, error };

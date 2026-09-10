@@ -1,9 +1,6 @@
 import type { EngineError, MarketView } from "../api";
 import { codeUnitCompare, sortUnique } from "./order";
-
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
-}
+import { invalidInput } from "./errors";
 
 // Deterministic settlement needs a calendar with one row per date and candles with one row
 // per (ticker, timeframe, asOf): `sessionByDate`, `sessionAtOrBefore` and `latestVisible` all

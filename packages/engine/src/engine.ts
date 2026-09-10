@@ -11,11 +11,13 @@ import type {
   ImpliedVolatilityIndexInput,
   IndicatorSeries,
   IndicatorsInput,
+  MarketView,
   MarkToMarketInput,
   OperationPricing,
   PortfolioValuation,
   PriceOperationInput,
   ProposeSettlementInput,
+  Provenance,
   Result,
   RunBacktestInput,
   Score,
@@ -40,6 +42,20 @@ function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise
   return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
 }
 
+// Every method that computes an artifact stamps it with the same four fields, read off the
+// view it was handed (round 1 item 12): one place instead of five copies of the same object
+// literal.
+function provenanceBaseFor(
+  view: MarketView,
+): Pick<Provenance, "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"> {
+  return {
+    engineVersion: ENGINE_VERSION,
+    pricingModel: pricingModelKind,
+    dataVersion: view.dataVersion ?? null,
+    datasetNotes: view.datasetNotes ?? [],
+  };
+}
+
 export const engine: Engine = {
   capabilities(): Capabilities {
     return computeCapabilities();
@@ -54,14 +70,7 @@ export const engine: Engine = {
   },
 
   priceOperation(input: PriceOperationInput): Promise<Result<OperationPricing>> {
-    return Promise.resolve(
-      computePriceOperation(input, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
-    );
+    return Promise.resolve(computePriceOperation(input, provenanceBaseFor(input.view)));
   },
 
   evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {
@@ -73,25 +82,11 @@ export const engine: Engine = {
   },
 
   markToMarket(input: MarkToMarketInput): Promise<Result<PortfolioValuation>> {
-    return Promise.resolve(
-      computeMarkToMarket(input, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
-    );
+    return Promise.resolve(computeMarkToMarket(input, provenanceBaseFor(input.view)));
   },
 
   proposeSettlement(input: ProposeSettlementInput): Promise<Result<SettlementProposal>> {
-    return Promise.resolve(
-      computeProposeSettlement(input, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
-    );
+    return Promise.resolve(computeProposeSettlement(input, provenanceBaseFor(input.view)));
   },
 
   score(): Promise<Result<Score>> {
@@ -102,12 +97,12 @@ export const engine: Engine = {
     input: ImpliedVolatilityIndexInput,
   ): Promise<Result<ImpliedVolatilityIndex>> {
     return Promise.resolve(
-      computeImpliedVolatilityIndex(input.view, input.underlying, input.at, {
-        engineVersion: ENGINE_VERSION,
-        pricingModel: pricingModelKind,
-        dataVersion: input.view.dataVersion ?? null,
-        datasetNotes: input.view.datasetNotes ?? [],
-      }),
+      computeImpliedVolatilityIndex(
+        input.view,
+        input.underlying,
+        input.at,
+        provenanceBaseFor(input.view),
+      ),
     );
   },
 };

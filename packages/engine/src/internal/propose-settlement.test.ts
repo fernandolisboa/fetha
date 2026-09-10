@@ -1,18 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, MarketView, Operation, OptionSeries, TradingSession } from "../api";
-import { decimalString, quantity } from "../test/support";
+import { dailyCalendar, decimalString, quantity } from "../test/support";
 import { proposeSettlement } from "./propose-settlement";
-
-function dailyCalendar(fromDay: number, count: number): TradingSession[] {
-  return Array.from({ length: count }, (_, i) => {
-    const day = String(fromDay + i).padStart(2, "0");
-    return {
-      date: `2024-01-${day}`,
-      open: `2024-01-${day}T13:00:00.000Z`,
-      close: `2024-01-${day}T21:00:00.000Z`,
-    };
-  });
-}
 
 const calendar = dailyCalendar(2, 20);
 const expiry = "2024-01-21";

@@ -12,7 +12,6 @@ import type {
   OperationPricing,
   PayoffPoint,
   PriceOperationInput,
-  Provenance,
   Result,
   TradingSession,
 } from "../api";
@@ -21,26 +20,20 @@ import {
   CENTAVOS_PER_REAL,
   PRICE_SCALE,
   RATIO_SCALE,
-  ZERO_RATIO,
   parseDecimal,
   toDecimalString,
 } from "./decimal";
+import { invalidInput } from "./errors";
+import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
+import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
-
-const zeroGreeks: Greeks = {
-  delta: ZERO_RATIO,
-  gamma: ZERO_RATIO,
-  theta: ZERO_RATIO,
-  vega: ZERO_RATIO,
-  rho: ZERO_RATIO,
-};
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;
@@ -52,10 +45,6 @@ function err(error: EngineError): Result<OperationPricing> {
 
 function isPositive(value: DecimalString): boolean {
   return parseDecimal(value).gt(0);
-}
-
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
 }
 
 // ADR-0014 Q42: a mark is `stale` when the price row it came from belongs to an earlier
@@ -415,7 +404,9 @@ type ValuedLegs = {
 // the payoff profile, aggregate greeks, risk-limit checks and provenance — is either
 // unneeded for sizing or, for provenance, has no real value to report before the leg
 // count is known. Splitting this out means the preview no longer manufactures a fake one.
-export function valueLegs(
+// Not exported: markToMarket composes through priceConcreteLegs (round 1 item 12), never
+// this lower-level step directly.
+function valueLegs(
   view: MarketView,
   at: string,
   underlying: string,
@@ -502,10 +493,7 @@ export function priceConcreteLegs(
   legs: readonly LegInput[],
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
   expiredIntrinsicBasis: DecimalString | null = null,
 ): Result<OperationPricing> {
   const valued = valueLegs(
@@ -536,7 +524,7 @@ export function priceConcreteLegs(
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 
-  const greeks: Greeks = (["delta", "gamma", "theta", "vega", "rho"] as const).reduce(
+  const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
       const total = priced.reduce((sum, leg) => {
         if (!leg.valuation.greeks) return sum;
@@ -580,6 +568,46 @@ export function priceConcreteLegs(
       provenance: { ...provenanceBase, truncated: [] },
     },
   };
+}
+
+// Shared by priceOperation's concrete-legs branch and markToMarket's per-operation pricing
+// (round 1 item 12): both resolve the underlying's spot and rates, then price a fixed set of
+// legs through priceConcreteLegs, differing only in the error path a non-positive spot
+// reports (an operation-indexed path for markToMarket, a bare "spot" for a fresh proposal).
+export function priceLegsAt(
+  view: MarketView,
+  at: string,
+  underlying: string,
+  legs: readonly LegInput[],
+  riskProfile: RiskProfile | undefined,
+  openOperationCount: number | undefined,
+  provenanceBase: ProvenanceBase,
+  spotPath: string,
+  expiredIntrinsicBasis: DecimalString | null = null,
+): Result<OperationPricing> {
+  const spot = resolveUnderlyingSpot(view, underlying, at);
+  if (!spot) return err({ code: "missing_instrument", ticker: underlying });
+  if (!isPositive(spot)) {
+    return err(invalidInput(spotPath, "the underlying's spot must be positive"));
+  }
+
+  const ratesResolution = resolveOperationRates(view, at, underlying);
+  if (!ratesResolution.ok) return err(ratesResolution.error);
+
+  return priceConcreteLegs(
+    view,
+    at,
+    underlying,
+    spot,
+    ratesResolution.riskFreeRate,
+    ratesResolution.dividendYield,
+    ratesResolution.notes,
+    legs,
+    riskProfile,
+    openOperationCount,
+    provenanceBase,
+    expiredIntrinsicBasis,
+  );
 }
 
 // Concrete `LegInput[]` legs are not built by `resolveLegSelection`, so nothing else
@@ -706,10 +734,7 @@ function resolveSizingUnits(
 function priceSelection(
   input: PriceOperationInput,
   selection: LegSelection,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
   const spot = resolveUnderlyingSpot(input.view, selection.underlying, input.at);
   if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
@@ -777,10 +802,7 @@ function priceSelection(
 
 export function priceOperation(
   input: PriceOperationInput,
-  provenanceBase: Pick<
-    Provenance,
-    "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
-  >,
+  provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
   if (Array.isArray(input.legs)) {
     const [firstLeg] = input.legs;
@@ -799,29 +821,15 @@ export function priceOperation(
       input.legs,
     );
     if (consistencyError) return err(consistencyError);
-    const spot = resolveUnderlyingSpot(input.view, underlyingResult.underlying, input.at);
-    if (!spot) return err({ code: "missing_instrument", ticker: underlyingResult.underlying });
-    if (!isPositive(spot)) {
-      return err(invalidInput("spot", "the underlying's spot must be positive"));
-    }
-    const ratesResolution = resolveOperationRates(
+    return priceLegsAt(
       input.view,
       input.at,
       underlyingResult.underlying,
-    );
-    if (!ratesResolution.ok) return err(ratesResolution.error);
-    return priceConcreteLegs(
-      input.view,
-      input.at,
-      underlyingResult.underlying,
-      spot,
-      ratesResolution.riskFreeRate,
-      ratesResolution.dividendYield,
-      ratesResolution.notes,
       input.legs,
       input.riskProfile,
       input.openOperationCount,
       provenanceBase,
+      "spot",
     );
   }
   return priceSelection(input, input.legs, provenanceBase);

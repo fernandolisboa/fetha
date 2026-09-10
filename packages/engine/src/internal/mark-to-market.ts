@@ -10,43 +10,22 @@ import type {
   Operation,
   OperationValuation,
   PortfolioValuation,
-  Provenance,
   Result,
 } from "../api";
 import { sessionAtOrBefore, sessionByDate } from "./calendar";
-import {
-  CENTAVOS_PER_REAL,
-  RATIO_SCALE,
-  ZERO_RATIO,
-  parseDecimal,
-  toDecimalString,
-} from "./decimal";
+import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import { invalidInput } from "./errors";
+import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { isAtOrBefore } from "./instant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { validateOperationCoherence } from "./operation-coherence";
-import { priceConcreteLegs, resolveOperationRates } from "./price-operation";
-import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
+import { priceLegsAt } from "./price-operation";
+import type { ProvenanceBase } from "./provenance";
+import { resolveLegMarketPrice } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
-
-type ProvenanceBase = Pick<
-  Provenance,
-  "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
->;
-
-const zeroGreeks: Greeks = {
-  delta: ZERO_RATIO,
-  gamma: ZERO_RATIO,
-  theta: ZERO_RATIO,
-  vega: ZERO_RATIO,
-  rho: ZERO_RATIO,
-};
-
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
-}
 
 function err(error: EngineError): Result<PortfolioValuation> {
   return { ok: false, error };
@@ -54,10 +33,6 @@ function err(error: EngineError): Result<PortfolioValuation> {
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;
-}
-
-function isPositive(value: DecimalString): boolean {
-  return parseDecimal(value).gt(0);
 }
 
 function insufficientCandles(underlying: string, at: Instant): EngineError {
@@ -120,19 +95,6 @@ function priceExistingOperation(
   markSession: SessionDate,
   path: string,
 ): { ok: true; value: OperationValuation } | { ok: false; error: EngineError } {
-  const spot = resolveUnderlyingSpot(view, operation.underlying, at);
-  if (!spot)
-    return { ok: false, error: { code: "missing_instrument", ticker: operation.underlying } };
-  if (!isPositive(spot)) {
-    return {
-      ok: false,
-      error: invalidInput(`${path}.spot`, "the underlying's spot must be positive"),
-    };
-  }
-
-  const rates = resolveOperationRates(view, at, operation.underlying);
-  if (!rates.ok) return { ok: false, error: rates.error };
-
   const expiredBasis = resolveExpiredIntrinsicBasis(view, operation, markSession);
   if (!expiredBasis.ok) return { ok: false, error: expiredBasis.error };
 
@@ -165,18 +127,15 @@ function priceExistingOperation(
     quantity: toQuantity(effectiveQuantity),
   }));
 
-  const pricingResult = priceConcreteLegs(
+  const pricingResult = priceLegsAt(
     view,
     at,
     operation.underlying,
-    spot,
-    rates.riskFreeRate,
-    rates.dividendYield,
-    rates.notes,
     legInputs,
     riskProfile,
     openOperationCount,
     provenanceBase,
+    `${path}.spot`,
     expiredBasis.value,
   );
   if (!pricingResult.ok) return { ok: false, error: pricingResult.error };
@@ -382,7 +341,7 @@ export function markToMarket(
     (sum, p) => (p.price !== null ? sum.add(p.position.quantity) : sum),
     new Decimal(0),
   );
-  const greeks: Greeks = (["delta", "gamma", "theta", "vega", "rho"] as const).reduce(
+  const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
       const operationsTotal = operationValuations.reduce(
         (sum, ov) => sum.add(parseDecimal(ov.pricing.greeks[key])),

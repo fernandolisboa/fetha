@@ -8,19 +8,8 @@ import type {
   Position,
   TradingSession,
 } from "../api";
-import { centavos, decimalString, quantity, signedQuantity } from "../test/support";
+import { centavos, dailyCalendar, decimalString, quantity, signedQuantity } from "../test/support";
 import { markToMarket } from "./mark-to-market";
-
-function dailyCalendar(fromDay: number, count: number): TradingSession[] {
-  return Array.from({ length: count }, (_, i) => {
-    const day = String(fromDay + i).padStart(2, "0");
-    return {
-      date: `2024-01-${day}`,
-      open: `2024-01-${day}T13:00:00.000Z`,
-      close: `2024-01-${day}T21:00:00.000Z`,
-    };
-  });
-}
 
 const calendar = dailyCalendar(2, 20);
 const at = "2024-01-02T21:00:00.000Z";

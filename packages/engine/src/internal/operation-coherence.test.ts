@@ -1,18 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { MarketView, Operation, OptionSeries, TradingSession } from "../api";
-import { decimalString, quantity } from "../test/support";
+import type { MarketView, Operation, OptionSeries } from "../api";
+import { dailyCalendar, decimalString, quantity } from "../test/support";
 import { validateOperationCoherence } from "./operation-coherence";
-
-function dailyCalendar(fromDay: number, count: number): TradingSession[] {
-  return Array.from({ length: count }, (_, i) => {
-    const day = String(fromDay + i).padStart(2, "0");
-    return {
-      date: `2024-01-${day}`,
-      open: `2024-01-${day}T13:00:00.000Z`,
-      close: `2024-01-${day}T21:00:00.000Z`,
-    };
-  });
-}
 
 const calendar = dailyCalendar(2, 20);
 const at = "2024-01-10T21:00:00.000Z";

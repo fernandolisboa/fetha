@@ -1,20 +1,12 @@
 import type { Instant } from "@fetha/contracts";
 import type { EngineError, MarketView, Operation } from "../api";
 import { sessionAtOrBefore } from "./calendar";
+import { invalidInput } from "./errors";
 import { resolveSeries } from "./resolve-series";
 
-function invalidInput(path: string, message: string): EngineError {
-  return { code: "invalid_input", path, message };
-}
-
-// ADR-0013 "Operations, positions and strategy versions": the engine checks Operation.expiry
-// coherence wherever an Operation comes in. markToMarket and proposeSettlement share this
-// check (ADR-0013's #25 addendum): a stock-only operation must carry no expiry, an operation
-// with option legs must carry one, every stock leg's ticker must match the operation's
-// underlying, every option leg whose series is visible in the view must list the operation's
-// own underlying and expiry and the leg's own role as its right, and the operation cannot
-// have been opened after the instant it is being valued at (round 1 item 7: a leg's own
-// missing-series case is left to that leg's own `missing_instrument`, reported later).
+// Shared by markToMarket and proposeSettlement (ADR-0013 "Operations, positions and strategy
+// versions", #25 addendum): expiry, underlying and role coherence, plus openedAt <= at. A
+// leg's own missing series is left to that leg's own missing_instrument, reported later.
 export function validateOperationCoherence(
   view: MarketView,
   operation: Operation,
