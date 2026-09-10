@@ -385,4 +385,172 @@ describe("computeImpliedVolatilityIndex", () => {
     if (!result.ok) return;
     expect(result.value.seriesUsed).toEqual(["PETR4C48"]);
   });
+
+  it("ignores a superseded strike row and matches the fresh-only view (round 4 item 1)", () => {
+    const expiryLower = sessionAt(20).date;
+    const expiryUpper = sessionAt(40).date;
+    const sigmaLower = 0.2;
+    const sigmaUpper = 0.4;
+    const priceLower = bsmPriceRaw({
+      s: 45,
+      k: 50,
+      t: 20 / 252,
+      r: 0,
+      q: 0,
+      sigma: sigmaLower,
+      right: "call",
+    });
+    const priceUpper = bsmPriceRaw({
+      s: 45,
+      k: 50,
+      t: 40 / 252,
+      r: 0,
+      q: 0,
+      sigma: sigmaUpper,
+      right: "call",
+    });
+    const staleAsOf = `${sessionAt(0).date}T12:00:00.000Z`;
+    const optionPrices = [
+      {
+        ticker: "PETR4CL",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(priceLower.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+      {
+        ticker: "PETR4CU",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(priceUpper.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+    ];
+    const spotQuote = [
+      { ticker: "PETR4", asOf: at, last: decimalString("45.00"), bid: null, ask: null },
+    ];
+    const freshOnlyView: MarketView = {
+      ...baseView,
+      quotes: spotQuote,
+      optionSeries: [
+        callSeries("PETR4CL", "50.00", expiryLower),
+        callSeries("PETR4CU", "50.00", expiryUpper),
+      ],
+      optionPrices,
+    };
+    const supersededView: MarketView = {
+      ...baseView,
+      quotes: spotQuote,
+      optionSeries: [
+        { ...callSeries("PETR4CL", "45.00", expiryLower), asOf: staleAsOf },
+        callSeries("PETR4CL", "50.00", expiryLower),
+        callSeries("PETR4CU", "50.00", expiryUpper),
+      ],
+      optionPrices,
+    };
+    const freshResult = computeImpliedVolatilityIndex(
+      freshOnlyView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    const supersededResult = computeImpliedVolatilityIndex(
+      supersededView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    expect(freshResult).toEqual(supersededResult);
+    expect(supersededResult.ok).toBe(true);
+    if (!supersededResult.ok) return;
+    expect(new Set(supersededResult.value.seriesUsed).size).toBe(
+      supersededResult.value.seriesUsed.length,
+    );
+  });
+
+  it("ignores a superseded expiry row so one ticker never backs both brackets (round 4 item 1)", () => {
+    const expiryLower = sessionAt(20).date;
+    const staleExpiry = sessionAt(25).date;
+    const expiryUpper = sessionAt(40).date;
+    const sigmaLower = 0.2;
+    const sigmaUpper = 0.4;
+    const priceLower = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 20 / 252,
+      r: 0,
+      q: 0,
+      sigma: sigmaLower,
+      right: "call",
+    });
+    const priceUpper = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 40 / 252,
+      r: 0,
+      q: 0,
+      sigma: sigmaUpper,
+      right: "call",
+    });
+    const staleAsOf = `${sessionAt(0).date}T12:00:00.000Z`;
+    const optionPrices = [
+      {
+        ticker: "PETR4CL",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(priceLower.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+      {
+        ticker: "PETR4CU",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(priceUpper.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+    ];
+    const freshOnlyView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4CL", "50.00", expiryLower),
+        callSeries("PETR4CU", "50.00", expiryUpper),
+      ],
+      optionPrices,
+    };
+    const supersededView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4CL", "50.00", expiryLower),
+        { ...callSeries("PETR4CU", "50.00", staleExpiry), asOf: staleAsOf },
+        callSeries("PETR4CU", "50.00", expiryUpper),
+      ],
+      optionPrices,
+    };
+    const freshResult = computeImpliedVolatilityIndex(
+      freshOnlyView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    const supersededResult = computeImpliedVolatilityIndex(
+      supersededView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    expect(freshResult).toEqual(supersededResult);
+    expect(supersededResult.ok).toBe(true);
+    if (!supersededResult.ok) return;
+    expect(new Set(supersededResult.value.seriesUsed).size).toBe(
+      supersededResult.value.seriesUsed.length,
+    );
+  });
 });

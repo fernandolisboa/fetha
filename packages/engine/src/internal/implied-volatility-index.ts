@@ -10,10 +10,10 @@ import type {
 } from "../api";
 import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
-import { isAtOrBefore } from "./instant";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
+import { collapseSeriesByTicker } from "./resolve-series";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
@@ -57,6 +57,7 @@ function nearestByStrike(
 
 function solveAtmVolatility(
   view: MarketView,
+  collapsedSeries: readonly OptionSeries[],
   underlying: Ticker,
   at: Instant,
   expiry: SessionDate,
@@ -65,9 +66,8 @@ function solveAtmVolatility(
   riskFreeRate: number,
   dividendYield: number,
 ): AtmSolution | null {
-  const listed = view.optionSeries.filter(
-    (series) =>
-      series.underlying === underlying && series.expiry === expiry && isAtOrBefore(series.asOf, at),
+  const listed = collapsedSeries.filter(
+    (series) => series.underlying === underlying && series.expiry === expiry,
   );
   const forward = spot * Math.exp((riskFreeRate - dividendYield) * years);
   const call = nearestByStrike(
@@ -195,10 +195,11 @@ export function computeImpliedVolatilityIndex(
   if (!t30Resolution.ok) return notBracketed(underlying, atSession.date, provenanceBase);
   const t30 = t30Resolution.years;
 
+  const collapsedSeries = collapseSeriesByTicker(view.optionSeries, at);
   const listedExpiries = [
     ...new Set(
-      view.optionSeries
-        .filter((series) => series.underlying === underlying && isAtOrBefore(series.asOf, at))
+      collapsedSeries
+        .filter((series) => series.underlying === underlying)
         .map((series) => series.expiry),
     ),
   ];
@@ -213,6 +214,7 @@ export function computeImpliedVolatilityIndex(
   const solve = (bracket: AtmBracket): AtmSolution | null =>
     solveAtmVolatility(
       view,
+      collapsedSeries,
       underlying,
       at,
       bracket.expiry,
