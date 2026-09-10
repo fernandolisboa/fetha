@@ -84,7 +84,7 @@ function valueOneLeg(
 ): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
   const atSession = sessionDateAtOrBefore(view.calendar, at);
   if (leg.role === "stock") {
-    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession);
+    const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession, "stock");
     const price = resolved?.value ?? null;
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },

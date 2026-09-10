@@ -211,6 +211,7 @@ export function markToMarket(
       input.at,
       undefined,
       markSession,
+      "stock",
     );
     const price = resolved?.value ?? null;
     const positionNotes: Note[] = [];

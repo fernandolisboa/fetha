@@ -265,15 +265,17 @@ describe("markToMarket", () => {
   it("prices standalone positions, aggregating equity and unrealized P&L with cash", () => {
     const view: MarketView = {
       ...baseView,
-      optionPrices: [
+      candles: [
         {
           ticker: "PETR4",
+          timeframe: "D1",
           session: "2024-01-02",
           asOf: at,
-          average: null,
+          open: decimalString("12.00"),
+          high: decimalString("12.00"),
+          low: decimalString("12.00"),
           close: decimalString("12.00"),
-          trades: 1,
-          tradedQuantity: 1,
+          tradedQuantity: 1000,
         },
       ],
     };
@@ -297,15 +299,17 @@ describe("markToMarket", () => {
   it("flags a short position with a negative value and gains when the price falls", () => {
     const view: MarketView = {
       ...baseView,
-      optionPrices: [
+      candles: [
         {
           ticker: "PETR4",
+          timeframe: "D1",
           session: "2024-01-02",
           asOf: at,
-          average: null,
+          open: decimalString("8.00"),
+          high: decimalString("8.00"),
+          low: decimalString("8.00"),
           close: decimalString("8.00"),
-          trades: 1,
-          tradedQuantity: 1,
+          tradedQuantity: 1000,
         },
       ],
     };
@@ -468,15 +472,17 @@ describe("markToMarket", () => {
   it("flags a stale mark on a standalone position with the session of its last trade", () => {
     const view: MarketView = {
       ...baseView,
-      optionPrices: [
+      candles: [
         {
           ticker: "PETR4",
+          timeframe: "D1",
           session: "2024-01-01",
           asOf: at,
-          average: null,
+          open: decimalString("12.00"),
+          high: decimalString("12.00"),
+          low: decimalString("12.00"),
           close: decimalString("12.00"),
-          trades: 1,
-          tradedQuantity: 1,
+          tradedQuantity: 1000,
         },
       ],
     };

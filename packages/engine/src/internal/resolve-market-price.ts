@@ -14,12 +14,19 @@ import { latestVisible } from "./visible";
 // close/average branch flag `stale` (ADR-0014 Q42, an untraded series marked at its last
 // trade). Callers that only need a price for computation, not to report staleness on a
 // `LegValuation` (delta selection, the implied-volatility index), omit it.
+//
+// `kind` selects the day-price rung: `optionPrices` for an option leg (`OptionDayPrice`
+// carries the close/average an option series trades at), the latest visible D1 candle
+// close for a stock leg or a standalone `Position`, which never appear in `optionPrices`
+// (round 1 item 1: on the daily tier a stock's only rung being `optionPrices` left every
+// stock mark `null`, so equity was always just cash).
 export function resolveLegMarketPrice(
   view: MarketView,
   ticker: Ticker,
   at: Instant,
   given?: DecimalString,
   atSession?: SessionDate | null,
+  kind: "option" | "stock" = "option",
 ): ResolvedMarketPrice | null {
   if (given) return { value: given, source: "given", stale: null };
   const quote = latestVisible(
@@ -37,6 +44,17 @@ export function resolveLegMarketPrice(
     };
   }
   if (quote?.last) return { value: quote.last, source: "last", stale: null };
+
+  if (kind === "stock") {
+    const candle = latestVisible(
+      view.candles.filter((c) => c.ticker === ticker && c.timeframe === "D1"),
+      at,
+    );
+    if (!candle) return null;
+    const stale = atSession && candle.session !== atSession ? { session: candle.session } : null;
+    return { value: candle.close, source: "close", stale };
+  }
+
   const dayPrice = latestVisible(
     view.optionPrices.filter((p) => p.ticker === ticker),
     at,

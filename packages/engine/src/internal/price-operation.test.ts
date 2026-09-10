@@ -703,24 +703,13 @@ describe("priceOperation (concrete legs)", () => {
         {
           ticker: "PETR4",
           timeframe: "D1",
-          session: "2024-01-02",
+          session: "2024-01-01",
           asOf: at,
           open: decimalString("29.00"),
           high: decimalString("30.00"),
           low: decimalString("28.50"),
-          close: decimalString("29.50"),
-          tradedQuantity: 1000,
-        },
-      ],
-      optionPrices: [
-        {
-          ticker: "PETR4",
-          session: "2024-01-01",
-          asOf: at,
-          average: null,
           close: decimalString("29.00"),
-          trades: 1,
-          tradedQuantity: 1,
+          tradedQuantity: 1000,
         },
       ],
     };
