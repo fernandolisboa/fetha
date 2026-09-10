@@ -8,7 +8,9 @@ date: 2026-09-02
 A strategy version is a JSON document validated by a Zod schema in `packages/contracts` and
 interpreted by the engine. It declares a timeframe (`15m`, `30m`, `60m`, `D1`); entry conditions
 as an expression tree over named indicators and price fields (`close > sma(20)`,
-`rsi(14) < 30`, `iv_rank > 50`) combined with and/or/not; the structure to enter from the
+`rsi(14) < 30`, `iv_rank > 50`) combined with and/or/not, capped at `MAX_CONDITION_DEPTH` (6)
+levels deep (`packages/contracts/src/condition.ts`) so a hand-authored or AI-generated condition
+tree cannot grow unbounded; the structure to enter from the
 catalog; strike selection by delta, by moneyness or by nearest strike to a price; expiry
 selection by a business-day window; a sizing rule; exit rules (profit target as a fraction of
 the credit or debit, stop as a fraction or a multiple of max loss, N business days before expiry,
