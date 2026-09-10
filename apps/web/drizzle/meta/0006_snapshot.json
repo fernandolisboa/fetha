@@ -1,5 +1,5 @@
 {
-  "id": "a3c5d06f-aca5-4989-8e8a-56ef63ca4cd9",
+  "id": "b2e04ca2-8311-4847-9782-0917f241026d",
   "prevId": "0b51abff-ce62-4e90-95c7-49ed45930dff",
   "version": "7",
   "dialect": "postgresql",
@@ -399,6 +399,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "structure": {
+          "name": "structure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
         "universe": {
           "name": "universe",
           "type": "jsonb",
@@ -468,7 +474,7 @@
         },
         "checkpoint": {
           "name": "checkpoint",
-          "type": "jsonb",
+          "type": "json",
           "primaryKey": false,
           "notNull": false
         },

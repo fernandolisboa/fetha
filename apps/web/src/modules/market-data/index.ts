@@ -15,7 +15,11 @@ export {
   type InstrumentSearchResult,
 } from "./repositories/candle-repository";
 export { corporateActionsForTicker } from "./repositories/corporate-action-repository";
-export { sessionsBetween, upsertTradingSessions } from "./repositories/calendar-repository";
+export {
+  sessionByDate,
+  sessionsBetween,
+  upsertTradingSessions,
+} from "./repositories/calendar-repository";
 export { macroPointsBetween } from "./repositories/macro-repository";
 export { CandleChart } from "./components/candle-chart";
 export { CandleFormToggle } from "./components/candle-form-toggle";

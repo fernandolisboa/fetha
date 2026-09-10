@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Centavos, DecimalString, StrategyDefinition } from "@fetha/contracts";
+import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
@@ -61,6 +61,13 @@ function definition(): StrategyDefinition {
   };
 }
 
+const STOCK_STRUCTURE: Structure = {
+  id: "stock",
+  name: "Compra de ação",
+  expiry: "shared",
+  legs: [{ role: "stock", side: "buy", ratio: 1 }],
+};
+
 const createdEmails: string[] = [];
 
 afterEach(async () => {
@@ -86,6 +93,7 @@ describe("BacktestRunRepository isolation", () => {
     const runB = await new BacktestRunRepository(db, userB).create({
       strategyId: strategy.id,
       strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
       universe: ["ZQIS3"],
       period: { from: "2025-01-02", to: "2025-01-10" },
       initialCapital: centavos(1_000_000),
@@ -116,6 +124,7 @@ describe("BacktestRunRepository isolation", () => {
     const runB = await new BacktestRunRepository(db, userB).create({
       strategyId: strategy.id,
       strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
       universe: ["ZQIS3"],
       period: { from: "2025-01-02", to: "2025-01-10" },
       initialCapital: centavos(1_000_000),
@@ -162,6 +171,7 @@ describe("BacktestRunRepository isolation", () => {
     const run = await repository.create({
       strategyId: strategy.id,
       strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
       universe: ["ZQIS3"],
       period: { from: "2025-01-02", to: "2025-01-10" },
       initialCapital: centavos(1_000_000),

@@ -1,4 +1,4 @@
-import type { NoteCode } from "@fetha/engine";
+import type { EngineErrorCode, NoteCode } from "@fetha/engine";
 
 const en = {
   create: {
@@ -13,8 +13,14 @@ const en = {
     limits: "Risk limits",
     limitsEnforce: "Enforce",
     limitsWarn: "Warn only",
+    costModel: "Cost model",
+    costModelPresets: {
+      b3_default: "B3 default (zero stock brokerage)",
+      discount_broker: "Discount broker (R$ 4,90 per stock order)",
+    },
     submit: "Run backtest",
     error: "Couldn't create the run. Check the fields and try again.",
+    invalidCapital: "Enter the initial capital as a valid amount, e.g. 10.000,00.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
   },
   report: {
@@ -87,6 +93,17 @@ const en = {
     option_strike_unadjusted_across_corporate_action:
       "The option's strike was not adjusted for a corporate action.",
   } satisfies Record<NoteCode, string>,
+  engineErrors: {
+    invalid_input: "Invalid input.",
+    unsupported: "This combination is not supported yet.",
+    missing_instrument: "One of the instruments has no data.",
+    insufficient_data: "Not enough historical data for this period.",
+    no_series_matches: "No option series matches the strategy's strikes.",
+    degenerate_strikes: "The resolved strikes were degenerate.",
+    unsizeable: "The strategy could not be sized.",
+    checkpoint_mismatch: "The engine was updated; the run restarted from the beginning.",
+  } satisfies Record<EngineErrorCode, string>,
+  networkError: "Network error. Try again.",
 };
 
 const ptBR = {
@@ -102,8 +119,14 @@ const ptBR = {
     limits: "Limites de risco",
     limitsEnforce: "Aplicar",
     limitsWarn: "Só avisar",
+    costModel: "Modelo de custos",
+    costModelPresets: {
+      b3_default: "Padrão B3 (corretagem de ações zerada)",
+      discount_broker: "Corretora desconto (R$ 4,90 por ordem de ação)",
+    },
     submit: "Rodar backtest",
     error: "Não foi possível criar a simulação. Confira os campos e tente novamente.",
+    invalidCapital: "Informe o capital inicial como um valor válido, por exemplo 10.000,00.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
   },
   report: {
@@ -180,6 +203,17 @@ const ptBR = {
     option_strike_unadjusted_across_corporate_action:
       "Strike da opção não foi ajustado por um evento societário.",
   } satisfies Record<NoteCode, string>,
+  engineErrors: {
+    invalid_input: "Entrada inválida.",
+    unsupported: "Essa combinação ainda não é suportada.",
+    missing_instrument: "Um dos ativos não tem dados.",
+    insufficient_data: "Histórico insuficiente para esse período.",
+    no_series_matches: "Nenhuma série de opções corresponde aos strikes da estratégia.",
+    degenerate_strikes: "Os strikes resolvidos ficaram degenerados.",
+    unsizeable: "Não foi possível dimensionar a estratégia.",
+    checkpoint_mismatch: "O motor foi atualizado; a simulação recomeçou do início.",
+  } satisfies Record<EngineErrorCode, string>,
+  networkError: "Erro de rede. Tente novamente.",
 } satisfies typeof en;
 
 export const backtestsStrings = { en, ptBR } as const;
@@ -188,4 +222,8 @@ export const t = backtestsStrings.ptBR;
 
 export function noteMessage(code: NoteCode): string {
   return t.notes[code];
+}
+
+export function engineErrorMessage(code: string): string {
+  return code in t.engineErrors ? t.engineErrors[code as EngineErrorCode] : code;
 }

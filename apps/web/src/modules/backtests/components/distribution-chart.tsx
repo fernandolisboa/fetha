@@ -11,6 +11,7 @@ const HEIGHT = 180;
 const BIN_COUNT = 10;
 
 interface Bin {
+  id: string;
   label: string;
   count: number;
   isZeroBin: boolean;
@@ -18,11 +19,15 @@ interface Bin {
 
 // True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
 // `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
+// One decimal, not zero: whole-percent rounding collapses the typical
+// per-operation return spread this chart receives into a single "0%"
+// label, which also collapsed the band scale's domain (see `bin.id`
+// below, which is what the domain and React key are actually keyed on).
 function percentLabel(value: number): string {
-  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(0)}%`;
+  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(1)}%`;
 }
 
-function buildBins(returns: number[]): Bin[] {
+export function buildBins(returns: number[]): Bin[] {
   if (returns.length === 0) {
     return [];
   }
@@ -34,6 +39,7 @@ function buildBins(returns: number[]): Bin[] {
   const bins: Bin[] = Array.from({ length: BIN_COUNT }, (_, index) => {
     const lower = min + index * width;
     return {
+      id: String(index),
       label: percentLabel(lower * 100),
       count: 0,
       isZeroBin: lower <= 0 && lower + width > 0,
@@ -55,7 +61,7 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
 
   const xScale = scaleBand<string>({
-    domain: bins.map((bin) => bin.label),
+    domain: bins.map((bin) => bin.id),
     range: [0, innerWidth],
     padding: 0.2,
   });
@@ -64,14 +70,15 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
     range: [innerHeight, 0],
     nice: true,
   });
+  const labelById = new Map(bins.map((bin) => [bin.id, bin.label]));
 
   return (
     <svg width={width} height={HEIGHT} role="img" aria-label="Distribuição de retornos">
       <Group left={MARGIN.left} top={MARGIN.top}>
         {bins.map((bin) => (
           <Bar
-            key={bin.label}
-            x={xScale(bin.label) ?? 0}
+            key={bin.id}
+            x={xScale(bin.id) ?? 0}
             y={yScale(bin.count)}
             width={xScale.bandwidth()}
             height={innerHeight - yScale(bin.count)}
@@ -91,6 +98,7 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
           scale={xScale}
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
+          tickFormat={(id) => labelById.get(id) ?? id}
           tickLabelProps={{ fill: "var(--muted)", fontSize: 10, fontFamily: "var(--font-mono)" }}
         />
       </Group>

@@ -15,7 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { parseCentavosInput } from "@/lib/format/parse-money";
+
 import { createBacktestRunAction } from "../actions";
+import { costModelPresetIds, type CostModelPresetId } from "../default-config";
 import { t } from "../strings";
 
 export function CreateRunForm({
@@ -30,8 +33,9 @@ export function CreateRunForm({
   const [universe, setUniverse] = useState<Ticker[]>(watchlistTickers.slice(0, 1));
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [capital, setCapital] = useState("10000");
+  const [capital, setCapital] = useState("10.000,00");
   const [limits, setLimits] = useState<"enforce" | "warn">("warn");
+  const [costModel, setCostModel] = useState<CostModelPresetId>("b3_default");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -45,9 +49,9 @@ export function CreateRunForm({
 
   function submit(): void {
     setError(null);
-    const capitalCentavos = Math.round(Number(capital.replace(",", ".")) * 100);
-    if (universe.length === 0 || !from || !to || !Number.isFinite(capitalCentavos)) {
-      setError(t.create.error);
+    const capitalCentavos = parseCentavosInput(capital);
+    if (universe.length === 0 || !from || !to || capitalCentavos === null) {
+      setError(capitalCentavos === null ? t.create.invalidCapital : t.create.error);
       return;
     }
     setPending(true);
@@ -64,6 +68,7 @@ export function CreateRunForm({
           to,
           initialCapital: capitalCentavos,
           limits,
+          costModel,
         });
         setError(t.create.error);
         setPending(false);
@@ -132,6 +137,29 @@ export function CreateRunForm({
             setCapital(event.target.value);
           }}
         />
+      </div>
+
+      <div>
+        <Label htmlFor="backtest-cost-model">{t.create.costModel}</Label>
+        <Select
+          value={costModel}
+          onValueChange={(next) => {
+            if (next && (costModelPresetIds as string[]).includes(next)) {
+              setCostModel(next);
+            }
+          }}
+        >
+          <SelectTrigger id="backtest-cost-model" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {costModelPresetIds.map((presetId) => (
+              <SelectItem key={presetId} value={presetId}>
+                {t.create.costModelPresets[presetId]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>

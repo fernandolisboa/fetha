@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import type { Centavos, DecimalString, StrategyDefinition } from "@fetha/contracts";
+import type {
+  Centavos,
+  DecimalString,
+  RiskProfile,
+  StrategyDefinition,
+  Structure,
+} from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { backtestRuns } from "@/db/schema/backtests";
@@ -11,7 +17,7 @@ import { upsertDailyCandles, upsertTradingSessions } from "@/modules/market-data
 import { StrategiesRepository } from "@/modules/strategies";
 
 import { BacktestRunRepository, type BacktestRunConfigInput } from "./backtest-run-repository";
-import { DEFAULT_COST_MODEL, defaultRiskProfile } from "./default-config";
+import { DEFAULT_COST_MODEL } from "./default-config";
 import { runBacktestChunk } from "./run-chunk";
 
 function decimalString(value: string): DecimalString {
@@ -23,6 +29,11 @@ function centavos(value: number): Centavos {
 }
 
 const TICKER = "ZQCT3";
+// Alphabetically before TICKER: a naive round-trip that reorders the
+// checkpoint's pending-entries map (e.g. by JS object key order after a
+// `jsonb` round-trip, which does not preserve insertion order) would flip
+// which of the two tickers wins the single open-operation slot below.
+const TICKER2 = "AAAA3";
 const SESSION_COUNT = 15;
 
 function businessDays(
@@ -43,10 +54,18 @@ function businessDays(
   return dates;
 }
 
-const SESSIONS = businessDays(SESSION_COUNT, 2025, 3, 3);
+// Starts the Monday before month-end: with 5-session chunks, the first
+// chunk boundary (index 4/5) lands exactly on the January/February
+// boundary, so the invariance test below also covers a month boundary
+// inside a run, not only a chunk boundary.
+const SESSIONS = businessDays(SESSION_COUNT, 2025, 1, 27);
 
+// Crosses above 9 at index 4, the *last* session of the first 5-session
+// chunk: the entry signal is decided in chunk 1 but only fillable at the
+// next session's open, in chunk 2 — a pending entry that must survive the
+// checkpoint round-trip across the chunk boundary.
 function priceFor(index: number): string {
-  const base = index < 5 ? 8.0 + index * 0.2 : 9.2 + (index - 5) * 0.2;
+  const base = index < 4 ? 8.0 + index * 0.2 : 9.2 + (index - 4) * 0.2;
   return base.toFixed(2);
 }
 
@@ -67,6 +86,18 @@ async function seedMarketData(): Promise<void> {
         kind: "stock",
         session,
         ticker: TICKER,
+        open: close,
+        high: close,
+        low: close,
+        average: close,
+        close,
+        trades: 10,
+        tradedQuantity: 1000,
+      },
+      {
+        kind: "stock",
+        session,
+        ticker: TICKER2,
         open: close,
         high: close,
         low: close,
@@ -123,7 +154,29 @@ afterEach(async () => {
     await deleteTestUser(db, email);
   }
   await db.delete(candles).where(eq(candles.ticker, TICKER));
+  await db.delete(candles).where(eq(candles.ticker, TICKER2));
 });
+
+const STOCK_STRUCTURE: Structure = {
+  id: "stock",
+  name: "Compra de ação",
+  expiry: "shared",
+  legs: [{ role: "stock", side: "buy", ratio: 1 }],
+};
+
+// A single open-operation slot: with two tickers signaling entry on the
+// same session, exactly one wins it, and *which* ticker wins is
+// deterministic only if the pending-entry order the checkpoint persists
+// survives its round-trip through the database unchanged.
+const SINGLE_SLOT_RISK_PROFILE: RiskProfile = {
+  declaredCapital: centavos(1_000_000),
+  limits: {
+    maxLossPerOperation: decimalString("1"),
+    maxExposurePerOperation: decimalString("1"),
+    maxOpenOperations: 1,
+    maxPremiumBought: decimalString("1"),
+  },
+};
 
 async function setUp(): Promise<{
   testUser: { id: string; name: string; email: string };
@@ -154,12 +207,13 @@ function runConfig(setup: Awaited<ReturnType<typeof setUp>>): BacktestRunConfigI
   return {
     strategyId: setup.strategyId,
     strategyVersionId: setup.strategyVersionId,
-    universe: [TICKER],
+    structure: STOCK_STRUCTURE,
+    universe: [TICKER, TICKER2],
     period: { from: SESSIONS[0] ?? "", to: SESSIONS[SESSIONS.length - 1] ?? "" },
     initialCapital: centavos(1_000_000),
     costModel: DEFAULT_COST_MODEL,
-    riskProfile: defaultRiskProfile(centavos(1_000_000)),
-    limits: "warn",
+    riskProfile: SINGLE_SLOT_RISK_PROFILE,
+    limits: "enforce",
     sizing: setup.sizing,
     seed: 42,
   };
@@ -199,6 +253,19 @@ describe("runBacktestChunk", () => {
     expect(chunkedFinal.status).toBe("complete");
     expect(JSON.stringify(chunkedFinal.result)).toBe(JSON.stringify(wholeFinal.result));
     expect(chunkedFinal.result?.operations.length ?? 0).toBeGreaterThan(0);
+
+    // The single-slot limit means exactly one of the two tickers opened:
+    // a checkpoint round-trip that reorders pendingEntries would let the
+    // chunked run pick a different winner than the uninterrupted one.
+    expect(chunkedFinal.result?.operations.length).toBe(1);
+    expect(chunkedFinal.result?.operations[0]?.underlying).toBe(
+      wholeFinal.result?.operations[0]?.underlying,
+    );
+    // In "enforce" mode the loser is a missed entry (reason
+    // "limit_breach"), not a warned limit breach.
+    expect(
+      chunkedFinal.result?.missedEntries.some((entry) => entry.reason === "limit_breach"),
+    ).toBe(true);
   });
 
   it("a completed run's row is immutable at the database level", async () => {

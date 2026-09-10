@@ -4,14 +4,23 @@ import {
   date,
   index,
   integer,
+  json,
   jsonb,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { BacktestCheckpoint, BacktestRun, LimitMode } from "@fetha/engine";
-import type { CostModel, RiskProfile, SizingRule, Ticker } from "@fetha/contracts";
+import type {
+  BacktestCheckpoint,
+  BacktestRun,
+  CostModel,
+  LimitMode,
+  RiskProfile,
+  SizingRule,
+  Structure,
+  Ticker,
+} from "@fetha/contracts";
 
 import { user } from "./auth";
 import { strategies, strategyVersions } from "./strategies";
@@ -19,10 +28,9 @@ import { strategies, strategyVersions } from "./strategies";
 export const backtestRunStatuses = ["pending", "running", "paused", "complete", "failed"] as const;
 
 // A run row is written many times while it progresses (checkpoint after
-// each chunked call, ADR-0013 "Checkpoints") but never again once it
-// reaches "complete" (CONTEXT.md "Backtest run"): the database enforces
-// that half of the invariant with a trigger (migration
-// 0006_backtest_runs.sql) the same way strategy_versions enforces full
+// each chunked call) but never again once it reaches "complete"
+// (CONTEXT.md "Backtest run"): the database enforces that half of the
+// invariant with a trigger the same way strategy_versions enforces full
 // immutability (0004_empty_skreet.sql), since Drizzle's schema builder has
 // no first-class trigger API.
 export const backtestRuns = pgTable(
@@ -40,6 +48,10 @@ export const backtestRuns = pgTable(
     strategyVersionId: text("strategy_version_id")
       .notNull()
       .references(() => strategyVersions.id, { onDelete: "cascade" }),
+    // Resolved from the (mutable) structures catalog once, at creation, and
+    // reused on every chunk: a catalog edit between chunks must never
+    // invalidate a paused run's checkpoint.
+    structure: jsonb("structure").$type<Structure>().notNull(),
     universe: jsonb("universe").$type<Ticker[]>().notNull(),
     periodFrom: date("period_from", { mode: "string" }).notNull(),
     periodTo: date("period_to", { mode: "string" }).notNull(),
@@ -54,7 +66,12 @@ export const backtestRuns = pgTable(
       .$type<(typeof backtestRunStatuses)[number]>()
       .notNull()
       .default("pending"),
-    checkpoint: jsonb("checkpoint").$type<BacktestCheckpoint | null>(),
+    // A plain `json` column, not `jsonb`: the engine iterates checkpoint
+    // maps (pendingEntries, pendingExits, pendingSettlements) in insertion
+    // order, and `jsonb` does not preserve key order on round-trip, which
+    // would silently reorder those maps and break the chunked-run ==
+    // uninterrupted-run invariant.
+    checkpoint: json("checkpoint").$type<BacktestCheckpoint | null>(),
     result: jsonb("result").$type<BacktestRun | null>(),
     sessionsDone: integer("sessions_done"),
     sessionsTotal: integer("sessions_total"),

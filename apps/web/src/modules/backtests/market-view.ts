@@ -42,6 +42,18 @@ function emptyMarketView(): MarketView {
   };
 }
 
+export function resolveWarmupSession(
+  calendar: TradingSession[],
+  from: string,
+): TradingSession | undefined {
+  const firstSession = calendar[0];
+  if (firstSession && firstSession.open === from) {
+    return firstSession;
+  }
+  const precedingIndex = calendar.findIndex((session) => session.close === from);
+  return precedingIndex >= 0 ? calendar[precedingIndex + 1] : undefined;
+}
+
 export interface BacktestMarketViewInput {
   strategy: StrategyVersion;
   universe: Ticker[];
@@ -77,7 +89,18 @@ export async function loadBacktestMarketView(
     since: fromSession.open,
   });
 
-  const warmupSession = calendar.find((session) => session.open === window.from) ?? fromSession;
+  // engine.dataWindow() returns `from` as an *Instant*, not a session date,
+  // and it is either the very first calendar session's own open (when no
+  // earlier warmup is needed) or the *close* of the session immediately
+  // preceding the earliest one actually needed
+  // (packages/engine/src/internal/data-window.ts computeFrom): matching it
+  // against `session.open` alone, with a same-session fallback, silently
+  // resolved to `fromSession` on every run whose warmup reaches back
+  // further than the requested period, loading zero warm-up history.
+  const warmupSession = resolveWarmupSession(calendar, window.from);
+  if (!warmupSession) {
+    return { ...emptyMarketView(), calendar };
+  }
 
   const [candlesByTicker, corporateActionsByTicker] = await Promise.all([
     Promise.all(

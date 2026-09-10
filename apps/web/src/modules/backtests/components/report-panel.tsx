@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import type { BacktestRun, MissedEntryReason, NoteCode, RiskLimit } from "@fetha/engine";
+import { Decimal } from "decimal.js";
+import type {
+  BacktestRun,
+  EquityPoint,
+  MissedEntryReason,
+  NoteCode,
+  RiskLimit,
+} from "@fetha/engine";
 
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
@@ -52,15 +59,39 @@ function Stat({ label, value, notes }: { label: string; value: string; notes?: R
   );
 }
 
-const equityDrawdownCodes: NoteCode[] = ["non_positive_equity", "negative_cash"];
-const annualizedCodes: NoteCode[] = ["short_window_not_annualized"];
-const surfacedCodes: NoteCode[] = [...equityDrawdownCodes, ...annualizedCodes];
+const equityDrawdownCodes: NoteCode[] = ["negative_cash"];
+const annualizedCodes: NoteCode[] = ["short_window_not_annualized", "non_positive_equity"];
+const missedEntryCodes: NoteCode[] = ["missed_entry"];
+const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
+const costCodes: NoteCode[] = ["settlement_pending", "settlement_costs_not_modeled"];
+const surfacedCodes: NoteCode[] = [
+  ...equityDrawdownCodes,
+  ...annualizedCodes,
+  ...missedEntryCodes,
+  ...limitBreachCodes,
+  ...costCodes,
+];
+
+// Per-session equity returns, not operation P&L over starting capital:
+// an operation's P&L divided by the run's *starting* capital ignores
+// compounding and folds in period_end marks the engine already excludes
+// from winRate/profitFactor, both of which distort the histogram.
+export function sessionReturns(equityCurve: EquityPoint[]): number[] {
+  const returns: number[] = [];
+  for (let i = 1; i < equityCurve.length; i += 1) {
+    const previous = equityCurve[i - 1];
+    const current = equityCurve[i];
+    if (!previous || !current || previous.equity === 0) continue;
+    returns.push(
+      new Decimal(current.equity).minus(previous.equity).div(previous.equity).toNumber(),
+    );
+  }
+  return returns;
+}
 
 export function ReportPanel({ run }: { run: BacktestRun }) {
   const { metrics } = run;
-  const returns = run.operations.map(
-    (operation) => operation.pnl / Math.max(1, run.config.initialCapital),
-  );
+  const returns = sessionReturns(run.equityCurve);
   const generalNotes = run.notes.filter((note) => !surfacedCodes.includes(note.code));
 
   return (
@@ -103,7 +134,11 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
             value={metrics.profitFactor ? formatDecimal(metrics.profitFactor) : "—"}
           />
           <Stat label={t.report.metrics.exposure} value={formatPercent(metrics.exposure)} />
-          <Stat label={t.report.metrics.fees} value={formatBRL(metrics.fees)} />
+          <Stat
+            label={t.report.metrics.fees}
+            value={formatBRL(metrics.fees)}
+            notes={<NotesFor run={run} codes={costCodes} />}
+          />
           <Stat label={t.report.metrics.taxes} value={formatBRL(metrics.taxes)} />
           <Stat label={t.report.metrics.slippage} value={formatBRL(metrics.slippage)} />
         </div>
@@ -147,6 +182,7 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
       </Panel>
 
       <Panel title={t.report.missedEntries.title}>
+        <NotesFor run={run} codes={missedEntryCodes} />
         {run.missedEntries.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.missedEntries.empty}</p>
         ) : (
@@ -174,6 +210,7 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
       </Panel>
 
       <Panel title={t.report.limitBreaches.title}>
+        <NotesFor run={run} codes={limitBreachCodes} />
         {run.limitBreaches.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.limitBreaches.empty}</p>
         ) : (

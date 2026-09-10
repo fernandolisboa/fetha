@@ -1,22 +1,49 @@
-import { and, desc, eq } from "drizzle-orm";
-import type {
-  Centavos,
-  CostModel,
-  RiskProfile,
-  SessionDate,
-  SizingRule,
-  Ticker,
+import { and, eq, sql } from "drizzle-orm";
+import {
+  backtestCheckpointSchema,
+  backtestRunSchema,
+  centavosSchema,
+  costModelSchema,
+  limitModeSchema,
+  riskProfileSchema,
+  sessionDateSchema,
+  sizingRuleSchema,
+  structureSchema,
+  tickerSchema,
+  type Centavos,
+  type CostModel,
+  type RiskProfile,
+  type SessionDate,
+  type SizingRule,
+  type Structure,
+  type Ticker,
 } from "@fetha/contracts";
 import type { BacktestCheckpoint, BacktestRun, LimitMode } from "@fetha/engine";
+import { z } from "zod";
 
 import { backtestRuns, type backtestRunStatuses } from "@/db/schema/backtests";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
+
+// The engine's own SimulatedOperation/LegSettlement discriminated unions
+// correlate role, side and outcome literals in ways Zod cannot cheaply
+// re-derive without duplicating engine internals contracts must not depend
+// on (ADR-0013). backtestRunSchema validates every field's shape and every
+// enum's known values at the repository edge; this cast bridges the
+// validated shape to the engine's own exported vocabulary, the one every
+// other consumer (ReportPanel, run-chunk) already speaks.
+function asEngineCheckpoint(value: unknown): BacktestCheckpoint {
+  return backtestCheckpointSchema.parse(value);
+}
+function asEngineRun(value: unknown): BacktestRun {
+  return backtestRunSchema.parse(value) as unknown as BacktestRun;
+}
 
 export type BacktestRunStatus = (typeof backtestRunStatuses)[number];
 
 export interface BacktestRunConfigInput {
   strategyId: string;
   strategyVersionId: string;
+  structure: Structure;
   universe: Ticker[];
   period: { from: SessionDate; to: SessionDate };
   initialCapital: Centavos;
@@ -32,6 +59,7 @@ export interface BacktestRunRecord {
   userId: string;
   strategyId: string;
   strategyVersionId: string;
+  structure: Structure;
   universe: Ticker[];
   period: { from: SessionDate; to: SessionDate };
   initialCapital: Centavos;
@@ -65,24 +93,44 @@ export class BacktestRunAlreadyCompleteError extends Error {
   }
 }
 
+export class BacktestRunClaimError extends Error {
+  constructor() {
+    super("Backtest run could not be claimed: another call may already be running it");
+    this.name = "BacktestRunClaimError";
+  }
+}
+
+function isImmutabilityTriggerError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P0001"
+  );
+}
+
+const universeSchema = z.array(tickerSchema);
+const periodSchema = z.object({ from: sessionDateSchema, to: sessionDateSchema });
+
 function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
   return {
     id: row.id,
     userId: row.userId,
     strategyId: row.strategyId,
     strategyVersionId: row.strategyVersionId,
-    universe: row.universe,
-    period: { from: row.periodFrom, to: row.periodTo },
-    initialCapital: row.initialCapital as Centavos,
-    costModel: row.costModel,
-    riskProfile: row.riskProfile,
-    limits: row.limits,
-    sizing: row.sizing ?? null,
+    structure: structureSchema.parse(row.structure),
+    universe: universeSchema.parse(row.universe),
+    period: periodSchema.parse({ from: row.periodFrom, to: row.periodTo }),
+    initialCapital: centavosSchema.parse(row.initialCapital),
+    costModel: costModelSchema.parse(row.costModel),
+    riskProfile: riskProfileSchema.parse(row.riskProfile),
+    limits: limitModeSchema.parse(row.limits),
+    sizing: row.sizing ? sizingRuleSchema.parse(row.sizing) : null,
     seed: row.seed,
     configDigest: row.configDigest,
     status: row.status,
-    checkpoint: row.checkpoint ?? null,
-    result: row.result ?? null,
+    checkpoint: row.checkpoint ? asEngineCheckpoint(row.checkpoint) : null,
+    result: row.result ? asEngineRun(row.result) : null,
     sessionsDone: row.sessionsDone,
     sessionsTotal: row.sessionsTotal,
     error: row.error,
@@ -93,8 +141,8 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
 
 // User-scoped, per CLAUDE.md principle 5: every method filters by
 // this.userId, and a run's own immutability once complete is additionally
-// enforced by a database trigger (migration 0006_naive_grey_gargoyle.sql),
-// not only by this class's own defensive checks.
+// enforced by a database trigger, not only by this class's own defensive
+// checks.
 export class BacktestRunRepository extends UserScopedRepository {
   async create(input: BacktestRunConfigInput): Promise<BacktestRunRecord> {
     const [row] = await this.db
@@ -103,6 +151,7 @@ export class BacktestRunRepository extends UserScopedRepository {
         userId: this.userId,
         strategyId: input.strategyId,
         strategyVersionId: input.strategyVersionId,
+        structure: input.structure,
         universe: input.universe,
         periodFrom: input.period.from,
         periodTo: input.period.to,
@@ -138,9 +187,38 @@ export class BacktestRunRepository extends UserScopedRepository {
     const rows = await this.db
       .select()
       .from(backtestRuns)
-      .where(and(eq(backtestRuns.strategyId, strategyId), eq(backtestRuns.userId, this.userId)))
-      .orderBy(desc(backtestRuns.createdAt));
-    return rows.map(toRecord);
+      .where(and(eq(backtestRuns.strategyId, strategyId), eq(backtestRuns.userId, this.userId)));
+    return rows.map(toRecord).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  // Claims the run for this call with a single conditional UPDATE instead
+  // of a read-then-write: a concurrent second call for the same run finds
+  // zero rows and fails with BacktestRunClaimError (mapped to 409 by the
+  // route), rather than both calls racing a full engine chunk.
+  async claim(id: string): Promise<BacktestRunRecord> {
+    const [row] = await this.db
+      .update(backtestRuns)
+      .set({ status: "running" })
+      .where(
+        and(
+          eq(backtestRuns.id, id),
+          eq(backtestRuns.userId, this.userId),
+          sql`${backtestRuns.status} in ('pending', 'paused')`,
+        ),
+      )
+      .returning();
+    if (!row) {
+      const existing = await this.db
+        .select({ id: backtestRuns.id })
+        .from(backtestRuns)
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+        .limit(1);
+      if (existing.length === 0) {
+        throw new BacktestRunNotFoundError();
+      }
+      throw new BacktestRunClaimError();
+    }
+    return toRecord(row);
   }
 
   async saveProgress(
@@ -189,11 +267,23 @@ export class BacktestRunRepository extends UserScopedRepository {
     if (existing.status === "complete") {
       throw new BacktestRunAlreadyCompleteError();
     }
-    const [row] = await this.db
-      .update(backtestRuns)
-      .set(values)
-      .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
-      .returning();
+    let row;
+    try {
+      [row] = await this.db
+        .update(backtestRuns)
+        .set(values)
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+        .returning();
+    } catch (error) {
+      // The immutability trigger (backtest_runs_no_update_once_complete)
+      // raises P0001 when a concurrent call already completed the run
+      // between the check above and this write: surfaced as the same
+      // typed error the caller already handles as a 409, never a raw 500.
+      if (isImmutabilityTriggerError(error)) {
+        throw new BacktestRunAlreadyCompleteError();
+      }
+      throw error;
+    }
     if (!row) {
       throw new BacktestRunNotFoundError();
     }

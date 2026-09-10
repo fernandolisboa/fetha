@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/modules/auth";
-import { CreateRunForm, t } from "@/modules/backtests";
+import { t } from "@/modules/backtests";
+import { CreateRunForm } from "@/modules/backtests/client";
 import { getMyStrategy, StrategyNotFoundError } from "@/modules/strategies";
 import { Panel } from "@/modules/shell";
 import { getMyWatchlist } from "@/modules/watchlist";

@@ -61,3 +61,13 @@ export {
 export { strategyDefinitionSchema, type StrategyDefinition } from "./strategy-definition";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
 export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";
+export {
+  backtestCheckpointSchema,
+  backtestConfigSchema,
+  backtestRunSchema,
+  limitModeSchema,
+  type BacktestCheckpoint,
+  type BacktestConfig,
+  type BacktestRun,
+  type LimitMode,
+} from "./backtest-report";

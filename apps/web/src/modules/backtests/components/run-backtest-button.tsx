@@ -28,7 +28,7 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
       }
       router.refresh();
     } catch {
-      setError(t.report.failed.replace("{error}", "network"));
+      setError(t.networkError);
     } finally {
       setPending(false);
     }

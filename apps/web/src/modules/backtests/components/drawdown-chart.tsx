@@ -17,6 +17,15 @@ function percentTick(value: number): string {
   return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(0)}%`;
 }
 
+// EquityPoint.drawdown is a non-negative fraction (magnitude of the drop
+// from the running peak), so the domain's upper bound is the run's own
+// deepest drawdown, not 0: `[min(drawdowns, 0), 0]` collapses to `[0, 0]`
+// for every real run and renders an empty panel.
+export function drawdownDomain(points: EquityPoint[]): [number, number] {
+  const drawdowns = points.map((point) => new Decimal(point.drawdown).toNumber());
+  return [0, Math.max(...drawdowns, 0)];
+}
+
 function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -25,10 +34,9 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
     domain: points.map((point) => point.session),
     range: [0, innerWidth],
   });
-  const drawdowns = points.map((point) => new Decimal(point.drawdown).toNumber());
   const yScale = scaleLinear<number>({
-    domain: [Math.min(...drawdowns, 0), 0],
-    range: [innerHeight, 0],
+    domain: drawdownDomain(points),
+    range: [0, innerHeight],
     nice: true,
   });
 
@@ -48,7 +56,7 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-          tickFormat={(value) => percentTick(Number(value) * 100)}
+          tickFormat={(value) => percentTick(-Number(value) * 100)}
           numTicks={3}
         />
         <AxisBottom

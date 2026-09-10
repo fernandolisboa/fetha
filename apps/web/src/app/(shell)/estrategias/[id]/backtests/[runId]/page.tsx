@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/auth";
 import {
   BacktestRunNotFoundError,
+  engineErrorMessage,
   getMyBacktestRun,
   ReportPanel,
-  RunBacktestButton,
   t,
 } from "@/modules/backtests";
+import { RunBacktestButton } from "@/modules/backtests/client";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
@@ -54,7 +55,7 @@ export default async function BacktestReportPage({
       ) : run.status === "failed" ? (
         <Panel>
           <p className="text-destructive text-sm">
-            {t.report.failed.replace("{error}", run.error ?? "")}
+            {t.report.failed.replace("{error}", engineErrorMessage(run.error ?? ""))}
           </p>
         </Panel>
       ) : (
