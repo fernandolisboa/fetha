@@ -19,12 +19,15 @@ const extraHTTPHeaders = protectionBypass
   : undefined;
 
 // Every spec below self-registers a brand-new account (helpers.ts,
-// registerAndSignIn), which now goes through the sign-up rate limit
-// (options.ts, RATE_LIMIT_CUSTOM_RULES: 3 per 10s per IP, docs/adr/0016).
-// Playwright's default `fullyParallel` runs every test in its own worker,
-// each from the same machine/IP, so the suite trips its own limit under
-// parallel workers; this project forces one worker and sequential specs
-// instead of leaving the whole config parallel.
+// registerAndSignIn, and each spec's own inline flow), which goes through
+// the sign-up rate limit (options.ts, RATE_LIMIT_CUSTOM_RULES: 3 per 10s per
+// IP, docs/adr/0016). `throttleSignUp` (e2e/support.ts) spaces every
+// sign-up in real time rather than exempting the E2E client from the limit
+// it exists to test, but its spacing is process-wide module state: this
+// project forces one worker and sequential specs so all of them share that
+// state, instead of Playwright's default `fullyParallel`, which would run
+// each spec in its own worker process (and therefore its own untracked
+// sign-up clock) from the same machine/IP.
 const authSpecs = [
   "magic-link.spec.ts",
   "password-reset.spec.ts",

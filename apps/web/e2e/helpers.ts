@@ -1,7 +1,7 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
-import { readLatestLink } from "./support";
+import { readLatestLink, throttleSignUp } from "./support";
 
 const password = "correct-horse-battery-staple";
 
@@ -19,6 +19,7 @@ export async function registerAndSignIn(
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
   await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
+  await throttleSignUp();
   await page.getByRole("button", { name: "Criar conta" }).click();
 
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
