@@ -187,14 +187,21 @@ compounding. Series 11 (Selic efetiva, % a.d.) remains fetchable but unfetched: 
 `MacroPoint` has one `annualRate` slot per kind (`cdi`/`selic`/`ipca`) and 432 already gives the
 annual Selic rate — a documented gap, not an oversight.
 
-`resolveAsOfInstant` also throws if the reference `date` it is given precedes the earliest session
-in the calendar it was handed, instead of silently resolving forward to that earliest session:
-`ingest()`'s `resolveSgsFromDate` requests from the first ingested calendar day (2024-01-01)
-onward, not an earlier backfill date, so this only fires if a caller passes a date outside
-calendar coverage. Its sentinel for "no macro point ever ingested" is 2023-12-31, one day
-_before_ that first calendar day, not the day itself: `resolveSgsFromDate` always resumes the day
-_after_ whatever it is given, so a same-day sentinel would skip requesting the first calendar
-day's own point (e.g. IPCA dated exactly 2024-01-01) forever.
+`resolveAsOfInstant`'s coverage guard checks each series' _resolved lookup target_, not the raw
+reference `date` it is given: `fifteenthOfNextMonth(date)` for ipca, `date` itself for cdi and
+selic. It throws only when that target precedes the earliest session in the calendar it was
+handed, instead of silently resolving forward to that earliest session. `ingest()`'s
+`resolveSgsFromDate` requests from the first ingested calendar day (2024-01-01) onward, not an
+earlier backfill date — but 2024-01-01 itself still precedes the calendar's first real session
+(2024-01-02). For cdi and selic that would fire the guard, since their target _is_ that date; for
+ipca it doesn't, because the target is `fifteenthOfNextMonth('2024-01-01')` = 2024-02-15, safely
+inside the calendar's coverage. Checking the raw date instead of the resolved target here would
+have failed the first-ever SGS run on a fresh database forever, since its first ipca point is
+always dated the first day of the first ingested year. Its sentinel for "no macro point ever
+ingested" is 2023-12-31, one day _before_ that first calendar day, not the day itself:
+`resolveSgsFromDate` always resumes the day _after_ whatever it is given, so a same-day sentinel
+would skip requesting the first calendar day's own point (e.g. IPCA dated exactly 2024-01-01)
+forever.
 
 **`asOf` is the publication instant, not the reference date's open** (ADR-0013). The session close
 each point refers to is not when the rate becomes knowable:
