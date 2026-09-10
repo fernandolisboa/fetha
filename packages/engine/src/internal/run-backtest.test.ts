@@ -516,6 +516,48 @@ describe("runBacktest — limits", () => {
       limit: "maxOpenOperations",
     });
   });
+
+  it("records a single maxOpenOperations breach in warn mode, not once from the signal and once from the fill-time re-check", () => {
+    const maxOneOpenRiskProfile = {
+      declaredCapital: centavos(10_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("1"),
+        maxOpenOperations: 1,
+        maxPremiumBought: decimalString("1"),
+      },
+    };
+    const config = baseConfig({
+      universe: ["AAAA4", "BBBB4"],
+      period: { from: "2024-01-02", to: "2024-01-05" },
+      riskProfile: maxOneOpenRiskProfile,
+      limits: "warn",
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: fourSessionCalendar,
+      candles: [
+        candle("AAAA4", "2024-01-02", "10.00", "10.00"),
+        candle("AAAA4", "2024-01-03", "10.00", "10.00"),
+        candle("AAAA4", "2024-01-04", "10.00", "10.00"),
+        candle("AAAA4", "2024-01-05", "10.00", "10.00"),
+        // BBBB4 crosses the entry threshold only after AAAA4 is already open (filled at
+        // 2024-01-03's open), so its signal at 2024-01-03's close is itself already breaching
+        // (evaluateStrategy's own openOperationCount), and the fill-time re-check at
+        // 2024-01-04's open sees the same breach again.
+        candle("BBBB4", "2024-01-02", "5.00", "5.00"),
+        candle("BBBB4", "2024-01-03", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-04", "10.00", "10.00"),
+        candle("BBBB4", "2024-01-05", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const bbbbBreaches = result.value.run.limitBreaches.filter((b) => b.ticker === "BBBB4");
+    expect(bbbbBreaches).toHaveLength(1);
+  });
 });
 
 describe("runBacktest — period end", () => {

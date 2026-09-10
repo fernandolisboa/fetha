@@ -510,7 +510,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         });
         state.entryCosts[id] = entryCosts;
         state.entryMaxLoss[id] = pending.maxLoss;
+        // maxOpenOperations is re-checked, and recorded, at fill time just above against the
+        // running same-session counter (the authoritative count); the signal-time breach
+        // evaluateStrategy recorded for the same limit is the same finding under a stale count,
+        // so it is dropped here to avoid recording it twice.
         for (const breach of pending.limitBreaches) {
+          if (breach.limit === "maxOpenOperations") continue;
           state.limitBreaches.push({ ...breach, session: session.date, ticker });
         }
         Reflect.deleteProperty(state.pendingEntries, ticker);
