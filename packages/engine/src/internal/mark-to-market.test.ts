@@ -1009,4 +1009,51 @@ describe("markToMarket", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("insufficient_data");
   });
+
+  it("returns invalid_input for a duplicate calendar date (item 11)", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: [...calendar, calendar[0] as TradingSession],
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.calendar",
+      message: "duplicate calendar date 2024-01-02",
+    });
+  });
+
+  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle (item 11)", () => {
+    const candle = {
+      ticker: "PETR4",
+      timeframe: "D1" as const,
+      session: "2024-01-02",
+      asOf: at,
+      open: decimalString("10.00"),
+      high: decimalString("10.00"),
+      low: decimalString("10.00"),
+      close: decimalString("10.00"),
+      tradedQuantity: 100,
+    };
+    const view: MarketView = {
+      ...baseView,
+      candles: [candle, { ...candle, close: decimalString("11.00") }],
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.candles",
+      message: `duplicate candle for PETR4|D1|${at}`,
+    });
+  });
 });

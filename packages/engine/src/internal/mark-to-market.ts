@@ -28,6 +28,7 @@ import { priceConcreteLegs, resolveOperationRates } from "./price-operation";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
+import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
 type ProvenanceBase = Pick<
@@ -218,6 +219,9 @@ export function markToMarket(
   input: MarkToMarketInput,
   provenanceBase: ProvenanceBase,
 ): Result<PortfolioValuation> {
+  const viewIntegrityError = validateViewIntegrity(input.view);
+  if (viewIntegrityError) return err(viewIntegrityError);
+
   const opIdDupe = sortUnique(
     input.operations,
     (op) => op.id,

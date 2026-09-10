@@ -20,6 +20,7 @@ import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos } from "./scalars";
+import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
 type ProvenanceBase = Pick<
@@ -169,6 +170,9 @@ export function proposeSettlement(
   input: ProposeSettlementInput,
   provenanceBase: ProvenanceBase,
 ): Result<SettlementProposal> {
+  const viewIntegrityError = validateViewIntegrity(input.view);
+  if (viewIntegrityError) return err(viewIntegrityError);
+
   const operation: Operation = input.operation;
   if (operation.expiry === null) {
     return err(

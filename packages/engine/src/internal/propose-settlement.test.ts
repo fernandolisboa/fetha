@@ -636,4 +636,52 @@ describe("proposeSettlement", () => {
       message: "an option leg's listed expiry does not match the operation's expiry",
     });
   });
+
+  it("returns invalid_input for a duplicate calendar date (item 11)", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: [...calendar, calendar[0] as TradingSession],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error.code === "invalid_input" && result.error.path).toBe("view.calendar");
+  });
+
+  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle (item 11)", () => {
+    const dupCandle = { ...underlyingCandle("30.00") };
+    const view: MarketView = {
+      ...baseView,
+      candles: [dupCandle, { ...dupCandle, close: decimalString("31.00") }],
+      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error.code === "invalid_input" && result.error.path).toBe("view.candles");
+  });
 });
