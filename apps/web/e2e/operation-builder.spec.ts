@@ -10,6 +10,32 @@ const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the operation builder flow.");
 
+test("prices without a risk profile and shows the chip linking to settings", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.goto("/carteira/nova-operacao");
+  await page.getByLabel("Estrutura").click();
+  await page.getByRole("option", { name: "Compra de ação" }).click();
+
+  const underlyingField = page.getByLabel("Ativo-objeto");
+  await underlyingField.fill("PETR4");
+  await underlyingField.blur();
+
+  const chip = page.getByText("sem perfil de risco");
+  await expect(chip).toBeVisible();
+
+  await page.getByRole("button", { name: "Precificar" }).click();
+  await expect(page.getByText("Prêmio líquido")).toBeVisible();
+  await expect(page.getByText("sem perfil de risco")).toBeVisible();
+
+  await chip.locator("xpath=ancestor::a").click();
+  await expect(page).toHaveURL(/\/configuracoes$/);
+});
+
 test("build a collar on PETR4, see the breach warning, and save it", async ({
   page,
   request,
