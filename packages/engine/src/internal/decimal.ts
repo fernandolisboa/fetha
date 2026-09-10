@@ -16,3 +16,5 @@ export function toDecimalString(value: Decimal, scale: number): DecimalString {
   const canonical = rounded.isZero() ? rounded.abs() : rounded;
   return canonical.toFixed(scale) as DecimalString;
 }
+
+export const ZERO_RATIO = toDecimalString(new Decimal(0), RATIO_SCALE);

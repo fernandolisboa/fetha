@@ -19,12 +19,16 @@ describe("capabilities", () => {
     expect(capabilities().engineVersion).toBe(ENGINE_VERSION);
   });
 
+  it("reports priceOperation's implemented strike/expiry selections and pricing model", () => {
+    const caps = capabilities();
+    expect(caps.strikeSelections).toEqual(["delta", "moneyness", "nearest"]);
+    expect(caps.expirySelections).toEqual(["business_days"]);
+    expect(caps.pricingModels).toEqual(["bsm_continuous_yield"]);
+  });
+
   it("reports the not-yet-implemented vocabularies as empty until their methods land", () => {
     const caps = capabilities();
-    expect(caps.strikeSelections).toEqual([]);
-    expect(caps.expirySelections).toEqual([]);
     expect(caps.adjustmentRules).toEqual([]);
     expect(caps.thesisClaims).toEqual([]);
-    expect(caps.pricingModels).toEqual([]);
   });
 });

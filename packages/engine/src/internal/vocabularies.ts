@@ -27,20 +27,24 @@ export const implementedTimeframes = [
   "D1",
 ] as const satisfies readonly Timeframe[];
 
-// No strike- or expiry-selection method is implemented yet (that is option-leg
-// territory, #23), so every kind in those two vocabularies stays unsupported. Each
-// array must enumerate its contracts union in full: the conformance test checks it
-// against the type, and dropping a member here without dropping it from the union is
-// a compile error, not a silent gap.
-export const unsupportedStrikeSelectionKinds = [
+// #21 implements priceOperation's strike and expiry selection in full: delta (nearest
+// |delta| at `at`), moneyness (relative to spot) and nearest (nearest listed strike to a
+// given price); the one expiry-selection kind, business_days.
+export const implementedStrikeSelectionKinds = [
   "delta",
   "moneyness",
   "nearest",
 ] as const satisfies readonly StrikeSelection["kind"][];
 
-export const unsupportedExpirySelectionKinds = [
+export const unsupportedStrikeSelectionKinds =
+  [] as const satisfies readonly StrikeSelection["kind"][];
+
+export const implementedExpirySelectionKinds = [
   "business_days",
 ] as const satisfies readonly ExpirySelection["kind"][];
+
+export const unsupportedExpirySelectionKinds =
+  [] as const satisfies readonly ExpirySelection["kind"][];
 
 // #15 implements evaluateStrategy for stock-only strategies: both sizing rules apply
 // to a stock leg (fixed_fractional and fixed_risk, the latter unsizeable on a short

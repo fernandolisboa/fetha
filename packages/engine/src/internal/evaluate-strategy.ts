@@ -28,7 +28,7 @@ import { evaluateCondition, type ConditionContext } from "./condition-evaluator"
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
-import { assertDefined } from "./invariant";
+import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
@@ -274,7 +274,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
     op.legs[0],
     "evaluateStrategy: an operation always carries at least one leg",
   );
-  const pricing = priceStockLegs({
+  const result = priceStockLegs({
     at,
     underlying: op.underlying,
     spot: firstLeg.entryPrice,
@@ -287,6 +287,11 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
       datasetNotes: [],
     },
   });
+  // validateBatchInvariants rejects any macro/dividendYields point with an annual rate at
+  // or below -1 before evaluation reaches an operation's exit rules, so priceStockLegs
+  // cannot fail here.
+  invariant(result.ok, "computeExitRuleBases: view invariants were already validated");
+  const pricing = result.value;
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
   return { premiumBase, maxLossBase };
@@ -535,7 +540,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           quantity: toQuantity(leg.ratio * sizingResult.units),
           entryPrice: nominalCandle.close,
         }));
-        const pricing = priceStockLegs({
+        const stockPricingResult = priceStockLegs({
           at: c,
           underlying: ticker,
           spot: nominalCandle.close,
@@ -551,6 +556,11 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
             datasetNotes: input.view.datasetNotes ?? [],
           },
         });
+        // validateBatchInvariants rejects any macro/dividendYields point with an annual
+        // rate at or below -1 before this loop prices an entry, so priceStockLegs cannot
+        // fail here.
+        invariant(stockPricingResult.ok, "signal pricing: view invariants were already validated");
+        const pricing = stockPricingResult.value;
         const entrySpecs = dedupeIndicatorSpecs(
           collectSpecsFromCondition(input.strategy.definition.entry),
         );
