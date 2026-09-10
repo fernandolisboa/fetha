@@ -36,6 +36,7 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
     const line = resolvedToken("--line");
     const lineSoft = resolvedToken("--line-soft");
     const muted = resolvedToken("--muted");
+    const surface2 = resolvedToken("--surface-2");
 
     const chart = createChart(container, {
       autoSize: true,
@@ -48,8 +49,8 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: up,
       downColor: down,
-      wickUpColor: up,
-      wickDownColor: down,
+      wickUpColor: muted,
+      wickDownColor: muted,
       borderVisible: false,
     });
     candleSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.3 } });
@@ -73,7 +74,7 @@ export function CandleChart({ candles }: { candles: Candle[] }) {
       candles.map((candle) => ({
         time: toChartTime(candle.session),
         value: candle.tradedQuantity,
-        color: Number(candle.close) >= Number(candle.open) ? up : down,
+        color: surface2,
       })),
     );
 
