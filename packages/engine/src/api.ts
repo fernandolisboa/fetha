@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.1.0";
+export const ENGINE_VERSION = "0.2.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -513,12 +513,23 @@ export type LegSettlement =
       fills: Fill[];
     };
 
+// residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
+// residual was actually traded (a real result, counted in winRate/profitFactor) from one whose
+// residual was only marked at period_end (a valuation, excluded the same way a period_end
+// close already is, ADR-0013 "Equity and metrics").
+export type ResidualSettledBy = "trade" | "period_end" | null;
+
 export type SimulatedOperation = Operation & {
   pnl: Centavos;
   maxLoss: Centavos | "unbounded";
 } & (
     | { status: "closed"; closedAt: SessionDate; closeReason: CloseReason }
-    | { status: "expired"; closedAt: SessionDate; settlement: LegSettlement[] }
+    | {
+        status: "expired";
+        closedAt: SessionDate;
+        settlement: LegSettlement[];
+        residualSettledBy: ResidualSettledBy;
+      }
   );
 
 export type SimulatedOperationStatus = SimulatedOperation["status"];

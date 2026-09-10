@@ -11,6 +11,7 @@ import type {
   StrategyVersion,
   TradingSession,
 } from "../api";
+import { ENGINE_VERSION } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
 import { runBacktest } from "./run-backtest";
 
@@ -1798,6 +1799,13 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         },
       }),
     ],
+    [
+      "a slippageEntries element has a non-finite amount",
+      (valid: object) => ({
+        ...valid,
+        slippageEntries: [{ session: "2024-01-02", amount: "nope" }],
+      }),
+    ],
   ])(
     "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
     (_label, corrupt: (valid: object) => unknown) => {
@@ -1842,7 +1850,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       config,
       resume: {
         schema: 1,
-        engineVersion: "0.1.0",
+        engineVersion: ENGINE_VERSION,
         configDigest: digest.value.run.configDigest,
         cursor: "1999-01-01",
         state: null,
@@ -2877,5 +2885,87 @@ describe("runBacktest — option structures (#23)", () => {
       sessionsTried: 3,
       reason: "no_trades",
     });
+  });
+
+  it("returns insufficient_data (option collection) when a resumed view can't mark an open option leg mid-run", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 7).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    const paused = runBacktest({ view: fullView, config, maxSessions: 2 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = { ...fullView, optionPrices: [] };
+    const resumed = runBacktest({ view: incompleteView, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("insufficient_data");
+    if (resumed.error.code !== "insufficient_data") return;
+    expect(resumed.error.needed.collections).toEqual(["optionPrices"]);
+  });
+
+  it("returns insufficient_data when a resumed view can't mark a still-open settlement residual on a later session", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bullCallSpread,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    // Paused right after the expiry session (index 10 within this period) is processed: the
+    // trava's residual long stock is already a pendingSettlement in the checkpoint, not yet
+    // traded away at the next session's open.
+    const paused = runBacktest({ view: fullView, config, maxSessions: 11 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = { ...fullView, candles: [] };
+    const resumed = runBacktest({ view: incompleteView, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("insufficient_data");
   });
 });
