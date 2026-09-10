@@ -46,4 +46,22 @@ describe("resolveSeries / collapseSeriesByTicker", () => {
     expect(collapseSeriesByTicker([higher, lower], at)).toEqual([lower]);
     expect(collapseSeriesByTicker([lower, higher], at)).toEqual([lower]);
   });
+
+  it("extends the exact asOf tie-break to expiry when strikes match, regardless of array order (round 5 item 2)", () => {
+    const earlierExpiry = series({ expiry: "2024-01-14" });
+    const laterExpiry = series({ expiry: "2024-01-21" });
+    const forward: MarketView = { ...baseView, optionSeries: [laterExpiry, earlierExpiry] };
+    const reverse: MarketView = { ...baseView, optionSeries: [earlierExpiry, laterExpiry] };
+    expect(resolveSeries(forward, "PETR4C40", at)).toEqual(earlierExpiry);
+    expect(resolveSeries(reverse, "PETR4C40", at)).toEqual(earlierExpiry);
+  });
+
+  it("falls through to right when strike and expiry match, regardless of array order (round 5 item 2)", () => {
+    const call = series({ right: "call" });
+    const put = series({ right: "put" });
+    const forward: MarketView = { ...baseView, optionSeries: [put, call] };
+    const reverse: MarketView = { ...baseView, optionSeries: [call, put] };
+    expect(resolveSeries(forward, "PETR4C40", at)).toEqual(call);
+    expect(resolveSeries(reverse, "PETR4C40", at)).toEqual(call);
+  });
 });

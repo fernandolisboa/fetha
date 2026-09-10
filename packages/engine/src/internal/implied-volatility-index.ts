@@ -13,7 +13,7 @@ import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
-import { collapseSeriesByTicker } from "./resolve-series";
+import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
@@ -36,6 +36,10 @@ function addCalendarDays(date: SessionDate, days: number): string {
 type AtmBracket = { expiry: SessionDate; years: number };
 type AtmSolution = { volatility: number; seriesUsed: Ticker[] };
 
+// Order-invariance (I3): `candidates` comes from filtering MarketView.optionSeries, whose row
+// order is not meaningful. Reuses the shared strike-then-ticker tie-break so two tickers at
+// one strike, or two equidistant strikes, resolve the same series regardless of array order
+// (PR #53 round 5 item 1).
 function nearestByStrike(
   candidates: readonly OptionSeries[],
   forward: number,
@@ -46,7 +50,7 @@ function nearestByStrike(
     const distance = Math.abs(Number(series.strike) - forward);
     const isBetter =
       distance < bestDistance ||
-      (distance === bestDistance && best !== null && series.strike < best.strike);
+      (distance === bestDistance && best !== null && isEarlierByStrikeThenTicker(series, best));
     if (isBetter) {
       best = series;
       bestDistance = distance;

@@ -3,12 +3,26 @@ import type { MarketView, OptionSeries } from "../api";
 import { parseDecimal } from "./decimal";
 import { compareInstants, isAtOrBefore } from "./instant";
 
+// Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose row
+// order is not meaningful, so a tie on distance must resolve to the same series regardless of
+// array order: the lower strike, then the lexicographically earlier ticker (shared with
+// resolve-leg-selection.ts and implied-volatility-index.ts; PR #53 round 5 item 1).
+export function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): boolean {
+  const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
+  if (strikeCompare !== 0) return strikeCompare < 0;
+  return a.ticker < b.ticker;
+}
+
 // A true (ticker, asOf) duplicate (a data-integrity issue, not a re-listing: a re-listing
 // always advances asOf) must still resolve to the same row regardless of array order. Break
-// the tie by the lower strike, the same convention resolve-leg-selection.ts uses for other
-// candidate ties (PR #53 round 4 item 4; documented in ADR-0013's #21 addendum).
+// the tie by strike, then expiry, then right, then ticker, all numerically/lexicographically
+// (PR #53 round 4 item 4, extended round 5 item 2; documented in ADR-0013's #21 addendum).
 function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
-  return parseDecimal(a.strike).lt(parseDecimal(b.strike));
+  const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
+  if (strikeCompare !== 0) return strikeCompare < 0;
+  if (a.expiry !== b.expiry) return a.expiry < b.expiry;
+  if (a.right !== b.right) return a.right < b.right;
+  return a.ticker < b.ticker;
 }
 
 // A ticker can be re-listed (a strike adjustment, a superseded expiry): more than one

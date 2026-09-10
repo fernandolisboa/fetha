@@ -154,10 +154,10 @@ function valueOneLeg(
       },
     };
   }
-  // A given volatility feeds bsmPriceRaw directly (option-pricing.ts), which is undefined
-  // at sigma <= 0; reject before pricing so the operation-level iv_not_converged note keeps
-  // meaning only non-convergence, never a caller-supplied invalid input (PR #53 round 4
-  // item 5).
+  // A zero given volatility fed bsmPriceRaw directly (option-pricing.ts) and was silently
+  // priced at intrinsic value with zeroed greeks, with no note; reject it before pricing so
+  // the operation-level iv_not_converged note keeps meaning only non-convergence, never a
+  // caller-supplied invalid input (PR #53 round 4 item 5).
   if (leg.volatility !== undefined && !isPositive(leg.volatility)) {
     return {
       ok: false,

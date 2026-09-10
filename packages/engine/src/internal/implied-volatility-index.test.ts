@@ -452,6 +452,10 @@ describe("computeImpliedVolatilityIndex", () => {
       ],
       optionPrices,
     };
+    const reversedSupersededView: MarketView = {
+      ...supersededView,
+      optionSeries: [...supersededView.optionSeries].reverse(),
+    };
     const freshResult = computeImpliedVolatilityIndex(
       freshOnlyView,
       "PETR4",
@@ -464,7 +468,14 @@ describe("computeImpliedVolatilityIndex", () => {
       at,
       testProvenanceBase,
     );
+    const reversedSupersededResult = computeImpliedVolatilityIndex(
+      reversedSupersededView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
     expect(freshResult).toEqual(supersededResult);
+    expect(freshResult).toEqual(reversedSupersededResult);
     expect(supersededResult.ok).toBe(true);
     if (!supersededResult.ok) return;
     expect(new Set(supersededResult.value.seriesUsed).size).toBe(
@@ -534,6 +545,10 @@ describe("computeImpliedVolatilityIndex", () => {
       ],
       optionPrices,
     };
+    const reversedSupersededView: MarketView = {
+      ...supersededView,
+      optionSeries: [...supersededView.optionSeries].reverse(),
+    };
     const freshResult = computeImpliedVolatilityIndex(
       freshOnlyView,
       "PETR4",
@@ -546,11 +561,128 @@ describe("computeImpliedVolatilityIndex", () => {
       at,
       testProvenanceBase,
     );
+    const reversedSupersededResult = computeImpliedVolatilityIndex(
+      reversedSupersededView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
     expect(freshResult).toEqual(supersededResult);
+    expect(freshResult).toEqual(reversedSupersededResult);
     expect(supersededResult.ok).toBe(true);
     if (!supersededResult.ok) return;
     expect(new Set(supersededResult.value.seriesUsed).size).toBe(
       supersededResult.value.seriesUsed.length,
     );
+  });
+
+  it("breaks a nearest-strike ATM tie by the numeric strike, not a lexicographic string compare (round 5 item 1)", () => {
+    const expiry = sessionAt(30).date;
+    const price = bsmPriceRaw({
+      s: 10,
+      k: 9,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: 0.25,
+      right: "call",
+    });
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("10.00"), bid: null, ask: null }],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", expiry),
+        callSeries("PETR4C9", "9.00", expiry),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4C11",
+          session: sessionAt(0).date,
+          asOf: at,
+          average: null,
+          close: decimalString(price.toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C9",
+          session: sessionAt(0).date,
+          asOf: at,
+          average: null,
+          close: decimalString(price.toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.seriesUsed).toEqual(["PETR4C9"]);
+  });
+
+  it("breaks a two-ticker tie at one ATM strike by the lexicographically earlier ticker, regardless of array order (round 5 item 1)", () => {
+    const expiry = sessionAt(30).date;
+    const price = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: 0.25,
+      right: "call",
+    });
+    const optionPrices = [
+      {
+        ticker: "PETR4CA",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(price.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+      {
+        ticker: "PETR4CB",
+        session: sessionAt(0).date,
+        asOf: at,
+        average: null,
+        close: decimalString(price.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      },
+    ];
+    const orderedView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4CA", "50.00", expiry),
+        callSeries("PETR4CB", "50.00", expiry),
+      ],
+      optionPrices,
+    };
+    const reversedView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        callSeries("PETR4CB", "50.00", expiry),
+        callSeries("PETR4CA", "50.00", expiry),
+      ],
+      optionPrices,
+    };
+    const orderedResult = computeImpliedVolatilityIndex(
+      orderedView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    const reversedResult = computeImpliedVolatilityIndex(
+      reversedView,
+      "PETR4",
+      at,
+      testProvenanceBase,
+    );
+    expect(orderedResult).toEqual(reversedResult);
+    expect(orderedResult.ok).toBe(true);
+    if (!orderedResult.ok) return;
+    expect(orderedResult.value.seriesUsed).toEqual(["PETR4CA"]);
   });
 });

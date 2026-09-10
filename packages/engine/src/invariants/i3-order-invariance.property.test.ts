@@ -15,6 +15,7 @@ import type {
   TradingSession,
 } from "../api";
 import { evaluateStrategy } from "../internal/evaluate-strategy";
+import { computeImpliedVolatilityIndex } from "../internal/implied-volatility-index";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
 import { priceOperation } from "../internal/price-operation";
@@ -495,6 +496,90 @@ describe("I3 Order-invariance", () => {
           datasetNotes: [],
         };
         expect(priceOperation(shuffled, provenance)).toEqual(priceOperation(input, provenance));
+      }),
+    );
+  });
+
+  it("any permutation of optionSeries, with two tickers sharing one ATM strike, yields a deep-equal impliedVolatilityIndex result (round 5 item 1)", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 1_000_000 }), (seed) => {
+        const calendar: TradingSession[] = Array.from({ length: 60 }, (_, i) => {
+          const day = String(2 + i).padStart(2, "0");
+          return {
+            date: `2024-01-${day}`,
+            open: `2024-01-${day}T13:00:00.000Z`,
+            close: `2024-01-${day}T21:00:00.000Z`,
+          };
+        });
+        const at = "2024-01-02T21:00:00.000Z";
+        const expiryLower = assertDefined(calendar[19], "test setup: missing session").date;
+        const expiryUpper = assertDefined(calendar[39], "test setup: missing session").date;
+        const makeCall = (ticker: string, strike: string, expiry: string): OptionSeries => ({
+          ticker,
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString(strike),
+          expiry,
+          style: "european",
+          asOf: at,
+        });
+        const optionSeries: OptionSeries[] = [
+          makeCall("PETR4CA", "50.00", expiryLower),
+          makeCall("PETR4CB", "50.00", expiryLower),
+          makeCall("PETR4CU", "50.00", expiryUpper),
+        ];
+        const optionPrices: OptionDayPrice[] = [
+          {
+            ticker: "PETR4CA",
+            session: "2024-01-02",
+            asOf: at,
+            average: null,
+            close: decimalString("2.50"),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+          {
+            ticker: "PETR4CB",
+            session: "2024-01-02",
+            asOf: at,
+            average: null,
+            close: decimalString("2.50"),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+          {
+            ticker: "PETR4CU",
+            session: "2024-01-02",
+            asOf: at,
+            average: null,
+            close: decimalString("3.50"),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+        ];
+        const view: MarketView = {
+          calendar,
+          candles: [],
+          corporateActions: [],
+          optionSeries,
+          optionPrices,
+          quotes: [
+            { ticker: "PETR4", asOf: at, last: decimalString("50.00"), bid: null, ask: null },
+          ],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+        const provenance = {
+          engineVersion: "0.1.0",
+          pricingModel: "bsm_continuous_yield" as const,
+          dataVersion: null,
+          datasetNotes: [],
+        };
+        const shuffledView: MarketView = { ...view, optionSeries: shuffle(optionSeries, seed) };
+        expect(computeImpliedVolatilityIndex(shuffledView, "PETR4", at, provenance)).toEqual(
+          computeImpliedVolatilityIndex(view, "PETR4", at, provenance),
+        );
       }),
     );
   });

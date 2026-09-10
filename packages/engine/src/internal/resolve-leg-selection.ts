@@ -14,7 +14,7 @@ import { parseDecimal } from "./decimal";
 import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
 import { resolveLegMarketPrice } from "./resolve-market-price";
-import { collapseSeriesByTicker } from "./resolve-series";
+import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { toQuantity } from "./scalars";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
@@ -44,15 +44,6 @@ function distinctRanks(structure: Structure): number[] {
     if (leg.role !== "stock") ranks.add(leg.strikeRank);
   }
   return [...ranks].sort((a, b) => a - b);
-}
-
-// Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose
-// row order is not meaningful, so a tie on distance must resolve to the same series
-// regardless of array order: the lower strike, then the lexicographically earlier ticker.
-function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): boolean {
-  const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
-  if (strikeCompare !== 0) return strikeCompare < 0;
-  return a.ticker < b.ticker;
 }
 
 function nearestSeriesByStrike(
@@ -122,9 +113,10 @@ function seriesAtStrike(
   right: "call" | "put",
   strike: DecimalString,
 ): OptionSeries | null {
+  const target = parseDecimal(strike);
   let best: OptionSeries | null = null;
   for (const series of candidates) {
-    if (series.right !== right || series.strike !== strike) continue;
+    if (series.right !== right || !parseDecimal(series.strike).eq(target)) continue;
     if (!best || series.ticker < best.ticker) best = series;
   }
   return best;
