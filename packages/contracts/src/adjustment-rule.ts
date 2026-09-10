@@ -10,7 +10,7 @@ export const adjustmentRuleSchema = z.discriminatedUnion("kind", [
     kind: z.literal("roll"),
     when: exitRuleSchema,
     expiry: expirySelectionSchema,
-    strikes: z.array(strikeSelectionSchema).min(1),
+    strikes: z.array(strikeSelectionSchema).min(1).max(8),
   }),
 ]);
 export type AdjustmentRule = z.infer<typeof adjustmentRuleSchema>;

@@ -1,8 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   comparators,
+  conditionDepth,
   conditionKinds,
   conditionSchema,
+  MAX_CONDITION_DEPTH,
   operandSchema,
   priceFields,
   type Condition,
@@ -110,5 +112,18 @@ describe("conditionSchema", () => {
 
   it("rejects free-form expressions", () => {
     expect(conditionSchema.safeParse("close > sma(20)").success).toBe(false);
+  });
+
+  it("accepts a condition tree at the maximum depth and rejects one level deeper", () => {
+    let tree: Condition = closeAboveSma20;
+    for (let depth = 1; depth < MAX_CONDITION_DEPTH; depth += 1) {
+      tree = { kind: "not", condition: tree };
+    }
+    expect(conditionDepth(tree)).toBe(MAX_CONDITION_DEPTH);
+    expect(conditionSchema.safeParse(tree).success).toBe(true);
+
+    const tooDeep: Condition = { kind: "not", condition: tree };
+    expect(conditionDepth(tooDeep)).toBe(MAX_CONDITION_DEPTH + 1);
+    expect(conditionSchema.safeParse(tooDeep).success).toBe(false);
   });
 });
