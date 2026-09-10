@@ -799,6 +799,126 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(op.closeReason.kind).toBe("exit_rule");
     expect(op.pnl).toBe(centavos(19_290));
   });
+
+  it("never applies a factor whose asOf is not yet visible, even when its exDate is inside the run (I1)", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const lateSplit: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      // Ingested after the run's own period.to close: not yet visible to any mark this run
+      // computes, even though its exDate falls squarely inside the run.
+      asOf: "2024-01-05T00:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [lateSplit],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "5.00", "5.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const dayOfSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-04");
+    const dayBeforeSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-03");
+    // Not adjusted: 500 nominal shares marked at the unadjusted 5.00 close is a real, not a
+    // phantom, drawdown, because the split is not visible yet.
+    expect(dayOfSplit?.equity).not.toBe(dayBeforeSplit?.equity);
+    expect(result.value.run.provenance.truncated).toContainEqual({
+      collection: "corporateActions",
+      ticker: "PETR4",
+      dropped: 1,
+      reason: "after_at",
+    });
+  });
+
+  it("3:1 grouping with a non-divisible share count: Σ op.pnl equals final cash minus initial capital", () => {
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const grouping: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("3"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+      ),
+      period: { from: "2024-01-02", to: "2024-01-04" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [grouping],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        // Entry: 500 shares at 10.00 on 2024-01-03 — not divisible by the 3:1 grouping factor.
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "30.50", "30.50"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const finalCash = result.value.run.equityCurve.at(-1)?.cash;
+    if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
+    const totalPnl = result.value.run.operations.reduce((sum, op) => sum + op.pnl, 0);
+    expect(totalPnl).toBe(finalCash - config.initialCapital);
+    expect(result.value.run.taxes.every((t) => t.tax === centavos(0))).toBe(true);
+  });
+
+  it("1:200 grouping rounds an open leg to zero effective shares without throwing", () => {
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const deepGrouping: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("200"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+      ),
+      period: { from: "2024-01-02", to: "2024-01-04" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [deepGrouping],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        // Entry: 500 shares at 10.00 on 2024-01-03; 500 / 200 = 2.5 effective shares, floored
+        // to 0 — the fill must be skipped, not throw, and the residue cash-settled.
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "2000.00", "2000.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+  });
 });
 
 describe("runBacktest — provenance", () => {

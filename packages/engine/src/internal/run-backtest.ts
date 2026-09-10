@@ -40,9 +40,11 @@ import { configDigest } from "./config-digest";
 import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
+import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
 import { toCentavos, toQuantity } from "./scalars";
+import { splitFactorProduct } from "./split-factor";
 
 type PendingEntry = {
   legs: Leg[];
@@ -114,21 +116,30 @@ function monthKeyOf(session: SessionDate): string {
   return session.slice(0, 7);
 }
 
+// `visibleAt` is the reading instant of the session this candle is used for — that same
+// session's own close, matching a candle's own asOf convention (ADR-0013 "asOf is the candle
+// close for candles"): a normal candle is always visible by its own session's close, but a
+// candle restated later (asOf pushed past that close) must stay invisible to a fill or a mark
+// computed at that close, per I1.
 function candleFor(
   candlesByTicker: Map<Ticker, Candle[]>,
   ticker: Ticker,
   session: SessionDate,
+  visibleAt: Instant,
 ): Candle | null {
   const candles = candlesByTicker.get(ticker) ?? [];
-  return candles.find((c) => c.session === session) ?? null;
+  return candles.find((c) => c.session === session && isAtOrBefore(c.asOf, visibleAt)) ?? null;
 }
 
 function lastKnownClose(
   candlesByTicker: Map<Ticker, Candle[]>,
   ticker: Ticker,
   uptoSession: SessionDate,
+  visibleAt: Instant,
 ): DecimalString | null {
-  const candles = (candlesByTicker.get(ticker) ?? []).filter((c) => c.session <= uptoSession);
+  const candles = (candlesByTicker.get(ticker) ?? []).filter(
+    (c) => c.session <= uptoSession && isAtOrBefore(c.asOf, visibleAt),
+  );
   // Both call sites only ask about a ticker that already has an open operation, which can only
   // exist because a fill found a candle for it on or before this same session in an
   // uninterrupted run — but a resumed run's view can legitimately lack that history if the
@@ -308,23 +319,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     if (bucket) bucket.push(f);
     else corporateActionsByTicker.set(f.ticker, [f]);
   }
-  // The product of every visible split/reverse-split factor between an operation's own entry
-  // and a later session (exclusive of the entry, inclusive of `through`): the multiplier that
-  // turns the nominal share count and entry price recorded at entry into the effective count and
-  // price comparable with `through`'s own nominal candles (ADR-0013 "Candles and corporate
-  // actions"). `Operation.legs` themselves stay nominal — the evaluator already rebases its own
-  // exit-rule comparisons the same way — so this is applied only where runBacktest computes
-  // marks, fills and P&L on its own.
+  // `Operation.legs` themselves stay nominal — the evaluator already rebases its own exit-rule
+  // comparisons the same way (ADR-0014 Q51) — so this is applied only where runBacktest computes
+  // marks, fills and P&L on its own. `visibleAt` is the reading instant: a factor's own asOf
+  // convention is the ex-date session's open (ADR-0013 "Candles and corporate actions"), so a
+  // fill reads it against that same session's open, while a mark or the period-end sweep reads
+  // it against that session's close; a factor not yet visible there is excluded (I1), matching
+  // provenance.truncated for the same rows.
   function corporateActionFactorThrough(
     ticker: Ticker,
     openedAt: SessionDate,
     through: SessionDate,
+    visibleAt: Instant,
   ): Decimal {
-    const factors = corporateActionsByTicker.get(ticker) ?? [];
-    return factors.reduce((acc, f) => {
-      if (f.exDate > openedAt && f.exDate <= through) return acc.mul(parseDecimal(f.factor));
-      return acc;
-    }, new Decimal(1));
+    const factors = (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
+      isAtOrBefore(f.asOf, visibleAt),
+    );
+    return splitFactorProduct(factors, openedAt, through);
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
@@ -418,7 +429,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     let openCountThisSession = state.openOperations.length;
     const maxOpenOperations = config.riskProfile.limits.maxOpenOperations;
     for (const [ticker, pending] of Object.entries(state.pendingEntries)) {
-      const candle = candleFor(candlesByTicker, ticker, session.date);
+      const candle = candleFor(candlesByTicker, ticker, session.date, session.close);
       state.retryCount[ticker] = (state.retryCount[ticker] ?? 0) + 1;
       if (candle && candle.tradedQuantity > 0) {
         if (openCountThisSession + 1 > maxOpenOperations) {
@@ -499,39 +510,56 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         "run-backtest: a pending exit always references a currently open operation",
       );
       const op = assertDefined(state.openOperations[opIndex], "run-backtest: opIndex is valid");
-      const candle = candleFor(candlesByTicker, op.underlying, session.date);
+      const candle = candleFor(candlesByTicker, op.underlying, session.date, session.close);
       if (!candle || candle.tradedQuantity <= 0) continue;
 
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
-      const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
+      const splitFactor = corporateActionFactorThrough(
+        op.underlying,
+        op.openedAt,
+        session.date,
+        session.open,
+      );
       let pnl = new Decimal(0);
       op.legs.forEach((leg, legIndex) => {
-        const effectiveQuantity = toQuantity(
-          new Decimal(leg.quantity).div(splitFactor).round().toNumber(),
-        );
-        const costs = fillCosts(config.costModel, candle.open, effectiveQuantity);
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
-        const gross = grossCentavos(candle.open, effectiveQuantity).round().toNumber();
-        state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
-        state.fills.push({
-          ticker: op.underlying,
-          side: exitSide,
-          quantity: effectiveQuantity,
-          price: candle.open,
-          session: session.date,
-          at: session.open,
-          costs,
-          operationId: op.id,
-          source: "next_session_open",
-        });
+        // The exit trades an integer number of shares; a grouping factor that does not divide
+        // `leg.quantity` evenly leaves a sub-one-share residue, cash-settled at this same fill's
+        // price rather than dropped or rounded into a share that was never granted (ADR-0014
+        // Q51). `pnl` is computed once, below, from the full unrounded effective quantity, so it
+        // already accounts for both the traded shares and the residue.
+        const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
+        const effectiveShares = Math.floor(rawEffectiveQuantity.toNumber());
+        const residue = rawEffectiveQuantity.sub(effectiveShares);
+        let costs = toCentavos(0);
+        if (effectiveShares > 0) {
+          const q = toQuantity(effectiveShares);
+          costs = fillCosts(config.costModel, candle.open, q);
+          const gross = grossCentavos(candle.open, q).round().toNumber();
+          state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
+          state.fills.push({
+            ticker: op.underlying,
+            side: exitSide,
+            quantity: q,
+            price: candle.open,
+            session: session.date,
+            at: session.open,
+            costs,
+            operationId: op.id,
+            source: "next_session_open",
+          });
+          if (exitSide === "sell") state.currentMonthStockSales += gross;
+        }
+        if (residue.isPositive()) {
+          const residueGross = grossCentavos(candle.open, residue).round().toNumber();
+          state.cash += (exitSide === "sell" ? 1 : -1) * residueGross;
+          if (exitSide === "sell") state.currentMonthStockSales += residueGross;
+        }
         const entryCost = entryCosts[legIndex] ?? toCentavos(0);
         pnl = pnl
           .add(legPnlCentavos(leg, candle.open, splitFactor))
           .sub(costs)
           .sub(entryCost);
-        if (exitSide === "sell") {
-          state.currentMonthStockSales += gross;
-        }
       });
       const pnlCentavos = toCentavos(pnl.round().toNumber());
       state.currentMonthStockGain += pnlCentavos;
@@ -584,13 +612,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     let markValue = 0;
     const marksThisSession = new Map<Ticker, DecimalString>();
     for (const op of state.openOperations) {
-      const markPriceOrNull = lastKnownClose(candlesByTicker, op.underlying, session.date);
+      const markPriceOrNull = lastKnownClose(
+        candlesByTicker,
+        op.underlying,
+        session.date,
+        session.close,
+      );
       if (markPriceOrNull === null) {
         return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
       }
       const markPrice = markPriceOrNull;
       marksThisSession.set(op.underlying, markPrice);
-      const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
+      const splitFactor = corporateActionFactorThrough(
+        op.underlying,
+        op.openedAt,
+        session.date,
+        session.close,
+      );
       for (const leg of op.legs) {
         const sign = leg.side === "buy" ? 1 : -1;
         const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
@@ -623,7 +661,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           "run-backtest: Step 3 already marked every currently open operation this same session",
         );
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
-        const splitFactor = corporateActionFactorThrough(op.underlying, op.openedAt, session.date);
+        const splitFactor = corporateActionFactorThrough(
+          op.underlying,
+          op.openedAt,
+          session.date,
+          session.close,
+        );
         let pnl = new Decimal(0);
         op.legs.forEach((leg, legIndex) => {
           const entryCost = entryCosts[legIndex] ?? toCentavos(0);
