@@ -225,4 +225,35 @@ describe("createBacktestRunAction", () => {
     expect(runs).toHaveLength(1);
     expect(runs[0]?.riskProfile).toEqual(declaredProfile);
   });
+
+  it("rate limits creation after 10 requests in the window, the 11th returns rate_limited (round 2 item 5)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+
+    const email = uniqueEmail("rate-limit");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const input = {
+      strategyId: "does-not-matter",
+      strategyVersionId: "does-not-matter",
+      universe: [TICKER],
+      from: "2096-01-02",
+      to: "2096-01-10",
+      initialCapital: centavos(1_000_000),
+      limits: "warn" as const,
+      costModel: "b3_default" as const,
+    };
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const result = await createBacktestRunAction(input);
+      // No risk profile is declared for this user, so every one of the
+      // first 10 requests reaches (and consumes) the rate limit before
+      // failing on that later, unrelated check.
+      expect(result).toEqual({ status: "error", error: "no_risk_profile" });
+    }
+
+    const eleventh = await createBacktestRunAction(input);
+    expect(eleventh).toEqual({ status: "error", error: "rate_limited" });
+  });
 });
