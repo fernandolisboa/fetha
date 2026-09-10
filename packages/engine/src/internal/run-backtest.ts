@@ -1335,10 +1335,33 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // only guards the type, the same pattern every other operation-closing call site uses.
       /* v8 ignore next */
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
-      const pnlSoFar = optionsPnl.add(matchedPnl).sub(sumCentavos(entryCosts)).sub(settlementCosts);
+      let pnlSoFar = optionsPnl.add(matchedPnl).sub(sumCentavos(entryCosts)).sub(settlementCosts);
 
       const optionGainSoFarCentavos = worthlessOptionPnl.round().toNumber();
-      const residualQuantity = buyQty.sub(sellQty).round().toNumber();
+      // A grouping factor that does not divide a stock leg's quantity evenly (Q51) can leave
+      // this signed residual with a sub-one-share fraction: truncated toward zero (never
+      // rounded, which would silently manufacture or discard up to half a phantom share) into
+      // the integer residualQuantity a pending settlement can actually trade next session, and
+      // the leftover fraction — never reachable by any real share count — cash-settled right
+      // here, at this same expiry session's own close, the same way a stock-leg exit's own
+      // split residue is (resolvePendingExitFills, ADR-0014 Q51), rather than rounded away
+      // (round 2 item 10).
+      const rawResidualQuantity = buyQty.sub(sellQty);
+      const residualQuantity = rawResidualQuantity
+        .toDecimalPlaces(0, Decimal.ROUND_DOWN)
+        .toNumber();
+      const residue = rawResidualQuantity.sub(residualQuantity);
+      if (!residue.isZero()) {
+        const residueIsLong = residue.isPositive();
+        const avgCostPerShare = residueIsLong ? avgBuyPrice : avgSellPrice;
+        const residueGross = grossCentavos(underlyingClose, residue.abs());
+        pnlSoFar = pnlSoFar.add(
+          residueGross.sub(avgCostPerShare.mul(residue.abs())).mul(residueIsLong ? 1 : -1),
+        );
+        const residueGrossCentavos = residueGross.round().toNumber();
+        state.cash += (residueIsLong ? 1 : -1) * residueGrossCentavos;
+        if (residueIsLong) state.currentMonthStockSales += residueGrossCentavos;
+      }
       // This operation leaves state.openOperations at the end of this function's loop
       // (stillOpen never carries it, its expiry matched session.date): any exit rule still
       // pending for it from an earlier session (a days_before_expiry that never filled on a

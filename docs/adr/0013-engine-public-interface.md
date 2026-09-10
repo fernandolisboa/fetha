@@ -1735,6 +1735,16 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
     settlement sees a non-trivial split factor on an operation with an option leg, rather than
     refused (item 18); tracked in issue #69.
+  - **`brokerage.optionPerContract` is charged once per fill, per leg, not scaled by the fill's
+    own contract count (round 2 item 11).** `run-backtest.ts`'s `fillCosts` adds it as a flat
+    per-order charge alongside `b3FeeRate`'s own proportional fee, the same shape
+    `brokerage.stockPerOrder` already has for a stock leg — never `× leg.quantity`. The field
+    name suggests a per-contract charge; the current behavior is "per order" (one option fill,
+    any contract count, one brokerage charge), matching how a real Brazilian broker's own
+    fixed-fee plans are usually quoted. Documented here as the intended v1 behavior rather than
+    changed under a round-2 review pass: renaming the field is a `packages/contracts` schema
+    change reaching every config fixture and the config digest across both packages, out of
+    scope for a fix-forward batch.
 
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 
