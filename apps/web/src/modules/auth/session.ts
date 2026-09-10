@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import type { Database } from "@/db/client";
@@ -50,4 +51,19 @@ export async function forCurrentUser<T extends UserScopedRepository>(
 ): Promise<T> {
   const user = await requireUser();
   return new Repository(db, user);
+}
+
+// Every Server Action that requires a session redirects an unauthenticated
+// caller to sign-in instead of leaking an error (issue #71): this is the one
+// place that translates `UnauthenticatedError` into that redirect, so no
+// action module repeats the try/catch.
+export async function withAuthenticatedAction<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof UnauthenticatedError) {
+      redirect("/entrar");
+    }
+    throw error;
+  }
 }

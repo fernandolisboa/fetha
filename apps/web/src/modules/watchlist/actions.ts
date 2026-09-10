@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { tickerSchema } from "@fetha/contracts";
 
@@ -11,7 +10,7 @@ import {
   enforceAccountRateLimit,
   forCurrentUser,
   requireUser,
-  UnauthenticatedError,
+  withAuthenticatedAction,
 } from "@/modules/auth";
 import {
   latestCandle,
@@ -38,15 +37,10 @@ const SEARCH_RATE_LIMIT = { windowSeconds: 10, max: 30 };
 const searchInputSchema = z.strictObject({ query: z.string().regex(/^[A-Za-z0-9]{1,12}$/) });
 
 async function withRepository<T>(run: (repository: WatchlistRepository) => Promise<T>): Promise<T> {
-  try {
+  return withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), WatchlistRepository);
-    return await run(repository);
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) {
-      redirect("/entrar");
-    }
-    throw error;
-  }
+    return run(repository);
+  });
 }
 
 export async function addToWatchlistAction(input: {
@@ -97,15 +91,7 @@ export async function searchInstrumentsAction(input: {
   if (!parsed.success) {
     return [];
   }
-  let user;
-  try {
-    user = await requireUser();
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) {
-      redirect("/entrar");
-    }
-    throw error;
-  }
+  const user = await withAuthenticatedAction(() => requireUser());
   try {
     await enforceAccountRateLimit(getDb(), user.email, "watchlist/search", SEARCH_RATE_LIMIT);
   } catch (error) {

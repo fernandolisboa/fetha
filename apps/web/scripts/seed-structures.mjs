@@ -2,12 +2,12 @@
 // hand with DATABASE_URL pointed at the target database:
 //   DATABASE_URL=... node scripts/seed-structures.mjs
 // Seeds the reference structure catalog (docs/adr/0012, CLAUDE.md
-// principle 5: shared, read-only data no user writes). Today this is only
-// the trivial structure UBIQUITOUS_LANGUAGE.md names ("a single stock
-// purchase is the trivial structure with one stock leg"); #20 extends this
-// script with the hand-written reference structures (collar, trava de
-// alta, butterfly, condor). An upsert: re-running it after a catalog edit
-// in this file brings the row's name/legs up to date.
+// principle 5: shared, read-only data no user writes). Alongside the
+// trivial stock purchase, #22 adds the two structures its builder ships
+// with (collar, trava de alta); #20 extends this further with the
+// remaining reference structures (butterfly, condor, ...). An upsert:
+// re-running it after a catalog edit in this file brings the row's
+// name/legs up to date.
 //
 // Each row is validated against a plain re-statement of
 // `packages/contracts/src/structure.ts`'s shape before it is written, since
@@ -39,6 +39,23 @@ const structureSchema = z.strictObject({
 
 const catalog = [
   { id: "stock", name: "Compra de ação", legs: [{ role: "stock", side: "buy", ratio: 1 }] },
+  {
+    id: "collar",
+    name: "Collar",
+    legs: [
+      { role: "stock", side: "buy", ratio: 1 },
+      { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+    ],
+  },
+  {
+    id: "bull-call-spread",
+    name: "Trava de alta",
+    legs: [
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+    ],
+  },
 ];
 
 const databaseUrl = process.env.DATABASE_URL;
