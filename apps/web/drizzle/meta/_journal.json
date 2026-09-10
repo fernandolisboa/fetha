@@ -43,6 +43,13 @@
       "when": 1789020713153,
       "tag": "0005_tan_iron_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789032251048,
+      "tag": "0006_acoustic_bushwacker",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ export * from "./mail-outbox";
 export * from "./market-data";
 export * from "./preferences";
 export * from "./rate-limits";
+export * from "./signals";
 export * from "./strategies";
 export * from "./structures";
 export * from "./terms-acceptances";
