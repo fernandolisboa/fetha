@@ -141,7 +141,8 @@ export type NoteCode =
   | "unbounded_max_loss"
   | "zero_max_loss"
   | "iv_index_not_bracketed"
-  | "risk_free_rate_defaulted";
+  | "risk_free_rate_defaulted"
+  | "negative_cash";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -162,6 +163,7 @@ export const noteCodes = [
   "zero_max_loss",
   "iv_index_not_bracketed",
   "risk_free_rate_defaulted",
+  "negative_cash",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1131,7 +1133,12 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   (`from` = the close of the first session the strategy's lookback reaches back to from the
   cursor, `to` = the `period.to` session close), or `complete`. The checkpoint `state` depends
   only on rows with `asOf <=` the cursor session's close; that is the truncation instant of the
-  paused run (I7).
+  paused run (I7). A resumed call's `view.calendar` must be the same calendar the run started
+  with (`market-data` builds it once from the shared reference data and hands it to every chunk);
+  a resumed view missing a candle an open position's mark needs is `insufficient_data`, naming
+  the underlying and session, not a thrown exception, and `resume.schema` must equal the
+  checkpoint schema the engine currently produces, alongside `configDigest` and `engineVersion`,
+  else `checkpoint_mismatch`.
 - Sizing fractions and risk-profile limits apply to the run's current equity;
   `riskProfile.declaredCapital` is ignored inside a run. `config.sizing` overrides the strategy's
   sizing rule when present. Missed entries, warn mode and fill-time failures follow ADR-0014.
@@ -1376,7 +1383,11 @@ and landing with the first implementation ticket that makes it testable.
   and a run over `[from, to]` with `to > D` produce identical fills and equity curve up to and
   including session D, and identical operations except those still held at D's close: the
   shorter run closes them with reason `period_end` at that close's mark (no fill, no cost, so
-  equity at D agrees), the longer run carries them on. A checkpoint paused at cursor D carries no
+  equity at D agrees modulo the period-end tax sweep), the longer run carries them on. `D` being
+  the shorter run's own `period.to` finalizes and deducts that month's tax there even when the
+  month is not yet over, which the longer run only does at the month's real last session — the
+  two only disagree on `equity`/`cash` at `D` when that month already has a non-zero stock gain
+  or sale by `D`, and only by exactly that tax. A checkpoint paused at cursor D carries no
   information from rows with `asOf` later than D's close.
 
 An eighth test, `capabilities.conformance.test.ts`, asserts that every `kind` reported by
@@ -1499,6 +1510,47 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
 - **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
   `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
   with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+
+### #16 addendum: `runBacktest` for stock-only strategies
+
+Issue #16 implements `runBacktest` for the same stock-only subset #15 implements in
+`evaluateStrategy`, and reuses `evaluateStrategy` itself as the sole source of entry and exit
+decisions inside the run: each session's signals come from one `evaluateStrategy` call at that
+session's close, with the run's own `openOperations` and a synthetic `riskProfile` whose
+`declaredCapital` is the run's current equity (never the config's, per "Sizing and risk" above).
+`runBacktest` is therefore a scheduler and accounting layer around the evaluator, not a second
+decision engine, so live and backtest reconcile by construction rather than by parallel
+implementation. Gaps the "Semantics" section above left implicit, resolved conservatively:
+
+- **Daily-only in v1.** The "Fills" section describes both a daily and an intraday fill model, but
+  intraday fills need option fair-value pricing (`fair_value`, ADR-0011/ADR-0014) that #21 has not
+  landed yet, and stock-only intraday backtesting was not asked for by this ticket. `runBacktest`
+  refuses any `strategy.definition.timeframe !== "D1"` with `invalid_input` at
+  `config.strategy.definition.timeframe`, naming the v1 daily-only scope: the timeframe is a
+  scheduling restriction this ticket imposes, not a `kind` `capabilities()` reports as a vocabulary
+  member, so `unsupported` (reserved for a member `capabilities()` names and then refuses) is the
+  wrong code here. Lifting this is additive (a new fill path, no signature change) once #21 lands.
+- **Exit-fill retry has no cap, and a stranded entry retry is finalized at `period.to`.** These
+  are permanent rules, not #16-scope stopgaps, so they are recorded in ADR-0014 as Q52 and Q53
+  rather than here.
+- **A calendar month gap never leaves a tax deduction unpaid.** The deduction scheduled after a
+  month finalizes is paid on that month's own last session in `periodSessions` — whichever
+  session follows it in the run, gap or not — so a month transition never finds one still
+  pending, real ANBIMA calendar or a synthetic gap alike; `run-backtest.ts` asserts this as an
+  invariant rather than guarding it defensively.
+- **v1 has no cash constraint.** Sizing already keeps an entry inside the run's current equity,
+  but costs, slippage and taxes are charged on top of it and can still push `cash` below zero
+  (a large fixed brokerage fee against a small position, for instance). A run does not refuse or
+  clamp this; it is recorded once, additively, as note `negative_cash` on the run
+  ("cash went below zero during the run; v1 has no cash constraint") when any `EquityPoint.cash`
+  in the run is negative. A margin or buying-power constraint is a future ticket, not a #16 gap.
+- **A non-positive equity is clamped to a positive sizing budget, not refused.** The synthetic
+  `riskProfile.declaredCapital` fed to each session's `evaluateStrategy` call is
+  `max(equity, 1)`: `declaredCapital` is a `Centavos` and cannot be zero or negative, and a run
+  whose equity has gone non-positive must still be able to call `evaluateStrategy` for the
+  remaining sessions rather than fail outright. The run records this once, additively, as note
+  `non_positive_equity` on the run ("equity was non-positive at least once during the run and was
+  clamped to a positive sizing budget") whenever the clamp changed the value at least once.
 
 ## Considered options
 
