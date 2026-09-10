@@ -342,6 +342,26 @@ describe("runBacktest — missed entries", () => {
     });
   });
 
+  it("retries a fill attempt across a session with no candle at all for the ticker, not only a zero-volume one", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        // No candle at all for 2024-01-03 — a genuine gap in the ticker's history, distinct
+        // from a session where a candle exists but trades zero volume.
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills).toEqual([expect.objectContaining({ session: "2024-01-04" })]);
+  });
+
   it("finalizes a missed entry early once the entry condition stops holding", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
@@ -1682,13 +1702,34 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
   });
 
   it.each([
-    ["null", null],
-    ["a non-object", "not-a-state"],
-    ["an object missing equityCurve", {}],
-    ["an object whose equityCurve is not an array", { equityCurve: "nope" }],
+    ["null", () => null],
+    ["a non-object", () => "not-a-state"],
+    ["an object missing equityCurve", () => ({})],
+    ["an object whose equityCurve is not an array", () => ({ equityCurve: "nope" })],
+    [
+      "an object with a valid equityCurve but a non-array openOperations",
+      (valid: object) => ({ ...valid, openOperations: "nope" }),
+    ],
+    [
+      "an object whose pendingEntries is not a plain object",
+      (valid: object) => ({ ...valid, pendingEntries: "nope" }),
+    ],
+    ["an object whose cash is not a number", (valid: object) => ({ ...valid, cash: "nope" })],
+    [
+      "an object whose currentMonthKey is neither a string nor null",
+      (valid: object) => ({ ...valid, currentMonthKey: 123 }),
+    ],
+    [
+      "an object whose equityClampEngaged is not a boolean",
+      (valid: object) => ({ ...valid, equityClampEngaged: "nope" }),
+    ],
+    [
+      "an object whose pendingTaxDeduction is neither null nor a plain object",
+      (valid: object) => ({ ...valid, pendingTaxDeduction: "nope" }),
+    ],
   ])(
     "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
-    (_label, malformedState) => {
+    (_label, corrupt: (valid: object) => unknown) => {
       const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
       const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
       const view: MarketView = {
@@ -1703,6 +1744,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       const paused = runBacktest({ view, config, maxSessions: 1 });
       expect(paused.ok).toBe(true);
       if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+      const malformedState = corrupt(paused.value.checkpoint.state as object);
       const corruptedCheckpoint = { ...paused.value.checkpoint, state: malformedState };
       const result = runBacktest({ view, config, resume: corruptedCheckpoint });
       expect(result.ok).toBe(false);

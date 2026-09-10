@@ -109,6 +109,53 @@ function initialState(initialCapital: Centavos): BacktestState {
   };
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Every field runBacktest dereferences off a resumed state, checked once so a caller's corrupt
+// or hand-edited checkpoint is always a typed checkpoint_mismatch, never a thrown TypeError from
+// a `.push`, `.length` or `Object.entries` call partway through the run.
+function isValidCheckpointState(raw: unknown): raw is BacktestState {
+  if (!isPlainObject(raw)) return false;
+  const arrayFields = [
+    "equityCurve",
+    "openOperations",
+    "fills",
+    "operations",
+    "missedEntries",
+    "limitBreaches",
+    "held",
+    "rfPerSession",
+    "taxesFinalized",
+  ] as const;
+  if (arrayFields.some((field) => !Array.isArray(raw[field]))) return false;
+
+  const recordFields = [
+    "pendingEntries",
+    "retryCount",
+    "pendingExits",
+    "entryCosts",
+    "entryMaxLoss",
+  ] as const;
+  if (recordFields.some((field) => !isPlainObject(raw[field]))) return false;
+
+  const numberFields = [
+    "cash",
+    "runningPeak",
+    "currentMonthStockSales",
+    "currentMonthStockGain",
+    "operationSeq",
+  ] as const;
+  if (numberFields.some((field) => typeof raw[field] !== "number")) return false;
+
+  if (typeof raw.currentMonthKey !== "string" && raw.currentMonthKey !== null) return false;
+  if (typeof raw.equityClampEngaged !== "boolean") return false;
+  if (raw.pendingTaxDeduction !== null && !isPlainObject(raw.pendingTaxDeduction)) return false;
+
+  return true;
+}
+
 function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
@@ -373,18 +420,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   const endIndex = Math.min(periodSessions.length, startIndex + Math.max(0, budget));
 
   // A caller round-trips `state` through storage as plain JSON, so it can carry any shape at
-  // runtime regardless of what BacktestCheckpoint['state'] says at compile time — a non-object,
-  // or one missing an array equityCurve, must be a typed checkpoint_mismatch, never a thrown
-  // TypeError from dereferencing a field that isn't there.
-  if (input.resume !== undefined) {
-    const rawState: unknown = input.resume.state;
-    if (
-      typeof rawState !== "object" ||
-      rawState === null ||
-      !Array.isArray((rawState as { equityCurve?: unknown }).equityCurve)
-    ) {
-      return checkpointMismatch("equityCurve.length:object", "equityCurve.length:not-an-object");
-    }
+  // runtime regardless of what BacktestCheckpoint['state'] says at compile time — every field
+  // this module later dereferences is checked here, once, so a malformed shape is always a typed
+  // checkpoint_mismatch, never a thrown TypeError partway through the run.
+  if (input.resume !== undefined && !isValidCheckpointState(input.resume.state)) {
+    return checkpointMismatch("equityCurve.length:object", "equityCurve.length:not-an-object");
   }
 
   // A checkpoint object is a caller-owned value that may be resumed from more than once (a
