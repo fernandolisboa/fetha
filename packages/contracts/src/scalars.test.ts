@@ -134,6 +134,12 @@ describe("quantitySchema", () => {
     expect(quantitySchema.safeParse(-1).success).toBe(false);
     expect(quantitySchema.safeParse(1.5).success).toBe(false);
   });
+
+  it("rejects a quantity near Number.MAX_SAFE_INTEGER instead of overflowing downstream centavos math", () => {
+    expect(quantitySchema.safeParse(1_000_000).success).toBe(true);
+    expect(quantitySchema.safeParse(2 ** 53).success).toBe(false);
+    expect(quantitySchema.safeParse(Number.MAX_SAFE_INTEGER).success).toBe(false);
+  });
 });
 
 describe("signedQuantitySchema", () => {

@@ -34,7 +34,15 @@ export type Confidence = z.infer<typeof confidenceSchema>;
 export const centavosSchema = z.int().brand<"Centavos">();
 export type Centavos = z.infer<typeof centavosSchema>;
 
-export const quantitySchema = z.int().positive().brand<"Quantity">();
+// Bounded well below Number.MAX_SAFE_INTEGER (PR #76 round 2 item 9): a
+// quantity that large would let the engine's own centavos math
+// (quantity * price, then rounded) overflow past a safe integer and throw
+// inside `toCentavos` deep in a server action instead of failing here,
+// at the edge, with a typed Zod error. No realistic personal-portfolio
+// position approaches one million units of a single instrument.
+const MAX_QUANTITY = 1_000_000;
+
+export const quantitySchema = z.int().positive().max(MAX_QUANTITY).brand<"Quantity">();
 export type Quantity = z.infer<typeof quantitySchema>;
 
 export const signedQuantitySchema = z
