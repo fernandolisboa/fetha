@@ -553,11 +553,26 @@ function priceConcreteLegs(
   // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
   // exclude it from the sum, but silently dropping it left a covered call's short leg
   // out of the reported delta with no signal that the aggregate is incomplete
-  // (PR #53 round 3 item 3).
-  if (priced.some((leg) => leg.valuation.price !== null && !leg.valuation.greeks)) {
+  // (PR #53 round 3 item 3). A leg whose solve was only suppressed across a corporate
+  // action (`stale_price_across_corporate_action`, round 3 item 9) already carries its own
+  // leg-level note explaining why it has no greeks; flagging the operation-level
+  // `iv_not_converged` on top of it would misreport a genuine non-convergence that never
+  // happened (round 4 item 2).
+  const unpricedGreeksLegs = priced.filter(
+    (leg) => leg.valuation.price !== null && !leg.valuation.greeks,
+  );
+  const suppressedAcrossCorporateAction = (leg: (typeof unpricedGreeksLegs)[number]): boolean =>
+    leg.valuation.notes.some((note) => note.code === "stale_price_across_corporate_action");
+  if (unpricedGreeksLegs.some((leg) => !suppressedAcrossCorporateAction(leg))) {
     notes.push({
       code: "iv_not_converged",
       message: "at least one priced leg has no greeks; the aggregate excludes it",
+    });
+  } else if (unpricedGreeksLegs.some(suppressedAcrossCorporateAction)) {
+    notes.push({
+      code: "stale_price_across_corporate_action",
+      message:
+        "at least one priced leg's implied volatility was suppressed across a corporate action; the aggregate excludes it",
     });
   }
 

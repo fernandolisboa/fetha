@@ -731,6 +731,48 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
+  it("does not flag the operation-level iv_not_converged note for a leg whose solve was only suppressed across a corporate action (round 4 item 2)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).not.toContainEqual(
+      expect.objectContaining({ code: "iv_not_converged" }),
+    );
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
   it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at` (round 4 item 1)", () => {
     const view: MarketView = {
       ...baseView,
