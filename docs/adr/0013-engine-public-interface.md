@@ -1689,7 +1689,10 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   an otherwise-known session instead excludes just that operation's own option legs (a stock leg
   never consults this basis) from `pricing.legs` and the aggregate greeks/payoff, notes
   `no_market_price` and folds zero into `unrealizedPnl`, leaving the rest of the operation and
-  every other operation in the same call to value normally (round 3 item 5).
+  every other operation in the same call to value normally (round 3 item 5). A per-leg
+  `settlement_pending` note never surfaced on `OperationPricing.notes` itself, only on the leg
+  that carried it; `priceConcreteLegs` now aggregates it at the operation level next to
+  `no_market_price`, the same way (round 3 item 6).
 
 ## Considered options
 

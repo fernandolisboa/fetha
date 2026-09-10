@@ -419,6 +419,7 @@ function valueLegs(
   const priced: PricedLeg[] = [];
   const notes: Note[] = [];
   let anyLegUnpriced = false;
+  let anyLegSettlementPending = false;
   for (const leg of legs) {
     const result = valueOneLeg(
       view,
@@ -436,11 +437,25 @@ function valueLegs(
     if (result.leg.valuation.notes.some((n) => n.code === "no_market_price")) {
       anyLegUnpriced = true;
     }
+    if (result.leg.valuation.notes.some((n) => n.code === "settlement_pending")) {
+      anyLegSettlementPending = true;
+    }
   }
   if (anyLegUnpriced) {
     notes.push({
       code: "no_market_price",
       message: "at least one leg has no visible market price",
+    });
+  }
+  // Aggregated at the operation level next to `no_market_price` above (round 3 item 6): a
+  // per-leg `settlement_pending` note alone does not surface on `OperationPricing.notes`,
+  // where markToMarket's own portfolio-level aggregation (`ov.pricing.notes.some(...)`) and a
+  // caller scanning an operation's own notes without walking every leg both look first.
+  if (anyLegSettlementPending) {
+    notes.push({
+      code: "settlement_pending",
+      message:
+        "at least one leg's listed expiry has passed; valued at intrinsic pending settlement",
     });
   }
 

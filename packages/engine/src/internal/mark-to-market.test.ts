@@ -915,6 +915,13 @@ describe("markToMarket", () => {
     // The stock leg is unaffected and keeps marking normally through `at`.
     const stockLeg = result.value.operations[0]?.pricing.legs[0];
     expect(stockLeg?.price).toBe(decimalString("30.00"));
+    // Aggregated at the operation level next to no_market_price (round 3 item 6): a caller
+    // reading pricing.notes must not have to walk every leg to notice a settlement is pending.
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual({
+      code: "settlement_pending",
+      message:
+        "at least one leg's listed expiry has passed; valued at intrinsic pending settlement",
+    });
   });
 
   it("prices a short call normally, never at intrinsic, before its own expiry session's close (round 3 item 1)", () => {
