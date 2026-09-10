@@ -31,7 +31,7 @@ export type PriceOperationActionResult =
 
 export type SaveOperationActionResult =
   | { status: "ok"; operationId: string; pricing: OperationPricing }
-  | { status: "error"; error: "invalid" | "unpriceable" | "rate_limited" };
+  | { status: "error"; error: "invalid" | "unpriceable" | "rate_limited" | "no_market_price" };
 
 const MAX_LEGS = 8;
 
@@ -164,6 +164,15 @@ export async function saveOperationAction(input: {
     }
 
     const pricing = priced.value;
+    // The client already disables Save while `no_market_price` is present
+    // (a net premium computed from a zero-premium leg is not one the user
+    // ever saw), but the server re-prices independently right before
+    // persisting; a client bypass or a stale UI must not slip an
+    // unpriceable operation into the table (PR #76 round 2 item 4).
+    if (pricing.notes.some((note) => note.code === "no_market_price")) {
+      return { status: "error", error: "no_market_price" };
+    }
+
     const session = await latestSessionOnOrBefore(getDb(), new Date(pricing.at));
     if (!session) {
       return { status: "error", error: "unpriceable" };
