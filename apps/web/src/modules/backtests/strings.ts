@@ -33,6 +33,7 @@ const en = {
     paused: "Paused at session {sessionsDone} of {sessionsTotal}. Continue to keep going.",
     resume: "Continue",
     failed: "The run failed: {error}",
+    retry: "Retry",
     metrics: {
       sessions: "Sessions",
       operations: "Operations",
@@ -159,6 +160,7 @@ const ptBR = {
     paused: "Pausado no pregão {sessionsDone} de {sessionsTotal}. Continue para prosseguir.",
     resume: "Continuar",
     failed: "A simulação falhou: {error}",
+    retry: "Tentar novamente",
     metrics: {
       sessions: "Pregões",
       operations: "Operações",

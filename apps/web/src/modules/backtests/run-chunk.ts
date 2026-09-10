@@ -39,10 +39,13 @@ export const DEFAULT_SESSION_BUDGET = 250;
 // generous enough to absorb.
 export const DEFAULT_INNER_STEP_SESSIONS = 50;
 
-// route.ts raises `maxDuration` to 300s; this budget stays comfortably
-// under it, leaving headroom for the DB round trip around each inner call,
-// so the platform's own timeout — not this budget — is never what kills a
-// chunk's progress.
+// route.ts raises `maxDuration` to 300s. Measured from the chunk's own
+// start (round 3 item 4), not from after the MarketView load, so this 240s
+// budget already includes the claim and the load, not just the inner loop:
+// the 60s left over is headroom for the DB round trip around each inner
+// call and the one inner step the loop can still run past its deadline
+// check, so the platform's own timeout — not this budget — is never what
+// kills a chunk's progress.
 export const DEFAULT_WALL_CLOCK_BUDGET_MS = 240_000;
 
 export class StrategyVersionNotFoundError extends Error {
@@ -109,6 +112,15 @@ export async function runBacktestChunk(
   runId: string,
   options: RunBacktestChunkOptions = {},
 ): Promise<BacktestChunkOutcome> {
+  // Captured before the claim and the MarketView load, not after: the
+  // wall-clock budget below is measured from the chunk's real start, so a
+  // load that grows with the universe/session ceiling (round 3 item 4)
+  // eats into the same 240s window the inner loop runs under instead of
+  // sitting on top of it unaccounted for, which is what let the worst
+  // permitted chunk's total exceed route.ts's 300s `maxDuration`.
+  const now = options.now ?? Date.now;
+  const chunkStart = now();
+
   const repository = new BacktestRunRepository(db, user);
   const claimed = await repository.findMine(runId);
 
@@ -174,8 +186,7 @@ export async function runBacktestChunk(
   }
   const dataVersion = run.dataVersion ?? view.dataVersion ?? null;
 
-  const now = options.now ?? Date.now;
-  const deadline = now() + (options.wallClockBudgetMs ?? DEFAULT_WALL_CLOCK_BUDGET_MS);
+  const deadline = chunkStart + (options.wallClockBudgetMs ?? DEFAULT_WALL_CLOCK_BUDGET_MS);
   const innerStep = options.innerStepSessions ?? DEFAULT_INNER_STEP_SESSIONS;
   const sessionBudget = options.maxSessions ?? DEFAULT_SESSION_BUDGET;
 

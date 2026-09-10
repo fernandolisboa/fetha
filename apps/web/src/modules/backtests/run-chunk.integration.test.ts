@@ -287,6 +287,40 @@ describe("runBacktestChunk", () => {
     ).rejects.toThrow();
   });
 
+  it("measures the wall-clock budget from the chunk's own start, so time already spent claiming and loading counts against it (round 3 item 4)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    // The first `now()` call (chunkStart) reads 0; every call after that
+    // jumps to 2000, as if the claim and the MarketView load alone had
+    // already burned the whole clock. A 1000ms budget measured from
+    // chunkStart is already exhausted before the loop's first deadline
+    // check, so it must pause after exactly one inner step; measured from
+    // whatever `now()` returns post-load (the pre-fix behaviour) it would
+    // instead see a fresh 1000ms from that inflated reading and run to
+    // completion in one pass.
+    let calls = 0;
+    const now = (): number => {
+      calls += 1;
+      return calls === 1 ? 0 : 2000;
+    };
+
+    const outcome = await runBacktestChunk(db, setup.testUser, run.id, {
+      maxSessions: 999,
+      innerStepSessions: 5,
+      wallClockBudgetMs: 1000,
+      now,
+    });
+
+    if (outcome.status !== "paused") {
+      throw new Error(`expected "paused", got "${outcome.status}"`);
+    }
+    expect(outcome.sessionsDone).toBe(5);
+    expect(outcome.sessionsTotal).toBe(SESSION_COUNT);
+  });
+
   it("persists a checkpoint after each inner call and pauses at the wall-clock deadline even though the session budget allows more (round 1 item 19)", async () => {
     const db = getDb();
     const setup = await setUp();
@@ -328,6 +362,30 @@ describe("runBacktestChunk", () => {
       status = resumed.status;
     }
     expect(status).toBe("complete");
+  });
+
+  it("fails the run with no_market_data instead of throwing when loadMarketView reports the period unavailable (round 3 item 7)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    // Well before anything any test in this file (or a concurrent one) ever
+    // seeds: `sessionsBetween` finds nothing in range, so `loadMarketView`
+    // throws MarketViewUnavailableError instead of resolving a period.
+    const run = await repository.create({
+      ...runConfig(setup),
+      period: { from: "1990-01-01", to: "1990-01-02" },
+    });
+
+    const outcome = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+
+    expect(outcome.status).toBe("failed");
+    if (outcome.status === "failed") {
+      expect(outcome.error).toBe("no_market_data");
+    }
+
+    const failed = await repository.findMine(run.id);
+    expect(failed.status).toBe("failed");
+    expect(failed.error).toBe("no_market_data");
   });
 
   it("fails the run rather than mix datasets when the market data changes between chunks (round 1 item 21)", async () => {

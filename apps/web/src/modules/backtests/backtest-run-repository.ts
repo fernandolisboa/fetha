@@ -219,7 +219,11 @@ export class BacktestRunRepository extends UserScopedRepository {
     const staleCutoff = new Date(now.getTime() - STALE_LEASE_MS);
     const [row] = await this.db
       .update(backtestRuns)
-      .set({ status: "running" })
+      // `error` is cleared, not just overwritten on the next `fail()`: a run
+      // reclaimed from "failed" that goes on to complete must not carry its
+      // previous failure message into a row that also asserts `status:
+      // "complete"` (round 3 item 6).
+      .set({ status: "running", error: null })
       .where(
         and(
           eq(backtestRuns.id, id),

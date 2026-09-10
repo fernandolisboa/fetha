@@ -348,9 +348,12 @@ describe("BacktestRunRepository isolation", () => {
     const reclaimed = await repository.claim(run.id);
     expect(reclaimed.status).toBe("running");
     expect(reclaimed.checkpoint).toEqual(checkpoint);
+    // The previous failure's message must not survive into a row that goes
+    // on to assert `status: "complete"` alongside it (round 3 item 6).
+    expect(reclaimed.error).toBeNull();
   });
 
-  it("lets exactly one of two racing completions through, the other surfaces BacktestRunAlreadyCompleteError rather than the trigger's own raw driver error (round 2 item 3)", async () => {
+  it("lets exactly one of two racing completions through, the loser rejecting from the trigger itself, not a pre-check that got lucky (round 2 item 3, round 3 item 8)", async () => {
     const db = getDb();
     const email = uniqueEmail("race-complete");
     createdEmails.push(email);
@@ -376,17 +379,54 @@ describe("BacktestRunRepository isolation", () => {
     });
 
     const result = completedResult(version);
-    const results = await Promise.allSettled([
-      repository.complete(run.id, { result, configDigest: "x", sessionsDone: 0 }),
-      repository.complete(run.id, { result, configDigest: "x", sessionsDone: 0 }),
-    ]);
 
-    const fulfilled = results.filter((entry) => entry.status === "fulfilled");
-    const rejected = results.filter((entry) => entry.status === "rejected");
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    const [rejection] = rejected;
-    if (rejection?.status !== "rejected") throw new Error("expected a rejection");
-    expect(rejection.reason).toBeInstanceOf(BacktestRunAlreadyCompleteError);
+    // `guardedUpdate` reads before it writes, so two calls sharing one
+    // pooled connection can serialise such that the loser's own read
+    // already sees "complete" and rejects from the pre-check — the same
+    // observable outcome as the trigger firing, but never exercising the
+    // catch block round 2 item 3 added (round 3 item 8). An explicit
+    // transaction on a second connection forces the real ordering instead:
+    // held open past the loser's read (so its pre-check sees the row still
+    // running) and past its UPDATE being sent (so that UPDATE blocks on the
+    // winner's row lock), only then released, so the loser's write lands
+    // after the row is already complete and the trigger — not the
+    // pre-check — is what rejects it.
+    let releaseWinner: (() => void) | undefined;
+    const winnerMayCommit = new Promise<void>((resolve) => {
+      releaseWinner = resolve;
+    });
+    const winner = db.transaction(async (tx) => {
+      await tx
+        .update(backtestRuns)
+        .set({
+          status: "complete",
+          result,
+          configDigest: "x",
+          sessionsDone: 0,
+          sessionsTotal: 0,
+          completedAt: new Date(),
+        })
+        .where(eq(backtestRuns.id, run.id));
+      await winnerMayCommit;
+    });
+
+    const loser = (async () => {
+      // Gives the winner's UPDATE time to land (uncommitted) before the
+      // loser's own read runs, and gives the loser's read and its own
+      // UPDATE send time to complete before the winner commits below.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return repository.complete(run.id, { result, configDigest: "x", sessionsDone: 0 });
+    })();
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    releaseWinner?.();
+
+    const [winnerOutcome, loserOutcome] = await Promise.allSettled([winner, loser]);
+
+    expect(winnerOutcome.status).toBe("fulfilled");
+    if (loserOutcome.status !== "rejected") {
+      throw new Error("expected the loser to reject");
+    }
+    expect(loserOutcome.reason).toBeInstanceOf(BacktestRunAlreadyCompleteError);
   });
 });

@@ -37,9 +37,18 @@ describe("buildBins", () => {
       0.0001, 0.0002, -0.0001, 0.00015, -0.00005, 0.00009, -0.00012, 0.00003, 0.00007, -0.00002,
     ];
     const bins = buildBins(returns);
-    const signedZero = /^−0(\.0+)?%$/;
+    const signedZero = /^−0(,0+)?%$/;
     for (const bin of bins) {
       expect(signedZero.test(bin.label)).toBe(false);
     }
+  });
+
+  it("uses the pt-BR comma decimal separator, matching the rest of the report, not toFixed's dot (round 3 item 12)", () => {
+    const returns = [0.01, 0.02, -0.01, 0.015, -0.005, 0.009, -0.012, 0.003, 0.007, -0.002];
+    const bins = buildBins(returns);
+    for (const bin of bins) {
+      expect(bin.label).not.toContain(".");
+    }
+    expect(bins.some((bin) => bin.label.includes(","))).toBe(true);
   });
 });

@@ -57,6 +57,7 @@ export default async function BacktestReportPage({
           <p className="text-destructive text-sm">
             {t.report.failed.replace("{error}", engineErrorMessage(run.error ?? ""))}
           </p>
+          <RunBacktestButton runId={run.id} label={t.report.retry} />
         </Panel>
       ) : (
         <Panel>

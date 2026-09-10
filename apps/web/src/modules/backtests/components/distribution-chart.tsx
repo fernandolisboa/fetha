@@ -23,7 +23,11 @@ interface Bin {
 // "0.0%" at one decimal: duplicate axis labels, and a bin straddling zero
 // rounds to a signed "−0.0%" that DESIGN.md forbids. Precision scales with
 // the bin's own width in percentage points so neighbouring bins keep
-// distinct labels regardless of how narrow the spread is (round 2 item 14).
+// distinct labels regardless of how narrow the spread is (round 2 item 14),
+// down to a bin width of 0.0001 percentage points: below that the 4-decimal
+// cap (chosen so the axis never grows wider than "−0,0001%") reopens the
+// same duplicate-label case this function exists to close, for a spread a
+// real backtest's per-session returns cannot produce (round 3 item 12).
 function decimalsForBinWidth(widthPercent: number): number {
   if (!Number.isFinite(widthPercent) || widthPercent <= 0) return 1;
   if (widthPercent >= 1) return 1;
@@ -31,16 +35,22 @@ function decimalsForBinWidth(widthPercent: number): number {
   return Math.min(4, Math.max(1, 1 - magnitude));
 }
 
-// True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
-// `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
+// True minus and pt-BR's comma decimal separator (DESIGN.md "Formatting
+// (pt-BR)"), not the hyphen-minus and dot `Number.prototype.toFixed`
+// produces, to match formatBRL/formatPercent and the rest of the report
+// (round 3 item 12).
 // A value that rounds to zero at the chosen precision never carries the
 // minus sign: DESIGN.md never shows a signed zero, and a bin whose true
 // value is a small negative number straddling zero is exactly the case
 // that produced one before precision scaled with bin width.
 function percentLabel(value: number, decimals: number): string {
-  const rounded = Math.abs(value).toFixed(decimals);
-  const isZero = Number(rounded) === 0;
-  return `${!isZero && value < 0 ? "−" : ""}${rounded}%`;
+  const rounded = Number(Math.abs(value).toFixed(decimals));
+  const isZero = rounded === 0;
+  const formatted = rounded.toLocaleString("pt-BR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `${!isZero && value < 0 ? "−" : ""}${formatted}%`;
 }
 
 export function buildBins(returns: number[]): Bin[] {
