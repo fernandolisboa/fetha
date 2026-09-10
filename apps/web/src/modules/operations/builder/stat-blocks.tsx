@@ -7,9 +7,9 @@ import { t } from "../strings";
 
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="border-line-soft flex flex-col gap-1 border-t pt-3 first:border-t-0 first:pt-0">
       <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</p>
-      <p className="font-mono text-[18px]">{value}</p>
+      <p className="font-mono text-[18px] tabular-nums">{value}</p>
     </div>
   );
 }
@@ -30,7 +30,7 @@ export function StatBlocks({
   breakEvens: DecimalString[];
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div className="flex flex-col gap-3">
       <StatBlock label={t.builder.statBlocks.netPremium} value={formatBRL(netPremium)} />
       <StatBlock label={t.builder.statBlocks.maxLoss} value={moneyOrUnbounded(maxLoss)} />
       <StatBlock label={t.builder.statBlocks.maxGain} value={moneyOrUnbounded(maxGain)} />

@@ -1,10 +1,20 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { requireUser } from "@/modules/auth";
 import { formatBRL } from "@/lib/format/brl";
+import { formatDate } from "@/lib/format/date-time";
 import { getMyOperations, t } from "@/modules/operations";
-import { EmptyState, t as shellStrings } from "@/modules/shell";
+import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
 
@@ -21,10 +31,7 @@ export default async function PortfolioPage() {
           </p>
           <h1 className="text-[22px] font-semibold tracking-tight">{t.list.title}</h1>
         </div>
-        <Link
-          href="/carteira/nova-operacao"
-          className="bg-primary text-primary-foreground rounded-[var(--radius)] px-3 py-2 text-[13px] font-medium"
-        >
+        <Link href="/carteira/nova-operacao" className={buttonVariants()}>
           {t.list.newOperation}
         </Link>
       </div>
@@ -32,19 +39,49 @@ export default async function PortfolioPage() {
       {operations.length === 0 ? (
         <EmptyState sentence={t.list.empty} />
       ) : (
-        <ul className="flex flex-col gap-2">
-          {operations.map((operation) => (
-            <li
-              key={operation.id}
-              className="border-border bg-card flex items-center justify-between rounded-[var(--radius)] border p-3"
-            >
-              <span className="font-mono text-[13px] uppercase">{operation.underlying}</span>
-              <span className="font-mono text-[13px]">
-                {formatBRL(operation.netPremiumCentavos)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Panel>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.list.columns.underlying}</TableHead>
+                <TableHead>{t.list.columns.date}</TableHead>
+                <TableHead className="text-right">{t.list.columns.netPremium}</TableHead>
+                <TableHead className="text-right">{t.list.columns.maxLoss}</TableHead>
+                <TableHead className="text-right">{t.list.columns.breach}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {operations.map((operation) => (
+                <TableRow key={operation.id}>
+                  <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
+                  <TableCell className="font-mono tabular-nums">
+                    {formatDate(operation.createdAt)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {formatBRL(operation.netPremiumCentavos)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {operation.maxLossCentavos === null
+                      ? "—"
+                      : formatBRL(operation.maxLossCentavos)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {operation.breachedLimits.length > 0 ? (
+                      <span
+                        className="font-mono text-[12px] tabular-nums"
+                        style={{ color: "var(--warning)" }}
+                      >
+                        {operation.breachedLimits.length}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Panel>
       )}
     </div>
   );

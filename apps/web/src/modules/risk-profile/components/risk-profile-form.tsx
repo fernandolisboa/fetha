@@ -96,6 +96,7 @@ export function RiskProfileForm({ current }: { current: RiskProfile | null }) {
         <Input
           id="declared-capital"
           inputMode="decimal"
+          className="text-right font-mono tabular-nums"
           value={declaredCapital}
           onChange={(event) => {
             setDeclaredCapital(event.target.value);
@@ -108,33 +109,46 @@ export function RiskProfileForm({ current }: { current: RiskProfile | null }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="max-loss">{t.form.maxLossPerOperation}</Label>
-          <Input
-            id="max-loss"
-            inputMode="decimal"
-            value={maxLossPerOperation}
-            onChange={(event) => {
-              setMaxLossPerOperation(event.target.value);
-              setSaved(false);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              id="max-loss"
+              inputMode="decimal"
+              className="text-right font-mono tabular-nums"
+              value={maxLossPerOperation}
+              onChange={(event) => {
+                setMaxLossPerOperation(event.target.value);
+                setSaved(false);
+              }}
+            />
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {t.form.asPercentOfCapital}
+            </span>
+          </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="max-exposure">{t.form.maxExposurePerOperation}</Label>
-          <Input
-            id="max-exposure"
-            inputMode="decimal"
-            value={maxExposurePerOperation}
-            onChange={(event) => {
-              setMaxExposurePerOperation(event.target.value);
-              setSaved(false);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              id="max-exposure"
+              inputMode="decimal"
+              className="text-right font-mono tabular-nums"
+              value={maxExposurePerOperation}
+              onChange={(event) => {
+                setMaxExposurePerOperation(event.target.value);
+                setSaved(false);
+              }}
+            />
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {t.form.asPercentOfCapital}
+            </span>
+          </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="max-open-operations">{t.form.maxOpenOperations}</Label>
           <Input
             id="max-open-operations"
             inputMode="numeric"
+            className="text-right font-mono tabular-nums"
             value={maxOpenOperations}
             onChange={(event) => {
               setMaxOpenOperations(event.target.value);
@@ -144,15 +158,21 @@ export function RiskProfileForm({ current }: { current: RiskProfile | null }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="max-premium-bought">{t.form.maxPremiumBought}</Label>
-          <Input
-            id="max-premium-bought"
-            inputMode="decimal"
-            value={maxPremiumBought}
-            onChange={(event) => {
-              setMaxPremiumBought(event.target.value);
-              setSaved(false);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              id="max-premium-bought"
+              inputMode="decimal"
+              className="text-right font-mono tabular-nums"
+              value={maxPremiumBought}
+              onChange={(event) => {
+                setMaxPremiumBought(event.target.value);
+                setSaved(false);
+              }}
+            />
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {t.form.asPercentOfCapital}
+            </span>
+          </div>
         </div>
       </div>
 

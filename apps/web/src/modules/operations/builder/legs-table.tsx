@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDecimal } from "@/lib/format/decimal";
+import { formatPercent } from "@/lib/format/percent";
 
 import { t } from "../strings";
 import type { BuilderLeg, ChainSeries } from "./types";
@@ -49,12 +50,12 @@ export function LegsTable({
           <TableHead>{t.builder.legsTable.side}</TableHead>
           <TableHead>{t.builder.legsTable.type}</TableHead>
           <TableHead>{t.builder.legsTable.instrument}</TableHead>
-          <TableHead>{t.builder.legsTable.strike}</TableHead>
+          <TableHead className="text-right">{t.builder.legsTable.strike}</TableHead>
           <TableHead>{t.builder.legsTable.expiry}</TableHead>
-          <TableHead>{t.builder.legsTable.quantity}</TableHead>
-          <TableHead>{t.builder.legsTable.price}</TableHead>
-          <TableHead>{t.builder.legsTable.delta}</TableHead>
-          <TableHead>{t.builder.legsTable.iv}</TableHead>
+          <TableHead className="text-right">{t.builder.legsTable.quantity}</TableHead>
+          <TableHead className="text-right">{t.builder.legsTable.price}</TableHead>
+          <TableHead className="text-right">{t.builder.legsTable.delta}</TableHead>
+          <TableHead className="text-right">{t.builder.legsTable.iv}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -66,7 +67,10 @@ export function LegsTable({
 
           return (
             <TableRow key={index}>
-              <TableCell>
+              <TableCell
+                className="font-medium"
+                style={{ color: template.side === "buy" ? "var(--up)" : "var(--down)" }}
+              >
                 {template.side === "buy" ? t.builder.legsTable.buy : t.builder.legsTable.sell}
               </TableCell>
               <TableCell>{roleLabel(template.role)}</TableCell>
@@ -95,13 +99,17 @@ export function LegsTable({
                   </Select>
                 )}
               </TableCell>
-              <TableCell className="font-mono">{selected ? selected.strike : "—"}</TableCell>
-              <TableCell className="font-mono">{selected ? selected.expiry : "—"}</TableCell>
-              <TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {selected ? selected.strike : "—"}
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">
+                {selected ? selected.expiry : "—"}
+              </TableCell>
+              <TableCell className="text-right">
                 <Input
                   aria-label={`${t.builder.legsTable.quantity} ${String(index + 1)}`}
                   inputMode="numeric"
-                  className="w-20"
+                  className="w-20 text-right font-mono tabular-nums"
                   value={leg ? String(leg.quantity) : ""}
                   onChange={(event) => {
                     const parsed = quantitySchema.safeParse(Number(event.target.value));
@@ -111,14 +119,14 @@ export function LegsTable({
                   }}
                 />
               </TableCell>
-              <TableCell className="font-mono">
+              <TableCell className="text-right font-mono tabular-nums">
                 {valuation?.price ? formatDecimal(valuation.price) : "—"}
               </TableCell>
-              <TableCell className="font-mono">
+              <TableCell className="text-right font-mono tabular-nums">
                 {valuation?.greeks ? formatDecimal(valuation.greeks.delta, 4) : "—"}
               </TableCell>
-              <TableCell className="font-mono">
-                {valuation?.impliedVolatility ? formatDecimal(valuation.impliedVolatility, 4) : "—"}
+              <TableCell className="text-right font-mono tabular-nums">
+                {valuation?.impliedVolatility ? formatPercent(valuation.impliedVolatility) : "—"}
               </TableCell>
             </TableRow>
           );

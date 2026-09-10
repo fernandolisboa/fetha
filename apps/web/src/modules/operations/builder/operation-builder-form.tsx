@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { quantitySchema, tickerSchema, type OperationLeg, type Structure } from "@fetha/contracts";
 import type { LegValuation, OperationPricing } from "@fetha/engine";
@@ -16,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Panel } from "@/modules/shell";
 
 import { loadChainAction, priceOperationAction, saveOperationAction } from "../actions";
 import { t } from "../strings";
@@ -231,12 +233,14 @@ export function OperationBuilderForm({
         </div>
 
         {showNoRiskProfileChip ? (
-          <Badge
-            variant="outline"
-            style={{ borderColor: "var(--warning)", color: "var(--warning)" }}
-          >
-            {t.builder.noRiskProfileChip}
-          </Badge>
+          <Link href="/configuracoes">
+            <Badge
+              variant="outline"
+              style={{ borderColor: "var(--warning)", color: "var(--warning)" }}
+            >
+              {t.builder.noRiskProfileChip}
+            </Badge>
+          </Link>
         ) : null}
 
         <Button type="button" onClick={price} disabled={pending} className="ml-auto">
@@ -244,38 +248,59 @@ export function OperationBuilderForm({
         </Button>
       </div>
 
-      {structure ? (
-        <LegsTable
-          underlying={underlying}
-          legs={legs}
-          chain={chain}
-          onChangeTicker={changeTicker}
-          onChangeQuantity={changeQuantity}
-        />
-      ) : null}
-
       {priceError ? <p className="text-destructive text-xs">{priceError}</p> : null}
 
-      {pricing ? (
-        <div className="flex flex-col gap-6">
-          <StatBlocks
-            netPremium={pricing.netPremium}
-            maxLoss={pricing.maxLoss}
-            maxGain={pricing.maxGain}
-            breakEvens={pricing.breakEvens}
-          />
-          <PayoffChart points={pricing.payoff} spot={pricing.spot} />
-          <GreeksPanel greeks={pricing.greeks} />
-          <RiskNotice breaches={pricing.limitBreaches} />
+      <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
+        <div className="flex flex-col gap-[14px]">
+          {structure ? (
+            <Panel title={t.builder.legsTable.title}>
+              <LegsTable
+                underlying={underlying}
+                legs={legs}
+                chain={chain}
+                onChangeTicker={changeTicker}
+                onChangeQuantity={changeQuantity}
+              />
+            </Panel>
+          ) : null}
 
-          {saveError ? <p className="text-destructive text-xs">{saveError}</p> : null}
-          {savedId ? <p className="text-muted-foreground text-xs">{t.builder.saved}</p> : null}
-
-          <Button type="button" onClick={save} disabled={pending} className="self-start">
-            {hasBreaches ? t.builder.riskNotice.recordAnyway : t.builder.save}
-          </Button>
+          {pricing ? (
+            <Panel title={t.builder.payoffChart.pnl}>
+              <PayoffChart
+                points={pricing.payoff}
+                spot={pricing.spot}
+                breakEvens={pricing.breakEvens}
+              />
+            </Panel>
+          ) : null}
         </div>
-      ) : null}
+
+        {pricing ? (
+          <div className="flex flex-col gap-[14px]">
+            <Panel title={t.builder.statBlocks.title}>
+              <StatBlocks
+                netPremium={pricing.netPremium}
+                maxLoss={pricing.maxLoss}
+                maxGain={pricing.maxGain}
+                breakEvens={pricing.breakEvens}
+              />
+            </Panel>
+
+            <Panel title={t.builder.greeksPanel.title}>
+              <GreeksPanel greeks={pricing.greeks} />
+            </Panel>
+
+            <RiskNotice breaches={pricing.limitBreaches} />
+
+            {saveError ? <p className="text-destructive text-xs">{saveError}</p> : null}
+            {savedId ? <p className="text-muted-foreground text-xs">{t.builder.saved}</p> : null}
+
+            <Button type="button" onClick={save} disabled={pending} className="self-start">
+              {hasBreaches ? t.builder.riskNotice.recordAnyway : t.builder.save}
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

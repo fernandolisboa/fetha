@@ -5,13 +5,26 @@ import { scaleLinear } from "@visx/scale";
 import { AreaClosed, Line, LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
+import type { DecimalString } from "@fetha/contracts";
 import type { PayoffPoint } from "@fetha/engine";
+
+import { formatDecimal } from "@/lib/format/decimal";
 
 import { t } from "../strings";
 
 const MARGIN = { top: 12, right: 16, bottom: 28, left: 56 };
 
-function Chart({ width, points, spot }: { width: number; points: PayoffPoint[]; spot: number }) {
+function Chart({
+  width,
+  points,
+  spot,
+  breakEvens,
+}: {
+  width: number;
+  points: PayoffPoint[];
+  spot: number;
+  breakEvens: DecimalString[];
+}) {
   const height = Math.round((width * 340) / 800);
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
@@ -67,6 +80,32 @@ function Chart({ width, points, spot }: { width: number; points: PayoffPoint[]; 
           stroke="var(--chart-stroke)"
           strokeWidth={1.5}
         />
+        {breakEvens.map((breakEven) => {
+          const x = xScale(Number(breakEven));
+          const y = yScale(0);
+          return (
+            <Group key={breakEven}>
+              <circle
+                cx={x}
+                cy={y}
+                r={4}
+                fill="var(--surface)"
+                stroke="var(--ink)"
+                strokeWidth={1.5}
+              />
+              <text
+                x={x}
+                y={y - 10}
+                textAnchor="middle"
+                fill="var(--ink)"
+                fontSize={11}
+                fontFamily="var(--font-mono)"
+              >
+                {formatDecimal(breakEven)}
+              </text>
+            </Group>
+          );
+        })}
         <AxisBottom
           top={innerHeight}
           scale={xScale}
@@ -93,14 +132,24 @@ function Chart({ width, points, spot }: { width: number; points: PayoffPoint[]; 
   );
 }
 
-export function PayoffChart({ points, spot }: { points: PayoffPoint[]; spot: string }) {
+export function PayoffChart({
+  points,
+  spot,
+  breakEvens,
+}: {
+  points: PayoffPoint[];
+  spot: string;
+  breakEvens: DecimalString[];
+}) {
   if (points.length === 0) {
     return null;
   }
   return (
     <ParentSize>
       {({ width }) =>
-        width > 0 ? <Chart width={width} points={points} spot={Number(spot)} /> : null
+        width > 0 ? (
+          <Chart width={width} points={points} spot={Number(spot)} breakEvens={breakEvens} />
+        ) : null
       }
     </ParentSize>
   );

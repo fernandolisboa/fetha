@@ -13,6 +13,7 @@ const en = {
     saved: "Operation saved.",
     saveError: "Could not save this operation.",
     legsTable: {
+      title: "Legs",
       side: "Side",
       quantity: "Quantity",
       instrument: "Instrument",
@@ -30,6 +31,7 @@ const en = {
       pickInstrument: "Pick an instrument",
     },
     statBlocks: {
+      title: "Result",
       netPremium: "Net premium",
       maxLoss: "Max loss",
       maxGain: "Max gain",
@@ -42,6 +44,8 @@ const en = {
       gamma: "Gamma",
       theta: "Theta",
       vega: "Vega",
+      thetaUnit: "/ session",
+      vegaUnit: "/ point",
     },
     riskNotice: {
       title: "Limit breach",
@@ -59,6 +63,13 @@ const en = {
     title: "Contemplated operations",
     newOperation: "New operation",
     empty: "No contemplated operations yet.",
+    columns: {
+      underlying: "Underlying",
+      date: "Date",
+      netPremium: "Net premium",
+      maxLoss: "Max loss",
+      breach: "Breach",
+    },
   },
 };
 
@@ -77,6 +88,7 @@ const ptBR = {
     saved: "Operação salva.",
     saveError: "Não foi possível salvar esta operação.",
     legsTable: {
+      title: "Pernas",
       side: "Lado",
       quantity: "Quantidade",
       instrument: "Instrumento",
@@ -94,6 +106,7 @@ const ptBR = {
       pickInstrument: "Escolha um instrumento",
     },
     statBlocks: {
+      title: "Resultado",
       netPremium: "Prêmio líquido",
       maxLoss: "Perda máxima",
       maxGain: "Ganho máximo",
@@ -106,6 +119,8 @@ const ptBR = {
       gamma: "Gama",
       theta: "Theta",
       vega: "Vega",
+      thetaUnit: "/ sessão",
+      vegaUnit: "/ ponto",
     },
     riskNotice: {
       title: "Limite excedido",
@@ -123,6 +138,13 @@ const ptBR = {
     title: "Operações contempladas",
     newOperation: "Nova operação",
     empty: "Nenhuma operação contemplada ainda.",
+    columns: {
+      underlying: "Ativo-objeto",
+      date: "Data",
+      netPremium: "Prêmio líquido",
+      maxLoss: "Perda máxima",
+      breach: "Limite",
+    },
   },
 } satisfies typeof en;
 
