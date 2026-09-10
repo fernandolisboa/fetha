@@ -22,21 +22,27 @@ insufficient on its own; the "Decision" section below reflects the final, accoun
   a new account would bypass the terms/privacy checkboxes `/sign-up/email` requires and the
   `REGISTRATION_MODE` invite gate, which only guards that one endpoint (ADR-0016).
   `storeToken: "hashed"` and the top-level `verification.storeIdentifier: "hashed"` were evaluated
-  on the round-1 review pass and reverted, kept plain, for both magic link and password reset:
-  both broke the reuse/expiry integration tests, which manipulate the `verification` table's row
-  directly by its plain identifier to force a token to look expired or already-consumed
-  (`magic-link.integration.test.ts`, `password-reset.integration.test.ts`); reproducing Better
-  Auth's internal hash in test code needs `@better-auth/utils`, not a direct dependency of this
-  app, and doing so was judged more coupling than this ticket's scope earns. The token itself is
-  still a cryptographically random, single-use, short-lived, unguessable value regardless of
+  on the round-1 review pass and kept plain for this ticket, for both magic link and password
+  reset: both broke the reuse/expiry integration tests, which manipulate the `verification` table's
+  row directly by its plain identifier to force a token to look expired or already-consumed
+  (`magic-link.integration.test.ts`, `password-reset.integration.test.ts`). The round-1 rationale
+  for stopping there was wrong and is corrected here rather than repeated: Better Auth's
+  `defaultKeyHasher` (`better-auth/dist/db/verification-token-storage.mjs`) is plain SHA-256 over
+  the identifier, base64url-encoded without padding — reproducible in test code with Node's own
+  `node:crypto` (`createHash("sha256").update(identifier).digest()` then base64url-encode), no
+  `@better-auth/utils` dependency needed, and `verification.storeIdentifier` is a real, documented
+  top-level option. Turning hashing on was still deferred past this ticket rather than done here
+  (issue #60 tracks it with the corrected shape), not because it was infeasible. The token itself
+  is still a cryptographically random, single-use, short-lived, unguessable value regardless of
   hashing; the difference only matters if the database itself is compromised.
 - `magicLink`'s `sendMagicLink` looks the email up (`db.query.user.findFirst`) before sending: an
   unregistered address gets the exact same 200 response (the plugin always answers
   `{ status: true }` once its own endpoint handler runs, regardless of what this callback does) but
   never receives mail, closing an enumeration-by-inbox gap with the same no-enumeration posture
-  ADR-0016 already applies to sign-up. The lookup runs unconditionally before the early return, so
-  the response time does not itself distinguish "registered" from "not registered" through this
-  path.
+  ADR-0016 already applies to sign-up. This does not close timing-based enumeration: an existing
+  account costs one extra `mailer.send` await the "no account" branch skips, an observable
+  difference the response body does not carry. Filed alongside the same gap on password reset in
+  issue #45 rather than fixed in this ticket.
 - `emailAndPassword.sendResetPassword` sends through the same `Mailer` port as email verification
   and magic link (`buildPasswordResetEmail`, `src/modules/auth/email/`), so `mail_outbox` capture
   and the E2E verification-link route (`readE2EVerificationLink`) work for it unchanged.
@@ -116,3 +122,10 @@ count < max` so a losing concurrent writer re-reads instead of silently overwrit
   Better Auth's IP-keyed rows.
 - Every login, magic-link, password-reset-request and resend-verification code path now returns a
   `rate_limited` outcome (`service.ts`) that the UI surfaces with the same copy as any other 429.
+- The per-account `/sign-in/email` bucket counts every attempt against that email, not only failed
+  ones, applied in `hooks.before` before Better Auth has evaluated the credentials: an attacker who
+  knows (or guesses) a victim's email can lock the victim's own sign-in out for the window by
+  sending `max` throwaway attempts, a denial-of-service trade-off accepted for this ticket in
+  exchange for a limiter simple enough to apply uniformly pre-request. A failure-only counter would
+  need to run from `hooks.after` once the outcome is known, and is folded into issue #45 alongside
+  the other login-path enumeration and hardening follow-ups rather than built here.
