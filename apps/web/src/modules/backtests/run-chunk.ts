@@ -9,7 +9,11 @@ import {
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
-import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
+import {
+  loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
+} from "@/modules/market-data";
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
 import { BacktestRunRepository, type BacktestRunRecord } from "./backtest-run-repository";
@@ -95,6 +99,9 @@ export interface RunBacktestChunkOptions {
   innerStepSessions?: number;
   wallClockBudgetMs?: number;
   now?: () => number;
+  // Test-only: forwarded to loadMarketView so a test can cross the option
+  // chain cap without seeding DEFAULT_OPTION_CHAIN_TICKER_CAP rows.
+  optionChainTickerCap?: number;
 }
 
 // Runs one budgeted chunk of a backtest, looping several small inner
@@ -163,8 +170,20 @@ export async function runBacktestChunk(
       strategy,
       universe: run.universe,
       period: run.period,
+      ...(options.optionChainTickerCap !== undefined
+        ? { optionChainTickerCap: options.optionChainTickerCap }
+        : {}),
     });
   } catch (error) {
+    // Checked before the parent MarketViewUnavailableError: both are
+    // thrown for a period this run cannot proceed with, but for opposite
+    // reasons, and the two errors below must never collapse into the same
+    // message (round 4 item 1).
+    if (error instanceof MarketViewTooLargeError) {
+      const message = "market_view_too_large";
+      await repository.fail(runId, message);
+      return { status: "failed", error: message };
+    }
     if (error instanceof MarketViewUnavailableError) {
       const message = "no_market_data";
       await repository.fail(runId, message);

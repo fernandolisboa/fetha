@@ -104,11 +104,17 @@ const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
 // `less_than_one_effective_unit` and `no_risk_profile` are valid `NoteCode`
 // union members but the run never emits them here — the first two are
 // per-operation/per-fill notes `priceOperation` and settlement produce and
-// the engine does not roll up onto the run, `no_risk_profile` is never
-// engine-emitted at all (round 3 item 3, correcting round 2 item 15's
-// mistaken instruction to filter them as if they were). Only the one code
+// the engine does not roll up onto the run. `no_risk_profile` *is*
+// engine-emitted, in three files (price-operation.ts, stock-pricing.ts,
+// mark-to-market.ts, packages/engine/src/internal/notes.ts's
+// NO_RISK_PROFILE_NOTE); what keeps it out of a backtest report is that
+// backtests/actions.ts refuses to create a run without a declared risk
+// profile, and that profile rides on the run into every pricing call
+// (round 3 item 3, round 4 item 5, correcting round 2 item 15's mistaken
+// instruction to filter it as if it were never emitted). Only the one code
 // the run does emit is filtered here, to keep it out of the general notes
-// panel since the operations table surfaces it per-row instead (round 2
+// panel: it renders once at this panel's own head via `<NotesFor
+// codes={operationCodes} />` below, not per operations-table row (round 2
 // item 6). If the report should ever show the per-operation notes, the
 // engine needs to roll them up onto the run first (see the follow-up issue
 // filed for this).

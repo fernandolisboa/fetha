@@ -54,6 +54,16 @@ const CALENDAR_WINDOW_SESSIONS = 30;
 // (round 3 item 2).
 const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
 
+// Bounds price-row *volume* directly, which DEFAULT_OPTION_CHAIN_TICKER_CAP
+// does not: a chain admitted under that cap can still span the whole
+// warmup-to-period window, so up to cap x sessions day-price rows would
+// otherwise materialise as objects in this one function call before any
+// checkpoint exists to recover from an out-of-memory death (round 4
+// item 3). 200,000 rows of this shape (a handful of decimal strings and
+// two integers each) is comfortably tens of megabytes, not the "millions
+// of row objects" an unbounded query could reach.
+const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
+
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
 }
@@ -67,11 +77,13 @@ export function toTradingSession(row: { date: string; open: Date; close: Date })
 }
 
 // Thrown instead of an empty-but-typed-as-valid MarketView whenever the
-// requested range simply has nothing behind it: no calendar ingested at
-// all, or neither endpoint of `period` lands on a trading session (round 2
-// item 9). A degenerate MarketView the caller cannot distinguish from "a
-// strategy that legitimately needs zero of some collection" is exactly the
-// shape round-1 item 2 and round-2 item 10 both had to work around from the
+// requested range cannot be resolved into one: no calendar ingested at
+// all, neither endpoint of `period` lands on a trading session (round 2
+// item 9), or (its own subclass, MarketViewTooLargeError below) the option
+// chain for the universe and period is too large to load in one call. A
+// degenerate MarketView the caller cannot distinguish from "a strategy
+// that legitimately needs zero of some collection" is exactly the shape
+// round-1 item 2 and round-2 item 10 both had to work around from the
 // outside; every caller must now handle this explicitly instead.
 export class MarketViewUnavailableError extends Error {
   constructor(reason: string) {
@@ -157,6 +169,9 @@ export interface MarketViewRangeInput {
   // to cross it; every production caller gets DEFAULT_OPTION_CHAIN_TICKER_CAP
   // (mirrors RunBacktestChunkOptions's own test-only overrides, run-chunk.ts).
   optionChainTickerCap?: number;
+  // Same test-only shape as optionChainTickerCap, for
+  // DEFAULT_OPTION_PRICE_ROW_CAP (round 4 item 3).
+  optionPriceRowCap?: number;
 }
 
 // Builds a whole-period MarketView from the database, driven by the
@@ -172,6 +187,7 @@ export async function loadMarketView(
 ): Promise<MarketView> {
   const { strategy, universe, period } = input;
   const optionChainTickerCap = input.optionChainTickerCap ?? DEFAULT_OPTION_CHAIN_TICKER_CAP;
+  const optionPriceRowCap = input.optionPriceRowCap ?? DEFAULT_OPTION_PRICE_ROW_CAP;
 
   const calendarFloor = await earliestSession(db);
   if (!calendarFloor) {
@@ -305,7 +321,14 @@ export async function loadMarketView(
               lte(optionDailyPrices.session, period.to),
             ),
           )
+          .limit(optionPriceRowCap + 1)
       : [];
+
+  if (wantsOptionPrices && priceRows.length > optionPriceRowCap) {
+    throw new MarketViewTooLargeError(
+      `option day-price rows for this universe and period exceed ${String(optionPriceRowCap)}`,
+    );
+  }
 
   const optionPrices: OptionDayPrice[] = priceRows.map((row) => ({
     ticker: tickerSchema.parse(row.ticker),

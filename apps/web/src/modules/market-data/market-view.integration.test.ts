@@ -997,6 +997,77 @@ describe("loadMarketView", () => {
     ).rejects.toBeInstanceOf(MarketViewTooLargeError);
   });
 
+  it("refuses an option-price row volume past the price cap even though a single series is under the chain cap (round 4 item 3)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("PRC");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDaysFrom(2097, 12, 2, 10);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await ensureMonthlyPartition(db, "option_daily_prices", firstSession);
+    for (const session of sessions) {
+      await db.insert(optionDailyPrices).values({
+        ticker: optionTicker,
+        session,
+        asOf: new Date(`${session}T20:00:00.000Z`),
+        right: "call",
+        strike: "12.00000000",
+        expiry,
+        average: "0.750000",
+        close: "0.750000",
+        trades: 1,
+        tradedQuantity: 100,
+      });
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    await expect(
+      loadMarketView(db, {
+        strategy,
+        universe: [ticker],
+        period: { from: sessions[0] ?? "", to: sessions.at(-1) ?? "" },
+        optionPriceRowCap: 3,
+      }),
+    ).rejects.toBeInstanceOf(MarketViewTooLargeError);
+  });
+
   it("throws MarketViewUnavailableError instead of a candle-less view when the period has no trading session (round 2 item 9)", async () => {
     const db = getDb();
     const ticker = uniqueTicker("NOS");

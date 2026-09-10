@@ -34,6 +34,7 @@ const en = {
     resume: "Continue",
     failed: "The run failed: {error}",
     retry: "Retry",
+    cannotResume: "This run cannot be resumed; start a new backtest instead.",
     metrics: {
       sessions: "Sessions",
       operations: "Operations",
@@ -52,6 +53,7 @@ const en = {
     drawdown: "Drawdown",
     distribution: "Distribution of returns",
     distributionBasis: "One bar per trading session's own equity return.",
+    distributionFlat: "Every session's return was 0%; there is no distribution to plot.",
     operationsTable: {
       title: "Operations",
       columns: { underlying: "Instrument", openedAt: "Opened", closedAt: "Closed", pnl: "P&L" },
@@ -123,6 +125,8 @@ const en = {
     data_version_changed:
       "The underlying data changed between chunks; the run was stopped rather than mix two datasets.",
     no_market_data: "No market data is available for this period; the run was stopped.",
+    market_view_too_large:
+      "This universe and period list more option series than a single run can load. Narrow the universe or shorten the period and try again.",
   },
   networkError: "Network error. Try again.",
 };
@@ -161,6 +165,7 @@ const ptBR = {
     resume: "Continuar",
     failed: "A simulação falhou: {error}",
     retry: "Tentar novamente",
+    cannotResume: "Essa simulação não pode ser retomada; rode um novo backtest.",
     metrics: {
       sessions: "Pregões",
       operations: "Operações",
@@ -179,6 +184,7 @@ const ptBR = {
     drawdown: "Drawdown",
     distribution: "Distribuição de retornos",
     distributionBasis: "Uma barra por pregão, com o retorno de patrimônio daquele próprio pregão.",
+    distributionFlat: "O retorno de todos os pregões foi 0%; não há distribuição para exibir.",
     operationsTable: {
       title: "Operações",
       columns: { underlying: "Ativo", openedAt: "Aberta em", closedAt: "Fechada em", pnl: "P&L" },
@@ -252,6 +258,8 @@ const ptBR = {
       "Os dados de mercado mudaram entre os pedaços da simulação; ela foi interrompida em vez de misturar dois conjuntos de dados.",
     no_market_data:
       "Não há dados de mercado disponíveis para esse período; a simulação foi interrompida.",
+    market_view_too_large:
+      "Esse universo e esse período listam mais séries de opções do que uma simulação consegue carregar de uma vez. Reduza o universo ou encurte o período e tente de novo.",
   },
   networkError: "Erro de rede. Tente novamente.",
 } satisfies typeof en;
@@ -262,6 +270,18 @@ export const t = backtestsStrings.ptBR;
 
 export function noteMessage(code: NoteCode): string {
   return t.notes[code];
+}
+
+// `claim` clears `error` but never `dataVersion` (backtest-run-repository.ts):
+// retrying a run that failed on `data_version_changed` compares the same
+// stale `dataVersion` against the same current view and is guaranteed to
+// fail with the identical code again, so the retry control is withheld for
+// it instead of inviting a click that can only churn the row (round 4
+// item 4).
+const NON_RESUMABLE_RUN_ERRORS = new Set<string>(["data_version_changed"]);
+
+export function isResumableRunError(code: string | null): boolean {
+  return code === null || !NON_RESUMABLE_RUN_ERRORS.has(code);
 }
 
 export function engineErrorMessage(code: string): string {

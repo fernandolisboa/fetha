@@ -6,6 +6,8 @@ import { ParentSize } from "@visx/responsive";
 import { scaleBand, scaleLinear } from "@visx/scale";
 import { Bar } from "@visx/shape";
 
+import { t } from "../strings";
+
 const MARGIN = { top: 8, right: 16, bottom: 28, left: 40 };
 const HEIGHT = 180;
 const BIN_COUNT = 10;
@@ -59,7 +61,15 @@ export function buildBins(returns: number[]): Bin[] {
   }
   const min = Math.min(...returns, 0);
   const max = Math.max(...returns, 0);
-  const span = max - min || 1;
+  const span = max - min;
+  // A flat equity curve (a strategy that never fires) makes every return,
+  // and so both widened bounds, exactly 0: a genuinely zero span, not one
+  // too small to bin. The old `|| 1` fallback treated it as the latter and
+  // fabricated a 0%-100% axis no data in the run supports (round 4 item 6);
+  // the caller renders this state explicitly instead of a chart.
+  if (span === 0) {
+    return [];
+  }
   const width = span / BIN_COUNT;
   const decimals = decimalsForBinWidth(width * 100);
 
@@ -136,6 +146,12 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
 export function DistributionChart({ returns }: { returns: number[] }) {
   if (returns.length === 0) {
     return null;
+  }
+  // A flat equity curve renders no bins (buildBins, above): an explicit
+  // message, not a silently empty chart or a fabricated axis (round 4
+  // item 6).
+  if (buildBins(returns).length === 0) {
+    return <p className="text-muted-foreground text-sm">{t.report.distributionFlat}</p>;
   }
   return <ParentSize>{({ width }) => <Chart width={width} returns={returns} />}</ParentSize>;
 }

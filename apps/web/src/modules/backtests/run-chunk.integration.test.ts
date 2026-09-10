@@ -11,7 +11,7 @@ import type {
 import { getDb } from "@/db/client";
 import { backtestRuns } from "@/db/schema/backtests";
 import { user } from "@/db/schema/auth";
-import { candles } from "@/db/schema/market-data";
+import { candles, optionSeries } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
@@ -160,6 +160,7 @@ afterEach(async () => {
   }
   await db.delete(candles).where(eq(candles.ticker, TICKER));
   await db.delete(candles).where(eq(candles.ticker, TICKER2));
+  await db.delete(optionSeries).where(eq(optionSeries.underlying, TICKER));
 });
 
 const STOCK_STRUCTURE: Structure = {
@@ -167,6 +168,16 @@ const STOCK_STRUCTURE: Structure = {
   name: "Compra de ação",
   expiry: "shared",
   legs: [{ role: "stock", side: "buy", ratio: 1 }],
+};
+
+const COVERED_CALL_STRUCTURE: Structure = {
+  id: "covered-call",
+  name: "Covered call",
+  expiry: "shared",
+  legs: [
+    { role: "stock", side: "buy", ratio: 1 },
+    { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+  ],
 };
 
 // A single open-operation slot: with two tickers signaling entry on the
@@ -386,6 +397,48 @@ describe("runBacktestChunk", () => {
     const failed = await repository.findMine(run.id);
     expect(failed.status).toBe("failed");
     expect(failed.error).toBe("no_market_data");
+  });
+
+  it("fails the run with market_view_too_large, not no_market_data, when the option chain crosses the cap (round 4 item 1)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+
+    const firstSession = SESSIONS[0] ?? "";
+    const expiry = SESSIONS[SESSIONS.length - 1] ?? "";
+    for (let i = 0; i < 4; i += 1) {
+      const optionTicker = `${TICKER}W${String(i)}`;
+      await db.insert(optionSeries).values({
+        isin: `ISIN-${optionTicker}`,
+        ticker: optionTicker,
+        underlying: TICKER,
+        right: "call",
+        strike: `${String(10 + i)}.00000000`,
+        expiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      });
+    }
+
+    const run = await repository.create({
+      ...runConfig(setup),
+      structure: COVERED_CALL_STRUCTURE,
+      universe: [TICKER],
+    });
+
+    const outcome = await runBacktestChunk(db, setup.testUser, run.id, {
+      maxSessions: 999,
+      optionChainTickerCap: 3,
+    });
+
+    expect(outcome.status).toBe("failed");
+    if (outcome.status === "failed") {
+      expect(outcome.error).toBe("market_view_too_large");
+    }
+
+    const failed = await repository.findMine(run.id);
+    expect(failed.status).toBe("failed");
+    expect(failed.error).toBe("market_view_too_large");
   });
 
   it("fails the run rather than mix datasets when the market data changes between chunks (round 1 item 21)", async () => {

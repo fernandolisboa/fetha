@@ -51,4 +51,16 @@ describe("buildBins", () => {
     }
     expect(bins.some((bin) => bin.label.includes(","))).toBe(true);
   });
+
+  // A strategy that never fires has a flat equity curve: every session
+  // return is exactly 0, so `min`/`max` (each already widened to include an
+  // explicit 0) collapse to the same value and the span is genuinely zero,
+  // not merely small (round 4 item 6). Returning bins built off a
+  // fabricated span would render nine bin bounds — a 0%-100% axis in the
+  // worst case — that no data in the run supports.
+  it("returns no bins for a flat curve instead of fabricating a span no data supports (round 4 item 6)", () => {
+    const returns = [0, 0, 0, 0, 0];
+    const bins = buildBins(returns);
+    expect(bins).toEqual([]);
+  });
 });

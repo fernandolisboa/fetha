@@ -6,6 +6,7 @@ import {
   BacktestRunNotFoundError,
   engineErrorMessage,
   getMyBacktestRun,
+  isResumableRunError,
   ReportPanel,
   t,
 } from "@/modules/backtests";
@@ -57,7 +58,11 @@ export default async function BacktestReportPage({
           <p className="text-destructive text-sm">
             {t.report.failed.replace("{error}", engineErrorMessage(run.error ?? ""))}
           </p>
-          <RunBacktestButton runId={run.id} label={t.report.retry} />
+          {isResumableRunError(run.error) ? (
+            <RunBacktestButton runId={run.id} label={t.report.retry} />
+          ) : (
+            <p className="text-muted-foreground text-sm">{t.report.cannotResume}</p>
+          )}
         </Panel>
       ) : (
         <Panel>

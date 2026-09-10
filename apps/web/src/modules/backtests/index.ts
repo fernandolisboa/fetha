@@ -11,4 +11,4 @@ export {
 export { runBacktestChunk } from "./run-chunk";
 export { getMyBacktestRun, getMyBacktestRunsForStrategy } from "./queries";
 export { ReportPanel } from "./components/report-panel";
-export { engineErrorMessage, t } from "./strings";
+export { engineErrorMessage, isResumableRunError, t } from "./strings";
