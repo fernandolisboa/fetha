@@ -3,12 +3,11 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/modules/auth";
-import { EmptyState, t as shellStrings } from "@/modules/shell";
+import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 import {
   CopyStrategyButton,
   getMyStrategies,
   getSharedStrategies,
-  Panel,
   ShareToggleButton,
   t,
 } from "@/modules/strategies";

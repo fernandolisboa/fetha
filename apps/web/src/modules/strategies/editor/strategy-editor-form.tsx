@@ -18,13 +18,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Panel } from "@/modules/shell";
 
 import {
   addStrategyVersionAction,
   createStrategyAction,
   type StrategyActionResult,
 } from "../actions";
-import { Panel } from "../components/panel";
 import { t } from "../strings";
 import { AdjustmentRow } from "./adjustment-row";
 import { fromEditableEntry, toEditableEntry, type EditableEntry } from "./compare-conditions";

@@ -3,11 +3,10 @@ import { notFound } from "next/navigation";
 
 import { formatDateTime } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
-import { t as shellStrings } from "@/modules/shell";
+import { Panel, t as shellStrings } from "@/modules/shell";
 import {
   getMyStrategy,
   getStructures,
-  Panel,
   ShareToggleButton,
   StrategyEditorForm,
   StrategyNotFoundError,
