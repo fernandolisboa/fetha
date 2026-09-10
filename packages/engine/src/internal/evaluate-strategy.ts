@@ -355,13 +355,31 @@ function evaluateNumericExitRule(
     exitRuleProvenanceBase,
     "spot",
   );
+  // This call shares its view, at, underlying and every leg's ticker with
+  // computeExitRuleBases's own priceLegsAt call above it, which already gated this op on
+  // `bases === null` before evaluateNumericExitRule is ever invoked: every hard failure
+  // priceLegsAt can produce (missing_instrument, a non-positive spot/strike, an
+  // already-expired leg, a macro/dividend read) depends only on those shared inputs, never
+  // on whether a leg's own price is given (bases's own legs) or resolved (this call's), so
+  // this branch cannot fail once bases has already succeeded for the same op at the same
+  // instant.
+  /* v8 ignore next */
   if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true };
   let pnlCentavos = new Decimal(0);
   for (const [index, leg] of op.legs.entries()) {
     const valuation = pricingResult.value.legs[index];
+    // `valueOneLeg` only ever produces a `fairValue` from a `sigma` it either solved from a
+    // real market price (in which case `price` is already non-null, taking the branch
+    // above) or was given directly on the `LegInput` (never true here: this call's own legs
+    // never carry `volatility`) — so `fairValue` is provably always null whenever `price`
+    // is, making that fallback dead for this caller specifically. Read here anyway, never
+    // simplified away, to stay the same shape `price ?? fairValue` reads everywhere else in
+    // the engine (round 2 item 2) and to keep working if valueOneLeg ever gains another way
+    // to produce a fairValue without a market price.
     const rawPremium = valuation?.price
       ? parseDecimal(valuation.price)
-      : valuation?.fairValue
+      : /* v8 ignore next */
+        valuation?.fairValue
         ? parseDecimal(valuation.fairValue)
         : null;
     if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };

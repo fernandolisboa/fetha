@@ -2131,6 +2131,65 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.operationId).toBe("op-1");
   });
 
+  // Round 2 item 2 coverage: computeExitRuleBases's own legs price at `leg.entryPrice`
+  // ("given"), so it succeeds with no optionPrices data at all — evaluateNumericExitRule's
+  // own priceLegsAt call resolves a real market price instead, and with none visible for
+  // this leg, neither `price` nor `fairValue` (never solved without one) exists, so the
+  // rule reports insufficient_data rather than silently comparing against a zero pnl.
+  it("reports insufficient_data for a profit_target exit when an option leg has no visible market price", () => {
+    const expiry = sessionAt(9);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(10),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [callSeries("PETR4C33", "33.00", expiry, `${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(0)}T21:00:00.000Z`,
+      openOperations: [operation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.signals).toEqual([]);
+  });
+
   it("fires a days_before_expiry exit when fewer sessions than businessDays remain", () => {
     const expiry = sessionAt(2);
     const view: MarketView = {

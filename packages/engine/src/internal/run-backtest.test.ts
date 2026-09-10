@@ -2295,6 +2295,69 @@ describe("runBacktest — option structures (#23)", () => {
     });
   });
 
+  it("slips every option fill by optionSlippageRate and reports a non-zero metrics.slippage, split across walk-forward windows (round 2 item 8)", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.2") }],
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+      walkForward: { windowSessions: 4 },
+      costModel: {
+        b3FeeRate: decimalString("0.0005"),
+        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(50) },
+        optionSlippageRate: decimalString("0.05"),
+        incomeTaxRate: decimalString("0.15"),
+        monthlyStockSalesExemption: centavos(2_000_000_00),
+      },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days
+        .slice(0, 7)
+        .map((d, i) => optionDayPrice("PETR4C11", d, i <= 1 ? "1.00" : "3.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    // Entry (2024-01-03): reference average 1.00, buy side, filled = 1.00 × 1.05 = 1.05;
+    // slippage = |1.05 − 1.00| × 100 × 5000 = 25 000. Exit (2024-01-05, profit_target):
+    // reference average 3.00, sell side, filled = 3.00 × 0.95 = 2.85; slippage = |2.85 −
+    // 3.00| × 100 × 5000 = 75 000. Re-entry (2024-01-08): reference 3.00, buy side, filled
+    // = 3.00 × 1.05 = 3.15; slippage = |3.15 − 3.00| × 100 × 3164 = 47 460. Run total =
+    // 25 000 + 75 000 + 47 460 = 147 460.
+    expect(run.fills.map((f) => f.price)).toEqual([
+      decimalString("1.05"),
+      decimalString("2.85"),
+      decimalString("3.15"),
+    ]);
+    expect(run.metrics.slippage).toBe(centavos(147460));
+    // Window 1 (2024-01-02..2024-01-05) carries the entry and the exit fill: 25 000 +
+    // 75 000 = 100 000. Window 2 (2024-01-08..2024-01-10) carries only the re-entry:
+    // 47 460. Each window's own slippage excludes the other's fills — the same filter
+    // (backtest-metrics.ts's computeWalkForwardWindows) that sums the whole run's slippage
+    // above, restricted to `[from, to]` (round 2 item 9 coverage).
+    expect(run.walkForward).toHaveLength(2);
+    expect(run.walkForward?.[0]?.metrics.slippage).toBe(centavos(100000));
+    expect(run.walkForward?.[1]?.metrics.slippage).toBe(centavos(47460));
+  });
+
   it("notes option_strike_unadjusted_across_corporate_action when a split falls inside an option-legged operation's life (item 18, round 1 — Q51 gap, no series-rollover support yet)", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
@@ -2869,6 +2932,51 @@ describe("runBacktest — option structures (#23)", () => {
     // No fill trades the residual: it is a mark, not a trade, when the period ends first.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
     expect(residualFill).toBeUndefined();
+  });
+
+  // Round 2 item 9 (coverage restoration): resolveOperationExpiry's own missing_instrument
+  // path (unreachable from a single, non-resumed view — a series visible at the signal
+  // instant is, by resolveSeries's own monotonic asOf, still visible one session later at
+  // fill time) is only reachable across a resume whose view has since dropped the series a
+  // still-pending (never yet filled) entry depends on.
+  it("returns missing_instrument if a resumed run's view omits a still-pending entry's own option leg series at fill time", () => {
+    const days = businessDays(20);
+    const expiry = days[5] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 6 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 6).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    // Paused after session 0: the entry signal fired and is a pendingEntry, not yet filled
+    // (a fill only happens the following session's own open/average).
+    const paused = runBacktest({ view: fullView, config, maxSessions: 1 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = {
+      ...fullView,
+      optionSeries: [],
+    };
+    const resumed = runBacktest({ view: incompleteView, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("missing_instrument");
   });
 
   it("returns missing_instrument if a resumed run's view omits an open option leg's series before its expiry", () => {
