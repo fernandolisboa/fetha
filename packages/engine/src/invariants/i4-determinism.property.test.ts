@@ -1,11 +1,18 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { EvaluateStrategyInput, IndicatorsInput, StrategyVersion } from "../api";
+import type {
+  EvaluateStrategyInput,
+  IndicatorsInput,
+  MarketView,
+  RunBacktestInput,
+  StrategyVersion,
+} from "../api";
 import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
+import { runBacktest } from "../internal/run-backtest";
 import { decimalString } from "../test/support";
-import { candleSeriesArbitrary } from "./arbitraries";
+import { candleSeriesArbitrary, longBacktestFixtureArbitrary } from "./arbitraries";
 
 describe("I4 Determinism", () => {
   it("identical inputs yield deep-equal, byte-identical JSON artifacts", () => {
@@ -89,4 +96,34 @@ describe("I4 Determinism", () => {
       }),
     );
   });
+
+  it("identical runBacktest inputs, round-tripped through JSON, yield byte-identical artifacts", () => {
+    fc.assert(
+      fc.property(longBacktestFixtureArbitrary, (fixture) => {
+        const view: MarketView = {
+          calendar: fixture.calendar,
+          candles: fixture.candles,
+          corporateActions: [],
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [
+            {
+              series: "cdi",
+              date: fixture.calendar[0]?.date ?? "",
+              asOf: fixture.calendar[0]?.open ?? "",
+              annualRate: fixture.cdiAnnualRate,
+            },
+          ],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+        const input: RunBacktestInput = { view, config: fixture.config };
+        const first = runBacktest(input);
+        const second = runBacktest(JSON.parse(JSON.stringify(input)) as RunBacktestInput);
+        expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+      }),
+      { numRuns: 8 },
+    );
+  }, 30_000);
 });

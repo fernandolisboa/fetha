@@ -16,6 +16,18 @@ writing). Data fetched with a user's token is cached for that user only, so lice
 per subscriber. Without a token the app works on reference data alone. Greeks and implied
 volatility are always computed by the engine from prices; they are never bought.
 
+## Amendment (2026-09-09, ADR-0017)
+
+`MarketDataProvider` is the **per-user intraday** seam only: live quotes, the live chain and
+intraday candles, fetched with a token each user supplies, behind one interface because it has (or
+is expected to gain) more than one implementation (brapi.dev today, OpLab a candidate second
+adapter). The four reference-data sources (COTAHIST, the B3 instruments registry, Bacen SGS, the
+ANBIMA calendar) are **not** behind that interface: each is a fetch-and-parse function private to
+the `market-data` module (`adapters/<source>/fetch.ts` + `parser.ts`), called directly by the
+nightly ingestion job. None of them takes a per-user token, none has a second implementation to
+justify an interface, and ADR-0006's "deep modules, thin interfaces" principle argues against one
+here. ADR-0017 records their operational detail (parsing, partitioning, retries, freshness).
+
 ## Considered options
 
 - OpLab as the intraday adapter: real-time quotes and chain with greeks, but no intraday

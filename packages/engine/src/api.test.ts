@@ -231,7 +231,7 @@ describe("closed vocabularies", () => {
 
   it("enumerates unsizeable reasons", () => {
     expectTypeOf<(typeof unsizeableReasons)[number]>().toEqualTypeOf<UnsizeableReason>();
-    expect(unsizeableReasons).toEqual(["unbounded_max_loss", "no_declared_capital"]);
+    expect(unsizeableReasons).toEqual(["unbounded_max_loss", "no_declared_capital", "zero_units"]);
   });
 
   it("enumerates note codes", () => {
@@ -255,6 +255,8 @@ describe("closed vocabularies", () => {
       "unbounded_max_loss",
       "zero_max_loss",
       "iv_index_not_bracketed",
+      "risk_free_rate_defaulted",
+      "negative_cash",
     ]);
   });
 

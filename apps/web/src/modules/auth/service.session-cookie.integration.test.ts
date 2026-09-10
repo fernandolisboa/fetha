@@ -13,6 +13,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
 import { signIn, signUp } from "./service";
+import { testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
@@ -46,6 +47,7 @@ afterEach(async () => {
 
 describe("session cookie forwarding through the Server Action code path", () => {
   it("forwards the Better Auth session cookie to the browser on sign-in", async () => {
+    const testHeaders = testRequestHeaders();
     const email = uniqueEmail("sign-in");
     createdEmails.push(email);
 
@@ -57,13 +59,13 @@ describe("session cookie forwarding through the Server Action code path", () => 
         termsAccepted: true,
         privacyAccepted: true,
       },
-      new Headers(),
+      testHeaders,
     );
     expect(signUpOutcome.status).toBe("ok");
     await verifyEmail(email);
 
     cookieStore.set.mockClear();
-    const outcome = await signIn({ email, password: "correct-horse-battery" }, new Headers());
+    const outcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);
 
     expect(outcome.status).toBe("ok");
     expect(cookieStore.set).toHaveBeenCalled();
@@ -77,7 +79,7 @@ describe("session cookie forwarding through the Server Action code path", () => 
 
     const outcome = await signIn(
       { email: "no-such-user@example.com", password: "wrong-password" },
-      new Headers(),
+      testRequestHeaders(),
     );
 
     expect(outcome.status).not.toBe("ok");

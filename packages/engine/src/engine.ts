@@ -8,24 +8,33 @@ import type {
   EvaluateStrategyInput,
   Evaluation,
   ImpliedVolatilityIndex,
+  ImpliedVolatilityIndexInput,
   IndicatorSeries,
   IndicatorsInput,
   OperationPricing,
   PortfolioValuation,
+  PriceOperationInput,
   Result,
   RunBacktestInput,
   Score,
   SettlementProposal,
 } from "./api";
-import { pricingModels } from "./api";
+import { ENGINE_VERSION, pricingModels } from "./api";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
+import { computeImpliedVolatilityIndex } from "./internal/implied-volatility-index";
 import { computeIndicators } from "./internal/indicators-computation";
-import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
+import { priceOperation as computePriceOperation } from "./internal/price-operation";
+import { runBacktest as computeRunBacktest } from "./internal/run-backtest";
+import {
+  unsupportedAdjustmentRuleKinds,
+  unsupportedThesisClaimKinds,
+} from "./internal/vocabularies";
 
 const pricingModelKind = pricingModels[0];
 const thesisClaimKind = unsupportedThesisClaimKinds[0];
+const adjustmentRuleKind = unsupportedAdjustmentRuleKinds[0];
 
 function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
   return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
@@ -44,8 +53,15 @@ export const engine: Engine = {
     return Promise.resolve(computeIndicators(input));
   },
 
-  priceOperation(): Promise<Result<OperationPricing>> {
-    return unsupported("pricingModels", pricingModelKind);
+  priceOperation(input: PriceOperationInput): Promise<Result<OperationPricing>> {
+    return Promise.resolve(
+      computePriceOperation(input, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 
   evaluateStrategy(input: EvaluateStrategyInput): Promise<Result<Evaluation>> {
@@ -53,22 +69,31 @@ export const engine: Engine = {
   },
 
   runBacktest(input: RunBacktestInput): Promise<Result<BacktestProgress>> {
-    return unsupported("sizingRules", input.config.strategy.definition.sizing.kind);
+    return Promise.resolve(computeRunBacktest(input));
   },
 
   markToMarket(): Promise<Result<PortfolioValuation>> {
-    return unsupported("pricingModels", pricingModelKind);
+    return unsupported("adjustmentRules", adjustmentRuleKind);
   },
 
   proposeSettlement(): Promise<Result<SettlementProposal>> {
-    return unsupported("pricingModels", pricingModelKind);
+    return unsupported("adjustmentRules", adjustmentRuleKind);
   },
 
   score(): Promise<Result<Score>> {
     return unsupported("thesisClaims", thesisClaimKind);
   },
 
-  impliedVolatilityIndex(): Promise<Result<ImpliedVolatilityIndex>> {
-    return unsupported("pricingModels", pricingModelKind);
+  impliedVolatilityIndex(
+    input: ImpliedVolatilityIndexInput,
+  ): Promise<Result<ImpliedVolatilityIndex>> {
+    return Promise.resolve(
+      computeImpliedVolatilityIndex(input.view, input.underlying, input.at, {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: pricingModelKind,
+        dataVersion: input.view.dataVersion ?? null,
+        datasetNotes: input.view.datasetNotes ?? [],
+      }),
+    );
   },
 };

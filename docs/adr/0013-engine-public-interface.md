@@ -83,10 +83,11 @@ export const ENGINE_VERSION = "0.1.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
-export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital";
+export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital" | "zero_units";
 export const unsizeableReasons = [
   "unbounded_max_loss",
   "no_declared_capital",
+  "zero_units",
 ] as const satisfies readonly UnsizeableReason[];
 
 export type EngineError =
@@ -139,7 +140,9 @@ export type NoteCode =
   | "no_operation"
   | "unbounded_max_loss"
   | "zero_max_loss"
-  | "iv_index_not_bracketed";
+  | "iv_index_not_bracketed"
+  | "risk_free_rate_defaulted"
+  | "negative_cash";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -159,6 +162,8 @@ export const noteCodes = [
   "unbounded_max_loss",
   "zero_max_loss",
   "iv_index_not_bracketed",
+  "risk_free_rate_defaulted",
+  "negative_cash",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1139,7 +1144,12 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   (`from` = the close of the first session the strategy's lookback reaches back to from the
   cursor, `to` = the `period.to` session close), or `complete`. The checkpoint `state` depends
   only on rows with `asOf <=` the cursor session's close; that is the truncation instant of the
-  paused run (I7).
+  paused run (I7). A resumed call's `view.calendar` must be the same calendar the run started
+  with (`market-data` builds it once from the shared reference data and hands it to every chunk);
+  a resumed view missing a candle an open position's mark needs is `insufficient_data`, naming
+  the underlying and session, not a thrown exception, and `resume.schema` must equal the
+  checkpoint schema the engine currently produces, alongside `configDigest` and `engineVersion`,
+  else `checkpoint_mismatch`.
 - Sizing fractions and risk-profile limits apply to the run's current equity;
   `riskProfile.declaredCapital` is ignored inside a run. `config.sizing` overrides the strategy's
   sizing rule when present. Missed entries, warn mode and fill-time failures follow ADR-0014.
@@ -1263,8 +1273,11 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   all in the engine's years), the at-the-money volatility is the implied volatility of the call
   and the put with strike nearest the forward `F = spot * e^((r - q) * T)`, averaged when both
   are visible; the index is `sqrt((w * s1^2 * T1 + (1 - w) * s2^2 * T2) / T30)` with
-  `w = (T2 - T30) / (T2 - T1)` (linear in total variance). `T30` is the sessions from the
-  session of `at` to the date 30 calendar days ahead, over 252. An expiry exactly at 30 days
+  `w = (T2 - T30) / (T2 - T1)` (linear in total variance). `T30` is `(n + (1 - f)) / 252`, the
+  same exact-tenor basis `resolveTimeToExpiryYears` gives every bracket (`n` whole sessions to
+  the date 30 calendar days ahead plus the fraction `f` of the session of `at` already elapsed):
+  a whole-session count here bracketed the same view differently at a session's open than at its
+  close (PR #53 round 3 item 2). An expiry exactly at 30 days
   is used alone. `impliedVolatility` is `null` with note `iv_index_not_bracketed` when fewer
   than two expiries bracket 30 days or no ATM volatility can be solved. Ingestion persists the
   result so `iv_rank` reads it back from `MarketView.impliedVolatilityIndex`.
@@ -1336,7 +1349,11 @@ thrown exception from the engine is a bug.
 Arrays in `MarketView` may arrive in any order; the engine sorts (I3). Duplicate keys (same
 ticker, timeframe and `asOf` for candles; same ticker and `exDate` for corporate-action factors;
 same ticker and session for option prices; same series and date for macro points) are
-`invalid_input`. `since < at`. `resume.configDigest` must equal the digest of `config` and
+`invalid_input`. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
+rejected, because a legitimate re-listing (a strike adjustment, a superseded expiry) always
+advances `asOf`, so a true tie on `(ticker, asOf)` is data noise, not a signal the caller needs
+surfaced; it resolves deterministically to the lower-strike row regardless of array order (PR
+#53 round 4 item 4). `since < at`. `resume.configDigest` must equal the digest of `config` and
 `resume.engineVersion` must equal `ENGINE_VERSION`, else `checkpoint_mismatch`; the caller
 restarts the run from `config` (runs are immutable anyway). `calendar` must cover every session a
 call touches, else `insufficient_data`. `MarketView.dataVersion` and `datasetNotes` are copied
@@ -1377,7 +1394,11 @@ and landing with the first implementation ticket that makes it testable.
   and a run over `[from, to]` with `to > D` produce identical fills and equity curve up to and
   including session D, and identical operations except those still held at D's close: the
   shorter run closes them with reason `period_end` at that close's mark (no fill, no cost, so
-  equity at D agrees), the longer run carries them on. A checkpoint paused at cursor D carries no
+  equity at D agrees modulo the period-end tax sweep), the longer run carries them on. `D` being
+  the shorter run's own `period.to` finalizes and deducts that month's tax there even when the
+  month is not yet over, which the longer run only does at the month's real last session — the
+  two only disagree on `equity`/`cash` at `D` when that month already has a non-zero stock gain
+  or sale by `D`, and only by exactly that tax. A checkpoint paused at cursor D carries no
   information from rows with `asOf` later than D's close.
 
 An eighth test, `capabilities.conformance.test.ts`, asserts that every `kind` reported by
@@ -1404,6 +1425,143 @@ own pt-BR formatter (`apps/web/src/lib/format/brl.ts`), and nothing outside this
 money helpers from `@fetha/engine`. Issue #14 landed the first computation (`capabilities()`,
 `dataWindow()` and `indicators()`, with SMA, EMA, Wilder RSI, Wilder ATR and `iv_rank`), so the
 coverage gate is live from that ticket on, not vacuous.
+
+### #21 addendum: `priceOperation`, `impliedVolatilityIndex` and the option-pricing seam
+
+Issue #21 implements `priceOperation` in full (concrete legs and `LegSelection`, strike and
+expiry selection, sizing) and `impliedVolatilityIndex`, landing the option-pricing seam this ADR
+describes above ("Rates, time and greeks", "`priceOperation`", "Indicators", "`markToMarket`, ...
+`impliedVolatilityIndex`"). Review round 1 (PR #53) surfaced gaps the sections above left
+implicit or wrong; this addendum records what shipped and the rules that came out of the fix.
+
+- **BSM/IV on doubles at the `black-scholes.ts` seam.** ADR-0001 fixes decimal arithmetic for
+  prices, greeks and money everywhere the engine's public types are concerned; it does not reach
+  into a pricing model's internal numerics. `black-scholes.ts` and `implied-volatility.ts` compute
+  entirely in `number` (decimal.js has no closed-form normal CDF/PDF, and Abramowitz & Stegun
+  7.1.26 on doubles is far below the 6-decimal-place scale a `DecimalString` reports at), and
+  convert to `Decimal` only at `option-pricing.ts`'s `priceOptionLeg`, the one seam between this
+  model and the rest of the engine. That seam now guards non-finite output as a last line (a
+  non-positive spot/strike is rejected earlier, at `invalid_input`, so this is defense in depth,
+  not the primary check) rather than let `toDecimalString`'s finiteness invariant throw out of
+  `priceOperation`.
+- **Selection tie-breaks are deterministic.** Nearest-strike and nearest-|delta| selection (both
+  `nearest` and `delta` `StrikeSelection` kinds) break an exact tie by the lower strike, then the
+  lexicographically earlier ticker, never by which candidate a `MarketView` array happens to list
+  first: `MarketView.optionSeries`/`optionPrices` order is not meaningful (I3), so a caller that
+  reshuffles rows before calling must resolve the same operation. Nearest-|delta| selection also
+  now prices every candidate through the same mid/last/close/average ladder pricing itself uses
+  (`resolve-market-price.ts`, shared by `price-operation.ts` and `resolve-leg-selection.ts`)
+  instead of a `.find` over `optionPrices` alone, so a selection and its own pricing a moment
+  later never disagree over which price was "current." On a shared strike rank (a straddle),
+  the two rights disagree exactly at asymmetric delta targets; the governing delta is the
+  first right the structure declares at that rank, never a best-of-both or an average, since
+  both legs must land on one strike.
+- **Time-to-expiry failure is not silently `t = 0`.** A concrete option leg whose listed expiry
+  precedes the session of `at` is `invalid_input` (path `legs.expiry`); one the calendar does not
+  cover (neither `at` nor the expiry date has a session) is `insufficient_data` for `candles`.
+  `resolveLegSelection`'s own time-to-expiry lookup for the strike it already chose cannot fail by
+  construction (the chosen expiry already passed the `business_days` window check against the
+  calendar), so its former silent-zero fallback is an `invariant` now, not a code path a test can
+  reach with well-formed data.
+- **Concrete legs are validated as one operation.** `resolveLegSelection` builds a
+  consistent set of legs by construction; a caller-supplied `LegInput[]` does not. Every
+  stock leg must share the underlying inferred for the operation (the first stock leg's
+  ticker, or the first option leg's listed underlying); every option leg must share one
+  listed expiry — both `invalid_input` (path `legs`). A leg with no listed series is still
+  `missing_instrument`, reported by its own valuation, not by this check.
+- **Sizing: `zero_units` and the net-credit divisor.** `UnsizeableReason` gains `zero_units`
+  (additive, `api.ts` and the frozen block above updated together): a `SizingRule` that would
+  otherwise size to fewer than one unit is unsizeable, per "Quantity" above ("fewer than one
+  unit is unsizeable") — it is never clamped up to one unit, the bug round 1 found. A
+  `fixed_fractional` quantity on a net-credit structure (`netPremium > 0`, premium received)
+  sizes against the structure's bounded max loss, not the premium received, which understated the
+  capital actually at risk on a credit spread; an unbounded max loss on a net-credit
+  `fixed_fractional` structure is `unsizeable` (`unbounded_max_loss`), the same reading
+  `fixed_risk` already gave a naked short option. `zero_units` currently conflates two
+  distinct reasons — a genuinely zero max loss or premium, and a positive per-unit cost the
+  declared capital and fraction cannot afford one unit of — pending a `UnsizeableReason`
+  member for the unaffordable-budget case
+  ([issue #59](https://github.com/fernandolisboa/fetha/issues/59)).
+- **Spot precedence matches leg precedence.** The underlying's own spot and a leg's own price
+  both resolve `mid` (bid/ask average) before `last`, `last` before a day's `close`, `close`
+  before `average` — one ladder, not two, so a leg that happens to be the underlying itself prices
+  the same way whether it is read as "the spot" or "a leg."
+- **`risk_free_rate_defaulted`.** A visible `cdi` point's absence is now a note (additive
+  `NoteCode`, `api.ts` and the frozen block updated together) alongside the existing
+  `dividend_yield_defaulted`, so a caller can tell the continuous rate was assumed zero rather
+  than read from `MarketView.macro`. An `annualRate`/`annualYield` at or below -1 (which would
+  make the continuous-rate conversion's `ln()` throw) is `invalid_input` before conversion.
+- **`iv_not_converged` also covers a spuriously "matched" price.** A price within
+  `PRICE_TOLERANCE` (1e-8) of the model's price at some sigma is not, on its own, evidence
+  that sigma is pinned by the price: deep in/out of the money near expiry, price is
+  near-flat across almost the whole `[1e-4, 5]` sigma domain, so bisection can satisfy the
+  tolerance inside a bracket that never meaningfully narrowed. `solveImpliedVolatilityRaw`
+  now also requires, at the accepted sigma: local vega ≥ 1e-3 (raw, pre-scaling), and the
+  price spanned by the accepted bracket's own endpoints (`|price(high) - price(low)|`) ≥
+  1e-4. Both thresholds sit two orders of magnitude below well-conditioned fixtures
+  (vega ~5-10, bracket price width ~0.8-1.5) and two above the near-intrinsic case the
+  fix's test uses (vega <1e-3, bracket price width <1e-4).
+- **`impliedVolatilityIndex` is implemented**, per "`markToMarket`, ..., `impliedVolatilityIndex`,
+  `dataWindow`" above: `atm_30d_variance_interpolated`, bracketing the 30-calendar-day point
+  between the two nearest listed expiries (or using one that lands on it exactly) and
+  interpolating linearly in total variance. `markToMarket` and `proposeSettlement` are still
+  unimplemented, but no longer misreport `"pricingModels"` as the reason (BSM is implemented, by
+  `priceOperation` and now `impliedVolatilityIndex`); they report `"adjustmentRules"` instead
+  (`capabilities().adjustmentRules` is genuinely empty), with `unsupportedAdjustmentRuleKinds[0]`
+  as the `kind`, the same pattern `score()` already used for `thesisClaims`.
+- **A sizing preview values legs, not a whole operation.** `resolveSizingUnits` used to call
+  the same `priceConcreteLegs` a real pricing pass calls, built a full `OperationPricing`
+  around it with an empty, fabricated `Provenance`, and — because `priceConcreteLegs`
+  resolved the risk-free rate and dividend yield itself — resolved both a second and (once
+  more, for the final pricing pass) a third time in one `priceOperation` call over a
+  `LegSelection`. `valueLegs` now does exactly the per-leg valuation, notes and net premium
+  a preview or a full pricing pass shares; `resolveOperationRates` resolves the rate and
+  yield once per call and both `priceSelection` and the concrete-legs path thread the
+  result through `resolveSizingUnits` and `priceConcreteLegs` rather than re-resolving.
+- **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
+  `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
+  with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+
+### #16 addendum: `runBacktest` for stock-only strategies
+
+Issue #16 implements `runBacktest` for the same stock-only subset #15 implements in
+`evaluateStrategy`, and reuses `evaluateStrategy` itself as the sole source of entry and exit
+decisions inside the run: each session's signals come from one `evaluateStrategy` call at that
+session's close, with the run's own `openOperations` and a synthetic `riskProfile` whose
+`declaredCapital` is the run's current equity (never the config's, per "Sizing and risk" above).
+`runBacktest` is therefore a scheduler and accounting layer around the evaluator, not a second
+decision engine, so live and backtest reconcile by construction rather than by parallel
+implementation. Gaps the "Semantics" section above left implicit, resolved conservatively:
+
+- **Daily-only in v1.** The "Fills" section describes both a daily and an intraday fill model, but
+  intraday fills need option fair-value pricing (`fair_value`, ADR-0011/ADR-0014) that #21 has not
+  landed yet, and stock-only intraday backtesting was not asked for by this ticket. `runBacktest`
+  refuses any `strategy.definition.timeframe !== "D1"` with `invalid_input` at
+  `config.strategy.definition.timeframe`, naming the v1 daily-only scope: the timeframe is a
+  scheduling restriction this ticket imposes, not a `kind` `capabilities()` reports as a vocabulary
+  member, so `unsupported` (reserved for a member `capabilities()` names and then refuses) is the
+  wrong code here. Lifting this is additive (a new fill path, no signature change) once #21 lands.
+- **Exit-fill retry has no cap, and a stranded entry retry is finalized at `period.to`.** These
+  are permanent rules, not #16-scope stopgaps, so they are recorded in ADR-0014 as Q52 and Q53
+  rather than here.
+- **A calendar month gap never leaves a tax deduction unpaid.** The deduction scheduled after a
+  month finalizes is paid on that month's own last session in `periodSessions` — whichever
+  session follows it in the run, gap or not — so a month transition never finds one still
+  pending, real ANBIMA calendar or a synthetic gap alike; `run-backtest.ts` asserts this as an
+  invariant rather than guarding it defensively.
+- **v1 has no cash constraint.** Sizing already keeps an entry inside the run's current equity,
+  but costs, slippage and taxes are charged on top of it and can still push `cash` below zero
+  (a large fixed brokerage fee against a small position, for instance). A run does not refuse or
+  clamp this; it is recorded once, additively, as note `negative_cash` on the run
+  ("cash went below zero during the run; v1 has no cash constraint") when any `EquityPoint.cash`
+  in the run is negative. A margin or buying-power constraint is a future ticket, not a #16 gap.
+- **A non-positive equity is clamped to a positive sizing budget, not refused.** The synthetic
+  `riskProfile.declaredCapital` fed to each session's `evaluateStrategy` call is
+  `max(equity, 1)`: `declaredCapital` is a `Centavos` and cannot be zero or negative, and a run
+  whose equity has gone non-positive must still be able to call `evaluateStrategy` for the
+  remaining sessions rather than fail outright. The run records this once, additively, as note
+  `non_positive_equity` on the run ("equity was non-positive at least once during the run and was
+  clamped to a positive sizing budget") whenever the clamp changed the value at least once.
 
 ## Considered options
 

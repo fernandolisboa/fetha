@@ -37,7 +37,10 @@ _Avoid_: resolution, interval, period (reserved for the backtest date range)
 
 **Reference data**:
 Market data shared by all users and read-only to them: daily candles, option series, daily
-option prices, macro series and the trading calendar, ingested from public B3 and Bacen sources.
+option prices, corporate-action factors, macro series and the trading calendar, ingested from
+public B3 and Bacen sources. Corporate-action factor recording from labeled events is tracked
+as a follow-up (#50, ADR-0017); the table exists and is read by the engine (ADR-0013) but no
+current ingestion source writes to it.
 _Avoid_: shared data, public data
 
 **Intraday tier**:
@@ -210,6 +213,15 @@ simulated operations and fills, the daily equity curve and the metrics. Runs are
 running again creates a new run.
 _Avoid_: simulation, test, replay
 
+**Checkpoint**:
+The paused state of a backtest run that has not yet reached `period.to`: a `configDigest` tying
+it to the exact config that produced it, a cursor session and everything the run needs to resume
+from there. Depends only on rows visible by the cursor session's close (ADR-0013's I7), so a
+chunked run and one uninterrupted call over the same period agree (I2). Valid only for the
+`configDigest`, `engineVersion` and checkpoint schema that produced it, and only when resumed
+with the same calendar the run started with; anything else is `checkpoint_mismatch`.
+_Avoid_: snapshot, save state, resume token
+
 **Universe**:
 The set of instruments a backtest run evaluates the strategy over.
 _Avoid_: watchlist (that is the live list), basket
@@ -356,3 +368,14 @@ The record that a user accepted the terms of use and privacy policy at registrat
 version accepted and the timestamp. Append-only: a later terms version adds a new row, never
 overwrites one.
 _Avoid_: consent, agreement
+
+**Magic link**:
+A one-time, time-limited link that signs an existing, already-registered user in without a
+password. Sign-in only: clicking it never creates a new account, so it cannot be used to bypass
+terms/privacy acceptance or `REGISTRATION_MODE` (ADR-0018). pt-BR: "link mágico".
+_Avoid_: passwordless login, one-time login link
+
+**Password reset**:
+The flow that lets a user set a new password after proving control of their email through a
+one-time link, revoking every session that predates the reset (ADR-0018).
+_Avoid_: forgot password, password recovery

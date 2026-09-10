@@ -17,8 +17,13 @@ import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { computeIndicators } from "../internal/indicators-computation";
 import { assertDefined } from "../internal/invariant";
 import { instantMs } from "../internal/instant";
+import { runBacktest } from "../internal/run-backtest";
 import { centavos, decimalString, quantity } from "../test/support";
-import { candlePriceArbitrary, candleSeriesArbitrary } from "./arbitraries";
+import {
+  candlePriceArbitrary,
+  candleSeriesArbitrary,
+  longBacktestFixtureArbitrary,
+} from "./arbitraries";
 
 const riskProfile = {
   declaredCapital: centavos(1_000_000_00),
@@ -473,4 +478,79 @@ describe("I1 Future-blind — evaluateStrategy's inner evaluation instants", () 
     );
     expect(sawAtLeastOneSignal).toBe(true);
   });
+});
+
+describe("I1 Future-blind — runBacktest", () => {
+  it("appending a candle and a corporate-action factor with asOf after the run's period.to close never changes the run", () => {
+    fc.assert(
+      fc.property(longBacktestFixtureArbitrary, (fixture) => {
+        const lastSession = assertDefined(
+          fixture.calendar.at(-1),
+          "test setup: non-empty calendar",
+        );
+        const firstSession = assertDefined(fixture.calendar[0], "test setup: non-empty calendar");
+        const view = (
+          extraCandles: Candle[],
+          extraFactors: CorporateActionFactor[],
+        ): MarketView => ({
+          calendar: fixture.calendar,
+          candles: [...fixture.candles, ...extraCandles],
+          corporateActions: extraFactors,
+          optionSeries: [],
+          optionPrices: [],
+          quotes: [],
+          macro: [
+            {
+              series: "cdi",
+              date: firstSession.date,
+              asOf: firstSession.open,
+              annualRate: fixture.cdiAnnualRate,
+            },
+          ],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        });
+
+        const baseResult = runBacktest({ view: view([], []), config: fixture.config });
+
+        const futureCandle: Candle = {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2099-01-01",
+          asOf: asOfPlusMs(lastSession.close, 1),
+          open: decimalString("999.00"),
+          high: decimalString("999.00"),
+          low: decimalString("999.00"),
+          close: decimalString("999.00"),
+          tradedQuantity: 1,
+        };
+        const futureFactor: CorporateActionFactor = {
+          ticker: "PETR4",
+          exDate: firstSession.date,
+          asOf: asOfPlusMs(lastSession.close, 1),
+          factor: decimalString("0.5"),
+        };
+        const extendedResult = runBacktest({
+          view: view([futureCandle], [futureFactor]),
+          config: fixture.config,
+        });
+
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.status !== "complete" || extendedResult.value.status !== "complete") {
+          throw new Error("expected both runs to complete");
+        }
+
+        const stripTruncated = (run: typeof baseResult.value.run) => ({
+          ...run,
+          provenance: { ...run.provenance, truncated: [] },
+        });
+        expect(stripTruncated(extendedResult.value.run)).toEqual(
+          stripTruncated(baseResult.value.run),
+        );
+      }),
+      { numRuns: 8 },
+    );
+  }, 30_000);
 });

@@ -4,6 +4,13 @@ import type { MarketView } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
 import { priceStockLegs, type StockLegInput } from "./stock-pricing";
 
+function priceStockLegsOk(input: Parameters<typeof priceStockLegs>[0]) {
+  const result = priceStockLegs(input);
+  if (!result.ok)
+    throw new Error(`expected priceStockLegs to succeed: ${JSON.stringify(result.error)}`);
+  return result.value;
+}
+
 const emptyView: MarketView = {
   calendar: [],
   candles: [],
@@ -36,7 +43,7 @@ const longLeg: StockLegInput[] = [
 
 describe("priceStockLegs", () => {
   it("prices a single long stock leg with bounded max loss and unbounded max gain", () => {
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -56,7 +63,7 @@ describe("priceStockLegs", () => {
   });
 
   it("prices a single short stock leg with bounded max gain and unbounded max loss", () => {
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -79,7 +86,7 @@ describe("priceStockLegs", () => {
   });
 
   it("uses the explicit spot input rather than deriving it from a leg's entry price", () => {
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("30.00"),
@@ -100,7 +107,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -132,7 +139,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -154,7 +161,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("0.1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -180,7 +187,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("0.0001"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -226,7 +233,7 @@ describe("priceStockLegs", () => {
         },
       ],
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -251,7 +258,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -288,7 +295,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -317,7 +324,7 @@ describe("priceStockLegs", () => {
         maxPremiumBought: decimalString("0.1"),
       },
     };
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -330,7 +337,7 @@ describe("priceStockLegs", () => {
   });
 
   it("has zero max loss and max gain, and no break-evens, for a delta-neutral pair of legs", () => {
-    const pricing = priceStockLegs({
+    const pricing = priceStockLegsOk({
       at: "2024-01-10T20:00:00.000Z",
       underlying: "PETR4",
       spot: decimalString("25.00"),
@@ -358,5 +365,54 @@ describe("priceStockLegs", () => {
     expect(pricing.maxLoss).toBe(centavos(0));
     expect(pricing.maxGain).toBe(centavos(0));
     expect(pricing.breakEvens).toEqual([]);
+  });
+
+  it("returns invalid_input, never a silent zero default, when the visible cdi rate is at or below -1 (round 4 item 3)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      macro: [
+        {
+          series: "cdi",
+          date: "2024-01-01",
+          asOf: "2024-01-10T20:00:00.000Z",
+          annualRate: decimalString("-1.00"),
+        },
+      ],
+    };
+    const result = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: longLeg,
+      view,
+      provenanceBase,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("returns invalid_input, never a silent zero default, when the visible dividend yield is at or below -1 (round 4 item 3)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      dividendYields: [
+        {
+          underlying: "PETR4",
+          asOf: "2024-01-10T20:00:00.000Z",
+          annualYield: decimalString("-1.00"),
+        },
+      ],
+    };
+    const result = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: longLeg,
+      view,
+      provenanceBase,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 });

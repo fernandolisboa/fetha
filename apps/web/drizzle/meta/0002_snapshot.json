@@ -1,5 +1,5 @@
 {
-  "id": "cc108bf5-cac3-4e59-8d90-651063f25661",
+  "id": "be90d4bd-de6a-4f95-a632-7769174fb40d",
   "prevId": "cb0f10c6-e87b-467d-9503-196a6299138e",
   "version": "7",
   "dialect": "postgresql",
@@ -562,8 +562,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.strategies": {
-      "name": "strategies",
+    "public.rate_limits": {
+      "name": "rate_limits",
       "schema": "",
       "columns": {
         "id": {
@@ -572,237 +572,37 @@
           "primaryKey": true,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'private'"
-        },
-        "copied_from_strategy_id": {
-          "name": "copied_from_strategy_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "strategies_user_id_idx": {
-          "name": "strategies_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "strategies_user_id_user_id_fk": {
-          "name": "strategies_user_id_user_id_fk",
-          "tableFrom": "strategies",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "strategies_copied_from_strategy_id_strategies_id_fk": {
-          "name": "strategies_copied_from_strategy_id_strategies_id_fk",
-          "tableFrom": "strategies",
-          "tableTo": "strategies",
-          "columnsFrom": [
-            "copied_from_strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "strategies_visibility_check": {
-          "name": "strategies_visibility_check",
-          "value": "\"strategies\".\"visibility\" in ('private', 'shared')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.strategy_versions": {
-      "name": "strategy_versions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "strategy_id": {
-          "name": "strategy_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version_number": {
-          "name": "version_number",
+        "count": {
+          "name": "count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "definition": {
-          "name": "definition",
-          "type": "jsonb",
+        "last_request": {
+          "name": "last_request",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
-        },
-        "definition_digest": {
-          "name": "definition_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "strategy_versions_strategy_id_version_number_idx": {
-          "name": "strategy_versions_strategy_id_version_number_idx",
-          "columns": [
-            {
-              "expression": "strategy_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "version_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "strategy_versions_strategy_id_idx": {
-          "name": "strategy_versions_strategy_id_idx",
-          "columns": [
-            {
-              "expression": "strategy_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "strategy_versions_strategy_id_strategies_id_fk": {
-          "name": "strategy_versions_strategy_id_strategies_id_fk",
-          "tableFrom": "strategy_versions",
-          "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.structures": {
-      "name": "structures",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legs": {
-          "name": "legs",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "rate_limits_key_unique": {
+          "name": "rate_limits_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
