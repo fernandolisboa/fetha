@@ -146,7 +146,8 @@ export type NoteCode =
   | "settlement_pending"
   | "settlement_costs_not_modeled"
   | "less_than_one_effective_unit"
-  | "stale_price_across_corporate_action";
+  | "stale_price_across_corporate_action"
+  | "option_strike_unadjusted_across_corporate_action";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -172,6 +173,7 @@ export const noteCodes = [
   "settlement_costs_not_modeled",
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
+  "option_strike_unadjusted_across_corporate_action",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1685,6 +1687,39 @@ now the vocabulary and the evaluator agree everywhere a caller can check.
   and `unsupportedExitRuleKinds` are all empty. `unsupportedAdjustmentRuleKinds` (`roll`) is
   unchanged: a `roll` adjustment needs its own settlement-and-reopen semantics in `runBacktest`,
   tracked separately from #23.
+- **Round 1 hardening, briefly.** `runBacktest` mark, tax-timing and fill gaps: a settlement's
+  residual stock is marked in equity while pending (`computeMarkValue`, item 1); a pending exit
+  superseded by settlement is dropped, not left to throw on the next session (item 2); settlement
+  fill costs fold into `pnlSoFar`, not just `metrics.fees` (item 3); option fills apply
+  `optionSlippageRate` and `brokerage.optionPerContract`, and `metrics.slippage` sums real option
+  slippage (item 4); the final session's own settlement and period-end sweep run, and fold their
+  gain into `currentMonthStockGain`, before that same session's month is finalized — and the
+  equity point recorded after, against the pre-tax mark but post-tax cash, or the final tax
+  deduction would silently drop out of the equity curve (item 5); a settlement's stock leg
+  rebases through the same corporate-action factor an open mark or a stock-leg exit already do
+  (item 6); an expired operation whose residual was only marked, not traded, at `period_end` is
+  now excluded from `winRate`/`profitFactor` via `SimulatedOperation.residualSettledBy` the same
+  way a `period_end` close already is (item 7); `evaluateStrategy`'s exit-rule bases go through
+  one pricing path (`priceLegsAt`, once #25 landed `priceConcreteLegs`/`resolveOperationRates`
+  un-exported) instead of a second ladder, resolved per catch-up instant rather than once at the
+  batch's own `at`, and priced against the underlying's real current spot rather than the first
+  leg's own entry price (items 8, 13); `ENGINE_VERSION` bumped to `0.2.0` for the additive
+  `residualSettledBy` field, with `residualQuantity` validated as a safe integer on resume (item
+  12); settlement requires the expiry session's own close, never a stale one (item 14); an
+  unresolved option series at fill time is `missing_instrument`, not a silently null `expiry`
+  (item 15); `missingMarkError`'s `collections` follow the leg's own role (item 16).
+  - **`optionGain` is now its own bucket** (superseding the "known simplification" above):
+    `currentMonthOptionGain` accumulates a worthless-expiring option leg's own premium loss or
+    gain and an ordinary pre-expiry option-leg exit's own pnl; an exercised or assigned leg's
+    premium still folds into the stock trade it produced, staying in `stockGain`, per ADR-0013
+    "Taxes" (item 11).
+  - **Known gap, disclosed rather than fixed here: no option-series rollover across a corporate
+    action.** A real split forces a re-listed, exchange-adjusted option series (a new ticker,
+    Q51), which the engine has no way to resolve yet — settlement still reads an option leg's
+    original ticker and unadjusted listed strike against the underlying's adjusted close. Flagged
+    once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
+    settlement sees a non-trivial split factor on an operation with an option leg, rather than
+    refused (item 18); tracked in issue #69.
 
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 

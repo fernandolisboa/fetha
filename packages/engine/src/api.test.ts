@@ -261,6 +261,7 @@ describe("closed vocabularies", () => {
       "settlement_costs_not_modeled",
       "less_than_one_effective_unit",
       "stale_price_across_corporate_action",
+      "option_strike_unadjusted_across_corporate_action",
     ]);
   });
 

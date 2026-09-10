@@ -75,10 +75,15 @@ type SlippageEntry = { session: SessionDate; amount: Centavos };
 // vertical with both legs in the money). residualQuantity is what does not net out (ADR:
 // "residual stock ... is closed at the next session's open"), signed (+long/-short),
 // residualAvgCost its cost basis; both are meaningless when residualQuantity is zero.
+// optionGainSoFarCentavos is the slice of pnlSoFar contributed by a worthless-expiring option
+// leg (ADR-0013 "Taxes" optionGain bucket, item 11 round 1): the rest of pnlSoFar — matched
+// stock netting and an exercised/assigned leg's own premium — stays in the stock bucket, since
+// that premium folds into the stock trade the exercise or assignment produced.
 type PendingSettlement = {
   op: Operation;
   settlement: LegSettlement[];
   pnlSoFar: number;
+  optionGainSoFarCentavos: number;
   residualQuantity: number;
   residualAvgCostCentavos: number;
   expirySession: SessionDate;
@@ -108,10 +113,19 @@ type BacktestState = {
   currentMonthKey: string | null;
   currentMonthStockSales: number;
   currentMonthStockGain: number;
+  currentMonthOptionGain: number;
   taxesFinalized: MonthlyTax[];
   pendingTaxDeduction: { monthKey: string; tax: number } | null;
   operationSeq: number;
   equityClampEngaged: boolean;
+  // Q51 guard (item 18, round 1): a real corporate action forces a re-listed, exchange-
+  // adjusted option series with its own new ticker (ADR-0014 Q51's "only a stock leg's own
+  // ticker persists unchanged"), which a caller-supplied view has no way to signal today —
+  // the engine has no series-rollover concept yet. Set once a settlement sees a non-trivial
+  // split factor on an operation carrying an option leg, so the run can flag that its
+  // settlement compared the underlying's adjusted close against that leg's unadjusted listed
+  // strike, until a follow-up ticket adds real rollover handling.
+  optionStrikeAcrossCorporateActionNoted: boolean;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -136,10 +150,12 @@ function initialState(initialCapital: Centavos): BacktestState {
     currentMonthKey: null,
     currentMonthStockSales: 0,
     currentMonthStockGain: 0,
+    currentMonthOptionGain: 0,
     taxesFinalized: [],
     pendingTaxDeduction: null,
     operationSeq: 0,
     equityClampEngaged: false,
+    optionStrikeAcrossCorporateActionNoted: false,
   };
 }
 
@@ -170,6 +186,7 @@ function isValidPendingSettlement(value: unknown): boolean {
     isPlainObject(value.op) &&
     Array.isArray(value.settlement) &&
     Number.isFinite(value.pnlSoFar) &&
+    Number.isFinite(value.optionGainSoFarCentavos) &&
     Number.isSafeInteger(value.residualQuantity) &&
     Number.isFinite(value.residualAvgCostCentavos) &&
     typeof value.expirySession === "string"
@@ -220,12 +237,14 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     "runningPeak",
     "currentMonthStockSales",
     "currentMonthStockGain",
+    "currentMonthOptionGain",
     "operationSeq",
   ] as const;
   if (numberFields.some((field) => !Number.isFinite(raw[field]))) return false;
 
   if (typeof raw.currentMonthKey !== "string" && raw.currentMonthKey !== null) return false;
   if (typeof raw.equityClampEngaged !== "boolean") return false;
+  if (typeof raw.optionStrikeAcrossCorporateActionNoted !== "boolean") return false;
   if (raw.pendingTaxDeduction !== null) {
     if (!isPlainObject(raw.pendingTaxDeduction)) return false;
     if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
@@ -740,11 +759,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       monthKey,
       toCentavos(state.currentMonthStockSales),
       toCentavos(state.currentMonthStockGain),
+      toCentavos(state.currentMonthOptionGain),
       config.costModel,
     );
     state.taxesFinalized.push(tax);
     state.currentMonthStockSales = 0;
     state.currentMonthStockGain = 0;
+    state.currentMonthOptionGain = 0;
   }
 
   // Step 1: resolve pending entry fills targeting this session's open. evaluateStrategy
@@ -928,7 +949,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.date,
         session.close,
       );
-      let pnl = new Decimal(0);
+      // Split by leg role (item 11, round 1): an option leg closed before expiry — never
+      // exercised or assigned, so never folded into a stock trade — is its own taxable
+      // result, ADR-0013's optionGain bucket; a stock leg's own pnl stays in stockGain.
+      let stockPnl = new Decimal(0);
+      let optionPnl = new Decimal(0);
       for (let legIndex = 0; legIndex < op.legs.length; legIndex += 1) {
         const leg = assertDefined(op.legs[legIndex], "run-backtest: legIndex within bounds");
         const legFill = assertDefined(legFills[legIndex], "run-backtest: legIndex within bounds");
@@ -960,7 +985,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             operationId: op.id,
             source: legFill.source,
           });
-          pnl = pnl
+          optionPnl = optionPnl
             .add(legPnlCentavos(leg, legFill.price, splitFactor))
             .sub(costs)
             .sub(entryCost);
@@ -1008,13 +1033,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           state.cash += (exitSide === "sell" ? 1 : -1) * residueGross;
           if (exitSide === "sell") state.currentMonthStockSales += residueGross;
         }
-        pnl = pnl
+        stockPnl = stockPnl
           .add(legPnlCentavos(leg, legFill.price, splitFactor))
           .sub(costs)
           .sub(entryCost);
       }
-      const pnlCentavos = toCentavos(pnl.round().toNumber());
-      state.currentMonthStockGain += pnlCentavos;
+      const pnlCentavos = toCentavos(stockPnl.add(optionPnl).round().toNumber());
+      state.currentMonthStockGain += stockPnl.round().toNumber();
+      state.currentMonthOptionGain += optionPnl.round().toNumber();
       const pendingExit = assertDefined(
         state.pendingExits[opId],
         "run-backtest: opId is a key of pendingExits in this loop",
@@ -1110,7 +1136,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         .add(pending.pnlSoFar)
         .round()
         .toNumber();
-      state.currentMonthStockGain += residualPnl;
+      // The residual close itself (a stock trade) and pending.pnlSoFar's exercised/assigned
+      // slice both stay in stockGain; only the worthless-leg slice carried in pnlSoFar,
+      // already isolated at settlement time, is optionGain (item 11, round 1).
+      state.currentMonthStockGain += residualPnl - pending.optionGainSoFarCentavos;
+      state.currentMonthOptionGain += pending.optionGainSoFarCentavos;
       finalizeSettlement(pending, residualPnl, pending.expirySession, "trade");
       Reflect.deleteProperty(state.pendingSettlements, opId);
     }
@@ -1155,9 +1185,24 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.date,
         session.close,
       );
+      // Q51 guard (item 18, round 1): a factor other than 1 on an operation with an option
+      // leg means a real corporate action was visible over this leg's life, but the engine
+      // has no series-rollover concept to re-list that leg's strike against — it settles the
+      // adjusted underlying close against the leg's own unadjusted listed strike as if
+      // nothing happened. Flagged once, run-wide, rather than refused: the same fixtures this
+      // ADR's #23 addendum already exercises never carry a corporate action, so this is a
+      // documented gap, not a reachable regression today.
+      if (!splitFactor.eq(1) && op.legs.some((leg) => leg.role !== "stock")) {
+        state.optionStrikeAcrossCorporateActionNoted = true;
+      }
 
       const settlement: LegSettlement[] = [];
       let optionsPnl = new Decimal(0);
+      // The worthless-leg slice of optionsPnl (item 11, round 1): never folded into a stock
+      // trade (nothing is exercised or assigned), so it is the operation's own optionGain,
+      // not stockGain — unlike an exercised/assigned leg's premium, which stays in optionsPnl
+      // and folds into the stock trade the exercise or assignment produced.
+      let worthlessOptionPnl = new Decimal(0);
       let buyQty = new Decimal(0);
       let buyCost = new Decimal(0);
       let sellQty = new Decimal(0);
@@ -1210,14 +1255,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // worthless or is exercised/assigned: the intrinsic value it carries shows up
         // entirely in the stock trade the exercise/assignment produces, never twice (ADR-0014
         // "Taxes", extended here to the operation's own pnl).
-        optionsPnl = optionsPnl.sub(
-          new Decimal(leg.side === "buy" ? 1 : -1)
-            .mul(parseDecimal(leg.entryPrice))
-            .mul(CENTAVOS_PER_REAL)
-            .mul(leg.quantity),
-        );
+        const legPremiumPnl = new Decimal(leg.side === "buy" ? 1 : -1)
+          .mul(parseDecimal(leg.entryPrice))
+          .mul(CENTAVOS_PER_REAL)
+          .mul(leg.quantity)
+          .neg();
+        optionsPnl = optionsPnl.add(legPremiumPnl);
 
         if (!inTheMoney) {
+          worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl);
           settlement.push({
             leg: leg as OperationLeg & { role: "call" | "put" },
             outcome: "expired_worthless",
@@ -1278,15 +1324,18 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
       const pnlSoFar = optionsPnl.add(matchedPnl).sub(sumCentavos(entryCosts)).sub(settlementCosts);
 
+      const optionGainSoFarCentavos = worthlessOptionPnl.round().toNumber();
       const residualQuantity = buyQty.sub(sellQty).round().toNumber();
       if (residualQuantity === 0) {
         const pnlSoFarCentavos = pnlSoFar.round().toNumber();
-        state.currentMonthStockGain += pnlSoFarCentavos;
+        state.currentMonthStockGain += pnlSoFarCentavos - optionGainSoFarCentavos;
+        state.currentMonthOptionGain += optionGainSoFarCentavos;
         finalizeSettlement(
           {
             op,
             settlement,
             pnlSoFar: 0,
+            optionGainSoFarCentavos: 0,
             residualQuantity: 0,
             residualAvgCostCentavos: 0,
             expirySession: session.date,
@@ -1300,6 +1349,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           op,
           settlement,
           pnlSoFar: pnlSoFar.round().toNumber(),
+          optionGainSoFarCentavos,
           residualQuantity,
           residualAvgCostCentavos: (residualQuantity > 0 ? avgBuyPrice : avgSellPrice)
             .round()
@@ -1520,8 +1570,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // Only pnlSoFar is a real, already-filled trade (the settlement's exercise or
       // assignment); the residual's own mark here is a valuation, not a trade, and is not
       // a taxable event (ADR-0013 "Simulated operations", the same rule a period_end
-      // close already follows for a stock-only run).
-      state.currentMonthStockGain += pending.pnlSoFar;
+      // close already follows for a stock-only run). Split the same way the deferred
+      // residual-close fold above does (item 11, round 1): the worthless-leg slice is
+      // optionGain, the rest (matched netting, an exercised/assigned leg's own premium)
+      // is stockGain.
+      state.currentMonthStockGain += pending.pnlSoFar - pending.optionGainSoFarCentavos;
+      state.currentMonthOptionGain += pending.optionGainSoFarCentavos;
       finalizeSettlement(pending, residualPnl, pending.expirySession, "period_end");
       Reflect.deleteProperty(state.pendingSettlements, opId);
     }
@@ -1731,6 +1785,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       code: "non_positive_equity",
       message:
         "equity was non-positive at least once during the run and was clamped to a positive sizing budget",
+    });
+  }
+  if (state.optionStrikeAcrossCorporateActionNoted) {
+    notes.push({
+      code: "option_strike_unadjusted_across_corporate_action",
+      message:
+        "a corporate action was visible on an operation with an option leg; settlement compared the underlying's adjusted close against that leg's own unadjusted listed strike (no series-rollover support yet)",
     });
   }
 
