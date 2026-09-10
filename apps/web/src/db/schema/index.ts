@@ -7,3 +7,4 @@ export * from "./rate-limits";
 export * from "./strategies";
 export * from "./structures";
 export * from "./terms-acceptances";
+export * from "./watchlist";
