@@ -329,4 +329,100 @@ describe("buildOperationMarketView", () => {
       },
     ]);
   });
+
+  it("excludes a series that expired long before the calendar window instead of accumulating every ticker ever listed (PR #76 round 2 item 5)", async () => {
+    const underlying = uniqueTicker("OLD");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-09-01", 40);
+    const atSession = sessions[sessions.length - 1];
+    if (!atSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const longExpiredTicker = `${underlying}OLD1`;
+    const currentTicker = `${underlying}NEW1`;
+    const longExpiredExpiry = sessions[1];
+    const currentExpiry = sessions[sessions.length - 2];
+    const firstSession = sessions[0];
+    if (!longExpiredExpiry || !currentExpiry || !firstSession) {
+      throw new Error("fixture setup failed");
+    }
+
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${underlying}-LONG-GONE`,
+        ticker: longExpiredTicker,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry: longExpiredExpiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+      {
+        isin: `ISIN-${underlying}-CURRENT`,
+        ticker: currentTicker,
+        underlying,
+        right: "call",
+        strike: "12.00000000",
+        expiry: currentExpiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+    ]);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const view = await buildOperationMarketView(db, underlying, at);
+
+    expect(view.optionSeries.some((series) => series.ticker === longExpiredTicker)).toBe(false);
+    expect(view.optionSeries.some((series) => series.ticker === currentTicker)).toBe(true);
+  });
+
+  it("does not pull an option's only price row from long before the calendar window (PR #76 round 2 item 5)", async () => {
+    const underlying = uniqueTicker("OLP");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}A100`;
+
+    const sessions = businessDays("2099-10-01", 40);
+    const atSession = sessions[sessions.length - 1];
+    if (!atSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const expiry = sessions[sessions.length - 2];
+    const veryOldSession = sessions[0];
+    if (!expiry || !veryOldSession) throw new Error("fixture setup failed");
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-CUR`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${veryOldSession}T13:00:00.000Z`),
+    });
+
+    await ensureMonthlyPartition(db, "option_daily_prices", veryOldSession);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: veryOldSession,
+      asOf: new Date(`${veryOldSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      average: "9.000000",
+      close: "9.000000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const view = await buildOperationMarketView(db, underlying, at);
+
+    const prices = view.optionPrices.filter((price) => price.ticker === optionTicker);
+    expect(prices).toHaveLength(0);
+  });
 });

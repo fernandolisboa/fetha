@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
 import {
   decimalStringSchema,
@@ -70,11 +70,32 @@ export async function buildOperationMarketView(
 ): Promise<MarketView> {
   const atDate = new Date(at);
 
+  // The trailing edge of the calendar window, computed once up front so the
+  // option series and price queries below can bound themselves by it: with
+  // no floor, `optionSeries` accumulates every ticker this underlying has
+  // ever listed and `optionDailyPrices` scans every session it was ever
+  // priced on (PR #76 round 2 item 5). A structure's furthest expiry can
+  // still extend the calendar forward past this floor (below); it can never
+  // move the floor itself, which only depends on `at`.
+  const pastCalendarRows = await calendarWindowThroughExpiry(
+    db,
+    atDate,
+    CALENDAR_WINDOW_SESSIONS,
+    null,
+  );
+  const calendarFloor = pastCalendarRows[0]?.date;
+
   const [seriesRows, candleRows, cdiRow, corporateActionRows] = await Promise.all([
     db
       .select()
       .from(optionSeries)
-      .where(and(eq(optionSeries.underlying, underlying), lte(optionSeries.asOf, atDate))),
+      .where(
+        and(
+          eq(optionSeries.underlying, underlying),
+          lte(optionSeries.asOf, atDate),
+          ...(calendarFloor ? [gte(optionSeries.expiry, calendarFloor)] : []),
+        ),
+      ),
     db
       .select()
       .from(candles)
@@ -140,18 +161,24 @@ export async function buildOperationMarketView(
   }
 
   const optionTickers = [...latestSeriesByTicker.keys()];
+  // Collapsed to one row per ticker in SQL (the latest session on or
+  // before `at`) rather than fetched in full and reduced in JS, and bounded
+  // by the same calendar floor as the series query above: an option's price
+  // history since inception is not this view's concern (round 2 item 5).
   const priceRows =
     optionTickers.length === 0
       ? []
       : await db
-          .select()
+          .selectDistinctOn([optionDailyPrices.ticker])
           .from(optionDailyPrices)
           .where(
             and(
               inArray(optionDailyPrices.ticker, optionTickers),
               lte(optionDailyPrices.asOf, atDate),
+              ...(calendarFloor ? [gte(optionDailyPrices.session, calendarFloor)] : []),
             ),
-          );
+          )
+          .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session));
 
   // The latest visible price row per ticker, but only when its own
   // expiry/strike still match that ticker's latest visible series: B3
@@ -163,10 +190,7 @@ export async function buildOperationMarketView(
     if (!series || row.expiry !== series.expiry || row.strike !== series.strike) {
       continue;
     }
-    const existing = optionPricesByTicker.get(row.ticker);
-    if (!existing || row.session > existing.session) {
-      optionPricesByTicker.set(row.ticker, row);
-    }
+    optionPricesByTicker.set(row.ticker, row);
   }
 
   const optionPrices: OptionDayPrice[] = [...optionPricesByTicker.values()].map((row) => ({
