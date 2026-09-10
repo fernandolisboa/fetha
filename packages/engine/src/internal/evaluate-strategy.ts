@@ -9,6 +9,7 @@ import {
   type EvaluationRecord,
   type EvaluateStrategyInput,
   type IndicatorReading,
+  type LegInput,
   type MarketView,
   type Operation,
   type OperationLeg,
@@ -18,6 +19,7 @@ import {
 } from "../api";
 import { batchTruncationReport } from "./batch-truncation";
 import { buildCandleSeries, isPositiveDecimal, priceFields } from "./candle-series";
+import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import {
   collectIndicatorSpecs,
   collectSpecsFromCondition,
@@ -28,12 +30,15 @@ import { evaluateCondition, type ConditionContext } from "./condition-evaluator"
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
-import { assertDefined, invariant } from "./invariant";
+import { assertDefined, assertPresent, invariant } from "./invariant";
+import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
+import { priceLegsAt, priceOperation } from "./price-operation";
 import { toQuantity } from "./scalars";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
+import { validateViewIntegrity } from "./validate-view-integrity";
 
 const sizingDetail: Record<StockSizingReason, string> = {
   no_declared_capital: "no declared capital to size against",
@@ -127,6 +132,10 @@ function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | n
   return null;
 }
 
+// Delegates the rest of an open operation's coherence to `validateOperationCoherence`
+// (round 2 item 3): a hand-rolled copy here previously skipped `series.underlying`,
+// `series.right` and `openedAt <= at`, so `evaluateStrategy` accepted an operation
+// `markToMarket` would reject.
 function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const instrumentSet = new Set(input.instruments);
   const openOperations = input.openOperations ?? [];
@@ -137,31 +146,25 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
         "an open operation's underlying must be among the batch's instruments",
       );
     }
-    if (op.legs.some((leg) => leg.role !== "stock")) {
-      return invalidInput(
-        `openOperations[${String(index)}].legs`,
-        "evaluateStrategy only evaluates stock-only operations for now",
-      );
-    }
-    if (op.expiry !== null) {
-      return invalidInput(
-        `openOperations[${String(index)}].expiry`,
-        "a stock-only operation must not have an expiry",
-      );
-    }
-    for (const [legIndex, leg] of op.legs.entries()) {
-      if (leg.ticker !== op.underlying) {
-        return invalidInput(
-          `openOperations[${String(index)}].legs[${String(legIndex)}].ticker`,
-          "a stock leg's ticker must match the operation's underlying",
-        );
-      }
-    }
+    const coherenceError = validateOperationCoherence(
+      input.view,
+      op,
+      input.at,
+      `openOperations[${String(index)}]`,
+    );
+    if (coherenceError) return { ok: false, error: coherenceError };
   }
   return null;
 }
 
 function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluation> | null {
+  // Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
+  // (round 2 item 13), the same seam markToMarket and proposeSettlement already share:
+  // this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
+  // never had.
+  const viewIntegrityError = validateViewIntegrity(input.view);
+  if (viewIntegrityError) return { ok: false, error: viewIntegrityError };
+
   const instrumentDupe = sortUnique(input.instruments, (t) => t, codeUnitCompare);
   if (!instrumentDupe.ok) {
     return invalidInput("instruments", `duplicate instrument ${instrumentDupe.duplicateKey}`);
@@ -175,18 +178,6 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   );
   if (!operationIdDupe.ok) {
     return invalidInput("openOperations", `duplicate operation id ${operationIdDupe.duplicateKey}`);
-  }
-
-  const candleDupe = sortUnique(
-    input.view.candles,
-    (c) => `${c.ticker}|${c.timeframe}|${c.asOf}`,
-    (a, b) =>
-      codeUnitCompare(a.ticker, b.ticker) ||
-      codeUnitCompare(a.timeframe, b.timeframe) ||
-      compareInstants(a.asOf, b.asOf),
-  );
-  if (!candleDupe.ok) {
-    return invalidInput("view.candles", `duplicate candle row for ${candleDupe.duplicateKey}`);
   }
 
   for (const [index, c] of input.view.candles.entries()) {
@@ -275,65 +266,154 @@ function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Ma
 
 type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
 
-function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): ExitRuleBases {
-  const firstLeg = assertDefined(
-    op.legs[0],
-    "evaluateStrategy: an operation always carries at least one leg",
-  );
-  const result = priceStockLegs({
-    at,
-    underlying: op.underlying,
-    spot: firstLeg.entryPrice,
-    legs: op.legs.map((leg) => ({ ...leg, priceSource: "given" as const })),
+const exitRuleProvenanceBase: {
+  engineVersion: string;
+  pricingModel: "bsm_continuous_yield";
+  dataVersion: null;
+  datasetNotes: string[];
+} = {
+  engineVersion: ENGINE_VERSION,
+  pricingModel: "bsm_continuous_yield",
+  dataVersion: null,
+  datasetNotes: [],
+};
+
+// Both a stock-only and an option operation share one pricing path (priceLegsAt): every leg
+// is priced "given" at its own entryPrice, so the base never drifts as the position moves
+// (ADR-0014 Q50). `priceLegsAt` resolves the underlying's own current spot and rates itself
+// (round 1 item 13: an earlier draft passed the first leg's own entryPrice as the spot, which
+// for an option-led leg order priced an underlying against an option premium); called once
+// per instant `c` a caller's evaluation batch visits, not once for the whole batch at `at`
+// (an option leg's time-to-expiry and its rates both move within a since..at catch-up, so a
+// base resolved once at the batch's own `at` would let an earlier instant see a later
+// instant's rates). Pricing itself can still fail for an option leg whose series has fallen
+// out of the view (a caller passing a stale or incomplete window for an operation it still
+// holds open), or the underlying's own spot being momentarily unresolvable: that is reported
+// to the caller as "cannot evaluate this operation's exit rules right now", not an invariant.
+function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): ExitRuleBases | null {
+  const legs: LegInput[] = op.legs.map((leg) => ({
+    role: leg.role,
+    side: leg.side,
+    ticker: leg.ticker,
+    quantity: leg.quantity,
+    price: leg.entryPrice,
+  }));
+  const result = priceLegsAt(
     view,
-    provenanceBase: {
-      engineVersion: ENGINE_VERSION,
-      pricingModel: "bsm_continuous_yield",
-      dataVersion: null,
-      datasetNotes: [],
-    },
-  });
-  // validateBatchInvariants rejects any macro/dividendYields point with an annual rate at
-  // or below -1 before evaluation reaches an operation's exit rules, so priceStockLegs
-  // cannot fail here.
-  invariant(result.ok, "computeExitRuleBases: view invariants were already validated");
+    at,
+    op.underlying,
+    legs,
+    undefined,
+    undefined,
+    exitRuleProvenanceBase,
+    "spot",
+  );
+  if (!result.ok) return null;
   const pricing = result.value;
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
   return { premiumBase, maxLossBase };
 }
 
+// The current side of a profit_target/stop_loss comparison prices every leg through the
+// same `priceLegsAt` seam `computeExitRuleBases` already uses for the base side (round 2
+// item 2): one call, one spot (priceLegsAt's own quote-mid/last/close ladder), one rate
+// resolution, per operation per instant — never a second, stale-unaware pricing ladder
+// re-implemented here leg by leg against a different spot (`currentClose`) than the base
+// was computed against. An option leg's own listed series is exchange-adjusted for a
+// corporate action of the underlying (a new ticker is listed post-adjustment); only the
+// stock leg's own ticker persists unchanged through a split, so only a stock leg's premium
+// is rebased onto `op.legs[i].entryPrice`'s own scale before the diff (ADR-0013 "Exit rule
+// evaluation", extended by the #23 addendum) — `splitFactor` is always 1 for an option leg
+// (Q51: a split forces a series rollover, never a factor on the option's own ticker), so
+// dividing by it is a no-op there.
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
-  currentClose: DecimalString,
+  view: MarketView,
+  at: Instant,
   bases: ExitRuleBases,
   splitFactor: Decimal,
-): { fired: boolean; zeroBase: boolean } {
-  // Quantity and entryPrice are true money on the scale the operation was opened at; the
-  // nominal close is on today's scale, so it is the close, not the entry price, that gets
-  // rebased before the two are compared (ADR-0013 "Exit rule evaluation").
-  const currentOnEntryScale = parseDecimal(currentClose).div(splitFactor);
+): { fired: boolean; zeroBase: boolean; unknown: boolean } {
+  const legs: LegInput[] = op.legs.map((leg) => ({
+    role: leg.role,
+    side: leg.side,
+    ticker: leg.ticker,
+    quantity: leg.quantity,
+  }));
+  const pricingResult = priceLegsAt(
+    view,
+    at,
+    op.underlying,
+    legs,
+    undefined,
+    undefined,
+    exitRuleProvenanceBase,
+    "spot",
+  );
+  // This call shares its view, at, underlying and every leg's ticker with
+  // computeExitRuleBases's own priceLegsAt call above it, which already gated this op on
+  // `bases === null` before evaluateNumericExitRule is ever invoked: every hard failure
+  // priceLegsAt can produce (missing_instrument, a non-positive spot/strike, an
+  // already-expired leg, a macro/dividend read) depends only on those shared inputs, never
+  // on whether a leg's own price is given (bases's own legs) or resolved (this call's), so
+  // this branch cannot fail once bases has already succeeded for the same op at the same
+  // instant.
+  /* v8 ignore next */
+  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true };
   let pnlCentavos = new Decimal(0);
-  for (const leg of op.legs) {
-    const entry = parseDecimal(leg.entryPrice);
+  for (const [index, leg] of op.legs.entries()) {
+    const valuation = pricingResult.value.legs[index];
+    // `valueOneLeg` only ever produces a `fairValue` from a `sigma` it either solved from a
+    // real market price (in which case `price` is already non-null, taking the branch
+    // above) or was given directly on the `LegInput` (never true here: this call's own legs
+    // never carry `volatility`) — so `fairValue` is provably always null whenever `price`
+    // is, making that fallback dead for this caller specifically. Read here anyway, never
+    // simplified away, to stay the same shape `price ?? fairValue` reads everywhere else in
+    // the engine (round 2 item 2) and to keep working if valueOneLeg ever gains another way
+    // to produce a fairValue without a market price.
+    const rawPremium = valuation?.price
+      ? parseDecimal(valuation.price)
+      : /* v8 ignore next */
+        valuation?.fairValue
+        ? parseDecimal(valuation.fairValue)
+        : null;
+    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };
+    const currentPremium = leg.role === "stock" ? rawPremium.div(splitFactor) : rawPremium;
     const legSign = leg.side === "buy" ? 1 : -1;
+    const entry = parseDecimal(leg.entryPrice);
     pnlCentavos = pnlCentavos.add(
-      currentOnEntryScale.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+      currentPremium.sub(entry).mul(legSign).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
     );
   }
   if (rule.kind === "profit_target") {
-    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true };
+    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
     return {
       fired: pnlCentavos.gte(bases.premiumBase.mul(parseDecimal(rule.fractionOfPremium))),
       zeroBase: false,
+      unknown: false,
     };
   }
-  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true };
+  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
   return {
     fired: pnlCentavos.lte(bases.maxLossBase.mul(parseDecimal(rule.multipleOfMaxLoss)).neg()),
     zeroBase: false,
+    unknown: false,
   };
+}
+
+function businessDaysBeforeExpiry(
+  calendar: readonly TradingSession[],
+  at: Instant,
+  expiry: SessionDate,
+): number | null {
+  const sorted = sortedCalendar(calendar);
+  const atSession = sessionAtOrBefore(calendar, at);
+  if (!atSession) return null;
+  const expiryIndex = sorted.findIndex((session) => session.date === expiry);
+  if (expiryIndex < 0) return null;
+  const atIndex = sorted.indexOf(atSession);
+  return expiryIndex - atIndex;
 }
 
 function zeroBaseMessage(kind: "profit_target" | "stop_loss"): string {
@@ -346,16 +426,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   if (coherenceError) return coherenceError;
 
   const hasOptionLegs = input.strategy.structure.legs.some((leg) => leg.role !== "stock");
-  if (hasOptionLegs) {
-    const firstStrike = assertDefined(
-      input.strategy.definition.strikes[0],
-      "evaluateStrategy: coherence guarantees at least one strike selection for option legs",
-    );
-    return {
-      ok: false,
-      error: { code: "unsupported", vocabulary: "strikeSelections", kind: firstStrike.kind },
-    };
-  }
 
   if (input.since !== undefined && compareInstants(input.since, input.at) >= 0) {
     return invalidInput("since", "since must be strictly before at");
@@ -446,9 +516,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
     }
 
     const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
-    const basesByOpId = new Map(
-      opsForTicker.map((op) => [op.id, computeExitRuleBases(op, input.view, input.at)] as const),
-    );
 
     for (const nominalCandle of instants) {
       const c = nominalCandle.asOf;
@@ -505,6 +572,112 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           continue;
         }
 
+        const openOperationCount = openOperations.filter(
+          (op) => op.openedAt <= nominalCandle.session,
+        ).length;
+        const entrySpecs = dedupeIndicatorSpecs(
+          collectSpecsFromCondition(input.strategy.definition.entry),
+        );
+        const indicators: IndicatorReading[] = entrySpecs.map((spec) => ({
+          indicator: spec,
+          value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
+        }));
+
+        if (hasOptionLegs) {
+          // Strike/expiry selection and pricing for an option structure are priceOperation's
+          // own job (ADR-0013's #23 addendum): evaluateStrategy never re-implements
+          // resolveLegSelection or the payoff model, it builds the same LegSelection a
+          // human-priced proposal would use and calls the one public pricing seam.
+          const expiry = assertDefined(
+            input.strategy.definition.expiry,
+            "evaluateStrategy: coherence guarantees an expiry selection for option legs",
+          );
+          const entryPricing = priceOperation(
+            {
+              view: input.view,
+              at: c,
+              legs: {
+                structure: input.strategy.structure,
+                underlying: ticker,
+                strikes: input.strategy.definition.strikes,
+                expiry,
+                quantity: input.strategy.definition.sizing,
+              },
+              openOperationCount,
+              ...(input.riskProfile !== undefined ? { riskProfile: input.riskProfile } : {}),
+            },
+            {
+              engineVersion: ENGINE_VERSION,
+              pricingModel: "bsm_continuous_yield",
+              dataVersion: input.view.dataVersion ?? null,
+              datasetNotes: input.view.datasetNotes ?? [],
+            },
+          );
+          if (!entryPricing.ok) {
+            switch (entryPricing.error.code) {
+              case "no_series_matches":
+                evaluations.push(
+                  record(
+                    ticker,
+                    c,
+                    nominalCandle.session,
+                    "no_series_match",
+                    "no listed option series satisfies the strike and expiry selection",
+                  ),
+                );
+                continue;
+              case "degenerate_strikes":
+                evaluations.push(
+                  record(
+                    ticker,
+                    c,
+                    nominalCandle.session,
+                    "degenerate_strikes",
+                    "two distinct strike ranks resolved to the same listed strike",
+                  ),
+                );
+                continue;
+              case "unsizeable":
+                evaluations.push(
+                  record(
+                    ticker,
+                    c,
+                    nominalCandle.session,
+                    "unsizeable",
+                    sizingDetail[entryPricing.error.reason],
+                  ),
+                );
+                continue;
+              case "insufficient_data":
+                evaluations.push(
+                  record(
+                    ticker,
+                    c,
+                    nominalCandle.session,
+                    "insufficient_data",
+                    "not enough market data to select strikes or price the proposal",
+                  ),
+                );
+                continue;
+              default:
+                return { ok: false, error: entryPricing.error };
+            }
+          }
+          const pricing = entryPricing.value;
+          signals.push({
+            kind: "entry",
+            strategyVersionId: input.strategy.id,
+            ticker,
+            timeframe,
+            at: c,
+            session: nominalCandle.session,
+            indicators,
+            proposal: { legs: pricing.legs.map((legValuation) => legValuation.leg), pricing },
+          });
+          evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
+          continue;
+        }
+
         const legs = input.strategy.structure.legs;
         const sizingResult = sizeStockEntry({
           sizing: input.strategy.definition.sizing,
@@ -539,8 +712,7 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           legs: operationLegs.map((leg) => ({ ...leg, priceSource: "close" as const })),
           view: input.view,
           riskProfile: input.riskProfile,
-          openOperationCount: openOperations.filter((op) => op.openedAt <= nominalCandle.session)
-            .length,
+          openOperationCount,
           provenanceBase: {
             engineVersion: ENGINE_VERSION,
             pricingModel: "bsm_continuous_yield",
@@ -553,13 +725,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
         // fail here.
         invariant(stockPricingResult.ok, "signal pricing: view invariants were already validated");
         const pricing = stockPricingResult.value;
-        const entrySpecs = dedupeIndicatorSpecs(
-          collectSpecsFromCondition(input.strategy.definition.entry),
-        );
-        const indicators: IndicatorReading[] = entrySpecs.map((spec) => ({
-          indicator: spec,
-          value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
-        }));
         signals.push({
           kind: "entry",
           strategyVersionId: input.strategy.id,
@@ -586,10 +751,15 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
       let instantUnknown = false;
       let zeroBaseDetail: string | null = null;
       for (const op of activeOps) {
-        const bases = assertDefined(
-          basesByOpId.get(op.id),
-          "evaluateStrategy: missing precomputed exit rule bases",
-        );
+        // Resolved at this same instant `c`, not once for the whole since..at batch at
+        // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
+        // within a catch-up batch, so a base resolved once at the batch's own end would let
+        // an earlier instant see a later instant's rates.
+        const bases = computeExitRuleBases(op, input.view, c);
+        if (bases === null) {
+          instantUnknown = true;
+          continue;
+        }
         const visibleFactors = tickerView.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
         const splitFactorResult = splitFactorProduct(
           visibleFactors,
@@ -604,13 +774,11 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
           switch (rule.kind) {
             case "profit_target":
             case "stop_loss": {
-              const outcome = evaluateNumericExitRule(
-                rule,
-                op,
-                nominalCandle.close,
-                bases,
-                splitFactor,
-              );
+              const outcome = evaluateNumericExitRule(rule, op, input.view, c, bases, splitFactor);
+              if (outcome.unknown) {
+                instantUnknown = true;
+                break;
+              }
               if (outcome.zeroBase && zeroBaseDetail === null) {
                 zeroBaseDetail = zeroBaseMessage(rule.kind);
               }
@@ -655,10 +823,41 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
               }
               break;
             }
-            case "days_before_expiry":
-              throw new Error(
-                "evaluateStrategy: days_before_expiry exit rule on a stock-only strategy; coherence validation should have rejected this",
+            case "days_before_expiry": {
+              // Coherence rejects days_before_expiry on a stock-only definition, so an
+              // active operation reaching this branch always carries an expiry.
+              const expiry = assertPresent(
+                op.expiry,
+                "evaluateStrategy: an operation with option legs always carries an expiry",
               );
+              const remaining = businessDaysBeforeExpiry(input.view.calendar, c, expiry);
+              // computeExitRuleBases already resolved a time to expiry for this same
+              // operation's option leg(s), against this same view.calendar and instant, so
+              // the session-index lookup here cannot fail once activeOps reaches this op:
+              // any calendar or expiry that could make it fail would have already made
+              // computeExitRuleBases return null and this op never reach this switch.
+              /* v8 ignore start */
+              if (remaining === null) {
+                instantUnknown = true;
+                break;
+              }
+              /* v8 ignore stop */
+              if (remaining <= rule.businessDays) {
+                signals.push({
+                  kind: "exit",
+                  strategyVersionId: input.strategy.id,
+                  ticker,
+                  timeframe,
+                  at: c,
+                  session: nominalCandle.session,
+                  indicators: [],
+                  operationId: op.id,
+                  rule,
+                });
+                fired = true;
+              }
+              break;
+            }
           }
         }
         if (fired) instantFired = true;

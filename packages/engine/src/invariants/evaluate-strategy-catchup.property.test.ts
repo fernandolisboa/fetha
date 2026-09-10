@@ -8,6 +8,7 @@ import type {
   StrategyVersion,
 } from "../api";
 import { evaluateStrategy } from "../internal/evaluate-strategy";
+import { ENGINE_VERSION } from "../api";
 import { assertDefined } from "../internal/invariant";
 import { centavos, decimalString } from "../test/support";
 import { candleSeriesArbitrary } from "./arbitraries";
@@ -114,7 +115,7 @@ describe("Catch-up equivalence", () => {
             evaluations: evaluationsFromSingleCalls,
             notes: [],
             provenance: {
-              engineVersion: "0.1.0",
+              engineVersion: ENGINE_VERSION,
               pricingModel: "bsm_continuous_yield",
               dataVersion: null,
               datasetNotes: [],
@@ -160,7 +161,7 @@ describe("Catch-up equivalence", () => {
             evaluations: evaluationsFromSingleCalls,
             notes: [],
             provenance: {
-              engineVersion: "0.1.0",
+              engineVersion: ENGINE_VERSION,
               pricingModel: "bsm_continuous_yield",
               dataVersion: null,
               datasetNotes: [],

@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.1.0";
+export const ENGINE_VERSION = "0.2.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -146,7 +146,8 @@ export type NoteCode =
   | "settlement_pending"
   | "settlement_costs_not_modeled"
   | "less_than_one_effective_unit"
-  | "stale_price_across_corporate_action";
+  | "stale_price_across_corporate_action"
+  | "option_strike_unadjusted_across_corporate_action";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -172,6 +173,7 @@ export const noteCodes = [
   "settlement_costs_not_modeled",
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
+  "option_strike_unadjusted_across_corporate_action",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -578,12 +580,23 @@ export type LegSettlement =
       fills: Fill[];
     };
 
+// residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
+// residual was actually traded (a real result, counted in winRate/profitFactor) from one whose
+// residual was only marked at period_end (a valuation, excluded the same way a period_end
+// close already is, ADR-0013 "Equity and metrics").
+export type ResidualSettledBy = "trade" | "period_end" | null;
+
 export type SimulatedOperation = Operation & {
   pnl: Centavos;
   maxLoss: Centavos | "unbounded";
 } & (
     | { status: "closed"; closedAt: SessionDate; closeReason: CloseReason }
-    | { status: "expired"; closedAt: SessionDate; settlement: LegSettlement[] }
+    | {
+        status: "expired";
+        closedAt: SessionDate;
+        settlement: LegSettlement[];
+        residualSettledBy: ResidualSettledBy;
+      }
   );
 
 export type SimulatedOperationStatus = SimulatedOperation["status"];
@@ -1030,12 +1043,11 @@ only `entry`, `exit` and `adjust` outcomes also produce a `Signal`. `no_series_m
 Q45), with the failed selection or rule in `detail`. The engine does not mark late signals: it
 has no clock; the caller compares `signal.at` with its own time (ADR-0010).
 
-**Stock-only scope (#15).** Option structures, strike/expiry selection and option pricing are
-#23; until then `evaluateStrategy` implements the structures whose legs are all `stock` and
-refuses everything else with `unsupported`, vocabulary `strikeSelections`, the caller's own first
-strike-selection `kind` (coherence already guarantees `strikes` is non-empty whenever the
-structure has option legs, so this is never a lookup on an empty array). Decisions taken to make
-that subset concrete:
+**Stock-only scope (#15), lifted by #23.** #15 implemented the structures whose legs are all
+`stock`; #23 extends `evaluateStrategy` to structures with option legs by delegating strike/expiry
+selection and pricing to `priceOperation` itself (see the #23 addendum below), so the sections
+below apply to every structure unless a note says otherwise. Decisions #15 took to make the
+stock-only subset concrete, still in force:
 
 - **Condition truncation per evaluation instant.** Each evaluation instant `c` gets its own
   adjusted candle series and indicator readings, computed exactly as `indicators()` would at
@@ -1097,9 +1109,10 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   unbounded for a `sell` leg, so `fixed_risk` on a structure with any short stock leg is
   unsizeable. Fewer than one unit is unsizeable (`EvaluationOutcome`, not `EngineError`; the
   `detail` string is freeform since `EvaluationRecord` carries no structured reason).
-- **Pricing a stock-only proposal.** `priceOperation` itself stays `unsupported` (#23 covers
-  strike/expiry selection and option pricing uniformly); a stock leg needs none of that, so
-  `evaluateStrategy` prices its own proposals directly. `spot` and each leg's `price` are the
+- **Pricing a stock-only proposal.** A stock leg needs no strike or expiry selection, so
+  `evaluateStrategy` still prices a stock-only proposal directly rather than through
+  `priceOperation` (see the #23 addendum for the structures that do need it). `spot` and each
+  leg's `price` are the
   nominal close (a real, tradable price; adjusted prices are a synthetic construct for indicator
   continuity only). Each leg's `greeks` are its per-unit sensitivity (`delta: "1.000000"`,
   everything else zero, per the "a stock leg contributes `delta = sign * quantity`" rule); the
@@ -1526,11 +1539,12 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   a preview or a full pricing pass shares; `resolveOperationRates` resolves the rate and
   yield once per call and both `priceSelection` and the concrete-legs path thread the
   result through `resolveSizingUnits` and `priceConcreteLegs` rather than re-resolving.
-- **Scope still stops at `priceOperation`.** Strike and expiry selection are implemented for
-  `priceOperation` only; `evaluateStrategy` still refuses any structure with a non-`stock` leg
-  with `unsupported` (`strikeSelections`), per the "Stock-only scope (#15)" note above, until #23.
+- **Scope stopped at `priceOperation` until #23.** Strike and expiry selection landed here first;
+  `evaluateStrategy` refused any structure with a non-`stock` leg with `unsupported`
+  (`strikeSelections`) until #23 lifted that refusal by delegating to this same seam (see the #23
+  addendum).
 
-### #16 addendum: `runBacktest` for stock-only strategies
+### #16 addendum: `runBacktest` for stock-only strategies (extended by #23)
 
 Issue #16 implements `runBacktest` for the same stock-only subset #15 implements in
 `evaluateStrategy`, and reuses `evaluateStrategy` itself as the sole source of entry and exit
@@ -1571,6 +1585,173 @@ implementation. Gaps the "Semantics" section above left implicit, resolved conse
   `non_positive_equity` on the run ("equity was non-positive at least once during the run and was
   clamped to a positive sizing budget") whenever the clamp changed the value at least once.
 
+### #23 addendum: option structures in `evaluateStrategy` and `runBacktest`
+
+Issue #23 lifts the stock-only scope #15 and #16 imposed: both `evaluateStrategy` and
+`runBacktest` now evaluate and backtest structures with option legs. Neither invents a second
+pricing path: entry signals delegate strike/expiry selection and pricing to `priceOperation`
+itself; exit rules and `runBacktest`'s own fills delegate to `priceLegsAt`, `priceOperation`'s
+public per-instant pricing seam (`price-operation.ts`'s own internals — `resolveLegSelection`,
+`priceConcreteLegs`, `valueLegs` — stay private, called only from within that module). This
+closes the interim contradiction the #21 addendum flagged: `capabilities().strikeSelections`
+already reported `delta`/`moneyness`/`nearest` as implemented while `evaluateStrategy` refused
+every one of them; now the vocabulary and the evaluator agree everywhere a caller can check.
+
+- **`evaluateStrategy` entry signals for an option structure.** At an evaluation instant with no
+  active operation, the engine builds the same `LegSelection` a human-priced proposal would
+  (`structure`, `underlying`, `definition.strikes`, `definition.expiry`, `definition.sizing` as
+  the selection's `quantity`) and calls `priceOperation` directly. `no_series_matches`,
+  `degenerate_strikes` and `unsizeable` map onto the matching `EvaluationRecord` outcome
+  (`no_series_match`, `degenerate_strikes`, `unsizeable`), exactly as ADR-0014 Q45 already
+  specifies for the stock-only case; `insufficient_data` from selection or sizing (a calendar gap,
+  an unpriced leg) maps onto `insufficient_data`. Every other `priceOperation` error
+  (`invalid_input`, `missing_instrument`) is returned as `evaluateStrategy`'s own error: none of
+  the batch-wide validation this ADR already runs (positive candle prices, valid rates) leaves a
+  reachable path to one from a well-formed call, so this is defense in depth, not a designed
+  outcome.
+- **Exit rules unify stock and option legs through one pricing path, resolved per instant, never
+  once per batch (round 2 review item 2).** `profit_target` and `stop_loss` price every leg twice
+  per operation per evaluated instant `c`, both times through `priceLegsAt` — never a second,
+  hand-rolled ladder: once with every leg "given" at its own `entryPrice` (`computeExitRuleBases`,
+  ADR-0014 Q50's base), and once with no given price at all, so `priceLegsAt` resolves each leg's
+  own current market price off the same mid/last/close/average ladder `priceOperation` uses,
+  falling back to the model's fair value when no market price is visible
+  (`evaluateNumericExitRule`). Both calls share `priceLegsAt`'s own spot resolution
+  (`resolveUnderlyingSpot`'s quote-mid/last/close ladder) and rate resolution, so the base and the
+  current read are never computed against a different spot than each other. The current-side
+  comparison rebases only a stock leg's own premium onto the entry scale for a corporate action
+  (Q51, `splitFactor`): an option leg's listed series is exchange-adjusted instead (a new ticker
+  is listed post-adjustment), and `splitFactor` is always 1 for one, so dividing by it there is a
+  no-op. Resolved fresh at every instant `c` a since..at catch-up batch visits, not once for the
+  whole batch at `at`: an option leg's time-to-expiry and rates both move within a catch-up, so a
+  base resolved once at the batch's own end would let an earlier instant see a later instant's
+  rates (round 1 item 13). When either pricing call cannot price an operation at all (a
+  caller-supplied view missing a leg's series or candle history, the same class of gap
+  `runBacktest`'s own `missingMarkError` already reports elsewhere), the instant is recorded
+  `insufficient_data` rather than failing the whole call; a live evaluator degrading one
+  operation's exit read for one instant is preferable to refusing every other ticker's evaluation
+  in the same batch.
+- **`days_before_expiry` is implemented.** The number of sessions strictly after the evaluation
+  instant's own session up to and including `op.expiry`, read from the same `view.calendar` every
+  other calendar lookup in this ADR uses; the rule fires when that count is at or below
+  `rule.businessDays`. `capabilities().exitRules` moves it from unsupported to implemented, so
+  `unsupportedExitRuleKinds` is empty.
+- **Open-operation coherence extended to option legs.** `evaluateStrategy` now accepts an
+  `Operation` with option legs (previously `invalid_input` unconditionally): the coherence check
+  the "Operations, positions and strategy versions" section already states for every `Operation`
+  entry point — an option leg's listed expiry must match `op.expiry`, and an operation with option
+  legs must carry a non-null `expiry` — is enforced explicitly rather than by refusing the whole
+  shape. As of round 2 item 3, this runs through the same `validateOperationCoherence`
+  (`internal/operation-coherence.ts`) `markToMarket` and `proposeSettlement` share (see the #25
+  addendum below): the same underlying/right match and `openedAt <= at` checks apply to a
+  caller-supplied `openOperations[i]` here too, not only the expiry match this paragraph
+  originally described — a hand-rolled copy previously let `evaluateStrategy` accept an operation
+  either of those two would reject.
+- **`runBacktest` fills generalize per leg, atomically per operation.** A stock leg still fills at
+  the next session's open (`next_session_open`); an option leg now fills at the next session's
+  average traded price (`next_session_average`), reading the same `OptionDayPrice.average` a
+  caller supplies for reference data, with `tradedQuantity > 0` as the same liquidity gate a stock
+  candle's own `tradedQuantity` already is. Every leg of one operation must be ready in the same
+  session or the whole entry or exit retries together (ADR-0014 Q38, Q52): a structure never fills
+  half its legs and leaves the rest pending, which would leave an unhedged position the strategy
+  never asked for. Corporate-action rebasing (Q51) stays scoped to a stock leg's own ticker for the
+  same exchange-adjustment reason exit rules do; an option leg's fill quantity is never rescaled.
+- **Settlement in a run is implemented in `run-backtest.ts` directly**, not by calling
+  `propose-settlement.ts`'s own settlement decision: at #23's own time of writing
+  `proposeSettlement` was itself still unimplemented (the #21 addendum), so #23 implemented the
+  exercise/assignment rule ADR-0014 Q41 already specifies (in-the-money by any amount, at the
+  expiry session's close) inline, once, in `resolveExpiringOperations`. `propose-settlement.ts`
+  has since landed (#25, merged as #61): `proposeSettlement` now exists, and its own `settleLeg`
+  makes exactly this same in-the-money/intrinsic-value/outcome decision — currently a private
+  function, called only from within that module, never from `run-backtest.ts`. **This is a seam
+  left for #72**: `resolveExpiringOperations`'s settlement-decision block
+  (`run-backtest.ts:1236-1300` at #23 round 2's own time of writing) is a candidate to delegate to
+  an exported `settleLeg` (or a thin wrapper around it) the same way fills already delegate to
+  `priceOperation`, leaving `run-backtest.ts` only the scheduling, fill-cost overlay, residual
+  bucketing, cash and tax concerns proper to a backtester — never the settlement decision itself,
+  duplicated a second time.
+  - **Residual accounting is average-cost matching, not a leg-by-leg pairing.** Every stock-typed
+    contribution touching an operation's expiry session — its own stock leg, if any, and every
+    settlement fill an exercise or assignment produces — is bucketed into a total bought quantity
+    and cost and a total sold quantity and proceeds; `min(bought, sold)` is realized immediately at
+    the two average prices, and the unmatched remainder (signed, zero when everything nets) is the
+    residual ADR-0013's "Settlement in a run" section already describes, closed at the next
+    session's own open or marked at `period_end` when the run ends first. This generalizes the
+    worked examples in that section (a covered call's assignment against its stock leg, a vertical
+    with both legs in the money) to any leg mix without special-casing which two legs are "the
+    pair."
+  - **An option leg's own premium is realized once, uniformly.** Every option leg's contribution to
+    the operation's pnl is `-sign(side) * entryPrice * quantity`, computed identically whether it
+    expires worthless or is exercised/assigned: the intrinsic value an in-the-money leg carries
+    shows up entirely in the stock trade the exercise or assignment produces, never a second time
+    on the option leg itself (mirroring the tax rule ADR-0014 already states: "an exercised or
+    assigned option folds its premium into the stock price with no separate option gain").
+  - **A settlement's realized pnl is taxable when it happens, not when the residual finally
+    closes.** `resolveExpiringOperations`'s fully-matched (`residualQuantity === 0`) pnl, and a
+    deferred settlement's own `pnlSoFar` once its residual closes or the run ends, are added to the
+    run's monthly stock gain the same way an ordinary exit already is; only the residual's own mark
+    at `period_end` (a valuation, never a trade) is excluded, the same rule a stock-only
+    `period_end` close already follows.
+  - **Known simplification, disclosed rather than fixed here: no separate `optionGain` bucket.**
+    ADR-0013's "Taxes" section already names `stockGain` and `optionGain` as the two components of
+    a month's net gain, but `computeMonthlyTax`'s `optionGain` parameter has been hardcoded to zero
+    since #16 (a stock-only run has no option gains to report). #23 folds a settled option
+    operation's — and an ordinary option-leg exit's — realized pnl into `stockGain` rather than
+    introducing the split, so it is taxed under the stock exemption rules rather than always taxed
+    with no exemption as ADR-0013 intends. Splitting the two buckets (tracking a leg's own role
+    through every pnl-accumulating call site, not only the ones #23 touches) is left for a
+    follow-up ticket rather than risked here.
+- **Capabilities partition is now consistent.** `capabilities().strikeSelections`,
+  `.expirySelections` and `.exitRules` report exactly what both `priceOperation` and
+  `evaluateStrategy` implement; `unsupportedStrikeSelectionKinds`, `unsupportedExpirySelectionKinds`
+  and `unsupportedExitRuleKinds` are all empty. `unsupportedAdjustmentRuleKinds` (`roll`) is
+  unchanged: a `roll` adjustment needs its own settlement-and-reopen semantics in `runBacktest`,
+  tracked separately from #23.
+- **Round 1 hardening, briefly.** `runBacktest` mark, tax-timing and fill gaps: a settlement's
+  residual stock is marked in equity while pending (`computeMarkValue`, item 1); a pending exit
+  superseded by settlement is dropped, not left to throw on the next session (item 2); settlement
+  fill costs fold into `pnlSoFar`, not just `metrics.fees` (item 3); option fills apply
+  `optionSlippageRate` and `brokerage.optionPerContract`, and `metrics.slippage` sums real option
+  slippage (item 4); the final session's own settlement and period-end sweep run, and fold their
+  gain into `currentMonthStockGain`, before that same session's month is finalized — and the
+  equity point recorded after, against the pre-tax mark but post-tax cash, or the final tax
+  deduction would silently drop out of the equity curve (item 5); a settlement's stock leg
+  rebases through the same corporate-action factor an open mark or a stock-leg exit already do
+  (item 6); an expired operation whose residual was only marked, not traded, at `period_end` is
+  now excluded from `winRate`/`profitFactor` via `SimulatedOperation.residualSettledBy` the same
+  way a `period_end` close already is (item 7); `evaluateStrategy`'s exit-rule bases go through
+  one pricing path (`priceLegsAt`, once #25 landed `priceConcreteLegs`/`resolveOperationRates`
+  un-exported) instead of a second ladder, resolved per catch-up instant rather than once at the
+  batch's own `at`, and priced against the underlying's real current spot rather than the first
+  leg's own entry price (items 8, 13); `ENGINE_VERSION` bumped to `0.2.0` for the additive
+  `residualSettledBy` field, with `residualQuantity` validated as a safe integer on resume (item
+  12); settlement requires the expiry session's own close, never a stale one (item 14); an
+  unresolved option series at fill time is `missing_instrument`, not a silently null `expiry`
+  (item 15); `missingMarkError`'s `collections` follow the leg's own role (item 16).
+  - **`optionGain` is now its own bucket** (superseding the "known simplification" above):
+    `currentMonthOptionGain` accumulates a worthless-expiring option leg's own premium loss or
+    gain and an ordinary pre-expiry option-leg exit's own pnl; an exercised or assigned leg's
+    premium still folds into the stock trade it produced, staying in `stockGain`, per ADR-0013
+    "Taxes" (item 11).
+  - **Known gap, disclosed rather than fixed here: no option-series rollover across a corporate
+    action.** A real split forces a re-listed, exchange-adjusted option series (a new ticker,
+    Q51), which the engine has no way to resolve yet — settlement still reads an option leg's
+    original ticker and unadjusted listed strike against the underlying's adjusted close. Flagged
+    once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
+    settlement sees a non-trivial split factor on an operation with an option leg, rather than
+    refused (item 18); tracked in issue #69.
+  - **`brokerage.optionPerContract` is charged once per fill, per leg, not scaled by the fill's
+    own contract count (round 2 item 11).** `run-backtest.ts`'s `fillCosts` adds it as a flat
+    per-order charge alongside `b3FeeRate`'s own proportional fee, the same shape
+    `brokerage.stockPerOrder` already has for a stock leg — never `× leg.quantity`. The field
+    name suggests a per-contract charge; the current behavior is "per order" (one option fill,
+    any contract count, one brokerage charge), matching how a real Brazilian broker's own
+    fixed-fee plans are usually quoted. Documented here as the intended v1 behavior rather than
+    changed under a round-2 review pass: renaming the field is a `packages/contracts` schema
+    change reaching every config fixture and the config digest across both packages, out of
+    scope for a fix-forward batch. Tracked in issue #73: rename to `optionPerOrder` or scale by
+    contract count.
+
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 
 Issue #25 implements both remaining stubbed methods. Neither needed an additive change to
@@ -1588,7 +1769,8 @@ records the semantic decisions the frozen types and ADR-0014 left open.
 - **Operation coherence is checked once, shared.** ADR-0013's "Operations, positions and strategy
   versions" says the engine checks `Operation.expiry` coherence wherever an `Operation` comes in;
   `markToMarket` (`operations[i]`) and `proposeSettlement` (`operation`) now share one
-  `validateOperationCoherence` (`internal/operation-coherence.ts`): a stock-only operation must
+  `validateOperationCoherence` (`internal/operation-coherence.ts`) — joined, as of the #23 round 2
+  batch, by `evaluateStrategy` (`openOperations[i]`, see the #23 addendum above): a stock-only operation must
   carry no expiry, an operation with option legs must carry one, every stock leg's ticker must
   equal the operation's `underlying`, every option leg whose series is visible in the view
   (`resolveSeries`, at the same instant the caller is truncated to — `at` for `markToMarket`, the
@@ -1597,9 +1779,12 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   (round 1 item 7; skipped when the calendar does not cover it, since `markToMarket` already
   fails the whole call with `insufficient_data` in that case — round 1 item 8). A leg whose series
   simply is not visible is not rejected here; it surfaces later as that leg's own
-  `missing_instrument`. `evaluateStrategy`'s own coherence checking (ADR-0013 "Entry gating")
-  stays separate until #23: it never receives a caller-supplied `Operation` to validate this way,
-  only ones it built itself.
+  `missing_instrument`. `evaluateStrategy`'s own coherence checking (ADR-0013 "Entry gating") was
+  still separate at this addendum's own time of writing — it only ever validated an operation it
+  built itself, never a caller-supplied one. #23 round 2 closed that gap: `evaluateStrategy` now
+  runs a caller-supplied `openOperations[i]` through this same `validateOperationCoherence` too
+  (see the #23 addendum above), so all three entry points reject the same malformed `Operation`
+  the same way.
 - **Unrealized P&L is computed per leg, on the entry price's own scale.** For each operation leg,
   the mark used is `pricing.legs[i].price ?? pricing.legs[i].fairValue`; a leg with neither
   (`no_market_price` with no solvable fair value, already noted on `pricing`) contributes zero
