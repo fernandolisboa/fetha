@@ -1,21 +1,58 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
-// `/sign-up/email` is rate-limited to 3 per 10s per IP (options.ts,
-// RATE_LIMIT_CUSTOM_RULES); every spec in playwright.config.ts's "auth"
-// project runs from the same machine/IP, sequentially (fullyParallel: false,
-// workers: 1), so a fixed gap ahead of every sign-up, rather than exempting
-// the E2E client from the limit it exists to test, keeps the suite under the
-// cap regardless of how many specs call it or in what order.
-const SIGN_UP_SPACING_MS = 3500;
-let earliestNextSignUpAt = 0;
+// `/sign-up/email` is rate-limited to 3 per 10s per IP, and the window
+// restarts from the *last allowed* request rather than the first
+// (options.ts, RATE_LIMIT_CUSTOM_RULES; better-auth bumps `lastRequest` on
+// every allowed call). Every spec in playwright.config.ts's "auth" project
+// runs from the same machine/IP, sequentially (fullyParallel: false,
+// workers: 1), so rather than exempting the E2E client from the limit it
+// exists to test, this lets bursts of up to 3 sign-ups through immediately
+// and then waits out the full window before the next burst.
+const SIGN_UP_BURST_SIZE = 3;
+const SIGN_UP_WINDOW_MS = 10_500;
+let signUpsInWindow = 0;
+let windowStartedAt = 0;
 
 export async function throttleSignUp(): Promise<void> {
   const now = Date.now();
-  const waitMs = earliestNextSignUpAt - now;
-  earliestNextSignUpAt = Math.max(now, earliestNextSignUpAt) + SIGN_UP_SPACING_MS;
-  if (waitMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  if (now - windowStartedAt >= SIGN_UP_WINDOW_MS) {
+    signUpsInWindow = 0;
+    windowStartedAt = now;
+  }
+  if (signUpsInWindow >= SIGN_UP_BURST_SIZE) {
+    const waitMs = windowStartedAt + SIGN_UP_WINDOW_MS - now;
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+    signUpsInWindow = 0;
+    windowStartedAt = Date.now();
+  }
+  signUpsInWindow += 1;
+}
+
+export async function waitOutSignUpRateLimit(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, SIGN_UP_WINDOW_MS));
+  signUpsInWindow = 0;
+  windowStartedAt = Date.now();
+}
+
+// The module-level throttle state above only holds across sign-ups within a
+// single worker process; Playwright restarts the worker after a failed test,
+// which loses it. This is the backstop: if the click leaves the page on
+// /cadastro with the rate-limited alert, wait out a full window and retry
+// the submit once rather than trusting the in-memory throttle alone.
+export async function clickCreateAccount(page: Page): Promise<void> {
+  const createAccountButton = page.getByRole("button", { name: "Criar conta" });
+  const rateLimitedAlert = page.getByText("Muitas tentativas seguidas", { exact: false });
+  await createAccountButton.click();
+  await Promise.race([
+    page.waitForURL(/\/verificar-email\?email=/, { timeout: 15_000 }).catch(() => undefined),
+    rateLimitedAlert.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined),
+  ]);
+  if (page.url().includes("/cadastro") && (await rateLimitedAlert.isVisible().catch(() => false))) {
+    await waitOutSignUpRateLimit();
+    await createAccountButton.click();
   }
 }
 

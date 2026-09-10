@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { readLatestLink, throttleSignUp } from "./support";
+import { clickCreateAccount, readLatestLink, throttleSignUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -21,7 +21,7 @@ test("registration, email verification, login and logout", async ({ page, baseUR
   await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
   await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
   await throttleSignUp();
-  await page.getByRole("button", { name: "Criar conta" }).click();
+  await clickCreateAccount(page);
 
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
 

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { readLatestLink, throttleSignUp } from "./support";
+import { clickCreateAccount, readLatestLink, throttleSignUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -22,7 +22,7 @@ test("magic link sign-in for a verified account", async ({ page, baseURL, reques
   await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
   await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
   await throttleSignUp();
-  await page.getByRole("button", { name: "Criar conta" }).click();
+  await clickCreateAccount(page);
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
@@ -56,7 +56,7 @@ test("an expired or reused magic link shows the error screen", async ({
   await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
   await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
   await throttleSignUp();
-  await page.getByRole("button", { name: "Criar conta" }).click();
+  await clickCreateAccount(page);
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
@@ -73,5 +73,7 @@ test("an expired or reused magic link shows the error screen", async ({
 
   await page.goto(magicLink);
   await expect(page).toHaveURL(/\/link-magico\/erro/);
-  await expect(page.getByText("Esse link é inválido ou expirou")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /link mágico é inválido ou expirou/ }),
+  ).toBeVisible();
 });
