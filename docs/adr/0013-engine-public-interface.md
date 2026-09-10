@@ -1914,6 +1914,29 @@ operation)` (`internal/resolve-expiry-close.ts`) replaces `markToMarket`'s and
   `Note` messages, independently declared a third time each, are now the shared
   `STALE_PRICE_NOTE`/`NO_RISK_PROFILE_NOTE` constants (`internal/notes.ts`) (round 3 item 10).
 
+### #22 addendum: payoff sampled at every strike and break-even (`computePayoffProfile`)
+
+Issue #22 (the operation builder UI) surfaced a gap in `computePayoffProfile`
+(`internal/price-operation.ts`): `OperationPricing.payoff` sampled only 0.8×spot, spot and
+1.2×spot, so a UI drawing a line through those points alone could miss every real kink (a
+leg's strike) between them — a collar's floor and cap, in particular, rendered as a smooth
+slope instead of the flat segments `maxLoss`/`maxGain` already reported (PR #76 round 2 item
+1). This is additive: `PayoffPoint` itself (`{ underlying: DecimalString; pnl: Centavos }`)
+is unchanged, so `api.ts` and the rest of this ADR's frozen block stay byte-identical
+(`scripts/check-adr-0013-frozen-block.sh` stays green) — only which spots `computePayoffProfile`
+evaluates changed.
+
+- **Sample set**: the three original factor-based spots (0.8×/1×/1.2×spot) plus every distinct
+  leg strike already collected for `maxLoss`/`maxGain` and every break-even the function already
+  solves, unioned, rounded to `PRICE_SCALE`, de-duplicated by that rounded value and sorted
+  ascending. Every point is still a real evaluation of `payoffAt`, not an interpolation — a
+  break-even sample gets its own `payoffAt` call rather than being assumed exactly zero, which is
+  slightly more honest than assuming zero when a break-even itself was rounded to `PRICE_SCALE`.
+- **Ordering is a caller-visible guarantee, not an implementation detail**: `apps/web`'s
+  `payoff-chart.tsx` connects `payoff` points in array order with no sort or interpolation of its
+  own, so an unsorted or duplicated array would draw a wrong line silently. The engine test for
+  this addendum asserts ascending order and uniqueness alongside the collar's reference values.
+
 ## Considered options
 
 - **A, minimal**: two functions (`compute(view, query)` and `step(view, input, budget)`) over a

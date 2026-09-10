@@ -465,6 +465,64 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.maxGain).toBe(centavos((32 - 30) * 100));
   });
 
+  it("emits a payoff point at every leg strike, equal to maxLoss/maxGain, sorted ascending and de-duplicated (PR #76 round 2 item 1)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("30.00"),
+          },
+          {
+            role: "put",
+            side: "buy",
+            ticker: "PETR4P28",
+            quantity: quantity(100),
+            price: decimalString("0.70"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C32",
+            quantity: quantity(100),
+            price: decimalString("0.60"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.maxLoss).toBe(centavos(210_00));
+    expect(result.value.maxGain).toBe(centavos(190_00));
+
+    const atPutStrike = result.value.payoff.find((p) => p.underlying === decimalString("28.00"));
+    const atCallStrike = result.value.payoff.find((p) => p.underlying === decimalString("32.00"));
+    expect(atPutStrike?.pnl).toBe(centavos(-210_00));
+    expect(atCallStrike?.pnl).toBe(centavos(190_00));
+
+    const underlyings = result.value.payoff.map((p) => Number(p.underlying));
+    expect(underlyings).toEqual([...underlyings].sort((a, b) => a - b));
+    expect(new Set(result.value.payoff.map((p) => p.underlying)).size).toBe(
+      result.value.payoff.length,
+    );
+    expect(result.value.payoff.map((p) => p.underlying)).toEqual(
+      expect.arrayContaining([decimalString("28.00"), decimalString("32.00")]),
+    );
+  });
+
   it("derives the underlying's spot from a bid/ask mid quote when no last is visible", () => {
     const view: MarketView = {
       ...baseView,
