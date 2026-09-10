@@ -18,13 +18,16 @@ signal and the reason is recorded. Versions are immutable and referenced by back
 and decisions.
 
 The v1 editor UI (`apps/web/src/modules/strategies/editor/`) renders only a subset of this
-vocabulary as rows: a single `compare` condition, or a flat `and` of `compare` conditions, for
-both the entry condition and a `condition` exit rule. Any other shape the schema allows — `or`,
-`not`, or an `and` that nests another `and`/`or`/`not` — is not editable in this UI: it is shown
-as a read-only notice and kept byte-for-byte unchanged on save (`compare-conditions.ts`'s
-`toEditableEntry`/`fromEditableEntry`), never silently replaced by a default row. A strategy
-built outside this editor (a hand-authored catalog entry, a future API) with such a condition
-still round-trips through the contracts schema and the engine; it just cannot be edited visually
+vocabulary as rows: for the entry condition, a single `compare` condition or a flat `and` of
+`compare` conditions, each as its own row (`compare-conditions.ts`'s
+`toEditableEntry`/`fromEditableEntry`); for a `condition` exit rule, a single `compare` condition
+only (`toEditableExitCondition`/`fromEditableExitCondition`) — an exit's flat `and` of two or more
+compares is not rendered as rows. Any shape the entry or exit editor cannot represent — `or`,
+`not`, an `and` that nests another `and`/`or`/`not`, or (for an exit) any `and` at all — is not
+editable in this UI: it is shown as a read-only notice and kept byte-for-byte unchanged on save,
+never silently replaced by a default row or truncated to its first compare. A strategy built
+outside this editor (a hand-authored catalog entry, a future API) with such a condition still
+round-trips through the contracts schema and the engine; it just cannot be edited visually
 until the editor grows a recursive tree builder.
 
 ## Considered options

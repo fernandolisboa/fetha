@@ -5,7 +5,9 @@ import {
   compareConditionsToEntry,
   entryToCompareConditions,
   fromEditableEntry,
+  fromEditableExitCondition,
   toEditableEntry,
+  toEditableExitCondition,
   type CompareCondition,
 } from "./compare-conditions";
 
@@ -82,5 +84,34 @@ describe("toEditableEntry / fromEditableEntry", () => {
     const editable = toEditableEntry(nested);
     expect(editable).toEqual({ editable: false, original: nested });
     expect(fromEditableEntry(editable)).toBe(nested);
+  });
+});
+
+describe("toEditableExitCondition / fromEditableExitCondition", () => {
+  it("round-trips a single compare condition as editable", () => {
+    const editable = toEditableExitCondition(closeAboveSma);
+    expect(editable).toEqual({ editable: true, condition: closeAboveSma });
+    expect(fromEditableExitCondition(editable)).toBe(closeAboveSma);
+  });
+
+  it("preserves a flat AND of two or more compares byte-for-byte as read-only (exit rows edit one compare only)", () => {
+    const twoCompareAnd: Condition = { kind: "and", conditions: [closeAboveSma, rsiBelow30] };
+    const editable = toEditableExitCondition(twoCompareAnd);
+    expect(editable).toEqual({ editable: false, original: twoCompareAnd });
+    expect(fromEditableExitCondition(editable)).toBe(twoCompareAnd);
+  });
+
+  it("preserves an or entry byte-for-byte as read-only", () => {
+    const orEntry: Condition = { kind: "or", conditions: [closeAboveSma, rsiBelow30] };
+    const editable = toEditableExitCondition(orEntry);
+    expect(editable).toEqual({ editable: false, original: orEntry });
+    expect(fromEditableExitCondition(editable)).toBe(orEntry);
+  });
+
+  it("preserves a not entry byte-for-byte as read-only", () => {
+    const notEntry: Condition = { kind: "not", condition: closeAboveSma };
+    const editable = toEditableExitCondition(notEntry);
+    expect(editable).toEqual({ editable: false, original: notEntry });
+    expect(fromEditableExitCondition(editable)).toBe(notEntry);
   });
 });

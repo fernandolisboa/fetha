@@ -54,3 +54,21 @@ export function toEditableEntry(entry: Condition): EditableEntry {
 export function fromEditableEntry(entry: EditableEntry): Condition {
   return entry.editable ? compareConditionsToEntry(entry.conditions) : entry.original;
 }
+
+export type EditableExitCondition =
+  { editable: true; condition: CompareCondition } | { editable: false; original: Condition };
+
+// A `condition` exit rule renders a single compare row, never a list: a flat
+// AND of two or more compares (or an `or`/`not`/nested `and`) still
+// round-trips through the schema but is not editable here, so it is kept
+// byte-for-byte as a read-only original instead of being truncated to its
+// first compare and silently rewritten on save (docs/adr/0008).
+export function toEditableExitCondition(condition: Condition): EditableExitCondition {
+  return condition.kind === "compare"
+    ? { editable: true, condition }
+    : { editable: false, original: condition };
+}
+
+export function fromEditableExitCondition(entry: EditableExitCondition): Condition {
+  return entry.editable ? entry.condition : entry.original;
+}

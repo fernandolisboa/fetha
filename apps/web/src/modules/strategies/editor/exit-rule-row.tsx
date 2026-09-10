@@ -5,7 +5,7 @@ import { decimalStringSchema, exitRuleKinds, type ExitRule } from "@fetha/contra
 import { Button } from "@/components/ui/button";
 
 import { t } from "../strings";
-import { compareConditionsToEntry, toEditableEntry } from "./compare-conditions";
+import { toEditableExitCondition } from "./compare-conditions";
 import { ConditionRow } from "./condition-row";
 import { DecimalField } from "./decimal-field";
 import { defaultCompareCondition } from "./defaults";
@@ -91,18 +91,17 @@ export function ExitRuleRow({
 
       {value.kind === "condition" &&
         (() => {
-          const editable = toEditableEntry(value.condition);
+          const editable = toEditableExitCondition(value.condition);
           if (!editable.editable) {
             return <p className="text-muted-foreground text-sm">{t.editor.exit.readOnlyNotice}</p>;
           }
-          const first = editable.conditions[0] ?? defaultCompareCondition;
           return (
             <ConditionRow
               removable={false}
               onRemove={() => undefined}
-              value={first}
+              value={editable.condition}
               onChange={(condition) => {
-                onChange({ kind: "condition", condition: compareConditionsToEntry([condition]) });
+                onChange({ kind: "condition", condition });
               }}
             />
           );
