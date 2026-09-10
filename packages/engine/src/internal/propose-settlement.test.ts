@@ -466,6 +466,34 @@ describe("proposeSettlement", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C28" });
   });
 
+  it("returns invalid_input when a listed strike is not positive (item 7)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...optionSeries("PETR4C28", "call", "28.00"), strike: decimalString("0.00") },
+      ],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "legs[PETR4C28].strike",
+      message: "a listed strike must be positive",
+    });
+  });
+
   it("returns invalid_input when a stock leg's ticker does not match the operation's underlying", () => {
     const view: MarketView = {
       ...baseView,

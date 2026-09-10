@@ -73,6 +73,12 @@ function settleLeg(
 
   const series = resolveSeries(view, leg.ticker, at);
   if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
+  if (!parseDecimal(series.strike).gt(0)) {
+    return {
+      ok: false,
+      error: invalidInput(`legs[${leg.ticker}].strike`, "a listed strike must be positive"),
+    };
+  }
 
   const strike = parseDecimal(series.strike);
   const intrinsic =
