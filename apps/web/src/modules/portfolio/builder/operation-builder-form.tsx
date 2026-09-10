@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Panel } from "@/modules/shell";
+import { Panel } from "@/modules/shell/client";
 
 import { loadChainAction, priceOperationAction, saveOperationAction } from "../operations-actions";
 import { t } from "../strings";
