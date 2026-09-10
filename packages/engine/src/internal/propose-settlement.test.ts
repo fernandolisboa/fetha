@@ -412,14 +412,9 @@ describe("proposeSettlement", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
-  it("prefers the latest visible underlying candle when a session has more than one row", () => {
+  it("prefers the latest visible underlying candle when a session has more than one row, regardless of array order", () => {
     const staleCandle: Candle = { ...underlyingCandle("30.00"), asOf: expiry + "T13:30:00.000Z" };
     const revisedCandle: Candle = { ...underlyingCandle("31.00"), asOf: expiryClose };
-    const view: MarketView = {
-      ...baseView,
-      candles: [revisedCandle, staleCandle],
-      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
-    };
     const op = operation({
       legs: [
         {
@@ -431,10 +426,26 @@ describe("proposeSettlement", () => {
         },
       ],
     });
-    const result = proposeSettlement({ view, operation: op }, provenanceBase);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.underlyingClose).toBe(decimalString("31.00"));
+    const viewWith = (candles: Candle[]): MarketView => ({
+      ...baseView,
+      candles,
+      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+    });
+    // MarketView.candles order is not meaningful (I3): a same-session candle revision must
+    // resolve the same way whether the revision or the stale row comes first in the array
+    // (round 1 item 5).
+    const forward = proposeSettlement(
+      { view: viewWith([revisedCandle, staleCandle]), operation: op },
+      provenanceBase,
+    );
+    const reversed = proposeSettlement(
+      { view: viewWith([staleCandle, revisedCandle]), operation: op },
+      provenanceBase,
+    );
+    expect(forward.ok).toBe(true);
+    if (!forward.ok) return;
+    expect(forward.value.underlyingClose).toBe(decimalString("31.00"));
+    expect(reversed).toEqual(forward);
   });
 
   it("returns missing_instrument when an option leg's series is not visible in the view", () => {

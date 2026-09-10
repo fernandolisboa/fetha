@@ -4,6 +4,7 @@ import type {
   Candle,
   MarketView,
   Operation,
+  OptionSeries,
   PositionValuation,
   Quote,
   TradingSession,
@@ -235,18 +236,33 @@ describe("I1 Future-blind — proposeSettlement", () => {
           close,
           tradedQuantity: 1,
         };
+        const series: OptionSeries = {
+          ticker: "PETR4C28",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("1.00"),
+          expiry,
+          style: "european",
+          asOf: expiryClose,
+        };
+        // A stock-only operation has no expiry to settle (`validateOperationCoherence`
+        // rejects one that has, before `proposeSettlement` ever reaches `latestVisible`),
+        // which made this property vacuous — both sides collapsed to the same coherence
+        // error regardless of the candle revision (round 1 item 5). An option leg with a
+        // visible series exercises the real in-the-money branch instead.
         const view = (extra: Candle[]): MarketView => ({
           ...emptyView,
           candles: [baseCandle, ...extra],
+          optionSeries: [series],
         });
         const op: Operation = {
           id: "op-1",
           underlying: "PETR4",
           legs: [
             {
-              role: "stock",
+              role: "call",
               side: "buy",
-              ticker: "PETR4",
+              ticker: "PETR4C28",
               quantity: quantity(1),
               entryPrice: decimalString("1.00"),
             },
@@ -266,6 +282,7 @@ describe("I1 Future-blind — proposeSettlement", () => {
           { view: view([futureCandle]), operation: op },
           provenanceBase,
         );
+        expect(baseResult.ok).toBe(true);
         expect(baseResult).toEqual(extendedResult);
       }),
     );
