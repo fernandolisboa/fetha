@@ -20,6 +20,10 @@ selection rule and E2E secret comparison were hardened, and the invite-mode sign
 made generic to avoid email enumeration. The "Decision" section below reflects the final shape;
 superseded choices are called out inline.
 
+Magic link, password reset and database-backed rate limiting, called out below as out of scope for
+ticket #10, were built by that ticket. See ADR-0018, which amends this one with those decisions
+rather than editing the sections below in place.
+
 ## Decision
 
 **Identity (Better Auth, Drizzle adapter on Neon Postgres, emails through Resend or capture)**
@@ -276,8 +280,9 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 - Every `timestamp` column in this ticket's schema is `timestamp with time zone`; Postgres stores
   UTC internally either way, but an app that ever runs outside UTC (a developer's machine, a
   future non-UTC deployment) would silently misread a timestamp-without-time-zone column.
-- Magic link, password reset and rate limiting (#10) add plugins and hooks to `options.ts` without
-  touching the schema or the repository pattern established here.
+- Magic link, password reset and rate limiting shipped in ticket #10 (ADR-0018): they add plugins
+  and hooks to `options.ts` and one operational table (`rate_limits`), without touching the
+  repository pattern established here.
 - Follow-ups filed as issues by the orchestrator, deliberately not in this ticket: token-based
   invites (today's invite is keyed by email only, with no secret token in the link — acceptable at
   single-digit-user scale but not a pattern to grow); purging unverified users (an account that

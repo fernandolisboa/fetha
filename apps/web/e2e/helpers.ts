@@ -1,6 +1,8 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
+import { readLatestLink, signUp } from "./support";
+
 const password = "correct-horse-battery-staple";
 
 export async function registerAndSignIn(
@@ -11,22 +13,9 @@ export async function registerAndSignIn(
 ): Promise<string> {
   const email = `fetha-e2e-${String(Date.now())}-${String(Math.random()).slice(2, 8)}@example.com`;
 
-  await page.goto("/cadastro");
-  await page.getByLabel("Nome").fill("Playwright User");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill(password);
-  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
-  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
-  await page.getByRole("button", { name: "Criar conta" }).click();
+  await signUp(page, { name: "Playwright User", email, password });
 
-  await expect(page).toHaveURL(/\/verificar-email\?email=/);
-
-  const linkResponse = await request.get(
-    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
-    { headers: { "x-e2e-secret": secret } },
-  );
-  expect(linkResponse.ok()).toBe(true);
-  const { link } = (await linkResponse.json()) as { link: string };
+  const link = await readLatestLink(request, baseURL, email, secret);
 
   await page.goto(link);
 

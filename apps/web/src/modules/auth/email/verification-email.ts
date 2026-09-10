@@ -1,15 +1,5 @@
 import { t } from "../strings";
-
-// The name comes from the sign-up form: a plain-text field, never parsed as
-// markup by an email client, so only the HTML part needs escaping.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "./escape-html";
 
 export interface VerificationEmail {
   subject: string;
@@ -17,6 +7,8 @@ export interface VerificationEmail {
   html: string;
 }
 
+// The name comes from the sign-up form: a plain-text field, never parsed as
+// markup by an email client, so only the HTML part needs escaping.
 export function buildVerificationEmail(name: string, url: string): VerificationEmail {
   const copy = t.verificationEmail;
   return {

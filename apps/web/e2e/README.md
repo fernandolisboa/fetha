@@ -31,3 +31,11 @@ Environment variables:
 E2E-only route `/api/e2e/verification-link`, verifies, signs in, confirms the signed-in home page
 shows the account's email (proof the session cookie reached the browser), signs out and confirms
 the signed-out state.
+
+`magic-link.spec.ts` registers and verifies a fresh account, then signs in through a magic link
+read back the same way, and separately proves a reused or already-consumed link redirects to the
+error screen instead of granting a session.
+
+`password-reset.spec.ts` registers and verifies a fresh account, requests a password reset, reads
+the reset link back through the same E2E-only route, sets a new password, and confirms the old
+password no longer works while the new one signs in.
