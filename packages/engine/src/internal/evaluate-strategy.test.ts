@@ -2229,4 +2229,82 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
     expect(result.value.signals).toEqual([]);
   });
+
+  it("rejects an open operation with option legs and expiry: null as invalid_input", () => {
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C33",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view: emptyView,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "openOperations[0].expiry",
+      message: "an operation with option legs must carry the expiry those legs share",
+    });
+  });
+
+  it("propagates a priceOperation invalid_input (a non-positive listed strike) as the entry pricing error", () => {
+    const coveredCall: Structure = {
+      id: "covered_call",
+      name: "Covered call",
+      expiry: "shared",
+      legs: [
+        { role: "stock", side: "buy", ratio: 100 },
+        { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+      ] as LegTemplate[],
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "-1.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("-1.00") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "legs.strike",
+      message: "a listed strike must be positive",
+    });
+  });
 });

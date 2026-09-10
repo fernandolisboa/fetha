@@ -5,6 +5,8 @@ import type {
   Candle,
   CorporateActionFactor,
   MarketView,
+  OptionDayPrice,
+  OptionSeries,
   RunBacktestInput,
   StrategyVersion,
   TradingSession,
@@ -127,6 +129,41 @@ function businessDays(count: number, startingFrom = new Date(Date.UTC(2024, 0, 2
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
+}
+
+function callOrPutSeries(
+  ticker: string,
+  right: "call" | "put",
+  strike: string,
+  expiry: string,
+  asOf: string,
+): OptionSeries {
+  return {
+    ticker,
+    underlying: "PETR4",
+    right,
+    strike: decimalString(strike),
+    expiry,
+    style: "european",
+    asOf,
+  };
+}
+
+function optionDayPrice(
+  ticker: string,
+  sessionDate: string,
+  average: string,
+  tradedQuantity = 10,
+): OptionDayPrice {
+  return {
+    ticker,
+    session: sessionDate,
+    asOf: `${sessionDate}T20:00:00.000Z`,
+    average: decimalString(average),
+    close: decimalString(average),
+    trades: 1,
+    tradedQuantity,
+  };
 }
 
 describe("runBacktest — hand-computed fills, costs, taxes and metrics", () => {
@@ -631,7 +668,7 @@ describe("runBacktest — period end", () => {
 });
 
 describe("runBacktest — errors", () => {
-  it("returns unsupported for a strategy with option legs", () => {
+  it("no longer refuses a strategy with option legs outright (#23): it fails the same way an empty view fails any strategy", () => {
     const optionStructure: Structure = {
       id: "cc",
       name: "Covered call",
@@ -656,9 +693,9 @@ describe("runBacktest — errors", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({
-      code: "unsupported",
-      vocabulary: "strikeSelections",
-      kind: "moneyness",
+      code: "invalid_input",
+      path: "config.period",
+      message: "no calendar session falls inside the requested period",
     });
   });
 
@@ -1745,6 +1782,22 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       "a taxesFinalized element has a non-finite tax",
       (valid: object) => ({ ...valid, taxesFinalized: [{}] }),
     ],
+    [
+      "a pendingSettlements entry has a non-finite residualQuantity",
+      (valid: object) => ({
+        ...valid,
+        pendingSettlements: {
+          "op-1": {
+            op: {},
+            settlement: [],
+            pnlSoFar: 0,
+            residualQuantity: "nope",
+            residualAvgCostCentavos: 0,
+            expirySession: "2024-01-02",
+          },
+        },
+      }),
+    ],
   ])(
     "returns checkpoint_mismatch, never a throw, when the resumed state is %s",
     (_label, corrupt: (valid: object) => unknown) => {
@@ -2088,5 +2141,700 @@ describe("runBacktest — short stock legs, exit retries and error propagation",
       throw new Error("expected a complete run");
     const last = result.value.run.equityCurve.at(-1);
     expect(last?.equity).toBeGreaterThan(centavos(1_000_000));
+  });
+});
+
+describe("runBacktest — option structures (#23)", () => {
+  const optionCalendar = businessDays(20).map(session);
+
+  const singleCall: Structure = {
+    id: "single_call",
+    name: "Long call",
+    expiry: "shared",
+    legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+  };
+
+  it("fills an option entry at the next session's average and an exit at the next session's average on a profit target", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.2") }],
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days
+        .slice(0, 7)
+        .map((d, i) => optionDayPrice("PETR4C11", d, i <= 1 ? "1.00" : "3.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(run.fills[0]).toMatchObject({
+      ticker: "PETR4C11",
+      side: "buy",
+      source: "next_session_average",
+      price: decimalString("1.00"),
+    });
+    const op = run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") return;
+    expect(op.closeReason.kind).toBe("exit_rule");
+    expect(op.pnl).toBeGreaterThan(0);
+    const exitFill = run.fills.find((f) => f.operationId === op.id && f.side === "sell");
+    expect(exitFill).toMatchObject({
+      ticker: "PETR4C11",
+      side: "sell",
+      source: "next_session_average",
+    });
+  });
+
+  const coveredCall: Structure = {
+    id: "covered_call",
+    name: "Covered call",
+    expiry: "shared",
+    legs: [
+      { role: "stock", side: "buy", ratio: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+    ] as LegTemplate[],
+  };
+
+  it("settles a covered call at expiry: the assignment nets exactly against the stock leg, no residual", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        coveredCall,
+      ),
+      period: { from: days[0] as string, to: days[11] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          last: decimalString("15.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.closedAt).toBe(expiry);
+    expect(op.settlement).toHaveLength(2);
+    const stockLeg = op.settlement.find((s) => s.leg.role === "stock");
+    const callLeg = op.settlement.find((s) => s.leg.role === "call");
+    expect(stockLeg?.outcome).toBe("kept");
+    expect(callLeg?.outcome).toBe("assigned");
+    expect(callLeg?.fills).toHaveLength(1);
+    expect(callLeg?.fills[0]).toMatchObject({ price: decimalString("11.00") });
+    // Premium kept (4.50/share) exceeds the stock loss from selling at strike 11 instead of
+    // the 15 it was bought at (4.00/share): the covered call nets a small gain.
+    expect(op.pnl).toBeGreaterThan(0);
+    // No fill for this operation after the expiry session: the assignment's stock sale
+    // exactly nets against the stock leg's own quantity, so there is no residual to close.
+    const fillsAfterExpiry = run.fills.filter((f) => f.operationId === op.id && f.session > expiry);
+    expect(fillsAfterExpiry).toEqual([]);
+  });
+
+  const bullCallSpread: Structure = {
+    id: "bull_call_spread",
+    name: "Trava de alta",
+    expiry: "shared",
+    legs: [
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+    ] as LegTemplate[],
+  };
+
+  it("settles a trava de alta at expiry with only the lower strike in the money: the residual long stock closes at the next session's open", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bullCallSpread,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    // Underlying sits strictly between the two strikes: the 11-strike call is in the money,
+    // the 18-strike call expires worthless.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.closedAt).toBe(expiry);
+    const lowLeg = op.settlement.find((s) => s.leg.role === "call" && s.leg.side === "buy");
+    const highLeg = op.settlement.find((s) => s.leg.role === "call" && s.leg.side === "sell");
+    expect(lowLeg?.outcome).toBe("exercised");
+    expect(highLeg?.outcome).toBe("expired_worthless");
+    // The exercised leg's own stock buy at strike 11 does not net against anything (the
+    // other leg expired worthless, producing no fill): a residual long position remains,
+    // closed at the next session's own open, one business day after expiry.
+    const nextSession = days[11] as string;
+    const residualFill = run.fills.find(
+      (f) => f.operationId === op.id && f.session === nextSession,
+    );
+    expect(residualFill).toMatchObject({ side: "sell", source: "next_session_open" });
+  });
+
+  it("marks a residual at the period_end close when expiry falls on the run's last session (no next session to close it at)", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bull_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bullCallSpread,
+      ),
+      period: { from: days[0] as string, to: expiry },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.closedAt).toBe(expiry);
+    // No fill trades the residual: it is a mark, not a trade, when the period ends first.
+    const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
+    expect(residualFill).toBeUndefined();
+  });
+
+  it("returns missing_instrument if a resumed run's view omits an open option leg's series before its expiry", () => {
+    const days = businessDays(20);
+    const expiry = days[5] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 6 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 6).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    const paused = runBacktest({ view: fullView, config, maxSessions: 2 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = {
+      ...fullView,
+      optionSeries: [],
+    };
+    const resumed = runBacktest({ view: incompleteView, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("missing_instrument");
+  });
+
+  const shortStockProtectiveCall: Structure = {
+    id: "short_stock_protective_call",
+    name: "Short stock with a protective call",
+    expiry: "shared",
+    legs: [
+      { role: "stock", side: "sell", ratio: 1 },
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+    ] as LegTemplate[],
+  };
+
+  it("settles a short-stock structure whose protective call is exercised in the money, exercising the short-stock-leg accumulation branch", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "short_stock_protective_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        shortStockProtectiveCall,
+      ),
+      period: { from: days[0] as string, to: days[11] as string },
+      riskProfile: {
+        declaredCapital: centavos(10_000_00),
+        limits: {
+          maxLossPerOperation: decimalString("100"),
+          maxExposurePerOperation: decimalString("100"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("100"),
+        },
+      },
+    });
+    // Underlying above the call's strike: the protective long call is in the money.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          last: decimalString("15.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    const callLeg = op.settlement.find((s) => s.leg.role === "call");
+    expect(callLeg?.outcome).toBe("exercised");
+    expect(callLeg?.fills[0]).toMatchObject({ side: "buy", price: decimalString("11.00") });
+    // The exercise's stock buy nets exactly against the short stock leg's own quantity.
+    const fillsAfterExpiry = run.fills.filter((f) => f.operationId === op.id && f.session > expiry);
+    expect(fillsAfterExpiry).toEqual([]);
+  });
+
+  const bullPutSpread: Structure = {
+    id: "bull_put_spread",
+    name: "Trava de alta com puts",
+    expiry: "shared",
+    legs: [
+      { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "put", side: "sell", ratio: 1, strikeRank: 2 },
+    ] as LegTemplate[],
+  };
+
+  it("settles a bull put spread with only the higher strike in the money: the short put is assigned, the long put expires worthless", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bull_put_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bullPutSpread,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    // Underlying strictly between the two strikes: the 18-strike put is in the money, the
+    // 11-strike put expires worthless.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4P11", "put", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4P18", "put", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4P11", d, "0.50")),
+        ...days.slice(0, 12).map((d) => optionDayPrice("PETR4P18", d, "4.50")),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    const lowLeg = op.settlement.find((s) => s.leg.side === "buy");
+    const highLeg = op.settlement.find((s) => s.leg.side === "sell");
+    expect(lowLeg?.outcome).toBe("expired_worthless");
+    expect(highLeg?.outcome).toBe("assigned");
+    expect(highLeg?.fills[0]).toMatchObject({ side: "buy", price: decimalString("18.00") });
+    // A residual long position remains (the assignment's buy has nothing to net against):
+    // closed at the next session's own open.
+    const nextSession = days[11] as string;
+    const residualFill = run.fills.find(
+      (f) => f.operationId === op.id && f.session === nextSession,
+    );
+    expect(residualFill).toMatchObject({ side: "sell", source: "next_session_open" });
+  });
+
+  it("returns insufficient_data if a resumed run's view omits the underlying's own candles at an option operation's expiry", () => {
+    const days = businessDays(20);
+    const expiry = days[5] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 6 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const fullView: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 6).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    const paused = runBacktest({ view: fullView, config, maxSessions: 2 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
+
+    const incompleteView: MarketView = { ...fullView, candles: [] };
+    const resumed = runBacktest({ view: incompleteView, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(false);
+    if (resumed.ok) return;
+    expect(resumed.error.code).toBe("insufficient_data");
+  });
+
+  const bearCallSpread: Structure = {
+    id: "bear_call_spread",
+    name: "Trava de baixa com calls",
+    expiry: "shared",
+    legs: [
+      { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+    ] as LegTemplate[],
+  };
+
+  it("marks a short residual at the period_end close when expiry falls on the run's last session", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bear_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bearCallSpread,
+      ),
+      period: { from: days[0] as string, to: expiry },
+    });
+    // Underlying strictly between the two strikes: the lower (short) call is in the money
+    // and gets assigned, the higher (long) call expires worthless.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.closedAt).toBe(expiry);
+    // No fill trades the residual: it is a mark, not a trade, when the period ends first.
+    const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
+    expect(residualFill).toBeUndefined();
+  });
+
+  it("closes an option operation still open at period_end at its own market mark, before its own expiry", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[3] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 4).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find(
+      (o) => o.status === "closed" && o.closeReason.kind === "period_end",
+    );
+    expect(op).toBeDefined();
+    if (op?.status !== "closed") return;
+    expect(op.expiry).toBe(expiry);
+  });
+
+  it("closes a short option leg early on a stop_loss, buying the call back before expiry", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [{ kind: "stop_loss", multipleOfMaxLoss: decimalString("0.01") }],
+          }),
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        coveredCall,
+      ),
+      period: { from: days[0] as string, to: days[5] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      // The call's price jumps sharply after entry: the short leg loses value fast enough
+      // to trip a tight stop_loss well before the operation's own expiry.
+      optionPrices: days
+        .slice(0, 5)
+        .map((d, i) => optionDayPrice("PETR4C11", d, i <= 1 ? "1.00" : "8.00")),
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          last: decimalString("15.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find(
+      (o) => o.status === "closed" && o.closeReason.kind === "exit_rule",
+    );
+    expect(op).toBeDefined();
+    const buyBackFill = run.fills.find(
+      (f) => f.operationId === op?.id && f.ticker === "PETR4C11" && f.side === "buy",
+    );
+    expect(buyBackFill).toMatchObject({ source: "next_session_average" });
+  });
+
+  it("retries a short residual's buy-back across a zero-volume session, then closes it at the next session's open", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "bear_call_spread",
+          strikes: [
+            { kind: "nearest", price: decimalString("11.00") },
+            { kind: "nearest", price: decimalString("18.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        bearCallSpread,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d, i) => candle("PETR4", d, "15.00", "15.00", i === 11 ? 0 : 1000)),
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C18", "call", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: [
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+        ...days.slice(0, 11).map((d) => optionDayPrice("PETR4C18", d, "0.50")),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
+    expect(residualFill).toMatchObject({
+      side: "buy",
+      source: "next_session_open",
+      session: days[12],
+    });
+  });
+
+  const protectivePut: Structure = {
+    id: "protective_put",
+    name: "Protective put",
+    expiry: "shared",
+    legs: [
+      { role: "stock", side: "buy", ratio: 1 },
+      { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+    ] as LegTemplate[],
+  };
+
+  it("settles a protective put whose long put is exercised in the money, exercising the long-put-exercised sell branch", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "protective_put",
+          strikes: [{ kind: "nearest", price: decimalString("18.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        protectivePut,
+      ),
+      period: { from: days[0] as string, to: days[11] as string },
+    });
+    // Underlying below the put's strike: the long put is in the money and gets exercised.
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [
+        callOrPutSeries("PETR4P18", "put", "18.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 12).map((d) => optionDayPrice("PETR4P18", d, "4.50")),
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          last: decimalString("15.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    const putLeg = op.settlement.find((s) => s.leg.role === "put");
+    expect(putLeg?.outcome).toBe("exercised");
+    expect(putLeg?.fills[0]).toMatchObject({ side: "sell", price: decimalString("18.00") });
+    // The exercise's stock sale nets exactly against the long stock leg's own quantity.
+    const fillsAfterExpiry = run.fills.filter((f) => f.operationId === op.id && f.session > expiry);
+    expect(fillsAfterExpiry).toEqual([]);
   });
 });

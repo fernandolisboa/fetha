@@ -19,13 +19,16 @@ import {
   type DataWindow,
   type EquityPoint,
   type EvaluationOutcome,
+  type Fill,
   type Leg,
+  type LegSettlement,
   type LimitBreach,
   type MissedEntry,
   type MissedEntryReason,
   type MonthlyTax,
   type Operation,
   type OperationLeg,
+  type OptionDayPrice,
   type Result,
   type RunBacktestInput,
   type SessionLimitBreach,
@@ -37,12 +40,19 @@ import { batchTruncationReport } from "./batch-truncation";
 import { computeBacktestMetrics, sumCentavos, type MetricsInput } from "./backtest-metrics";
 import { computeMonthlyTax } from "./backtest-taxes";
 import { configDigest } from "./config-digest";
-import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
+import {
+  CENTAVOS_PER_REAL,
+  parseDecimal,
+  PRICE_SCALE,
+  RATIO_SCALE,
+  toDecimalString,
+} from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
+import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 
@@ -53,6 +63,24 @@ type PendingEntry = {
   signalSession: SessionDate;
 };
 type PendingExit = { operationId: string; rule: ExitRule };
+
+// Produced at an operation's expiry (ADR-0013 "Settlement in a run"): optionsPnl is the
+// premium-only realization of every option leg (each folds its own premium into pnl the
+// same way whether it expired worthless or was exercised/assigned — the intrinsic value of
+// an exercised/assigned leg shows up entirely in the stock trade it produces, never twice)
+// plus the matched realization of any stock quantity a settlement fill immediately closed
+// against the operation's own stock leg (a covered call assigned against its stock, a
+// vertical with both legs in the money). residualQuantity is what does not net out (ADR:
+// "residual stock ... is closed at the next session's open"), signed (+long/-short),
+// residualAvgCost its cost basis; both are meaningless when residualQuantity is zero.
+type PendingSettlement = {
+  op: Operation;
+  settlement: LegSettlement[];
+  pnlSoFar: number;
+  residualQuantity: number;
+  residualAvgCostCentavos: number;
+  expirySession: SessionDate;
+};
 
 type BacktestState = {
   cash: number;
@@ -71,6 +99,7 @@ type BacktestState = {
   pendingEntries: Record<string, PendingEntry>;
   retryCount: Record<string, number>;
   pendingExits: Record<string, PendingExit>;
+  pendingSettlements: Record<string, PendingSettlement>;
   entryCosts: Record<string, Centavos[]>;
   entryMaxLoss: Record<string, Centavos | "unbounded">;
   currentMonthKey: string | null;
@@ -97,6 +126,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     pendingEntries: {},
     retryCount: {},
     pendingExits: {},
+    pendingSettlements: {},
     entryCosts: {},
     entryMaxLoss: {},
     currentMonthKey: null,
@@ -130,6 +160,18 @@ function isValidPendingExit(value: unknown): boolean {
   return isPlainObject(value) && typeof value.operationId === "string" && isPlainObject(value.rule);
 }
 
+function isValidPendingSettlement(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    isPlainObject(value.op) &&
+    Array.isArray(value.settlement) &&
+    Number.isFinite(value.pnlSoFar) &&
+    Number.isFinite(value.residualQuantity) &&
+    Number.isFinite(value.residualAvgCostCentavos) &&
+    typeof value.expirySession === "string"
+  );
+}
+
 function isValidMonthlyTax(value: unknown): boolean {
   return isPlainObject(value) && Number.isFinite(value.tax);
 }
@@ -158,6 +200,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     "pendingEntries",
     "retryCount",
     "pendingExits",
+    "pendingSettlements",
     "entryCosts",
     "entryMaxLoss",
   ] as const;
@@ -184,6 +227,13 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     return false;
   }
   if (!Object.values(raw.pendingExits as Record<string, unknown>).every(isValidPendingExit)) {
+    return false;
+  }
+  if (
+    !Object.values(raw.pendingSettlements as Record<string, unknown>).every(
+      isValidPendingSettlement,
+    )
+  ) {
     return false;
   }
   if (!(raw.taxesFinalized as unknown[]).every(isValidMonthlyTax)) return false;
@@ -239,6 +289,26 @@ function lastKnownClose(
     candles.reduce((latest, c) => (c.session > latest.session ? c : latest)),
     "run-backtest: reduce over a non-empty array always yields a value",
   ).close;
+}
+
+// The option-leg mirror of lastKnownClose (ADR-0014 Q42, a stale mark carried forward from
+// the series' last trade): close before average, matching the same ladder priceOperation's
+// own market-price resolution uses.
+function lastKnownOptionPrice(
+  optionPricesByTicker: Map<Ticker, OptionDayPrice[]>,
+  ticker: Ticker,
+  uptoSession: SessionDate,
+  visibleAt: Instant,
+): DecimalString | null {
+  const rows = (optionPricesByTicker.get(ticker) ?? []).filter(
+    (p) => p.session <= uptoSession && isAtOrBefore(p.asOf, visibleAt),
+  );
+  if (rows.length === 0) return null;
+  const latest = assertDefined(
+    rows.reduce((best, p) => (p.session > best.session ? p : best)),
+    "run-backtest: reduce over a non-empty array always yields a value",
+  );
+  return latest.close ?? latest.average;
 }
 
 // A resumed run's view must carry the same history as the run that produced its checkpoint
@@ -323,17 +393,6 @@ function legPnlCentavos(
 export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   const { config, view } = input;
 
-  const hasOptionLegs = config.strategy.structure.legs.some((leg) => leg.role !== "stock");
-  if (hasOptionLegs) {
-    const firstStrike = assertDefined(
-      config.strategy.definition.strikes[0],
-      "runBacktest: coherence guarantees at least one strike selection for option legs",
-    );
-    return {
-      ok: false,
-      error: { code: "unsupported", vocabulary: "strikeSelections", kind: firstStrike.kind },
-    };
-  }
   if (config.strategy.definition.timeframe !== "D1") {
     return invalidInput(
       "config.strategy.definition.timeframe",
@@ -409,6 +468,68 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const bucket = corporateActionsByTicker.get(f.ticker);
     if (bucket) bucket.push(f);
     else corporateActionsByTicker.set(f.ticker, [f]);
+  }
+
+  const optionPricesByTicker = new Map<Ticker, OptionDayPrice[]>();
+  for (const p of view.optionPrices) {
+    const bucket = optionPricesByTicker.get(p.ticker);
+    if (bucket) bucket.push(p);
+    else optionPricesByTicker.set(p.ticker, [p]);
+  }
+
+  function optionDayPriceFor(
+    ticker: Ticker,
+    session: SessionDate,
+    visibleAt: Instant,
+  ): OptionDayPrice | null {
+    const rows = optionPricesByTicker.get(ticker) ?? [];
+    return rows.find((p) => p.session === session && isAtOrBefore(p.asOf, visibleAt)) ?? null;
+  }
+
+  // A leg's fill readiness and price, uniform over the fill sources ADR-0013 "Fills" fixes
+  // for a daily run: a stock leg at the next session's open, an option leg at the next
+  // session's average traded price. An operation's entry or exit fills atomically — every
+  // leg must be ready in the same session, or the whole thing retries (ADR-0014 Q38, Q52).
+  function legFillPrice(
+    leg: Leg,
+    session: TradingSession,
+  ):
+    | { ready: true; price: DecimalString; source: "next_session_open" | "next_session_average" }
+    | { ready: false } {
+    if (leg.role === "stock") {
+      const candle = candleFor(candlesByTicker, leg.ticker, session.date, session.close);
+      if (!candle || candle.tradedQuantity <= 0) return { ready: false };
+      return { ready: true, price: candle.open, source: "next_session_open" };
+    }
+    const dayPrice = optionDayPriceFor(leg.ticker, session.date, session.close);
+    if (!dayPrice || dayPrice.tradedQuantity <= 0 || !dayPrice.average) return { ready: false };
+    return { ready: true, price: dayPrice.average, source: "next_session_average" };
+  }
+
+  // Every option leg of an operation lists the same expiry (ADR-0014 Q43); the first
+  // resolvable one is the operation's own. null for a stock-only operation.
+  function resolveOperationExpiry(legs: readonly Leg[], at: Instant): SessionDate | null {
+    for (const leg of legs) {
+      if (leg.role === "stock") continue;
+      const series = resolveSeries(view, leg.ticker, at);
+      if (series) return series.expiry;
+    }
+    return null;
+  }
+
+  // A leg's own current mark: a stock leg reads the underlying's last known close, an
+  // option leg its own series' last known day price (ADR-0014 Q42). Every mark — the daily
+  // equity mark, the period-end sweep and a settlement's own residual valuation — reads the
+  // same instant (I1).
+  function lastKnownLegPrice(
+    leg: Leg,
+    uptoSession: SessionDate,
+    visibleAt: Instant,
+  ): DecimalString | null {
+    if (leg.role === "stock") {
+      return lastKnownClose(candlesByTicker, leg.ticker, uptoSession, visibleAt);
+    }
+    return lastKnownOptionPrice(optionPricesByTicker, leg.ticker, uptoSession, visibleAt);
   }
   // `Operation.legs` themselves stay nominal — the evaluator already rebases its own exit-rule
   // comparisons the same way (ADR-0014 Q51) — so this is applied only where runBacktest computes
@@ -521,9 +642,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     let openCountThisSession = state.openOperations.length;
     const maxOpenOperations = config.riskProfile.limits.maxOpenOperations;
     for (const [ticker, pending] of Object.entries(state.pendingEntries)) {
-      const candle = candleFor(candlesByTicker, ticker, session.date, session.close);
       state.retryCount[ticker] = (state.retryCount[ticker] ?? 0) + 1;
-      if (candle && candle.tradedQuantity > 0) {
+      const legFills = pending.legs.map((leg) => legFillPrice(leg, session));
+      const allLegsReady = legFills.every((f) => f.ready);
+      if (allLegsReady) {
         if (openCountThisSession + 1 > maxOpenOperations) {
           if (config.limits === "enforce") {
             finalizeMissedEntry(ticker, session.open, "limit_breach");
@@ -554,8 +676,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           session.date,
           session.close,
         );
+        // Only a stock leg's own ticker persists unchanged through a split (an option
+        // leg's listed series is exchange-adjusted instead, ADR-0013's #23 addendum), so
+        // only a stock leg's signal-time quantity is rescaled here.
         const rescaledQuantities: number[] = [];
         for (const leg of pending.legs) {
+          if (leg.role !== "stock") {
+            rescaledQuantities.push(leg.quantity);
+            continue;
+          }
           const rescaled = entryFactor.eq(1)
             ? leg.quantity
             : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
@@ -567,48 +696,60 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           }
           rescaledQuantities.push(rescaled);
         }
-        const legs: OperationLeg[] = pending.legs.map((leg, legIndex) => ({
-          role: leg.role,
-          side: leg.side,
-          ticker: leg.ticker,
-          quantity: toQuantity(
-            assertDefined(
-              rescaledQuantities[legIndex],
-              "run-backtest: rescaledQuantities has one entry per leg",
+        const legs: OperationLeg[] = pending.legs.map((leg, legIndex) => {
+          const legFill = assertDefined(
+            legFills[legIndex],
+            "run-backtest: legFills has one entry per leg",
+          );
+          invariant(legFill.ready, "run-backtest: allLegsReady already checked every leg");
+          return {
+            role: leg.role,
+            side: leg.side,
+            ticker: leg.ticker,
+            quantity: toQuantity(
+              assertDefined(
+                rescaledQuantities[legIndex],
+                "run-backtest: rescaledQuantities has one entry per leg",
+              ),
             ),
-          ),
-          entryPrice: candle.open,
-        }));
+            entryPrice: legFill.price,
+          };
+        });
         const entryCosts: Centavos[] = [];
-        for (const leg of legs) {
-          const costs = fillCosts(config.costModel, candle.open, leg.quantity);
+        for (const [legIndex, leg] of legs.entries()) {
+          const legFill = assertDefined(
+            legFills[legIndex],
+            "run-backtest: legFills has one entry per leg",
+          );
+          invariant(legFill.ready, "run-backtest: allLegsReady already checked every leg");
+          const costs = fillCosts(config.costModel, legFill.price, leg.quantity);
           entryCosts.push(costs);
-          const gross = grossCentavos(candle.open, leg.quantity).round().toNumber();
+          const gross = grossCentavos(legFill.price, leg.quantity).round().toNumber();
           state.cash -= (leg.side === "buy" ? 1 : -1) * gross + costs;
           // A short entry is itself a stock sell (ADR-0004's exemption reads "stock
           // sells in the month", any sell fill, not only an exit closing a long): the
           // exit-fill loop below only sees the covering buy for this leg, so it never
           // counts, and this is the only place that can.
-          if (leg.side === "sell") {
+          if (leg.side === "sell" && leg.role === "stock") {
             state.currentMonthStockSales += gross;
           }
           state.fills.push({
-            ticker,
+            ticker: leg.ticker,
             side: leg.side,
             quantity: leg.quantity,
-            price: candle.open,
+            price: legFill.price,
             session: session.date,
             at: session.open,
             costs,
             operationId: id,
-            source: "next_session_open",
+            source: legFill.source,
           });
         }
         state.openOperations.push({
           id,
           underlying: ticker,
           legs,
-          expiry: null,
+          expiry: resolveOperationExpiry(pending.legs, session.close),
           openedAt: session.date,
           strategyVersionId: config.strategy.id,
           rolledFrom: null,
@@ -642,15 +783,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         "run-backtest: a pending exit always references a currently open operation",
       );
       const op = assertDefined(state.openOperations[opIndex], "run-backtest: opIndex is valid");
-      const candle = candleFor(candlesByTicker, op.underlying, session.date, session.close);
-      if (!candle || candle.tradedQuantity <= 0) continue;
+      const legFills = op.legs.map((leg) => legFillPrice(leg, session));
+      if (!legFills.every((f) => f.ready)) continue;
 
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
-      // Read at this same session's close, the instant `candleFor` above already used to decide
-      // this candle is visible: a factor whose own asOf sits between this session's open and
-      // close must apply to this fill exactly when it would also apply to a same-session mark of
-      // an operation that stayed open instead of exiting (I1), never on some other instant that
-      // could disagree over which factors are visible yet.
+      // Read at this same session's close, the same instant legFillPrice above already used
+      // to decide the stock leg's candle is visible: a factor whose own asOf sits between
+      // this session's open and close must apply to this fill exactly when it would also
+      // apply to a same-session mark of an operation that stayed open instead of exiting
+      // (I1), never on some other instant that could disagree over which factors are
+      // visible yet.
       const splitFactor = corporateActionFactorThrough(
         op.underlying,
         op.openedAt,
@@ -660,7 +802,42 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       let pnl = new Decimal(0);
       for (let legIndex = 0; legIndex < op.legs.length; legIndex += 1) {
         const leg = assertDefined(op.legs[legIndex], "run-backtest: legIndex within bounds");
+        const legFill = assertDefined(legFills[legIndex], "run-backtest: legIndex within bounds");
+        invariant(legFill.ready, "run-backtest: every leg was already checked ready above");
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
+        const entryCost = entryCosts[legIndex] ?? toCentavos(0);
+
+        if (leg.role !== "stock") {
+          // An option contract trades a whole number already; no split rebasing and no
+          // fractional residue (ADR-0013's #23 addendum: only a stock leg's own ticker
+          // persists unchanged through a corporate action).
+          const costs = fillCosts(config.costModel, legFill.price, leg.quantity);
+          const gross = grossCentavos(legFill.price, leg.quantity).round().toNumber();
+          state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
+          state.fills.push({
+            ticker: leg.ticker,
+            side: exitSide,
+            quantity: leg.quantity,
+            price: legFill.price,
+            session: session.date,
+            at: session.open,
+            costs,
+            operationId: op.id,
+            source: legFill.source,
+          });
+          pnl = pnl
+            .add(
+              parseDecimal(legFill.price)
+                .sub(parseDecimal(leg.entryPrice))
+                .mul(leg.side === "buy" ? 1 : -1)
+                .mul(CENTAVOS_PER_REAL)
+                .mul(leg.quantity),
+            )
+            .sub(costs)
+            .sub(entryCost);
+          continue;
+        }
+
         // The exit trades an integer number of shares; a grouping factor that does not divide
         // `leg.quantity` evenly leaves a sub-one-share residue, cash-settled at this same fill's
         // price rather than dropped or rounded into a share that was never granted (ADR-0014
@@ -681,14 +858,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         let costs = toCentavos(0);
         if (effectiveShares > 0) {
           const q = toQuantity(effectiveShares);
-          costs = fillCosts(config.costModel, candle.open, q);
-          const gross = grossCentavos(candle.open, q).round().toNumber();
+          costs = fillCosts(config.costModel, legFill.price, q);
+          const gross = grossCentavos(legFill.price, q).round().toNumber();
           state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
           state.fills.push({
             ticker: op.underlying,
             side: exitSide,
             quantity: q,
-            price: candle.open,
+            price: legFill.price,
             session: session.date,
             at: session.open,
             costs,
@@ -698,13 +875,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           if (exitSide === "sell") state.currentMonthStockSales += gross;
         }
         if (residue.isPositive()) {
-          const residueGross = grossCentavos(candle.open, residue).round().toNumber();
+          const residueGross = grossCentavos(legFill.price, residue).round().toNumber();
           state.cash += (exitSide === "sell" ? 1 : -1) * residueGross;
           if (exitSide === "sell") state.currentMonthStockSales += residueGross;
         }
-        const entryCost = entryCosts[legIndex] ?? toCentavos(0);
         pnl = pnl
-          .add(legPnlCentavos(leg, candle.open, splitFactor))
+          .add(legPnlCentavos(leg, legFill.price, splitFactor))
           .sub(costs)
           .sub(entryCost);
       }
@@ -718,7 +894,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         id: op.id,
         underlying: op.underlying,
         legs: op.legs,
-        expiry: null,
+        expiry: op.expiry,
         openedAt: op.openedAt,
         strategyVersionId: op.strategyVersionId,
         rolledFrom: op.rolledFrom,
@@ -733,6 +909,245 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       Reflect.deleteProperty(state.entryCosts, op.id);
       Reflect.deleteProperty(state.entryMaxLoss, op.id);
     }
+    return { ok: true, value: undefined };
+  }
+
+  function finalizeSettlement(
+    pending: PendingSettlement,
+    pnl: number,
+    closedAt: SessionDate,
+  ): void {
+    state.operations.push({
+      id: pending.op.id,
+      underlying: pending.op.underlying,
+      legs: pending.op.legs,
+      expiry: pending.op.expiry,
+      openedAt: pending.op.openedAt,
+      strategyVersionId: pending.op.strategyVersionId,
+      rolledFrom: pending.op.rolledFrom,
+      pnl: toCentavos(Math.round(pnl)),
+      // entryMaxLoss is set for every id in state.openOperations at entry time and only
+      // deleted here, so a settling operation always has one; the fallback only guards the
+      // type, mirroring the same pattern at every other operation-closing call site.
+      /* v8 ignore next */
+      maxLoss: state.entryMaxLoss[pending.op.id] ?? toCentavos(0),
+      status: "expired",
+      closedAt,
+      settlement: pending.settlement,
+    });
+    Reflect.deleteProperty(state.entryCosts, pending.op.id);
+    Reflect.deleteProperty(state.entryMaxLoss, pending.op.id);
+  }
+
+  // Step 1c: close any residual stock a prior session's settlement left open, at this
+  // session's own open (ADR-0013 "Settlement in a run"). Retried indefinitely like a
+  // pending exit (ADR-0014 Q52's hygiene-first reading extends naturally here) until the
+  // period-end sweep marks it instead.
+  function resolvePendingSettlementResidualFills(session: TradingSession): void {
+    for (const [opId, pending] of Object.entries(state.pendingSettlements)) {
+      const candle = candleFor(candlesByTicker, pending.op.underlying, session.date, session.close);
+      if (!candle || candle.tradedQuantity <= 0) continue;
+      const side: "buy" | "sell" = pending.residualQuantity > 0 ? "sell" : "buy";
+      const q = toQuantity(Math.abs(pending.residualQuantity));
+      const costs = fillCosts(config.costModel, candle.open, q);
+      const gross = grossCentavos(candle.open, q).round().toNumber();
+      state.cash += (side === "sell" ? 1 : -1) * gross - costs;
+      if (side === "sell") state.currentMonthStockSales += gross;
+      state.fills.push({
+        ticker: pending.op.underlying,
+        side,
+        quantity: q,
+        price: candle.open,
+        session: session.date,
+        at: session.open,
+        costs,
+        operationId: opId,
+        source: "next_session_open",
+      });
+      const residualPnl = parseDecimal(candle.open)
+        .sub(new Decimal(pending.residualAvgCostCentavos).div(CENTAVOS_PER_REAL))
+        .mul(pending.residualQuantity > 0 ? 1 : -1)
+        .mul(CENTAVOS_PER_REAL)
+        .mul(Math.abs(pending.residualQuantity))
+        .sub(costs)
+        .add(pending.pnlSoFar)
+        .round()
+        .toNumber();
+      state.currentMonthStockGain += residualPnl;
+      finalizeSettlement(pending, residualPnl, pending.expirySession);
+      Reflect.deleteProperty(state.pendingSettlements, opId);
+    }
+  }
+
+  // Step 1d: settle every open operation reaching its own expiry this session (ADR-0013
+  // "Settlement in a run", ADR-0014 Q41). In-the-money option legs are exercised or
+  // assigned at the strike; out-of-the-money legs expire worthless; a stock leg is kept.
+  // The settlement stock fills net against the operation's own stock leg, if any, by
+  // average-cost matching: the matched quantity is realized now, the rest is a residual
+  // closed at the next session's open (or marked at period_end when there is none).
+  function resolveExpiringOperations(session: TradingSession): Result<void> {
+    const stillOpen: Operation[] = [];
+    for (const op of state.openOperations) {
+      if (op.expiry !== session.date) {
+        stillOpen.push(op);
+        continue;
+      }
+      const underlyingClose = lastKnownClose(
+        candlesByTicker,
+        op.underlying,
+        session.date,
+        session.close,
+      );
+      if (underlyingClose === null) {
+        return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
+      }
+
+      const settlement: LegSettlement[] = [];
+      let optionsPnl = new Decimal(0);
+      let buyQty = new Decimal(0);
+      let buyCost = new Decimal(0);
+      let sellQty = new Decimal(0);
+      let sellProceeds = new Decimal(0);
+
+      for (const leg of op.legs) {
+        if (leg.role === "stock") {
+          settlement.push({
+            leg: leg as OperationLeg & { role: "stock" },
+            outcome: "kept",
+            intrinsicValue: null,
+            fills: [],
+          });
+          if (leg.side === "buy") {
+            buyQty = buyQty.add(leg.quantity);
+            buyCost = buyCost.add(
+              parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+            );
+          } else {
+            sellQty = sellQty.add(leg.quantity);
+            sellProceeds = sellProceeds.add(
+              parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+            );
+          }
+          continue;
+        }
+
+        const series = resolveSeries(view, leg.ticker, session.close);
+        if (!series) {
+          return {
+            ok: false,
+            error: { code: "missing_instrument", ticker: leg.ticker },
+          };
+        }
+        const strike = series.strike;
+        const inTheMoney =
+          leg.role === "call"
+            ? parseDecimal(underlyingClose).gt(strike)
+            : parseDecimal(underlyingClose).lt(strike);
+        const intrinsic =
+          leg.role === "call"
+            ? Decimal.max(parseDecimal(underlyingClose).sub(strike), 0)
+            : Decimal.max(new Decimal(strike).sub(underlyingClose), 0);
+        const intrinsicValue = toDecimalString(intrinsic, PRICE_SCALE);
+
+        // Every option leg folds its own premium into pnl the same way whether it expires
+        // worthless or is exercised/assigned: the intrinsic value it carries shows up
+        // entirely in the stock trade the exercise/assignment produces, never twice (ADR-0014
+        // "Taxes", extended here to the operation's own pnl).
+        optionsPnl = optionsPnl.sub(
+          new Decimal(leg.side === "buy" ? 1 : -1)
+            .mul(parseDecimal(leg.entryPrice))
+            .mul(CENTAVOS_PER_REAL)
+            .mul(leg.quantity),
+        );
+
+        if (!inTheMoney) {
+          settlement.push({
+            leg: leg as OperationLeg & { role: "call" | "put" },
+            outcome: "expired_worthless",
+            intrinsicValue,
+            fills: [],
+          } as LegSettlement);
+          continue;
+        }
+
+        const outcome = leg.side === "buy" ? "exercised" : "assigned";
+        const fillSide: "buy" | "sell" =
+          leg.role === "call"
+            ? leg.side === "buy"
+              ? "buy"
+              : "sell"
+            : leg.side === "buy"
+              ? "sell"
+              : "buy";
+        const costs = fillCosts(config.costModel, strike, leg.quantity);
+        const fill: Fill = {
+          ticker: op.underlying,
+          side: fillSide,
+          quantity: leg.quantity,
+          price: strike,
+          session: session.date,
+          at: session.close,
+          costs,
+        };
+        settlement.push({
+          leg: leg as OperationLeg & { role: "call" | "put" },
+          outcome,
+          intrinsicValue,
+          fills: [fill],
+        } as LegSettlement);
+        state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
+        const gross = grossCentavos(strike, leg.quantity).round().toNumber();
+        state.cash -= (fillSide === "buy" ? 1 : -1) * gross + costs;
+        if (fillSide === "buy") {
+          buyQty = buyQty.add(leg.quantity);
+          buyCost = buyCost.add(parseDecimal(strike).mul(CENTAVOS_PER_REAL).mul(leg.quantity));
+        } else {
+          sellQty = sellQty.add(leg.quantity);
+          sellProceeds = sellProceeds.add(
+            parseDecimal(strike).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+          );
+          state.currentMonthStockSales += gross;
+        }
+      }
+
+      const matchedQty = Decimal.min(buyQty, sellQty);
+      const avgBuyPrice = buyQty.gt(0) ? buyCost.div(buyQty) : new Decimal(0);
+      const avgSellPrice = sellQty.gt(0) ? sellProceeds.div(sellQty) : new Decimal(0);
+      const matchedPnl = matchedQty.mul(avgSellPrice.sub(avgBuyPrice));
+      // entryCosts is set for every id in state.openOperations at entry time; the fallback
+      // only guards the type, the same pattern every other operation-closing call site uses.
+      /* v8 ignore next */
+      const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
+      const pnlSoFar = optionsPnl.add(matchedPnl).sub(sumCentavos(entryCosts));
+
+      const residualQuantity = buyQty.sub(sellQty).round().toNumber();
+      if (residualQuantity === 0) {
+        finalizeSettlement(
+          {
+            op,
+            settlement,
+            pnlSoFar: 0,
+            residualQuantity: 0,
+            residualAvgCostCentavos: 0,
+            expirySession: session.date,
+          },
+          pnlSoFar.round().toNumber(),
+          session.date,
+        );
+      } else {
+        state.pendingSettlements[op.id] = {
+          op,
+          settlement,
+          pnlSoFar: pnlSoFar.round().toNumber(),
+          residualQuantity,
+          residualAvgCostCentavos: (residualQuantity > 0 ? avgBuyPrice : avgSellPrice)
+            .round()
+            .toNumber(),
+          expirySession: session.date,
+        };
+      }
+    }
+    state.openOperations = stillOpen;
     return { ok: true, value: undefined };
   }
 
@@ -770,17 +1185,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     let markValue = 0;
     const marksThisSession = new Map<Ticker, DecimalString>();
     for (const op of state.openOperations) {
-      const markPriceOrNull = lastKnownClose(
-        candlesByTicker,
-        op.underlying,
-        session.date,
-        session.close,
-      );
-      if (markPriceOrNull === null) {
-        return missingMarkError(op.underlying, op.openedAt, sortedCalendar, session.close);
-      }
-      const markPrice = markPriceOrNull;
-      marksThisSession.set(op.underlying, markPrice);
       const splitFactor = corporateActionFactorThrough(
         op.underlying,
         op.openedAt,
@@ -788,8 +1192,17 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       for (const leg of op.legs) {
+        const markPriceOrNull = lastKnownLegPrice(leg, session.date, session.close);
+        if (markPriceOrNull === null) {
+          return missingMarkError(leg.ticker, op.openedAt, sortedCalendar, session.close);
+        }
+        const markPrice = markPriceOrNull;
+        marksThisSession.set(leg.ticker, markPrice);
         const sign = leg.side === "buy" ? 1 : -1;
-        const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
+        const effectiveQuantity =
+          leg.role === "stock"
+            ? new Decimal(leg.quantity).div(splitFactor)
+            : new Decimal(leg.quantity);
         markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
@@ -825,10 +1238,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   ): Result<"continue" | "proceed"> {
     if (isFinalSession) {
       for (const op of state.openOperations) {
-        const price = assertDefined(
-          marksThisSession.get(op.underlying),
-          "run-backtest: markOpenOperations already marked every currently open operation this same session",
-        );
         const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
         const splitFactor = corporateActionFactorThrough(
           op.underlying,
@@ -838,14 +1247,26 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         );
         let pnl = new Decimal(0);
         op.legs.forEach((leg, legIndex) => {
+          const price = assertDefined(
+            marksThisSession.get(leg.ticker),
+            "run-backtest: markOpenOperations already marked every leg of every currently open operation this same session",
+          );
           const entryCost = entryCosts[legIndex] ?? toCentavos(0);
-          pnl = pnl.add(legPnlCentavos(leg, price, splitFactor)).sub(entryCost);
+          const legPnl =
+            leg.role === "stock"
+              ? legPnlCentavos(leg, price, splitFactor)
+              : parseDecimal(price)
+                  .sub(parseDecimal(leg.entryPrice))
+                  .mul(leg.side === "buy" ? 1 : -1)
+                  .mul(CENTAVOS_PER_REAL)
+                  .mul(leg.quantity);
+          pnl = pnl.add(legPnl).sub(entryCost);
         });
         state.operations.push({
           id: op.id,
           underlying: op.underlying,
           legs: op.legs,
-          expiry: null,
+          expiry: op.expiry,
           openedAt: op.openedAt,
           strategyVersionId: op.strategyVersionId,
           rolledFrom: op.rolledFrom,
@@ -859,6 +1280,41 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         Reflect.deleteProperty(state.entryMaxLoss, op.id);
       }
       state.openOperations = [];
+      // A residual still open when the period ends has no next session to close it at: it
+      // is marked at this same close instead, under the period_end rule (ADR-0013
+      // "Settlement in a run").
+      for (const [opId, pending] of Object.entries(state.pendingSettlements)) {
+        const markPrice = lastKnownClose(
+          candlesByTicker,
+          pending.op.underlying,
+          session.date,
+          session.close,
+        );
+        // lastKnownClose only requires a candle at or before this session; the settlement
+        // that produced this pending residual already found one, on or before its own
+        // (earlier or equal) expiry session, so this same lookup at this later session can
+        // never come back empty — the earlier candle stays "last known" forever after.
+        /* v8 ignore start */
+        if (markPrice === null) {
+          return missingMarkError(
+            pending.op.underlying,
+            pending.op.openedAt,
+            sortedCalendar,
+            session.close,
+          );
+        }
+        /* v8 ignore stop */
+        const residualPnl = parseDecimal(markPrice)
+          .sub(new Decimal(pending.residualAvgCostCentavos).div(CENTAVOS_PER_REAL))
+          .mul(pending.residualQuantity > 0 ? 1 : -1)
+          .mul(CENTAVOS_PER_REAL)
+          .mul(Math.abs(pending.residualQuantity))
+          .add(pending.pnlSoFar)
+          .round()
+          .toNumber();
+        finalizeSettlement(pending, residualPnl, pending.expirySession);
+        Reflect.deleteProperty(state.pendingSettlements, opId);
+      }
       const strandedEntryTickers = new Set<Ticker>([
         ...Object.keys(state.pendingEntries),
         ...failedEntryTickers,
@@ -966,7 +1422,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const failedEntryTickers = entryFillsResult.value;
     const exitFillsResult = resolvePendingExitFills(session);
     if (!exitFillsResult.ok) return { ok: false, error: exitFillsResult.error };
+    resolvePendingSettlementResidualFills(session);
     deductPendingTax(monthKey, isFinalSession, i);
+
+    const expiringResult = resolveExpiringOperations(session);
+    if (!expiringResult.ok) return { ok: false, error: expiringResult.error };
 
     const marked = markOpenOperations(session);
     if (!marked.ok) return { ok: false, error: marked.error };

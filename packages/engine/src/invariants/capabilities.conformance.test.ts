@@ -68,10 +68,9 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().sizingRules).toEqual([...implementedSizingRuleKinds]);
   });
 
-  it("exitRules is implemented for the stock-only subset and the rest is unsupported", () => {
-    expectTypeOf<
-      (typeof implementedExitRuleKinds)[number] | (typeof unsupportedExitRuleKinds)[number]
-    >().toEqualTypeOf<ExitRule["kind"]>();
+  it("exitRules is implemented in full and matches the contracts ExitRule kinds exactly", () => {
+    expect(unsupportedExitRuleKinds).toEqual([]);
+    expectTypeOf<(typeof implementedExitRuleKinds)[number]>().toEqualTypeOf<ExitRule["kind"]>();
     expect(capabilities().exitRules).toEqual([...implementedExitRuleKinds]);
   });
 

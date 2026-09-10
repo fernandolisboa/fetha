@@ -319,7 +319,7 @@ describe("engine", () => {
     expect(result.value.signals).toEqual([]);
   });
 
-  it("reports unsupported with the strike-selection kind for runBacktest on a structure with option legs", async () => {
+  it("no longer refuses runBacktest for a structure with option legs (#23): an empty view still fails on the period", async () => {
     const optionStrategy: StrategyVersion = {
       id: "v1",
       definition: {
@@ -370,9 +370,9 @@ describe("engine", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({
-      code: "unsupported",
-      vocabulary: "strikeSelections",
-      kind: "moneyness",
+      code: "invalid_input",
+      path: "config.period",
+      message: "no calendar session falls inside the requested period",
     });
   });
 
