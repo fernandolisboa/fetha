@@ -114,6 +114,22 @@ function nearestSeriesByAbsDelta(
   return best;
 }
 
+// Two tickers can list the same (underlying, expiry, right, strike): a `.find` over
+// candidates flips with array order. Deterministic tie-break on the lexicographically
+// earlier ticker (PR #53 round 4 item 2).
+function seriesAtStrike(
+  candidates: readonly OptionSeries[],
+  right: "call" | "put",
+  strike: DecimalString,
+): OptionSeries | null {
+  let best: OptionSeries | null = null;
+  for (const series of candidates) {
+    if (series.right !== right || series.strike !== strike) continue;
+    if (!best || series.ticker < best.ticker) best = series;
+  }
+  return best;
+}
+
 export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionResolution {
   const ranks = distinctRanks(input.structure);
   if (input.strikes.length !== ranks.length) {
@@ -188,6 +204,7 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
   const timeToExpiryYears = tteResult.years;
 
   const resolvedStrikes: DecimalString[] = [];
+  const chosenByRankAndRight = new Map<string, OptionSeries>();
   for (const [i, rank] of ranks.entries()) {
     const rule = assertDefined(
       input.strikes[i],
@@ -252,6 +269,7 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       };
     }
     resolvedStrikes.push(chosen.strike);
+    chosenByRankAndRight.set(`${String(rank)}:${chosen.right}`, chosen);
   }
 
   for (let i = 1; i < resolvedStrikes.length; i += 1) {
@@ -284,13 +302,17 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       resolvedStrikes[template.strikeRank - 1],
       "every strike rank was resolved above",
     );
-    const series = latestSeries.find(
-      (candidate) =>
-        candidate.underlying === input.underlying &&
-        candidate.expiry === chosenExpiry &&
-        candidate.right === template.role &&
-        candidate.strike === strike,
-    );
+    const rankKey = `${String(template.strikeRank)}:${template.role}`;
+    const series =
+      chosenByRankAndRight.get(rankKey) ??
+      seriesAtStrike(
+        latestSeries.filter(
+          (candidate) =>
+            candidate.underlying === input.underlying && candidate.expiry === chosenExpiry,
+        ),
+        template.role,
+        strike,
+      );
     if (!series) {
       return {
         ok: false,

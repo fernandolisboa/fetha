@@ -536,4 +536,44 @@ describe("resolveLegSelection", () => {
     expect(callLeg).toMatchObject({ role: "call", series: { ticker: "PETR4C32" } });
     expect(putLeg).toMatchObject({ role: "put", series: { ticker: "PETR4P32" } });
   });
+
+  it("breaks a two-ticker tie at the other right's strike by the lexicographically earlier ticker, regardless of array order (round 4 item 2)", () => {
+    const straddle: Structure = {
+      id: "straddle",
+      name: "straddle",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    const callAtStrike = callSeries("PETR4C30", "30.00");
+    const putA: OptionSeries = { ...callSeries("PETR4P30B", "30.00"), right: "put" };
+    const putB: OptionSeries = { ...callSeries("PETR4P30A", "30.00"), right: "put" };
+    const forwardOrderView: MarketView = {
+      ...baseView,
+      optionSeries: [callAtStrike, putA, putB],
+    };
+    const reverseOrderView: MarketView = {
+      ...baseView,
+      optionSeries: [putB, putA, callAtStrike],
+    };
+    const input = {
+      structure: straddle,
+      underlying: "PETR4",
+      strikes: [{ kind: "nearest" as const, price: decimalString("30.00") }],
+      expiry: { kind: "business_days" as const, min: 1, max: 30 },
+      at,
+      spot: decimalString("30.00"),
+      riskFreeRate: decimalString("0.1"),
+      dividendYield: decimalString("0"),
+    };
+    const forwardResult = resolveLegSelection({ ...input, view: forwardOrderView });
+    const reverseResult = resolveLegSelection({ ...input, view: reverseOrderView });
+    expect(forwardResult).toEqual(reverseResult);
+    expect(forwardResult.ok).toBe(true);
+    if (!forwardResult.ok) return;
+    const [, putLeg] = forwardResult.legs;
+    expect(putLeg).toMatchObject({ role: "put", series: { ticker: "PETR4P30A" } });
+  });
 });

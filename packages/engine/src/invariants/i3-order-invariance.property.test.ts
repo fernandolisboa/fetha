@@ -418,6 +418,82 @@ describe("I3 Order-invariance", () => {
             optionPrices: shuffle([stalePrice, freshPrice], seed + 1),
           },
         };
+        const freshOnlyView: MarketView = { ...view, optionSeries: [freshSeries] };
+        const freshOnlyInput: PriceOperationInput = { ...input, view: freshOnlyView };
+        expect(priceOperation(shuffled, provenance)).toEqual(priceOperation(input, provenance));
+        expect(priceOperation(input, provenance)).toEqual(
+          priceOperation(freshOnlyInput, provenance),
+        );
+      }),
+    );
+  });
+
+  it("two tickers sharing one strike at a shared-rank straddle resolve the same series regardless of array order", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 1_000_000 }), (seed) => {
+        const calendar: TradingSession[] = Array.from({ length: 20 }, (_, i) => {
+          const day = String(2 + i).padStart(2, "0");
+          return {
+            date: `2024-01-${day}`,
+            open: `2024-01-${day}T13:00:00.000Z`,
+            close: `2024-01-${day}T21:00:00.000Z`,
+          };
+        });
+        const at = "2024-01-02T21:00:00.000Z";
+        const call: OptionSeries = {
+          ticker: "PETR4C30",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("30.00"),
+          expiry: "2024-01-21",
+          style: "european",
+          asOf: at,
+        };
+        const putA: OptionSeries = { ...call, ticker: "PETR4P30A", right: "put" };
+        const putB: OptionSeries = { ...call, ticker: "PETR4P30B", right: "put" };
+        const structure: Structure = {
+          id: "straddle",
+          name: "straddle",
+          expiry: "shared",
+          legs: [
+            { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+            { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+          ],
+        };
+        const view: MarketView = {
+          calendar,
+          candles: [],
+          corporateActions: [],
+          optionSeries: [call, putA, putB],
+          optionPrices: [],
+          quotes: [
+            { ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null },
+          ],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        };
+        const input: PriceOperationInput = {
+          view,
+          at,
+          legs: {
+            structure,
+            underlying: "PETR4",
+            strikes: [{ kind: "nearest", price: decimalString("30.00") }],
+            expiry: { kind: "business_days", min: 1, max: 30 },
+            quantity: quantity(1),
+          },
+        };
+        const shuffled: PriceOperationInput = {
+          ...input,
+          view: { ...view, optionSeries: shuffle([call, putA, putB], seed) },
+        };
+        const provenance = {
+          engineVersion: "0.1.0",
+          pricingModel: "bsm_continuous_yield" as const,
+          dataVersion: null,
+          datasetNotes: [],
+        };
         expect(priceOperation(shuffled, provenance)).toEqual(priceOperation(input, provenance));
       }),
     );
