@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDateTime } from "@/lib/format/date-time";
@@ -6,7 +8,7 @@ import { MarkSignalReadButton } from "./mark-signal-read-button";
 import { t } from "../strings";
 import type { SignalListItem } from "../signals-repository";
 
-function proposalSummary(signal: SignalListItem): string {
+function proposalSummary(signal: SignalListItem): ReactNode {
   if (signal.kind === "exit") {
     return t.inbox.exitProposal;
   }
@@ -14,9 +16,17 @@ function proposalSummary(signal: SignalListItem): string {
     return t.inbox.adjustProposal;
   }
   if (signal.proposal) {
-    return t.inbox.entryProposal(
-      signal.proposal.legs.length,
-      formatBRL(signal.proposal.pricing.netPremium),
+    return (
+      <>
+        <span className="font-mono tabular-nums">
+          {t.inbox.entryProposalLegs(signal.proposal.legs.length)}
+        </span>
+        {" · "}
+        {t.inbox.entryProposalNetPremiumLabel}{" "}
+        <span className="font-mono tabular-nums">
+          {formatBRL(signal.proposal.pricing.netPremium)}
+        </span>
+      </>
     );
   }
   return "";

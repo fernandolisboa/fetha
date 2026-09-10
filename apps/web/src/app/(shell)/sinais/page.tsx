@@ -64,17 +64,20 @@ export default async function SignalsPage() {
               </tr>
             </thead>
             <tbody>
-              {evaluationLog.map((row) => (
-                <tr key={row.id} className="border-line-soft border-b">
-                  <td className="py-2">{row.strategyName}</td>
-                  <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
-                  <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
-                  <td className="text-muted-foreground py-2">
-                    {t.inbox.outcomes[row.outcome]}
-                    {row.detail ? ` · ${row.detail}` : ""}
-                  </td>
-                </tr>
-              ))}
+              {evaluationLog.map((row) => {
+                const detail = row.detail ? t.inbox.evaluationLog.detail[row.detail] : undefined;
+                return (
+                  <tr key={row.id} className="border-line-soft border-b">
+                    <td className="py-2">{row.strategyName}</td>
+                    <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
+                    <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
+                    <td className="text-muted-foreground py-2">
+                      {t.inbox.outcomes[row.outcome]}
+                      {detail ? ` · ${detail}` : ""}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

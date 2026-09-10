@@ -1,3 +1,53 @@
+// The engine (packages/engine, no i18n) emits an evaluation's `detail` as
+// English prose from a closed, enumerable set of reasons (never a stable
+// code, unlike `outcome`). These map the strings known at the time of
+// writing; an unrecognized string is dropped rather than shown untranslated
+// (CLAUDE.md i18n: user-facing strings ship in pt-BR). A follow-up ticket
+// should have the engine emit a code instead.
+const evaluationDetailEn: Record<string, string> = {
+  "no candles for this instrument and timeframe": "No candles for this instrument and timeframe",
+  "no candles in (since, at] for this instrument and timeframe":
+    "No candles in the evaluated window for this instrument and timeframe",
+  "entry condition needs more warm-up data": "Entry condition needs more warm-up data",
+  "no listed option series satisfies the strike and expiry selection":
+    "No listed option series satisfies the strike and expiry selection",
+  "two distinct strike ranks resolved to the same listed strike":
+    "Two distinct strike ranks resolved to the same listed strike",
+  "no declared capital to size against": "No declared capital to size against",
+  "fixed_risk sizing is unsizeable against an unbounded max loss":
+    "Fixed-risk sizing is unsizeable against an unbounded max loss",
+  "sizing yields fewer than one unit": "Sizing yields fewer than one unit",
+  "not enough market data to select strikes or price the proposal":
+    "Not enough market data to select strikes or price the proposal",
+  "profit_target cannot fire: the operation's premium base is zero":
+    "Profit target cannot fire: the operation's premium base is zero",
+  "stop_loss cannot fire: the operation's max-loss base is zero":
+    "Stop loss cannot fire: the operation's max-loss base is zero",
+};
+
+const evaluationDetailPtBR: Record<string, string> = {
+  "no candles for this instrument and timeframe":
+    "Sem candles para este ativo nessa escala de tempo",
+  "no candles in (since, at] for this instrument and timeframe":
+    "Sem candles no intervalo avaliado para este ativo nessa escala de tempo",
+  "entry condition needs more warm-up data":
+    "A condição de entrada precisa de mais histórico de aquecimento",
+  "no listed option series satisfies the strike and expiry selection":
+    "Nenhuma série de opção listada atende à seleção de strike e vencimento",
+  "two distinct strike ranks resolved to the same listed strike":
+    "Dois ranks de strike distintos resolveram para o mesmo strike listado",
+  "no declared capital to size against": "Sem capital declarado para dimensionar",
+  "fixed_risk sizing is unsizeable against an unbounded max loss":
+    "Dimensionamento por risco fixo não é possível com perda máxima ilimitada",
+  "sizing yields fewer than one unit": "O dimensionamento resulta em menos de uma unidade",
+  "not enough market data to select strikes or price the proposal":
+    "Dados de mercado insuficientes para selecionar strikes ou precificar a proposta",
+  "profit_target cannot fire: the operation's premium base is zero":
+    "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
+  "stop_loss cannot fire: the operation's max-loss base is zero":
+    "O stop não pode disparar: a base de perda máxima da operação é zero",
+};
+
 const en = {
   list: {
     overline: "Strategies",
@@ -134,11 +184,15 @@ const en = {
     late: "late",
     markRead: "Mark as read",
     read: "Read",
-    entryProposal: (legs: number, netPremium: string) =>
-      `${String(legs)} leg(s) · net premium ${netPremium}`,
+    entryProposalLegs: (legs: number) => `${String(legs)} leg(s)`,
+    entryProposalNetPremiumLabel: "net premium",
     exitProposal: "Exit condition met on an open operation",
     adjustProposal: "Adjustment condition met",
-    evaluationLog: { title: "Evaluation log", empty: "No evaluation recorded yet." },
+    evaluationLog: {
+      title: "Evaluation log",
+      empty: "No evaluation recorded yet.",
+      detail: evaluationDetailEn,
+    },
     outcomes: {
       signal: "Signal",
       conditions_not_met: "Conditions not met",
@@ -296,11 +350,15 @@ const ptBR = {
     late: "atrasado",
     markRead: "Marcar como lida",
     read: "Lida",
-    entryProposal: (legs: number, netPremium: string) =>
-      `${String(legs)} ponta(s) · prêmio líquido ${netPremium}`,
+    entryProposalLegs: (legs: number) => `${String(legs)} ponta(s)`,
+    entryProposalNetPremiumLabel: "prêmio líquido",
     exitProposal: "Condição de saída atingida em uma operação em aberto",
     adjustProposal: "Condição de ajuste atingida",
-    evaluationLog: { title: "Log de avaliações", empty: "Nenhuma avaliação registrada ainda." },
+    evaluationLog: {
+      title: "Log de avaliações",
+      empty: "Nenhuma avaliação registrada ainda.",
+      detail: evaluationDetailPtBR,
+    },
     outcomes: {
       signal: "Sinal",
       conditions_not_met: "Condições não atendidas",
