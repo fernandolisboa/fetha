@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Panel } from "@/modules/shell";
+import { Panel } from "@/modules/shell/components/panel";
 
 import {
   addStrategyVersionAction,
