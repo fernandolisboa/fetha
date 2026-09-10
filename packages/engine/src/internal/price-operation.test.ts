@@ -731,6 +731,49 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
+  it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at` (round 4 item 1)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T21:00:00.001Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const leg = result.value.legs[0];
+    expect(leg?.stale).toEqual({ session: "2024-01-01" });
+    expect(leg?.impliedVolatility).not.toBeNull();
+    expect(leg?.greeks).not.toBeNull();
+    expect(leg?.notes).not.toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
   it("marks a stock leg's mark stale when the price row's session is earlier than the session of at", () => {
     const view: MarketView = {
       ...baseView,

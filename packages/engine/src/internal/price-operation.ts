@@ -16,6 +16,7 @@ import type {
   TradingSession,
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
+import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
   PRICE_SCALE,
@@ -200,7 +201,8 @@ function valueOneLeg(
       (f) =>
         f.ticker === underlying &&
         f.exDate > staleSession &&
-        (atSession === null || f.exDate <= atSession),
+        (atSession === null || f.exDate <= atSession) &&
+        isAtOrBefore(f.asOf, at),
     );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },

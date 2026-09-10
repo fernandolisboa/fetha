@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type {
   Candle,
+  CorporateActionFactor,
   MarketView,
   Operation,
   OptionSeries,
@@ -175,6 +176,80 @@ describe("I1 Future-blind — markToMarket", () => {
           ask: null,
         };
         const extended = { ...input, view: view([futureQuote]) };
+        expect(markToMarket(extended, provenanceBase)).toEqual(markToMarket(input, provenanceBase));
+      }),
+    );
+  });
+
+  it("appending a corporate-action factor after the mark instant never changes a stale option mark's valuation (round 4 item 1)", () => {
+    fc.assert(
+      fc.property(candlePriceArbitrary, (price) => {
+        const staleSession = "2024-01-01";
+        const series: OptionSeries = {
+          ticker: "PETR4C28",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("28.00"),
+          expiry: "2024-12-31",
+          style: "european",
+          asOf: at,
+        };
+        const view = (extra: CorporateActionFactor[]): MarketView => ({
+          ...emptyView,
+          calendar: [
+            ...calendar,
+            {
+              date: "2024-12-31",
+              open: "2024-12-31T13:00:00.000Z",
+              close: "2024-12-31T21:00:00.000Z",
+            },
+          ],
+          quotes: [{ ticker: "PETR4", asOf: at, last: price, bid: null, ask: null }],
+          optionSeries: [series],
+          optionPrices: [
+            {
+              ticker: "PETR4C28",
+              session: staleSession,
+              asOf: at,
+              average: null,
+              close: decimalString("2.50"),
+              trades: 1,
+              tradedQuantity: 1,
+            },
+          ],
+          corporateActions: extra,
+        });
+        const op: Operation = {
+          id: "op-1",
+          underlying: "PETR4",
+          legs: [
+            {
+              role: "call",
+              side: "buy",
+              ticker: "PETR4C28",
+              quantity: quantity(1),
+              entryPrice: decimalString("2.50"),
+            },
+          ],
+          expiry: "2024-12-31",
+          openedAt: "2024-01-01",
+          strategyVersionId: null,
+          rolledFrom: null,
+        };
+        const input = {
+          view: view([]),
+          at,
+          positions: [],
+          operations: [op],
+          cash: centavos(0),
+        };
+        const futureFactor: CorporateActionFactor = {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: asOfPlusMs(at, 1),
+          factor: decimalString("0.5"),
+        };
+        const extended = { ...input, view: view([futureFactor]) };
         expect(markToMarket(extended, provenanceBase)).toEqual(markToMarket(input, provenanceBase));
       }),
     );
