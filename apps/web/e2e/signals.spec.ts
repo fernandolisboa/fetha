@@ -5,10 +5,12 @@ import { registerAndSignIn } from "./helpers";
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // PETR4 is expected to already be ingested for session 2026-09-09 in the
 // preview database (the same assumption watchlist.spec.ts makes). This spec
-// creates a strategy whose entry condition ("close > 0") always holds once a
-// candle exists, activates it, triggers the nightly cron's manual POST
-// trigger for that session (#48, #19), and confirms the resulting signal
-// shows up in the inbox as a SignalRow.
+// declares a risk profile (a signal without one only reaches the
+// evaluation log as `unsizeable`, never the inbox), creates a strategy
+// whose entry condition ("close > 0") always holds once a candle exists,
+// activates it, triggers the nightly cron's manual POST trigger for that
+// session (#48, #19), and confirms the resulting signal shows up in the
+// inbox as a SignalRow.
 const e2eSecret = process.env.E2E_SECRET;
 const cronSecret = process.env.CRON_SECRET;
 const TICKER = "PETR4";
@@ -26,6 +28,12 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
+  await page.goto("/configuracoes");
+  await page.getByLabel("Capital declarado").fill("10.000,00");
+  await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
+  await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
+
+  await page.goto(baseURL ?? "/");
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
   await page.getByPlaceholder("Buscar pelo código").fill(TICKER);
   await page.getByRole("option", { name: TICKER, exact: true }).click();

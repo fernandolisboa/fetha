@@ -193,7 +193,9 @@ describe("evaluateSignalsForSession", () => {
 
     const logA = await new SignalsRepository(db, userA).listEvaluationLog();
     const logB = await new SignalsRepository(db, userB).listEvaluationLog();
+    expect(logA).toHaveLength(1);
     expect(logA.every((row) => row.ticker === tickerA)).toBe(true);
+    expect(logB).toHaveLength(1);
     expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
   });
 

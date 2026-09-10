@@ -23,7 +23,7 @@ describe("cron ingest route", () => {
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
       usersEvaluated: 0,
-      usersSkipped: [],
+      usersSkipped: 0,
       signalsWritten: 0,
       evaluationsWritten: 0,
       errors: [],

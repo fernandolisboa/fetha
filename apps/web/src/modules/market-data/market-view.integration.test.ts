@@ -1,17 +1,19 @@
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 
 import { getDb } from "@/db/client";
 import {
   candles,
   corporateActionFactors,
+  macroPoints,
   optionDailyPrices,
   optionSeries,
   tradingSessions,
 } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
-import { buildOperationMarketView } from "./market-view";
+import { buildOperationMarketView, loadMarketView } from "./market-view";
 import { upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
@@ -459,5 +461,75 @@ describe("buildOperationMarketView", () => {
 
     expect(view.candles).toHaveLength(1);
     expect(view.candles[0]?.close).toBe("30.000000");
+  });
+
+  it("fails typed instead of reaching the engine when a stored option right is out of vocabulary (round 2 item 2)", async () => {
+    const underlying = uniqueTicker("BAD");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-12-01", 3);
+    const atSession = sessions[0];
+    const expiry = sessions[sessions.length - 1];
+    if (!atSession || !expiry) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-BAD`,
+      ticker: `${underlying}W1`,
+      underlying,
+      right: "straddle",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${atSession}T13:00:00.000Z`),
+    });
+
+    const at = `${atSession}T14:00:00.000Z`;
+    await expect(buildOperationMarketView(db, underlying, at)).rejects.toThrow(ZodError);
+  });
+});
+
+describe("loadMarketView", () => {
+  const cleanupSeries: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    const dates = seededSessionDates.splice(0);
+    if (dates.length > 0) {
+      await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
+    }
+    const series = cleanupSeries.splice(0);
+    if (series.length > 0) {
+      await db.delete(macroPoints).where(inArray(macroPoints.series, series));
+    }
+  });
+
+  it("fails typed instead of reaching the engine when a stored macro series is out of vocabulary (round 2 item 2)", async () => {
+    const db = getDb();
+    const sessions = businessDays("2099-12-08", 3);
+    const from = sessions[0];
+    const to = sessions[sessions.length - 1];
+    if (!from || !to) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const bogusSeries = `bogus-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
+    cleanupSeries.push(bogusSeries);
+    await db.insert(macroPoints).values({
+      series: bogusSeries,
+      date: from,
+      asOf: new Date(`${from}T13:00:00.000Z`),
+      annualRate: "10.00000000",
+    });
+
+    await expect(
+      loadMarketView(db, {
+        from: `${from}T00:00:00.000Z`,
+        to: `${to}T23:59:59.000Z`,
+        instruments: [],
+        timeframes: ["D1"],
+        collections: ["macro"],
+      }),
+    ).rejects.toThrow(ZodError);
   });
 });

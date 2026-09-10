@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
+import { z } from "zod";
 import {
   decimalStringSchema,
   instantSchema,
@@ -9,18 +10,18 @@ import {
   type Instant,
   type Ticker,
 } from "@fetha/contracts";
-import type {
-  Candle,
-  CorporateActionFactor,
-  DataWindow,
-  ExerciseStyle,
-  MacroPoint,
-  MacroSeriesKind,
-  MarketView,
-  OptionDayPrice,
-  OptionRight,
-  OptionSeries,
-  TradingSession,
+import {
+  exerciseStyles,
+  macroSeriesKinds,
+  optionRights,
+  type Candle,
+  type CorporateActionFactor,
+  type DataWindow,
+  type MacroPoint,
+  type MarketView,
+  type OptionDayPrice,
+  type OptionSeries,
+  type TradingSession,
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -52,6 +53,10 @@ const CALENDAR_WINDOW_SESSIONS = 30;
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
 }
+
+const macroSeriesKindSchema = z.enum(macroSeriesKinds);
+const optionRightSchema = z.enum(optionRights);
+const exerciseStyleSchema = z.enum(exerciseStyles);
 
 export function emptyMarketView(): MarketView {
   return {
@@ -145,7 +150,7 @@ export async function loadMarketView(db: Database, window: DataWindow): Promise<
       factor: decimalStringSchema.parse(row.factor),
     })),
     macro: macroRows.map((row) => ({
-      series: row.series as MacroSeriesKind,
+      series: macroSeriesKindSchema.parse(row.series),
       date: sessionDateSchema.parse(row.date),
       asOf: instantSchema.parse(row.asOf.toISOString()),
       annualRate: decimalStringSchema.parse(row.annualRate),
@@ -153,10 +158,10 @@ export async function loadMarketView(db: Database, window: DataWindow): Promise<
     optionSeries: optionSeriesRows.map((row) => ({
       ticker: tickerSchema.parse(row.ticker),
       underlying: tickerSchema.parse(row.underlying),
-      right: row.right as OptionRight,
+      right: optionRightSchema.parse(row.right),
       strike: decimalStringSchema.parse(row.strike),
       expiry: sessionDateSchema.parse(row.expiry),
-      style: row.style as ExerciseStyle,
+      style: exerciseStyleSchema.parse(row.style),
       asOf: instantSchema.parse(row.asOf.toISOString()),
     })),
     optionPrices: optionPriceRows.map((row) => ({
@@ -312,10 +317,10 @@ export async function buildOperationMarketView(
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
     ticker: row.ticker,
     underlying: row.underlying,
-    right: row.right as OptionSeries["right"],
+    right: optionRightSchema.parse(row.right),
     strike: toDecimal(row.strike),
     expiry: row.expiry,
-    style: row.style as OptionSeries["style"],
+    style: exerciseStyleSchema.parse(row.style),
     asOf: row.asOf.toISOString(),
   }));
 

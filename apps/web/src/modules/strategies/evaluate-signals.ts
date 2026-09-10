@@ -19,11 +19,13 @@ import { StructuresRepository } from "./structures-repository";
 export interface EvaluateSignalsOutcome {
   sessions: string[];
   usersEvaluated: number;
-  usersSkipped: string[];
+  usersSkipped: number;
   signalsWritten: number;
   evaluationsWritten: number;
   errors: string[];
 }
+
+const SETUP_FAILED = "setup_failed";
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -39,7 +41,7 @@ function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignal
   return {
     sessions,
     usersEvaluated: 0,
-    usersSkipped: [],
+    usersSkipped: 0,
     signalsWritten: 0,
     evaluationsWritten: 0,
     errors,
@@ -134,22 +136,25 @@ export async function evaluateSignalsForSession(
     structures = await new StructuresRepository(db).listAll();
     userIds = await activeStrategyUserIds(db);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    return emptyOutcome(sorted, [`setup_failed:${message}`]);
+    console.error(
+      "evaluateSignalsForSession setup failed",
+      error instanceof Error ? error.message : "unknown error",
+    );
+    return emptyOutcome(sorted, [SETUP_FAILED]);
   }
   const structureById = new Map(structures.map((structure) => [structure.id, structure]));
 
   const calendar = await calendarUpTo(db, new Date(at));
 
   let usersEvaluated = 0;
-  const usersSkipped: string[] = [];
+  let usersSkipped = 0;
   let signalsWritten = 0;
   let evaluationsWritten = 0;
   const errors: string[] = [];
 
   for (const userId of userIds) {
     if (options.deadlineAt !== undefined && now() >= options.deadlineAt) {
-      usersSkipped.push(userId);
+      usersSkipped += 1;
       continue;
     }
     const scopedUser = { id: userId };
