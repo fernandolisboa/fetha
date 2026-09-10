@@ -23,6 +23,21 @@ import { ensureMonthlyPartition } from "./repositories/partitions";
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "20:00:00.000Z";
 
+// A tiny deterministic PRNG (#19 round 3 item 5), not cryptographic: the
+// same seed always produces the same sequence, so the EMA truncation
+// fixture below is reproducible across runs and machines instead of relying
+// on `Math.random()`.
+function mulberry32(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function businessDays(startIso: string, count: number): string[] {
   const days: string[] = [];
   const cursor = new Date(`${startIso}T00:00:00.000Z`);
@@ -557,8 +572,21 @@ describe("loadMarketView", () => {
       await ensureMonthlyPartition(db, "candles", `${month}-01`);
     }
 
+    // A perfect linear ramp is vacuous here (#19 round 3 item 5): an EMA's
+    // SMA seed lands exactly on a linear series' fixed point, so the
+    // truncated and full-history values come out bit-identical for any
+    // window >= 150 bars, no matter how the tolerance is set. A deterministic
+    // seeded level shift inside the first 50 bars — priced near R$ 100, so
+    // one centavo of rounding is ~0.01%, well under the bound below — gives
+    // the truncated EMA(150) something real to differ from: the shift sits
+    // outside the >= 450-bar truncated window but inside the full 500-bar
+    // history, so their SMA seeds differ and the gap decays but never hits
+    // zero.
+    const walk = mulberry32(20260910);
     const rows = sessions.map((session, index) => {
-      const close = (10 + index * 0.01).toFixed(8);
+      const level = index < 50 ? 85 : 100;
+      const noise = (walk() - 0.5) * 0.4;
+      const close = (level + noise).toFixed(8);
       return {
         ticker,
         timeframe: DAILY_TIMEFRAME,
@@ -666,6 +694,10 @@ describe("loadMarketView", () => {
     }
     const relativeDifference =
       Math.abs(Number(truncatedValue) - Number(fullValue)) / Number(fullValue);
+    // Non-zero (#19 round 3 item 5): the level shift the truncated window
+    // drops makes this assertion actually exercise the tolerance instead of
+    // reading zero regardless of how much warm-up the window keeps.
+    expect(relativeDifference).toBeGreaterThan(0);
     expect(relativeDifference).toBeLessThan(0.001);
   });
 });

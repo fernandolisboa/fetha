@@ -169,5 +169,11 @@ describe("SignalsRepository isolation", () => {
     const logB = await repoB.listEvaluationLog();
     expect(logB).toHaveLength(1);
     expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
+
+    // The watermark read is user-scoped too (#19 round 3 item 8): user A's
+    // read for user B's own strategy version stays null even though B just
+    // wrote an evaluation for it, and B's own read sees it.
+    expect(await repoA.lastEvaluatedSession(versionB.id)).toBeNull();
+    expect(await repoB.lastEvaluatedSession(versionB.id)).toBe("2031-06-01");
   });
 });

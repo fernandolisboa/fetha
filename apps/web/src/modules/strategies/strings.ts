@@ -23,7 +23,48 @@ const evaluationDetailEn: Record<string, string> = {
     "Profit target cannot fire: the operation's premium base is zero",
   "stop_loss cannot fire: the operation's max-loss base is zero":
     "Stop loss cannot fire: the operation's max-loss base is zero",
+  // Codes evaluate-signals.ts writes itself, not engine prose (#19 round 3
+  // item 7): distinct so the owner can tell a deleted structure from an
+  // unfillable collection from a real engine failure, instead of all three
+  // collapsing into the bare "Insufficient data" outcome label.
+  unknown_structure: "The strategy's structure no longer exists in the catalog",
+  "unsatisfiable_collection:impliedVolatilityIndex":
+    "Requires implied volatility data not yet ingested",
 };
+
+// `engine_error:<code>` and `catchup_clamped:<count>` carry a variable
+// suffix (#19 round 3 items 2, 7), so they cannot be exact keys in the maps
+// above: matched by prefix instead, in order, before falling back to
+// undefined (rendered as nothing extra beyond the bare outcome label).
+const evaluationDetailPrefixesEn: readonly (readonly [string, (suffix: string) => string])[] = [
+  ["engine_error:", (code) => `Engine error (${code})`],
+  ["catchup_clamped:", (count) => `Catch-up capped: ${count} older session(s) skipped`],
+];
+
+const evaluationDetailPrefixesPtBR: readonly (readonly [string, (suffix: string) => string])[] = [
+  ["engine_error:", (code) => `Erro do motor (${code})`],
+  [
+    "catchup_clamped:",
+    (count) => `Atualização limitada: ${count} sessão(ões) mais antiga(s) ignorada(s)`,
+  ],
+];
+
+function detailLookup(
+  exact: Record<string, string>,
+  prefixes: readonly (readonly [string, (suffix: string) => string])[],
+): (detail: string) => string | undefined {
+  return (detail: string): string | undefined => {
+    if (detail in exact) {
+      return exact[detail];
+    }
+    for (const [prefix, render] of prefixes) {
+      if (detail.startsWith(prefix)) {
+        return render(detail.slice(prefix.length));
+      }
+    }
+    return undefined;
+  };
+}
 
 const evaluationDetailPtBR: Record<string, string> = {
   "no candles for this instrument and timeframe":
@@ -46,6 +87,9 @@ const evaluationDetailPtBR: Record<string, string> = {
     "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
   "stop_loss cannot fire: the operation's max-loss base is zero":
     "O stop não pode disparar: a base de perda máxima da operação é zero",
+  unknown_structure: "A estrutura da estratégia não existe mais no catálogo",
+  "unsatisfiable_collection:impliedVolatilityIndex":
+    "Requer dados de volatilidade implícita ainda não coletados",
 };
 
 const en = {
@@ -193,6 +237,7 @@ const en = {
       title: "Evaluation log",
       empty: "No evaluation recorded yet.",
       detail: evaluationDetailEn,
+      detailFor: detailLookup(evaluationDetailEn, evaluationDetailPrefixesEn),
     },
     outcomes: {
       signal: "Signal",
@@ -360,6 +405,7 @@ const ptBR = {
       title: "Log de avaliações",
       empty: "Nenhuma avaliação registrada ainda.",
       detail: evaluationDetailPtBR,
+      detailFor: detailLookup(evaluationDetailPtBR, evaluationDetailPrefixesPtBR),
     },
     outcomes: {
       signal: "Sinal",

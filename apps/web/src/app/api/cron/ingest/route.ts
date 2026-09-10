@@ -26,7 +26,13 @@ function isAuthorized(authorizationHeader: string | null): boolean {
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
-const manualTriggerBodySchema = z.object({ session: sessionDateSchema.optional() }).strict();
+// `force` (#19 round 3 item 3): the owner's re-run after correcting a stale
+// or wrong candle. Without it, a session already covered by every active
+// strategy's own watermark short-circuits before the engine ever runs
+// again, so the correction would never reach the inbox or the log.
+const manualTriggerBodySchema = z
+  .object({ session: sessionDateSchema.optional(), force: z.boolean().optional() })
+  .strict();
 
 // Gated on the cotahist source's own outcome, not the whole run's `ok`
 // (#19 round 2 item 1): cotahist is the only source candles come from, so a
@@ -47,14 +53,17 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
 // 500 — they are reported alongside it so the owner can see them without
 // the ingestion retry (docs/adr/0010-intraday-evaluation-while-in-use.md's
 // addendum) firing for a session that already ingested cleanly.
-async function runIngestion(session: string | undefined): Promise<NextResponse> {
+async function runIngestion(
+  session: string | undefined,
+  force: boolean | undefined,
+): Promise<NextResponse> {
   const db = getDb();
   const startedAt = Date.now();
   const result = await ingest(db, session ? { session } : {});
   const deadlineAt = startedAt + maxDuration * 1000 - EVALUATION_SAFETY_MARGIN_MS;
   const evaluation =
     cotahistSucceeded(result) && result.okSessions.length > 0
-      ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt })
+      ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt, force })
       : null;
   return NextResponse.json({ ...result, evaluation }, { status: result.ok ? 200 : 500 });
 }
@@ -63,7 +72,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!isAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  return runIngestion(undefined);
+  return runIngestion(undefined, undefined);
 }
 
 // The owner's manual trigger (#12): same bearer, optional `session` date for
@@ -90,5 +99,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "invalid session date" }, { status: 400 });
   }
 
-  return runIngestion(parsed.data.session);
+  return runIngestion(parsed.data.session, parsed.data.force);
 }

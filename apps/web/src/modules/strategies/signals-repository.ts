@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   adjustmentRuleSchema,
@@ -92,69 +92,95 @@ function fromStoredOperationId(operationId: string): string | null {
 // construct one from the signed-in session (forCurrentUser): neither path
 // accepts a user id as a method parameter.
 export class SignalsRepository extends UserScopedRepository {
-  async createSignals(rows: NewSignal[]): Promise<number> {
+  // `upsert` (#19 round 3 item 3) is the manual re-run's own path: a
+  // corrected candle changes what the engine computes for a session already
+  // written once, so `onConflictDoNothing`'s ordinary idempotency would
+  // silently keep the stale row. Forced re-runs overwrite it instead;
+  // `readAt` is reset to null because a materially different proposal is
+  // effectively a new signal, not the one the user already read.
+  async createSignals(rows: NewSignal[], options: { upsert?: boolean } = {}): Promise<number> {
     if (rows.length === 0) {
       return 0;
     }
-    const inserted = await this.db
-      .insert(signals)
-      .values(
-        rows.map((row) => ({
-          userId: this.userId,
-          strategyId: row.strategyId,
-          strategyVersionId: row.strategyVersionId,
-          ticker: row.ticker,
-          timeframe: row.timeframe,
-          session: row.session,
-          at: row.at,
-          kind: row.kind,
-          indicators: row.indicators,
-          proposal: row.proposal,
-          operationId: toStoredOperationId(row.operationId),
-          rule: row.rule,
-        })),
-      )
-      .onConflictDoNothing({
-        target: [
-          signals.userId,
-          signals.strategyVersionId,
-          signals.ticker,
-          signals.session,
-          signals.kind,
-          signals.operationId,
-        ],
-      })
-      .returning({ id: signals.id });
+    const target = [
+      signals.userId,
+      signals.strategyVersionId,
+      signals.ticker,
+      signals.session,
+      signals.kind,
+      signals.operationId,
+    ];
+    const query = this.db.insert(signals).values(
+      rows.map((row) => ({
+        userId: this.userId,
+        strategyId: row.strategyId,
+        strategyVersionId: row.strategyVersionId,
+        ticker: row.ticker,
+        timeframe: row.timeframe,
+        session: row.session,
+        at: row.at,
+        kind: row.kind,
+        indicators: row.indicators,
+        proposal: row.proposal,
+        operationId: toStoredOperationId(row.operationId),
+        rule: row.rule,
+      })),
+    );
+    const inserted = options.upsert
+      ? await query
+          .onConflictDoUpdate({
+            target,
+            set: {
+              timeframe: sql`excluded.timeframe`,
+              at: sql`excluded.at`,
+              indicators: sql`excluded.indicators`,
+              proposal: sql`excluded.proposal`,
+              rule: sql`excluded.rule`,
+              readAt: null,
+            },
+          })
+          .returning({ id: signals.id })
+      : await query.onConflictDoNothing({ target }).returning({ id: signals.id });
     return inserted.length;
   }
 
-  async createEvaluations(rows: NewEvaluation[]): Promise<number> {
+  async createEvaluations(
+    rows: NewEvaluation[],
+    options: { upsert?: boolean } = {},
+  ): Promise<number> {
     if (rows.length === 0) {
       return 0;
     }
-    const inserted = await this.db
-      .insert(evaluations)
-      .values(
-        rows.map((row) => ({
-          userId: this.userId,
-          strategyId: row.strategyId,
-          strategyVersionId: row.strategyVersionId,
-          ticker: row.ticker,
-          session: row.session,
-          at: row.at,
-          outcome: row.outcome,
-          detail: row.detail,
-        })),
-      )
-      .onConflictDoNothing({
-        target: [
-          evaluations.userId,
-          evaluations.strategyVersionId,
-          evaluations.ticker,
-          evaluations.session,
-        ],
-      })
-      .returning({ id: evaluations.id });
+    const target = [
+      evaluations.userId,
+      evaluations.strategyVersionId,
+      evaluations.ticker,
+      evaluations.session,
+    ];
+    const query = this.db.insert(evaluations).values(
+      rows.map((row) => ({
+        userId: this.userId,
+        strategyId: row.strategyId,
+        strategyVersionId: row.strategyVersionId,
+        ticker: row.ticker,
+        session: row.session,
+        at: row.at,
+        outcome: row.outcome,
+        detail: row.detail,
+      })),
+    );
+    const inserted = options.upsert
+      ? await query
+          .onConflictDoUpdate({
+            target,
+            set: {
+              at: sql`excluded.at`,
+              outcome: sql`excluded.outcome`,
+              detail: sql`excluded.detail`,
+            },
+          })
+          .returning({ id: evaluations.id })
+      : await query.onConflictDoNothing({ target }).returning({ id: evaluations.id });
     return inserted.length;
   }
 
@@ -205,18 +231,30 @@ export class SignalsRepository extends UserScopedRepository {
       .where(and(eq(signals.id, signalId), eq(signals.userId, this.userId)));
   }
 
-  // This user's own watermark for the nightly evaluation (#19 round 2 item
-  // 1): the newest session this user has ever actually been evaluated for,
-  // across every strategy, `session` being a `date` column so `MAX` sorts
-  // it correctly without a timestamp tie-break. `evaluateSignalsForSession`
-  // anchors `since` on this instead of the ingestion calendar, so a night
-  // this user was skipped (a setup failure, a deadline) is caught up on the
-  // next run instead of silently lost.
-  async lastEvaluatedSession(): Promise<string | null> {
+  // This user's own watermark for the nightly evaluation, scoped to one
+  // strategy version (#19 round 3 item 1): the newest session this user has
+  // ever actually been evaluated for *under this strategy version*, not
+  // across every strategy. The unit of work is (strategy version, session),
+  // so a watermark shared across a user's strategies let a partial
+  // completion in one strategy's loop advance past sessions a sibling
+  // strategy never saw. `session` is fixed-width ISO-8601 date text
+  // (`sessionDateSchema`), not a `date` column, so `MAX` sorts it correctly
+  // lexicographically without a timestamp tie-break.
+  // `evaluateSignalsForSession` anchors `since` on this, per strategy inside
+  // its loop, instead of the ingestion calendar or a per-user watermark, so
+  // a night one strategy was skipped (a setup failure, a deadline, a thrown
+  // error in a sibling strategy) is caught up on the next run instead of
+  // silently lost.
+  async lastEvaluatedSession(strategyVersionId: string): Promise<string | null> {
     const [row] = await this.db
       .select({ session: max(evaluations.session) })
       .from(evaluations)
-      .where(eq(evaluations.userId, this.userId));
+      .where(
+        and(
+          eq(evaluations.userId, this.userId),
+          eq(evaluations.strategyVersionId, strategyVersionId),
+        ),
+      );
     return row?.session ?? null;
   }
 

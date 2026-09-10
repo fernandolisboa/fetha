@@ -20,12 +20,27 @@ export interface EvaluateSignalsOutcome {
   sessions: string[];
   usersEvaluated: number;
   usersSkipped: number;
+  // Distinct from `usersEvaluated` (#19 round 3 item 3): a user whose every
+  // active strategy's watermark already covers `at` did no engine work this
+  // run, so counting them as "evaluated" hides that the manual re-run the
+  // cron POST handler documents was a silent no-op. `force` (below) is the
+  // way to actually redo it.
+  usersAlreadyCaughtUp: number;
   signalsWritten: number;
   evaluationsWritten: number;
   errors: string[];
 }
 
 const SETUP_FAILED = "setup_failed";
+
+// A month of B3 trading sessions (~21/month), the round-3 item 2 ceiling: a
+// catch-up wider than this is clamped rather than run in full. Bounds both
+// the engine work a single run can be asked to do (so a long-dormant
+// watchlist or strategy can never alone blow past `maxDuration`, which used
+// to kill the loop mid-user and — before the round-3 item 1 fix — corrupt a
+// sibling strategy's watermark) and how many backdated entry proposals, all
+// sized against *today's* risk profile, can land in one night's inbox.
+export const CATCH_UP_SESSION_LIMIT = 21;
 
 // A collection `dataWindow` can ask for that no ingestion source fills
 // today (round 2 item 8, follow-up in
@@ -42,6 +57,12 @@ export interface EvaluateSignalsOptions {
   // have to).
   deadlineAt?: number;
   now?: () => number;
+  // The manual re-run after a corrected candle (#19 round 3 item 3): bypass
+  // every strategy's own watermark for the sessions this call was asked to
+  // evaluate and upsert their signals/evaluations instead of relying on
+  // `onConflictDoNothing`, rather than silently doing nothing because the
+  // watermark already covers them.
+  force?: boolean;
 }
 
 function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignalsOutcome {
@@ -49,6 +70,7 @@ function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignal
     sessions,
     usersEvaluated: 0,
     usersSkipped: 0,
+    usersAlreadyCaughtUp: 0,
     signalsWritten: 0,
     evaluationsWritten: 0,
     errors,
@@ -131,6 +153,58 @@ function sessionsInCatchUpRange(
   return calendar.filter((session) => session.close > since && session.close <= at);
 }
 
+// Bounds a catch-up range to `CATCH_UP_SESSION_LIMIT` sessions (#19 round 3
+// item 2): given the full set of sessions a watermark implies, keep only
+// the newest `CATCH_UP_SESSION_LIMIT` and report the older, dropped ones
+// separately so the caller can log the gap instead of silently widening
+// `since`. A range already within the limit is returned unchanged with no
+// clamp record.
+interface ClampedCatchUp {
+  sessions: TradingSession[];
+  since: Instant | undefined;
+  clamped: TradingSession[];
+}
+
+function clampCatchUpRange(
+  fullSessions: readonly TradingSession[],
+  since: Instant | undefined,
+): ClampedCatchUp {
+  if (fullSessions.length <= CATCH_UP_SESSION_LIMIT) {
+    return { sessions: [...fullSessions], since, clamped: [] };
+  }
+  const splitAt = fullSessions.length - CATCH_UP_SESSION_LIMIT;
+  const clamped = fullSessions.slice(0, splitAt);
+  const sessions = fullSessions.slice(splitAt);
+  const boundary = clamped[clamped.length - 1] as TradingSession;
+  return { sessions, since: boundary.close, clamped };
+}
+
+// One explicit record per ticker for the span a catch-up just clamped away
+// (#19 round 3 item 2), instead of the gap staying invisible: `detail`
+// carries the count of dropped sessions so the evaluation log reads as "N
+// older sessions were never evaluated" rather than "insufficient data" with
+// no further clue.
+function clampEvaluations(
+  strategyId: string,
+  strategyVersionId: string,
+  tickers: Ticker[],
+  clamped: readonly TradingSession[],
+): NewEvaluation[] {
+  if (clamped.length === 0) {
+    return [];
+  }
+  const boundary = clamped[clamped.length - 1] as TradingSession;
+  return tickers.map((ticker) => ({
+    strategyId,
+    strategyVersionId,
+    ticker,
+    session: boundary.date,
+    at: new Date(boundary.close),
+    outcome: "insufficient_data" as const,
+    detail: `catchup_clamped:${String(clamped.length)}`,
+  }));
+}
+
 // Chained after ingestion in the cron, per user, per active daily strategy,
 // over that user's watchlist (#19, CONTEXT.md "Nightly ingestion and daily
 // evaluation"). `sessions` are every session `ingest()` just drained, oldest
@@ -185,9 +259,11 @@ export async function evaluateSignalsForSession(
 
   let usersEvaluated = 0;
   let usersSkipped = 0;
+  let usersAlreadyCaughtUp = 0;
   let signalsWritten = 0;
   let evaluationsWritten = 0;
   const errors: string[] = [];
+  const upsert = { upsert: options.force === true };
 
   for (const userId of userIds) {
     if (options.deadlineAt !== undefined && now() >= options.deadlineAt) {
@@ -217,43 +293,79 @@ export async function evaluateSignalsForSession(
 
       const signalsRepository = new SignalsRepository(db, scopedUser);
 
-      // Per-user watermark, not the ingestion calendar (#19 round 2 item 1):
-      // the max session this user was ever actually evaluated for, oldest
-      // fallback only when they have none yet (their first-ever run, or a
-      // strategy just activated). A user skipped for ten nights by a setup
-      // failure or a deadline keeps their old watermark, so the next run
-      // that reaches them catches up on every session since, not only the
-      // one this run happened to drain.
-      const watermark = await signalsRepository.lastEvaluatedSession();
-      let since: Instant | undefined;
-      if (watermark !== null) {
-        const watermarkTrading = await tradingSessionForDate(db, watermark);
-        // Explicit (round 2 item 7): a watermark session that no longer
-        // resolves (should not happen — the calendar is append-only) falls
-        // back to the drained-range anchor rather than silently losing the
-        // lower bound.
-        since = watermarkTrading?.close ?? drainedRangeSince;
-      } else {
-        since = drainedRangeSince;
-      }
+      let strategiesProcessed = 0;
+      let strategiesAlreadyCaughtUp = 0;
+      let deadlineHitBeforeAnyWork = false;
 
-      // Already caught up beyond `at` (a re-run for a session this user's
-      // watermark already covers): the engine rejects `since >= at` as
-      // invalid input, so this is treated as "nothing to evaluate", not an
-      // error, and the strategy loop below is skipped entirely.
-      if (since !== undefined && since >= at) {
-        usersEvaluated += 1;
-        continue;
-      }
-
-      const userSessions = sessionsInCatchUpRange(calendar, since, at);
-
+      // Per (strategy version, session), not per user (#19 round 3 item 1):
+      // each strategy reads and advances its own watermark inside this
+      // loop, so a sibling strategy's failure, an unknown structure or a
+      // deadline that stops this loop early never advances a strategy that
+      // was never actually evaluated. The deadline is also checked here,
+      // not only between users (round 3 item 2): a user with many active
+      // daily strategies can otherwise alone run past the safety margin.
       for (const { strategyId, version } of activeDaily) {
+        if (options.deadlineAt !== undefined && now() >= options.deadlineAt) {
+          if (strategiesProcessed === 0 && strategiesAlreadyCaughtUp === 0) {
+            deadlineHitBeforeAnyWork = true;
+          }
+          break;
+        }
+
+        let since: Instant | undefined;
+        if (options.force) {
+          since = drainedRangeSince;
+        } else {
+          // This strategy version's own watermark (round 3 item 1): the max
+          // session it was ever actually evaluated for, oldest fallback
+          // only when it has none yet (its first-ever run, or just
+          // activated). A strategy skipped for ten nights by a setup
+          // failure, a deadline or a sibling strategy's thrown error keeps
+          // its old watermark, so the next run that reaches it catches up
+          // on every session since, not only the one this run drained.
+          const watermark = await signalsRepository.lastEvaluatedSession(version.id);
+          if (watermark !== null) {
+            const watermarkTrading = await tradingSessionForDate(db, watermark);
+            // Explicit (round 2 item 7): a watermark session that no longer
+            // resolves (should not happen — the calendar is append-only)
+            // falls back to the drained-range anchor rather than silently
+            // losing the lower bound.
+            since = watermarkTrading?.close ?? drainedRangeSince;
+          } else {
+            since = drainedRangeSince;
+          }
+        }
+
+        // Already caught up beyond `at` (a re-run for a session this
+        // strategy's watermark already covers): the engine rejects
+        // `since >= at` as invalid input, so this is "nothing to
+        // evaluate", not an error — unless `force` says redo it anyway
+        // (round 3 item 3).
+        if (!options.force && since !== undefined && since >= at) {
+          strategiesAlreadyCaughtUp += 1;
+          continue;
+        }
+
+        const fullSessions = sessionsInCatchUpRange(calendar, since, at);
+        const clampResult = clampCatchUpRange(fullSessions, since);
+        const userSessions = clampResult.sessions;
+        since = clampResult.since;
+
+        if (clampResult.clamped.length > 0) {
+          evaluationsWritten += await signalsRepository.createEvaluations(
+            clampEvaluations(strategyId, version.id, tickers, clampResult.clamped),
+            upsert,
+          );
+        }
+
+        strategiesProcessed += 1;
+
         const structure = structureById.get(version.definition.structureId);
         if (!structure) {
           errors.push("unknown_structure");
           evaluationsWritten += await signalsRepository.createEvaluations(
             failureEvaluations(strategyId, version.id, tickers, userSessions, "unknown_structure"),
+            upsert,
           );
           continue;
         }
@@ -284,6 +396,7 @@ export async function evaluateSignalsForSession(
               userSessions,
               UNSATISFIABLE_COLLECTION_CODE,
             ),
+            upsert,
           );
           continue;
         }
@@ -309,6 +422,7 @@ export async function evaluateSignalsForSession(
               userSessions,
               `engine_error:${result.error.code}`,
             ),
+            upsert,
           );
           continue;
         }
@@ -326,10 +440,20 @@ export async function evaluateSignalsForSession(
           detail: record.detail,
         }));
 
-        signalsWritten += await signalsRepository.createSignals(newSignals);
-        evaluationsWritten += await signalsRepository.createEvaluations(newEvaluations);
+        signalsWritten += await signalsRepository.createSignals(newSignals, upsert);
+        evaluationsWritten += await signalsRepository.createEvaluations(newEvaluations, upsert);
       }
-      usersEvaluated += 1;
+
+      // A separate counter from `usersEvaluated` (#19 round 3 item 3): every
+      // active strategy already covered by its own watermark did no engine
+      // work this run, so this is "nothing to do", never "evaluated".
+      if (strategiesProcessed > 0) {
+        usersEvaluated += 1;
+      } else if (deadlineHitBeforeAnyWork) {
+        usersSkipped += 1;
+      } else if (strategiesAlreadyCaughtUp > 0) {
+        usersAlreadyCaughtUp += 1;
+      }
     } catch {
       errors.push("evaluation_failed");
     }
@@ -339,6 +463,7 @@ export async function evaluateSignalsForSession(
     sessions: sorted,
     usersEvaluated,
     usersSkipped,
+    usersAlreadyCaughtUp,
     signalsWritten,
     evaluationsWritten,
     errors,
