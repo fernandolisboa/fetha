@@ -49,24 +49,35 @@ function insufficientCandles(underlying: string, at: Instant): EngineError {
   };
 }
 
+type ExpiredIntrinsicBasis =
+  | { kind: "not_expired" }
+  | { kind: "basis"; value: DecimalString }
+  | { kind: "missing_candle" }
+  | { kind: "error"; error: EngineError };
+
 // A operation whose listed expiry has passed by the mark session still has to be marked
 // (round 1 item 3): the usual pricing seam would reject every option leg with `invalid_input`
 // ("already_expired"), aborting the whole portfolio's valuation. Resolving the underlying's
 // own close at the expiry session — the same instant `proposeSettlement` prices intrinsic
-// value from — gives `valueOneLeg` a basis to value those legs at intrinsic instead.
+// value from — gives `valueOneLeg` a basis to value those legs at intrinsic instead. A calendar
+// that does not even cover the expiry session at all is a harder data gap than a missing
+// candle (there is no session close to even name a truncation instant from) and still fails
+// the whole call; a missing candle on an otherwise-known session is reported as its own `kind`
+// so the caller can keep valuing the rest of the operation and the rest of the portfolio
+// instead of aborting (round 3 item 5).
 function resolveExpiredIntrinsicBasis(
   view: MarketView,
   operation: Operation,
   at: Instant,
   markSession: SessionDate,
-): { ok: true; value: DecimalString | null } | { ok: false; error: EngineError } {
-  if (operation.expiry === null) return { ok: true, value: null };
-  if (markSession < operation.expiry) return { ok: true, value: null };
+): ExpiredIntrinsicBasis {
+  if (operation.expiry === null) return { kind: "not_expired" };
+  if (markSession < operation.expiry) return { kind: "not_expired" };
 
   const expirySession = sessionByDate(view.calendar, operation.expiry);
   if (!expirySession) {
     return {
-      ok: false,
+      kind: "error",
       error: insufficientCandles(operation.underlying, `${operation.expiry}T00:00:00.000Z`),
     };
   }
@@ -76,7 +87,7 @@ function resolveExpiredIntrinsicBasis(
   // being strictly later than `operation.expiry` (the `markSession < operation.expiry` guard
   // above already ruled out the earlier case) means `at` is necessarily at or after that close.
   if (markSession === operation.expiry && !isAtOrBefore(expirySession.close, at)) {
-    return { ok: true, value: null };
+    return { kind: "not_expired" };
   }
   const truncationInstant = isAtOrBefore(at, expirySession.close) ? at : expirySession.close;
   const candle = latestVisible(
@@ -86,10 +97,8 @@ function resolveExpiredIntrinsicBasis(
     ),
     truncationInstant,
   );
-  if (!candle) {
-    return { ok: false, error: insufficientCandles(operation.underlying, truncationInstant) };
-  }
-  return { ok: true, value: candle.close };
+  if (!candle) return { kind: "missing_candle" };
+  return { kind: "basis", value: candle.close };
 }
 
 // The operation's own legs, priced fresh at `at` through the same `valueLegs`/
@@ -107,7 +116,9 @@ function priceExistingOperation(
   path: string,
 ): { ok: true; value: OperationValuation } | { ok: false; error: EngineError } {
   const expiredBasis = resolveExpiredIntrinsicBasis(view, operation, at, markSession);
-  if (!expiredBasis.ok) return { ok: false, error: expiredBasis.error };
+  if (expiredBasis.kind === "error") return { ok: false, error: expiredBasis.error };
+  const missingExpiryCandle = expiredBasis.kind === "missing_candle";
+  const basisValue = expiredBasis.kind === "basis" ? expiredBasis.value : null;
 
   // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
   // count (`quantity / F`) and effective entry price (`entryPrice × F`) are computed here, on
@@ -141,11 +152,20 @@ function priceExistingOperation(
   // item 2, mirroring `runBacktest`'s identical guard). The former excludes the leg from
   // `legInputs` — there is no positive `Quantity` below one to give it, so it cannot appear in
   // `pricing.legs` or the aggregate greeks/payoff `priceConcreteLegs` computes from that array
-  // — the latter is `invalid_input`, indexed at this leg.
+  // — the latter is `invalid_input`, indexed at this leg. An expired operation whose expiry
+  // candle is missing (`missingExpiryCandle`) excludes its own option legs the same way — there
+  // is no basis to value them at intrinsic and no time-to-expiry left to price them any other
+  // way — rather than aborting the whole call (round 3 item 5); a stock leg is never affected,
+  // since `valueOneLeg` never consults `expiredIntrinsicBasis` for one.
   const legInputs: LegInput[] = [];
   const legInputIndexByLegIndex = new Map<number, number>();
   const residueOnlyLegIndexes = new Set<number>();
+  const unpricedExpiredLegIndexes = new Set<number>();
   for (const { leg, legIndex, rawEffectiveQuantity } of rebasedLegs) {
+    if (missingExpiryCandle && leg.role !== "stock") {
+      unpricedExpiredLegIndexes.add(legIndex);
+      continue;
+    }
     const floored = rawEffectiveQuantity.floor().toNumber();
     if (floored <= 0) {
       residueOnlyLegIndexes.add(legIndex);
@@ -178,7 +198,7 @@ function priceExistingOperation(
     openOperationCount,
     provenanceBase,
     `${path}.spot`,
-    expiredBasis.value,
+    basisValue,
   );
   if (!pricingResult.ok) return { ok: false, error: pricingResult.error };
   const pricing = pricingResult.value;
@@ -202,10 +222,15 @@ function priceExistingOperation(
       // ladder to get this far — a stale, but never a null, mark for a residue-only leg.
       /* v8 ignore next */
       mark = resolved?.value ?? null;
+    } else if (unpricedExpiredLegIndexes.has(legIndex)) {
+      // No expiry candle exists to resolve intrinsic value from and no time-to-expiry is left
+      // to price this leg any other way (round 3 item 5); `null` folds through the same zero
+      // unrealized-P&L path a `no_market_price` leg already takes below.
+      mark = null;
     } else {
       const legInputIndex = assertDefined(
         legInputIndexByLegIndex.get(legIndex),
-        "mark-to-market: every non-residue leg has a legInputs entry",
+        "mark-to-market: every non-residue, non-unpriced-expired leg has a legInputs entry",
       );
       const valuation = pricing.legs[legInputIndex];
       mark = valuation?.price ?? valuation?.fairValue ?? null;
@@ -227,17 +252,21 @@ function priceExistingOperation(
     );
   }
 
-  const notes: Note[] =
-    residueOnlyLegIndexes.size > 0
-      ? [
-          ...pricing.notes,
-          {
-            code: "less_than_one_effective_unit",
-            message:
-              "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
-          },
-        ]
-      : pricing.notes;
+  const notes: Note[] = [...pricing.notes];
+  if (residueOnlyLegIndexes.size > 0) {
+    notes.push({
+      code: "less_than_one_effective_unit",
+      message:
+        "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
+    });
+  }
+  if (unpricedExpiredLegIndexes.size > 0) {
+    notes.push({
+      code: "no_market_price",
+      message:
+        "the operation's listed expiry has passed and no expiry-session candle is visible; at least one leg is excluded from pricing.legs and contributes zero unrealizedPnl pending that data",
+    });
+  }
 
   return {
     ok: true,

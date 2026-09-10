@@ -1003,7 +1003,7 @@ describe("markToMarket", () => {
     }
   });
 
-  it("returns insufficient_data when an expired operation's expiry session has no underlying candle", () => {
+  it("values an expired operation's option legs at zero unrealizedPnl with a note, instead of aborting, when its expiry session has no underlying candle (round 3 item 5)", () => {
     const markAt = "2024-01-10T21:00:00.000Z";
     const view: MarketView = {
       ...baseView,
@@ -1028,9 +1028,48 @@ describe("markToMarket", () => {
       { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
       provenanceBase,
     );
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("insufficient_data");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.operations[0]?.pricing.legs).toEqual([]);
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(0));
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual({
+      code: "no_market_price",
+      message:
+        "the operation's listed expiry has passed and no expiry-session candle is visible; at least one leg is excluded from pricing.legs and contributes zero unrealizedPnl pending that data",
+    });
+  });
+
+  it("keeps valuing every other operation in the same call when one operation's expiry candle is missing (round 3 item 5)", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: markAt, last: decimalString("30.00"), bid: null, ask: null },
+      ],
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+    };
+    const broken = stockOperation({
+      id: "op-broken",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+    });
+    const healthy = stockOperation({ id: "op-healthy" });
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [broken, healthy], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.operations[1]?.pricing.spot).toBe(decimalString("30.00"));
+    expect(result.value.operations[1]?.unrealizedPnl).toBe(centavos(2_000_00));
   });
 
   it("indexes an invalid-spot error by the operation's position in the operations array", () => {

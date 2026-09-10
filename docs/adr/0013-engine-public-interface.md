@@ -1683,7 +1683,13 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   `runBacktest` chunk could fill or mark against a view whose `corporateActions` had never been
   validated by `evaluateStrategy` in that same session, reaching `splitFactorProduct`'s
   now-actually-reachable invariant; `runBacktest` validates `view.corporateActions` positivity
-  itself, upfront, before its own session loop (round 3 item 4).
+  itself, upfront, before its own session loop (round 3 item 4). An expired operation whose
+  expiry candle was still missing at the mark session aborted the whole `markToMarket` call, the
+  same failure round 1 item 3 already fixed for a missing calendar session; a missing candle on
+  an otherwise-known session instead excludes just that operation's own option legs (a stock leg
+  never consults this basis) from `pricing.legs` and the aggregate greeks/payoff, notes
+  `no_market_price` and folds zero into `unrealizedPnl`, leaving the rest of the operation and
+  every other operation in the same call to value normally (round 3 item 5).
 
 ## Considered options
 
