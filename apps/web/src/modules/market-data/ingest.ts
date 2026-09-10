@@ -30,9 +30,10 @@ const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // is the day *before* the calendar's own coverage starts, not that first day
 // itself: nextDay(sentinel) must land on the first calendar day so it is
 // requested, not treated as already ingested (docs/adr/0017). SGS is never
-// backfilled earlier than this: resolveAsOfInstant throws for any point
-// older than the earliest recorded session, so starting earlier would only
-// fail loudly.
+// backfilled earlier than this: resolveAsOfInstant throws for any point whose
+// resolved lookup target (the date itself for cdi/selic, fifteenthOfNextMonth
+// for ipca) precedes the earliest recorded session, so starting earlier would
+// only fail loudly.
 const SGS_DEFAULT_SINCE = `${String(FIRST_INGESTED_CALENDAR_YEAR - 1)}-12-31`;
 
 export function resolveSgsFromDate(latestIngested: string | undefined): string {
@@ -357,13 +358,18 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     sgsResult.outcome,
   ];
 
-  // A source that is fully caught up drains no gaps this invocation, so
-  // okSessions is empty even though a previous run already succeeded on the
-  // newest session; falling back to latestSession (the newest closed
-  // trading session as of `now`) reports that session instead of `null`
-  // (docs/adr/0017).
+  // A source that is fully caught up drains no gaps this invocation
+  // (`cotahistSessions` is empty), so `okSessions` is empty too even though a
+  // previous run already succeeded on the newest session; falling back to
+  // latestSession (the newest closed trading session as of `now`) reports
+  // that session instead of `null` (docs/adr/0017). A source that *did*
+  // attempt gaps but failed every one of them must not get this fallback:
+  // `okSessions` is empty for the same reason, but reporting latestSession
+  // there would claim success for a session ingest() never actually covered.
   const session =
-    options.session ?? cotahistResult.okSessions.at(-1) ?? (await latestSession(db, now));
+    options.session ??
+    cotahistResult.okSessions.at(-1) ??
+    (cotahistSessions.length === 0 ? await latestSession(db, now) : null);
 
   return {
     session,

@@ -304,6 +304,27 @@ describe("ingest", () => {
     expect(secondRun.session).toBe(TEST_SESSION);
   }, 120_000);
 
+  it("reports session: null, not the latest closed session, when every drained gap fails", async () => {
+    const db = getDb();
+    const anySession = fakeFetchAnySession();
+    const cotahistAlwaysFails: typeof fetch = ((input: string) => {
+      if (input.includes("InstDados/SerHist")) {
+        return Promise.resolve(new Response("not found", { status: 404 }));
+      }
+      return anySession(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: cotahistAlwaysFails,
+    });
+
+    expect(result.ok).toBe(false);
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeDefined();
+    expect(result.session).toBeNull();
+  }, 120_000);
+
   it("two concurrent invocations for the same session never both record a failed run", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);
