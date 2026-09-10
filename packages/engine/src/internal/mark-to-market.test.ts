@@ -502,7 +502,7 @@ describe("markToMarket", () => {
     if (result.ok) return;
     expect(result.error).toEqual({
       code: "invalid_input",
-      path: "operations[].spot",
+      path: "operations[0].spot",
       message: "the underlying's spot must be positive",
     });
   });
@@ -577,5 +577,132 @@ describe("markToMarket", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4" });
+  });
+
+  it("marks a covered call's expired short leg at intrinsic with settlement_pending instead of aborting (item 3)", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: markAt, last: decimalString("30.00"), bid: null, ask: null },
+      ],
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-05",
+          asOf: "2024-01-05T21:00:00.000Z",
+          open: decimalString("30.00"),
+          high: decimalString("30.00"),
+          low: decimalString("30.00"),
+          close: decimalString("30.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    const op = stockOperation({
+      id: "op-covered",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+    });
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionLeg = result.value.operations[0]?.pricing.legs[1];
+    expect(optionLeg?.price).toBeNull();
+    expect(optionLeg?.fairValue).toBe(decimalString("2.00"));
+    expect(optionLeg?.greeks).toBeNull();
+    expect(optionLeg?.notes).toContainEqual({
+      code: "settlement_pending",
+      message:
+        "the operation's listed expiry has passed; valued at intrinsic pending settlement (ADR-0014 Q41)",
+    });
+    // The stock leg is unaffected and keeps marking normally through `at`.
+    const stockLeg = result.value.operations[0]?.pricing.legs[0];
+    expect(stockLeg?.price).toBe(decimalString("30.00"));
+  });
+
+  it("returns insufficient_data when an expired operation's expiry session has no underlying candle", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: markAt, last: decimalString("30.00"), bid: null, ask: null },
+      ],
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+    });
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
+
+  it("indexes an invalid-spot error by the operation's position in the operations array", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null },
+        { ticker: "VALE3", asOf: at, last: decimalString("0.00"), bid: null, ask: null },
+      ],
+    };
+    const opA = stockOperation({ id: "op-a" });
+    const opB = stockOperation({
+      id: "op-b",
+      underlying: "VALE3",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "VALE3",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [opA, opB], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "operations[1].spot",
+      message: "the underlying's spot must be positive",
+    });
   });
 });

@@ -13,7 +13,7 @@ import type {
   Provenance,
   Result,
 } from "../api";
-import { sessionAtOrBefore } from "./calendar";
+import { sessionAtOrBefore, sessionByDate } from "./calendar";
 import {
   CENTAVOS_PER_REAL,
   RATIO_SCALE,
@@ -28,6 +28,7 @@ import { priceConcreteLegs, resolveOperationRates } from "./price-operation";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
+import { latestVisible } from "./visible";
 
 type ProvenanceBase = Pick<
   Provenance,
@@ -58,6 +59,52 @@ function isPositive(value: DecimalString): boolean {
   return parseDecimal(value).gt(0);
 }
 
+function insufficientCandles(underlying: string, at: Instant): EngineError {
+  return {
+    code: "insufficient_data",
+    needed: {
+      from: at,
+      to: at,
+      instruments: [underlying],
+      timeframes: ["D1"],
+      collections: ["candles"],
+    },
+  };
+}
+
+// A operation whose listed expiry has passed by the mark session still has to be marked
+// (round 1 item 3): the usual pricing seam would reject every option leg with `invalid_input`
+// ("already_expired"), aborting the whole portfolio's valuation. Resolving the underlying's
+// own close at the expiry session — the same instant `proposeSettlement` prices intrinsic
+// value from — gives `valueOneLeg` a basis to value those legs at intrinsic instead.
+function resolveExpiredIntrinsicBasis(
+  view: MarketView,
+  operation: Operation,
+  markSession: SessionDate | null,
+): { ok: true; value: DecimalString | null } | { ok: false; error: EngineError } {
+  if (operation.expiry === null) return { ok: true, value: null };
+  if (markSession === null || markSession < operation.expiry) return { ok: true, value: null };
+
+  const expirySession = sessionByDate(view.calendar, operation.expiry);
+  if (!expirySession) {
+    return {
+      ok: false,
+      error: insufficientCandles(operation.underlying, `${operation.expiry}T00:00:00.000Z`),
+    };
+  }
+  const candle = latestVisible(
+    view.candles.filter(
+      (c) =>
+        c.ticker === operation.underlying && c.timeframe === "D1" && c.session === operation.expiry,
+    ),
+    expirySession.close,
+  );
+  if (!candle) {
+    return { ok: false, error: insufficientCandles(operation.underlying, expirySession.close) };
+  }
+  return { ok: true, value: candle.close };
+}
+
 // The operation's own legs, priced fresh at `at` through the same `valueLegs`/
 // `priceConcreteLegs` seam `priceOperation` uses (ADR-0013 #25 addendum: markToMarket never
 // re-implements pricing). Unrealized P&L is computed separately below, per leg, against each
@@ -70,6 +117,7 @@ function priceExistingOperation(
   openOperationCount: number,
   provenanceBase: ProvenanceBase,
   markSession: SessionDate | null,
+  path: string,
 ): { ok: true; value: OperationValuation } | { ok: false; error: EngineError } {
   const spot = resolveUnderlyingSpot(view, operation.underlying, at);
   if (!spot)
@@ -77,12 +125,15 @@ function priceExistingOperation(
   if (!isPositive(spot)) {
     return {
       ok: false,
-      error: invalidInput("operations[].spot", "the underlying's spot must be positive"),
+      error: invalidInput(`${path}.spot`, "the underlying's spot must be positive"),
     };
   }
 
   const rates = resolveOperationRates(view, at, operation.underlying);
   if (!rates.ok) return { ok: false, error: rates.error };
+
+  const expiredBasis = resolveExpiredIntrinsicBasis(view, operation, markSession);
+  if (!expiredBasis.ok) return { ok: false, error: expiredBasis.error };
 
   // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
   // count (`quantity / F`) and effective entry price (`entryPrice × F`) are computed here, on
@@ -123,6 +174,7 @@ function priceExistingOperation(
     riskProfile,
     openOperationCount,
     provenanceBase,
+    expiredBasis.value,
   );
   if (!pricingResult.ok) return { ok: false, error: pricingResult.error };
   const pricing = pricingResult.value;
@@ -195,7 +247,7 @@ export function markToMarket(
   const markSession = sessionAtOrBefore(input.view.calendar, input.at)?.date ?? null;
 
   const operationValuations: OperationValuation[] = [];
-  for (const operation of input.operations) {
+  for (const [index, operation] of input.operations.entries()) {
     const result = priceExistingOperation(
       input.view,
       input.at,
@@ -204,6 +256,7 @@ export function markToMarket(
       input.operations.length - 1,
       provenanceBase,
       markSession,
+      `operations[${String(index)}]`,
     );
     if (!result.ok) return err(result.error);
     operationValuations.push(result.value);

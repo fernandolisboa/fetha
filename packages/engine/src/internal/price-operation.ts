@@ -73,6 +73,13 @@ type PricedLeg = {
   premiumPerUnit: Decimal;
 };
 
+// `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
+// supplied only when the caller (markToMarket, round 1 item 3) already knows the operation's
+// listed expiry has passed: the usual time-to-expiry lookup below would reject every option
+// leg with `invalid_input` ("already_expired"), aborting the whole portfolio's valuation on
+// any day after an expiry the user has not yet confirmed a settlement for. `priceOperation`
+// never passes this (a caller building a *new* position on an already-expired series is still
+// a genuine error), so the parameter defaults to `null`.
 function valueOneLeg(
   view: MarketView,
   at: string,
@@ -81,6 +88,7 @@ function valueOneLeg(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   leg: LegInput,
+  expiredIntrinsicBasis: DecimalString | null = null,
 ): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
   const atSession = sessionDateAtOrBefore(view.calendar, at);
   if (leg.role === "stock") {
@@ -130,6 +138,33 @@ function valueOneLeg(
       ok: false,
       error: invalidInput("legs.strike", "a listed strike must be positive"),
     };
+  }
+
+  if (expiredIntrinsicBasis !== null) {
+    const strike = parseDecimal(series.strike);
+    const basis = parseDecimal(expiredIntrinsicBasis);
+    const intrinsic =
+      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
+    const fairValue = toDecimalString(intrinsic, PRICE_SCALE);
+    const valuation: LegValuation = {
+      leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
+      price: null,
+      priceSource: null,
+      stale: null,
+      fairValue,
+      impliedVolatility: null,
+      volatilitySource: null,
+      greeks: null,
+      timeToExpiryYears: toDecimalString(new Decimal(0), RATIO_SCALE),
+      notes: [
+        {
+          code: "settlement_pending",
+          message:
+            "the operation's listed expiry has passed; valued at intrinsic pending settlement (ADR-0014 Q41)",
+        },
+      ],
+    };
+    return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit: intrinsic } };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -388,12 +423,22 @@ export function valueLegs(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   legs: readonly LegInput[],
+  expiredIntrinsicBasis: DecimalString | null = null,
 ): { ok: true; value: ValuedLegs } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
   const notes: Note[] = [];
   let anyLegUnpriced = false;
   for (const leg of legs) {
-    const result = valueOneLeg(view, at, underlying, spot, riskFreeRate, dividendYield, leg);
+    const result = valueOneLeg(
+      view,
+      at,
+      underlying,
+      spot,
+      riskFreeRate,
+      dividendYield,
+      leg,
+      expiredIntrinsicBasis,
+    );
     if (!result.ok) return { ok: false, error: result.error };
     priced.push(result.leg);
     notes.push(...result.leg.valuation.notes.filter((n) => n.code === "european_pricing"));
@@ -461,8 +506,18 @@ export function priceConcreteLegs(
     Provenance,
     "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
   >,
+  expiredIntrinsicBasis: DecimalString | null = null,
 ): Result<OperationPricing> {
-  const valued = valueLegs(view, at, underlying, spot, riskFreeRate, dividendYield, legs);
+  const valued = valueLegs(
+    view,
+    at,
+    underlying,
+    spot,
+    riskFreeRate,
+    dividendYield,
+    legs,
+    expiredIntrinsicBasis,
+  );
   if (!valued.ok) return err(valued.error);
   const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
   const notes: Note[] = [...rateNotes, ...legNotes];
