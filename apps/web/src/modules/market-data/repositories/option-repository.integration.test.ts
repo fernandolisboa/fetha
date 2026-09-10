@@ -2,8 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { optionSeries, tradingSessions } from "@/db/schema/market-data";
+import { optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
 
+import { ensureMonthlyPartition } from "./partitions";
 import { optionChainForUnderlying } from "./option-repository";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -43,6 +44,8 @@ function uniqueTicker(label: string): string {
   return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`;
 }
 
+const pricedTickers: string[] = [];
+
 describe("optionChainForUnderlying", () => {
   const cleanupTickers: string[] = [];
 
@@ -50,6 +53,10 @@ describe("optionChainForUnderlying", () => {
     const db = getDb();
     for (const ticker of cleanupTickers.splice(0)) {
       await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+    const priced = pricedTickers.splice(0);
+    if (priced.length > 0) {
+      await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, priced));
     }
     const dates = seededSessionDates.splice(0);
     if (dates.length > 0) {
@@ -195,5 +202,132 @@ describe("optionChainForUnderlying", () => {
       afterClose,
     );
     expect(chainAfterClose).toHaveLength(0);
+  });
+
+  it("carries a traded series' latest visible price and session", async () => {
+    const underlying = uniqueTicker("TRD");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}A100`;
+    const sessions = businessDays("2099-05-04", 5);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const tradedSession = sessions[1];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !tradedSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-TRADED`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    await ensureMonthlyPartition(db, "option_daily_prices", tradedSession);
+    pricedTickers.push(optionTicker);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: tradedSession,
+      asOf: new Date(`${tradedSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      average: "1.500000",
+      close: "1.550000",
+      trades: 4,
+      tradedQuantity: 400,
+    });
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.lastPrice).toEqual({ value: "1.550000", session: tradedSession });
+  });
+
+  it("reports a listed but untraded series with no price", async () => {
+    const underlying = uniqueTicker("UNT");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}A100`;
+    const sessions = businessDays("2099-06-01", 5);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-UNTRADED`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.lastPrice).toBeNull();
+  });
+
+  it("does not use a price outside the calendar window", async () => {
+    const underlying = uniqueTicker("OWN");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}A100`;
+    const sessions = businessDays("2099-07-01", 40);
+    const currentSession = sessions[sessions.length - 1];
+    const veryOldSession = sessions[0];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !veryOldSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-OLDPRICE`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${veryOldSession}T13:00:00.000Z`),
+    });
+
+    await ensureMonthlyPartition(db, "option_daily_prices", veryOldSession);
+    pricedTickers.push(optionTicker);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: veryOldSession,
+      asOf: new Date(`${veryOldSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      average: "9.000000",
+      close: "9.000000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.lastPrice).toBeNull();
   });
 });

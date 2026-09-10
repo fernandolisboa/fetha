@@ -10,7 +10,9 @@ import {
   tradingSessions,
 } from "@/db/schema/market-data";
 
+import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { buildOperationMarketView } from "./market-view";
+import { upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -424,5 +426,38 @@ describe("buildOperationMarketView", () => {
 
     const prices = view.optionPrices.filter((price) => price.ticker === optionTicker);
     expect(prices).toHaveLength(0);
+  });
+
+  it("surfaces the underlying's own candle close, stored under the repository's daily timeframe rather than the engine's own 'D1' label (PR #76 round 3)", async () => {
+    const underlying = uniqueTicker("SPT");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-11-02", 5);
+    const candleSession = sessions[0];
+    const atSession = sessions[4];
+    if (!candleSession || !atSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    await upsertDailyCandles(db, candleSession, new Date(`${candleSession}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: candleSession,
+        ticker: underlying,
+        open: "30.000000",
+        high: "30.500000",
+        low: "29.500000",
+        average: "30.000000",
+        close: "30.000000",
+        trades: 100,
+        tradedQuantity: 10000,
+      }),
+    ]);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const view = await buildOperationMarketView(db, underlying, at);
+
+    expect(view.candles).toHaveLength(1);
+    expect(view.candles[0]?.close).toBe("30.000000");
   });
 });

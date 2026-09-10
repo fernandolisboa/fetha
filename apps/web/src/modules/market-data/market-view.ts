@@ -22,6 +22,7 @@ import type { Database } from "@/db/client";
 import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
 
 import { calendarWindowThroughExpiry } from "./repositories/calendar-repository";
+import { DAILY_TIMEFRAME } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
 
 const CANDLE_WINDOW_SESSIONS = 30;
@@ -100,7 +101,11 @@ export async function buildOperationMarketView(
       .select()
       .from(candles)
       .where(
-        and(eq(candles.ticker, underlying), eq(candles.timeframe, "D1"), lte(candles.asOf, atDate)),
+        and(
+          eq(candles.ticker, underlying),
+          eq(candles.timeframe, DAILY_TIMEFRAME),
+          lte(candles.asOf, atDate),
+        ),
       )
       .orderBy(desc(candles.session))
       .limit(CANDLE_WINDOW_SESSIONS),

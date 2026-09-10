@@ -15,7 +15,10 @@ import { candles } from "@/db/schema/market-data";
 import type { CotahistStockRow } from "../adapters/cotahist/schema";
 import { ensureMonthlyPartition } from "./partitions";
 
-const DAILY_TIMEFRAME = "1d";
+// The storage-side timeframe literal `candles` rows are keyed by; distinct
+// from the engine's own `"D1"` domain concept a `MarketView.candles[]` row
+// carries (ADR-0013), which every reader maps to regardless of this value.
+export const DAILY_TIMEFRAME = "1d";
 const CHUNK_SIZE = 1000;
 
 export interface CandleRow {

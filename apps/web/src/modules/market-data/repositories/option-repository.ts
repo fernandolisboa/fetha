@@ -1,13 +1,19 @@
-import { and, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";
+import { calendarWindowThroughExpiry } from "./calendar-repository";
 import { ensureMonthlyPartition } from "./partitions";
 
 const CHUNK_SIZE = 1000;
+
+// Mirrors `buildOperationMarketView`'s own `CALENDAR_WINDOW_SESSIONS`
+// (market-view.ts): the picker must not offer a price the engine itself
+// would refuse to load once the same operation is priced a moment later.
+const CALENDAR_WINDOW_SESSIONS = 30;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -134,6 +140,7 @@ export interface ChainSeries {
   strike: string;
   expiry: string;
   style: string;
+  lastPrice: { value: string; session: string } | null;
 }
 
 // The closing chain for one underlying (UBIQUITOUS_LANGUAGE.md "closing
@@ -147,31 +154,43 @@ export interface ChainSeries {
 // staying selectable into the evening and pricing at t = 0 with null
 // greeks (PR #76 round 2 item 8). Ordered by expiry then strike so a
 // call/put ladder reads the way a chain does on paper.
+//
+// `lastPrice` is the same latest-visible-session row `resolveLegMarketPrice`
+// would read (close, falling back to average), bounded by the same
+// calendar-window floor as `buildOperationMarketView`: a series can be
+// listed and still never have traded, or its only trade can sit outside the
+// window, in which case this is `null` and the picker can tell the user the
+// series is unpriceable before they pick it (round 2 diagnosis, PETR4 chain
+// vs `option_daily_prices`).
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,
   currentSession: string,
   at: Date,
 ): Promise<ChainSeries[]> {
-  const rows = await db
-    .select({
-      ticker: optionSeries.ticker,
-      right: optionSeries.right,
-      strike: optionSeries.strike,
-      expiry: optionSeries.expiry,
-      style: optionSeries.style,
-      asOf: optionSeries.asOf,
-    })
-    .from(optionSeries)
-    .innerJoin(tradingSessions, eq(tradingSessions.date, optionSeries.expiry))
-    .where(
-      and(
-        eq(optionSeries.underlying, underlying),
-        gte(optionSeries.expiry, currentSession),
-        lte(optionSeries.asOf, at),
-        gt(tradingSessions.close, at),
+  const [rows, pastCalendarRows] = await Promise.all([
+    db
+      .select({
+        ticker: optionSeries.ticker,
+        right: optionSeries.right,
+        strike: optionSeries.strike,
+        expiry: optionSeries.expiry,
+        style: optionSeries.style,
+        asOf: optionSeries.asOf,
+      })
+      .from(optionSeries)
+      .innerJoin(tradingSessions, eq(tradingSessions.date, optionSeries.expiry))
+      .where(
+        and(
+          eq(optionSeries.underlying, underlying),
+          gte(optionSeries.expiry, currentSession),
+          lte(optionSeries.asOf, at),
+          gt(tradingSessions.close, at),
+        ),
       ),
-    );
+    calendarWindowThroughExpiry(db, at, CALENDAR_WINDOW_SESSIONS, null),
+  ]);
+  const calendarFloor = pastCalendarRows[0]?.date;
 
   const latestByTicker = new Map<string, (typeof rows)[number]>();
   for (const row of rows) {
@@ -181,7 +200,52 @@ export async function optionChainForUnderlying(
     }
   }
 
-  return [...latestByTicker.values()]
+  const series = [...latestByTicker.values()];
+  const tickers = series.map((row) => row.ticker);
+
+  const priceRows =
+    tickers.length === 0
+      ? []
+      : await db
+          .selectDistinctOn([optionDailyPrices.ticker], {
+            ticker: optionDailyPrices.ticker,
+            session: optionDailyPrices.session,
+            expiry: optionDailyPrices.expiry,
+            strike: optionDailyPrices.strike,
+            average: optionDailyPrices.average,
+            close: optionDailyPrices.close,
+          })
+          .from(optionDailyPrices)
+          .where(
+            and(
+              inArray(optionDailyPrices.ticker, tickers),
+              lte(optionDailyPrices.asOf, at),
+              ...(calendarFloor ? [gte(optionDailyPrices.session, calendarFloor)] : []),
+            ),
+          )
+          .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session));
+
+  const latestPriceByTicker = new Map<string, (typeof priceRows)[number]>();
+  for (const row of priceRows) {
+    latestPriceByTicker.set(row.ticker, row);
+  }
+
+  return series
     .sort((a, b) => a.expiry.localeCompare(b.expiry) || Number(a.strike) - Number(b.strike))
-    .map(({ ticker, right, strike, expiry, style }) => ({ ticker, right, strike, expiry, style }));
+    .map(({ ticker, right, strike, expiry, style }) => {
+      const priceRow = latestPriceByTicker.get(ticker);
+      // A price row from a listing cycle the ticker has since moved past
+      // (ADR-0017) must not surface as this cycle's last price.
+      const matchesCurrentCycle =
+        priceRow && priceRow.expiry === expiry && priceRow.strike === strike;
+      const value = matchesCurrentCycle ? (priceRow.close ?? priceRow.average) : null;
+      return {
+        ticker,
+        right,
+        strike,
+        expiry,
+        style,
+        lastPrice: matchesCurrentCycle && value ? { value, session: priceRow.session } : null,
+      };
+    });
 }

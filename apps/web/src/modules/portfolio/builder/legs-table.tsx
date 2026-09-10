@@ -1,6 +1,6 @@
 "use client";
 
-import { quantitySchema } from "@fetha/contracts";
+import { decimalStringSchema, quantitySchema } from "@fetha/contracts";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -43,6 +43,15 @@ function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
   return null;
 }
 
+// Priceable series first (the ticket's own diagnosis: a picker offering
+// every listed series regardless of whether it ever traded is how "could
+// not price this operation" happens), stable within each group so the
+// expiry/strike ladder the repository already sorted still reads top to
+// bottom inside it.
+function byPriceableFirst(a: ChainSeries, b: ChainSeries): number {
+  return (a.lastPrice ? 0 : 1) - (b.lastPrice ? 0 : 1);
+}
+
 export function LegsTable({
   underlying,
   legs,
@@ -76,9 +85,12 @@ export function LegsTable({
         {legs.map((builderLeg, index) => {
           const { template, leg, valuation } = builderLeg;
           const isStock = template.role === "stock";
-          const options = chain.filter(
-            (series) => series.right === template.role && (!expiry || series.expiry === expiry),
-          );
+          const options = chain
+            .filter(
+              (series) => series.right === template.role && (!expiry || series.expiry === expiry),
+            )
+            .slice()
+            .sort(byPriceableFirst);
           const selected = options.find((series) => series.ticker === leg?.ticker);
 
           return (
@@ -108,7 +120,20 @@ export function LegsTable({
                     <SelectContent>
                       {options.map((series) => (
                         <SelectItem key={series.ticker} value={series.ticker}>
-                          {series.ticker}
+                          <span className="font-mono">{series.ticker}</span>
+                          {series.lastPrice ? (
+                            <span
+                              className="ml-2 font-mono text-[11px] tabular-nums"
+                              style={{ color: "var(--muted)" }}
+                            >
+                              {formatDecimal(decimalStringSchema.parse(series.lastPrice.value))} ·{" "}
+                              {series.lastPrice.session}
+                            </span>
+                          ) : (
+                            <span className="ml-2 text-[11px]" style={{ color: "var(--faint)" }}>
+                              {t.builder.legsTable.noTrades}
+                            </span>
+                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>

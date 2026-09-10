@@ -69,10 +69,13 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await underlyingField.fill("PETR4");
   await underlyingField.blur();
 
+  // The picker lists every listed series, traded or not (#22); only a
+  // series that actually carries a last price can be priced by the engine,
+  // so the spec must not rely on `.first()` alone (#22 round 2 diagnosis).
   await page.getByLabel("Instrumento 2").click();
-  await page.getByRole("option").first().click();
+  await page.getByRole("option").filter({ hasNotText: "sem negócios" }).first().click();
   await page.getByLabel("Instrumento 3").click();
-  await page.getByRole("option").first().click();
+  await page.getByRole("option").filter({ hasNotText: "sem negócios" }).first().click();
 
   await page.getByRole("button", { name: "Precificar" }).click();
 

@@ -37,6 +37,7 @@ const en = {
       stock: "Stock",
       pickInstrument: "Pick an instrument",
       stale: "stale",
+      noTrades: "no trades",
     },
     statBlocks: {
       title: "Result",
@@ -137,6 +138,7 @@ const ptBR = {
       stock: "Ação",
       pickInstrument: "Escolha um instrumento",
       stale: "atrasado",
+      noTrades: "sem negócios",
     },
     statBlocks: {
       title: "Resultado",
