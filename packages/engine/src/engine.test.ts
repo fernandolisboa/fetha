@@ -142,17 +142,24 @@ describe("engine", () => {
     const result = await engine.markToMarket({
       view: {
         ...emptyView,
+        calendar: [
+          {
+            date: "2024-01-02",
+            open: "2024-01-02T13:00:00.000Z",
+            close: "2024-01-02T21:00:00.000Z",
+          },
+        ],
         quotes: [
           {
             ticker: "PETR4",
-            asOf: "2024-01-02T00:00:00.000Z",
+            asOf: "2024-01-02T13:00:00.000Z",
             last: decimalString("12.00"),
             bid: null,
             ask: null,
           },
         ],
       },
-      at: "2024-01-02T00:00:00.000Z",
+      at: "2024-01-02T13:00:00.000Z",
       positions: [],
       operations: [stockOperation],
       cash: centavos(0),

@@ -852,4 +852,84 @@ describe("markToMarket", () => {
       message: "the underlying's spot must be positive",
     });
   });
+
+  it("returns insufficient_data when the calendar does not cover the mark instant (item 8)", () => {
+    const result = markToMarket(
+      {
+        view: { ...baseView, calendar: [] },
+        at,
+        positions: [],
+        operations: [stockOperation()],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
+
+  it("returns invalid_input for a non-positive corporate-action factor visible to a leg (item 8)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.00"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [],
+        operations: [stockOperation({ openedAt: "2024-01-01" })],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "corporateActions[].factor",
+      message: "a corporate-action factor must be positive",
+    });
+  });
+
+  it("returns insufficient_data when an expired operation's expiry session is missing from the calendar", () => {
+    const shortCalendar: TradingSession[] = [
+      { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T21:00:00.000Z" },
+      { date: "2024-01-10", open: "2024-01-10T13:00:00.000Z", close: "2024-01-10T21:00:00.000Z" },
+    ];
+    const view: MarketView = {
+      ...baseView,
+      calendar: shortCalendar,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+    });
+    const result = markToMarket(
+      { view, at: "2024-01-10T21:00:00.000Z", positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
 });

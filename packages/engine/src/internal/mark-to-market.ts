@@ -80,10 +80,10 @@ function insufficientCandles(underlying: string, at: Instant): EngineError {
 function resolveExpiredIntrinsicBasis(
   view: MarketView,
   operation: Operation,
-  markSession: SessionDate | null,
+  markSession: SessionDate,
 ): { ok: true; value: DecimalString | null } | { ok: false; error: EngineError } {
   if (operation.expiry === null) return { ok: true, value: null };
-  if (markSession === null || markSession < operation.expiry) return { ok: true, value: null };
+  if (markSession < operation.expiry) return { ok: true, value: null };
 
   const expirySession = sessionByDate(view.calendar, operation.expiry);
   if (!expirySession) {
@@ -116,7 +116,7 @@ function priceExistingOperation(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number,
   provenanceBase: ProvenanceBase,
-  markSession: SessionDate | null,
+  markSession: SessionDate,
   path: string,
 ): { ok: true; value: OperationValuation } | { ok: false; error: EngineError } {
   const spot = resolveUnderlyingSpot(view, operation.underlying, at);
@@ -142,18 +142,20 @@ function priceExistingOperation(
   // exposure, greeks and max loss off by F (round 1 item 2). An option leg's own ticker never
   // carries a corporate-action factor (a split forces a series rollover, ADR-0013 #25
   // addendum), so this naturally leaves option legs untouched (F = 1).
-  const rebasedLegs = operation.legs.map((leg) => {
-    const visibleFactors =
-      markSession === null
-        ? []
-        : view.corporateActions.filter((f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at));
-    const factor =
-      markSession === null
-        ? new Decimal(1)
-        : splitFactorProduct(visibleFactors, operation.openedAt, markSession);
-    const effectiveQuantity = new Decimal(leg.quantity).div(factor).floor().toNumber();
-    return { leg, factor, effectiveQuantity };
-  });
+  const rebasedLegs: {
+    leg: (typeof operation.legs)[number];
+    factor: Decimal;
+    effectiveQuantity: number;
+  }[] = [];
+  for (const leg of operation.legs) {
+    const visibleFactors = view.corporateActions.filter(
+      (f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at),
+    );
+    const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, markSession);
+    if (!factorResult.ok) return { ok: false, error: factorResult.error };
+    const effectiveQuantity = new Decimal(leg.quantity).div(factorResult.value).floor().toNumber();
+    rebasedLegs.push({ leg, factor: factorResult.value, effectiveQuantity });
+  }
 
   const legInputs: LegInput[] = rebasedLegs.map(({ leg, effectiveQuantity }) => ({
     role: leg.role,
@@ -234,6 +236,24 @@ export function markToMarket(
     return err(invalidInput("positions", `duplicate position for ${positionDupe.duplicateKey}`));
   }
 
+  // A calendar that does not cover `at` cannot tell a split from a stale mark from a fresh
+  // one: `resolveLegMarketPrice`'s stale flag and every leg's split-factor rebasing both need
+  // the mark session, and silently treating it as "no session" understated both (round 1
+  // item 8). Fail loudly instead of degrading.
+  const markSession = sessionAtOrBefore(input.view.calendar, input.at)?.date ?? null;
+  if (markSession === null) {
+    return err({
+      code: "insufficient_data",
+      needed: {
+        from: input.at,
+        to: input.at,
+        instruments: [],
+        timeframes: [],
+        collections: [],
+      },
+    });
+  }
+
   for (const [index, operation] of input.operations.entries()) {
     const coherenceError = validateOperationCoherence(
       input.view,
@@ -243,8 +263,6 @@ export function markToMarket(
     );
     if (coherenceError) return err(coherenceError);
   }
-
-  const markSession = sessionAtOrBefore(input.view.calendar, input.at)?.date ?? null;
 
   const operationValuations: OperationValuation[] = [];
   for (const [index, operation] of input.operations.entries()) {
