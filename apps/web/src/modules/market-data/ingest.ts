@@ -189,25 +189,39 @@ export async function runSource(
   }
 }
 
+interface SessionBoundResult {
+  outcome: SourceOutcome;
+  // Sessions this invocation confirmed are in an ok state (just succeeded or
+  // already succeeded), oldest first, used to report the newest session a
+  // source actually covers rather than the newest session it merely
+  // attempted (which may have failed).
+  okSessions: string[];
+}
+
 // Every gap in the last `RECENT_SESSION_WINDOW` window, oldest first, is
 // attempted this invocation (not just the single oldest one): a source
 // pinned on one permanently-failing session would otherwise never make
-// progress on the sessions after it (docs/adr/0017).
-async function runSessionBoundSource(
+// progress on the sessions after it (docs/adr/0017). A source with no gaps
+// left in the window is fully caught up, not absent: it still reports a
+// `{ skipped: true }` SourceOutcome instead of being dropped, so a caller
+// can tell "nothing to do" apart from "this source doesn't exist".
+export async function runSessionBoundSource(
   db: Database,
   source: IngestionSource,
   sessions: string[],
   maxDurationMs: number,
   run: (session: string) => Promise<number>,
-): Promise<SourceOutcome | null> {
-  if (sessions.length === 0) {
-    return null;
-  }
+): Promise<SessionBoundResult> {
   const outcomes: SourceOutcome[] = [];
+  const okSessions: string[] = [];
   for (const session of sessions) {
-    outcomes.push(await runSource(db, source, session, maxDurationMs, () => run(session)));
+    const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
+    outcomes.push(outcome);
+    if (outcome.error === undefined) {
+      okSessions.push(session);
+    }
   }
-  return mergeOutcomes(source, outcomes);
+  return { outcome: mergeOutcomes(source, outcomes), okSessions };
 }
 
 async function runCalendarSources(
@@ -252,7 +266,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   }
 
   const cotahistSessions = await resolveSessions("cotahist");
-  const cotahistOutcome = await runSessionBoundSource(
+  const cotahistResult = await runSessionBoundSource(
     db,
     "cotahist",
     cotahistSessions,
@@ -272,7 +286,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   );
 
   const instrumentsSessions = await resolveSessions("instruments");
-  const instrumentsOutcome = await runSessionBoundSource(
+  const instrumentsResult = await runSessionBoundSource(
     db,
     "instruments",
     instrumentsSessions,
@@ -288,7 +302,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   );
 
   const sgsSessions = await resolveSessions("sgs");
-  const sgsOutcome = await runSessionBoundSource(
+  const sgsResult = await runSessionBoundSource(
     db,
     "sgs",
     sgsSessions,
@@ -309,12 +323,15 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     },
   );
 
-  const sources = [calendarOutcome, cotahistOutcome, instrumentsOutcome, sgsOutcome].filter(
-    (outcome): outcome is SourceOutcome => outcome !== null,
-  );
+  const sources = [
+    calendarOutcome,
+    cotahistResult.outcome,
+    instrumentsResult.outcome,
+    sgsResult.outcome,
+  ];
 
   return {
-    session: options.session ?? cotahistSessions.at(-1) ?? null,
+    session: options.session ?? cotahistResult.okSessions.at(-1) ?? null,
     ok: sources.every((outcome) => outcome.error === undefined),
     sources,
   };

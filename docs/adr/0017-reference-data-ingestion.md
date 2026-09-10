@@ -58,7 +58,11 @@ window, oldest first, in one invocation: `market-data.gaps(db, source, at)` (`re
 un-succeeded list, and `runSessionBoundSource` (`ingest.ts`) attempts each one in turn, recording
 its own `ingestion_runs` row and outcome; a session that keeps failing is retried every invocation
 without blocking the sessions after it. If every session in the window has already succeeded, the
-source is fully caught up and this run is a no-op for it. `allGaps(db, at)` exposes the same
+source is fully caught up: `runSessionBoundSource` still reports a `{ skipped: true }`
+`SourceOutcome` for it instead of dropping it from `ingest()`'s result, so a caller can tell
+"nothing to do this run" apart from "this source is missing". `IngestOutcome.session` reports the
+newest session a source actually confirmed ok (just succeeded or already succeeded), not simply the
+newest session it attempted, which may have failed. `allGaps(db, at)` exposes the same
 per-source lists (typed `Record<Exclude<IngestionSource, "calendar">, string[]>`, since "calendar"
 is keyed on a yearly marker, not one of these trading sessions) so the market bar (#13) can show a
 source that has fallen behind. The manual `POST` trigger bypasses the search and targets the given

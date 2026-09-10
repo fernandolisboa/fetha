@@ -19,7 +19,7 @@ vi.mock("./repositories/advisory-lock", () => ({
   withSourceLock,
 }));
 
-const { runSource } = await import("./ingest");
+const { runSource, runSessionBoundSource } = await import("./ingest");
 
 const db = {} as never;
 
@@ -73,5 +73,47 @@ describe("runSource", () => {
       status: "failed",
       error: "fetch failed",
     });
+  });
+});
+
+describe("runSessionBoundSource", () => {
+  it("reports a skipped outcome instead of dropping a source with no sessions to process", async () => {
+    const result = await runSessionBoundSource(db, "cotahist", [], 300_000, () =>
+      Promise.resolve(0),
+    );
+
+    expect(result.outcome).toEqual({ source: "cotahist", skipped: true, rowCount: 0 });
+    expect(result.okSessions).toEqual([]);
+  });
+
+  it("collects only the sessions that ended up ok, oldest first, and reports errors for the rest", async () => {
+    withSourceLock.mockImplementation(
+      async (_db: unknown, _source: unknown, callback: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          transaction: async (savepoint: (tx: unknown) => Promise<void>) => savepoint({}),
+        };
+        return callback(tx);
+      },
+    );
+    findSucceededRun.mockResolvedValue(undefined);
+    let call = 0;
+    const run = vi.fn(() => {
+      call += 1;
+      if (call === 2) {
+        return Promise.reject(new Error("bad session"));
+      }
+      return Promise.resolve(1);
+    });
+
+    const result = await runSessionBoundSource(
+      db,
+      "cotahist",
+      ["2026-06-10", "2026-06-11", "2026-06-12"],
+      300_000,
+      run,
+    );
+
+    expect(result.okSessions).toEqual(["2026-06-10", "2026-06-12"]);
+    expect(result.outcome.error).toContain("bad session");
   });
 });

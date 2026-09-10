@@ -292,6 +292,16 @@ describe("ingest", () => {
     const succeededSessions = succeededCotahistRuns.map((run) => run.session).sort();
     expect(succeededSessions).toContain(OLDER_SESSION);
     expect(succeededSessions).toContain(TEST_SESSION);
+    expect(result.session).toBe(TEST_SESSION);
+
+    const secondRun = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetchAnySession(),
+    });
+    const secondCotahist = secondRun.sources.find((s) => s.source === "cotahist");
+    expect(secondCotahist).toBeDefined();
+    expect(secondCotahist?.skipped).toBe(true);
+    expect(secondRun.session).toBe(TEST_SESSION);
   }, 120_000);
 
   it("two concurrent invocations for the same session never both record a failed run", async () => {
