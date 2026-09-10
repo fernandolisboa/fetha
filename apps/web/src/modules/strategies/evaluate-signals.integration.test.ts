@@ -52,8 +52,17 @@ function randomTicker(): Ticker {
   return tickerSchema.parse(`EV${suffix}`);
 }
 
+// Years 2040-2044: deliberately disjoint from every other integration
+// fixture's own "far future" literal (2031 in partitions.integration.test.ts
+// and signals-repository.integration.test.ts, 2098-2099 in
+// market-view.integration.test.ts and option-repository.integration.test.ts)
+// so this file's random draws can never create or touch a monthly partition
+// another test's own precondition assumes doesn't exist yet.
+const RANDOM_SESSION_YEAR_BASE = 2040;
+const RANDOM_SESSION_YEAR_SPAN = 5;
+
 function randomSession(): string {
-  const year = 2030 + Math.floor(Math.random() * 5);
+  const year = RANDOM_SESSION_YEAR_BASE + Math.floor(Math.random() * RANDOM_SESSION_YEAR_SPAN);
   const month = 1 + Math.floor(Math.random() * 12);
   const day = 1 + Math.floor(Math.random() * 27);
   return `${String(year)}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -63,7 +72,7 @@ function randomSession(): string {
 // nightly evaluation's `since`/`at` catch-up range doesn't require a real B3
 // trading calendar, just a distinct sequence of `date` rows.
 function randomSessionSequence(count: number): string[] {
-  const year = 2030 + Math.floor(Math.random() * 5);
+  const year = RANDOM_SESSION_YEAR_BASE + Math.floor(Math.random() * RANDOM_SESSION_YEAR_SPAN);
   const month = 1 + Math.floor(Math.random() * 12);
   const start = new Date(Date.UTC(year, month - 1, 1));
   const dates: string[] = [];
