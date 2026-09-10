@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { formatDateTime } from "@/lib/format/date-time";
+import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
+import { getMyBacktestRunsForStrategy, t as backtestsStrings } from "@/modules/backtests";
+import { buttonVariants } from "@/components/ui/button";
 import { Panel, t as shellStrings } from "@/modules/shell";
 import {
   getMyStrategy,
@@ -19,7 +22,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
   await requireUser();
   const { id } = await params;
 
-  const [structures, strategy] = await Promise.all([
+  const [structures, strategy, runs] = await Promise.all([
     getStructures(),
     getMyStrategy(id).catch((error: unknown) => {
       if (error instanceof StrategyNotFoundError) {
@@ -27,6 +30,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
       }
       throw error;
     }),
+    getMyBacktestRunsForStrategy(id),
   ]);
 
   if (!strategy) {
@@ -65,6 +69,31 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
             </li>
           ))}
         </ul>
+      </Panel>
+
+      <Panel title={backtestsStrings.report.overline}>
+        <div className="flex flex-col gap-3">
+          <Link href={`/estrategias/${strategy.id}/backtests/novo`} className={buttonVariants()}>
+            {backtestsStrings.create.submit}
+          </Link>
+          {runs.length > 0 ? (
+            <ul className="flex flex-col gap-1 text-sm">
+              {runs.map((run) => (
+                <li key={run.id}>
+                  <Link
+                    href={`/estrategias/${strategy.id}/backtests/${run.id}`}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {run.period.from} — {run.period.to}
+                  </Link>{" "}
+                  <span className="text-muted-foreground text-xs">
+                    ({formatDate(run.createdAt)})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </Panel>
     </div>
   );
