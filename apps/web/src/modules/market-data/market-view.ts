@@ -18,6 +18,7 @@ import {
   type DataWindow,
   type MacroPoint,
   type MarketView,
+  type MarketViewCollection,
   type OptionDayPrice,
   type OptionSeries,
   type TradingSession,
@@ -63,6 +64,20 @@ const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
 // two integers each) is comfortably tens of megabytes, not the "millions
 // of row objects" an unbounded query could reach.
 const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
+
+// The collections this loader can never fill, today: no ingestion source
+// writes `impliedVolatilityIndex` (round 2 item 8, follow-up #81), so a
+// strategy whose `DataWindow` asks for it can never receive a value no
+// matter how many times it retries. `market-data` is the module that knows
+// this — it owns the loader — so this is the one place that fact lives,
+// not a hardcoded literal re-stated in every caller that needs to refuse a
+// strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; round 6
+// item 9 closed the duplication between them).
+const UNSATISFIABLE_COLLECTIONS: readonly MarketViewCollection[] = ["impliedVolatilityIndex"];
+
+export function canSatisfyCollection(collection: MarketViewCollection): boolean {
+  return !UNSATISFIABLE_COLLECTIONS.includes(collection);
+}
 
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);

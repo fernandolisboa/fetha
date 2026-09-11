@@ -4,6 +4,7 @@ import { engine, type Signal, type StrategyVersion, type TradingSession } from "
 import type { Database } from "@/db/client";
 import {
   calendarUpTo,
+  canSatisfyCollection,
   loadMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
@@ -405,11 +406,13 @@ export async function evaluateSignalsForSession(
           since,
         });
 
-        // The loader can never fill `impliedVolatilityIndex` (round 2 item
-        // 8, follow-up #81): recorded explicitly per ticker/session and
-        // never handed to the engine, instead of retrying
-        // `insufficient_data` every night with no clue why.
-        if (window.collections.includes("impliedVolatilityIndex")) {
+        // `canSatisfyCollection` is market-data's own fact about what its
+        // loader can fill, not re-stated here as a hardcoded literal
+        // (round 6 item 9 — `backtests/actions.ts` asks the same
+        // predicate): recorded explicitly per ticker/session and never
+        // handed to the engine, instead of retrying `insufficient_data`
+        // every night with no clue why.
+        if (window.collections.some((collection) => !canSatisfyCollection(collection))) {
           await writeResult(
             [],
             failureEvaluations(
@@ -448,6 +451,20 @@ export async function evaluateSignalsForSession(
             const code =
               error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
             errors.push(code);
+            // Writing this evaluation row advances the strategy's own
+            // watermark (`lastEvaluatedSession`) the same as a real
+            // evaluation would (#18 round 6 item 6): a `market_view_too_large`
+            // night is never automatically re-tried, even after an operator
+            // raises `DEFAULT_OPTION_CHAIN_TICKER_CAP`/`_PRICE_ROW_CAP`,
+            // because the sessions it failed on are now behind the
+            // watermark. Accepted deliberately, matching the
+            // `unknown_structure` precedent just above: the alternative
+            // (never advancing the watermark) means a chain that stays too
+            // large forever retries the same expensive, doomed load every
+            // single run. A cap raise is an operator config change, not a
+            // routine user action, so it is expected to come with a manual
+            // watermark reset or re-run if catch-up past the failed
+            // sessions is ever needed.
             await writeResult(
               [],
               failureEvaluations(strategyId, version.id, tickers, userSessions, code),
