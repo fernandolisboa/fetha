@@ -2000,28 +2000,40 @@ by value — the same pattern `scalars.ts` already uses for the engine's `option
 mirror over deleting it in favour of importing the engine's own arrays, since contracts cannot
 depend on the engine either way).
 
-Two obligations come with owning that mirror, both closed by #18 round 5 item 4:
+Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
 
 1. **A compile-time pin.** `backtest-run-repository.ts` reads a stored run through
    `backtestRunSchema.parse(value) as unknown as BacktestRun` — the `as unknown as` deliberately
    severs the link an ordinary cast would give for free, so nothing at build time catches the
-   contracts-side schema and the engine-side type drifting apart. `apps/web/src/modules/backtests/
-backtest-run-type-pin.test.ts` is a compile-time-only `expectTypeOf` assertion, at the one
-   place both packages are visible, checking the two shapes stay assignable both ways. It excludes
-   three fields for reasons documented at each exclusion in that file: `config` and `operations`
-   for a Zod recursive/discriminated-union inference quirk unrelated to real drift, and `notes` /
-   `provenance` because `noteSchema.code` and `provenanceSchema.pricingModel` are intentionally
-   `z.string()` rather than mirrors of the engine's `NoteCode` and `PricingModel` vocabularies — a
-   known, separately-flagged gap (narrowing them trades one failure mode for its opposite: a
-   future engine-side member the mirror has not caught up with would then fail to parse).
-2. **Tolerant parsing at the persisted boundary.** `backtestRunSchema`, `backtestMetricsSchema`
-   and `walkForwardWindowSchema` use `z.object`, not `z.strictObject`: an engine change that adds
-   a field (the concrete near-term case is #30's walk-forward window) must not turn every read of
-   an older row into a raw `ZodError` — `getMyBacktestRunsForStrategy` 500ing an entire strategy
-   page because one historical run predates the field. An unrecognised key is dropped instead of
-   rejecting the row. This does not extend to every nested schema (operations, fills, provenance,
-   ...) — only the specific fields named in the failure scenario that prompted this addendum;
-   widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
+   contracts-side schema and the engine-side type drifting apart.
+   `apps/web/src/modules/backtests/backtest-run-type-pin.test.ts` is a compile-time-only
+   `expectTypeOf` assertion, at the one place both packages are visible, checking the two shapes
+   stay assignable both ways — `config` included: it is mutually assignable today and excluding it
+   would have left the largest, most strictly-parsed subtree of the artifact unpinned (round 6
+   item 2). Three fields stay excluded from that two-way check and are instead checked
+   one-directionally (engine → contract), because the contract side is deliberately a looser
+   superset for each: `operations`, because contracts' `legSettlementSchema` is a flat
+   `z.strictObject` where the engine's own `LegSettlement` correlates role, side and outcome into
+   a real discriminated union (`backtest-run-repository.ts`'s `asEngineRun` names this correctly);
+   `notes` and `provenance`, because `noteSchema.code` and `provenanceSchema.pricingModel` are
+   `z.string()` rather than mirrors of the engine's `NoteCode` and `PricingModel` vocabularies
+   (tracked as #91, not silently left).
+2. **Tolerant parsing at the persisted boundary, on its actual merit.** `backtestRunSchema`,
+   `backtestMetricsSchema` and `walkForwardWindowSchema` use `z.object`, not `z.strictObject`.
+   `z.object` tolerates _extra_, unrecognised keys — it protects a row written by a schema _newer_
+   than the one reading it. It does **not** help the opposite case: a row written by an _older_
+   engine version, missing a key a newer schema now expects, still fails `z.object` the same way
+   it would fail `z.strictObject`, because both require every declared (non-optional) key to be
+   present. So when #30 adds a required field to `WalkForwardWindow`, every historical run that
+   predates it still throws reading it back — `z.object` alone does not close that. The actual
+   rule for a field added to a persisted engine artifact: ship it `.optional()` in the contracts
+   mirror (so an older row's absence parses as `undefined`, not a thrown error), or pair the schema
+   change with a backfill migration of existing rows. What `z.object` genuinely buys instead:
+   tolerating a field _removed_, _renamed_, or a schema _rolled back_ to an older shape after a
+   deploy — an unrecognised key left over from a newer write is dropped rather than rejecting the
+   whole row. That is the honest scope of this relaxation; it does not extend to every nested
+   schema (operations, fills, provenance, ...) — only the fields named here — and widening it
+   further is a decision for whoever hits the next concrete case, not a blanket rule.
 
 `backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
