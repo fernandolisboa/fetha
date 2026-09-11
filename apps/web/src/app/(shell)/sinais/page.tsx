@@ -30,7 +30,7 @@ export default async function SignalsPage() {
             {shellStrings.emptyStates.signals.sentence}
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm" aria-label={t.inbox.title}>
             <thead>
               <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                 <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
@@ -54,7 +54,7 @@ export default async function SignalsPage() {
         {evaluationLog.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.inbox.evaluationLog.empty}</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm" aria-label={t.inbox.evaluationLog.title}>
             <thead>
               <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                 <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
