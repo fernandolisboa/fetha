@@ -60,8 +60,14 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
   await expect(page).toHaveURL(/\/backtests\/novo$/);
 
   await page.locator("label", { hasText: TICKER }).getByRole("checkbox").check();
-  await page.getByLabel("De").fill("2026-09-08");
-  await page.getByLabel("Até").fill(SESSION);
+
+  // getByLabel matches by substring: "De" also matches "Modelo de custos"
+  // and "Limites de risco" further down this same form, and "Até" is one
+  // word away from the same fate the moment a label containing "até"
+  // appears. Exact keeps both queries tied to their own date input instead
+  // of Playwright's strict-mode check picking that ambiguity up first.
+  await page.getByLabel("De", { exact: true }).fill("2026-09-08");
+  await page.getByLabel("Até", { exact: true }).fill(SESSION);
   await page.getByRole("button", { name: "Rodar backtest" }).click();
 
   await expect(page).toHaveURL(/\/backtests\/(?!novo$)[^/]+$/);
