@@ -213,6 +213,43 @@ describe("BacktestRunRepository isolation", () => {
     );
   });
 
+  it("user A cannot claim (read, write or trigger a job for) user B's backtest run (round 5 item 3)", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("a3");
+    const emailB = uniqueEmail("b3");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const strategy = await new StrategiesRepository(db, userB).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const runB = await new BacktestRunRepository(db, userB).create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      seed: 1,
+    });
+    expect(runB.status).toBe("pending");
+
+    await expect(new BacktestRunRepository(db, userA).claim(runB.id)).rejects.toBeInstanceOf(
+      BacktestRunNotFoundError,
+    );
+
+    // Not just rejected: user B's own row must never have moved out of
+    // "pending" (or picked up user A's claim) from the attempt.
+    const stillB = await new BacktestRunRepository(db, userB).findMine(runB.id);
+    expect(stillB.status).toBe("pending");
+  });
+
   it("a completed run cannot be updated again, even by its own owner", async () => {
     const db = getDb();
     const email = uniqueEmail("owner");

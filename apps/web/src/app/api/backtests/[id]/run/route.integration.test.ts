@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fetha/contracts";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -6,6 +7,42 @@ import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { BacktestRunRepository } from "@/modules/backtests/backtest-run-repository";
+import { DEFAULT_COST_MODEL, defaultRiskProfile } from "@/modules/backtests/default-config";
+import { StrategiesRepository } from "@/modules/strategies";
+
+function decimalString(value: string): DecimalString {
+  return value as DecimalString;
+}
+
+function centavos(value: number): Centavos {
+  return value as Centavos;
+}
+
+const STOCK_STRUCTURE: Structure = {
+  id: "stock",
+  name: "Compra de ação",
+  expiry: "shared",
+  legs: [{ role: "stock", side: "buy", ratio: 1 }],
+};
+
+function definition(): StrategyDefinition {
+  return {
+    name: "Estratégia de isolamento da rota",
+    timeframe: "D1",
+    entry: {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("9") },
+    },
+    structureId: "stock",
+    strikes: [],
+    sizing: { kind: "fixed_fractional", fraction: decimalString("0.2") },
+    exit: [],
+    adjustments: [],
+  };
+}
 
 let currentUser: CurrentUser | null = null;
 
@@ -88,5 +125,48 @@ describe("POST /api/backtests/[id]/run", () => {
     const seventh = await call();
     expect(seventh.status).toBe(429);
     await expect(seventh.json()).resolves.toEqual({ ok: false, error: "rate_limited" });
+  });
+
+  it("returns 404 for user A's POST against user B's run, with no status change on B's row (round 5 item 3)", async () => {
+    vi.resetModules();
+    const { POST } = await import("./route");
+
+    const db = getDb();
+    const emailA = uniqueEmail("cross-user-a");
+    const emailB = uniqueEmail("cross-user-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const strategy = await new StrategiesRepository(db, userB).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const runB = await new BacktestRunRepository(db, userB).create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQRT3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      seed: 1,
+    });
+    expect(runB.status).toBe("pending");
+
+    currentUser = userA;
+    const response = await POST(
+      new Request(`http://localhost/api/backtests/${runB.id}/run`, { method: "POST" }),
+      { params: Promise.resolve({ id: runB.id }) },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "not_found" });
+
+    const stillB = await new BacktestRunRepository(db, userB).findMine(runB.id);
+    expect(stillB.status).toBe("pending");
   });
 });
