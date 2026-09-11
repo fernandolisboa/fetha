@@ -1,4 +1,4 @@
-// Nine identifiers, the ones a consumer outside this module actually
+// Ten identifiers, the ones a consumer outside this module actually
 // reaches for (route handlers and pages under app/): server pieces only.
 // Client components live in ./client, kept off this barrel so a "use
 // client" boundary never pulls the repository (and its `next/headers`
@@ -11,4 +11,4 @@ export {
 export { runBacktestChunk } from "./run-chunk";
 export { getMyBacktestRun, getMyBacktestRunsForStrategy } from "./queries";
 export { ReportPanel } from "./components/report-panel";
-export { engineErrorMessage, isResumableRunError, t } from "./strings";
+export { runErrorMessage, isResumableRunError, t } from "./strings";

@@ -138,9 +138,13 @@ export function toEngineCandle(row: CandleRow): Candle {
 }
 
 // `dataVersion` stamps the freshest row this view actually loaded, `max(asOf)`
-// across every populated collection: a backtest run compares it chunk to
-// chunk so a candle or calendar revision between chunks cannot silently mix
-// datasets in one immutable run (round 1 item 21).
+// across every populated collection (candles, corporate actions, macro,
+// option series and prices — never the calendar itself: `trading_sessions`
+// carries no `asOf`, so a calendar revision between chunks contributes
+// nothing to this stamp and is not caught by it, round 5 item 9): a
+// backtest run compares this chunk to chunk so a revision to one of those
+// stamped collections cannot silently mix two datasets into one immutable
+// run.
 function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
   let max: Instant | undefined;
   for (const instant of instants) {

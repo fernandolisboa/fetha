@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/auth";
 import {
   BacktestRunNotFoundError,
-  engineErrorMessage,
+  runErrorMessage,
   getMyBacktestRun,
   isResumableRunError,
   ReportPanel,
@@ -56,7 +56,7 @@ export default async function BacktestReportPage({
       ) : run.status === "failed" ? (
         <Panel>
           <p className="text-destructive text-sm">
-            {t.report.failed.replace("{error}", engineErrorMessage(run.error ?? ""))}
+            {t.report.failed.replace("{error}", runErrorMessage(run.error ?? ""))}
           </p>
           {isResumableRunError(run.error) ? (
             <RunBacktestButton runId={run.id} label={t.report.retry} />

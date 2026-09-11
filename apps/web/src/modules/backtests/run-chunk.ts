@@ -112,9 +112,13 @@ export interface RunBacktestChunkOptions {
 // enough to threaten the platform's `maxDuration` still makes progress
 // instead of dying with nothing saved and repeating forever on retry
 // (round 1 item 19). The MarketView's own `dataVersion` is stamped on the
-// run at its first chunk and compared on every resume, so a candle or
-// calendar revision between chunks fails the run rather than silently
-// mixing two datasets into one immutable result (round 1 item 21).
+// run at its first chunk and compared on every resume, so a revision to
+// candles, corporate actions, macro points or the option chain between
+// chunks fails the run rather than silently mixing two datasets into one
+// immutable result. Not the calendar: `trading_sessions` carries no `asOf`,
+// so a calendar revision (e.g. a corrected session) between chunks is not
+// caught by this stamp and can resolve time-to-expiry against a different
+// calendar with an identical one — a known gap, round 5 item 9.
 export async function runBacktestChunk(
   db: Database,
   user: ScopedUser,
@@ -339,7 +343,7 @@ async function persistProgress(
 
 // The raw engine code is what the "error" column stores; the report and
 // button translate it to pt-BR at display time (strings.ts
-// engineErrorMessage), the same split NoteCode already uses.
+// runErrorMessage), the same split NoteCode already uses.
 function describeEngineError(error: { code: EngineErrorCode }): string {
   return error.code;
 }
