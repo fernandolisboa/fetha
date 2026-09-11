@@ -1369,8 +1369,15 @@ thrown exception from the engine is a bug.
 
 Arrays in `MarketView` may arrive in any order; the engine sorts (I3). Duplicate keys (same
 ticker, timeframe and `asOf` for candles; same ticker and `exDate` for corporate-action factors;
-same ticker and session for option prices; same series and date for macro points) are
-`invalid_input`. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
+same ticker and session for option prices; same series and `asOf` for macro points) are
+`invalid_input` — the engine consumes macro points latest-visible-by-`asOf` only (`rates.ts`'s
+`latestVisible`), never by `date`, so a `(series, asOf)` tie is what the check keys on, not a
+`(series, date)` one. The caller (`market-data`'s `loadMarketView`) is expected to collapse such a
+tie itself, in favour of the later `date`, before the view ever reaches this check: two
+observations stamped the same `asOf` (a real occurrence — CDI at year end, or any series whose
+publication schedule maps several dates onto one `asOf`) are not two independent points to the
+engine, they are one observation recorded twice, and the more recent `date` is the more accurate
+reading of it. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
 rejected, because a legitimate re-listing (a strike adjustment, a superseded expiry) always
 advances `asOf`, so a true tie on `(ticker, asOf)` is data noise, not a signal the caller needs
 surfaced; it resolves deterministically to the lower-strike row regardless of array order (PR
@@ -2036,12 +2043,21 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
    The actual rule for a field added to a persisted, pinned engine artifact, in order: **first
    choice, a backfill migration** of existing rows so every stored `WalkForwardWindow` already has
    the new field by the time the schema requires it — the pin in obligation 1 stays exactly as
-   strict as it is today, no exception needed. **`.optional()` in the contracts mirror is not a
-   substitute for that** — it is a _temporary, one-release_ escape only, paired with excluding that
-   one field from the pinned set for the same release (adding `field?: T` to a schema whose type is
-   inside `Pinned<T>` makes `expectTypeOf<PinnedContract>().toExtend<PinnedEngine>()` fail outright,
-   since an optional contract field is not assignable to the engine's required one — the pin and
-   an unconditional `.optional()` cannot both hold at once). Un-exclude and re-pin the field the
+   strict as it is today, no exception needed. This backfill writes to `result` on rows whose
+   `status` is already `complete`, which `backtest_runs_immutable_once_complete`
+   (`drizzle/0008_groovy_justin_hammer.sql`) exists specifically to block — the same migration that
+   performs the backfill must `DROP TRIGGER`/`DROP FUNCTION` and recreate both after the `UPDATE`,
+   never leave the table permanently without the trigger. Without this, #30's implementer hits a
+   red migration instead of a red typecheck, and the tempting way out is to leave the invariant
+   suspended rather than restore it in the same migration. **`.optional()` in the contracts mirror
+   is not a substitute for a backfill** — it is a _temporary, one-release_ escape only, and it is
+   coarser than it sounds: `Pinned<T>` excludes a field by `Omit<T, "x"> & { x: unknown }` over
+   _top-level_ `BacktestRun` keys only, so a field added inside `WalkForwardWindow` cannot be
+   excluded on its own — the whole `walkForward` subtree has to leave the pinned set for that one
+   release, not just the new field within it (adding `field?: T` to a schema whose type is inside
+   `Pinned<T>` makes `expectTypeOf<PinnedContract>().toExtend<PinnedEngine>()` fail outright, since
+   an optional contract field is not assignable to the engine's required one — the pin and an
+   unconditional `.optional()` cannot both hold at once). Un-exclude and re-pin `walkForward` the
    release after the backfill lands. What `z.object` genuinely buys, on its own and without either
    of the above: tolerating a field _removed_, _renamed_, or a schema _rolled back_ to an older
    shape after a deploy — an unrecognised key left over from a newer write is dropped rather than
