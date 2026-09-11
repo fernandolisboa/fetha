@@ -45,6 +45,14 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
   await page.goto("/estrategias");
   await page.getByRole("link", { name: "Nova estratégia" }).click();
   await page.getByLabel("Nome").fill(strategyName);
+
+  // The editor defaults "Estrutura" to the catalog's first structure by
+  // name, which is not necessarily this one and can carry strike legs that
+  // block submission with an empty strike list; picking it explicitly keeps
+  // this spec correct regardless of catalog contents or ordering.
+  await page.getByRole("combobox", { name: "Estrutura" }).click();
+  await page.getByRole("option", { name: "Compra de ação", exact: true }).click();
+
   await page.getByRole("button", { name: "Criar estratégia" }).click();
   await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
 
