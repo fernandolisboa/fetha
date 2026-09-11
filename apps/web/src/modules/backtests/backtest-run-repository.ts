@@ -109,13 +109,41 @@ export class BacktestRunClaimError extends Error {
   }
 }
 
-function isImmutabilityTriggerError(error: unknown): boolean {
+function hasP0001Code(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === "P0001"
   );
+}
+
+// `drizzle-orm/neon-serverless` never throws the driver's own `pg`-shaped
+// error (with `.code`) directly: every failed query is wrapped in its own
+// `DrizzleQueryError`, whose message is `Failed query: ...` and which
+// carries the real error as `.cause` (drizzle-orm/errors.js). Checking
+// `error.code` alone matched only when the immutability check above this
+// call's own pre-check (`guardedUpdate`'s `existing.status === "complete"`)
+// happened to observe the row as already complete and short-circuited
+// before ever reaching this UPDATE — round 3 item 8's own "not a pre-check
+// that got lucky" concern, from the other end: CI's network latency to
+// Neon made the trigger itself fire far more often than local runs did,
+// and every one of those came back as this raw, unmapped `DrizzleQueryError`
+// instead of `BacktestRunAlreadyCompleteError` (round 5 item 6). Bounded to
+// two levels — the wrapper and its immediate cause — because that is the
+// one shape this driver actually produces; walking an unbounded `.cause`
+// chain would risk matching a `code: "P0001"` from somewhere the trigger
+// never touched.
+// Exported only for its own colocated unit test (backtest-run-repository.test.ts):
+// the wrapped-cause detection this pins (round 5 item 6) is a pure function
+// deterministically testable without racing two real database connections,
+// unlike the trigger firing itself.
+export function isImmutabilityTriggerError(error: unknown): boolean {
+  if (hasP0001Code(error)) {
+    return true;
+  }
+  const cause = error instanceof Error ? error.cause : undefined;
+  return hasP0001Code(cause);
 }
 
 const universeSchema = z.array(tickerSchema);
