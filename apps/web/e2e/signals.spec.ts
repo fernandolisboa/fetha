@@ -75,6 +75,6 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });
   const signalRow = inbox.getByRole("row", { name: new RegExp(TICKER) });
   await expect(signalRow).toBeVisible();
-  await expect(signalRow.getByText("Entrada")).toBeVisible();
+  await expect(signalRow.getByText("Entrada", { exact: true })).toBeVisible();
   await expect(signalRow.getByText(strategyName)).toBeVisible();
 });
