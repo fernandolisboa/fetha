@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { macroPoints } from "@/db/schema/market-data";
@@ -36,10 +36,16 @@ export async function latestMacroPointDate(
   return row?.date;
 }
 
-// Every macro point (any series) with date in [fromDate, toDate], no
-// ordering guarantee needed beyond that: the engine dedupes and validates
-// `view.macro` itself, this is just the bounded slice a `DataWindow`-driven
-// MarketView asks for (#19).
+// Every macro point (any series) with date in [fromDate, toDate], ordered:
+// `validateViewIntegrity` (packages/engine/src/internal/validate-view-integrity.ts)
+// covers `calendar`, `candles` and `optionPrices` only — `view.macro` is
+// never checked for an exact-tie duplicate, so `resolveRiskFreeRate` (rates.ts)
+// breaks a tie on the same `asOf` by array order, and CDI ties are real at
+// year end (24/12 and 23/12 both resolve against 26/12's open). Ordering the
+// query itself is what keeps that array order deterministic across two
+// chunks of the same immutable run (#18 round 5 item 7); an unordered
+// result set has no such guarantee even for an identical query re-run
+// against unchanged data.
 export async function macroPointsInRange(
   db: Database,
   fromDate: string,
@@ -48,7 +54,8 @@ export async function macroPointsInRange(
   return db
     .select()
     .from(macroPoints)
-    .where(and(gte(macroPoints.date, fromDate), lte(macroPoints.date, toDate)));
+    .where(and(gte(macroPoints.date, fromDate), lte(macroPoints.date, toDate)))
+    .orderBy(asc(macroPoints.date), asc(macroPoints.series));
 }
 
 export async function upsertMacroPoints(db: Database, rows: MacroPoint[]): Promise<number> {
