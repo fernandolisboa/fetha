@@ -36,6 +36,7 @@ export interface StrategyWithVersions {
   userId: string;
   visibility: StrategyVisibility;
   copiedFromStrategyId: string | null;
+  active: boolean;
   versions: StrategyVersionRecord[];
 }
 
@@ -179,6 +180,37 @@ export class StrategiesRepository extends UserScopedRepository {
     });
   }
 
+  async setActive(strategyId: string, active: boolean): Promise<void> {
+    const result = await this.db
+      .update(strategies)
+      .set({ active })
+      .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
+      .returning({ id: strategies.id });
+    if (result.length === 0) {
+      throw new StrategyNotFoundError();
+    }
+  }
+
+  // The evaluation step's own read (#19): every strategy this user activated
+  // whose latest version's timeframe is daily (`D1`), with the version it
+  // must evaluate — always the latest one, versions being immutable
+  // (UBIQUITOUS_LANGUAGE.md "Strategy version").
+  async listActiveDaily(): Promise<{ strategyId: string; version: StrategyVersionRecord }[]> {
+    const rows = await this.db
+      .select({ id: strategies.id })
+      .from(strategies)
+      .where(and(eq(strategies.userId, this.userId), eq(strategies.active, true)));
+
+    const result: { strategyId: string; version: StrategyVersionRecord }[] = [];
+    for (const row of rows) {
+      const version = await this.latestVersion(this.db, row.id);
+      if (version && version.definition.timeframe === "D1") {
+        result.push({ strategyId: row.id, version });
+      }
+    }
+    return result;
+  }
+
   async setVisibility(strategyId: string, visibility: StrategyVisibility): Promise<void> {
     const result = await this.db
       .update(strategies)
@@ -310,6 +342,7 @@ export class StrategiesRepository extends UserScopedRepository {
       userId: string;
       visibility: string;
       copiedFromStrategyId: string | null;
+      active: boolean;
     },
   ): Promise<StrategyWithVersions> {
     const rows = await db
@@ -324,6 +357,7 @@ export class StrategiesRepository extends UserScopedRepository {
       userId: row.userId,
       visibility: strategyVisibilitySchema.parse(row.visibility),
       copiedFromStrategyId: row.copiedFromStrategyId,
+      active: row.active,
       versions: rows.map((r) => this.parseVersionRow(r)),
     };
   }

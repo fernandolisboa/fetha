@@ -4,6 +4,7 @@ import {
   timestamp,
   jsonb,
   integer,
+  boolean,
   uniqueIndex,
   index,
   check,
@@ -31,6 +32,11 @@ export const strategies = pgTable(
       (): AnyPgColumn => strategies.id,
       { onDelete: "set null" },
     ),
+    // Whether the nightly evaluation (#19) evaluates this strategy's latest
+    // version over the owner's watchlist. Applies to the strategy, not one
+    // version: activating always evaluates whatever version is latest at
+    // evaluation time, the same way the editor always edits the latest one.
+    active: boolean("active").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -39,6 +45,7 @@ export const strategies = pgTable(
   },
   (table) => [
     index("strategies_user_id_idx").on(table.userId),
+    index("strategies_active_idx").on(table.active),
     check("strategies_visibility_check", sql`${table.visibility} in ('private', 'shared')`),
   ],
 );

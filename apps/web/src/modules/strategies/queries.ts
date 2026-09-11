@@ -4,6 +4,8 @@ import type { Structure } from "@fetha/contracts";
 import { getDb } from "@/db/client";
 import { forCurrentUser } from "@/modules/auth";
 
+import type { EvaluationLogItem, SignalListItem } from "./signals-repository";
+import { SignalsRepository } from "./signals-repository";
 import {
   StrategiesRepository,
   type StrategySummary,
@@ -28,4 +30,19 @@ export const getMyStrategy = cache(async (strategyId: string): Promise<StrategyW
 
 export const getStructures = cache(async (): Promise<Structure[]> => {
   return new StructuresRepository(getDb()).listAll();
+});
+
+export const getMySignals = cache(async (): Promise<SignalListItem[]> => {
+  const repository = await forCurrentUser(getDb(), SignalsRepository);
+  return repository.listInbox();
+});
+
+export const getMyUnreadSignalCount = cache(async (): Promise<number> => {
+  const repository = await forCurrentUser(getDb(), SignalsRepository);
+  return repository.unreadCount();
+});
+
+export const getMyEvaluationLog = cache(async (): Promise<EvaluationLogItem[]> => {
+  const repository = await forCurrentUser(getDb(), SignalsRepository);
+  return repository.listEvaluationLog();
 });

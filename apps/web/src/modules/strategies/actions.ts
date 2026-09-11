@@ -12,6 +12,7 @@ import { getDb } from "@/db/client";
 import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 
 import { classifyPersistenceError } from "./pg-error";
+import { SignalsRepository } from "./signals-repository";
 import {
   StrategiesRepository,
   StrategyLimitReachedError,
@@ -45,6 +46,13 @@ const shareInputSchema = z.strictObject({
 });
 
 const copyInputSchema = z.strictObject({ sourceStrategyId: z.string().min(1).max(200) });
+
+const activeInputSchema = z.strictObject({
+  strategyId: z.string().min(1).max(200),
+  active: z.boolean(),
+});
+
+const markSignalReadInputSchema = z.strictObject({ signalId: z.string().min(1).max(200) });
 
 function mapKnownError(
   error: unknown,
@@ -185,4 +193,47 @@ export async function copySharedStrategyAction(input: {
     }
     throw error;
   }
+}
+
+export async function setStrategyActiveAction(input: {
+  strategyId: string;
+  active: boolean;
+}): Promise<StrategyActionResult> {
+  const parsed = activeInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+
+  try {
+    await withRepository((repository) =>
+      repository.setActive(parsed.data.strategyId, parsed.data.active),
+    );
+    revalidatePath("/estrategias");
+    revalidatePath(`/estrategias/${parsed.data.strategyId}`);
+    return { status: "ok", strategyId: parsed.data.strategyId };
+  } catch (error) {
+    const mapped = mapKnownError(error);
+    if (mapped) {
+      return { status: "error", error: mapped };
+    }
+    throw error;
+  }
+}
+
+export type MarkSignalReadResult = { status: "ok" } | { status: "error"; error: "invalid" };
+
+export async function markSignalReadAction(input: {
+  signalId: string;
+}): Promise<MarkSignalReadResult> {
+  const parsed = markSignalReadInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+
+  await withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), SignalsRepository);
+    await repository.markRead(parsed.data.signalId);
+  });
+  revalidatePath("/sinais");
+  return { status: "ok" };
 }
