@@ -882,6 +882,73 @@ describe("loadMarketView", () => {
     );
   });
 
+  it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes (round 7 item 1)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("MTIE");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-12-01", 8);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    // A real CDI year-end collision (round 7 item 1): two distinct
+    // observation dates both stamped `asOf` the same next session's own
+    // open, exactly the mechanism `resolveAsOfInstant`
+    // (bacen-sgs/parser.ts) produces for `nextSessionStrictlyAfter`.
+    const staleDate = sessions[0] ?? "";
+    const freshDate = sessions[1] ?? "";
+    const collisionSession = sessions[2] ?? "";
+    const collidingAsOf = new Date(`${collisionSession}T13:00:00.000Z`);
+    cleanupDates.push(staleDate, freshDate);
+    await db.insert(macroPoints).values([
+      { series: "cdi", date: staleDate, asOf: collidingAsOf, annualRate: "0.1050" },
+      { series: "cdi", date: freshDate, asOf: collidingAsOf, annualRate: "0.1075" },
+    ]);
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    const cdiPoints = view.macro.filter((point) => point.series === "cdi");
+    expect(cdiPoints).toHaveLength(1);
+    expect(cdiPoints[0]?.date).toBe(freshDate);
+    expect(cdiPoints[0]?.annualRate).toBe("0.10750000");
+
+    // The engine itself is the actual assertion this test exists for: an
+    // uncollapsed view fails here with `invalid_input("view.macro", ...)`
+    // before ever pricing anything (evaluate-strategy.ts's own
+    // `sortUnique`), which is the failure round 7 item 1 reported as
+    // reachable, not theoretical.
+    const result = await engine.evaluateStrategy({
+      view,
+      strategy,
+      instruments: [tickerSchema.parse(ticker)],
+      at: window.to,
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it("stamps dataVersion as the freshest asOf actually loaded", async () => {
     const db = getDb();
     const ticker = uniqueTicker("DVN");

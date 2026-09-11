@@ -65,12 +65,21 @@ const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
 // of row objects" an unbounded query could reach.
 const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
 
-// The collections this loader can never fill, today: no ingestion source
-// writes `impliedVolatilityIndex` (round 2 item 8, follow-up #81), so a
-// strategy whose `DataWindow` asks for it can never receive a value no
-// matter how many times it retries. `market-data` is the module that knows
-// this — it owns the loader — so this is the one place that fact lives,
-// not a hardcoded literal re-stated in every caller that needs to refuse a
+// Not "collections this loader can never fill" (round 7 item 4 corrected
+// that framing): `dividendYields` and `quotes` are unconditionally empty
+// too (no ingestion pipeline for either), and `dividendYields` is in every
+// window regardless of strategy, so a maintainer applying "never fills"
+// literally would refuse every strategy in the product the moment they
+// noticed. The actual rule is narrower: collections whose absence leaves a
+// strategy with no way to evaluate at all, as opposed to one that degrades
+// gracefully with an explicit note — a missing dividend yield defaults to
+// `q = 0` and records `dividend_yield_defaulted`, never blocking
+// evaluation, while a missing `impliedVolatilityIndex` (round 2 item 8,
+// follow-up #81) leaves an `iv_rank` condition permanently
+// `insufficient_data` with nothing to size or compare against.
+// `market-data` is the module that knows which collections it can fill —
+// it owns the loader — so this is the one place that fact lives, not a
+// hardcoded literal re-stated in every caller that needs to refuse a
 // strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; round 6
 // item 9 closed the duplication between them).
 const UNSATISFIABLE_COLLECTIONS: readonly MarketViewCollection[] = ["impliedVolatilityIndex"];
@@ -270,7 +279,24 @@ export async function loadMarketView(
     factor: toDecimal(row.factor),
   }));
 
-  const macro: MacroPoint[] = macroRows.map((row) => ({
+  // The engine rejects an exact `(series, asOf)` collision outright
+  // (`evaluateStrategy`'s own `sortUnique(view.macro, ...)`, run before
+  // `resolveRiskFreeRate` ever sees the array) rather than tie-breaking it
+  // — CDI at year end and IPCA within a publication month both produce
+  // real collisions (macro-repository.ts's own comment on
+  // `macroPointsInRange`). This loader is where that has to be resolved
+  // before the view ever reaches the engine: `macroRows` arrives ordered
+  // `date DESC`, so keeping only the first row seen per `(series, asOf)`
+  // key keeps the fresher observation and drops the staler one silently
+  // colliding with it (#18 round 7 item 1).
+  const seenMacroKeys = new Set<string>();
+  const dedupedMacroRows = macroRows.filter((row) => {
+    const key = `${row.series}|${row.asOf.toISOString()}`;
+    if (seenMacroKeys.has(key)) return false;
+    seenMacroKeys.add(key);
+    return true;
+  });
+  const macro: MacroPoint[] = dedupedMacroRows.map((row) => ({
     series: macroSeriesKindSchema.parse(row.series),
     date: sessionDateSchema.parse(row.date),
     asOf: instantSchema.parse(row.asOf.toISOString()),
