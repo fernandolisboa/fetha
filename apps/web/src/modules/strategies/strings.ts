@@ -28,17 +28,28 @@ const evaluationDetailEn: Record<string, string> = {
   // unfillable collection from a real engine failure, instead of all three
   // collapsing into the bare "Insufficient data" outcome label.
   unknown_structure: "The strategy's structure no longer exists in the catalog",
-  "unsatisfiable_collection:impliedVolatilityIndex":
-    "Requires implied volatility data not yet ingested",
 };
 
 // `engine_error:<code>` and `catchup_clamped:<count>` carry a variable
 // suffix (#19 round 3 items 2, 7), so they cannot be exact keys in the maps
 // above: matched by prefix instead, in order, before falling back to
 // undefined (rendered as nothing extra beyond the bare outcome label).
+// The suffix names the actual `MarketViewCollection` that failed
+// (`canSatisfyCollection`, market-data), but that identifier
+// (`impliedVolatilityIndex`, and whatever else joins it later) is an
+// internal name, not a user-facing one — the copy stays collection-neutral
+// rather than naming a specific indicator, so a second member added to
+// `UNSATISFIABLE_COLLECTIONS` is described correctly without a strings
+// change (round 7 item 4: the old exact-key entry for
+// `impliedVolatilityIndex` alone would have kept naming implied volatility
+// even for a strategy that failed on an unrelated collection).
 const evaluationDetailPrefixesEn: readonly (readonly [string, (suffix: string) => string])[] = [
   ["engine_error:", (code) => `Engine error (${code})`],
   ["catchup_clamped:", (count) => `Catch-up capped: ${count} older session(s) skipped`],
+  [
+    "unsatisfiable_collection:",
+    () => "Requires market data with no source yet for one of this strategy's indicators",
+  ],
 ];
 
 const evaluationDetailPrefixesPtBR: readonly (readonly [string, (suffix: string) => string])[] = [
@@ -46,6 +57,10 @@ const evaluationDetailPrefixesPtBR: readonly (readonly [string, (suffix: string)
   [
     "catchup_clamped:",
     (count) => `Atualização limitada: ${count} sessão(ões) mais antiga(s) ignorada(s)`,
+  ],
+  [
+    "unsatisfiable_collection:",
+    () => "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
   ],
 ];
 
@@ -88,8 +103,6 @@ const evaluationDetailPtBR: Record<string, string> = {
   "stop_loss cannot fire: the operation's max-loss base is zero":
     "O stop não pode disparar: a base de perda máxima da operação é zero",
   unknown_structure: "A estrutura da estratégia não existe mais no catálogo",
-  "unsatisfiable_collection:impliedVolatilityIndex":
-    "Requer dados de volatilidade implícita ainda não coletados",
 };
 
 const en = {

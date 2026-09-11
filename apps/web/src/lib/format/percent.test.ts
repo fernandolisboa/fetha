@@ -1,6 +1,7 @@
 import { decimalStringSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
-import { formatPercent, parsePercentToFraction } from "./percent";
+
+import { formatPercent, fractionToPercentInputValue, parsePercentToFraction } from "./percent";
 
 describe("formatPercent", () => {
   it("formats a whole percent", () => {
@@ -13,6 +14,36 @@ describe("formatPercent", () => {
 
   it("formats 100%", () => {
     expect(formatPercent(decimalStringSchema.parse("1"))).toBe("100%");
+  });
+
+  it("formats a positive fraction with a comma decimal", () => {
+    expect(formatPercent(decimalStringSchema.parse("0.0208"))).toBe("2,08%");
+  });
+
+  it("formats a negative fraction with a true minus sign", () => {
+    expect(formatPercent(decimalStringSchema.parse("-0.015"))).toBe("−1,5%");
+  });
+
+  it("formats zero without a sign", () => {
+    expect(formatPercent(decimalStringSchema.parse("0"))).toBe("0%");
+  });
+
+  it("drops a trailing zero rather than forcing two decimals", () => {
+    expect(formatPercent(decimalStringSchema.parse("0.284"))).toBe("28,4%");
+  });
+
+  it("shows no sign for a negative fraction that rounds to zero", () => {
+    expect(formatPercent(decimalStringSchema.parse("-0.0000001"))).toBe("0%");
+  });
+});
+
+describe("fractionToPercentInputValue", () => {
+  it("preserves precision beyond two decimals", () => {
+    expect(fractionToPercentInputValue(decimalStringSchema.parse("0.02345"))).toBe("2,345");
+  });
+
+  it("trims a whole percent to no decimals", () => {
+    expect(fractionToPercentInputValue(decimalStringSchema.parse("0.02"))).toBe("2");
   });
 });
 

@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
-import { z } from "zod";
 import {
   decimalStringSchema,
+  exerciseStyleSchema,
   instantSchema,
+  macroSeriesKindSchema,
+  optionRightSchema,
   sessionDateSchema,
   tickerSchema,
   type DecimalString,
@@ -11,14 +13,12 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 import {
-  exerciseStyles,
-  macroSeriesKinds,
-  optionRights,
   type Candle,
   type CorporateActionFactor,
   type DataWindow,
   type MacroPoint,
   type MarketView,
+  type MarketViewCollection,
   type OptionDayPrice,
   type OptionSeries,
   type TradingSession,
@@ -41,22 +41,93 @@ import {
 } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
 import { macroPointsInRange } from "./repositories/macro-repository";
-import {
-  optionPricesInSessionRange,
-  optionSeriesForUnderlyings,
-} from "./repositories/option-repository";
 
-const ENGINE_TIMEFRAME = "D1";
 const CANDLE_WINDOW_SESSIONS = 30;
 const CALENDAR_WINDOW_SESSIONS = 30;
+
+// `option_series` is keyed by ISIN (ADR-0017): distinct series tickers can
+// exceed universe size by an order of magnitude once every listing cycle
+// with an expiry on or after warmup is counted, and the create-time ceiling
+// (MAX_SESSIONS_TIMES_UNIVERSE, backtests/actions.ts) bounds sessions x
+// underlyings, not sessions x series, so it cannot stand in for this. Well
+// under Postgres's 65,535 bind-parameter limit, which the follow-on
+// `optionDailyPrices` query hits directly via `inArray(..., seriesTickers)`
+// (round 3 item 2).
+const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
+
+// Bounds price-row *volume* directly, which DEFAULT_OPTION_CHAIN_TICKER_CAP
+// does not: a chain admitted under that cap can still span the whole
+// warmup-to-period window, so up to cap x sessions day-price rows would
+// otherwise materialise as objects in this one function call before any
+// checkpoint exists to recover from an out-of-memory death (round 4
+// item 3). 200,000 rows of this shape (a handful of decimal strings and
+// two integers each) is comfortably tens of megabytes, not the "millions
+// of row objects" an unbounded query could reach.
+const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
+
+// Not "collections this loader can never fill" (round 7 item 4 corrected
+// that framing): `dividendYields` and `quotes` are unconditionally empty
+// too (no ingestion pipeline for either), and `dividendYields` is in every
+// window regardless of strategy, so a maintainer applying "never fills"
+// literally would refuse every strategy in the product the moment they
+// noticed. The actual rule is narrower: collections whose absence leaves a
+// strategy with no way to evaluate at all, as opposed to one that degrades
+// gracefully with an explicit note — a missing dividend yield defaults to
+// `q = 0` and records `dividend_yield_defaulted`, never blocking
+// evaluation, while a missing `impliedVolatilityIndex` (round 2 item 8,
+// follow-up #81) leaves an `iv_rank` condition permanently
+// `insufficient_data` with nothing to size or compare against.
+// `market-data` is the module that knows which collections it can fill —
+// it owns the loader — so this is the one place that fact lives, not a
+// hardcoded literal re-stated in every caller that needs to refuse a
+// strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; round 6
+// item 9 closed the duplication between them).
+const UNSATISFIABLE_COLLECTIONS: readonly MarketViewCollection[] = ["impliedVolatilityIndex"];
+
+export function canSatisfyCollection(collection: MarketViewCollection): boolean {
+  return !UNSATISFIABLE_COLLECTIONS.includes(collection);
+}
 
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
 }
 
-const macroSeriesKindSchema = z.enum(macroSeriesKinds);
-const optionRightSchema = z.enum(optionRights);
-const exerciseStyleSchema = z.enum(exerciseStyles);
+export function toTradingSession(row: { date: string; open: Date; close: Date }): TradingSession {
+  return {
+    date: sessionDateSchema.parse(row.date),
+    open: instantSchema.parse(row.open.toISOString()),
+    close: instantSchema.parse(row.close.toISOString()),
+  };
+}
+
+// Thrown instead of an empty-but-typed-as-valid MarketView whenever the
+// requested range cannot be resolved into one: no session at all overlaps
+// the window (round 2 item 9), or (its own subclass, MarketViewTooLargeError
+// below) the option chain for the universe and period is too large to load
+// in one call. A degenerate MarketView the caller cannot distinguish from "a
+// strategy that legitimately needs zero of some collection" is exactly the
+// shape round-1 item 2 and round-2 item 10 both had to work around from the
+// outside; every caller must now handle this explicitly instead.
+export class MarketViewUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Market view unavailable: ${reason}`);
+    this.name = "MarketViewUnavailableError";
+  }
+}
+
+// A subclass, not a sibling: every caller that already catches
+// `MarketViewUnavailableError` (run-chunk.ts) handles this the same way
+// without change, while `instanceof MarketViewTooLargeError` stays
+// available to a caller that wants to tell "no data" from "too much data"
+// apart. Thrown instead of letting the chain query's own `inArray` bind
+// list grow past what the driver accepts and throw a raw, uncaught error
+// (round 3 item 2).
+export class MarketViewTooLargeError extends MarketViewUnavailableError {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "MarketViewTooLargeError";
+  }
+}
 
 export function emptyMarketView(): MarketView {
   return {
@@ -72,18 +143,14 @@ export function emptyMarketView(): MarketView {
   };
 }
 
-export function toTradingSession(row: { date: string; open: Date; close: Date }): TradingSession {
+// The one place a `CandleRow` (repository shape) becomes the engine's own
+// `Candle`: both the DataWindow-driven loader and the point-in-time
+// operation builder share it so a candle's shape can never drift between
+// them (round 1 item 12).
+export function toEngineCandle(row: CandleRow): Candle {
   return {
-    date: sessionDateSchema.parse(row.date),
-    open: instantSchema.parse(row.open.toISOString()),
-    close: instantSchema.parse(row.close.toISOString()),
-  };
-}
-
-export function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["candles"][number] {
-  return {
-    ticker,
-    timeframe: ENGINE_TIMEFRAME,
+    ticker: row.ticker,
+    timeframe: "D1",
     session: row.session,
     asOf: instantSchema.parse(row.asOf.toISOString()),
     open: row.open,
@@ -94,19 +161,52 @@ export function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["cand
   };
 }
 
+// `dataVersion` stamps the freshest row this view actually loaded, `max(asOf)`
+// across every populated collection (candles, corporate actions, macro,
+// option series and prices — never the calendar itself: `trading_sessions`
+// carries no `asOf`, so a calendar revision between chunks contributes
+// nothing to this stamp and is not caught by it, round 5 item 9): a
+// backtest run compares this chunk to chunk so a revision to one of those
+// stamped collections cannot silently mix two datasets into one immutable
+// run.
+function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
+  let max: Instant | undefined;
+  for (const instant of instants) {
+    if (max === undefined || instant > max) max = instant;
+  }
+  return max;
+}
+
+export interface LoadMarketViewCaps {
+  // Overridable only for tests that need a tractable number of seeded rows
+  // to cross it; every production caller gets DEFAULT_OPTION_CHAIN_TICKER_CAP.
+  optionChainTickerCap?: number;
+  // Same test-only shape, for DEFAULT_OPTION_PRICE_ROW_CAP (round 4 item 3).
+  optionPriceRowCap?: number;
+}
+
 // The market-data module's "data view" for a batch of instruments
 // (CONTEXT.md), driven entirely by the engine's own `DataWindow`
 // (`engine.dataWindow`): the caller decides how far back to look and which
-// collections a strategy actually needs, this only loads exactly that slice.
-// Like `loadCandleSeries`, this stays nominal candles plus the
-// corporate-action factors: adjustment happens only inside the engine's own
+// collections a strategy actually needs, this only loads exactly that
+// slice, so the window loaded and the window evaluated can never drift
+// (#19; #18 round-2 correction, superseding round-2 item 7). Like
+// `loadCandleSeries`, this stays nominal candles plus the corporate-action
+// factors: adjustment happens only inside the engine's own
 // `evaluateStrategy`, never here (CLAUDE.md's "no engine internals outside
-// the package"). `buildOperationMarketView` below is a second entry over the
-// same `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers, for the
-// operation builder's different need (one underlying's chain as of `at`,
-// not a strategy's indicator warm-up window).
-export async function loadMarketView(db: Database, window: DataWindow): Promise<MarketView> {
+// the package"). `buildOperationMarketView` below is a second entry over
+// the same `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers,
+// for the operation builder's different need (one underlying's chain as of
+// `at`, not a strategy's indicator warm-up window).
+export async function loadMarketView(
+  db: Database,
+  window: DataWindow,
+  caps: LoadMarketViewCaps = {},
+): Promise<MarketView> {
   const { instruments, from, to, collections } = window;
+  const optionChainTickerCap = caps.optionChainTickerCap ?? DEFAULT_OPTION_CHAIN_TICKER_CAP;
+  const optionPriceRowCap = caps.optionPriceRowCap ?? DEFAULT_OPTION_PRICE_ROW_CAP;
+
   const fromDate = new Date(from);
   const toDate = new Date(to);
 
@@ -114,13 +214,22 @@ export async function loadMarketView(db: Database, window: DataWindow): Promise<
   const fromSession = sessions[0]?.date;
   const toSession = sessions.at(-1)?.date;
 
-  const wantCandles = collections.includes("candles") && fromSession && toSession;
-  const wantCorporateActions = collections.includes("corporateActions");
-  const wantMacro = collections.includes("macro") && fromSession && toSession;
-  const wantOptionSeries = collections.includes("optionSeries");
-  const wantOptionPrices = collections.includes("optionPrices") && fromSession && toSession;
+  // A period whose window overlaps no ingested session at all (round 2 item
+  // 9): a candle-less-but-typed-as-valid MarketView here would let the
+  // engine record `insufficient_data` for the whole run and still reach
+  // `complete` with 0 operations. The caller must see this refusal
+  // explicitly instead.
+  if (!fromSession || !toSession) {
+    throw new MarketViewUnavailableError("window has no trading session in the calendar");
+  }
 
-  const [candleRows, corporateActionRows, macroRows, optionSeriesRows] = await Promise.all([
+  const wantCandles = collections.includes("candles");
+  const wantCorporateActions = collections.includes("corporateActions");
+  const wantMacro = collections.includes("macro");
+  const wantOptionSeries = collections.includes("optionSeries");
+  const wantOptionPrices = collections.includes("optionPrices");
+
+  const [candleRows, corporateActionRows, macroRows, seriesRows] = await Promise.all([
     wantCandles
       ? candlesInSessionRange(db, instruments, fromSession, toSession)
       : Promise.resolve([]),
@@ -130,49 +239,149 @@ export async function loadMarketView(db: Database, window: DataWindow): Promise<
         )
       : Promise.resolve([]),
     wantMacro ? macroPointsInRange(db, fromSession, toSession) : Promise.resolve([]),
-    wantOptionSeries ? optionSeriesForUnderlyings(db, instruments) : Promise.resolve([]),
+    // A strategy's chain window: every series listed on an underlying in
+    // this universe that had not yet expired at the start of warmup, seen
+    // on or before the window's own `to` (the engine, not this module,
+    // decides per-step visibility off each row's own `asOf`). Bounded below
+    // by `fromSession` (the same floor `buildOperationMarketView` applies
+    // via its own `calendarFloor`, widened here to the whole
+    // warmup-to-period span a range view needs) and above by
+    // `optionChainTickerCap + 1`, so a chain this large is caught by row
+    // count instead of by the driver rejecting the follow-on
+    // `optionDailyPrices` query's `inArray` bind list (round 3 item 2).
+    wantOptionSeries || wantOptionPrices
+      ? db
+          .select()
+          .from(optionSeries)
+          .where(
+            and(
+              inArray(optionSeries.underlying, instruments),
+              lte(optionSeries.asOf, toDate),
+              gte(optionSeries.expiry, fromSession),
+            ),
+          )
+          .limit(optionChainTickerCap + 1)
+      : Promise.resolve([]),
   ]);
 
-  const optionTickers = optionSeriesRows.map((row) => row.ticker);
-  const optionPriceRows =
-    wantOptionPrices && optionTickers.length > 0
-      ? await optionPricesInSessionRange(db, optionTickers, fromSession, toSession)
+  if ((wantOptionSeries || wantOptionPrices) && seriesRows.length > optionChainTickerCap) {
+    throw new MarketViewTooLargeError(
+      `option chain for this universe and period lists more than ${String(optionChainTickerCap)} series`,
+    );
+  }
+
+  const candleView = candleRows.map(toEngineCandle);
+
+  const corporateActions: CorporateActionFactor[] = corporateActionRows.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    exDate: sessionDateSchema.parse(row.exDate),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    factor: toDecimal(row.factor),
+  }));
+
+  // The engine rejects an exact `(series, asOf)` collision outright
+  // (`evaluateStrategy`'s own `sortUnique(view.macro, ...)`, run before
+  // `resolveRiskFreeRate` ever sees the array) rather than tie-breaking it
+  // — CDI at year end and IPCA within a publication month both produce
+  // real collisions (macro-repository.ts's own comment on
+  // `macroPointsInRange`). This loader is where that has to be resolved
+  // before the view ever reaches the engine: `macroRows` arrives ordered
+  // `date DESC`, so keeping only the first row seen per `(series, asOf)`
+  // key keeps the fresher observation and drops the staler one silently
+  // colliding with it (#18 round 7 item 1).
+  const seenMacroKeys = new Set<string>();
+  const dedupedMacroRows = macroRows.filter((row) => {
+    const key = `${row.series}|${row.asOf.toISOString()}`;
+    if (seenMacroKeys.has(key)) return false;
+    seenMacroKeys.add(key);
+    return true;
+  });
+  const macro: MacroPoint[] = dedupedMacroRows.map((row) => ({
+    series: macroSeriesKindSchema.parse(row.series),
+    date: sessionDateSchema.parse(row.date),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    annualRate: toDecimal(row.annualRate),
+  }));
+
+  const optionSeriesView: OptionSeries[] = wantOptionSeries
+    ? seriesRows.map((row) => ({
+        ticker: tickerSchema.parse(row.ticker),
+        underlying: tickerSchema.parse(row.underlying),
+        right: optionRightSchema.parse(row.right),
+        strike: toDecimal(row.strike),
+        expiry: sessionDateSchema.parse(row.expiry),
+        style: exerciseStyleSchema.parse(row.style),
+        asOf: instantSchema.parse(row.asOf.toISOString()),
+      }))
+    : [];
+
+  const seriesTickers = [...new Set(seriesRows.map((row) => row.ticker))];
+  const priceRows =
+    wantOptionPrices && seriesTickers.length > 0
+      ? await db
+          .select()
+          .from(optionDailyPrices)
+          .where(
+            and(
+              inArray(optionDailyPrices.ticker, seriesTickers),
+              gte(optionDailyPrices.session, fromSession),
+              lte(optionDailyPrices.session, toSession),
+            ),
+          )
+          .limit(optionPriceRowCap + 1)
       : [];
 
+  if (wantOptionPrices && priceRows.length > optionPriceRowCap) {
+    throw new MarketViewTooLargeError(
+      `option day-price rows for this universe and period exceed ${String(optionPriceRowCap)}`,
+    );
+  }
+
+  const optionPrices: OptionDayPrice[] = priceRows.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    session: sessionDateSchema.parse(row.session),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    average: row.average ? toDecimal(row.average) : null,
+    close: row.close ? toDecimal(row.close) : null,
+    trades: row.trades,
+    tradedQuantity: row.tradedQuantity,
+  }));
+
+  // A strategy's chain can carry an expiry beyond the window's own `to`
+  // (a leg entered near the end of the window, still live when the run
+  // stops): without extending the calendar to reach it, every such leg
+  // would report `calendar_gap` on time-to-expiry instead of pricing
+  // (mirrors `buildOperationMarketView`'s own forward extension below).
+  const furthestOptionExpiry = furthestExpiry(seriesRows.map((row) => row.expiry));
+  const extendedSessions =
+    furthestOptionExpiry && furthestOptionExpiry > toSession
+      ? await sessionsInRange(db, fromDate, new Date(`${furthestOptionExpiry}T23:59:59.999Z`))
+      : sessions;
+  const calendarView = extendedSessions.map(toTradingSession);
+
+  // No implied-volatility-index ingestion pipeline exists yet (same gap
+  // buildOperationMarketView already documents for dividendYields): the
+  // window can ask for `impliedVolatilityIndex`, but there is nothing to
+  // populate it with, so it stays empty regardless.
+  const dataVersion = maxAsOf([
+    ...candleView.map((row) => row.asOf),
+    ...corporateActions.map((row) => row.asOf),
+    ...macro.map((row) => row.asOf),
+    ...optionSeriesView.map((row) => row.asOf),
+    ...optionPrices.map((row) => row.asOf),
+  ]);
+
   return {
-    ...emptyMarketView(),
-    calendar: sessions.map(toTradingSession),
-    candles: candleRows.map((row) => toEngineCandle(row.ticker, row)),
-    corporateActions: corporateActionRows.map((row) => ({
-      ticker: tickerSchema.parse(row.ticker),
-      exDate: sessionDateSchema.parse(row.exDate),
-      asOf: instantSchema.parse(row.asOf.toISOString()),
-      factor: decimalStringSchema.parse(row.factor),
-    })),
-    macro: macroRows.map((row) => ({
-      series: macroSeriesKindSchema.parse(row.series),
-      date: sessionDateSchema.parse(row.date),
-      asOf: instantSchema.parse(row.asOf.toISOString()),
-      annualRate: decimalStringSchema.parse(row.annualRate),
-    })),
-    optionSeries: optionSeriesRows.map((row) => ({
-      ticker: tickerSchema.parse(row.ticker),
-      underlying: tickerSchema.parse(row.underlying),
-      right: optionRightSchema.parse(row.right),
-      strike: decimalStringSchema.parse(row.strike),
-      expiry: sessionDateSchema.parse(row.expiry),
-      style: exerciseStyleSchema.parse(row.style),
-      asOf: instantSchema.parse(row.asOf.toISOString()),
-    })),
-    optionPrices: optionPriceRows.map((row) => ({
-      ticker: tickerSchema.parse(row.ticker),
-      session: sessionDateSchema.parse(row.session),
-      asOf: instantSchema.parse(row.asOf.toISOString()),
-      average: row.average === null ? null : decimalStringSchema.parse(row.average),
-      close: row.close === null ? null : decimalStringSchema.parse(row.close),
-      trades: row.trades,
-      tradedQuantity: row.tradedQuantity,
-    })),
+    calendar: calendarView,
+    candles: candleView,
+    corporateActions,
+    optionSeries: optionSeriesView,
+    optionPrices,
+    quotes: [],
+    macro,
+    dividendYields: [],
+    impliedVolatilityIndex: [],
+    ...(dataVersion ? { dataVersion } : {}),
   };
 }
 
@@ -200,7 +409,9 @@ export async function previousTradingSession(
 
 // Every trading session up to `at`, oldest first, engine-shaped: the
 // calendar `engine.dataWindow` needs to count a strategy's own indicator
-// warm-up back from `since`/`at` (#19).
+// warm-up back from `since`/`at` (#19), and the same calendar a backtest
+// chunk builds its own window from (run-chunk.ts), so a signal and a
+// backtest of the same strategy version resolve warmup identically.
 export async function calendarUpTo(db: Database, at: Date): Promise<TradingSession[]> {
   const rows = await sessionsUpTo(db, at);
   return rows.map(toTradingSession);
@@ -237,7 +448,9 @@ function furthestExpiry(seriesExpiries: readonly string[]): string | null {
 // `resolveTimeToExpiryYears` reports `calendar_gap` for every option leg
 // (round 1 item 1). Watchlists, quotes and dividend yields are the
 // intraday tier, omitted here only costs the engine's own defaulting notes
-// (`dividend_yield_defaulted`), never a wrong price.
+// (`dividend_yield_defaulted`), never a wrong price. A second entry point
+// over the same `emptyMarketView`/`toTradingSession`/`toEngineCandle`
+// helpers `loadMarketView` (above) shares (round 1 item 12).
 export async function buildOperationMarketView(
   db: Database,
   underlying: Ticker,
@@ -302,7 +515,7 @@ export async function buildOperationMarketView(
   const calendar: TradingSession[] = calendarRows.map(toTradingSession);
 
   const candleView: Candle[] = [...candleRows].reverse().map((row) =>
-    toEngineCandle(underlying, {
+    toEngineCandle({
       ticker: tickerSchema.parse(row.ticker),
       session: sessionDateSchema.parse(row.session),
       asOf: row.asOf,
@@ -398,6 +611,14 @@ export async function buildOperationMarketView(
     factor: toDecimal(row.factor),
   }));
 
+  const dataVersion = maxAsOf([
+    ...candleView.map((row) => row.asOf),
+    ...optionSeriesView.map((row) => row.asOf),
+    ...optionPrices.map((row) => row.asOf),
+    ...macro.map((row) => row.asOf),
+    ...corporateActions.map((row) => row.asOf),
+  ]);
+
   return {
     ...emptyMarketView(),
     calendar,
@@ -406,5 +627,6 @@ export async function buildOperationMarketView(
     optionSeries: optionSeriesView,
     optionPrices,
     macro,
+    ...(dataVersion ? { dataVersion } : {}),
   };
 }

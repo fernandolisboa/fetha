@@ -3,10 +3,13 @@ export {
   centavosSchema,
   confidenceSchema,
   decimalStringSchema,
+  exerciseStyleSchema,
   instantSchema,
   leftOpenUnitIntervalSchema,
+  macroSeriesKindSchema,
   nonNegativeDecimalSchema,
   openUnitIntervalSchema,
+  optionRightSchema,
   positiveDecimalSchema,
   quantitySchema,
   rightOpenUnitIntervalSchema,
@@ -16,7 +19,10 @@ export {
   type Centavos,
   type Confidence,
   type DecimalString,
+  type ExerciseStyle,
   type Instant,
+  type MacroSeriesKind,
+  type OptionRight,
   type Quantity,
   type SessionDate,
   type SignedQuantity,
@@ -62,3 +68,13 @@ export { strategyDefinitionSchema, type StrategyDefinition } from "./strategy-de
 export { contemplatedLegSchema, type ContemplatedLeg } from "./contemplated-leg";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
 export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";
+export {
+  backtestCheckpointSchema,
+  backtestConfigSchema,
+  backtestRunSchema,
+  limitModeSchema,
+  type BacktestCheckpoint,
+  type BacktestConfig,
+  type BacktestRun,
+  type LimitMode,
+} from "./backtest-report";

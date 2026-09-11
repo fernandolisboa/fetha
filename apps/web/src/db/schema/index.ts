@@ -1,4 +1,5 @@
 export * from "./auth";
+export * from "./backtests";
 export * from "./invites";
 export * from "./mail-outbox";
 export * from "./market-data";

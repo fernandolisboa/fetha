@@ -25,6 +25,7 @@ data, the catalog and strategies a user chose to share.
 | `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                         | the structure catalog, strategy versions, signals                                      |
 | `watchlist`   | each user's list of followed instruments                                                                                                                                                                                         | the current user's watchlist                                                           |
 | `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                 | the portfolio view, operation lifecycle commands, the operation builder                |
+| `backtests`   | backtest runs, their checkpoints and reports                                                                                                                                                                                     | run creation, chunked resume, the report                                               |
 | `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                           | the journal, analysis requests                                                         |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
@@ -71,6 +72,16 @@ exposing module's interface, never through its tables.
 - Strategies are data: JSON with a closed vocabulary, versioned, immutable once referenced.
 - Backtest hygiene is enforced by the engine: no look-ahead, fills in the next candle or session,
   costs always charged, deterministic runs.
+- A signal and a backtest of the same strategy version resolve warm-up identically: both
+  `strategies/evaluate-signals.ts` and `backtests/run-chunk.ts` build their own `DataWindow` from
+  the engine's own `dataWindow()` and hand it unchanged to `market-data`'s `loadMarketView`, never
+  re-deriving the boundary themselves. (A third caller, `backtests/actions.ts`, also builds a
+  `DataWindow` at creation time to decide the `impliedVolatilityIndex` refusal; harmless to this
+  invariant today since it only reads `collections`, which does not depend on `at`/`since`, but a
+  reader trusting "two callers" alone would be wrong.) Not guaranteed by a single shared entry
+  point (that seam was considered and rejected, #18/#19); guaranteed by construction of
+  `dataWindow()` plus `apps/web/src/modules/backtests/data-window-parity.integration.test.ts`,
+  which pins the two session-resolving callers against each other.
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
   the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for

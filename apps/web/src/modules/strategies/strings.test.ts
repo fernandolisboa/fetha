@@ -35,4 +35,15 @@ describe("evaluationLog.detailFor", () => {
   it("falls back to undefined for a detail string outside the known vocabulary", () => {
     expect(t.inbox.evaluationLog.detailFor("something_unrecognized")).toBeUndefined();
   });
+
+  it("renders the same collection-neutral message regardless of which collection failed (#18 round 7 item 4)", () => {
+    const ivRank = t.inbox.evaluationLog.detailFor(
+      "unsatisfiable_collection:impliedVolatilityIndex",
+    );
+    const somethingElse = t.inbox.evaluationLog.detailFor("unsatisfiable_collection:quotes");
+
+    expect(ivRank).toBeDefined();
+    expect(ivRank).toBe(somethingElse);
+    expect(ivRank?.toLowerCase()).not.toContain("implied volatility");
+  });
 });

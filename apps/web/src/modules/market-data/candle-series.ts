@@ -34,7 +34,7 @@ export async function loadCandleSeries(
 
   const view: MarketView = {
     ...emptyMarketView(),
-    candles: candleRows.map((row) => toEngineCandle(ticker, row)),
+    candles: candleRows.map((row) => toEngineCandle(row)),
     corporateActions: corporateActionRows.map((row) => ({
       ticker,
       exDate: row.exDate,
