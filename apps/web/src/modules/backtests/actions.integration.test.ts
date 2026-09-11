@@ -523,99 +523,104 @@ describe("createBacktestRunAction", () => {
     // exposure, since candle history starts well after the calendar's own
     // `FIRST_INGESTED_CALENDAR_YEAR`).
     const clampSessions = businessDays(10, 2095, 4, 3);
-    await upsertTradingSessions(
-      db,
-      clampSessions.map((date) => ({
-        date,
-        open: `${date}T13:00:00.000Z`,
-        close: `${date}T20:00:00.000Z`,
-      })),
-    );
-    const candleSessions = clampSessions.slice(2, 8);
-    for (const session of candleSessions) {
-      const close = decimalString("10.00");
-      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
-        {
-          kind: "stock",
-          session,
-          ticker: TICKER,
-          open: close,
-          high: close,
-          low: close,
-          average: close,
-          close,
-          trades: 10,
-          tradedQuantity: 1000,
-        },
-      ]);
-    }
-    await new WatchlistRepository(db, currentUser).add(TICKER);
-
-    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
-      definition(),
-    );
-    const version = strategy.versions[0];
-    if (!version) throw new Error("expected a version");
-
-    let redirected = false;
+    // In `finally`, not inline after the assertions (round 7 item 5): a
+    // failing `expect` above used to skip both deletes, leaking these rows
+    // into the shared preview database for the next run's own `MIN()`/
+    // `MAX()` query to see — precisely the contamination round 6 item 1's
+    // fix had to work around once already.
     try {
-      await createBacktestRunAction({
-        strategyId: strategy.id,
-        strategyVersionId: version.id,
-        universe: [TICKER],
-        from: clampSessions[0] ?? "",
-        to: clampSessions.at(-1) ?? "",
-        initialCapital: centavos(500_000_00),
-        limits: "enforce",
-        costModel: "b3_default",
-      });
-    } catch (error) {
-      if (!isRedirectError(error)) throw error;
-      redirected = true;
-    }
-    expect(redirected).toBe(true);
-
-    const repository = new BacktestRunRepository(db, currentUser);
-    const runs = await repository.listMineForStrategy(strategy.id);
-    expect(runs).toHaveLength(1);
-    const run = runs[0];
-    if (!run) throw new Error("expected a run");
-    expect(run.period.from).toBe(candleSessions[0]);
-    expect(run.period.to).toBe(candleSessions.at(-1));
-
-    // The persisted period alone does not prove the phantom sessions never
-    // entered the simulation — computeBacktestMetrics divides by
-    // equityCurve.length, so this is the assertion the round-5 fix's own
-    // test never made (round 6 item 1).
-    const outcome = await runBacktestChunk(db, currentUser, run.id, { maxSessions: 999 });
-    if (outcome.status !== "complete") {
-      throw new Error(`expected the run to complete, got ${outcome.status}`);
-    }
-    expect(outcome.run.result?.metrics.sessions).toBe(candleSessions.length);
-
-    // Every prior run of this test left its own candle rows unclean (no
-    // test in this file ever deleted `candles` by ticker+range), which is
-    // exactly the contamination that silently defeated this test's own
-    // MIN()/MAX() assertion the first time it ran here: a stale row from
-    // an earlier version of this fixture, in the same reused ticker and
-    // year, shifted the observed `period.from` without failing loudly.
-    await db
-      .delete(candles)
-      .where(
-        and(
-          eq(candles.ticker, TICKER),
-          gte(candles.session, clampSessions[0] ?? ""),
-          lte(candles.session, clampSessions.at(-1) ?? ""),
-        ),
+      await upsertTradingSessions(
+        db,
+        clampSessions.map((date) => ({
+          date,
+          open: `${date}T13:00:00.000Z`,
+          close: `${date}T20:00:00.000Z`,
+        })),
       );
-    await db
-      .delete(tradingSessions)
-      .where(
-        and(
-          gte(tradingSessions.date, clampSessions[0] ?? ""),
-          lte(tradingSessions.date, clampSessions.at(-1) ?? ""),
-        ),
+      const candleSessions = clampSessions.slice(2, 8);
+      for (const session of candleSessions) {
+        const close = decimalString("10.00");
+        await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+          {
+            kind: "stock",
+            session,
+            ticker: TICKER,
+            open: close,
+            high: close,
+            low: close,
+            average: close,
+            close,
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+        ]);
+      }
+      await new WatchlistRepository(db, currentUser).add(TICKER);
+
+      const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+        definition(),
       );
+      const version = strategy.versions[0];
+      if (!version) throw new Error("expected a version");
+
+      let redirected = false;
+      try {
+        await createBacktestRunAction({
+          strategyId: strategy.id,
+          strategyVersionId: version.id,
+          universe: [TICKER],
+          from: clampSessions[0] ?? "",
+          to: clampSessions.at(-1) ?? "",
+          initialCapital: centavos(500_000_00),
+          limits: "enforce",
+          costModel: "b3_default",
+        });
+      } catch (error) {
+        if (!isRedirectError(error)) throw error;
+        redirected = true;
+      }
+      expect(redirected).toBe(true);
+
+      const repository = new BacktestRunRepository(db, currentUser);
+      const runs = await repository.listMineForStrategy(strategy.id);
+      expect(runs).toHaveLength(1);
+      const run = runs[0];
+      if (!run) throw new Error("expected a run");
+      expect(run.period.from).toBe(candleSessions[0]);
+      expect(run.period.to).toBe(candleSessions.at(-1));
+
+      // The persisted period alone does not prove the phantom sessions
+      // never entered the simulation — computeBacktestMetrics divides by
+      // equityCurve.length, so this is the assertion the round-5 fix's own
+      // test never made (round 6 item 1).
+      const outcome = await runBacktestChunk(db, currentUser, run.id, { maxSessions: 999 });
+      if (outcome.status !== "complete") {
+        throw new Error(`expected the run to complete, got ${outcome.status}`);
+      }
+      expect(outcome.run.result?.metrics.sessions).toBe(candleSessions.length);
+    } finally {
+      // No test in this file ever deleted `candles` by ticker+range before
+      // this one: a stale row from an earlier run, in the same reused
+      // ticker and year, is exactly what silently shifted the observed
+      // `period.from` the first time this test ran.
+      await db
+        .delete(candles)
+        .where(
+          and(
+            eq(candles.ticker, TICKER),
+            gte(candles.session, clampSessions[0] ?? ""),
+            lte(candles.session, clampSessions.at(-1) ?? ""),
+          ),
+        );
+      await db
+        .delete(tradingSessions)
+        .where(
+          and(
+            gte(tradingSessions.date, clampSessions[0] ?? ""),
+            lte(tradingSessions.date, clampSessions.at(-1) ?? ""),
+          ),
+        );
+    }
   });
 
   it("refuses an iv_rank strategy at creation instead of completing a green, empty, immutable run (round 5 item 2)", async () => {
