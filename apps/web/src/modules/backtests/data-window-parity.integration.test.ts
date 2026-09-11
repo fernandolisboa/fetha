@@ -245,15 +245,28 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     createdEmails.push(email);
     const testUser = await insertBareUser(email);
 
+    // A separate, longer session list from the SMA case above: EMA(10)'s
+    // warmup is `10 x RECURSIVE_WARMUP_MULTIPLIER` (data-window.ts) = 30
+    // sessions, and anchoring where fewer than 31 sessions precede it makes
+    // BOTH callers clamp to `earliestIndex = 0` regardless of which anchor
+    // boundary (session-open vs. preceding-session-close) each resolves —
+    // the assertion below could not have told a correct implementation from
+    // a broken one (round 6 item 4; the round-5 anchor at index 29 of a
+    // 30-session calendar was exactly this vacuous case). Anchoring at
+    // index 40 of 45 leaves 40 prior sessions, well past the 31 needed for
+    // the computed `earliestIndex` to differ from 0 on either side, so a
+    // caller that resolved the wrong boundary would show up in the loaded
+    // candle count precisely because it disagreed with the other caller.
+    const EMA_SESSIONS = businessDays(45, 2101, 6, 2);
     await upsertTradingSessions(
       db,
-      SESSIONS.map((date) => ({
+      EMA_SESSIONS.map((date) => ({
         date,
         open: `${date}T13:00:00.000Z`,
         close: `${date}T20:00:00.000Z`,
       })),
     );
-    for (const [index, session] of SESSIONS.entries()) {
+    for (const [index, session] of EMA_SESSIONS.entries()) {
       const close = decimalString((10 + index * 0.05).toFixed(2));
       await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
         {
@@ -271,21 +284,17 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
       ]);
     }
 
-    const anchorSession = SESSIONS[29];
+    const anchorSession = EMA_SESSIONS[40];
     if (!anchorSession) throw new Error("fixture setup failed");
 
-    // EMA(10): a recursive indicator, warmup = length x
-    // RECURSIVE_WARMUP_MULTIPLIER (data-window.ts) = 30 sessions, deep
-    // enough to reach past the start of the seeded calendar and exercise
-    // the same "closed vs. not-yet-closed anchor session" boundary as the
-    // SMA case above, on a strategy whose structure also carries an option
-    // leg (`collections` must include `optionSeries`/`optionPrices` on
-    // both sides). `structureId: "collar"` matches the shared catalog
-    // `db:seed-structures` seeds (apps/web/scripts/seed-structures.mjs):
-    // evaluate-signals.ts resolves the structure from that catalog, not
-    // from this fixture's own literal, so the two must describe the same
-    // legs or the two sides' `collections` would diverge for reasons
-    // unrelated to what this test pins.
+    // A strategy whose structure also carries an option leg (`collections`
+    // must include `optionSeries`/`optionPrices` on both sides).
+    // `structureId: "collar"` matches the shared catalog `db:seed-structures`
+    // seeds (apps/web/scripts/seed-structures.mjs): evaluate-signals.ts
+    // resolves the structure from that catalog, not from this fixture's own
+    // literal, so the two must describe the same legs or the two sides'
+    // `collections` would diverge for reasons unrelated to what this test
+    // pins.
     const emaCollarDefinition: StrategyDefinition = {
       name: "EMA(10) collar parity fixture",
       timeframe: "D1",
