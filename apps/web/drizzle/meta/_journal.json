@@ -57,6 +57,13 @@
       "when": 1789058687126,
       "tag": "0007_smooth_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789151763712,
+      "tag": "0008_groovy_justin_hammer",
+      "breakpoints": true
     }
   ]
 }

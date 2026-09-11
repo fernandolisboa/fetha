@@ -1,12 +1,25 @@
 import { Decimal } from "decimal.js";
 import { leftOpenUnitIntervalSchema, type DecimalString } from "@fetha/contracts";
 
-// Renders a fraction ("0.02") as a pt-BR percentage string ("2%"), matching
-// DESIGN.md's "at most two decimals" rule.
+const MINUS_SIGN = "−";
+
+const percentFormatter = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+// The engine expresses fractions (0.0208, not 2.08); DESIGN.md's pt-BR
+// formatting rule wants the percentage form with a comma decimal, at most
+// two decimals and no forced trailing zero, e.g. "2,08%" or "28,4%", with
+// a true minus (formatBRL's own MINUS_SIGN, not Intl's default
+// hyphen-minus). The sign is read off the value *after* rounding to two
+// decimals, not the raw fraction: an unrounded "-0.00001" must render
+// "0,00%", never "−0,00%".
 export function formatPercent(fraction: DecimalString): string {
-  const value = Number(fraction) * 100;
-  const rounded = Math.round(value * 100) / 100;
-  return `${rounded.toString().replace(".", ",")}%`;
+  const decimal = new Decimal(fraction).times(100).toDecimalPlaces(2);
+  const formatted = percentFormatter.format(decimal.abs().toNumber());
+  const sign = decimal.isNegative() && !decimal.isZero() ? MINUS_SIGN : "";
+  return `${sign}${formatted}%`;
 }
 
 // Seeds an editable percent input from a stored fraction without the

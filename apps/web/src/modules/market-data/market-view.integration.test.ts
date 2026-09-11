@@ -16,7 +16,14 @@ import {
 } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
-import { buildOperationMarketView, loadMarketView } from "./market-view";
+import {
+  buildOperationMarketView,
+  calendarUpTo,
+  loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
+  tradingSessionForDate,
+} from "./market-view";
 import { DAILY_TIMEFRAME, upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
@@ -74,6 +81,31 @@ function decimalString(value: string): DecimalString {
 
 function uniqueTicker(label: string): string {
   return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+}
+
+// Builds the window the same way a real caller does (run-chunk.ts,
+// evaluate-signals.ts): resolve `from`/`to` as trading sessions, load the
+// calendar up to `to`'s close, hand both to `engine.dataWindow`. Exercising
+// `loadMarketView` through this helper, not a hand-built `DataWindow`,
+// proves the two real callers and this suite resolve warmup the same way.
+async function windowFor(
+  strategy: StrategyVersion,
+  instruments: string[],
+  from: string,
+  to: string,
+): Promise<ReturnType<typeof engine.dataWindow>> {
+  const db = getDb();
+  const fromSession = await tradingSessionForDate(db, from);
+  const toSession = await tradingSessionForDate(db, to);
+  if (!fromSession || !toSession) throw new Error("fixture setup failed: session missing");
+  const calendar = await calendarUpTo(db, new Date(toSession.close));
+  return engine.dataWindow({
+    strategy,
+    instruments: instruments.map((ticker) => tickerSchema.parse(ticker)),
+    calendar,
+    at: toSession.close,
+    since: fromSession.open,
+  });
 }
 
 describe("buildOperationMarketView", () => {
@@ -512,22 +544,68 @@ describe("buildOperationMarketView", () => {
   });
 });
 
+const STOCK_STRUCTURE: Structure = {
+  id: "stock",
+  name: "Compra de ação",
+  expiry: "shared",
+  legs: [{ role: "stock", side: "buy", ratio: 1 }],
+};
+
+function smaDefinition(): StrategyDefinition {
+  return {
+    name: "SMA(20) crossover",
+    timeframe: "D1",
+    entry: {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "indicator", indicator: { kind: "sma", length: 20 } },
+    },
+    structureId: "stock",
+    strikes: [],
+    sizing: { kind: "fixed_fractional", fraction: decimalString("0.2") },
+    exit: [],
+    adjustments: [],
+  };
+}
+
+const COVERED_CALL_STRUCTURE: Structure = {
+  id: "covered-call",
+  name: "Covered call",
+  expiry: "shared",
+  legs: [
+    { role: "stock", side: "buy", ratio: 1 },
+    { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+  ],
+};
+
 describe("loadMarketView", () => {
-  const cleanupSeries: string[] = [];
   const cleanupTickers: string[] = [];
+  const cleanupOptionTickers: string[] = [];
+  const cleanupDates: string[] = [];
+  const cleanupSeries: string[] = [];
 
   afterEach(async () => {
     const db = getDb();
     for (const ticker of cleanupTickers.splice(0)) {
       await db.delete(candles).where(eq(candles.ticker, ticker));
+      await db.delete(corporateActionFactors).where(eq(corporateActionFactors.ticker, ticker));
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
     }
-    const dates = seededSessionDates.splice(0);
+    for (const optionTicker of cleanupOptionTickers.splice(0)) {
+      await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, optionTicker));
+    }
+    const dates = cleanupDates.splice(0);
     if (dates.length > 0) {
-      await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
+      await db.delete(macroPoints).where(inArray(macroPoints.date, dates));
     }
     const series = cleanupSeries.splice(0);
     if (series.length > 0) {
       await db.delete(macroPoints).where(inArray(macroPoints.series, series));
+    }
+    const sessionDates = seededSessionDates.splice(0);
+    if (sessionDates.length > 0) {
+      await db.delete(tradingSessions).where(inArray(tradingSessions.date, sessionDates));
     }
   });
 
@@ -699,5 +777,570 @@ describe("loadMarketView", () => {
     // reading zero regardless of how much warm-up the window keeps.
     expect(relativeDifference).toBeGreaterThan(0);
     expect(relativeDifference).toBeLessThan(0.001);
+  });
+
+  it("loads warm-up candles before period.from for an SMA(20) strategy, not just the requested period", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("SMA");
+    cleanupTickers.push(ticker);
+
+    // 40 sessions so an SMA(20) warmup (~20 sessions back) reaches well
+    // before `period.from`, the middle of the calendar below.
+    const sessions = businessDays("2097-03-04", 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions.at(-1) ?? "";
+
+    const window = await windowFor(strategy, [ticker], periodFrom, periodTo);
+    const view = await loadMarketView(db, window);
+
+    const earliestLoadedSession = view.candles.map((c) => c.session).sort()[0];
+    expect(earliestLoadedSession).toBeDefined();
+    expect((earliestLoadedSession as string) < periodFrom).toBe(true);
+  });
+
+  it("populates corporate actions for every ticker in the universe", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("CAF");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-04-06", 5);
+    await seedSessions(sessions);
+    const exDate = sessions[1] ?? "";
+    await db.insert(corporateActionFactors).values({
+      ticker,
+      exDate,
+      asOf: new Date(`${exDate}T13:00:00.000Z`),
+      factor: "0.50000000",
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    expect(view.corporateActions).toEqual([
+      { ticker, exDate, asOf: `${exDate}T13:00:00.000Z`, factor: "0.50000000" },
+    ]);
+  });
+
+  it("populates macro points inside the loaded window", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("MAC");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-05-04", 5);
+    await seedSessions(sessions);
+    const macroDate = sessions[2] ?? "";
+    cleanupDates.push(macroDate);
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: macroDate,
+      asOf: new Date(`${macroDate}T20:00:00.000Z`),
+      annualRate: "0.1075",
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    expect(view.macro.some((point) => point.date === macroDate && point.series === "cdi")).toBe(
+      true,
+    );
+  });
+
+  it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes (round 7 item 1)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("MTIE");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-12-01", 8);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    // A real CDI year-end collision (round 7 item 1): two distinct
+    // observation dates both stamped `asOf` the same next session's own
+    // open, exactly the mechanism `resolveAsOfInstant`
+    // (bacen-sgs/parser.ts) produces for `nextSessionStrictlyAfter`.
+    const staleDate = sessions[0] ?? "";
+    const freshDate = sessions[1] ?? "";
+    const collisionSession = sessions[2] ?? "";
+    const collidingAsOf = new Date(`${collisionSession}T13:00:00.000Z`);
+    cleanupDates.push(staleDate, freshDate);
+    await db.insert(macroPoints).values([
+      { series: "cdi", date: staleDate, asOf: collidingAsOf, annualRate: "0.1050" },
+      { series: "cdi", date: freshDate, asOf: collidingAsOf, annualRate: "0.1075" },
+    ]);
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    const cdiPoints = view.macro.filter((point) => point.series === "cdi");
+    expect(cdiPoints).toHaveLength(1);
+    expect(cdiPoints[0]?.date).toBe(freshDate);
+    expect(cdiPoints[0]?.annualRate).toBe("0.10750000");
+
+    // The engine itself is the actual assertion this test exists for: an
+    // uncollapsed view fails here with `invalid_input("view.macro", ...)`
+    // before ever pricing anything (evaluate-strategy.ts's own
+    // `sortUnique`), which is the failure round 7 item 1 reported as
+    // reachable, not theoretical.
+    const result = await engine.evaluateStrategy({
+      view,
+      strategy,
+      instruments: [tickerSchema.parse(ticker)],
+      at: window.to,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("stamps dataVersion as the freshest asOf actually loaded", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("DVN");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-06-02", 5);
+    await seedSessions(sessions);
+    const lastSession = sessions.at(-1) ?? "";
+    const lastAsOf = `${lastSession}T20:00:00.000Z`;
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    expect(view.dataVersion).toBe(lastAsOf);
+  });
+
+  it("populates the option chain when the strategy's structure carries an option leg (round 2 item 1)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("OPT");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-07-07", 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions.at(-1) ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    const priceSession = sessions[26] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await ensureMonthlyPartition(db, "option_daily_prices", priceSession);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: priceSession,
+      asOf: new Date(`${priceSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      average: "0.750000",
+      close: "0.750000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], periodFrom, periodTo);
+    const view = await loadMarketView(db, window);
+
+    expect(view.optionSeries.some((series) => series.ticker === optionTicker)).toBe(true);
+    const prices = view.optionPrices.filter((price) => price.ticker === optionTicker);
+    expect(prices).toHaveLength(1);
+    expect(prices[0]?.close).toBe("0.750000");
+  });
+
+  it("extends the calendar through an option expiry past period.to (round 4 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("EXP");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-10-06", 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions[29] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], periodFrom, periodTo);
+    const view = await loadMarketView(db, window);
+
+    expect(expiry > periodTo).toBe(true);
+    expect(view.calendar.some((session) => session.date === expiry)).toBe(true);
+  });
+
+  it("excludes a series that expired before the warmup session (round 4 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("PEX");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-11-03", 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions.at(-1) ?? "";
+    const expiredExpiry = sessions[0] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry: expiredExpiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], periodFrom, periodTo);
+    const view = await loadMarketView(db, window);
+
+    expect(view.optionSeries.some((series) => series.ticker === optionTicker)).toBe(false);
+  });
+
+  it("does not query option series or prices for a stock-only strategy", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("STK");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-08-04", 25);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    expect(view.optionSeries).toEqual([]);
+    expect(view.optionPrices).toEqual([]);
+  });
+
+  it("refuses an option chain past the ticker cap with a typed error instead of an unbounded load (round 3 item 2)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("CAP");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-09-03", 10);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    for (let i = 0; i < 4; i += 1) {
+      const optionTicker = `${ticker}W${String(i)}`;
+      cleanupOptionTickers.push(optionTicker);
+      await db.insert(optionSeries).values({
+        isin: `ISIN-${optionTicker}`,
+        ticker: optionTicker,
+        underlying: ticker,
+        right: "call",
+        strike: `${String(10 + i)}.00000000`,
+        expiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      });
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    await expect(loadMarketView(db, window, { optionChainTickerCap: 3 })).rejects.toBeInstanceOf(
+      MarketViewTooLargeError,
+    );
+  });
+
+  it("refuses an option-price row volume past the price cap even though a single series is under the chain cap (round 4 item 3)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("PRC");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-12-02", 10);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await ensureMonthlyPartition(db, "option_daily_prices", firstSession);
+    for (const session of sessions) {
+      await db.insert(optionDailyPrices).values({
+        ticker: optionTicker,
+        session,
+        asOf: new Date(`${session}T20:00:00.000Z`),
+        right: "call",
+        strike: "12.00000000",
+        expiry,
+        average: "0.750000",
+        close: "0.750000",
+        trades: 1,
+        tradedQuantity: 100,
+      });
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    await expect(loadMarketView(db, window, { optionPriceRowCap: 3 })).rejects.toBeInstanceOf(
+      MarketViewTooLargeError,
+    );
+  });
+
+  it("throws MarketViewUnavailableError instead of a candle-less view when the window has no trading session (round 2 item 9)", async () => {
+    const db = getDb();
+
+    await expect(
+      loadMarketView(db, {
+        from: "1990-01-01T00:00:00.000Z",
+        to: "1990-01-02T00:00:00.000Z",
+        instruments: [],
+        timeframes: ["D1"],
+        collections: ["candles"],
+      }),
+    ).rejects.toBeInstanceOf(MarketViewUnavailableError);
   });
 });

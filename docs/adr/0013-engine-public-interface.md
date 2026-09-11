@@ -1369,8 +1369,15 @@ thrown exception from the engine is a bug.
 
 Arrays in `MarketView` may arrive in any order; the engine sorts (I3). Duplicate keys (same
 ticker, timeframe and `asOf` for candles; same ticker and `exDate` for corporate-action factors;
-same ticker and session for option prices; same series and date for macro points) are
-`invalid_input`. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
+same ticker and session for option prices; same series and `asOf` for macro points) are
+`invalid_input` — the engine consumes macro points latest-visible-by-`asOf` only (`rates.ts`'s
+`latestVisible`), never by `date`, so a `(series, asOf)` tie is what the check keys on, not a
+`(series, date)` one. The caller (`market-data`'s `loadMarketView`) is expected to collapse such a
+tie itself, in favour of the later `date`, before the view ever reaches this check: two
+observations stamped the same `asOf` (a real occurrence — CDI at year end, or any series whose
+publication schedule maps several dates onto one `asOf`) are not two independent points to the
+engine, they are one observation recorded twice, and the more recent `date` is the more accurate
+reading of it. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
 rejected, because a legitimate re-listing (a strike adjustment, a superseded expiry) always
 advances `asOf`, so a true tie on `(ticker, asOf)` is data noise, not a signal the caller needs
 surfaced; it resolves deterministically to the lower-strike row regardless of array order (PR
@@ -1982,3 +1989,83 @@ cannot drift. The cost is uniformity: pricing three legs means assembling a view
 passing scalars, and a backtest chunk re-sends its view slice each request; both are bounded and
 were accepted knowingly. Multi-expiry structures are excluded from v1 by the `Structure` schema
 (ADR-0014 Q43), so payoff is always at one expiry.
+
+## Addendum: persisted engine artifacts get a contracts-side parsing envelope (2026-09-11)
+
+`backtest-run-repository.ts` stores an engine `BacktestRun` (and `BacktestCheckpoint`) as `jsonb`
+and must re-validate it on every read, since a row written months ago by an older engine version
+is untyped data by the time it comes back out of Postgres. Re-validating means owning a second
+schema for a type this ADR calls frozen and says "everything outside the package depends on the
+types below and nothing else" — apparently contradicting that rule. It does not: the rule is
+about _behaviour_ (nothing outside the package re-implements engine logic or reaches into
+`internal/`); a parsing envelope for the engine's own declared output shape, at the one edge that
+persists and later re-reads it, is validation, not a second implementation. `packages/contracts`
+cannot import from `packages/engine` (contracts is the lower layer; the engine depends on it, not
+the reverse), so `backtest-report.ts`'s `backtestRunSchema` mirrors the frozen `BacktestRun` shape
+by value — the same pattern `scalars.ts` already uses for the engine's `optionRights`,
+`exerciseStyles` and `macroSeriesKinds` vocabularies (round 4 of #18's review correctly kept that
+mirror over deleting it in favour of importing the engine's own arrays, since contracts cannot
+depend on the engine either way).
+
+Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
+
+1. **A compile-time pin.** `backtest-run-repository.ts` reads a stored run through
+   `backtestRunSchema.parse(value) as unknown as BacktestRun` — the `as unknown as` deliberately
+   severs the link an ordinary cast would give for free, so nothing at build time catches the
+   contracts-side schema and the engine-side type drifting apart.
+   `apps/web/src/modules/backtests/backtest-run-type-pin.test.ts` is a compile-time-only
+   `expectTypeOf` assertion, at the one place both packages are visible, checking the two shapes
+   stay assignable both ways — `config` included: it is mutually assignable today and excluding it
+   would have left the largest, most strictly-parsed subtree of the artifact unpinned (round 6
+   item 2). Three fields stay excluded from that two-way check and are instead checked
+   one-directionally (engine → contract): `operations`, `notes` and `provenance`. That direction
+   catches an engine-side field rename or removal (the contract's declared shape no longer accepts
+   what the engine now produces) but not an engine-side _addition_ — `simulatedOperationSchema`,
+   `noteSchema` and `provenanceSchema` are all `z.strictObject`, so the contract side is _stricter_
+   about extra keys here, not a looser superset as an earlier draft of this addendum claimed. An
+   engine-side addition to any of these three is instead caught at runtime, not compile time, by
+   `run-chunk.integration.test.ts:271`'s own round-trip through the real schema. The
+   fields are excluded from the two-way compile-time check for two different reasons:
+   `operations`, because contracts' `legSettlementSchema` is a flat `z.strictObject` where the
+   engine's own `LegSettlement` correlates role, side and outcome into a real discriminated union
+   (`backtest-run-repository.ts`'s `asEngineRun` names this correctly); `notes` and `provenance`,
+   because `noteSchema.code` and `provenanceSchema.pricingModel` are `z.string()` rather than
+   mirrors of the engine's `NoteCode` and `PricingModel` vocabularies (tracked as #91, not silently
+   left).
+2. **Tolerant parsing at the persisted boundary, on its actual merit.** `backtestRunSchema`,
+   `backtestMetricsSchema` and `walkForwardWindowSchema` use `z.object`, not `z.strictObject`.
+   `z.object` tolerates _extra_, unrecognised keys — it protects a row written by a schema _newer_
+   than the one reading it. It does **not** help the opposite case: a row written by an _older_
+   engine version, missing a key a newer schema now expects, still fails `z.object` the same way
+   it would fail `z.strictObject`, because both require every declared (non-optional) key to be
+   present. So when #30 adds a required field to `WalkForwardWindow`, every historical run that
+   predates it still throws reading it back — `z.object` alone does not close that.
+   The actual rule for a field added to a persisted, pinned engine artifact, in order: **first
+   choice, a backfill migration** of existing rows so every stored `WalkForwardWindow` already has
+   the new field by the time the schema requires it — the pin in obligation 1 stays exactly as
+   strict as it is today, no exception needed. This backfill writes to `result` on rows whose
+   `status` is already `complete`, which `backtest_runs_immutable_once_complete`
+   (`drizzle/0008_groovy_justin_hammer.sql`) exists specifically to block — the same migration that
+   performs the backfill must `DROP TRIGGER`/`DROP FUNCTION` and recreate both after the `UPDATE`,
+   never leave the table permanently without the trigger. Without this, #30's implementer hits a
+   red migration instead of a red typecheck, and the tempting way out is to leave the invariant
+   suspended rather than restore it in the same migration. **`.optional()` in the contracts mirror
+   is not a substitute for a backfill** — it is a _temporary, one-release_ escape only, and it is
+   coarser than it sounds: `Pinned<T>` excludes a field by `Omit<T, "x"> & { x: unknown }` over
+   _top-level_ `BacktestRun` keys only, so a field added inside `WalkForwardWindow` cannot be
+   excluded on its own — the whole `walkForward` subtree has to leave the pinned set for that one
+   release, not just the new field within it (adding `field?: T` to a schema whose type is inside
+   `Pinned<T>` makes `expectTypeOf<PinnedContract>().toExtend<PinnedEngine>()` fail outright, since
+   an optional contract field is not assignable to the engine's required one — the pin and an
+   unconditional `.optional()` cannot both hold at once). Un-exclude and re-pin `walkForward` the
+   release after the backfill lands. What `z.object` genuinely buys, on its own and without either
+   of the above: tolerating a field _removed_, _renamed_, or a schema _rolled back_ to an older
+   shape after a deploy — an unrecognised key left over from a newer write is dropped rather than
+   rejecting the whole row. That is the honest scope of this relaxation; it does not extend to
+   every nested schema (operations, fills, provenance, ...) — only the fields named here — and
+   widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
+
+`backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
+run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
+already handles a version bump by restarting), never read back across an arbitrary span of engine
+history the way a completed run's `result` is.

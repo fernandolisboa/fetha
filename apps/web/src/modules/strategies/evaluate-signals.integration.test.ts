@@ -14,7 +14,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { candles, tradingSessions } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { loadMarketView } from "@/modules/market-data";
+import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { RiskProfileRepository } from "@/modules/portfolio";
@@ -744,6 +744,65 @@ describe("evaluateSignalsForSession", () => {
     expect(new Set(logAfterSecond.map((row) => row.strategyId))).toEqual(
       new Set([strategyA.id, strategyB.id]),
     );
+  });
+
+  it("evaluates a sibling strategy in the same run when loadMarketView throws MarketViewUnavailableError, instead of losing the whole user's night (round 5 item 5)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("unavailable-view-sibling");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategyA = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategyA.id, true);
+    const strategyB = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategyB.id, true);
+
+    // Whichever strategy `listActiveDaily` processes first throws the
+    // typed error the merged `loadMarketView` now raises instead of
+    // returning a candle-less view (round 2/3 of #18); the second gets a
+    // real call and must still commit in this same run.
+    let loadMarketViewCalls = 0;
+    loadMarketViewMock.mockImplementation(async (...args) => {
+      loadMarketViewCalls += 1;
+      if (loadMarketViewCalls === 1) {
+        throw new MarketViewUnavailableError("no trading calendar has been ingested");
+      }
+      return realLoadMarketView(...args);
+    });
+
+    const outcome = await evaluateSignalsForSession(db, [session]);
+    expect(outcome.errors).toContain("no_market_data");
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    const strategiesWithRows = new Set(log.map((row) => row.strategyId));
+    // Both strategies have a row from this one run: the failing strategy's
+    // own explicit `no_market_data` evaluation, and the sibling's real one
+    // — proving the throw never unwound past it.
+    expect(strategiesWithRows).toEqual(new Set([strategyA.id, strategyB.id]));
+
+    const failingLog = log.filter((row) => row.detail === "no_market_data");
+    expect(failingLog).toHaveLength(1);
+
+    const survivingId = [strategyA.id, strategyB.id].find(
+      (id) => !failingLog.some((row) => row.strategyId === id),
+    );
+    const survivingLog = log.filter((row) => row.strategyId === survivingId);
+    expect(survivingLog.some((row) => row.outcome !== "insufficient_data")).toBe(true);
   });
 
   it("checks the deadline inside the strategy loop, not only between users (round 3 item 2)", async () => {

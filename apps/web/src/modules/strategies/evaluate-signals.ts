@@ -4,7 +4,10 @@ import { engine, type Signal, type StrategyVersion, type TradingSession } from "
 import type { Database } from "@/db/client";
 import {
   calendarUpTo,
+  canSatisfyCollection,
   loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
   previousTradingSession,
   tradingSessionForDate,
 } from "@/modules/market-data";
@@ -47,12 +50,16 @@ const SETUP_FAILED = "setup_failed";
 // sized against *today's* risk profile, can land in one night's inbox.
 export const CATCH_UP_SESSION_LIMIT = 21;
 
-// A collection `dataWindow` can ask for that no ingestion source fills
-// today (round 2 item 8, follow-up in
-// https://github.com/fernandolisboa/fetha/issues/81): a strategy that needs
-// it can never receive a value, so it is logged explicitly instead of
-// retrying `insufficient_data` forever with no clue why.
-const UNSATISFIABLE_COLLECTION_CODE = "unsatisfiable_collection:impliedVolatilityIndex";
+// A collection `dataWindow` can ask for that `canSatisfyCollection`
+// (market-data) says this strategy cannot be evaluated without (round 2
+// item 8, follow-up in https://github.com/fernandolisboa/fetha/issues/81):
+// a strategy that needs it can never receive a value, so it is logged
+// explicitly instead of retrying `insufficient_data` forever with no clue
+// why. The prefix, not a fixed full code (round 7 item 4): which
+// collection actually failed is appended at the call site, since a fixed
+// `impliedVolatilityIndex` suffix would misname the failure once
+// `UNSATISFIABLE_COLLECTIONS` grows a second member.
+const UNSATISFIABLE_COLLECTION_CODE_PREFIX = "unsatisfiable_collection:";
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -403,11 +410,22 @@ export async function evaluateSignalsForSession(
           since,
         });
 
-        // The loader can never fill `impliedVolatilityIndex` (round 2 item
-        // 8, follow-up #81): recorded explicitly per ticker/session and
-        // never handed to the engine, instead of retrying
-        // `insufficient_data` every night with no clue why.
-        if (window.collections.includes("impliedVolatilityIndex")) {
+        // `canSatisfyCollection` is market-data's own fact about what its
+        // loader can fill, not re-stated here as a hardcoded literal
+        // (round 6 item 9 — `backtests/actions.ts` asks the same
+        // predicate): recorded explicitly per ticker/session and never
+        // handed to the engine, instead of retrying `insufficient_data`
+        // every night with no clue why. The failing collection's own name
+        // goes into the code (round 7 item 4): a fixed
+        // `impliedVolatilityIndex` suffix here would misname the failure
+        // the moment `UNSATISFIABLE_COLLECTIONS` grows a second member —
+        // `strings.ts`'s own rendering of this code is collection-neutral
+        // regardless, so this is for the evaluation log's own accuracy,
+        // not the copy.
+        const unsatisfiableCollection = window.collections.find(
+          (collection) => !canSatisfyCollection(collection),
+        );
+        if (unsatisfiableCollection) {
           await writeResult(
             [],
             failureEvaluations(
@@ -415,13 +433,59 @@ export async function evaluateSignalsForSession(
               version.id,
               tickers,
               userSessions,
-              UNSATISFIABLE_COLLECTION_CODE,
+              `${UNSATISFIABLE_COLLECTION_CODE_PREFIX}${unsatisfiableCollection}`,
             ),
           );
           continue;
         }
 
-        const view = await loadMarketView(db, window);
+        // `loadMarketView` throws instead of returning a candle-less view
+        // for a window it cannot resolve or a chain too large to load in
+        // one call (#18 round 2/round 3, market-view.ts). Uncaught here,
+        // that throw unwinds past `strategiesProcessed += 1` above and out
+        // of the whole per-strategy loop — into the outer per-**user**
+        // catch (`:476`) — so one option strategy that crosses the chain
+        // cap (or a period with no session, unreachable in practice since
+        // `at`/`since` are both derived from `calendar`) costs this user
+        // every remaining active strategy's evaluation for the night, with
+        // nothing but a generic `evaluation_failed` to explain it, and
+        // repeats deterministically every run (#18 round 5 item 5). Same
+        // shape as `unknown_structure` and `UNSATISFIABLE_COLLECTION_CODE_PREFIX`
+        // just above: recorded explicitly per ticker/session, this
+        // strategy skipped, the loop moves on to the next one.
+        let view;
+        try {
+          view = await loadMarketView(db, window);
+        } catch (error) {
+          if (
+            error instanceof MarketViewTooLargeError ||
+            error instanceof MarketViewUnavailableError
+          ) {
+            const code =
+              error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
+            errors.push(code);
+            // Writing this evaluation row advances the strategy's own
+            // watermark (`lastEvaluatedSession`) the same as a real
+            // evaluation would (#18 round 6 item 6): a `market_view_too_large`
+            // night is never automatically re-tried, even after an operator
+            // raises `DEFAULT_OPTION_CHAIN_TICKER_CAP`/`_PRICE_ROW_CAP`,
+            // because the sessions it failed on are now behind the
+            // watermark. Accepted deliberately, matching the
+            // `unknown_structure` precedent just above: the alternative
+            // (never advancing the watermark) means a chain that stays too
+            // large forever retries the same expensive, doomed load every
+            // single run. A cap raise is an operator config change, not a
+            // routine user action, so it is expected to come with a manual
+            // watermark reset or re-run if catch-up past the failed
+            // sessions is ever needed.
+            await writeResult(
+              [],
+              failureEvaluations(strategyId, version.id, tickers, userSessions, code),
+            );
+            continue;
+          }
+          throw error;
+        }
 
         const result = await engine.evaluateStrategy({
           view,
