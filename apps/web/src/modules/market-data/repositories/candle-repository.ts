@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, max, min } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
@@ -218,32 +218,34 @@ export async function searchInstruments(
   }));
 }
 
-// The last ingested candle session, across the whole universe, inside
-// `period` — never a whole-period load: the creation-time refusal for a
-// `from` the calendar carries but that has no ingested candle for any
-// ticker in the universe (round 2 item 10) used to answer this with
+// The first and last ingested candle session, across the whole universe,
+// inside `period` — never a whole-period load: the creation-time refusal
+// for a `from` the calendar carries but that has no ingested candle for
+// any ticker in the universe (round 2 item 10) used to answer this with
 // `loadMarketView(...).candles.length === 0`, the same whole-period
 // MarketView materialisation `run-chunk.ts` needs a 300-second route budget
 // for — paid in a Server Action with no raised duration at all (round 3
-// item 1). Also the data-clamp for `period.to` itself (#18 round 5 item 1):
-// the ANBIMA calendar is ingested ~15 months past the newest candle
-// (`ingest.ts` `runCalendarSources`), so a `to` the calendar carries can
-// still be far past the last session any ticker in the universe actually
-// has a candle for, and every calendar session in that gap would otherwise
-// count as a period session with no trade, diluting CAGR, Sharpe and
-// exposure. `ORDER BY session DESC LIMIT 1` against the `(ticker,
-// timeframe, session)` index gives both answers (existence and the clamp)
-// in one indexed query.
-export async function lastCandleSessionInRange(
+// item 1). Also the data-clamp for the run's own `period` (#18 round 5
+// item 1, round 6 item 1): the ANBIMA calendar is ingested from
+// `FIRST_INGESTED_CALENDAR_YEAR` while COTAHIST candle history starts
+// whenever this app first ingested a session, and back-fills only
+// `RECENT_SESSION_WINDOW` sessions on top of that — both far narrower than
+// the calendar's own reach on *either* end. Clamping only `to` (round 5)
+// left `from` exactly as exposed: a `from` before candle history begins
+// still passes the calendar check and buys hundreds of candle-less equity
+// points with no note, diluting CAGR, Sharpe and exposure on an immutable
+// run. One `MIN()`/`MAX()` aggregate query against the `(ticker, timeframe,
+// session)` index gives existence and both clamps together.
+export async function candleSessionBoundsInRange(
   db: Database,
   universe: string[],
   period: { from: string; to: string },
-): Promise<string | undefined> {
+): Promise<{ first: string; last: string } | undefined> {
   if (universe.length === 0) {
     return undefined;
   }
   const [row] = await db
-    .select({ session: candles.session })
+    .select({ first: min(candles.session), last: max(candles.session) })
     .from(candles)
     .where(
       and(
@@ -252,10 +254,11 @@ export async function lastCandleSessionInRange(
         gte(candles.session, period.from),
         lte(candles.session, period.to),
       ),
-    )
-    .orderBy(desc(candles.session))
-    .limit(1);
-  return row?.session;
+    );
+  if (!row?.first || !row.last) {
+    return undefined;
+  }
+  return { first: row.first, last: row.last };
 }
 
 // Oldest first, bounded to the last `limit` sessions: the shape a candle

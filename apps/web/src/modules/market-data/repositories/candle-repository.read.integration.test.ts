@@ -6,7 +6,7 @@ import { candles } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "../adapters/cotahist/schema";
 import {
-  lastCandleSessionInRange,
+  candleSessionBoundsInRange,
   latestCandle,
   recentDailyCandles,
   searchInstruments,
@@ -122,9 +122,12 @@ describe("candle-repository reads", () => {
   });
 });
 
-describe("lastCandleSessionInRange", () => {
-  it("returns the latest session with a candle for any ticker in the universe", async () => {
+describe("candleSessionBoundsInRange", () => {
+  it("returns the earliest and latest session with a candle for any ticker in the universe", async () => {
     const db = getDb();
+    await upsertDailyCandles(db, "2026-05-10", new Date("2026-05-10T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-05-10" }),
+    ]);
     await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
     ]);
@@ -132,16 +135,19 @@ describe("lastCandleSessionInRange", () => {
       stockRow({ ticker: TICKER_B, session: "2026-05-20" }),
     ]);
 
-    const result = await lastCandleSessionInRange(db, [TICKER_A, TICKER_B], {
+    const result = await candleSessionBoundsInRange(db, [TICKER_A, TICKER_B], {
       from: "2026-05-01",
       to: "2026-05-31",
     });
 
-    expect(result).toBe("2026-05-20");
+    expect(result).toEqual({ first: "2026-05-10", last: "2026-05-20" });
   });
 
-  it("clamps to a session strictly inside the requested range, not the latest ever ingested", async () => {
+  it("clamps both ends to sessions strictly inside the requested range, not the earliest/latest ever ingested", async () => {
     const db = getDb();
+    await upsertDailyCandles(db, "2026-04-01", new Date("2026-04-01T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-04-01" }),
+    ]);
     await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
     ]);
@@ -149,12 +155,12 @@ describe("lastCandleSessionInRange", () => {
       stockRow({ ticker: TICKER_A, session: "2026-06-15" }),
     ]);
 
-    const result = await lastCandleSessionInRange(db, [TICKER_A], {
+    const result = await candleSessionBoundsInRange(db, [TICKER_A], {
       from: "2026-05-01",
       to: "2026-05-31",
     });
 
-    expect(result).toBe("2026-05-12");
+    expect(result).toEqual({ first: "2026-05-12", last: "2026-05-12" });
   });
 
   it("is undefined when the calendar carries the range but no ticker in the universe has a candle in it (round 3 item 1)", async () => {
@@ -163,7 +169,7 @@ describe("lastCandleSessionInRange", () => {
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
     ]);
 
-    const result = await lastCandleSessionInRange(db, [TICKER_A], {
+    const result = await candleSessionBoundsInRange(db, [TICKER_A], {
       from: "2026-06-01",
       to: "2026-06-30",
     });
@@ -173,7 +179,7 @@ describe("lastCandleSessionInRange", () => {
 
   it("is undefined for an empty universe", async () => {
     const db = getDb();
-    const result = await lastCandleSessionInRange(db, [], {
+    const result = await candleSessionBoundsInRange(db, [], {
       from: "2026-05-01",
       to: "2026-05-31",
     });

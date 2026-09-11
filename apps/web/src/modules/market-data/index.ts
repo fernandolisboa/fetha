@@ -8,6 +8,7 @@ export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } fr
 export { loadCandleSeries } from "./candle-series";
 export {
   calendarUpTo,
+  canSatisfyCollection,
   loadMarketView,
   previousTradingSession,
   tradingSessionForDate,
@@ -17,7 +18,7 @@ export {
 // only from ./ingest; tests that need to seed rows import the repository
 // path directly (see watchlist/actions.integration.test.ts).
 export {
-  lastCandleSessionInRange,
+  candleSessionBoundsInRange,
   latestCandle,
   searchInstruments,
   type CandleRow,

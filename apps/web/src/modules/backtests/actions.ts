@@ -14,8 +14,8 @@ import {
 } from "@/modules/auth";
 import {
   calendarUpTo,
-  lastCandleSessionInRange,
-  tradingSessionForDate,
+  candleSessionBoundsInRange,
+  canSatisfyCollection,
 } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
@@ -101,16 +101,12 @@ async function createBacktestRun(
     return { status: "error", error: "no_risk_profile" };
   }
 
-  // A `from` that never traded (weekend, holiday, before the calendar's
-  // own start) must never silently produce a candle-less MarketView: the
-  // engine would record `insufficient_data` for the whole run and still
-  // reach `complete` with 0 operations. `to` is clamped to the last
-  // session actually in range rather than rejected, since an end date in
-  // the future is a common and harmless request ("run until today").
-  const fromSession = await tradingSessionForDate(db, parsed.from);
-  if (!fromSession) {
-    return { status: "error", error: "invalid" };
-  }
+  // Neither raw endpoint is trusted as a real trading session (weekend,
+  // holiday, or outside the calendar's own reach) or as a session with any
+  // ingested candle: both are clamped, below, to what the universe's own
+  // candle history actually covers. An end date in the future is a common
+  // and harmless request ("run until today"), so `to` is clamped rather
+  // than rejected.
   const calendar = await calendarUpTo(db, new Date(`${parsed.to}T23:59:59.999Z`));
   const rangeSessions = calendar.filter((session) => session.date >= parsed.from);
   const lastCalendarSession = rangeSessions.at(-1);
@@ -151,45 +147,48 @@ async function createBacktestRun(
     return { status: "error", error: "not_found" };
   }
 
-  // tradingSessionForDate alone only proves the calendar carries `from`; a `from`
-  // in a year with no ingested candles for this universe would still pass
-  // it and yield a green, complete, zero-operation run (round 2 item 10).
-  // The same query also gives the data-clamped `to` (round 5 item 1): the
-  // ANBIMA calendar is ingested ~15 months past the newest candle
-  // (`runCalendarSources`, `market-data/ingest.ts`), so clamping `to` to
-  // the calendar alone (as this used to) lets every session in that gap
-  // count as a traded period session with no trade in it, diluting
-  // `computeBacktestMetrics`'s `sessions = equityCurve.length` divisor for
-  // CAGR, Sharpe and exposure with no note on an immutable run. One indexed
-  // query against the `(ticker, timeframe, session)` index, not the
+  // Bounding a `from` the calendar carries but that has no ingested candle
+  // for this universe closed round-2 item 10 for `to` only (round 5 item
+  // 1); `from` had the identical exposure and was the larger one (round 6
+  // item 1): `FIRST_INGESTED_CALENDAR_YEAR` seeds the ANBIMA calendar far
+  // earlier than COTAHIST candle history actually starts (candle ingestion
+  // began whenever this app first ran it, then back-fills only
+  // `RECENT_SESSION_WINDOW` sessions on top of that), so a `from` before
+  // that start bought hundreds of candle-less period sessions with no
+  // note, diluting CAGR, Sharpe and exposure on an immutable run. One
+  // `MIN()`/`MAX()` aggregate query against the `(ticker, timeframe,
+  // session)` index gives existence and both clamps together — not the
   // whole-period MarketView `run-chunk.ts` needs a 300-second route budget
   // to load: a legal near-ceiling create ran that same load in a Server
   // Action with no raised duration at all, so the platform's own default
   // killed it with no run written after already spending one of ten
   // creation slots (round 3 item 1).
-  const lastCandleSession = await lastCandleSessionInRange(db, parsed.universe, {
+  const candleBounds = await candleSessionBoundsInRange(db, parsed.universe, {
     from: parsed.from,
     to: lastCalendarSession.date,
   });
-  if (!lastCandleSession) {
+  if (!candleBounds) {
     return { status: "error", error: "invalid" };
   }
-  const period = { from: parsed.from, to: lastCandleSession };
+  const period = { from: candleBounds.first, to: candleBounds.last };
 
-  // Mirrors the nightly evaluator's own refusal (`evaluate-signals.ts`,
-  // `UNSATISFIABLE_COLLECTION_CODE`): no ingestion source fills
-  // `impliedVolatilityIndex` yet (#81), so an `iv_rank` strategy's every
-  // session reads `insufficient_data`, no signal ever fires, and the run
-  // completes green, immutable and empty — the same shape round-1 item 2
-  // and round-2 item 1 were blocked for. Refused here, before the
-  // immutable row exists, rather than left to complete silently.
+  // Mirrors the nightly evaluator's own refusal (`evaluate-signals.ts`):
+  // an `iv_rank` strategy's every session reads `insufficient_data`, no
+  // signal ever fires, and the run completes green, immutable and empty —
+  // the same shape round-1 item 2 and round-2 item 1 were blocked for.
+  // Refused here, before the immutable row exists, rather than left to
+  // complete silently. `canSatisfyCollection` is market-data's own fact
+  // about what its loader can fill, asked here and by evaluate-signals.ts
+  // rather than each hardcoding `"impliedVolatilityIndex"` independently
+  // (round 6 item 9): when #81 lands, one place changes, not two.
   const strategyVersion: StrategyVersion = {
     id: version.id,
     definition: version.definition,
     structure,
   };
+  const fromSession = calendar.find((session) => session.date === period.from);
   const toSession = calendar.find((session) => session.date === period.to);
-  if (!toSession) {
+  if (!fromSession || !toSession) {
     return { status: "error", error: "invalid" };
   }
   const window = engine.dataWindow({
@@ -199,7 +198,7 @@ async function createBacktestRun(
     at: toSession.close,
     since: fromSession.open,
   });
-  if (window.collections.includes("impliedVolatilityIndex")) {
+  if (window.collections.some((collection) => !canSatisfyCollection(collection))) {
     return { status: "error", error: "unsatisfiable_collection" };
   }
 

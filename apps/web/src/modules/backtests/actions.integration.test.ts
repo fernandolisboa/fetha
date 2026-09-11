@@ -4,11 +4,11 @@ import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 
-import { and, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { tradingSessions } from "@/db/schema/market-data";
+import { candles, tradingSessions } from "@/db/schema/market-data";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
@@ -492,15 +492,16 @@ describe("createBacktestRunAction", () => {
       );
   });
 
-  it("clamps period.to to the last ingested candle session for the universe, not the calendar's own reach (round 5 item 1)", async () => {
+  it("clamps period.from AND period.to to the ingested candle session for the universe, and metrics.sessions reflects the real count, not the calendar's own reach (round 5 item 1, round 6 item 1)", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
     const { StrategiesRepository } = await import("@/modules/strategies");
     const { BacktestRunRepository } = await import("./backtest-run-repository");
+    const { runBacktestChunk } = await import("./run-chunk");
 
     const db = getDb();
-    const email = uniqueEmail("clamp-to-candle");
+    const email = uniqueEmail("clamp-both-ends");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
 
@@ -514,10 +515,13 @@ describe("createBacktestRunAction", () => {
       },
     });
 
-    // The calendar carries every session (`runCalendarSources` ingests
-    // ~15 months past the newest candle); candles only exist for the
-    // first half. Requesting `to` at the calendar's own last session must
-    // persist `period.to` at the last *candle* session instead.
+    // The calendar carries every session (the ANBIMA calendar is ingested
+    // years ahead of any candle history); candles only exist for a middle
+    // slice. Requesting `from`/`to` at the calendar's own reach on *both*
+    // ends must persist `period` at the real candle bounds instead — round
+    // 5 only closed this for `to` (round 6 item 1: `from` is the larger
+    // exposure, since candle history starts well after the calendar's own
+    // `FIRST_INGESTED_CALENDAR_YEAR`).
     const clampSessions = businessDays(10, 2095, 4, 3);
     await upsertTradingSessions(
       db,
@@ -527,7 +531,7 @@ describe("createBacktestRunAction", () => {
         close: `${date}T20:00:00.000Z`,
       })),
     );
-    const candleSessions = clampSessions.slice(0, 5);
+    const candleSessions = clampSessions.slice(2, 8);
     for (const session of candleSessions) {
       const close = decimalString("10.00");
       await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
@@ -571,10 +575,39 @@ describe("createBacktestRunAction", () => {
     }
     expect(redirected).toBe(true);
 
-    const runs = await new BacktestRunRepository(db, currentUser).listMineForStrategy(strategy.id);
+    const repository = new BacktestRunRepository(db, currentUser);
+    const runs = await repository.listMineForStrategy(strategy.id);
     expect(runs).toHaveLength(1);
-    expect(runs[0]?.period.to).toBe(candleSessions.at(-1));
+    const run = runs[0];
+    if (!run) throw new Error("expected a run");
+    expect(run.period.from).toBe(candleSessions[0]);
+    expect(run.period.to).toBe(candleSessions.at(-1));
 
+    // The persisted period alone does not prove the phantom sessions never
+    // entered the simulation — computeBacktestMetrics divides by
+    // equityCurve.length, so this is the assertion the round-5 fix's own
+    // test never made (round 6 item 1).
+    const outcome = await runBacktestChunk(db, currentUser, run.id, { maxSessions: 999 });
+    if (outcome.status !== "complete") {
+      throw new Error(`expected the run to complete, got ${outcome.status}`);
+    }
+    expect(outcome.run.result?.metrics.sessions).toBe(candleSessions.length);
+
+    // Every prior run of this test left its own candle rows unclean (no
+    // test in this file ever deleted `candles` by ticker+range), which is
+    // exactly the contamination that silently defeated this test's own
+    // MIN()/MAX() assertion the first time it ran here: a stale row from
+    // an earlier version of this fixture, in the same reused ticker and
+    // year, shifted the observed `period.from` without failing loudly.
+    await db
+      .delete(candles)
+      .where(
+        and(
+          eq(candles.ticker, TICKER),
+          gte(candles.session, clampSessions[0] ?? ""),
+          lte(candles.session, clampSessions.at(-1) ?? ""),
+        ),
+      );
     await db
       .delete(tradingSessions)
       .where(
