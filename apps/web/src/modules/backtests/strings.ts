@@ -23,8 +23,13 @@ const en = {
     invalidCapital: "Enter the initial capital as a valid amount, e.g. 10.000,00.",
     noRiskProfile:
       "Declare a risk profile in Settings before running a backtest, so its limits can be enforced.",
+    // Collection-neutral by design (#18 round 7 item 4): actions.ts asks
+    // market-data's canSatisfyCollection for any collection in
+    // UNSATISFIABLE_COLLECTIONS, not implied volatility specifically, so
+    // this copy must not name one indicator that could be wrong the moment
+    // a second collection joins that set.
     unsatisfiableCollection:
-      "This strategy uses implied volatility rank, which has no data source yet (issue #81). Choose a strategy without it.",
+      "This strategy uses market data with no source yet for one of its indicators. Choose a different strategy.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
   },
   report: {
@@ -157,7 +162,7 @@ const ptBR = {
     noRiskProfile:
       "Declare um perfil de risco em Configurações antes de rodar um backtest, para que os limites possam ser aplicados.",
     unsatisfiableCollection:
-      "Essa estratégia usa percentil de volatilidade implícita, que ainda não tem fonte de dados (issue #81). Escolha uma estratégia sem esse indicador.",
+      "Essa estratégia usa dados de mercado ainda sem fonte para um dos seus indicadores. Escolha outra estratégia.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
   },
   report: {

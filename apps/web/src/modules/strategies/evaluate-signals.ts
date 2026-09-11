@@ -50,12 +50,16 @@ const SETUP_FAILED = "setup_failed";
 // sized against *today's* risk profile, can land in one night's inbox.
 export const CATCH_UP_SESSION_LIMIT = 21;
 
-// A collection `dataWindow` can ask for that no ingestion source fills
-// today (round 2 item 8, follow-up in
-// https://github.com/fernandolisboa/fetha/issues/81): a strategy that needs
-// it can never receive a value, so it is logged explicitly instead of
-// retrying `insufficient_data` forever with no clue why.
-const UNSATISFIABLE_COLLECTION_CODE = "unsatisfiable_collection:impliedVolatilityIndex";
+// A collection `dataWindow` can ask for that `canSatisfyCollection`
+// (market-data) says this strategy cannot be evaluated without (round 2
+// item 8, follow-up in https://github.com/fernandolisboa/fetha/issues/81):
+// a strategy that needs it can never receive a value, so it is logged
+// explicitly instead of retrying `insufficient_data` forever with no clue
+// why. The prefix, not a fixed full code (round 7 item 4): which
+// collection actually failed is appended at the call site, since a fixed
+// `impliedVolatilityIndex` suffix would misname the failure once
+// `UNSATISFIABLE_COLLECTIONS` grows a second member.
+const UNSATISFIABLE_COLLECTION_CODE_PREFIX = "unsatisfiable_collection:";
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -411,8 +415,17 @@ export async function evaluateSignalsForSession(
         // (round 6 item 9 — `backtests/actions.ts` asks the same
         // predicate): recorded explicitly per ticker/session and never
         // handed to the engine, instead of retrying `insufficient_data`
-        // every night with no clue why.
-        if (window.collections.some((collection) => !canSatisfyCollection(collection))) {
+        // every night with no clue why. The failing collection's own name
+        // goes into the code (round 7 item 4): a fixed
+        // `impliedVolatilityIndex` suffix here would misname the failure
+        // the moment `UNSATISFIABLE_COLLECTIONS` grows a second member —
+        // `strings.ts`'s own rendering of this code is collection-neutral
+        // regardless, so this is for the evaluation log's own accuracy,
+        // not the copy.
+        const unsatisfiableCollection = window.collections.find(
+          (collection) => !canSatisfyCollection(collection),
+        );
+        if (unsatisfiableCollection) {
           await writeResult(
             [],
             failureEvaluations(
@@ -420,7 +433,7 @@ export async function evaluateSignalsForSession(
               version.id,
               tickers,
               userSessions,
-              UNSATISFIABLE_COLLECTION_CODE,
+              `${UNSATISFIABLE_COLLECTION_CODE_PREFIX}${unsatisfiableCollection}`,
             ),
           );
           continue;
@@ -437,7 +450,7 @@ export async function evaluateSignalsForSession(
         // every remaining active strategy's evaluation for the night, with
         // nothing but a generic `evaluation_failed` to explain it, and
         // repeats deterministically every run (#18 round 5 item 5). Same
-        // shape as `unknown_structure` and `UNSATISFIABLE_COLLECTION_CODE`
+        // shape as `unknown_structure` and `UNSATISFIABLE_COLLECTION_CODE_PREFIX`
         // just above: recorded explicitly per ticker/session, this
         // strategy skipped, the loop moves on to the next one.
         let view;
