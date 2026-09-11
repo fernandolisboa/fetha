@@ -70,7 +70,13 @@ export function CreateRunForm({
           limits,
           costModel,
         });
-        setError(result.error === "no_risk_profile" ? t.create.noRiskProfile : t.create.error);
+        if (result.error === "no_risk_profile") {
+          setError(t.create.noRiskProfile);
+        } else if (result.error === "unsatisfiable_collection") {
+          setError(t.create.unsatisfiableCollection);
+        } else {
+          setError(t.create.error);
+        }
         setPending(false);
       } catch (submitError) {
         if (submitError instanceof Error && submitError.message.includes("NEXT_REDIRECT")) {

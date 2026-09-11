@@ -6,7 +6,7 @@ import { candles } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "../adapters/cotahist/schema";
 import {
-  hasCandlesInRange,
+  lastCandleSessionInRange,
   latestCandle,
   recentDailyCandles,
   searchInstruments,
@@ -122,38 +122,61 @@ describe("candle-repository reads", () => {
   });
 });
 
-describe("hasCandlesInRange", () => {
-  it("is true when any ticker in the universe has a candle inside the range (round 3 item 1)", async () => {
+describe("lastCandleSessionInRange", () => {
+  it("returns the latest session with a candle for any ticker in the universe", async () => {
     const db = getDb();
     await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
     ]);
+    await upsertDailyCandles(db, "2026-05-20", new Date("2026-05-20T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_B, session: "2026-05-20" }),
+    ]);
 
-    const result = await hasCandlesInRange(db, [TICKER_A, TICKER_B], {
+    const result = await lastCandleSessionInRange(db, [TICKER_A, TICKER_B], {
       from: "2026-05-01",
       to: "2026-05-31",
     });
 
-    expect(result).toBe(true);
+    expect(result).toBe("2026-05-20");
   });
 
-  it("is false when the calendar carries the range but no ticker in the universe has a candle in it (round 3 item 1)", async () => {
+  it("clamps to a session strictly inside the requested range, not the latest ever ingested", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
+    ]);
+    await upsertDailyCandles(db, "2026-06-15", new Date("2026-06-15T21:00:00.000Z"), [
+      stockRow({ ticker: TICKER_A, session: "2026-06-15" }),
+    ]);
+
+    const result = await lastCandleSessionInRange(db, [TICKER_A], {
+      from: "2026-05-01",
+      to: "2026-05-31",
+    });
+
+    expect(result).toBe("2026-05-12");
+  });
+
+  it("is undefined when the calendar carries the range but no ticker in the universe has a candle in it (round 3 item 1)", async () => {
     const db = getDb();
     await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),
     ]);
 
-    const result = await hasCandlesInRange(db, [TICKER_A], {
+    const result = await lastCandleSessionInRange(db, [TICKER_A], {
       from: "2026-06-01",
       to: "2026-06-30",
     });
 
-    expect(result).toBe(false);
+    expect(result).toBeUndefined();
   });
 
-  it("is false for an empty universe", async () => {
+  it("is undefined for an empty universe", async () => {
     const db = getDb();
-    const result = await hasCandlesInRange(db, [], { from: "2026-05-01", to: "2026-05-31" });
-    expect(result).toBe(false);
+    const result = await lastCandleSessionInRange(db, [], {
+      from: "2026-05-01",
+      to: "2026-05-31",
+    });
+    expect(result).toBeUndefined();
   });
 });

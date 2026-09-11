@@ -492,6 +492,182 @@ describe("createBacktestRunAction", () => {
       );
   });
 
+  it("clamps period.to to the last ingested candle session for the universe, not the calendar's own reach (round 5 item 1)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+    const { BacktestRunRepository } = await import("./backtest-run-repository");
+
+    const db = getDb();
+    const email = uniqueEmail("clamp-to-candle");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    // The calendar carries every session (`runCalendarSources` ingests
+    // ~15 months past the newest candle); candles only exist for the
+    // first half. Requesting `to` at the calendar's own last session must
+    // persist `period.to` at the last *candle* session instead.
+    const clampSessions = businessDays(10, 2095, 4, 3);
+    await upsertTradingSessions(
+      db,
+      clampSessions.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+    const candleSessions = clampSessions.slice(0, 5);
+    for (const session of candleSessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker: TICKER,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    let redirected = false;
+    try {
+      await createBacktestRunAction({
+        strategyId: strategy.id,
+        strategyVersionId: version.id,
+        universe: [TICKER],
+        from: clampSessions[0] ?? "",
+        to: clampSessions.at(-1) ?? "",
+        initialCapital: centavos(500_000_00),
+        limits: "enforce",
+        costModel: "b3_default",
+      });
+    } catch (error) {
+      if (!isRedirectError(error)) throw error;
+      redirected = true;
+    }
+    expect(redirected).toBe(true);
+
+    const runs = await new BacktestRunRepository(db, currentUser).listMineForStrategy(strategy.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.period.to).toBe(candleSessions.at(-1));
+
+    await db
+      .delete(tradingSessions)
+      .where(
+        and(
+          gte(tradingSessions.date, clampSessions[0] ?? ""),
+          lte(tradingSessions.date, clampSessions.at(-1) ?? ""),
+        ),
+      );
+  });
+
+  it("refuses an iv_rank strategy at creation instead of completing a green, empty, immutable run (round 5 item 2)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+
+    const db = getDb();
+    const email = uniqueEmail("iv-rank");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    await upsertTradingSessions(
+      db,
+      SESSIONS.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+    for (const session of SESSIONS) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker: TICKER,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const ivRankDefinition: StrategyDefinition = {
+      name: "IV rank baixo",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 252 } },
+        comparator: "<",
+        right: { kind: "constant", value: decimalString("30") },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.2") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      ivRankDefinition,
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const result = await createBacktestRunAction({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      universe: [TICKER],
+      from: SESSIONS[0] ?? "",
+      to: SESSIONS.at(-1) ?? "",
+      initialCapital: centavos(500_000_00),
+      limits: "enforce",
+      costModel: "b3_default",
+    });
+
+    expect(result).toEqual({ status: "error", error: "unsatisfiable_collection" });
+  });
+
   it("refuses a request whose sessions x universe exceeds what one chunk can hold (round 2 item 17)", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");

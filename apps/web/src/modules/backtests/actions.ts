@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { centavosSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import { engine, type StrategyVersion } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
@@ -11,7 +12,11 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import { calendarUpTo, hasCandlesInRange, tradingSessionForDate } from "@/modules/market-data";
+import {
+  calendarUpTo,
+  lastCandleSessionInRange,
+  tradingSessionForDate,
+} from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -22,7 +27,7 @@ import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type CreateBacktestRunResult = {
   status: "error";
-  error: "invalid" | "not_found" | "rate_limited" | "no_risk_profile";
+  error: "invalid" | "not_found" | "rate_limited" | "no_risk_profile" | "unsatisfiable_collection";
 };
 
 const createInputSchema = z.strictObject({
@@ -108,8 +113,8 @@ async function createBacktestRun(
   }
   const calendar = await calendarUpTo(db, new Date(`${parsed.to}T23:59:59.999Z`));
   const rangeSessions = calendar.filter((session) => session.date >= parsed.from);
-  const lastSession = rangeSessions.at(-1);
-  if (!lastSession) {
+  const lastCalendarSession = rangeSessions.at(-1);
+  if (!lastCalendarSession) {
     return { status: "error", error: "invalid" };
   }
   // Every chunk re-materialises the whole-period MarketView: bounding
@@ -118,7 +123,6 @@ async function createBacktestRun(
   if (rangeSessions.length * parsed.universe.length > MAX_SESSIONS_TIMES_UNIVERSE) {
     return { status: "error", error: "invalid" };
   }
-  const period = { from: parsed.from, to: lastSession.date };
 
   const watchlist = await new WatchlistRepository(db, user).list();
   const watchlistTickers = new Set(watchlist.map((item) => item.ticker));
@@ -150,15 +154,53 @@ async function createBacktestRun(
   // tradingSessionForDate alone only proves the calendar carries `from`; a `from`
   // in a year with no ingested candles for this universe would still pass
   // it and yield a green, complete, zero-operation run (round 2 item 10).
-  // A narrow existence check answers exactly that, one indexed query
-  // against the primary key, rather than the whole-period MarketView
-  // `run-chunk.ts` needs a 300-second route budget to load: a legal
-  // near-ceiling create ran that same load in a Server Action with no
-  // raised duration at all, so the platform's own default killed it with
-  // no run written after already spending one of ten creation slots
-  // (round 3 item 1).
-  if (!(await hasCandlesInRange(db, parsed.universe, period))) {
+  // The same query also gives the data-clamped `to` (round 5 item 1): the
+  // ANBIMA calendar is ingested ~15 months past the newest candle
+  // (`runCalendarSources`, `market-data/ingest.ts`), so clamping `to` to
+  // the calendar alone (as this used to) lets every session in that gap
+  // count as a traded period session with no trade in it, diluting
+  // `computeBacktestMetrics`'s `sessions = equityCurve.length` divisor for
+  // CAGR, Sharpe and exposure with no note on an immutable run. One indexed
+  // query against the `(ticker, timeframe, session)` index, not the
+  // whole-period MarketView `run-chunk.ts` needs a 300-second route budget
+  // to load: a legal near-ceiling create ran that same load in a Server
+  // Action with no raised duration at all, so the platform's own default
+  // killed it with no run written after already spending one of ten
+  // creation slots (round 3 item 1).
+  const lastCandleSession = await lastCandleSessionInRange(db, parsed.universe, {
+    from: parsed.from,
+    to: lastCalendarSession.date,
+  });
+  if (!lastCandleSession) {
     return { status: "error", error: "invalid" };
+  }
+  const period = { from: parsed.from, to: lastCandleSession };
+
+  // Mirrors the nightly evaluator's own refusal (`evaluate-signals.ts`,
+  // `UNSATISFIABLE_COLLECTION_CODE`): no ingestion source fills
+  // `impliedVolatilityIndex` yet (#81), so an `iv_rank` strategy's every
+  // session reads `insufficient_data`, no signal ever fires, and the run
+  // completes green, immutable and empty — the same shape round-1 item 2
+  // and round-2 item 1 were blocked for. Refused here, before the
+  // immutable row exists, rather than left to complete silently.
+  const strategyVersion: StrategyVersion = {
+    id: version.id,
+    definition: version.definition,
+    structure,
+  };
+  const toSession = calendar.find((session) => session.date === period.to);
+  if (!toSession) {
+    return { status: "error", error: "invalid" };
+  }
+  const window = engine.dataWindow({
+    strategy: strategyVersion,
+    instruments: parsed.universe,
+    calendar,
+    at: toSession.close,
+    since: fromSession.open,
+  });
+  if (window.collections.includes("impliedVolatilityIndex")) {
+    return { status: "error", error: "unsatisfiable_collection" };
   }
 
   const run = await new BacktestRunRepository(db, user).create({

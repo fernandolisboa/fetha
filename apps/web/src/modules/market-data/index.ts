@@ -17,7 +17,7 @@ export {
 // only from ./ingest; tests that need to seed rows import the repository
 // path directly (see watchlist/actions.integration.test.ts).
 export {
-  hasCandlesInRange,
+  lastCandleSessionInRange,
   latestCandle,
   searchInstruments,
   type CandleRow,

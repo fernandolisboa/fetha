@@ -23,6 +23,8 @@ const en = {
     invalidCapital: "Enter the initial capital as a valid amount, e.g. 10.000,00.",
     noRiskProfile:
       "Declare a risk profile in Settings before running a backtest, so its limits can be enforced.",
+    unsatisfiableCollection:
+      "This strategy uses implied volatility rank, which has no data source yet (issue #81). Choose a strategy without it.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
   },
   report: {
@@ -154,6 +156,8 @@ const ptBR = {
     invalidCapital: "Informe o capital inicial como um valor válido, por exemplo 10.000,00.",
     noRiskProfile:
       "Declare um perfil de risco em Configurações antes de rodar um backtest, para que os limites possam ser aplicados.",
+    unsatisfiableCollection:
+      "Essa estratégia usa percentil de volatilidade implícita, que ainda não tem fonte de dados (issue #81). Escolha uma estratégia sem esse indicador.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
   },
   report: {
@@ -284,7 +288,7 @@ export function isResumableRunError(code: string | null): boolean {
   return code === null || !NON_RESUMABLE_RUN_ERRORS.has(code);
 }
 
-export function engineErrorMessage(code: string): string {
+export function runErrorMessage(code: string): string {
   if (code in t.engineErrors) return t.engineErrors[code as EngineErrorCode];
   if (code in t.webErrors) return t.webErrors[code as keyof typeof t.webErrors];
   return code;
