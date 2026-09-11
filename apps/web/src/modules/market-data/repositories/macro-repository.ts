@@ -36,16 +36,25 @@ export async function latestMacroPointDate(
   return row?.date;
 }
 
-// Every macro point (any series) with date in [fromDate, toDate], ordered:
-// `validateViewIntegrity` (packages/engine/src/internal/validate-view-integrity.ts)
-// covers `calendar`, `candles` and `optionPrices` only — `view.macro` is
-// never checked for an exact-tie duplicate, so `resolveRiskFreeRate` (rates.ts)
-// breaks a tie on the same `asOf` by array order, and CDI ties are real at
-// year end (24/12 and 23/12 both resolve against 26/12's open). Ordering the
-// query itself is what keeps that array order deterministic across two
-// chunks of the same immutable run (#18 round 5 item 7); an unordered
-// result set has no such guarantee even for an identical query re-run
-// against unchanged data.
+// Every macro point (any series) with date in [fromDate, toDate], ordered —
+// and the direction of that order is load-bearing, not cosmetic (#18 round
+// 6 item 5). `validateViewIntegrity`
+// (packages/engine/src/internal/validate-view-integrity.ts) covers
+// `calendar`, `candles` and `optionPrices` only — `view.macro` is never
+// checked for an exact-tie duplicate, so `resolveRiskFreeRate` (rates.ts)
+// resolves a same-`asOf` tie through `latestVisible`'s strict `>` compare,
+// which keeps the *first* row it sees and never replaces it on an equal
+// `asOf`. CDI ties are real at year end: 23/12 and 24/12 both publish their
+// rate stamped at 26/12's open (the next session's own `asOf`), so both are
+// visible at the same instant. This deliberately orders `date DESC`, so the
+// fresher point (24/12) is seen first and wins the tie — the more recent
+// observation is the more accurate one, and the alternative (the older
+// point winning) would mean a later, presumably-corrected or more current
+// rate is silently discarded in favour of a stale one whenever both are
+// stamped together. Ordering the query itself also keeps that array order
+// deterministic across two chunks of the same immutable run (round 5 item
+// 7); an unordered result set has no such guarantee even for an identical
+// query re-run against unchanged data.
 export async function macroPointsInRange(
   db: Database,
   fromDate: string,
@@ -55,7 +64,7 @@ export async function macroPointsInRange(
     .select()
     .from(macroPoints)
     .where(and(gte(macroPoints.date, fromDate), lte(macroPoints.date, toDate)))
-    .orderBy(asc(macroPoints.date), asc(macroPoints.series));
+    .orderBy(desc(macroPoints.date), asc(macroPoints.series));
 }
 
 export async function upsertMacroPoints(db: Database, rows: MacroPoint[]): Promise<number> {
