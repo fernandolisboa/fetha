@@ -7,6 +7,12 @@ export {
 export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } from "./ingest";
 export { loadCandleSeries } from "./candle-series";
 export {
+  calendarUpTo,
+  loadMarketView,
+  previousTradingSession,
+  tradingSessionForDate,
+} from "./market-view";
+export {
   latestCandle,
   searchInstruments,
   type CandleRow,

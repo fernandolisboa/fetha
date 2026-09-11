@@ -1,6 +1,6 @@
 import { zipSync } from "fflate";
 import { and, eq, gte, lte } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import {
@@ -170,6 +170,11 @@ async function cleanup(): Promise<void> {
   await db.delete(macroPoints).where(eq(macroPoints.date, TEST_SESSION));
 }
 
+// Both before and after: the "drains" test below deliberately writes candles
+// and ingestion runs for this same ticker across the whole gap window, and a
+// query that expected exactly one such row (below) is otherwise fragile
+// against any stray leftover from a run that failed mid-test.
+beforeEach(cleanup);
 afterEach(cleanup);
 
 describe("ingest", () => {
@@ -188,14 +193,22 @@ describe("ingest", () => {
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
 
-    const [candleRow] = await db.select().from(candles).where(eq(candles.ticker, STOCK_TICKER));
+    const [candleRow] = await db
+      .select()
+      .from(candles)
+      .where(and(eq(candles.ticker, STOCK_TICKER), eq(candles.session, TEST_SESSION)));
     expect(candleRow?.close).toBe("1.080000");
     expect(candleRow?.asOf.toISOString()).toBe("2026-06-15T20:00:00.000Z");
 
     const [optionPriceRow] = await db
       .select()
       .from(optionDailyPrices)
-      .where(eq(optionDailyPrices.ticker, OPTION_TICKER));
+      .where(
+        and(
+          eq(optionDailyPrices.ticker, OPTION_TICKER),
+          eq(optionDailyPrices.session, TEST_SESSION),
+        ),
+      );
     expect(optionPriceRow?.close).toBe("1.080000");
     expect(optionPriceRow?.right).toBe("call");
     expect(optionPriceRow?.strike).toBe("5.00000000");

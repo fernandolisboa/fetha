@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
@@ -123,6 +123,44 @@ export async function upsertDailyCandles(
   }
 
   return deduped.length;
+}
+
+// Every daily candle for `tickers` whose session falls in [fromSession,
+// toSession], oldest first: the shape a `DataWindow`-driven MarketView
+// needs (#19), driven by session dates rather than a row-count limit so a
+// strategy's own indicator warm-up decides how far back to load, not a
+// fixed constant.
+export async function candlesInSessionRange(
+  db: Database,
+  tickers: string[],
+  fromSession: string,
+  toSession: string,
+): Promise<CandleRow[]> {
+  if (tickers.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
+    .from(candles)
+    .where(
+      and(
+        inArray(candles.ticker, tickers),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        gte(candles.session, fromSession),
+        lte(candles.session, toSession),
+      ),
+    )
+    .orderBy(asc(candles.ticker), asc(candles.session));
+  return rows.map(toCandleRow);
 }
 
 export async function latestCandle(db: Database, ticker: string): Promise<CandleRow | null> {

@@ -1,22 +1,42 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
+import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import type { DecimalString, Structure, StrategyDefinition } from "@fetha/contracts";
+import { engine, type StrategyVersion, type TradingSession } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
   candles,
   corporateActionFactors,
+  macroPoints,
   optionDailyPrices,
   optionSeries,
   tradingSessions,
 } from "@/db/schema/market-data";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
-import { buildOperationMarketView } from "./market-view";
-import { upsertDailyCandles } from "./repositories/candle-repository";
+import { buildOperationMarketView, loadMarketView } from "./market-view";
+import { DAILY_TIMEFRAME, upsertDailyCandles } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "20:00:00.000Z";
+
+// A tiny deterministic PRNG (#19 round 3 item 5), not cryptographic: the
+// same seed always produces the same sequence, so the EMA truncation
+// fixture below is reproducible across runs and machines instead of relying
+// on `Math.random()`.
+function mulberry32(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 function businessDays(startIso: string, count: number): string[] {
   const days: string[] = [];
@@ -46,6 +66,10 @@ async function seedSessions(dates: string[]): Promise<void> {
       })),
     )
     .onConflictDoNothing();
+}
+
+function decimalString(value: string): DecimalString {
+  return value as DecimalString;
 }
 
 function uniqueTicker(label: string): string {
@@ -459,5 +483,221 @@ describe("buildOperationMarketView", () => {
 
     expect(view.candles).toHaveLength(1);
     expect(view.candles[0]?.close).toBe("30.000000");
+  });
+
+  it("fails typed instead of reaching the engine when a stored option right is out of vocabulary (round 2 item 2)", async () => {
+    const underlying = uniqueTicker("BAD");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-12-01", 3);
+    const atSession = sessions[0];
+    const expiry = sessions[sessions.length - 1];
+    if (!atSession || !expiry) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${underlying}-BAD`,
+      ticker: `${underlying}W1`,
+      underlying,
+      right: "straddle",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${atSession}T13:00:00.000Z`),
+    });
+
+    const at = `${atSession}T14:00:00.000Z`;
+    await expect(buildOperationMarketView(db, underlying, at)).rejects.toThrow(ZodError);
+  });
+});
+
+describe("loadMarketView", () => {
+  const cleanupSeries: string[] = [];
+  const cleanupTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(candles).where(eq(candles.ticker, ticker));
+    }
+    const dates = seededSessionDates.splice(0);
+    if (dates.length > 0) {
+      await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
+    }
+    const series = cleanupSeries.splice(0);
+    if (series.length > 0) {
+      await db.delete(macroPoints).where(inArray(macroPoints.series, series));
+    }
+  });
+
+  it("fails typed instead of reaching the engine when a stored macro series is out of vocabulary (round 2 item 2)", async () => {
+    const db = getDb();
+    const sessions = businessDays("2099-12-08", 3);
+    const from = sessions[0];
+    const to = sessions[sessions.length - 1];
+    if (!from || !to) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const bogusSeries = `bogus-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
+    cleanupSeries.push(bogusSeries);
+    await db.insert(macroPoints).values({
+      series: bogusSeries,
+      date: from,
+      asOf: new Date(`${from}T13:00:00.000Z`),
+      annualRate: "10.00000000",
+    });
+
+    await expect(
+      loadMarketView(db, {
+        from: `${from}T00:00:00.000Z`,
+        to: `${to}T23:59:59.000Z`,
+        instruments: [],
+        timeframes: ["D1"],
+        collections: ["macro"],
+      }),
+    ).rejects.toThrow(ZodError);
+  });
+
+  it("returns at least 450 candles for an ema(150) DataWindow over ~500 sessions, close to the full-history indicator value (round 2 item 5)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("EMA");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2020-01-06", 500);
+    await seedSessions(sessions);
+
+    const months = new Set(sessions.map((session) => session.slice(0, 7)));
+    for (const month of months) {
+      await ensureMonthlyPartition(db, "candles", `${month}-01`);
+    }
+
+    // A perfect linear ramp is vacuous here (#19 round 3 item 5): an EMA's
+    // SMA seed lands exactly on a linear series' fixed point, so the
+    // truncated and full-history values come out bit-identical for any
+    // window >= 150 bars, no matter how the tolerance is set. A deterministic
+    // seeded level shift inside the first 50 bars — priced near R$ 100, so
+    // one centavo of rounding is ~0.01%, well under the bound below — gives
+    // the truncated EMA(150) something real to differ from: the shift sits
+    // outside the >= 450-bar truncated window but inside the full 500-bar
+    // history, so their SMA seeds differ and the gap decays but never hits
+    // zero.
+    const walk = mulberry32(20260910);
+    const rows = sessions.map((session, index) => {
+      const level = index < 50 ? 85 : 100;
+      const noise = (walk() - 0.5) * 0.4;
+      const close = (level + noise).toFixed(8);
+      return {
+        ticker,
+        timeframe: DAILY_TIMEFRAME,
+        session,
+        asOf: new Date(`${session}T${SESSION_CLOSE_UTC}`),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        tradedQuantity: 1000,
+      };
+    });
+    const batchSize = 500;
+    for (let start = 0; start < rows.length; start += batchSize) {
+      await db
+        .insert(candles)
+        .values(rows.slice(start, start + batchSize))
+        .onConflictDoUpdate({
+          target: [candles.ticker, candles.timeframe, candles.session],
+          set: {
+            asOf: sql`excluded.as_of`,
+            open: sql`excluded.open`,
+            high: sql`excluded.high`,
+            low: sql`excluded.low`,
+            close: sql`excluded.close`,
+            tradedQuantity: sql`excluded.traded_quantity`,
+          },
+        });
+    }
+
+    const firstSession = sessions[0];
+    const lastSession = sessions[sessions.length - 1];
+    if (!firstSession || !lastSession) throw new Error("fixture setup failed");
+
+    const calendar: TradingSession[] = sessions.map((session) => ({
+      date: sessionDateSchema.parse(session),
+      open: instantSchema.parse(`${session}T${SESSION_OPEN_UTC}`),
+      close: instantSchema.parse(`${session}T${SESSION_CLOSE_UTC}`),
+    }));
+    const at = instantSchema.parse(`${lastSession}T${SESSION_CLOSE_UTC}`);
+
+    const structure: Structure = {
+      id: "stock",
+      name: "Stock",
+      expiry: "shared",
+      legs: [{ role: "stock", side: "buy", ratio: 1 }],
+    };
+    const definition: StrategyDefinition = {
+      name: "EMA truncation fixture",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "ema", length: 150 } },
+        comparator: ">",
+        right: { kind: "price", field: "close" },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy: StrategyVersion = { id: "fixture-version", definition, structure };
+    const instruments = [tickerSchema.parse(ticker)];
+
+    const truncatedWindow = engine.dataWindow({ strategy, instruments, calendar, at });
+
+    const truncatedView = await loadMarketView(db, truncatedWindow);
+    const tickerCandles = truncatedView.candles.filter((c) => c.ticker === ticker);
+    expect(tickerCandles.length).toBeGreaterThanOrEqual(450);
+    expect(tickerCandles.length).toBeLessThan(500);
+
+    const fullWindow = engine.dataWindow({
+      strategy,
+      instruments,
+      calendar,
+      at,
+      since: calendar[0]?.close,
+    });
+    const fullView = await loadMarketView(db, fullWindow);
+    expect(fullView.candles.filter((c) => c.ticker === ticker).length).toBe(500);
+
+    const truncatedResult = await engine.indicators({
+      view: truncatedView,
+      ticker: tickerSchema.parse(ticker),
+      timeframe: "D1",
+      indicators: [{ kind: "ema", length: 150 }],
+      at,
+    });
+    const fullResult = await engine.indicators({
+      view: fullView,
+      ticker: tickerSchema.parse(ticker),
+      timeframe: "D1",
+      indicators: [{ kind: "ema", length: 150 }],
+      at,
+    });
+    if (!truncatedResult.ok || !fullResult.ok) {
+      throw new Error("indicator computation failed");
+    }
+
+    const truncatedValue = truncatedResult.value.series[0]?.values.at(-1);
+    const fullValue = fullResult.value.series[0]?.values.at(-1);
+    if (!truncatedValue || !fullValue) {
+      throw new Error("missing ema value");
+    }
+    const relativeDifference =
+      Math.abs(Number(truncatedValue) - Number(fullValue)) / Number(fullValue);
+    // Non-zero (#19 round 3 item 5): the level shift the truncated window
+    // drops makes this assertion actually exercise the tolerance instead of
+    // reading zero regardless of how much warm-up the window keeps.
+    expect(relativeDifference).toBeGreaterThan(0);
+    expect(relativeDifference).toBeLessThan(0.001);
   });
 });

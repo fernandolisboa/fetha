@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { macroPoints } from "@/db/schema/market-data";
@@ -34,6 +34,21 @@ export async function latestMacroPointDate(
     .orderBy(desc(macroPoints.date))
     .limit(1);
   return row?.date;
+}
+
+// Every macro point (any series) with date in [fromDate, toDate], no
+// ordering guarantee needed beyond that: the engine dedupes and validates
+// `view.macro` itself, this is just the bounded slice a `DataWindow`-driven
+// MarketView asks for (#19).
+export async function macroPointsInRange(
+  db: Database,
+  fromDate: string,
+  toDate: string,
+): Promise<Array<{ series: string; date: string; asOf: Date; annualRate: string }>> {
+  return db
+    .select()
+    .from(macroPoints)
+    .where(and(gte(macroPoints.date, fromDate), lte(macroPoints.date, toDate)));
 }
 
 export async function upsertMacroPoints(db: Database, rows: MacroPoint[]): Promise<number> {
