@@ -150,7 +150,16 @@ const equityPointSchema = z.strictObject({
   drawdown: decimalStringSchema,
 });
 
-const backtestMetricsSchema = z.strictObject({
+// `z.object`, not `z.strictObject` (#18 round 5 item 4, ADR-0013 addendum
+// "persisted engine artifacts"): this schema — and `walkForwardWindowSchema`
+// which embeds it, and `backtestRunSchema` at the bottom of this file — are
+// the read-path parse of an immutable, already-persisted `jsonb` column, not
+// a fresh input the engine controls the shape of at write time. An engine
+// change that adds a field here (#30's walk-forward window is the concrete
+// near-term case) must not throw a raw `ZodError` out of every read of a
+// row written by an older engine version; an unrecognised key is silently
+// dropped instead of rejecting the whole row.
+const backtestMetricsSchema = z.object({
   sessions: z.int().min(0),
   operations: z.int().min(0),
   totalReturn: decimalStringSchema,
@@ -165,7 +174,7 @@ const backtestMetricsSchema = z.strictObject({
   slippage: centavosSchema,
 });
 
-const walkForwardWindowSchema = z.strictObject({
+const walkForwardWindowSchema = z.object({
   from: sessionDateSchema,
   to: sessionDateSchema,
   metrics: backtestMetricsSchema,
@@ -209,7 +218,7 @@ export const backtestConfigSchema = z.strictObject({
 });
 export type BacktestConfig = z.infer<typeof backtestConfigSchema>;
 
-export const backtestRunSchema = z.strictObject({
+export const backtestRunSchema = z.object({
   config: backtestConfigSchema,
   configDigest: z.string().min(1),
   operations: z.array(simulatedOperationSchema),

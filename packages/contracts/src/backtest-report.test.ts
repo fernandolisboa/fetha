@@ -152,4 +152,35 @@ describe("backtestRunSchema", () => {
     };
     expect(() => backtestRunSchema.parse(broken)).toThrow();
   });
+
+  // #18 round 5 item 4: a row an older engine wrote must still parse after
+  // a later engine version adds a field to `BacktestRun`, `BacktestMetrics`
+  // or `WalkForwardWindow` (the concrete near-term case is #30's own
+  // walk-forward window) — degrading by dropping the unrecognised key,
+  // never 500ing `getMyBacktestRunsForStrategy` on every historical row.
+  it("tolerates an unknown top-level key instead of rejecting the whole row", () => {
+    const withExtra = { ...run, futureTopLevelField: "added by a later engine" };
+    expect(backtestRunSchema.parse(withExtra)).toEqual(run);
+  });
+
+  it("tolerates an unknown key inside metrics instead of rejecting the whole row", () => {
+    const withExtra = {
+      ...run,
+      metrics: { ...run.metrics, futureMetric: "added by a later engine" },
+    };
+    expect(backtestRunSchema.parse(withExtra)).toEqual(run);
+  });
+
+  it("tolerates an unknown key inside a walk-forward window instead of rejecting the whole row", () => {
+    const withWalkForward = {
+      ...run,
+      walkForward: [
+        { from: "2024-01-02", to: "2024-01-31", metrics: run.metrics, futureField: "added later" },
+      ],
+    };
+    expect(backtestRunSchema.parse(withWalkForward)).toEqual({
+      ...run,
+      walkForward: [{ from: "2024-01-02", to: "2024-01-31", metrics: run.metrics }],
+    });
+  });
 });

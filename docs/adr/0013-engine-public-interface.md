@@ -1982,3 +1982,48 @@ cannot drift. The cost is uniformity: pricing three legs means assembling a view
 passing scalars, and a backtest chunk re-sends its view slice each request; both are bounded and
 were accepted knowingly. Multi-expiry structures are excluded from v1 by the `Structure` schema
 (ADR-0014 Q43), so payoff is always at one expiry.
+
+## Addendum: persisted engine artifacts get a contracts-side parsing envelope (2026-09-11)
+
+`backtest-run-repository.ts` stores an engine `BacktestRun` (and `BacktestCheckpoint`) as `jsonb`
+and must re-validate it on every read, since a row written months ago by an older engine version
+is untyped data by the time it comes back out of Postgres. Re-validating means owning a second
+schema for a type this ADR calls frozen and says "everything outside the package depends on the
+types below and nothing else" — apparently contradicting that rule. It does not: the rule is
+about _behaviour_ (nothing outside the package re-implements engine logic or reaches into
+`internal/`); a parsing envelope for the engine's own declared output shape, at the one edge that
+persists and later re-reads it, is validation, not a second implementation. `packages/contracts`
+cannot import from `packages/engine` (contracts is the lower layer; the engine depends on it, not
+the reverse), so `backtest-report.ts`'s `backtestRunSchema` mirrors the frozen `BacktestRun` shape
+by value — the same pattern `scalars.ts` already uses for the engine's `optionRights`,
+`exerciseStyles` and `macroSeriesKinds` vocabularies (round 4 of #18's review correctly kept that
+mirror over deleting it in favour of importing the engine's own arrays, since contracts cannot
+depend on the engine either way).
+
+Two obligations come with owning that mirror, both closed by #18 round 5 item 4:
+
+1. **A compile-time pin.** `backtest-run-repository.ts` reads a stored run through
+   `backtestRunSchema.parse(value) as unknown as BacktestRun` — the `as unknown as` deliberately
+   severs the link an ordinary cast would give for free, so nothing at build time catches the
+   contracts-side schema and the engine-side type drifting apart. `apps/web/src/modules/backtests/
+backtest-run-type-pin.test.ts` is a compile-time-only `expectTypeOf` assertion, at the one
+   place both packages are visible, checking the two shapes stay assignable both ways. It excludes
+   three fields for reasons documented at each exclusion in that file: `config` and `operations`
+   for a Zod recursive/discriminated-union inference quirk unrelated to real drift, and `notes` /
+   `provenance` because `noteSchema.code` and `provenanceSchema.pricingModel` are intentionally
+   `z.string()` rather than mirrors of the engine's `NoteCode` and `PricingModel` vocabularies — a
+   known, separately-flagged gap (narrowing them trades one failure mode for its opposite: a
+   future engine-side member the mirror has not caught up with would then fail to parse).
+2. **Tolerant parsing at the persisted boundary.** `backtestRunSchema`, `backtestMetricsSchema`
+   and `walkForwardWindowSchema` use `z.object`, not `z.strictObject`: an engine change that adds
+   a field (the concrete near-term case is #30's walk-forward window) must not turn every read of
+   an older row into a raw `ZodError` — `getMyBacktestRunsForStrategy` 500ing an entire strategy
+   page because one historical run predates the field. An unrecognised key is dropped instead of
+   rejecting the row. This does not extend to every nested schema (operations, fills, provenance,
+   ...) — only the specific fields named in the failure scenario that prompted this addendum;
+   widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
+
+`backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
+run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
+already handles a version bump by restarting), never read back across an arbitrary span of engine
+history the way a completed run's `result` is.
