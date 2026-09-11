@@ -37,7 +37,10 @@ exposing module's interface, never through its tables.
    ADR-0017) ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading calendar
    (corporate-action factor recording is a follow-up, #50; the engine derives adjusted series
    point in time from whatever factors exist, ADR-0013), then evaluates every active daily
-   strategy over each user's watchlist and deposits signals in their inbox.
+   strategy over each user's watchlist and deposits signals in their inbox. Sizing an entry
+   uses the user's own declared risk profile (#22); a user with none declared still gets a
+   full evaluation, just never a sized entry signal (the engine's `unsizeable` outcome, logged,
+   never in the inbox).
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
    on each candle and caught up on reopening (late signals marked). Intraday candles fetched

@@ -12,7 +12,13 @@ import { setRailCollapsedAction } from "@/modules/preferences/client";
 import { destinations } from "../destinations";
 import { t } from "../strings";
 
-export function Rail({ initialCollapsed }: { initialCollapsed: boolean }) {
+export function Rail({
+  initialCollapsed,
+  unreadSignalCount,
+}: {
+  initialCollapsed: boolean;
+  unreadSignalCount: number;
+}) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const pathname = usePathname();
 
@@ -59,7 +65,7 @@ export function Rail({ initialCollapsed }: { initialCollapsed: boolean }) {
             <span className={cn("flex-1 truncate max-lg:hidden", collapsed && "hidden")}>
               {destination.label}
             </span>
-            {destination.showUnreadBadge ? (
+            {destination.showUnreadBadge && unreadSignalCount > 0 ? (
               <Badge
                 variant="secondary"
                 className={cn(
@@ -67,7 +73,7 @@ export function Rail({ initialCollapsed }: { initialCollapsed: boolean }) {
                   collapsed && "hidden",
                 )}
               >
-                0
+                {unreadSignalCount}
               </Badge>
             ) : null}
           </Link>

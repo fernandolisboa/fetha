@@ -11,6 +11,7 @@ import {
   getMyStrategy,
   getStructures,
   ShareToggleButton,
+  StrategyActiveToggle,
   StrategyEditorForm,
   StrategyNotFoundError,
   t,
@@ -51,7 +52,10 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
           </p>
           <h1 className="text-[22px] font-semibold tracking-tight">{strategy.name}</h1>
         </div>
-        <ShareToggleButton strategyId={strategy.id} visibility={strategy.visibility} />
+        <div className="flex items-center gap-4">
+          <StrategyActiveToggle strategyId={strategy.id} active={strategy.active} />
+          <ShareToggleButton strategyId={strategy.id} visibility={strategy.visibility} />
+        </div>
       </div>
 
       <StrategyEditorForm

@@ -7,6 +7,7 @@ export * from "./operations";
 export * from "./preferences";
 export * from "./risk-profiles";
 export * from "./rate-limits";
+export * from "./signals";
 export * from "./strategies";
 export * from "./structures";
 export * from "./terms-acceptances";

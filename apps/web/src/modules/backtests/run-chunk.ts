@@ -10,9 +10,11 @@ import {
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
+  calendarUpTo,
   loadMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
+  tradingSessionForDate,
 } from "@/modules/market-data";
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
@@ -166,14 +168,31 @@ export async function runBacktestChunk(
 
   let view;
   try {
-    view = await loadMarketView(db, {
+    // Resolved the same way `evaluate-signals.ts` resolves a strategy's
+    // warmup for a signal (#19): the calendar up to `toSession`'s own close,
+    // handed with `at`/`since` to `engine.dataWindow`, so a signal and a
+    // backtest of the same strategy version load an identical window
+    // instead of two independently re-derived ones (#18 round-2 correction).
+    const fromSession = await tradingSessionForDate(db, run.period.from);
+    const toSession = await tradingSessionForDate(db, run.period.to);
+    if (!fromSession || !toSession) {
+      throw new MarketViewUnavailableError("run period has no trading session in the calendar");
+    }
+    const calendar = await calendarUpTo(db, new Date(toSession.close));
+    const window = engine.dataWindow({
       strategy,
-      universe: run.universe,
-      period: run.period,
-      ...(options.optionChainTickerCap !== undefined
-        ? { optionChainTickerCap: options.optionChainTickerCap }
-        : {}),
+      instruments: run.universe,
+      calendar,
+      at: toSession.close,
+      since: fromSession.open,
     });
+    view = await loadMarketView(
+      db,
+      window,
+      options.optionChainTickerCap !== undefined
+        ? { optionChainTickerCap: options.optionChainTickerCap }
+        : {},
+    );
   } catch (error) {
     // Checked before the parent MarketViewUnavailableError: both are
     // thrown for a period this run cannot proceed with, but for opposite

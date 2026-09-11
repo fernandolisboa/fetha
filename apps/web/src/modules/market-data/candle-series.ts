@@ -10,24 +10,11 @@ import {
 import type { Database } from "@/db/client";
 
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
-import { recentDailyCandles, type CandleRow } from "./repositories/candle-repository";
+import { recentDailyCandles } from "./repositories/candle-repository";
+import { emptyMarketView, toEngineCandle } from "./market-view";
 
 const CANDLE_LOOKBACK_SESSIONS = 260;
 const ENGINE_TIMEFRAME = "D1";
-
-function emptyMarketView(): MarketView {
-  return {
-    calendar: [],
-    candles: [],
-    corporateActions: [],
-    optionSeries: [],
-    optionPrices: [],
-    quotes: [],
-    macro: [],
-    dividendYields: [],
-    impliedVolatilityIndex: [],
-  };
-}
 
 // The market-data module's "data view" exposure for a chart (CONTEXT.md):
 // nominal candles plus the corporate-action factors visible for `ticker`,
@@ -47,7 +34,7 @@ export async function loadCandleSeries(
 
   const view: MarketView = {
     ...emptyMarketView(),
-    candles: candleRows.map((row) => toEngineCandle(ticker, row)),
+    candles: candleRows.map((row) => toEngineCandle(row)),
     corporateActions: corporateActionRows.map((row) => ({
       ticker,
       exDate: row.exDate,
@@ -64,18 +51,4 @@ export async function loadCandleSeries(
     at: instantSchema.parse(now.toISOString()),
     form,
   });
-}
-
-function toEngineCandle(ticker: Ticker, row: CandleRow): MarketView["candles"][number] {
-  return {
-    ticker,
-    timeframe: ENGINE_TIMEFRAME,
-    session: row.session,
-    asOf: instantSchema.parse(row.asOf.toISOString()),
-    open: row.open,
-    high: row.high,
-    low: row.low,
-    close: row.close,
-    tradedQuantity: row.tradedQuantity,
-  };
 }

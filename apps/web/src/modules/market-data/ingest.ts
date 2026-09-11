@@ -62,6 +62,12 @@ function normalizeRunResult(result: RunResult): { rowCount: number; skippedRows?
 
 export interface IngestOutcome {
   session: string | null;
+  // Every cotahist session this run confirmed ok, oldest first (#19): after
+  // a multi-day outage this holds every gap session just drained, not only
+  // the newest one `session` reports, so the nightly evaluation can catch
+  // up on every session that closed while ingestion was down instead of
+  // silently skipping every one but the last.
+  okSessions: string[];
   ok: boolean;
   sources: SourceOutcome[];
 }
@@ -371,8 +377,16 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     cotahistResult.okSessions.at(-1) ??
     (cotahistSessions.length === 0 ? await latestSession(db, now) : null);
 
+  // Mirrors `session`'s own fallback (a fully caught-up run still reports the
+  // newest already-ingested session) rather than duplicating its logic: the
+  // only case that adds real sessions is a gap catch-up, where
+  // `cotahistResult.okSessions` already holds every one, oldest first.
+  const okSessions =
+    cotahistResult.okSessions.length > 0 ? cotahistResult.okSessions : session ? [session] : [];
+
   return {
     session,
+    okSessions,
     ok: sources.every((outcome) => outcome.error === undefined),
     sources,
   };

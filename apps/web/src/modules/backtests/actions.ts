@@ -11,7 +11,7 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import { hasCandlesInRange, sessionByDate, sessionsBetween } from "@/modules/market-data";
+import { calendarUpTo, hasCandlesInRange, tradingSessionForDate } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -102,11 +102,12 @@ async function createBacktestRun(
   // reach `complete` with 0 operations. `to` is clamped to the last
   // session actually in range rather than rejected, since an end date in
   // the future is a common and harmless request ("run until today").
-  const fromSession = await sessionByDate(db, parsed.from);
+  const fromSession = await tradingSessionForDate(db, parsed.from);
   if (!fromSession) {
     return { status: "error", error: "invalid" };
   }
-  const rangeSessions = await sessionsBetween(db, parsed.from, parsed.to);
+  const calendar = await calendarUpTo(db, new Date(`${parsed.to}T23:59:59.999Z`));
+  const rangeSessions = calendar.filter((session) => session.date >= parsed.from);
   const lastSession = rangeSessions.at(-1);
   if (!lastSession) {
     return { status: "error", error: "invalid" };
@@ -146,7 +147,7 @@ async function createBacktestRun(
     return { status: "error", error: "not_found" };
   }
 
-  // sessionByDate alone only proves the calendar carries `from`; a `from`
+  // tradingSessionForDate alone only proves the calendar carries `from`; a `from`
   // in a year with no ingested candles for this universe would still pass
   // it and yield a green, complete, zero-operation run (round 2 item 10).
   // A narrow existence check answers exactly that, one indexed query

@@ -380,8 +380,8 @@ describe("runBacktestChunk", () => {
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
     // Well before anything any test in this file (or a concurrent one) ever
-    // seeds: `sessionsBetween` finds nothing in range, so `loadMarketView`
-    // throws MarketViewUnavailableError instead of resolving a period.
+    // seeds: `tradingSessionForDate` resolves neither endpoint, so this
+    // throws MarketViewUnavailableError before `loadMarketView` is even called.
     const run = await repository.create({
       ...runConfig(setup),
       period: { from: "1990-01-01", to: "1990-01-02" },

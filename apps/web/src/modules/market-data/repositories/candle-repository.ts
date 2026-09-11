@@ -125,6 +125,44 @@ export async function upsertDailyCandles(
   return deduped.length;
 }
 
+// Every daily candle for `tickers` whose session falls in [fromSession,
+// toSession], oldest first: the shape a `DataWindow`-driven MarketView
+// needs (#19), driven by session dates rather than a row-count limit so a
+// strategy's own indicator warm-up decides how far back to load, not a
+// fixed constant.
+export async function candlesInSessionRange(
+  db: Database,
+  tickers: string[],
+  fromSession: string,
+  toSession: string,
+): Promise<CandleRow[]> {
+  if (tickers.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
+    .from(candles)
+    .where(
+      and(
+        inArray(candles.ticker, tickers),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        gte(candles.session, fromSession),
+        lte(candles.session, toSession),
+      ),
+    )
+    .orderBy(asc(candles.ticker), asc(candles.session));
+  return rows.map(toCandleRow);
+}
+
 export async function latestCandle(db: Database, ticker: string): Promise<CandleRow | null> {
   const [row] = await db
     .select({
@@ -178,40 +216,6 @@ export async function searchInstruments(
     session: sessionDateSchema.parse(row.session),
     close: decimalStringSchema.parse(row.close),
   }));
-}
-
-// Every daily candle for `ticker` between two sessions, inclusive, oldest
-// first: the shape a backtest's MarketView needs for its whole warmup-to-
-// period-end span (CONTEXT.md "Backtest run"), unlike recentDailyCandles's
-// fixed session count for a chart.
-export async function candlesForPeriod(
-  db: Database,
-  ticker: string,
-  from: string,
-  to: string,
-): Promise<CandleRow[]> {
-  const rows = await db
-    .select({
-      ticker: candles.ticker,
-      session: candles.session,
-      asOf: candles.asOf,
-      open: candles.open,
-      high: candles.high,
-      low: candles.low,
-      close: candles.close,
-      tradedQuantity: candles.tradedQuantity,
-    })
-    .from(candles)
-    .where(
-      and(
-        eq(candles.ticker, ticker),
-        eq(candles.timeframe, DAILY_TIMEFRAME),
-        gte(candles.session, from),
-        lte(candles.session, to),
-      ),
-    )
-    .orderBy(asc(candles.session));
-  return rows.map(toCandleRow);
 }
 
 // A single indexed existence check, not a whole-period load: the
