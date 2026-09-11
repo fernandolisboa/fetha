@@ -5,6 +5,8 @@ import type { Database } from "@/db/client";
 import {
   calendarUpTo,
   loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
   previousTradingSession,
   tradingSessionForDate,
 } from "@/modules/market-data";
@@ -421,7 +423,39 @@ export async function evaluateSignalsForSession(
           continue;
         }
 
-        const view = await loadMarketView(db, window);
+        // `loadMarketView` throws instead of returning a candle-less view
+        // for a window it cannot resolve or a chain too large to load in
+        // one call (#18 round 2/round 3, market-view.ts). Uncaught here,
+        // that throw unwinds past `strategiesProcessed += 1` above and out
+        // of the whole per-strategy loop — into the outer per-**user**
+        // catch (`:476`) — so one option strategy that crosses the chain
+        // cap (or a period with no session, unreachable in practice since
+        // `at`/`since` are both derived from `calendar`) costs this user
+        // every remaining active strategy's evaluation for the night, with
+        // nothing but a generic `evaluation_failed` to explain it, and
+        // repeats deterministically every run (#18 round 5 item 5). Same
+        // shape as `unknown_structure` and `UNSATISFIABLE_COLLECTION_CODE`
+        // just above: recorded explicitly per ticker/session, this
+        // strategy skipped, the loop moves on to the next one.
+        let view;
+        try {
+          view = await loadMarketView(db, window);
+        } catch (error) {
+          if (
+            error instanceof MarketViewTooLargeError ||
+            error instanceof MarketViewUnavailableError
+          ) {
+            const code =
+              error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
+            errors.push(code);
+            await writeResult(
+              [],
+              failureEvaluations(strategyId, version.id, tickers, userSessions, code),
+            );
+            continue;
+          }
+          throw error;
+        }
 
         const result = await engine.evaluateStrategy({
           view,
