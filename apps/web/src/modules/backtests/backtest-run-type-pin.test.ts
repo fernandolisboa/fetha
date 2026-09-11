@@ -27,22 +27,29 @@ import type { BacktestRun as EngineBacktestRun } from "@fetha/engine";
 // guaranteed to be fatal.
 //
 // `operations`, `notes` and `provenance` are excluded from the bidirectional
-// check below and checked one-directionally instead, for two different
-// reasons:
-// - `operations` is not a Zod inference quirk: contracts' `legSettlementSchema`
-//   is a flat `z.strictObject`, while the engine's own `LegSettlement`
-//   correlates role, side and outcome into a proper discriminated union
-//   (see `backtest-run-repository.ts`'s `asEngineRun`, which diagnoses this
-//   correctly — this comment used to say "inference quirk" and was wrong).
-//   The contract type is a strict superset shape, not a narrower one, so
-//   only the engine-to-contract direction can hold.
+// check below and checked one-directionally (engine → contract) instead.
+// That direction catches a field renamed or removed on the engine side (the
+// contract's declared shape stops accepting what the engine now produces);
+// it does NOT catch a field added on the engine side — `simulatedOperationSchema`,
+// `noteSchema` and `provenanceSchema` are all `z.strictObject`, so the
+// contract side is *stricter* about extra keys here, not a looser superset
+// (round 7 item 3 corrected this — an earlier version of this comment
+// claimed the opposite). An engine-side addition to any of these three is
+// caught at runtime instead, by `run-chunk.integration.test.ts:271`'s own
+// round-trip of a completed run's `result` through the real schema.
+// Excluded from the compile-time two-way check for two different reasons:
+// - `operations`: contracts' `legSettlementSchema` is a flat
+//   `z.strictObject`, while the engine's own `LegSettlement` correlates
+//   role, side and outcome into a proper discriminated union (see
+//   `backtest-run-repository.ts`'s `asEngineRun`, which diagnoses this
+//   correctly — this comment used to call it a Zod "inference quirk" and
+//   was wrong).
 // - `notes.code` and `provenance.pricingModel` are `z.string()`, not
 //   mirrors of the engine's `NoteCode` (~24 members) and `PricingModel`
 //   unions (tracked, not silently left: #91). Narrowing them to a two-way
 //   pin would make a future engine-side member fail to parse until the
 //   mirror catches up — the opposite failure this whole item exists to
-//   close — so only the direction that catches an engine-side rename or
-//   removal is checked.
+//   close.
 type Pinned<T> = Omit<T, "operations" | "notes" | "provenance"> & {
   operations: unknown;
   notes: unknown;
@@ -71,7 +78,7 @@ describe("backtestRunSchema mirrors the engine's own frozen BacktestRun shape", 
     expectTypeOf<PinnedEngine>().toExtend<PinnedContract>();
   });
 
-  it("operations, notes and provenance: an engine-side value still satisfies the contract shape (one-directional; the contract is a deliberately looser superset)", () => {
+  it("operations, notes and provenance: an engine-side value still satisfies the contract shape (one-directional — catches a rename or removal, not an addition; see run-chunk.integration.test.ts:271 for that half)", () => {
     expectTypeOf<EngineOperationsNotesProvenance>().toExtend<ContractOperationsNotesProvenance>();
   });
 });

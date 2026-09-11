@@ -2011,13 +2011,20 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
    stay assignable both ways — `config` included: it is mutually assignable today and excluding it
    would have left the largest, most strictly-parsed subtree of the artifact unpinned (round 6
    item 2). Three fields stay excluded from that two-way check and are instead checked
-   one-directionally (engine → contract), because the contract side is deliberately a looser
-   superset for each: `operations`, because contracts' `legSettlementSchema` is a flat
-   `z.strictObject` where the engine's own `LegSettlement` correlates role, side and outcome into
-   a real discriminated union (`backtest-run-repository.ts`'s `asEngineRun` names this correctly);
-   `notes` and `provenance`, because `noteSchema.code` and `provenanceSchema.pricingModel` are
-   `z.string()` rather than mirrors of the engine's `NoteCode` and `PricingModel` vocabularies
-   (tracked as #91, not silently left).
+   one-directionally (engine → contract): `operations`, `notes` and `provenance`. That direction
+   catches an engine-side field rename or removal (the contract's declared shape no longer accepts
+   what the engine now produces) but not an engine-side _addition_ — `simulatedOperationSchema`,
+   `noteSchema` and `provenanceSchema` are all `z.strictObject`, so the contract side is _stricter_
+   about extra keys here, not a looser superset as an earlier draft of this addendum claimed. An
+   engine-side addition to any of these three is instead caught at runtime, not compile time, by
+   `run-chunk.integration.test.ts:271`'s own round-trip through the real schema. The
+   fields are excluded from the two-way compile-time check for two different reasons:
+   `operations`, because contracts' `legSettlementSchema` is a flat `z.strictObject` where the
+   engine's own `LegSettlement` correlates role, side and outcome into a real discriminated union
+   (`backtest-run-repository.ts`'s `asEngineRun` names this correctly); `notes` and `provenance`,
+   because `noteSchema.code` and `provenanceSchema.pricingModel` are `z.string()` rather than
+   mirrors of the engine's `NoteCode` and `PricingModel` vocabularies (tracked as #91, not silently
+   left).
 2. **Tolerant parsing at the persisted boundary, on its actual merit.** `backtestRunSchema`,
    `backtestMetricsSchema` and `walkForwardWindowSchema` use `z.object`, not `z.strictObject`.
    `z.object` tolerates _extra_, unrecognised keys — it protects a row written by a schema _newer_
@@ -2025,15 +2032,22 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
    engine version, missing a key a newer schema now expects, still fails `z.object` the same way
    it would fail `z.strictObject`, because both require every declared (non-optional) key to be
    present. So when #30 adds a required field to `WalkForwardWindow`, every historical run that
-   predates it still throws reading it back — `z.object` alone does not close that. The actual
-   rule for a field added to a persisted engine artifact: ship it `.optional()` in the contracts
-   mirror (so an older row's absence parses as `undefined`, not a thrown error), or pair the schema
-   change with a backfill migration of existing rows. What `z.object` genuinely buys instead:
-   tolerating a field _removed_, _renamed_, or a schema _rolled back_ to an older shape after a
-   deploy — an unrecognised key left over from a newer write is dropped rather than rejecting the
-   whole row. That is the honest scope of this relaxation; it does not extend to every nested
-   schema (operations, fills, provenance, ...) — only the fields named here — and widening it
-   further is a decision for whoever hits the next concrete case, not a blanket rule.
+   predates it still throws reading it back — `z.object` alone does not close that.
+   The actual rule for a field added to a persisted, pinned engine artifact, in order: **first
+   choice, a backfill migration** of existing rows so every stored `WalkForwardWindow` already has
+   the new field by the time the schema requires it — the pin in obligation 1 stays exactly as
+   strict as it is today, no exception needed. **`.optional()` in the contracts mirror is not a
+   substitute for that** — it is a _temporary, one-release_ escape only, paired with excluding that
+   one field from the pinned set for the same release (adding `field?: T` to a schema whose type is
+   inside `Pinned<T>` makes `expectTypeOf<PinnedContract>().toExtend<PinnedEngine>()` fail outright,
+   since an optional contract field is not assignable to the engine's required one — the pin and
+   an unconditional `.optional()` cannot both hold at once). Un-exclude and re-pin the field the
+   release after the backfill lands. What `z.object` genuinely buys, on its own and without either
+   of the above: tolerating a field _removed_, _renamed_, or a schema _rolled back_ to an older
+   shape after a deploy — an unrecognised key left over from a newer write is dropped rather than
+   rejecting the whole row. That is the honest scope of this relaxation; it does not extend to
+   every nested schema (operations, fills, provenance, ...) — only the fields named here — and
+   widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
 
 `backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
