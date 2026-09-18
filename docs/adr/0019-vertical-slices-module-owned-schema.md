@@ -38,7 +38,8 @@ tables sat in `apps/web/src/db/schema/*.ts`; the rule "import other modules only
    `@/modules/<m>` (`index.ts`, server), `@/modules/<m>/client` (client-safe) and
    `@/modules/<m>/schema` (tables). ESLint's `import/no-restricted-paths` (`eslint-plugin-import`,
    bundled with `eslint-config-next`) carries one zone per module, plus zones so that `src/app`
-   and `src/db` import only entry points and `src/lib` imports no module. Exempt:
+   and `src/db` import only entry points and `src/lib` and `src/components` import no module.
+   Exempt:
    `*.integration.test.ts` and `src/db/test/**`, which seed reference data through
    module-private repositories on purpose (market data is read-only to user-facing code,
    CLAUDE.md principle 5; documented in `modules/market-data/index.ts`). Inside a module, imports

@@ -48,7 +48,8 @@ Code outside a module may import exactly three paths, enforced by ESLint
   `schema → schema` is the one sanctioned cross-module link at the table level.
 
 Inside a module imports are relative, never through the module's own `@/modules/<m>` alias.
-`src/app` and `src/db` import only entry points; `src/lib` imports no module at all. The only
+`src/app` and `src/db` import only entry points; `src/lib` and `src/components` import no module
+at all. The only
 exemption is `*.integration.test.ts` and `src/db/test/**`, which seed reference data through
 `market-data`'s private repositories on purpose: market data is read-only to user-facing code
 (CLAUDE.md principle 5), so no entry point exposes a writer.
@@ -71,8 +72,9 @@ it holds no business rule. `getDb()` is obtained at this edge and passed into th
 
 - `src/db/client.ts`: the Neon connection and the `Database` type. `src/db/schema.ts` is the
   barrel that re-exports every module's schema for drizzle-kit and the Drizzle client.
-- `src/lib/`: formatters (`format/brl`, `decimal`, `percent`, `date-time`), `env`, `instant`,
-  `utils`, `user-scoped-repository`. No business rules, no module imports.
+- `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
+  `theme/contrast`, `env`, `instant`, `utils`, `user-scoped-repository`. No business rules, no
+  module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 
 ## Modules

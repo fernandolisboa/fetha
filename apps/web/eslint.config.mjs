@@ -30,6 +30,33 @@ const crossModuleZones = moduleNames.flatMap((target) =>
     })),
 );
 
+// A glob `from` (e.g. "./src/modules/*") is matched against the resolved
+// import path with minimatch, and a single `*` never crosses a `/`, so it
+// only ever matches the module directory itself, never a file inside it:
+// these zones must be one literal `from` per module, same shape as
+// crossModuleZones, or they silently never fire.
+const appZones = moduleNames.map((m) => ({
+  target: "./src/app",
+  from: `./src/modules/${m}`,
+  except: moduleEntryPoints,
+}));
+
+const dbZones = moduleNames.map((m) => ({
+  target: "./src/db",
+  from: `./src/modules/${m}`,
+  except: schemaEntryPoints,
+}));
+
+const libZones = moduleNames.map((m) => ({
+  target: "./src/lib",
+  from: `./src/modules/${m}`,
+}));
+
+const componentsZones = moduleNames.map((m) => ({
+  target: "./src/components",
+  from: `./src/modules/${m}`,
+}));
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -78,23 +105,7 @@ const eslintConfig = defineConfig([
         "error",
         {
           basePath: import.meta.dirname,
-          zones: [
-            ...crossModuleZones,
-            {
-              target: "./src/app",
-              from: "./src/modules/*",
-              except: moduleEntryPoints,
-            },
-            {
-              target: "./src/db",
-              from: "./src/modules/*",
-              except: schemaEntryPoints,
-            },
-            {
-              target: "./src/lib",
-              from: "./src/modules/*",
-            },
-          ],
+          zones: [...crossModuleZones, ...appZones, ...dbZones, ...libZones, ...componentsZones],
         },
       ],
     },
