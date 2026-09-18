@@ -5,8 +5,8 @@ import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { structures } from "@/db/schema/structures";
+import { user } from "@/modules/auth/schema";
+import { structures } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 let currentUser: CurrentUser | null = null;

@@ -7,8 +7,8 @@ function decimalString(value: string): DecimalString {
 }
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { strategyVersions } from "@/db/schema/strategies";
+import { user } from "@/modules/auth/schema";
+import { strategyVersions } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import {

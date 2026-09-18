@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { mailOutbox } from "@/db/schema/mail-outbox";
+import { mailOutbox } from "./schema";
 
 import { findLatestVerificationLink } from "./verification-link";
 

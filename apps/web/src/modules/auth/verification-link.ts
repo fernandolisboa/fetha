@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { mailOutbox } from "@/db/schema/mail-outbox";
+import { mailOutbox } from "./schema";
 
 const URL_PATTERN = /https?:\/\/\S+/;
 

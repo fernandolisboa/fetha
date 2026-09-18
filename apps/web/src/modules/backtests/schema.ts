@@ -22,8 +22,8 @@ import type {
   Ticker,
 } from "@fetha/contracts";
 
-import { user } from "./auth";
-import { strategies, strategyVersions } from "./strategies";
+import { user } from "../auth/schema";
+import { strategies, strategyVersions } from "../strategies/schema";
 
 export const backtestRunStatuses = ["pending", "running", "paused", "complete", "failed"] as const;
 

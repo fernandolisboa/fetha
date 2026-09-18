@@ -1,6 +1,6 @@
 import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 
-import { user } from "./auth";
+import { user } from "../auth/schema";
 
 export const preferences = pgTable("preferences", {
   id: text("id")

@@ -11,8 +11,8 @@ import type {
 import { tickerSchema } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { candles } from "@/db/schema/market-data";
+import { user } from "@/modules/auth/schema";
+import { candles } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { loadMarketView } from "@/modules/market-data";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";

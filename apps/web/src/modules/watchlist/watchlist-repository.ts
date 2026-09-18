@@ -1,7 +1,7 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import type { Ticker } from "@fetha/contracts";
 
-import { watchlistItems } from "@/db/schema/watchlist";
+import { watchlistItems } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface WatchlistItem {

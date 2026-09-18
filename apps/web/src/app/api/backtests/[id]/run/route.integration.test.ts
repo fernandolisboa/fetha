@@ -5,7 +5,7 @@ import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { BacktestRunRepository } from "@/modules/backtests/backtest-run-repository";
 import { DEFAULT_COST_MODEL, defaultRiskProfile } from "@/modules/backtests/default-config";

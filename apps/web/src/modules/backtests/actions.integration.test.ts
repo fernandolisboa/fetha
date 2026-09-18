@@ -7,8 +7,8 @@ import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 import { and, eq, gte, lte } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { candles, tradingSessions } from "@/db/schema/market-data";
+import { user } from "@/modules/auth/schema";
+import { candles, tradingSessions } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";

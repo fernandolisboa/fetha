@@ -1,5 +1,5 @@
 import type { Database } from "@/db/client";
-import type { IngestionSource } from "@/db/schema/market-data";
+import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";

@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { riskProfileSchema, type RiskProfile } from "@fetha/contracts";
 
-import { riskProfiles } from "@/db/schema/risk-profiles";
+import { riskProfiles } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 // Append-only (UBIQUITOUS_LANGUAGE.md "Risk profile"): every declaration is

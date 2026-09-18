@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Ticker } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { candles, corporateActionFactors } from "@/db/schema/market-data";
+import { candles, corporateActionFactors } from "./schema";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { loadCandleSeries } from "./candle-series";

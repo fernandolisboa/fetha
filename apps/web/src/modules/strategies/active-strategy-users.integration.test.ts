@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { activeStrategyUserIds } from "./active-strategy-users";

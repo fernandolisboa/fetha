@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { AdjustmentRule, ExitRule } from "@fetha/contracts";
 import { signalKinds, type IndicatorReading, type Proposal } from "@fetha/engine";
 
-import { user } from "./auth";
+import { user } from "../../auth/schema";
 import { strategies, strategyVersions } from "./strategies";
 
 // No operation exists to reference yet (the portfolio module ships later),

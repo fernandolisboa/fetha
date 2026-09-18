@@ -16,7 +16,7 @@ import {
   type SignalKind,
 } from "@fetha/engine";
 
-import { evaluations, signals, strategies, NO_OPERATION_ID } from "@/db/schema";
+import { evaluations, signals, strategies, NO_OPERATION_ID } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface NewSignal {

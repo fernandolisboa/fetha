@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { preferences } from "@/db/schema/preferences";
+import { preferences } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { themeSchema, type Theme } from "./theme";

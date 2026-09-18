@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { tradingSessions } from "@/db/schema/market-data";
+import { tradingSessions } from "../schema";
 
 import type { ParsedTradingSession } from "../adapters/anbima-calendar/schema";
 

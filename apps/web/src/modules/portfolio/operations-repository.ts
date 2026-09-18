@@ -6,7 +6,7 @@ import {
   type ContemplatedLeg,
 } from "@fetha/contracts";
 
-import { contemplatedOperations } from "@/db/schema/operations";
+import { contemplatedOperations } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface SaveContemplatedOperationInput {

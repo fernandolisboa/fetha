@@ -1,8 +1,8 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import type { IngestionSource, IngestionStatus } from "@/db/schema/market-data";
-import { ingestionRuns } from "@/db/schema/market-data";
+import type { IngestionSource, IngestionStatus } from "../schema";
+import { ingestionRuns } from "../schema";
 
 export interface IngestionRun {
   id: string;

@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { invites } from "@/db/schema/invites";
+import { invites } from "./schema";
 
 import { normalizeEmail } from "./normalize-email";
 

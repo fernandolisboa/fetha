@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
+import { optionDailyPrices, optionSeries, tradingSessions } from "../schema";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { preferences } from "@/db/schema/preferences";
+import { preferences } from "./schema";
 
 import { PreferencesRepository } from "./preferences-repository";
 

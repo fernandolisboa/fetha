@@ -25,7 +25,7 @@ import {
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
-import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
+import { candles, macroPoints, optionDailyPrices, optionSeries } from "./schema";
 
 import {
   calendarWindowThroughExpiry,

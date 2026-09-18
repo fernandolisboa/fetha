@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { strategies } from "@/db/schema/strategies";
+import { strategies } from "./schema";
 
 // A pure hash of `rotateKey` folded into `[0, length)`, deterministic for a
 // given (key, length) pair: the same session always rotates the same

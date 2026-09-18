@@ -2,9 +2,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { session, user } from "@/db/schema/auth";
+import { invites, session, user } from "./schema";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
-import { invites } from "@/db/schema/invites";
 
 import { getAuth } from "./auth";
 import { resendVerification, signIn, signOut, signUp } from "./service";

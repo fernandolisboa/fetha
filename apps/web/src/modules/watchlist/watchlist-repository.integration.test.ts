@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { WatchlistRepository } from "./watchlist-repository";

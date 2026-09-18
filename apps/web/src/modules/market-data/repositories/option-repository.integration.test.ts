@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
+import { optionDailyPrices, optionSeries, tradingSessions } from "../schema";
 
 import { ensureMonthlyPartition } from "./partitions";
 import { optionChainForUnderlying } from "./option-repository";

@@ -13,7 +13,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { StrategyDefinition } from "@fetha/contracts";
 
-import { user } from "./auth";
+import { user } from "../../auth/schema";
 
 export const strategyVisibilities = ["private", "shared"] as const;
 

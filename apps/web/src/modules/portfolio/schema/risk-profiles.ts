@@ -1,7 +1,7 @@
 import { pgTable, text, bigint, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 import type { RiskProfile } from "@fetha/contracts";
 
-import { user } from "./auth";
+import { user } from "../../auth/schema";
 
 // Append-only history (UBIQUITOUS_LANGUAGE.md "Risk profile", CLAUDE.md
 // principle 5): every edit in settings inserts a new row, the current

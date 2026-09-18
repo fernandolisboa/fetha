@@ -1,7 +1,7 @@
 import { and, eq, gt, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { rateLimit } from "@/db/schema";
+import { rateLimit } from "./schema";
 
 // Same table Better Auth's own database-backed rate limiter uses
 // (docs/adr/0016), keyed `email|path` instead of `ip|path` so the two

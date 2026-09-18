@@ -11,8 +11,8 @@ import {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { candles, tradingSessions } from "@/db/schema/market-data";
+import { user } from "@/modules/auth/schema";
+import { candles, tradingSessions } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
