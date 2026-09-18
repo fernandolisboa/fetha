@@ -24,5 +24,6 @@ supersedes or amends them and says so.
 | 0016 | Better Auth for identity; the user account is the tenant                                            |
 | 0017 | Reference data ingestion: sources, partitioning, retries, freshness, adjustment (amends 0004, 0007) |
 | 0018 | Magic link, password reset and database-backed rate limiting (amends 0016)                          |
+| 0019 | Vertical slices inside the single Next.js app: a module owns its tables                             |
 
 Open: none.
