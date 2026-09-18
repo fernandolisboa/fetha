@@ -36,27 +36,30 @@
 
 ## Shell & Command Reliability
 
-0. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**
+0. **[2026-09-18] `import/no-restricted-paths` with a glob `from` (`./src/modules/*`) matches nothing: minimatch runs against the resolved file path and `*` never crosses `/`, and a glob `from` demands glob `except` entries too**
+   Do instead: generate one literal `from: ./src/modules/<m>` zone per module (as `apps/web/eslint.config.mjs` does) and prove every zone with throwaway probe files that must error and must pass; four reviewers plus Codex caught this in #96 after the implementer had only probed the cross-module zones.
+
+1. **[2026-09-09] Vercel runs the Ignored Build Step inside the Root Directory (`apps/web`) with no access to `..`, clones single-branch shallow, and all three env tiers point at the Neon main branch until preview branches are enabled**
    Do instead: keep `ignoreCommand` in `apps/web/vercel.json` pointing inside `apps/web`; the first deployment of a branch always builds (Vercel's clone cannot fetch `main` of a private repo, so no base exists), later pushes use `VERCEL_GIT_PREVIOUS_SHA`; never point CI tests at the Vercel `DATABASE_URL` (ask the owner for a Neon `ci` branch); after `main` advances, `gh pr update-branch <n>` before merging (strict protection); run `pnpm install` in the main checkout after merging a PR that adds dependencies.
 
-1. **[2026-09-09] `gh pr checks --watch` returns "no checks" if the CI run has not registered yet, and the merge then bypasses protection**
+2. **[2026-09-09] `gh pr checks --watch` returns "no checks" if the CI run has not registered yet, and the merge then bypasses protection**
    Do instead: after pushing, loop `gh run list --branch <b> --limit 1` until a run exists, `gh run watch <id> --exit-status`, and only merge when `gh pr checks <n>` lists `ci pass`. `enforce_admins` is on since 2026-09-09.
 
-2. **[2026-09-11] The session scratchpad under `/tmp/claude-1000/...` can be wiped between sessions, taking the worktrees and the pulled preview env with it**
+3. **[2026-09-11] The session scratchpad under `/tmp/claude-1000/...` can be wiped between sessions, taking the worktrees and the pulled preview env with it**
    Do instead: on resuming, check the scratchpad exists before trusting anything in it — `git worktree list` shows the old ones as `prunable`. Rebuild with `git worktree prune` + `git worktree add`, `pnpm install`, and `vercel env pull <sp>/env/preview.env --environment=preview`. Values marked sensitive come back masked and are unrecoverable: rotate them in one call with `PATCH https://api.vercel.com/v9/projects/<projectId>/env/<envId>?teamId=...` (find `envId` via `GET .../env?decrypt=true`) using the token in `~/.local/share/com.vercel.cli/auth.json`, then `vercel redeploy <preview-url>`. The Deployment Protection bypass token is readable — it is the key of the `protectionBypass` map in `GET /v9/projects/<projectId>`. Never print any of these values.
 
-3. **[2026-09-02] Toolchain: node 24, pnpm 10.31, gh (fernandolisboa), vercel CLI (fernandoigorlisboa-8569), codex 0.152 works in WSL**
+4. **[2026-09-02] Toolchain: node 24, pnpm 10.31, gh (fernandolisboa), vercel CLI (fernandoigorlisboa-8569), codex 0.152 works in WSL**
    Do instead: no Neon CLI; Neon is the Vercel marketplace resource `neon-cinereous-ocean` (Free plan `free_v3`, no card) on project `fetha` (team `feuxs-projects`); env vars (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, ...) are synced by the integration. Prod URL: https://fetha.vercel.app.
-4. **[2026-09-02] GitHub push: no SSH key in WSL and the `gh` OAuth token lacks the `workflow` scope**
+5. **[2026-09-02] GitHub push: no SSH key in WSL and the `gh` OAuth token lacks the `workflow` scope**
    Do instead: remote is HTTPS via `gh auth setup-git`; the owner must run `gh auth refresh -h github.com -s workflow` once before any push that touches `.github/workflows`.
-5. **[2026-09-02] Vercel root directory has no CLI flag**
+6. **[2026-09-02] Vercel root directory has no CLI flag**
    Do instead: PATCH `https://api.vercel.com/v9/projects/fetha?teamId=team_GXogSV1DlEUaBKFFJz96kEmP` with the token from `~/.local/share/com.vercel.cli/auth.json` (never print it).
-6. **[2026-09-02] `npx impeccable install` fails ("invalid zip data")**
+7. **[2026-09-02] `npx impeccable install` fails ("invalid zip data")**
    Do instead: copy `.claude/skills/impeccable` and the `impeccable-*` agents from `../feudo` (v4.1.3).
-7. **[2026-09-02] `cd` in Bash resets cwd after the call**
+8. **[2026-09-02] `cd` in Bash resets cwd after the call**
    Do instead: use absolute paths or `cd ../feudo && ...` in a single command.
 
-8. **[2026-09-10] CI `integration` jobs share the `preview-db` concurrency group with `cancel-in-progress: false`; GitHub keeps at most one pending job per group**
+9. **[2026-09-10] CI `integration` jobs share the `preview-db` concurrency group with `cancel-in-progress: false`; GitHub keeps at most one pending job per group**
    Do instead: when several branches push at once the older pending job is cancelled (shows as `cancelled`, not failed); rerun the run once the queue is quiet, and expect this whenever more than one implementer pushes.
 
 ## Domain Behavior Guardrails
