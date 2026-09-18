@@ -6,7 +6,8 @@ lets an AI layer reason over those computed artifacts. A free decision-support t
 plans, no order execution. Every decision is the user's own and is recorded in a scored journal.
 
 Product scope lives in `PRODUCT.md`. Domain truth lives in `CONTEXT.md`, `UBIQUITOUS_LANGUAGE.md`
-and `docs/adr/`. Visual truth lives in `DESIGN.md`. When this file and those disagree, those win.
+and `docs/adr/`. Visual truth lives in `DESIGN.md`. Code layout lives in `ARCHITECTURE.md`. When
+this file and those disagree, those win.
 
 ## Context
 

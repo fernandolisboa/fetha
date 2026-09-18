@@ -1,5 +1,5 @@
 import type { Database } from "@/db/client";
-import { ingestionSourceValues, type IngestionSource } from "@/db/schema/market-data";
+import { ingestionSourceValues, type IngestionSource } from "./schema";
 
 import { latestSessionOnOrBefore, recentSessions } from "./repositories/calendar-repository";
 import { findSucceededRun, latestRunPerSource } from "./repositories/ingestion-run-repository";

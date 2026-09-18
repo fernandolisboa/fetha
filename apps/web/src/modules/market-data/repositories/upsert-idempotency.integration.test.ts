@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { candles, macroPoints, optionDailyPrices, optionSeries } from "@/db/schema/market-data";
+import { candles, macroPoints, optionDailyPrices, optionSeries } from "../schema";
 
 import { cotahistOptionRowSchema, cotahistStockRowSchema } from "../adapters/cotahist/schema";
 import { instrumentOptionSeriesSchema } from "../adapters/b3-instruments/schema";

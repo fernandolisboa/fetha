@@ -10,7 +10,7 @@ import {
 } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
-import { candles } from "@/db/schema/market-data";
+import { candles } from "../schema";
 
 import type { CotahistStockRow } from "../adapters/cotahist/schema";
 import { ensureMonthlyPartition } from "./partitions";

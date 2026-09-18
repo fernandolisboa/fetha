@@ -1,7 +1,7 @@
 import { lt } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
-import { mailOutbox } from "@/db/schema/mail-outbox";
+import { mailOutbox } from "../schema";
 
 import type { Mailer, SendEmailInput } from "./mailer";
 

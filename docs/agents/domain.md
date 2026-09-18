@@ -61,5 +61,7 @@ packaging split, not a bounded-context split: one domain, one glossary.
   used in code, tickets and UI copy has one entry with canonical name, definition and rejected
   synonyms.
 - `docs/adr/NNNN-title.md` — numbered ADRs, never edited after acceptance; superseded by a new ADR.
+- `ARCHITECTURE.md` — the vertical-slice layout of `apps/web/src/modules/`, each module's three
+  entry points (`index.ts`, `client.ts`, `schema.ts`) and the dependency rule (ADR-0019).
 
 When code and docs disagree, the docs win and the code is a bug.

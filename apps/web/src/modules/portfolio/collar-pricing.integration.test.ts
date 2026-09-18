@@ -4,7 +4,12 @@ import { engine } from "@fetha/engine";
 import { quantitySchema, tickerSchema, type ContemplatedLeg } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { candles, optionDailyPrices, optionSeries, tradingSessions } from "@/db/schema/market-data";
+import {
+  candles,
+  optionDailyPrices,
+  optionSeries,
+  tradingSessions,
+} from "@/modules/market-data/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { buildOperationMarketView, optionChainForUnderlying } from "@/modules/market-data";
 import { ensureMonthlyPartition } from "@/modules/market-data/repositories/partitions";

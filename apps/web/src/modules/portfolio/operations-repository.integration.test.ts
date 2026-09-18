@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { centavosSchema, quantitySchema, type ContemplatedLeg } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { structures } from "@/db/schema/structures";
+import { user } from "@/modules/auth/schema";
+import { structures } from "@/modules/strategies/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { OperationsRepository, type SaveContemplatedOperationInput } from "./operations-repository";

@@ -7,8 +7,8 @@ import type { OperationPricing, Result } from "@fetha/engine";
 
 import { quantitySchema, tickerSchema } from "@fetha/contracts";
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { structures } from "@/db/schema/structures";
+import { user } from "@/modules/auth/schema";
+import { structures } from "@/modules/strategies/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 let currentUser: CurrentUser | null = null;

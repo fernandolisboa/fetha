@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { structures } from "@/db/schema/structures";
+import { structures } from "./schema";
 import { eq } from "drizzle-orm";
 
 import { StructuresRepository } from "./structures-repository";

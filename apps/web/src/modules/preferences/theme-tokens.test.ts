@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { themes } from "@/modules/preferences/theme";
+import { themes } from "./theme";
 
 import { parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 

@@ -6,9 +6,9 @@ import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { getDb } from "@/db/client";
-import { candles } from "@/db/schema/market-data";
-import { user } from "@/db/schema/auth";
-import { watchlistItems } from "@/db/schema/watchlist";
+import { candles } from "@/modules/market-data/schema";
+import { user } from "@/modules/auth/schema";
+import { watchlistItems } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";

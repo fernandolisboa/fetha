@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { macroPoints } from "@/db/schema/market-data";
+import { macroPoints } from "../schema";
 
 import type { MacroPoint, MacroSeriesKind } from "../adapters/bacen-sgs/schema";
 

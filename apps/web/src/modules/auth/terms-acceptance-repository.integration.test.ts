@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { TermsAcceptanceRepository } from "./terms-acceptance-repository";

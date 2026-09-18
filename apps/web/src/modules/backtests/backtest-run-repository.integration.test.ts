@@ -4,8 +4,8 @@ import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fe
 import type { BacktestRun } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
-import { backtestRuns } from "@/db/schema/backtests";
+import { user } from "@/modules/auth/schema";
+import { backtestRuns } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { StrategiesRepository } from "@/modules/strategies";
 

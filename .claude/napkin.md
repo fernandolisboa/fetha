@@ -61,20 +61,23 @@
 
 ## Domain Behavior Guardrails
 
-0. **[2026-09-09] Drizzle migrations are matched by journal timestamp: squashing/regenerating a migration after it ran anywhere (production got the old `0000` from early previews) makes `db:migrate` recreate tables and fail**
+0. **[2026-09-18] Vertical slices (ADR-0019): a module owns its tables under `modules/<m>/schema(.ts|/)`, and code outside a module may import only `@/modules/<m>`, `/client` or `/schema` (ESLint `import/no-restricted-paths`; `*.integration.test.ts` and `src/db/test/**` exempt). Accepted ADRs are never edited, so a move puts an old→new path map in the new ADR**
+   Do instead: a new module ships `schema`, `index.ts`, optional `client.ts`, one line in `src/db/schema.ts`, one lint zone and a row in `ARCHITECTURE.md`; schema files use relative imports only (drizzle-kit and the `.mjs` scripts load them without `@/`); prove "no SQL change" with `db:check` plus a clean `db:generate`. This is the one structural divergence from Feudo (which keeps `db/schema` central).
+
+1. **[2026-09-09] Drizzle migrations are matched by journal timestamp: squashing/regenerating a migration after it ran anywhere (production got the old `0000` from early previews) makes `db:migrate` recreate tables and fail**
    Do instead: never regenerate an applied migration; before the first real user, an empty production schema may be reset by hand (`drop schema public cascade; create schema public; drop schema drizzle cascade`) and the `migrate-production` workflow rerun; afterwards only additive migrations (expand/contract, ADR-0016).
 
-1. **[2026-09-09] A PR with merge conflicts gets NO GitHub Actions run (no check suite at all); Better Auth's `nextCookies` plugin skips `auth.handler()` calls (router mode), so server actions must forward `Set-Cookie` themselves; Vercel previews sit behind SSO, sensitive env vars cannot be read back, and E2E needs `x-vercel-protection-bypass` plus market data ingestion**
+2. **[2026-09-09] A PR with merge conflicts gets NO GitHub Actions run (no check suite at all); Better Auth's `nextCookies` plugin skips `auth.handler()` calls (router mode), so server actions must forward `Set-Cookie` themselves; Vercel previews sit behind SSO, sensitive env vars cannot be read back, and E2E needs `x-vercel-protection-bypass` plus market data ingestion**
    Do instead: when a PR shows zero runs, check `mergeable` first and `gh pr update-branch`; keep the cookie-forwarding helper and its integration test; sensitive env vars (`E2E_SECRET`, `CRON_SECRET`) are unreadable and must be rotated — see Shell & Command Reliability item 2; for E2E, run from scratch worktree with `PLAYWRIGHT_BASE_URL`, `E2E_SECRET`, `VERCEL_PROTECTION_BYPASS` (preview has `REGISTRATION_MODE=open`); every CI reset clears `fetha-preview`, so E2E tests needing market data (watchlist, chart, backtest, signals) must first ingest one closed session via `POST /api/cron/ingest` with bearer + `x-vercel-protection-bypass` header, payload `{"session":"YYYY-MM-DD"}` (~1 min), then migrate — expect data to vanish on next CI run.
 
-2. **[2026-09-10] Three parallel implementers sharing `fetha-preview` database may race on migrations and table creation; CI runs `pnpm --filter @fetha/web run db:reset` before migrating so integration jobs always start clean, but local runs go against `fetha-preview` carrying state from every agent, so tests that pass locally may fail in CI — not flaky, but real (relying on rows earlier runs left)**
+3. **[2026-09-10] Three parallel implementers sharing `fetha-preview` database may race on migrations and table creation; CI runs `pnpm --filter @fetha/web run db:reset` before migrating so integration jobs always start clean, but local runs go against `fetha-preview` carrying state from every agent, so tests that pass locally may fail in CI — not flaky, but real (relying on rows earlier runs left)**
    Do instead: wrap every DB-touching command in `flock <scratchpad>/env/preview-db.lock`, migrate right before each integration run; before declaring an integration suite green, reproduce CI's own sequence under one flock hold — `db:reset`, then `db:migrate`, then the tests — rather than running against whatever state the shared database holds. Stray tables from sibling branches are expected and cleaned on the next `db:migrate`.
 
-3. **[2026-09-02] Multi-user; the user account is the tenant**
+4. **[2026-09-02] Multi-user; the user account is the tenant**
    Do instead: every domain table carries `user_id`; user-scoped repositories; isolation test per table. Market data + strategy catalog are shared read-only reference data.
-4. **[2026-09-02] Prices are decimals, money is integer centavos, never JS `number` for money**
+5. **[2026-09-02] Prices are decimals, money is integer centavos, never JS `number` for money**
    Do instead: `decimal.js` / Drizzle `numeric` for prices; integer centavos for money.
-5. **[2026-09-02] AI never produces numbers; engine is pure**
+6. **[2026-09-02] AI never produces numbers; engine is pure**
    Do instead: engine computes, AI reasons over artifacts and cites inputs; `packages/engine` has zero I/O.
 
 ## User Directives
@@ -90,3 +93,5 @@
    Do instead: state cost/impact and wait.
 4. **[2026-09-02] User does not read code; reviewers and tests are their eyes**
    Do instead: optimize for verifiability; never run `/impeccable audit` for the user.
+5. **[2026-09-18] Owner wants a layout readable feature by feature, without over-engineering: vertical slices inside the one Next.js app, no `apps/api`, no package per feature, no `apps/web` rename for now**
+   Do instead: keep `app/` as thin transport and put everything else in `modules/<m>/`; never propose a folder per strategy (strategies are data, ADR-0008); if `strategies` grows, `signals` is the sanctioned next split.

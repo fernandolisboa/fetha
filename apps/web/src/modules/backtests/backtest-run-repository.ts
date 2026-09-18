@@ -21,7 +21,7 @@ import {
 import type { BacktestCheckpoint, BacktestRun, LimitMode } from "@fetha/engine";
 import { z } from "zod";
 
-import { backtestRuns, type backtestRunStatuses } from "@/db/schema/backtests";
+import { backtestRuns, type backtestRunStatuses } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 // The engine's own SimulatedOperation/LegSettlement discriminated unions

@@ -3,13 +3,7 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import {
-  candles,
-  ingestionRuns,
-  macroPoints,
-  optionDailyPrices,
-  optionSeries,
-} from "@/db/schema/market-data";
+import { candles, ingestionRuns, macroPoints, optionDailyPrices, optionSeries } from "./schema";
 
 import { calendarMarkerSession, ingest } from "./ingest";
 

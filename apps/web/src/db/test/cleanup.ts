@@ -1,9 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { invites } from "@/db/schema/invites";
-import { mailOutbox } from "@/db/schema/mail-outbox";
-import { user, verification } from "@/db/schema/auth";
+import { invites, mailOutbox, user, verification } from "@/modules/auth/schema";
 
 // CI resets and migrates fetha-preview before every run (docs/adr/0016), so
 // this cleanup is a courtesy for local and interleaved-run hygiene, not the

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { themes } from "@/modules/preferences/theme";
+import { themes } from "./theme";
 
-import { contrastRatio } from "./contrast";
+import { contrastRatio } from "@/lib/theme/contrast";
 import { parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 
 const textTokens = ["--ink", "--muted", "--faint"];

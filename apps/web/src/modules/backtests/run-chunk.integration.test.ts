@@ -9,9 +9,9 @@ import type {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { backtestRuns } from "@/db/schema/backtests";
-import { user } from "@/db/schema/auth";
-import { candles, optionSeries } from "@/db/schema/market-data";
+import { backtestRuns } from "./schema";
+import { user } from "@/modules/auth/schema";
+import { candles, optionSeries } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";

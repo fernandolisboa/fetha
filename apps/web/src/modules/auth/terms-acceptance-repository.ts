@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 
-import { termsAcceptances } from "@/db/schema/terms-acceptances";
+import { termsAcceptances } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface TermsAcceptance {

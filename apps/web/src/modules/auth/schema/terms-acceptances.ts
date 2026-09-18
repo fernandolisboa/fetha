@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 
-import { user } from "./auth";
+import { user } from "./better-auth";
 
 export const termsAcceptances = pgTable(
   "terms_acceptances",

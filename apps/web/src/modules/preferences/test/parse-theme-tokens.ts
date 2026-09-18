@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Theme } from "@/modules/preferences/theme";
+import type { Theme } from "../theme";
 
 // Test-only support: reads and parses the theme token blocks straight out of
 // globals.css so the contrast and coverage tests assert against the real

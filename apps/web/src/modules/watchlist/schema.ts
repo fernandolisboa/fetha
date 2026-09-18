@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 
-import { user } from "./auth";
+import { user } from "../auth/schema";
 
 // One row per instrument a user follows (CONTEXT.md: owned by the watchlist
 // module). The unique index doubles as the natural key, so adding an

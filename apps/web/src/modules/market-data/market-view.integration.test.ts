@@ -13,7 +13,7 @@ import {
   optionDailyPrices,
   optionSeries,
   tradingSessions,
-} from "@/db/schema/market-data";
+} from "./schema";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import {

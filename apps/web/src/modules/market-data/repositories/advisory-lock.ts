@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import type { IngestionSource } from "@/db/schema/market-data";
+import type { IngestionSource } from "../schema";
 
 // One ingestion source at a time, across concurrent cron/manual invocations
 // (docs/adr/0017): the transaction-scoped lock is released automatically at

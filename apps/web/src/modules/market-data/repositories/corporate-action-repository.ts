@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { corporateActionFactors } from "@/db/schema/market-data";
+import { corporateActionFactors } from "../schema";
 
 export interface CorporateActionFactorRow {
   ticker: string;

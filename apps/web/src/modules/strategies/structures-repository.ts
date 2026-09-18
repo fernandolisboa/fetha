@@ -2,7 +2,7 @@ import { asc } from "drizzle-orm";
 import { structureSchema, type Structure } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
-import { structures } from "@/db/schema/structures";
+import { structures } from "./schema";
 
 // Shared reference data (docs/adr/0012, CLAUDE.md principle 5): every
 // registered user reads the same catalog, so this repository takes no user

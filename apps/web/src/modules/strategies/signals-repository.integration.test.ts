@@ -7,7 +7,7 @@ import {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { SignalsRepository, type NewEvaluation, type NewSignal } from "./signals-repository";

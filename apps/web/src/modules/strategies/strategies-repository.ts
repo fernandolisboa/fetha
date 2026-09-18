@@ -3,7 +3,7 @@ import { z } from "zod";
 import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
-import { strategies, strategyVersions, strategyVisibilities } from "@/db/schema/strategies";
+import { strategies, strategyVersions, strategyVisibilities } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { computeDefinitionDigest } from "./definition-digest";

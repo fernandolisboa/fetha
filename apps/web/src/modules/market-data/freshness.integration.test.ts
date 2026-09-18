@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { ingestionRuns, tradingSessions } from "@/db/schema/market-data";
+import { ingestionRuns, tradingSessions } from "./schema";
 
 import { freshness, latestSession } from "./freshness";
 

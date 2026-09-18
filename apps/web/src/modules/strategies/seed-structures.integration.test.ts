@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
-import { structures } from "@/db/schema/structures";
+import { structures } from "./schema";
 
 const scriptPath = path.resolve(import.meta.dirname, "../../../scripts/seed-structures.mjs");
 

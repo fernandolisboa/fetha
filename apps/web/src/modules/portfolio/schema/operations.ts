@@ -1,8 +1,8 @@
 import { pgTable, text, bigint, jsonb, timestamp, date, index } from "drizzle-orm/pg-core";
 import type { ContemplatedLeg } from "@fetha/contracts";
 
-import { user } from "./auth";
-import { structures } from "./structures";
+import { user } from "../../auth/schema";
+import { structures } from "../../strategies/schema";
 
 // A contemplated operation (UBIQUITOUS_LANGUAGE.md "Decision"/"Operation"):
 // the builder's saved snapshot of a priced structure, not a real fill. The
