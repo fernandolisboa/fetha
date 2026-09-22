@@ -1,3 +1,5 @@
+import { readLocalEnvFile } from "./local-env.mjs";
+
 // Every script that mutates a database (reset, migrate, the integration
 // suite) is bound to the specific database it is allowed to touch, not to an
 // environment label. Neon's Vercel marketplace integration gives every
@@ -67,12 +69,12 @@ export function assertDisposableDatabase(env, action) {
   );
 }
 
-// Production is migrated only by migrate-production.yml, which opts in with
-// MIGRATE_PRODUCTION_DATABASE=1; the opt-in reaches the production host and
-// nothing else, so it can never be used to migrate an unknown database.
-export function assertMigrationAllowed(env) {
-  const action = "migrate the database";
-  if (env.MIGRATE_PRODUCTION_DATABASE !== "1") {
+// Production is migrated and seeded only by migrate-production.yml, and gets
+// its invites only by hand, each opting in with ALLOW_PRODUCTION_DATABASE=1;
+// the opt-in reaches the production host and nothing else, so it can never be
+// used to write to an unknown database.
+export function assertWritableDatabase(env, action) {
+  if (env.ALLOW_PRODUCTION_DATABASE !== "1") {
     assertDisposableDatabase(env, action);
     return;
   }
@@ -81,7 +83,33 @@ export function assertMigrationAllowed(env) {
   if (host !== productionHostOf(env)) {
     throw new DatabaseNotAllowedError(
       action,
-      `MIGRATE_PRODUCTION_DATABASE=1 is set but host "${host}" is not the production database`,
+      `ALLOW_PRODUCTION_DATABASE=1 is set but host "${host}" is not the production database`,
     );
   }
+}
+
+// Entry point for the scripts: the refusal is printed as one line, not a
+// stack trace, and the database actually used is named up front, since
+// apps/web/.env.local silently wins over a DATABASE_URL typed in the shell.
+export function guardedDatabaseEnv(assertAllowed, action, env = process.env, file) {
+  const localEnv = readLocalEnvFile(file);
+  const merged = { ...env, ...localEnv };
+  try {
+    assertAllowed(merged, action);
+  } catch (error) {
+    if (!(error instanceof DatabaseNotAllowedError)) {
+      throw error;
+    }
+    console.error(error.message);
+    process.exit(1);
+  }
+  const source = localEnv.DATABASE_URL ? "apps/web/.env.local" : "the environment";
+  const overridden =
+    localEnv.DATABASE_URL && env.DATABASE_URL && env.DATABASE_URL !== localEnv.DATABASE_URL
+      ? ", overriding the DATABASE_URL set in the environment"
+      : "";
+  console.error(
+    `About to ${action} on host "${new URL(merged.DATABASE_URL).hostname}" from ${source}${overridden}.`,
+  );
+  return merged;
 }

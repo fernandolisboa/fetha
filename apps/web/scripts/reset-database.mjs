@@ -5,11 +5,9 @@
 // fetha-preview (see lib/database-guard.mjs).
 import { neon } from "@neondatabase/serverless";
 
-import { assertDisposableDatabase } from "./lib/database-guard.mjs";
-import { withLocalEnvFile } from "./lib/local-env.mjs";
+import { assertDisposableDatabase, guardedDatabaseEnv } from "./lib/database-guard.mjs";
 
-const env = withLocalEnvFile();
-assertDisposableDatabase(env, "reset the database");
+const env = guardedDatabaseEnv(assertDisposableDatabase, "reset the database");
 
 const sql = neon(env.DATABASE_URL);
 

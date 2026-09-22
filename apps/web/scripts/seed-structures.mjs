@@ -1,6 +1,7 @@
 // Run after every migration, in CI (ci.yml, migrate-production.yml) or by
-// hand with DATABASE_URL pointed at the target database:
-//   DATABASE_URL=... node scripts/seed-structures.mjs
+// hand against fetha-preview (apps/web/.env.local) or, with
+// ALLOW_PRODUCTION_DATABASE=1, production (lib/database-guard.mjs):
+//   node scripts/seed-structures.mjs
 // Seeds the reference structure catalog (docs/adr/0012, CLAUDE.md
 // principle 5: shared, read-only data no user writes). Alongside the
 // trivial stock purchase, #22 adds the two structures its builder ships
@@ -16,6 +17,8 @@
 // `.ts` source directly.
 import { neon } from "@neondatabase/serverless";
 import { z } from "zod";
+
+import { assertWritableDatabase, guardedDatabaseEnv } from "./lib/database-guard.mjs";
 
 const legTemplateSchema = z.discriminatedUnion("role", [
   z.strictObject({
@@ -58,13 +61,8 @@ const catalog = [
   },
 ];
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  console.error("DATABASE_URL is not set.");
-  process.exit(1);
-}
-
-const sql = neon(databaseUrl);
+const env = guardedDatabaseEnv(assertWritableDatabase, "seed the structure catalog");
+const sql = neon(env.DATABASE_URL);
 
 for (const candidate of catalog) {
   const structure = structureSchema.parse(candidate);

@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   assertDisposableDatabase,
-  assertMigrationAllowed,
+  assertWritableDatabase,
+  guardedDatabaseEnv,
   DatabaseNotAllowedError,
 } from "./database-guard.mjs";
 
@@ -113,48 +118,119 @@ describe("assertDisposableDatabase", () => {
   });
 });
 
-describe("assertMigrationAllowed", () => {
+describe("assertWritableDatabase", () => {
   it("allows the fetha-preview host", () => {
     expect(() =>
-      assertMigrationAllowed({ DATABASE_URL: `postgres://user:pass@${PREVIEW_HOST}/db` }),
+      assertWritableDatabase(
+        { DATABASE_URL: `postgres://user:pass@${PREVIEW_HOST}/db` },
+        "migrate the database",
+      ),
     ).not.toThrow();
   });
 
   it("refuses a database inherited from another project", () => {
     expect(() =>
-      assertMigrationAllowed({ DATABASE_URL: `postgres://user:pass@${FOREIGN_HOST}/db` }),
+      assertWritableDatabase(
+        { DATABASE_URL: `postgres://user:pass@${FOREIGN_HOST}/db` },
+        "migrate the database",
+      ),
     ).toThrow("Refusing to migrate the database");
   });
 
   it("refuses the production host without the explicit production opt-in", () => {
     expect(() =>
-      assertMigrationAllowed({ DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db` }),
+      assertWritableDatabase(
+        { DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db` },
+        "migrate the database",
+      ),
     ).toThrow(DatabaseNotAllowedError);
   });
 
-  it("allows the production host with MIGRATE_PRODUCTION_DATABASE=1", () => {
+  it("allows the production host with ALLOW_PRODUCTION_DATABASE=1", () => {
     expect(() =>
-      assertMigrationAllowed({
-        DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
-        MIGRATE_PRODUCTION_DATABASE: "1",
-      }),
+      assertWritableDatabase(
+        {
+          DATABASE_URL: `postgres://user:pass@${PRODUCTION_HOST}/db`,
+          ALLOW_PRODUCTION_DATABASE: "1",
+        },
+        "migrate the database",
+      ),
     ).not.toThrow();
   });
 
-  it("refuses any other host with MIGRATE_PRODUCTION_DATABASE=1, the preview included", () => {
+  it("refuses any other host with ALLOW_PRODUCTION_DATABASE=1, the preview included", () => {
     for (const host of [FOREIGN_HOST, PREVIEW_HOST]) {
       expect(() =>
-        assertMigrationAllowed({
-          DATABASE_URL: `postgres://user:pass@${host}/db`,
-          MIGRATE_PRODUCTION_DATABASE: "1",
-        }),
+        assertWritableDatabase(
+          {
+            DATABASE_URL: `postgres://user:pass@${host}/db`,
+            ALLOW_PRODUCTION_DATABASE: "1",
+          },
+          "migrate the database",
+        ),
       ).toThrow(DatabaseNotAllowedError);
     }
   });
 
   it("refuses when DATABASE_URL is not set, even with the production opt-in", () => {
-    expect(() => assertMigrationAllowed({ MIGRATE_PRODUCTION_DATABASE: "1" })).toThrow(
-      DatabaseNotAllowedError,
+    expect(() =>
+      assertWritableDatabase({ ALLOW_PRODUCTION_DATABASE: "1" }, "migrate the database"),
+    ).toThrow(DatabaseNotAllowedError);
+  });
+});
+
+describe("guardedDatabaseEnv", () => {
+  let dir;
+
+  function envFile(contents) {
+    dir = mkdtempSync(path.join(tmpdir(), "fetha-guard-"));
+    const file = path.join(dir, ".env.local");
+    writeFileSync(file, contents);
+    return file;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (dir) {
+      rmSync(dir, { recursive: true, force: true });
+      dir = undefined;
+    }
+  });
+
+  it("prints the refusal as one line and exits 1 instead of throwing", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exited");
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const missing = path.join(tmpdir(), "fetha-no-such-dir", ".env.local");
+
+    expect(() =>
+      guardedDatabaseEnv(
+        assertDisposableDatabase,
+        ACTION,
+        { DATABASE_URL: `postgres://user:pass@${FOREIGN_HOST}/db` },
+        missing,
+      ),
+    ).toThrow("exited");
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Refusing to run integration tests/));
+  });
+
+  it("names the host it will use and says when .env.local overrode the environment", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const file = envFile(`DATABASE_URL=postgres://user:pass@${PREVIEW_HOST}/db\n`);
+
+    const env = guardedDatabaseEnv(
+      assertDisposableDatabase,
+      ACTION,
+      { DATABASE_URL: "postgres://user:pass@localhost:5432/scratch" },
+      file,
+    );
+
+    expect(env.DATABASE_URL).toBe(`postgres://user:pass@${PREVIEW_HOST}/db`);
+    expect(error).toHaveBeenCalledWith(
+      `About to run integration tests on host "${PREVIEW_HOST}" from apps/web/.env.local, ` +
+        "overriding the DATABASE_URL set in the environment.",
     );
   });
 });

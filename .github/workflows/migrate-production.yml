@@ -33,10 +33,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
-          MIGRATE_PRODUCTION_DATABASE: "1"
+          ALLOW_PRODUCTION_DATABASE: "1"
         run: pnpm --filter @fetha/web run db:migrate
 
       - name: Seed the structure catalog
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+          ALLOW_PRODUCTION_DATABASE: "1"
         run: pnpm --filter @fetha/web run db:seed-structures

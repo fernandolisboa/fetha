@@ -1,10 +1,8 @@
 import { spawnSync } from "node:child_process";
 
-import { assertMigrationAllowed } from "./lib/database-guard.mjs";
-import { withLocalEnvFile } from "./lib/local-env.mjs";
+import { assertWritableDatabase, guardedDatabaseEnv } from "./lib/database-guard.mjs";
 
-const env = withLocalEnvFile();
-assertMigrationAllowed(env);
+const env = guardedDatabaseEnv(assertWritableDatabase, "migrate the database");
 
 const result = spawnSync("drizzle-kit", ["migrate"], { stdio: "inherit", shell: true, env });
 
