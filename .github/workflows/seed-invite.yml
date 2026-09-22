@@ -1,0 +1,44 @@
+name: Seed a production invite
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Email address allowed to register while REGISTRATION_MODE=invite
+        required: true
+        type: string
+
+concurrency:
+  group: seed-invite
+  cancel-in-progress: false
+
+jobs:
+  seed-invite:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Mask the email in the logs
+        env:
+          INVITE_EMAIL: ${{ inputs.email }}
+        run: echo "::add-mask::$INVITE_EMAIL"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Seed the invite
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          INVITE_EMAIL: ${{ inputs.email }}
+        run: pnpm --filter @fetha/web exec node scripts/seed-invite.mjs "$INVITE_EMAIL"

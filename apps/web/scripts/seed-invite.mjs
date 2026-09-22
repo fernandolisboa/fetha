@@ -1,5 +1,7 @@
 // Run by hand, locally, with DATABASE_URL pointed at the target database:
 //   DATABASE_URL=... node scripts/seed-invite.mjs owner@example.com
+// or, against production, from the "Seed a production invite" workflow
+// (.github/workflows/seed-invite.yml), which needs no local credentials.
 // This is the only path that writes an invite (docs/adr/0016): no admin
 // action exists to call the equivalent repository logic (YAGNI, no
 // invite-management ticket exists yet), so this script is the canonical
