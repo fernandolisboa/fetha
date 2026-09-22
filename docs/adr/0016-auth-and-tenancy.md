@@ -224,9 +224,17 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   a catalog edit ships by editing the script and letting the next migrate run reseed it) then
   `pnpm --filter @fetha/web run test:integration`. `db:reset` (`scripts/reset-database.mjs`)
   refuses to run — before issuing any query — unless the host of `DATABASE_URL` exactly matches
-  the `fetha-preview` pooler host or `ALLOW_DATABASE_RESET=1` is set explicitly, and refuses
+  the `fetha-preview` pooler host or `ALLOW_DISPOSABLE_DATABASE=1` is set explicitly, and refuses
   unconditionally, even with that override, when the host exactly matches the production pooler
-  host (`scripts/lib/reset-guard.mjs`, `assertDatabaseResetAllowed`). Both hosts are Neon's opaque
+  host (`scripts/lib/database-guard.mjs`, `assertDisposableDatabase`). The same guard binds
+  `db:migrate` (`scripts/migrate-database.mjs`, `assertMigrationAllowed`) and the integration
+  suite (`vitest.integration.config.mts`, so a single file run with `vitest --config` directly is
+  refused too), after two implementers migrated and tested against another project's database
+  inherited from the shell (#49). `db:migrate` reaches production only with
+  `MIGRATE_PRODUCTION_DATABASE=1`, which `migrate-production.yml` alone sets and which is refused
+  for any host other than the production one. These scripts overlay `apps/web/.env.local` (from
+  `vercel env pull --environment=preview`) on the inherited environment, file winning, because
+  Next.js and dotenv let a variable already exported in the shell win over the file. Both hosts are Neon's opaque
   per-endpoint pooler hostnames (e.g. `ep-lively-mode-…`), unrelated to either project's name —
   confirmed with `vercel env pull` against both environments, not assumed — so the guard is an
   exact match against a known/configured host, not a substring "marker" on the project name; the
@@ -240,7 +248,8 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 - **Production is migrated by a separate workflow**, `migrate-production.yml`, triggered on push to
   `main` only, `concurrency: { group: migrate-production, cancel-in-progress: false }`, running
   `pnpm --filter @fetha/web run db:migrate` then `db:seed-structures`, both with
-  `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`.
+  `DATABASE_URL: secrets.DATABASE_URL_PRODUCTION`, the migration with
+  `MIGRATE_PRODUCTION_DATABASE=1`.
   It is lean — install, migrate and seed, no build — because `apps/web/vercel.json`'s `buildCommand` no
   longer runs a migration itself (`pnpm build` only); Vercel's own build must never be the thing
   that mutates the production schema, since a build can run for a preview or be retried.

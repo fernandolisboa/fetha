@@ -32,6 +32,8 @@ jobs:
       - name: Migrate the production database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+          MIGRATE_PRODUCTION_DATABASE: "1"
         run: pnpm --filter @fetha/web run db:migrate
 
       - name: Seed the structure catalog

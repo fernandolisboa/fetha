@@ -2,14 +2,16 @@
 // (docs/adr/0016-auth-and-tenancy.md, "Database topology"): drops and
 // recreates the public and drizzle schemas so schema drift left over from
 // any other branch never survives into the next run. Refuses to run outside
-// fetha-preview (see reset-guard.mjs).
+// fetha-preview (see lib/database-guard.mjs).
 import { neon } from "@neondatabase/serverless";
 
-import { assertDatabaseResetAllowed } from "./lib/reset-guard.mjs";
+import { assertDisposableDatabase } from "./lib/database-guard.mjs";
+import { withLocalEnvFile } from "./lib/local-env.mjs";
 
-assertDatabaseResetAllowed();
+const env = withLocalEnvFile();
+assertDisposableDatabase(env, "reset the database");
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = neon(env.DATABASE_URL);
 
 await sql`drop schema if exists public cascade`;
 await sql`drop schema if exists drizzle cascade`;

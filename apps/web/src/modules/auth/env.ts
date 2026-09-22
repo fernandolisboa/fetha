@@ -17,7 +17,7 @@ const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
 // match against the real production host, not a substring marker. Read from
 // DATABASE_PRODUCTION_HOST (a GitHub Actions variable in CI) with this
 // literal as the fallback; it and the same-named constant/fallback in
-// scripts/lib/reset-guard.mjs change together (docs/adr/0016).
+// scripts/lib/database-guard.mjs change together (docs/adr/0016).
 const PRODUCTION_DATABASE_HOST_FALLBACK =
   "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 
