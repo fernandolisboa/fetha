@@ -25,5 +25,6 @@ supersedes or amends them and says so.
 | 0017 | Reference data ingestion: sources, partitioning, retries, freshness, adjustment (amends 0004, 0007) |
 | 0018 | Magic link, password reset and database-backed rate limiting (amends 0016)                          |
 | 0019 | Vertical slices inside the single Next.js app: a module owns its tables                             |
+| 0020 | Operational settings change without a redeploy: one typed row in Postgres (amends 0016, proposed)   |
 
-Open: none.
+Open: 0020 (proposed, awaiting the owner's approval).
