@@ -18,8 +18,19 @@ import { readLocalEnvFile } from "./local-env.mjs";
 const KNOWN_PRODUCTION_HOST_FALLBACK = "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 const DEFAULT_PREVIEW_HOST = "ep-lively-mode-awapxaoj-pooler.c-12.us-east-1.aws.neon.tech";
 
+// Postgres URLs are not a WHATWG special scheme, so URL keeps the host's case
+// and a trailing dot; and Neon serves one endpoint on both "<ep>-pooler.…" and
+// the unpooled "<ep>.…" host. Comparing raw hostnames would let either
+// spelling of the production host through.
+function canonicalHost(host) {
+  return host
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^([^.]+)-pooler\./, "$1.");
+}
+
 function productionHostOf(env) {
-  return env.DATABASE_PRODUCTION_HOST || KNOWN_PRODUCTION_HOST_FALLBACK;
+  return canonicalHost(env.DATABASE_PRODUCTION_HOST || KNOWN_PRODUCTION_HOST_FALLBACK);
 }
 
 export class DatabaseNotAllowedError extends Error {
@@ -49,12 +60,12 @@ export function assertDisposableDatabase(env, action) {
 
   // No override bypasses this: a stale or copy-pasted DATABASE_URL pointing
   // at production is refused even with ALLOW_DISPOSABLE_DATABASE=1 set.
-  if (host === productionHostOf(env)) {
+  if (canonicalHost(host) === productionHostOf(env)) {
     throw new DatabaseNotAllowedError(action, `host "${host}" is the production database`);
   }
 
   const allowedHost = env.DATABASE_RESET_ALLOWED_HOST || DEFAULT_PREVIEW_HOST;
-  if (host === allowedHost) {
+  if (canonicalHost(host) === canonicalHost(allowedHost)) {
     return;
   }
 
@@ -80,7 +91,7 @@ export function assertWritableDatabase(env, action) {
   }
 
   const host = requireHost(env, action);
-  if (host !== productionHostOf(env)) {
+  if (canonicalHost(host) !== productionHostOf(env)) {
     throw new DatabaseNotAllowedError(
       action,
       `ALLOW_PRODUCTION_DATABASE=1 is set but host "${host}" is not the production database`,

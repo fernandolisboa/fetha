@@ -49,6 +49,16 @@ export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
 }
 
+// Postgres URLs keep the host's case and a trailing dot, and Neon serves one
+// endpoint on both its "-pooler" and unpooled hosts; same rule as
+// scripts/lib/database-guard.mjs.
+function canonicalHost(host: string): string {
+  return host
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^([^.]+)-pooler\./, "$1.");
+}
+
 export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   const databaseUrl = readOptionalEnvValue(env, "DATABASE_URL");
   if (!databaseUrl) {
@@ -57,7 +67,7 @@ export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   const productionHost =
     readOptionalEnvValue(env, "DATABASE_PRODUCTION_HOST") ?? PRODUCTION_DATABASE_HOST_FALLBACK;
   try {
-    return new URL(databaseUrl).hostname === productionHost;
+    return canonicalHost(new URL(databaseUrl).hostname) === canonicalHost(productionHost);
   } catch {
     return false;
   }

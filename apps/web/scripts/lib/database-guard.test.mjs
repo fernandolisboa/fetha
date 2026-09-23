@@ -68,6 +68,30 @@ describe("assertDisposableDatabase", () => {
     ).toThrow(DatabaseNotAllowedError);
   });
 
+  it("refuses the production host with the override however it is spelled: case, trailing dot, unpooled", () => {
+    for (const host of [
+      PRODUCTION_HOST.toUpperCase(),
+      `${PRODUCTION_HOST}.`,
+      "ep-sweet-sea-au3urksh.c-10.us-east-1.aws.neon.tech",
+    ]) {
+      expect(() =>
+        assertDisposableDatabase(
+          { DATABASE_URL: `postgres://user:pass@${host}/db`, ALLOW_DISPOSABLE_DATABASE: "1" },
+          ACTION,
+        ),
+      ).toThrow(`host "${host}" is the production database`);
+    }
+  });
+
+  it("allows the fetha-preview endpoint through its unpooled host too", () => {
+    expect(() =>
+      assertDisposableDatabase(
+        { DATABASE_URL: `postgres://user:pass@${PREVIEW_HOST.replace("-pooler", "")}/db` },
+        ACTION,
+      ),
+    ).not.toThrow();
+  });
+
   it("refuses the production host even if it were passed as DATABASE_RESET_ALLOWED_HOST", () => {
     expect(() =>
       assertDisposableDatabase(
