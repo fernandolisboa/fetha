@@ -62,6 +62,18 @@ describe("isProductionDatabaseHost", () => {
     ).toBe(false);
   });
 
+  it("matches the production host however it is spelled: case, trailing dot, unpooled", () => {
+    for (const host of [
+      PRODUCTION_HOST.toUpperCase(),
+      `${PRODUCTION_HOST}.`,
+      "ep-sweet-sea-au3urksh.c-10.us-east-1.aws.neon.tech",
+    ]) {
+      expect(isProductionDatabaseHost({ DATABASE_URL: `postgres://user:pass@${host}/db` })).toBe(
+        true,
+      );
+    }
+  });
+
   it("matches DATABASE_PRODUCTION_HOST instead when it is set", () => {
     const customHost = "ep-custom-host-pooler.c-99.us-east-1.aws.neon.tech";
     expect(

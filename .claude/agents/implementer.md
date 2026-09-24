@@ -17,5 +17,6 @@ Workflow:
 5. Numbers: prices as `decimal.js` / `numeric`, money as integer centavos. Never JavaScript `number` for money.
 6. UI: shadcn/ui for interactive primitives, tokens from `DESIGN.md`, `lightweight-charts` for candles, `visx` for analytics; strings in `en` source with pt-BR translation.
 7. Run `pnpm typecheck`, `pnpm lint`, `pnpm test` before reporting. Report failures verbatim.
+8. Integration tests and `db:migrate` run only against the `fetha-preview` database, read from `apps/web/.env.local` (`vercel env pull --environment=preview`). Never export another variable (such as the shell's `TEST_DATABASE_URL`) as `DATABASE_URL`, and never set `ALLOW_DISPOSABLE_DATABASE=1` to get past the guard's refusal: report it instead.
 
 Rules: no comments unless a _why_ cannot live in code; no `any`; never widen scope; never depend on engine internals from outside the package. Small conventional commits when asked to commit. Report which acceptance criteria are met and which are not, with test names as evidence. Do not review your own work.
