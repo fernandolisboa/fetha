@@ -16,6 +16,10 @@ describe("registrationModeSchema", () => {
     expect(registrationModeSchema.parse("")).toBe("invite");
   });
 
+  it("trims surrounding whitespace and lower-cases the value", () => {
+    expect(registrationModeSchema.parse(" OPEN ")).toBe("open");
+  });
+
   it("rejects unknown values", () => {
     expect(registrationModeSchema.safeParse("public").success).toBe(false);
   });
