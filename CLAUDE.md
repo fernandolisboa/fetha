@@ -112,7 +112,8 @@ Confirm with the owner before creating any paid resource or paid data subscripti
    `mail_outbox`, ADR-0016) are the other class.
 6. **LGPD by design**: terms and privacy policy accepted at registration; data minimization;
    account data export and deletion flows; audit log of access to portfolio and decision data.
-   Ships before `REGISTRATION_MODE=open`.
+   Ships before `REGISTRATION_MODE=open` (waived by the owner on 2026-09-24: production runs `open`
+   now, see ADR-0020).
 7. **Deep modules, thin interfaces** (codebase-design vocabulary): `auth`, `market-data`,
    `engine`, `strategies`, `portfolio`, `decisions`. Each exposes a small entry point;
    implementation stays private.
@@ -259,8 +260,8 @@ numbers follow Brazilian conventions. Same pipeline as Feudo so the two repos st
 - `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm db:check`, the Impeccable detect pass and
   `/review` must be green before any PR; engine coverage must not decrease.
 - Full `/security-audit` (repo-wide, report + issues) after any ticket touching auth, tenancy or
-  data access, before `REGISTRATION_MODE=open`, and monthly as a floor. Per-PR coverage is the
-  security reviewer's job, not this command's.
+  data access, before `REGISTRATION_MODE=open` (waived on 2026-09-24, ADR-0020), and monthly as a
+  floor. Per-PR coverage is the security reviewer's job, not this command's.
 - Product uncertainty → ask the owner. Technical uncertainty → one-paragraph ADR draft, then ask.
 - Secrets: the owner pastes them into Vercel env. Never store them in the repo or in memory.
 - Vercel skips preview builds when only docs, ADRs, agent files or CI workflows change

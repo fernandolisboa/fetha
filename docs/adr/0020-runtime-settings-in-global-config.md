@@ -61,8 +61,12 @@ last.**
    the integration and E2E suites do not change.
 6. **How the owner flips it:** Vercel dashboard → Storage → the Fetha store → Items → edit
    `registration_mode`. Vercel says the change propagates globally within 10 seconds, with no
-   build. Write access to the store is the authority to open registration. Setting `open` stays
-   subject to the `/security-audit` and LGPD gates in `CLAUDE.md` (principle 6).
+   build. Write access to the store is the authority to open registration.
+7. **Production runs `open` now, by the owner's decision (2026-09-24).** The owner set the item to
+   `open` and chose to keep it there before the LGPD flows and the pre-`open` `/security-audit`
+   (`CLAUDE.md`, principle 6 and Working agreements) ship, accepting the risk that anyone who finds
+   the URL can register. Those gates are waived for this, not removed: they still ship, and the
+   owner flips the item back whenever they choose. Agents do not change the item or ask again.
 
 ## Consequences
 
