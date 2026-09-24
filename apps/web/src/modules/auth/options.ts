@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { user } from "./schema";
-import { registrationMode } from "@/lib/env";
+import { createRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
 
 import {
   AccountRateLimitExceededError,
@@ -25,6 +25,7 @@ import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
 import { consumePendingInviteSafely, hasPendingInvite } from "./invite-repository";
 import { normalizeEmail } from "./normalize-email";
 import { evaluateRegistrationMode } from "./registration-policy";
+import { resolveRegistrationMode } from "./registration-mode";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
@@ -114,6 +115,7 @@ export function buildAuthOptions(
   env: AuthEnv = process.env,
   mailer: Mailer = getMailer(env),
   rateLimitEnabled = true,
+  runtimeSettings: RuntimeSettings = createRuntimeSettings(env),
 ) {
   const baseURL = readAuthBaseUrl(env);
 
@@ -224,7 +226,7 @@ export function buildAuthOptions(
           throw new APIError("BAD_REQUEST", { message: "privacy_not_accepted" });
         }
 
-        const mode = registrationMode();
+        const mode = await resolveRegistrationMode(runtimeSettings, env);
         const pendingInvite =
           mode === "invite" && email ? await hasPendingInvite(db, email) : false;
         const decision = evaluateRegistrationMode(mode, pendingInvite);

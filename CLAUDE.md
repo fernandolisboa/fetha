@@ -14,8 +14,10 @@ this file and those disagree, those win.
 - Solo project. Owner: `fernandolisboa` on GitHub. No other contributors.
 - **Multi-user by design, single user in practice.** The owner is the first and, for now, only
   user; family or friends may get access later. Nothing in schema, queries or copy may assume a
-  specific user. Self-registration is the product default; `REGISTRATION_MODE=open|invite|closed`
-  (env) is an operational switch, not a design constraint. Launches as `invite`.
+  specific user. Self-registration is the product default; the registration mode
+  (`open|invite|closed`) is an operational switch, not a design constraint. Production reads it
+  from the `registration_mode` item of a Vercel Global Config store, falling back to
+  `REGISTRATION_MODE` (env) when the store has no value (ADR-0020). Launches as `invite`.
 - The owner does not read code. Tests and the review pipeline are their eyes; "I'll review it"
   means the reviewers will. Optimize for verifiability, not for human reading.
 - Language: talk to the owner in Portuguese (pt-BR). Think, code, name things, write commits,
