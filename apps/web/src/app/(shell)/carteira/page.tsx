@@ -30,8 +30,9 @@ export default async function PortfolioPage() {
   await requireUser();
   const operations = await getMyOperations();
 
+  const operationIds = operations.map((operation) => operation.id);
   const [decisionsByOperation, defaultHorizons] = await Promise.all([
-    getMyDecisionsByOperationId(),
+    getMyDecisionsByOperationId(operationIds),
     defaultHorizonsForOperations(getDb(), operations),
   ]);
 

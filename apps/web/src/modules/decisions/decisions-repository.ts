@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   confidenceSchema,
   costModelSchema,
@@ -114,6 +114,7 @@ const JOURNAL_LIMIT = 500;
 // belt-and-suspenders pattern strategy_versions and backtest_runs use.
 export class DecisionsRepository extends UserScopedRepository {
   async record(input: RecordDecisionInput): Promise<{ id: string }> {
+    const inputs = decisionInputsSchema.parse(input.inputs);
     try {
       const [row] = await this.db
         .insert(decisions)
@@ -124,7 +125,7 @@ export class DecisionsRepository extends UserScopedRepository {
           signalId: input.signalId,
           contemplatedOperationId: input.contemplatedOperationId,
           strategyVersionId: input.strategyVersionId,
-          inputs: input.inputs,
+          inputs,
           rationale: input.rationale,
           claim: input.claim,
           confidence: input.confidence,
@@ -160,35 +161,57 @@ export class DecisionsRepository extends UserScopedRepository {
     return rows.map(toDecisionListItem);
   }
 
-  // Whether this user has already answered a given signal (SignalRow's own
-  // "answered" state, brief item 5): scoped by user id the same way every
-  // other method here is, over the same unique index `record` relies on.
-  async findForSignal(signalId: string): Promise<DecisionListItem | null> {
-    const [row] = await this.db
+  // Whether this user has already answered a given page of signals
+  // (SignalRow's own "answered" state, brief item 5), batched by id in one
+  // query rather than the whole (capped) journal `listMine` returns — a
+  // signal past `JOURNAL_LIMIT` in the journal must still show as answered
+  // here. Scoped by user id the same way every other method here is, over
+  // the same unique index `record` relies on.
+  async findForSignals(signalIds: readonly string[]): Promise<Map<string, DecisionListItem>> {
+    if (signalIds.length === 0) return new Map();
+
+    const rows = await this.db
       .select()
       .from(decisions)
-      .where(and(eq(decisions.userId, this.userId), eq(decisions.signalId, signalId)));
+      .where(and(eq(decisions.userId, this.userId), inArray(decisions.signalId, [...signalIds])));
 
-    return row ? toDecisionListItem(row) : null;
+    const map = new Map<string, DecisionListItem>();
+    for (const row of rows) {
+      if (row.signalId !== null) {
+        map.set(row.signalId, toDecisionListItem(row));
+      }
+    }
+    return map;
   }
 
-  // The most recent decision recorded against a contemplated operation
-  // (the `/carteira` row's own "answered" state): unlike a signal, an
+  // The most recent decision recorded against each of a page of
+  // contemplated operations (the `/carteira` row's own "answered" state),
+  // batched the same way `findForSignals` is. Unlike a signal, an
   // operation carries no uniqueness constraint on decisions (brief item 2
-  // names only the signal partial index), so this reads the latest one.
-  async findLatestForOperation(contemplatedOperationId: string): Promise<DecisionListItem | null> {
-    const [row] = await this.db
+  // names only the signal partial index), so this keeps the latest one per
+  // id: rows come back ordered newest first, so the first occurrence wins.
+  async findLatestForOperations(
+    contemplatedOperationIds: readonly string[],
+  ): Promise<Map<string, DecisionListItem>> {
+    if (contemplatedOperationIds.length === 0) return new Map();
+
+    const rows = await this.db
       .select()
       .from(decisions)
       .where(
         and(
           eq(decisions.userId, this.userId),
-          eq(decisions.contemplatedOperationId, contemplatedOperationId),
+          inArray(decisions.contemplatedOperationId, [...contemplatedOperationIds]),
         ),
       )
-      .orderBy(desc(decisions.decidedAt), desc(decisions.createdAt))
-      .limit(1);
+      .orderBy(desc(decisions.decidedAt), desc(decisions.createdAt));
 
-    return row ? toDecisionListItem(row) : null;
+    const map = new Map<string, DecisionListItem>();
+    for (const row of rows) {
+      if (row.contemplatedOperationId !== null && !map.has(row.contemplatedOperationId)) {
+        map.set(row.contemplatedOperationId, toDecisionListItem(row));
+      }
+    }
+    return map;
   }
 }

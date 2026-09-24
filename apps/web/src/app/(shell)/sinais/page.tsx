@@ -23,8 +23,9 @@ export default async function SignalsPage() {
     return <EmptyState sentence={shellStrings.emptyStates.signals.sentence} />;
   }
 
+  const signalIds = signals.map((signal) => signal.id);
   const [decisionsBySignal, defaultHorizons] = await Promise.all([
-    getMyDecisionsBySignalId(),
+    getMyDecisionsBySignalId(signalIds),
     defaultHorizonsForSignals(getDb(), signals),
   ]);
 

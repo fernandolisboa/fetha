@@ -208,8 +208,8 @@ describe("DecisionsRepository", () => {
     }
     expect(entry?.claim).toEqual({ kind: "close_above", instrument: ticker, level: "40" });
 
-    const found = await repository.findForSignal(signal.id);
-    expect(found?.id).toBe(recorded.id);
+    const found = await repository.findForSignals([signal.id]);
+    expect(found.get(signal.id)?.id).toBe(recorded.id);
   });
 
   it("records and lists a contemplated-operation-origin decision", async () => {
@@ -246,7 +246,9 @@ describe("DecisionsRepository", () => {
     }
     expect(mine[0]?.claim).toBeNull();
 
-    const foundForOperation = await repository.findLatestForOperation(operationId);
+    const foundForOperation = (await repository.findLatestForOperations([operationId])).get(
+      operationId,
+    );
     expect(foundForOperation?.inputs.originKind).toBe("contemplated_operation");
     if (foundForOperation?.inputs.originKind === "contemplated_operation") {
       expect(foundForOperation.inputs.underlying).toBe(underlying);
@@ -353,11 +355,43 @@ describe("DecisionsRepository", () => {
 
     const repoA = new DecisionsRepository(db, userA);
     expect(await repoA.listMine()).toEqual([]);
-    expect(await repoA.findForSignal(signalB.id)).toBeNull();
+    expect(await repoA.findForSignals([signalB.id])).toEqual(new Map());
     expect(await repoB.listMine()).toHaveLength(1);
   });
 
-  it("isolation: user A cannot read user B's operation-origin decision via findLatestForOperation", async () => {
+  it("isolation: user A cannot read user B's signal-origin decision via findForSignals", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const emailA = uniqueEmail("isolation-signals-batch-a");
+    const emailB = uniqueEmail("isolation-signals-batch-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const tickerB = randomTicker();
+    const { signal: signalB, strategyVersionId } = await createSignal(db, userB, tickerB);
+
+    const repoB = new DecisionsRepository(db, userB);
+    await repoB.record({
+      kind: "enter",
+      originKind: "signal",
+      signalId: signalB.id,
+      contemplatedOperationId: null,
+      strategyVersionId,
+      inputs: signalInputs(tickerB),
+      rationale: "B's own decision",
+      claim: null,
+      confidence: confidenceSchema.parse("0.7"),
+      horizon: "2031-06-15",
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const repoA = new DecisionsRepository(db, userA);
+    expect(await repoA.findForSignals([signalB.id])).toEqual(new Map());
+    expect(await repoB.findForSignals([signalB.id])).not.toEqual(new Map());
+  });
+
+  it("isolation: user A cannot read user B's operation-origin decision via findLatestForOperations", async () => {
     const db = getDb();
     await ensureStockStructure();
     const emailA = uniqueEmail("isolation-op-a");
@@ -385,7 +419,7 @@ describe("DecisionsRepository", () => {
     });
 
     const repoA = new DecisionsRepository(db, userA);
-    expect(await repoA.findLatestForOperation(operationIdB)).toBeNull();
-    expect(await repoB.findLatestForOperation(operationIdB)).not.toBeNull();
+    expect(await repoA.findLatestForOperations([operationIdB])).toEqual(new Map());
+    expect(await repoB.findLatestForOperations([operationIdB])).not.toEqual(new Map());
   });
 });

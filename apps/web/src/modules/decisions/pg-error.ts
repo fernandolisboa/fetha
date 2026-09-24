@@ -1,12 +1,16 @@
 // A decisions-local equivalent of strategies/pg-error.ts (kept module-private
 // there, so not importable across the boundary): same shape, tuned to what
 // `DecisionsRepository.record` needs to distinguish — the unique violation on
-// (user_id, signal_id) (a signal is answered once) from the horizon check
-// constraint (defense in depth behind the action's own pre-insert validation,
-// see actions.ts) from every other conflict or transient failure.
+// (user_id, signal_id) (a signal is answered once) from *specifically* the
+// horizon check constraint (defense in depth behind the action's own
+// pre-insert validation, see actions.ts) from every other conflict or
+// transient failure. Any other 23514 (a check constraint this module does
+// not know how to explain to the user) falls through to the caller, which
+// rethrows it rather than mislabeling it invalid_horizon.
 interface PgDriverError {
   code: string;
   severity: string;
+  constraint?: string;
 }
 
 function isPgDriverErrorShape(value: unknown): value is PgDriverError {
@@ -22,6 +26,8 @@ function isPgDriverErrorShape(value: unknown): value is PgDriverError {
 
 const OTHER_CONFLICT_CODES = new Set(["40001", "40P01"]);
 
+const HORIZON_CHECK_CONSTRAINT = "decisions_horizon_on_or_after_decided_check";
+
 export type DecisionPersistenceOutcome =
   "duplicate_signal" | "invalid_horizon" | "conflict" | "unavailable" | null;
 
@@ -34,7 +40,7 @@ export function classifyDecisionPersistenceError(error: unknown): DecisionPersis
     return "duplicate_signal";
   }
   if (candidate.code === "23514") {
-    return "invalid_horizon";
+    return candidate.constraint === HORIZON_CHECK_CONSTRAINT ? "invalid_horizon" : null;
   }
   if (OTHER_CONFLICT_CODES.has(candidate.code)) {
     return "conflict";

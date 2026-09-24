@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { classifyDecisionPersistenceError } from "./pg-error";
 
-function pgError(code: string): Error & { code: string; severity: string } {
-  return Object.assign(new Error("db failure"), { code, severity: "ERROR" });
+function pgError(
+  code: string,
+  constraint?: string,
+): Error & { code: string; severity: string; constraint?: string } {
+  return Object.assign(new Error("db failure"), { code, severity: "ERROR", constraint });
 }
 
 function wrapped(cause: unknown): Error {
@@ -15,8 +18,30 @@ describe("classifyDecisionPersistenceError", () => {
     expect(classifyDecisionPersistenceError(pgError("23505"))).toBe("duplicate_signal");
   });
 
-  it("classifies a check-constraint violation as invalid_horizon", () => {
-    expect(classifyDecisionPersistenceError(pgError("23514"))).toBe("invalid_horizon");
+  it("classifies the horizon check-constraint violation as invalid_horizon", () => {
+    expect(
+      classifyDecisionPersistenceError(
+        pgError("23514", "decisions_horizon_on_or_after_decided_check"),
+      ),
+    ).toBe("invalid_horizon");
+  });
+
+  it("classifies the horizon check-constraint violation wrapped in a DrizzleQueryError", () => {
+    expect(
+      classifyDecisionPersistenceError(
+        wrapped(pgError("23514", "decisions_horizon_on_or_after_decided_check")),
+      ),
+    ).toBe("invalid_horizon");
+  });
+
+  it("does not classify a different check-constraint violation as invalid_horizon", () => {
+    expect(
+      classifyDecisionPersistenceError(pgError("23514", "decisions_rationale_not_blank_check")),
+    ).toBeNull();
+  });
+
+  it("does not classify a check-constraint violation with no constraint name", () => {
+    expect(classifyDecisionPersistenceError(pgError("23514"))).toBeNull();
   });
 
   it("classifies a serialization-failure or lock-not-available error as a conflict", () => {
