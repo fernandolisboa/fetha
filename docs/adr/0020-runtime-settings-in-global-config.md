@@ -55,11 +55,11 @@ last.**
 4. **A broken store falls back; it never opens registration by accident.** An unreachable store or
    an invalid item defers to `REGISTRATION_MODE`. Production keeps `REGISTRATION_MODE=invite` in
    Vercel as the floor.
-5. **Production only.** One store, `fetha-production`, is connected to the Vercel Production
+5. **Production only.** One store, created by the owner on 2026-09-24, is connected to the Vercel Production
    environment only. It is separate from Feudo's store so the two apps never flip each other.
    Preview, CI and local runs have no `GLOBAL_CONFIG` and keep using the environment variable, so
    the integration and E2E suites do not change.
-6. **How the owner flips it:** Vercel dashboard → Storage → `fetha-production` → Items → edit
+6. **How the owner flips it:** Vercel dashboard → Storage → the Fetha store → Items → edit
    `registration_mode`. Vercel says the change propagates globally within 10 seconds, with no
    build. Write access to the store is the authority to open registration. Setting `open` stays
    subject to the `/security-audit` and LGPD gates in `CLAUDE.md` (principle 6).
