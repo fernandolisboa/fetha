@@ -213,16 +213,29 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 - **The production resource** is connected to the Vercel **Production** environment only. Never
   reset, never touched by CI.
 - **`fetha-preview`**, a separate, free Neon project, is connected to both Vercel **Preview** and
-  **Development**, and is also the database CI uses — not a fresh branch per PR. The GitHub secret
-  `DATABASE_URL_PREVIEW` points at it.
-- CI's `ci` job resets and migrates `fetha-preview` on every run, as steps inside the same job
-  (guarded by whether `DATABASE_URL_PREVIEW` is configured, checked once and exposed as a step
-  output, since secrets cannot be read directly in an `if:`), not a second job: `pnpm --filter
-@fetha/web run db:reset` (drops and recreates the `public` and `drizzle` schemas, cascading,
-  wiping schema drift left over by any other branch) then `db:migrate` then `db:seed-structures`
-  (`scripts/seed-structures.mjs`, an idempotent upsert on the structure catalog's primary key, so
-  a catalog edit ships by editing the script and letting the next migrate run reseed it) then
-  `pnpm --filter @fetha/web run test:integration`. `db:reset` (`scripts/reset-database.mjs`)
+  **Development**. The GitHub secret `DATABASE_URL_PREVIEW` points at it. CI's `preview-database`
+  job keeps its schema in step with the branch being built, so preview deployments run against
+  that branch's migrations: `pnpm --filter @fetha/web run db:reset` (drops and recreates the
+  `public` and `drizzle` schemas, cascading, wiping schema drift left over by any other branch)
+  then `db:migrate` then `db:seed-structures` (`scripts/seed-structures.mjs`, an idempotent upsert
+  on the structure catalog's primary key, so a catalog edit ships by editing the script and letting
+  the next migrate run reseed it), guarded by whether `DATABASE_URL_PREVIEW` is configured (checked
+  once and exposed as a step output, since secrets cannot be read directly in an `if:`) and
+  serialized across runs by `concurrency: { group: preview-db }`.
+- **CI's integration suite does not use `fetha-preview`** (revised 2026-09-24). The `integration`
+  job runs against a Postgres 17 service container, fresh on every run, behind Neon's local
+  HTTP/WebSocket proxy (`ghcr.io/timowilhelm/local-neon-http-proxy`, both images pinned by digest),
+  so the app keeps the same `@neondatabase/serverless` driver it uses in production. The job
+  reaches it as `db.localtest.me` (public DNS for the loopback address) with
+  `ALLOW_DISPOSABLE_DATABASE=1`; `scripts/lib/local-neon.mjs` points the driver at the proxy only
+  for that host, from the integration suite's setup file and from `db:seed-structures`. It runs
+  `db:migrate`, `db:seed-structures`, then `pnpm --filter @fetha/web run test:integration`, in
+  parallel with the `ci` job. The reason is latency: GitHub-hosted runners land in East or West
+  US Azure regions at random, `fetha-preview` is in `us-east-1`, and the suite issues its queries
+  serially, so the same 214 tests took 76–85 s from `eastus` and 490–515 s from `westus`/`westus2`
+  (runs of 2026-09-24), and the shared `preview-db` lock made every other PR queue behind a slow
+  run.
+- `db:reset` (`scripts/reset-database.mjs`)
   refuses to run — before issuing any query — unless the host of `DATABASE_URL` exactly matches
   the `fetha-preview` pooler host or `ALLOW_DISPOSABLE_DATABASE=1` is set explicitly, and refuses
   unconditionally, even with that override, when the host exactly matches the production pooler
@@ -241,7 +254,7 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   exact match against a known/configured host, not a substring "marker" on the project name; the
   preview host has a safe-by-default fallback baked into the script, overridable through the
   `DATABASE_RESET_ALLOWED_HOST` GitHub Actions variable (a hostname, not a secret) the same way
-  Feudo's `DATABASE_RESET_ALLOWED_HOST` works. Because the database is reset
+  Feudo's `DATABASE_RESET_ALLOWED_HOST` works. Because CI's database is fresh
   every run, integration tests' own row cleanup (`src/db/test/cleanup.ts`) is a courtesy for local
   runs and interleaved test files, not what tenant isolation or test independence relies on; a
   cleanup failure is logged and swallowed rather than failing the test that already asserted what
@@ -286,6 +299,12 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   it — branch-per-PR costs money past the free tier and adds a branch-lifecycle step to every CI
   run; a shared project reset every run is free and gives the same "start from a clean schema"
   guarantee.
+- **Integration tests against `fetha-preview` from CI** (this ADR's original decision): replaced
+  on 2026-09-24 by the local service container above. Runner-to-Neon latency made the suite five
+  to six times slower whenever a runner landed on the US west coast, and GitHub-hosted runners
+  cannot be pinned to a region. The trade-off accepted: CI no longer exercises Neon's own endpoint
+  and pooler; the proxy speaks the same wire protocol to the same driver, and `fetha-preview`
+  (preview deployments) and `migrate-production.yml` still run every migration against real Neon.
 - **`EMAIL_PROVIDER`-only env switch with no `VERCEL_ENV` default** (Feudo's original choice):
   rejected in favor of defaulting from `VERCEL_ENV` with an explicit override, since "capture
   instead of send" must be true for every non-production deployment by default, not opt-in per

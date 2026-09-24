@@ -64,7 +64,7 @@ jobs:
           echo "$CHANGED"
           npx --yes impeccable detect $CHANGED
 
-  integration:
+  preview-database:
     runs-on: ubuntu-latest
     concurrency:
       group: preview-db
@@ -120,12 +120,64 @@ jobs:
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:seed-structures
 
-      - name: Integration tests
-        if: steps.preview-db.outputs.configured == 'true'
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17@sha256:f4c66b820c6f974249089d3d16d86a3698eae11e8746eb6644b2271031e91232
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-          DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
-          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: main
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      neon-proxy:
+        image: ghcr.io/timowilhelm/local-neon-http-proxy:main@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/main
+        ports:
+          - 4444:4444
+    env:
+      DATABASE_URL: postgres://postgres:postgres@db.localtest.me:5432/main
+      ALLOW_DISPOSABLE_DATABASE: "1"
+      DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The proxy image creates this table on start-up, but as a service it can
+      # start before Postgres accepts connections and then skip it.
+      - name: Register the local Neon proxy's endpoint table
+        run: >-
+          psql postgres://postgres:postgres@localhost:5432/main -v ON_ERROR_STOP=1
+          -c "CREATE SCHEMA IF NOT EXISTS neon_control_plane"
+          -c "CREATE TABLE IF NOT EXISTS neon_control_plane.endpoints
+          (endpoint_id VARCHAR(255) PRIMARY KEY, allowed_ips VARCHAR(255))"
+
+      - name: Migrate the local database
+        run: pnpm --filter @fetha/web run db:migrate
+
+      - name: Seed the structure catalog
+        run: pnpm --filter @fetha/web run db:seed-structures
+
+      - name: Integration tests
+        env:
           BETTER_AUTH_SECRET: ci-integration-secret-ci-integration-secret
           BETTER_AUTH_URL: http://localhost:3000
         run: pnpm --filter @fetha/web run test:integration

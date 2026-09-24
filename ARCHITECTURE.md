@@ -34,7 +34,7 @@ Anatomy of a slice (a file is present only when the module needs it):
 | `strings.ts`                         | User-facing copy (`en` source, pt-BR shipped) and the module's `t`.                                                     |
 | `index.ts`                           | Server entry point: what pages, route handlers and other modules may use.                                               |
 | `client.ts`                          | Client-safe entry point: components, actions and types free of `next/headers` and Drizzle.                              |
-| `*.test.ts`, `*.integration.test.ts` | Unit tests next to the code; integration tests against the `fetha-preview` database.                                    |
+| `*.test.ts`, `*.integration.test.ts` | Unit tests next to the code; integration tests against a local Postgres in CI, `fetha-preview` locally.                 |
 
 ## Entry points and the dependency rule
 
