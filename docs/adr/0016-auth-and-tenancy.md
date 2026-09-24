@@ -235,7 +235,8 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   `migrate-production.yml` sets (and the owner, by hand, for an invite) and which is refused for
   any host other than the production one. These scripts overlay `apps/web/.env.local` (from
   `vercel env pull --environment=preview`) on the inherited environment, file winning, because
-  Next.js and dotenv let a variable already exported in the shell win over the file. Both hosts are Neon's opaque
+  Next.js and dotenv let a variable already exported in the shell win over the file. `pnpm dev` (`scripts/dev.mjs`) applies the same overlay and
+  `assertDisposableDatabase` before starting Next.js, when a `DATABASE_URL` is set at all (#102). Both hosts are Neon's opaque
   per-endpoint pooler hostnames (e.g. `ep-lively-mode-…`), unrelated to either project's name —
   confirmed with `vercel env pull` against both environments, not assumed — so the guard is an
   exact match against a known/configured host, not a substring "marker" on the project name; the
