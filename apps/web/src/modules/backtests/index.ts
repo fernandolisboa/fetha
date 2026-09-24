@@ -9,6 +9,7 @@ export {
   BacktestRunNotFoundError,
 } from "./backtest-run-repository";
 export { runBacktestChunk } from "./run-chunk";
+export { DEFAULT_COST_MODEL } from "./default-config";
 export { getMyBacktestRun, getMyBacktestRunsForStrategy } from "./queries";
 export { ReportPanel } from "./components/report-panel";
 export { runErrorMessage, isResumableRunError, t } from "./strings";

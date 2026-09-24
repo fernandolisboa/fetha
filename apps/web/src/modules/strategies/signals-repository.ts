@@ -71,6 +71,13 @@ export interface EvaluationLogItem {
   detail: string | null;
 }
 
+export class SignalNotFoundError extends Error {
+  constructor() {
+    super("Signal not found");
+    this.name = "SignalNotFoundError";
+  }
+}
+
 const INBOX_LIMIT = 200;
 const EVALUATION_LOG_LIMIT = 200;
 
@@ -191,6 +198,44 @@ export class SignalsRepository extends UserScopedRepository {
       rule: signalRuleSchema.parse(row.rule),
       operationId: fromStoredOperationId(row.operationId),
     }));
+  }
+
+  // A foreign or missing signal id is a typed error, not a leak (decisions
+  // module isolation test): the `where` clause scopes by this user's own id
+  // the same way `listInbox` does, so another user's signal id simply
+  // resolves to nothing.
+  async findMine(signalId: string): Promise<SignalListItem> {
+    const [row] = await this.db
+      .select({
+        id: signals.id,
+        strategyId: signals.strategyId,
+        strategyName: strategies.name,
+        strategyVersionId: signals.strategyVersionId,
+        ticker: signals.ticker,
+        timeframe: signals.timeframe,
+        session: signals.session,
+        at: signals.at,
+        kind: signals.kind,
+        indicators: signals.indicators,
+        proposal: signals.proposal,
+        operationId: signals.operationId,
+        rule: signals.rule,
+        readAt: signals.readAt,
+      })
+      .from(signals)
+      .innerJoin(strategies, eq(strategies.id, signals.strategyId))
+      .where(and(eq(signals.id, signalId), eq(signals.userId, this.userId)));
+
+    if (!row) {
+      throw new SignalNotFoundError();
+    }
+
+    return {
+      ...row,
+      kind: signalKindSchema.parse(row.kind),
+      rule: signalRuleSchema.parse(row.rule),
+      operationId: fromStoredOperationId(row.operationId),
+    };
   }
 
   async unreadCount(): Promise<number> {

@@ -9,3 +9,8 @@ export const getMyOperations = cache(async (): Promise<ContemplatedOperation[]> 
   const repository = await forCurrentUser(getDb(), OperationsRepository);
   return repository.listMine();
 });
+
+export const getMyOperation = cache(async (id: string): Promise<ContemplatedOperation> => {
+  const repository = await forCurrentUser(getDb(), OperationsRepository);
+  return repository.findMine(id);
+});

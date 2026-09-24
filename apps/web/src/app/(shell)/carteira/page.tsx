@@ -10,13 +10,44 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
+import {
+  allowedDecisionKinds,
+  DecisionBar,
+  getMyDecisionForOperation,
+  resolveDefaultHorizon,
+  t as decisionsT,
+} from "@/modules/decisions";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { getMyOperations, t } from "@/modules/portfolio";
+import { getMyOperations, t, type ContemplatedOperation } from "@/modules/portfolio";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
+
+async function OperationDecisionCell({ operation }: { operation: ContemplatedOperation }) {
+  const decision = await getMyDecisionForOperation(operation.id);
+  if (decision) {
+    return (
+      <span className="text-muted-foreground text-xs">
+        {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
+      </span>
+    );
+  }
+
+  const defaultHorizon = await resolveDefaultHorizon(getDb(), operation.legs);
+
+  return (
+    <DecisionBar
+      originKind="contemplated_operation"
+      targetId={operation.id}
+      allowedKinds={allowedDecisionKinds({ kind: "contemplated_operation" })}
+      defaultHorizon={defaultHorizon}
+      defaultInstrument={operation.underlying}
+    />
+  );
+}
 
 export default async function PortfolioPage() {
   await requireUser();
@@ -48,6 +79,7 @@ export default async function PortfolioPage() {
                 <TableHead className="text-right">{t.list.columns.netPremium}</TableHead>
                 <TableHead className="text-right">{t.list.columns.maxLoss}</TableHead>
                 <TableHead className="text-right">{t.list.columns.breach}</TableHead>
+                <TableHead className="text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -76,6 +108,9 @@ export default async function PortfolioPage() {
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <OperationDecisionCell operation={operation} />
                   </TableCell>
                 </TableRow>
               ))}

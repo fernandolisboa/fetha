@@ -1,0 +1,111 @@
+const en = {
+  kind: {
+    enter: "Enter",
+    do_not_enter: "Do not enter",
+    hold: "Hold",
+    adjust: "Adjust",
+    exit: "Exit",
+  },
+  claim: {
+    label: "Thesis claim",
+    none: "None (scored on P&L only)",
+    close_above: "Closes above a level",
+    close_below: "Closes below a level",
+    operation_pnl_positive: "Operation's P&L is positive",
+    instrument: "Instrument",
+    level: "Level",
+  },
+  form: {
+    trigger: "Record decision",
+    title: "Record a decision",
+    rationale: "Rationale",
+    rationalePlaceholder: "Why this decision, in your own words",
+    confidence: "Confidence (%)",
+    horizon: "Horizon",
+    submit: "Save decision",
+    cancel: "Cancel",
+    invalidLevel: "Enter a valid, positive level",
+    invalidConfidence: "Enter a confidence between 0 and 100",
+  },
+  errors: {
+    invalid: "Some fields are invalid. Review the values before saving.",
+    not_found: "This signal or operation no longer exists.",
+    not_allowed: "This decision kind is not allowed here.",
+    duplicate: "This signal already has a decision recorded.",
+    unavailable: "Couldn't save right now. Try again in a moment.",
+  },
+  answered: "Decision recorded",
+  journal: {
+    overline: "Journal",
+    title: "Journal",
+    score: { pending: "not yet scored" },
+    originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
+    originOperation: (structureName: string, underlying: string) =>
+      `${structureName} · ${underlying}`,
+    confidenceLabel: "Confidence",
+    horizonLabel: "Horizon",
+    claimLabel: "Thesis",
+    claimNone: "No claim; scored on P&L only",
+    claimCloseAbove: (instrument: string, level: string) => `${instrument} closes above ${level}`,
+    claimCloseBelow: (instrument: string, level: string) => `${instrument} closes below ${level}`,
+    claimOperationPnlPositive: "Operation's P&L is positive",
+  },
+} as const;
+
+const ptBR = {
+  kind: {
+    enter: "Entrar",
+    do_not_enter: "Não entrar",
+    hold: "Manter",
+    adjust: "Ajustar",
+    exit: "Sair",
+  },
+  claim: {
+    label: "Tese verificável",
+    none: "Nenhuma (pontuada só pelo resultado)",
+    close_above: "Fecha acima de um nível",
+    close_below: "Fecha abaixo de um nível",
+    operation_pnl_positive: "Resultado da operação é positivo",
+    instrument: "Ativo",
+    level: "Nível",
+  },
+  form: {
+    trigger: "Registrar decisão",
+    title: "Registrar decisão",
+    rationale: "Justificativa",
+    rationalePlaceholder: "Por que essa decisão, com suas próprias palavras",
+    confidence: "Confiança (%)",
+    horizon: "Horizonte",
+    submit: "Salvar decisão",
+    cancel: "Cancelar",
+    invalidLevel: "Informe um nível válido e positivo",
+    invalidConfidence: "Informe uma confiança entre 0 e 100",
+  },
+  errors: {
+    invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
+    not_found: "Esse sinal ou operação não existe mais.",
+    not_allowed: "Esse tipo de decisão não é permitido aqui.",
+    duplicate: "Esse sinal já tem uma decisão registrada.",
+    unavailable: "Não foi possível salvar agora. Tente novamente em instantes.",
+  },
+  answered: "Decisão registrada",
+  journal: {
+    overline: "Diário",
+    title: "Diário",
+    score: { pending: "sem pontuação ainda" },
+    originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
+    originOperation: (structureName: string, underlying: string) =>
+      `${structureName} · ${underlying}`,
+    confidenceLabel: "Confiança",
+    horizonLabel: "Horizonte",
+    claimLabel: "Tese",
+    claimNone: "Sem tese verificável; pontuada só pelo resultado",
+    claimCloseAbove: (instrument: string, level: string) => `${instrument} fecha acima de ${level}`,
+    claimCloseBelow: (instrument: string, level: string) =>
+      `${instrument} fecha abaixo de ${level}`,
+    claimOperationPnlPositive: "Resultado da operação é positivo",
+  },
+};
+
+export const decisionsStrings = { en, ptBR } as const;
+export const t = decisionsStrings.ptBR;
