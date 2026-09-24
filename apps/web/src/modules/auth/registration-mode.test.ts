@@ -115,6 +115,30 @@ describe("resolveRegistrationMode", () => {
     );
   });
 
+  it("treats a stored value that is blank after trimming as invalid, not as unset", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await resolveRegistrationMode(settingsWith(" "), { REGISTRATION_MODE: "closed" })).toBe(
+      "closed",
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "registration_mode setting ignored: invalid value",
+      { type: "string", value: " " },
+    );
+  });
+
+  it("treats a stored newline as invalid, not as unset", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await resolveRegistrationMode(settingsWith("\n"), { REGISTRATION_MODE: "closed" })).toBe(
+      "closed",
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "registration_mode setting ignored: invalid value",
+      { type: "string", value: "\n" },
+    );
+  });
+
   it("still rejects an invalid environment value when the store is silent", async () => {
     await expect(
       resolveRegistrationMode(settingsWith(undefined), { REGISTRATION_MODE: "public" }),
