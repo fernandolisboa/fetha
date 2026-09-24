@@ -65,6 +65,7 @@ jobs:
           npx --yes impeccable detect $CHANGED
 
   preview-database:
+    needs: ci
     runs-on: ubuntu-latest
     concurrency:
       group: preview-db
@@ -160,6 +161,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Pin db.localtest.me to the loopback address
+        run: echo "127.0.0.1 db.localtest.me" | sudo tee -a /etc/hosts
+
+      - name: Wait for the local Neon proxy
+        run: timeout 60 bash -c 'until curl -s -o /dev/null http://localhost:4444/; do sleep 1; done'
 
       # The proxy image creates this table on start-up, but as a service it can
       # start before Postgres accepts connections and then skip it.

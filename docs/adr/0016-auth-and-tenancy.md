@@ -17,8 +17,9 @@ This ADR was revised during the review pass on ticket #9 (fix-forward, this same
 acceptance moved from its own history-only table to a Better Auth additional field so consent is
 atomic with the user row, the CI database topology and reset procedure were specified, the mailer
 selection rule and E2E secret comparison were hardened, and the invite-mode sign-up response was
-made generic to avoid email enumeration. The "Decision" section below reflects the final shape;
-superseded choices are called out inline.
+made generic to avoid email enumeration. On 2026-09-24, CI's integration job moved off
+`fetha-preview` onto a local Postgres container (see "CI database topology"). The "Decision"
+section below reflects the final shape; superseded choices are called out inline.
 
 Magic link, password reset and database-backed rate limiting, called out below as out of scope for
 ticket #10, were built by that ticket. See ADR-0018, which amends this one with those decisions
@@ -226,11 +227,14 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   job runs against a Postgres 17 service container, fresh on every run, behind Neon's local
   HTTP/WebSocket proxy (`ghcr.io/timowilhelm/local-neon-http-proxy`, both images pinned by digest),
   so the app keeps the same `@neondatabase/serverless` driver it uses in production. The job
-  reaches it as `db.localtest.me` (public DNS for the loopback address) with
-  `ALLOW_DISPOSABLE_DATABASE=1`; `scripts/lib/local-neon.mjs` points the driver at the proxy only
-  for that host, from the integration suite's setup file and from `db:seed-structures`. It runs
+  reaches it as `db.localtest.me`, pinned to `127.0.0.1` in `/etc/hosts` so the run never depends
+  on public DNS, with `ALLOW_DISPOSABLE_DATABASE=1`; `scripts/lib/local-neon.mjs` points the driver
+  at the proxy only for that host, from the integration suite's setup file and from
+  `db:seed-structures`. `db:migrate` needs no proxy: drizzle-kit migrates over `pg` straight to
+  port 5432. The proxy is CI tooling; `db:reset` and `seed-invite.mjs` are not routed through it. It runs
   `db:migrate`, `db:seed-structures`, then `pnpm --filter @fetha/web run test:integration`, in
-  parallel with the `ci` job. The reason is latency: GitHub-hosted runners land in East or West
+  parallel with the `ci` job. `preview-database` still waits for `ci`, so a PR whose migrations
+  fail `db:check` never resets the shared preview database. The reason is latency: GitHub-hosted runners land in East or West
   US Azure regions at random, `fetha-preview` is in `us-east-1`, and the suite issues its queries
   serially, so the same 214 tests took 76–85 s from `eastus` and 490–515 s from `westus`/`westus2`
   (runs of 2026-09-24), and the shared `preview-db` lock made every other PR queue behind a slow

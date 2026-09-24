@@ -67,7 +67,8 @@ Handlers.
 - **Database**: Postgres on Neon via the Vercel marketplace integration, one Neon project per
   environment class (ADR-0016): the production resource is connected to Vercel Production only;
   a separate, free `fetha-preview` project is connected to Vercel Preview and Development, and CI
-  resets and migrates it on every run for preview deployments — no per-PR branch. Production is migrated by a
+  resets and migrates it on every run for preview deployments (integration tests use a local
+  Postgres, see Testing) — no per-PR branch. Production is migrated by a
   dedicated `migrate-production` job on push to `main`, never by the build. Drizzle ORM +
   drizzle-kit migrations committed to the repo. Time series in monthly-partitioned tables. Prices
   as fixed-point decimals (`decimal.js` / Drizzle `numeric`), money as integer centavos. **Never

@@ -22,7 +22,7 @@ export default defineConfig({
     environment: "node",
     env: localEnv,
     fileParallelism: false,
-    setupFiles: ["./src/db/test/local-neon-proxy.setup.ts"],
+    setupFiles: ["./scripts/lib/local-neon.setup.mjs"],
     testTimeout: 20000,
   },
 });
