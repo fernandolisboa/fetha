@@ -134,6 +134,32 @@ function hasTrades(row: CotahistOptionRow): boolean {
   return row.trades > 0;
 }
 
+// Resolves each option ticker's expiry from the series registry, keeping
+// the most recently registered listing cycle per ticker (B3 reuses option
+// tickers across cycles, ADR-0017) the same way `optionChainForUnderlying`'s
+// own `latestByTicker` dedupe does. Good enough for a horizon default (the
+// decisions module's own use, `resolve-default-horizon.ts`): the user can
+// always override the prefilled date, so a reused-ticker edge case here
+// costs at most a wrong prefill, never a wrong stored decision.
+export async function expiryByTicker(
+  db: Database,
+  tickers: string[],
+): Promise<Map<string, string>> {
+  if (tickers.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .selectDistinctOn([optionSeries.ticker], {
+      ticker: optionSeries.ticker,
+      expiry: optionSeries.expiry,
+    })
+    .from(optionSeries)
+    .where(inArray(optionSeries.ticker, tickers))
+    .orderBy(asc(optionSeries.ticker), desc(optionSeries.asOf));
+
+  return new Map(rows.map((row) => [row.ticker, row.expiry]));
+}
+
 export interface ChainSeries {
   ticker: string;
   right: string;

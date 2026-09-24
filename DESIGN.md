@@ -32,7 +32,11 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   bordered panels with an icon and one action; charts fill their panel.
 - **Actions**: one primary button per screen (accent fill), secondary as outlined, tertiary as
   text. Recording a decision is its own bar (Entrar · Não entrar · Manter · Ajustar · Sair) with
-  the horizon stated next to it; requesting an analysis is the header's primary action.
+  the horizon stated next to it; on a single-object screen (a signal, an operation) the bar sits
+  inline. On list screens (Sinais, Carteira) each unanswered row opens the same bar from a
+  per-row "Registrar decisão" trigger inside a Dialog, the kind buttons and the horizon field
+  both inside the form; an answered row shows the recorded kind and date instead of the trigger.
+  Requesting an analysis is the header's primary action.
 - **Themes** are per-user (`data-theme` on `<html>`, chosen in Configurações), three at launch:
   `instrumento` (default), `terminal`, `amplo`. A theme changes color, type, radius, elevation and
   density; every component keeps its anatomy (ADR-0015).

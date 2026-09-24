@@ -37,6 +37,11 @@ export const getMySignals = cache(async (): Promise<SignalListItem[]> => {
   return repository.listInbox();
 });
 
+export const getMySignal = cache(async (signalId: string): Promise<SignalListItem> => {
+  const repository = await forCurrentUser(getDb(), SignalsRepository);
+  return repository.findMine(signalId);
+});
+
 export const getMyUnreadSignalCount = cache(async (): Promise<number> => {
   const repository = await forCurrentUser(getDb(), SignalsRepository);
   return repository.unreadCount();

@@ -33,5 +33,9 @@ export {
   MarketViewTooLargeError,
   MarketViewUnavailableError,
 } from "./market-view";
-export { optionChainForUnderlying, type ChainSeries } from "./repositories/option-repository";
+export {
+  expiryByTicker,
+  optionChainForUnderlying,
+  type ChainSeries,
+} from "./repositories/option-repository";
 export { latestSessionOnOrBefore } from "./repositories/calendar-repository";

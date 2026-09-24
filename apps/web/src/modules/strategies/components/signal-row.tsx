@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDateTime } from "@/lib/format/date-time";
 
-import { MarkSignalReadButton } from "./mark-signal-read-button";
 import { t } from "../strings";
 import type { SignalListItem } from "../signals-repository";
 
@@ -43,8 +42,19 @@ function proposalSummary(signal: SignalListItem): ReactNode {
 // time, late flag, proposal summary. `late` is always false until intraday
 // catch-up evaluation ships (#19 only evaluates daily strategies; the chip
 // itself is ADR-0010's, kept here so the intraday ticket only has to pass
-// `true`).
-export function SignalRow({ signal, late = false }: { signal: SignalListItem; late?: boolean }) {
+// `true`). `decisionSlot` is composed by the caller (the `/sinais` page,
+// which alone may depend on both this module and `decisions`): the
+// recorded-decision label or the DecisionBar trigger, per DESIGN.md's
+// DecisionBar and #27's "answering a signal marks it read" rule.
+export function SignalRow({
+  signal,
+  decisionSlot,
+  late = false,
+}: {
+  signal: SignalListItem;
+  decisionSlot: ReactNode;
+  late?: boolean;
+}) {
   return (
     <tr className="border-line-soft border-b" data-signal-id={signal.id}>
       <td className="py-2">{signal.strategyName}</td>
@@ -61,9 +71,7 @@ export function SignalRow({ signal, late = false }: { signal: SignalListItem; la
         )}
       </td>
       <td className="text-muted-foreground py-2">{proposalSummary(signal)}</td>
-      <td className="py-2 text-right">
-        <MarkSignalReadButton signalId={signal.id} read={signal.readAt !== null} />
-      </td>
+      <td className="py-2 text-right">{decisionSlot}</td>
     </tr>
   );
 }

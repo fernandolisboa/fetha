@@ -39,3 +39,15 @@ error screen instead of granting a session.
 `password-reset.spec.ts` registers and verifies a fresh account, requests a password reset, reads
 the reset link back through the same E2E-only route, sets a new password, and confirms the old
 password no longer works while the new one signs in.
+
+`signals.spec.ts` declares a risk profile, creates and activates a stock-only "always fires"
+strategy, triggers the nightly cron's manual POST trigger for a fixed session, and confirms the
+resulting signal shows up in the `/sinais` inbox. It also needs `CRON_SECRET` (the same bearer
+secret `api/cron/ingest` checks) alongside `E2E_SECRET`, and assumes PETR4 is already ingested for
+session `2026-09-09` in the preview database.
+
+`decisions.spec.ts` extends that same flow one step further: on the resulting signal's row it
+opens the DecisionBar dialog, records "Não entrar" with a rationale, confirms the row now shows the
+recorded decision instead of the dialog trigger, then opens `/diario` and confirms the journal
+entry with the same kind and rationale. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as
+`signals.spec.ts`.

@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
 
+import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
+import {
+  allowedDecisionKinds,
+  defaultHorizonsForSignals,
+  getMyDecisionsBySignalId,
+  t as decisionsT,
+} from "@/modules/decisions";
+import { DecisionBar } from "@/modules/decisions/client";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
-import { formatDateTime } from "@/lib/format/date-time";
+import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { getMyEvaluationLog, getMySignals, SignalRow, t } from "@/modules/strategies";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.signals}` };
@@ -14,6 +22,12 @@ export default async function SignalsPage() {
   if (signals.length === 0 && evaluationLog.length === 0) {
     return <EmptyState sentence={shellStrings.emptyStates.signals.sentence} />;
   }
+
+  const signalIds = signals.map((signal) => signal.id);
+  const [decisionsBySignal, defaultHorizons] = await Promise.all([
+    getMyDecisionsBySignalId(signalIds),
+    defaultHorizonsForSignals(getDb(), signals),
+  ]);
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
@@ -42,9 +56,23 @@ export default async function SignalsPage() {
               </tr>
             </thead>
             <tbody>
-              {signals.map((signal) => (
-                <SignalRow key={signal.id} signal={signal} />
-              ))}
+              {signals.map((signal) => {
+                const decision = decisionsBySignal.get(signal.id) ?? null;
+                const decisionSlot = decision ? (
+                  <span className="text-muted-foreground text-xs">
+                    {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
+                  </span>
+                ) : (
+                  <DecisionBar
+                    originKind="signal"
+                    targetId={signal.id}
+                    allowedKinds={allowedDecisionKinds({ kind: "signal", signalKind: signal.kind })}
+                    defaultHorizon={defaultHorizons.get(signal.id) ?? null}
+                    defaultInstrument={signal.ticker}
+                  />
+                );
+                return <SignalRow key={signal.id} signal={signal} decisionSlot={decisionSlot} />;
+              })}
             </tbody>
           </table>
         )}

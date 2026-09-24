@@ -9,7 +9,6 @@ export {
   type StrategyActionResult,
 } from "./actions";
 export { CopyStrategyButton } from "./components/copy-strategy-button";
-export { MarkSignalReadButton } from "./components/mark-signal-read-button";
 export { ShareToggleButton } from "./components/share-toggle-button";
 export { SignalRow } from "./components/signal-row";
 export { StrategyActiveToggle } from "./components/strategy-active-toggle";
@@ -17,6 +16,7 @@ export { StrategyEditorForm } from "./editor/strategy-editor-form";
 export { evaluateSignalsForSession, type EvaluateSignalsOutcome } from "./evaluate-signals";
 export {
   getMyEvaluationLog,
+  getMySignal,
   getMySignals,
   getMyStrategies,
   getMyStrategy,
@@ -24,6 +24,7 @@ export {
   getSharedStrategies,
   getStructures,
 } from "./queries";
+export { SignalNotFoundError, type SignalListItem } from "./signals-repository";
 export {
   StrategiesRepository,
   StrategyNotFoundError,
