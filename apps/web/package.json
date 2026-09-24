@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "node scripts/dev.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
@@ -24,6 +24,7 @@
     "@fetha/engine": "workspace:*",
     "@neondatabase/serverless": "1.1.0",
     "@serwist/next": "9.5.12",
+    "@vercel/global-config": "1.5.1",
     "@visx/axis": "4.0.0",
     "@visx/gradient": "4.0.0",
     "@visx/group": "4.0.0",

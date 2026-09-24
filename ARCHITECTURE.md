@@ -73,8 +73,8 @@ it holds no business rule. `getDb()` is obtained at this edge and passed into th
 - `src/db/client.ts`: the Neon connection and the `Database` type. `src/db/schema.ts` is the
   barrel that re-exports every module's schema for drizzle-kit and the Drizzle client.
 - `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
-  `theme/contrast`, `env`, `instant`, `utils`, `user-scoped-repository`. No business rules, no
-  module imports.
+  `theme/contrast`, `runtime-settings`, `instant`, `utils`, `user-scoped-repository`. No business
+  rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 
 ## Modules

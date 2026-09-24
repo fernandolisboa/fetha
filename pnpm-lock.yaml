@@ -38,6 +38,9 @@ importers:
       '@serwist/next':
         specifier: 9.5.12
         version: 9.5.12(next@16.3.4(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
+      '@vercel/global-config':
+        specifier: 1.5.1
+        version: 1.5.1(next@16.3.4(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))
       '@visx/axis':
         specifier: 4.0.0
         version: 4.0.0(@types/react@19.2.18)(react@19.2.8)
@@ -1986,6 +1989,21 @@ packages:
     resolution: {integrity: sha512-nAB74NfSNKknqQ1RrYj6uz8FcXEomu/MATJZxh/x+BArzN2U3JbOYC0APYzUIGhVY3m5hRxA8VPNdPBoG8txlA==}
     cpu: [x64]
     os: [win32]
+
+  '@vercel/global-config-fs@0.1.0':
+    resolution: {integrity: sha512-xxMUwf96H/qKTA4Az+uh3xlVWkwnN3z400P5gex0uUsU8pe99njopYVyKVoUTfu8gN9xbHqaigWaIBr1+lufMg==}
+
+  '@vercel/global-config@1.5.1':
+    resolution: {integrity: sha512-PUJaoyMGuSLdKnBgYIqeH1i6U3G+5noLvvJLqI8IPP5+P0b2Q5EcBBraFRh6ctNY/yTpb40klyLYyE3X0OPmKQ==}
+    engines: {node: '>=14.6'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.7.0
+      next: '>=1'
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      next:
+        optional: true
 
   '@visx/axis@4.0.0':
     resolution: {integrity: sha512-cSPNO9Aic2UX49AmIeJJ9TQrrAkvUHpHOGqimUAXhbg07VI3HoHDKcXZdrjvQz+g0LhubrUkjj8Gwju2WZ3dtg==}
@@ -6490,6 +6508,14 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
+
+  '@vercel/global-config-fs@0.1.0': {}
+
+  '@vercel/global-config@1.5.1(next@16.3.4(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))':
+    dependencies:
+      '@vercel/global-config-fs': 0.1.0
+    optionalDependencies:
+      next: 16.3.4(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
 
   '@visx/axis@4.0.0(@types/react@19.2.18)(react@19.2.8)':
     dependencies:
