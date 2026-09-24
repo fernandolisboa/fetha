@@ -300,9 +300,17 @@ describe("DecisionsRepository", () => {
 
     const { decisions } = await import("./schema");
     const { eq } = await import("drizzle-orm");
-    await expect(
-      db.update(decisions).set({ rationale: "Edited" }).where(eq(decisions.id, recorded.id)),
-    ).rejects.toThrow(/immutable/);
+    let caught: unknown;
+    try {
+      await db.update(decisions).set({ rationale: "Edited" }).where(eq(decisions.id, recorded.id));
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const cause = caught instanceof Error ? caught.cause : undefined;
+    const causeMessage = cause instanceof Error ? cause.message : String(cause);
+    expect(causeMessage).toMatch(/immutable/);
   });
 
   it("isolation: user A cannot list user B's decisions", async () => {
