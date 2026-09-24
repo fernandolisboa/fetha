@@ -19,6 +19,7 @@ import { neon } from "@neondatabase/serverless";
 import { z } from "zod";
 
 import { assertWritableDatabase, guardedDatabaseEnv } from "./lib/database-guard.mjs";
+import { routeToLocalNeonProxy } from "./lib/local-neon.mjs";
 
 const legTemplateSchema = z.discriminatedUnion("role", [
   z.strictObject({
@@ -62,6 +63,7 @@ const catalog = [
 ];
 
 const env = guardedDatabaseEnv(assertWritableDatabase, "seed the structure catalog");
+routeToLocalNeonProxy(env.DATABASE_URL);
 const sql = neon(env.DATABASE_URL);
 
 for (const candidate of catalog) {

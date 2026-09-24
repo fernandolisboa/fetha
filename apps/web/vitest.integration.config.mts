@@ -22,6 +22,7 @@ export default defineConfig({
     environment: "node",
     env: localEnv,
     fileParallelism: false,
+    setupFiles: ["./scripts/lib/local-neon.setup.mjs"],
     testTimeout: 20000,
   },
 });
