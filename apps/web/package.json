@@ -13,7 +13,7 @@
     "test:e2e": "playwright test",
     "db:reset": "node scripts/reset-database.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate-database.mjs",
     "db:check": "drizzle-kit check",
     "db:seed-structures": "node scripts/seed-structures.mjs",
     "db:auth-schema": "pnpm dlx @better-auth/cli@1.4.22 generate --config src/modules/auth/auth-schema-config.ts --output src/modules/auth/schema/better-auth.ts -y"

@@ -17,7 +17,7 @@ const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
 // match against the real production host, not a substring marker. Read from
 // DATABASE_PRODUCTION_HOST (a GitHub Actions variable in CI) with this
 // literal as the fallback; it and the same-named constant/fallback in
-// scripts/lib/reset-guard.mjs change together (docs/adr/0016).
+// scripts/lib/database-guard.mjs change together (docs/adr/0016).
 const PRODUCTION_DATABASE_HOST_FALLBACK =
   "ep-sweet-sea-au3urksh-pooler.c-10.us-east-1.aws.neon.tech";
 
@@ -49,6 +49,16 @@ export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
 }
 
+// Postgres URLs keep the host's case and a trailing dot, and Neon serves one
+// endpoint on both its "-pooler" and unpooled hosts; same rule as
+// scripts/lib/database-guard.mjs.
+function canonicalHost(host: string): string {
+  return host
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^([^.]+)-pooler\./, "$1.");
+}
+
 export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   const databaseUrl = readOptionalEnvValue(env, "DATABASE_URL");
   if (!databaseUrl) {
@@ -57,7 +67,7 @@ export function isProductionDatabaseHost(env: AuthEnv = process.env): boolean {
   const productionHost =
     readOptionalEnvValue(env, "DATABASE_PRODUCTION_HOST") ?? PRODUCTION_DATABASE_HOST_FALLBACK;
   try {
-    return new URL(databaseUrl).hostname === productionHost;
+    return canonicalHost(new URL(databaseUrl).hostname) === canonicalHost(productionHost);
   } catch {
     return false;
   }

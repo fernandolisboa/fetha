@@ -109,18 +109,24 @@ jobs:
         if: steps.preview-db.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:migrate
 
       - name: Seed the structure catalog
         if: steps.preview-db.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:seed-structures
 
       - name: Integration tests
         if: steps.preview-db.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
           BETTER_AUTH_SECRET: ci-integration-secret-ci-integration-secret
           BETTER_AUTH_URL: http://localhost:3000
         run: pnpm --filter @fetha/web run test:integration

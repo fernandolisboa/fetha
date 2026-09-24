@@ -40,5 +40,7 @@ jobs:
       - name: Seed the invite
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+          ALLOW_PRODUCTION_DATABASE: "1"
           INVITE_EMAIL: ${{ inputs.email }}
         run: pnpm --filter @fetha/web exec node scripts/seed-invite.mjs "$INVITE_EMAIL"
