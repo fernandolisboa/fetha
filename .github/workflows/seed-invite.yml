@@ -1,19 +1,27 @@
-name: Migrate production database
+name: Seed a production invite
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Email address allowed to register while REGISTRATION_MODE=invite
+        required: true
+        type: string
 
 concurrency:
-  group: migrate-production
+  group: seed-invite
   cancel-in-progress: false
 
 jobs:
-  migrate-production:
+  seed-invite:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Mask the email in the logs
+        env:
+          INVITE_EMAIL: ${{ inputs.email }}
+        run: echo "::add-mask::$INVITE_EMAIL"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -29,16 +37,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Migrate the production database
+      - name: Seed the invite
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
           ALLOW_PRODUCTION_DATABASE: "1"
-        run: pnpm --filter @fetha/web run db:migrate
-
-      - name: Seed the structure catalog
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
-          DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
-          ALLOW_PRODUCTION_DATABASE: "1"
-        run: pnpm --filter @fetha/web run db:seed-structures
+          INVITE_EMAIL: ${{ inputs.email }}
+        run: pnpm --filter @fetha/web exec node scripts/seed-invite.mjs "$INVITE_EMAIL"

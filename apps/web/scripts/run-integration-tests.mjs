@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 
-if (!process.env.DATABASE_URL) {
+import { withLocalEnvFile } from "./lib/local-env.mjs";
+
+if (!withLocalEnvFile().DATABASE_URL) {
   if (process.env.CI) {
     console.error("DATABASE_URL is not set; refusing to continue under CI.");
     process.exit(1);
