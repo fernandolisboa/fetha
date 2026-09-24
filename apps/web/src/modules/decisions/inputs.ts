@@ -19,6 +19,13 @@ import { signalKinds, type IndicatorReading, type Proposal } from "@fetha/engine
 // schema the engine does not own.
 export const signalDecisionInputsSchema = z.strictObject({
   originKind: z.literal("signal"),
+  // Snapshotted at decision time (architecture review, round 2): the
+  // repository itself only ever selects from `decisions` (no cross-module
+  // joins), so the journal's display name is whatever it was when the
+  // decision was recorded, never rewritten if the strategy is renamed
+  // later — the same "reads back the way it looked" guarantee this whole
+  // snapshot exists for.
+  strategyName: z.string().min(1),
   ticker: tickerSchema,
   session: sessionDateSchema,
   kind: z.enum(signalKinds),
@@ -32,6 +39,8 @@ export const operationDecisionInputsSchema = z.strictObject({
   originKind: z.literal("contemplated_operation"),
   underlying: tickerSchema,
   structureId: z.string().min(1),
+  // Snapshotted the same way `strategyName` is above.
+  structureName: z.string().min(1),
   legs: z.array(contemplatedLegSchema),
   session: sessionDateSchema,
   netPremiumCentavos: centavosSchema,

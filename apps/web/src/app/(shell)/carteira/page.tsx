@@ -14,44 +14,26 @@ import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
 import {
   allowedDecisionKinds,
-  DecisionBar,
-  getMyDecisionForOperation,
-  resolveDefaultHorizon,
+  defaultHorizonsForOperations,
+  getMyDecisionsByOperationId,
   t as decisionsT,
 } from "@/modules/decisions";
+import { DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { getMyOperations, t, type ContemplatedOperation } from "@/modules/portfolio";
+import { getMyOperations, t } from "@/modules/portfolio";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
 
-async function OperationDecisionCell({ operation }: { operation: ContemplatedOperation }) {
-  const decision = await getMyDecisionForOperation(operation.id);
-  if (decision) {
-    return (
-      <span className="text-muted-foreground text-xs">
-        {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
-      </span>
-    );
-  }
-
-  const defaultHorizon = await resolveDefaultHorizon(getDb(), operation.legs);
-
-  return (
-    <DecisionBar
-      originKind="contemplated_operation"
-      targetId={operation.id}
-      allowedKinds={allowedDecisionKinds({ kind: "contemplated_operation" })}
-      defaultHorizon={defaultHorizon}
-      defaultInstrument={operation.underlying}
-    />
-  );
-}
-
 export default async function PortfolioPage() {
   await requireUser();
   const operations = await getMyOperations();
+
+  const [decisionsByOperation, defaultHorizons] = await Promise.all([
+    getMyDecisionsByOperationId(),
+    defaultHorizonsForOperations(getDb(), operations),
+  ]);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 py-8">
@@ -83,37 +65,52 @@ export default async function PortfolioPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {operations.map((operation) => (
-                <TableRow key={operation.id}>
-                  <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
-                  <TableCell className="font-mono tabular-nums">
-                    {formatDate(operation.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {formatBRL(operation.netPremiumCentavos)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {operation.maxLossCentavos === null
-                      ? "—"
-                      : formatBRL(operation.maxLossCentavos)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {operation.breachedLimits.length > 0 ? (
-                      <span
-                        className="font-mono text-[12px] tabular-nums"
-                        style={{ color: "var(--warning)" }}
-                      >
-                        {operation.breachedLimits.length}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <OperationDecisionCell operation={operation} />
-                  </TableCell>
-                </TableRow>
-              ))}
+              {operations.map((operation) => {
+                const decision = decisionsByOperation.get(operation.id) ?? null;
+                return (
+                  <TableRow key={operation.id}>
+                    <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
+                    <TableCell className="font-mono tabular-nums">
+                      {formatDate(operation.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatBRL(operation.netPremiumCentavos)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {operation.maxLossCentavos === null
+                        ? "—"
+                        : formatBRL(operation.maxLossCentavos)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {operation.breachedLimits.length > 0 ? (
+                        <span
+                          className="font-mono text-[12px] tabular-nums"
+                          style={{ color: "var(--warning)" }}
+                        >
+                          {operation.breachedLimits.length}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {decision ? (
+                        <span className="text-muted-foreground text-xs">
+                          {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
+                        </span>
+                      ) : (
+                        <DecisionBar
+                          originKind="contemplated_operation"
+                          targetId={operation.id}
+                          allowedKinds={allowedDecisionKinds({ kind: "contemplated_operation" })}
+                          defaultHorizon={defaultHorizons.get(operation.id) ?? null}
+                          defaultInstrument={operation.underlying}
+                        />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Panel>

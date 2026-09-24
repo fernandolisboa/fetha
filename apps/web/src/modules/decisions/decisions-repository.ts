@@ -10,18 +10,16 @@ import {
 } from "@fetha/contracts";
 import { decisionKinds, type DecisionKind } from "@fetha/engine";
 
-import type { Database } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
-import { contemplatedOperations } from "../portfolio/schema";
-import { signals, strategies, structures } from "../strategies/schema";
 
-import { decisions } from "./schema";
+import { journalOriginKinds, type JournalOriginKind } from "./allowed-kinds";
 import { decisionInputsSchema, type DecisionInputs } from "./inputs";
-import type { DecisionOriginKind } from "./allowed-kinds";
+import { classifyDecisionPersistenceError } from "./pg-error";
+import { decisions } from "./schema";
 
 export interface RecordDecisionInput {
   kind: DecisionKind;
-  originKind: DecisionOriginKind;
+  originKind: JournalOriginKind;
   signalId: string | null;
   contemplatedOperationId: string | null;
   strategyVersionId: string | null;
@@ -33,10 +31,17 @@ export interface RecordDecisionInput {
   costModel: CostModel;
 }
 
+// Display names (strategy name, structure name) live inside `inputs`, not as
+// top-level columns: they are snapshotted at record time (architecture
+// review, round 2) rather than joined from `signals`/`strategies`/
+// `contemplated_operations`, so every query here selects only from
+// `decisions` — no other module's table is a schema-level FK reference
+// away from being read directly, which ADR-0019 reserves for `schema.ts`
+// foreign keys, not repository queries.
 export interface DecisionListItem {
   id: string;
   kind: DecisionKind;
-  originKind: DecisionOriginKind;
+  originKind: JournalOriginKind;
   inputs: DecisionInputs;
   rationale: string;
   claim: ThesisClaim | null;
@@ -45,11 +50,7 @@ export interface DecisionListItem {
   costModel: CostModel;
   decidedAt: Date;
   signalId: string | null;
-  strategyName: string | null;
-  ticker: string | null;
   contemplatedOperationId: string | null;
-  structureName: string | null;
-  underlying: string | null;
 }
 
 // Thrown on the unique partial index over (user_id, signal_id): a signal is
@@ -61,20 +62,15 @@ export class DuplicateSignalDecisionError extends Error {
   }
 }
 
-interface PgDriverError {
-  code: string;
-  severity: string;
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  const candidate = error instanceof Error && "cause" in error ? error.cause : error;
-  return (
-    typeof candidate === "object" &&
-    candidate !== null &&
-    "code" in candidate &&
-    "severity" in candidate &&
-    (candidate as PgDriverError).code === "23505"
-  );
+// Thrown by the `decisions_horizon_on_or_after_decided_check` constraint:
+// defense in depth behind `actions.ts`'s own pre-insert validation (a
+// horizon that was valid when the form loaded but has since crossed into
+// yesterday, or any caller that skips the action's check).
+export class InvalidHorizonError extends Error {
+  constructor() {
+    super("The horizon cannot be before today");
+    this.name = "InvalidHorizonError";
+  }
 }
 
 const DECISION_KIND_VALUES = new Set<string>(decisionKinds);
@@ -85,68 +81,24 @@ function parseDecisionKind(value: string): DecisionKind {
   return value as DecisionKind;
 }
 
-const DECISION_ORIGIN_KIND_VALUES: readonly DecisionOriginKind[] = [
-  "signal",
-  "contemplated_operation",
-];
-function parseDecisionOriginKind(value: string): DecisionOriginKind {
-  if (!DECISION_ORIGIN_KIND_VALUES.includes(value as DecisionOriginKind)) {
+const JOURNAL_ORIGIN_KIND_VALUES: readonly string[] = journalOriginKinds;
+function parseJournalOriginKind(value: string): JournalOriginKind {
+  if (!JOURNAL_ORIGIN_KIND_VALUES.includes(value)) {
     throw new Error(`unknown decision origin kind: ${value}`);
   }
-  return value as DecisionOriginKind;
+  return value as JournalOriginKind;
 }
 
-// The one row shape both read methods below select and map: a decision
-// joined out to the strategy/ticker or structure/underlying its origin
-// names in the journal (DESIGN.md JournalEntry), the same left-join-both-
-// origins shape for either method since exactly one side is ever non-null
-// (the `decisions_origin_match_check` constraint).
-function decisionRows(db: Database) {
-  return db
-    .select({
-      id: decisions.id,
-      kind: decisions.kind,
-      originKind: decisions.originKind,
-      inputs: decisions.inputs,
-      rationale: decisions.rationale,
-      claim: decisions.claim,
-      confidence: decisions.confidence,
-      horizon: decisions.horizon,
-      costModel: decisions.costModel,
-      decidedAt: decisions.decidedAt,
-      signalId: decisions.signalId,
-      strategyName: strategies.name,
-      ticker: signals.ticker,
-      contemplatedOperationId: decisions.contemplatedOperationId,
-      structureName: structures.name,
-      underlying: contemplatedOperations.underlying,
-    })
-    .from(decisions)
-    .leftJoin(signals, eq(signals.id, decisions.signalId))
-    .leftJoin(strategies, eq(strategies.id, signals.strategyId))
-    .leftJoin(
-      contemplatedOperations,
-      eq(contemplatedOperations.id, decisions.contemplatedOperationId),
-    )
-    .leftJoin(structures, eq(structures.id, contemplatedOperations.structureId));
-}
-
-type DecisionRow = Awaited<ReturnType<typeof decisionRows>>[number];
-
-function toDecisionListItem(row: DecisionRow): DecisionListItem {
+function toDecisionListItem(row: typeof decisions.$inferSelect): DecisionListItem {
   return {
     id: row.id,
     decidedAt: row.decidedAt,
     signalId: row.signalId,
-    strategyName: row.strategyName,
-    ticker: row.ticker,
     contemplatedOperationId: row.contemplatedOperationId,
-    structureName: row.structureName,
-    underlying: row.underlying,
     rationale: row.rationale,
     horizon: row.horizon,
     kind: parseDecisionKind(row.kind),
-    originKind: parseDecisionOriginKind(row.originKind),
+    originKind: parseJournalOriginKind(row.originKind),
     inputs: decisionInputsSchema.parse(row.inputs),
     claim: row.claim ? thesisClaimSchema.parse(row.claim) : null,
     confidence: confidenceSchema.parse(row.confidence),
@@ -179,22 +131,28 @@ export class DecisionsRepository extends UserScopedRepository {
           horizon: input.horizon,
           costModel: input.costModel,
         })
-        .returning({ id: decisions.id });
+        .returning();
 
       if (!row) {
         throw new Error("failed to record decision");
       }
       return { id: row.id };
     } catch (error) {
-      if (isUniqueViolation(error)) {
+      const outcome = classifyDecisionPersistenceError(error);
+      if (outcome === "duplicate_signal") {
         throw new DuplicateSignalDecisionError();
+      }
+      if (outcome === "invalid_horizon") {
+        throw new InvalidHorizonError();
       }
       throw error;
     }
   }
 
   async listMine(): Promise<DecisionListItem[]> {
-    const rows = await decisionRows(this.db)
+    const rows = await this.db
+      .select()
+      .from(decisions)
       .where(eq(decisions.userId, this.userId))
       .orderBy(desc(decisions.decidedAt), desc(decisions.createdAt))
       .limit(JOURNAL_LIMIT);
@@ -206,9 +164,10 @@ export class DecisionsRepository extends UserScopedRepository {
   // "answered" state, brief item 5): scoped by user id the same way every
   // other method here is, over the same unique index `record` relies on.
   async findForSignal(signalId: string): Promise<DecisionListItem | null> {
-    const [row] = await decisionRows(this.db).where(
-      and(eq(decisions.userId, this.userId), eq(decisions.signalId, signalId)),
-    );
+    const [row] = await this.db
+      .select()
+      .from(decisions)
+      .where(and(eq(decisions.userId, this.userId), eq(decisions.signalId, signalId)));
 
     return row ? toDecisionListItem(row) : null;
   }
@@ -218,7 +177,9 @@ export class DecisionsRepository extends UserScopedRepository {
   // operation carries no uniqueness constraint on decisions (brief item 2
   // names only the signal partial index), so this reads the latest one.
   async findLatestForOperation(contemplatedOperationId: string): Promise<DecisionListItem | null> {
-    const [row] = await decisionRows(this.db)
+    const [row] = await this.db
+      .select()
+      .from(decisions)
       .where(
         and(
           eq(decisions.userId, this.userId),

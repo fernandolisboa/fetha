@@ -3,7 +3,7 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DecisionKind } from "@fetha/engine";
-import { thesisClaimKinds } from "@fetha/contracts";
+import { thesisClaimKinds, tickerSchema } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,17 +27,18 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { recordDecisionAction, type RecordDecisionActionInput } from "../actions";
-import type { DecisionOriginKind } from "../allowed-kinds";
+import type { JournalOriginKind } from "../allowed-kinds";
 import { parseConfidencePercent } from "../parse-confidence";
 import { parseLevelInput } from "../parse-level";
 import { t } from "../strings";
+import { todaySaoPauloDate } from "../today-sao-paulo";
 
 type ThesisClaimKind = (typeof thesisClaimKinds)[number];
 
 const CLAIM_KINDS: readonly (ThesisClaimKind | "none")[] = ["none", ...thesisClaimKinds];
 
 interface DecisionBarProps {
-  originKind: DecisionOriginKind;
+  originKind: JournalOriginKind;
   targetId: string;
   allowedKinds: readonly DecisionKind[];
   defaultHorizon: string | null;
@@ -69,12 +70,15 @@ export function DecisionBar({
 
   const confidence = parseConfidencePercent(confidencePercent);
   const parsedLevel = parseLevelInput(level);
+  const instrumentValid = tickerSchema.safeParse(instrument).success;
   const claimValid =
     claimKind === "none" ||
     claimKind === "operation_pnl_positive" ||
-    (instrument.trim() !== "" && parsedLevel !== null);
+    (instrumentValid && parsedLevel !== null);
+  const today = todaySaoPauloDate();
+  const horizonValid = horizon !== "" && horizon >= today;
   const canSubmit =
-    kind !== null && rationale.trim() !== "" && confidence !== null && horizon !== "" && claimValid;
+    kind !== null && rationale.trim() !== "" && confidence !== null && horizonValid && claimValid;
 
   function reset() {
     setKind(allowedKinds[0] ?? null);
@@ -92,7 +96,7 @@ export function DecisionBar({
       kind === null ||
       confidence === null ||
       rationale.trim() === "" ||
-      horizon === "" ||
+      !horizonValid ||
       !claimValid
     ) {
       return;
@@ -216,11 +220,15 @@ export function DecisionBar({
                 <Label htmlFor="decision-claim-instrument">{t.claim.instrument}</Label>
                 <Input
                   id="decision-claim-instrument"
+                  aria-invalid={!instrumentValid}
                   value={instrument}
                   onChange={(event) => {
                     setInstrument(event.target.value.toUpperCase());
                   }}
                 />
+                {!instrumentValid && (
+                  <p className="text-destructive text-xs">{t.form.invalidInstrument}</p>
+                )}
               </div>
               <div className="flex flex-1 flex-col gap-1">
                 <Label htmlFor="decision-claim-level">{t.claim.level}</Label>
@@ -253,11 +261,15 @@ export function DecisionBar({
               <Input
                 id="decision-horizon"
                 type="date"
+                aria-invalid={horizon !== "" && !horizonValid}
                 value={horizon}
                 onChange={(event) => {
                   setHorizon(event.target.value);
                 }}
               />
+              {horizon !== "" && !horizonValid && (
+                <p className="text-destructive text-xs">{t.form.invalidHorizon}</p>
+              )}
             </div>
           </div>
 

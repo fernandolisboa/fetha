@@ -27,10 +27,10 @@ function claimSentence(decision: DecisionListItem): string {
 }
 
 function origin(decision: DecisionListItem): string {
-  if (decision.originKind === "signal") {
-    return t.journal.originSignal(decision.strategyName ?? "", decision.ticker ?? "");
+  if (decision.inputs.originKind === "signal") {
+    return t.journal.originSignal(decision.inputs.strategyName, decision.inputs.ticker);
   }
-  return t.journal.originOperation(decision.structureName ?? "", decision.underlying ?? "");
+  return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 
 // DESIGN.md's JournalEntry: decision kind, origin, decided date/time,

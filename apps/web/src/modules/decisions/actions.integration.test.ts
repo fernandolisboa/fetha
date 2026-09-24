@@ -6,6 +6,7 @@ import {
   centavosSchema,
   confidenceSchema,
   quantitySchema,
+  sessionDateSchema,
   tickerSchema,
   type DecimalString,
   type StrategyDefinition,
@@ -48,6 +49,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 const { recordDecisionAction } = await import("./actions");
 const { DecisionsRepository } = await import("./decisions-repository");
+const { todaySaoPauloDate } = await import("./today-sao-paulo");
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;
@@ -304,5 +306,35 @@ describe("recordDecisionAction", () => {
     });
 
     expect(second).toEqual({ status: "error", error: "duplicate" });
+  });
+
+  it("rejects a horizon before today in America/Sao_Paulo with a typed result instead of throwing", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("horizon-in-past");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const ticker = randomTicker();
+    const signal = await createSignal(owner, ticker);
+
+    const today = new Date(`${todaySaoPauloDate()}T00:00:00.000Z`);
+    const yesterday = new Date(today);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+    await expect(
+      recordDecisionAction({
+        originKind: "signal",
+        targetId: signal.id,
+        kind: "enter",
+        rationale: "Horizon already in the past",
+        claim: null,
+        confidence: confidenceSchema.parse("0.5"),
+        horizon: sessionDateSchema.parse(yesterdayIso),
+      }),
+    ).resolves.toEqual({ status: "error", error: "horizon_in_past" });
+
+    const repository = new DecisionsRepository(getDb(), owner);
+    expect(await repository.listMine()).toEqual([]);
   });
 });

@@ -17,9 +17,8 @@ import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
 import { contemplatedOperations } from "../portfolio/schema";
 
+import { journalOriginKinds } from "./allowed-kinds";
 import type { DecisionInputs } from "./inputs";
-
-export const decisionOriginKinds = ["signal", "contemplated_operation"] as const;
 
 // A user's explicit record about a signal or a contemplated operation
 // (UBIQUITOUS_LANGUAGE.md "Decision"): append-only (enforced by the
@@ -80,7 +79,7 @@ export const decisions = pgTable(
     ),
     check(
       "decisions_origin_kind_check",
-      sql`${table.originKind} in ('signal', 'contemplated_operation')`,
+      sql`${table.originKind} in (${sql.raw(journalOriginKinds.map((kind) => `'${kind}'`).join(", "))})`,
     ),
     check(
       "decisions_origin_match_check",

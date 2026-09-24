@@ -142,6 +142,7 @@ async function createOperation(
 function signalInputs(ticker: Ticker): DecisionInputs {
   return {
     originKind: "signal",
+    strategyName: "DR test",
     ticker,
     session: "2031-06-01",
     kind: "entry",
@@ -156,6 +157,7 @@ function operationInputs(underlying: Ticker): DecisionInputs {
     originKind: "contemplated_operation",
     underlying,
     structureId: "stock",
+    structureName: "Compra de ação",
     legs: [{ role: "stock", side: "buy", ticker: underlying, quantity: quantitySchema.parse(100) }],
     session: "2031-06-01",
     netPremiumCentavos: centavosSchema.parse(300000),
@@ -199,8 +201,11 @@ describe("DecisionsRepository", () => {
     expect(entry?.rationale).toBe("Trend looks strong");
     expect(entry?.confidence).toBe("0.6");
     expect(entry?.horizon).toBe("2031-06-15");
-    expect(entry?.ticker).toBe(ticker);
-    expect(entry?.strategyName).toBe("DR test");
+    expect(entry?.inputs.originKind).toBe("signal");
+    if (entry?.inputs.originKind === "signal") {
+      expect(entry.inputs.ticker).toBe(ticker);
+      expect(entry.inputs.strategyName).toBe("DR test");
+    }
     expect(entry?.claim).toEqual({ kind: "close_above", instrument: ticker, level: "40" });
 
     const found = await repository.findForSignal(signal.id);
@@ -234,12 +239,18 @@ describe("DecisionsRepository", () => {
     const mine = await repository.listMine();
     expect(mine).toHaveLength(1);
     expect(mine[0]?.originKind).toBe("contemplated_operation");
-    expect(mine[0]?.underlying).toBe(underlying);
-    expect(mine[0]?.structureName).toBe("Compra de ação");
+    expect(mine[0]?.inputs.originKind).toBe("contemplated_operation");
+    if (mine[0]?.inputs.originKind === "contemplated_operation") {
+      expect(mine[0].inputs.underlying).toBe(underlying);
+      expect(mine[0].inputs.structureName).toBe("Compra de ação");
+    }
     expect(mine[0]?.claim).toBeNull();
 
     const foundForOperation = await repository.findLatestForOperation(operationId);
-    expect(foundForOperation?.underlying).toBe(underlying);
+    expect(foundForOperation?.inputs.originKind).toBe("contemplated_operation");
+    if (foundForOperation?.inputs.originKind === "contemplated_operation") {
+      expect(foundForOperation.inputs.underlying).toBe(underlying);
+    }
   });
 
   it("rejects a second decision recorded against the same signal (a signal is answered once)", async () => {
@@ -344,5 +355,37 @@ describe("DecisionsRepository", () => {
     expect(await repoA.listMine()).toEqual([]);
     expect(await repoA.findForSignal(signalB.id)).toBeNull();
     expect(await repoB.listMine()).toHaveLength(1);
+  });
+
+  it("isolation: user A cannot read user B's operation-origin decision via findLatestForOperation", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const emailA = uniqueEmail("isolation-op-a");
+    const emailB = uniqueEmail("isolation-op-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const underlyingB = randomTicker();
+    const operationIdB = await createOperation(db, userB, underlyingB);
+
+    const repoB = new DecisionsRepository(db, userB);
+    await repoB.record({
+      kind: "do_not_enter",
+      originKind: "contemplated_operation",
+      signalId: null,
+      contemplatedOperationId: operationIdB,
+      strategyVersionId: null,
+      inputs: operationInputs(underlyingB),
+      rationale: "B's own operation decision",
+      claim: null,
+      confidence: confidenceSchema.parse("0.4"),
+      horizon: "2031-06-20",
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const repoA = new DecisionsRepository(db, userA);
+    expect(await repoA.findLatestForOperation(operationIdB)).toBeNull();
+    expect(await repoB.findLatestForOperation(operationIdB)).not.toBeNull();
   });
 });

@@ -31,4 +31,12 @@ describe("parseConfidencePercent", () => {
     expect(parseConfidencePercent("")).toBeNull();
     expect(parseConfidencePercent("abc")).toBeNull();
   });
+
+  it("rejects hexadecimal notation", () => {
+    expect(parseConfidencePercent("0x40")).toBeNull();
+  });
+
+  it("rejects exponent notation", () => {
+    expect(parseConfidencePercent("1e1")).toBeNull();
+  });
 });
