@@ -136,75 +136,85 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
     fc.integer({ min: 100, max: 3000 }),
     fc.integer({ min: 1, max: 2000 }),
     zeroVolumeFlagsArbitrary,
+    fc.integer({ min: 1, max: 70 }),
   )
-  .map(([prices, exitFraction, cdiBasisPoints, initialCapitalReais, zeroVolumeFlags]) => {
-    const calendar: TradingSession[] = [];
-    const candles: Candle[] = [];
-    for (let i = 0; i < BACKTEST_FIXTURE_SESSIONS; i += 1) {
-      const s = backtestSessionAt(i);
-      calendar.push(s);
-      const price = assertDefined(prices[i], "arbitraries: index within bounds");
-      const isZeroVolume =
-        assertDefined(zeroVolumeFlags[i], "arbitraries: index within bounds") === 0;
-      candles.push({
-        ticker: "PETR4",
+  .map(
+    ([
+      prices,
+      exitFraction,
+      cdiBasisPoints,
+      initialCapitalReais,
+      zeroVolumeFlags,
+      windowSessions,
+    ]) => {
+      const calendar: TradingSession[] = [];
+      const candles: Candle[] = [];
+      for (let i = 0; i < BACKTEST_FIXTURE_SESSIONS; i += 1) {
+        const s = backtestSessionAt(i);
+        calendar.push(s);
+        const price = assertDefined(prices[i], "arbitraries: index within bounds");
+        const isZeroVolume =
+          assertDefined(zeroVolumeFlags[i], "arbitraries: index within bounds") === 0;
+        candles.push({
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: s.date,
+          asOf: s.close,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          tradedQuantity: isZeroVolume ? 0 : 1000,
+        });
+      }
+      const definition: StrategyDefinition = {
+        name: "buy, take profit and re-enter",
         timeframe: "D1",
-        session: s.date,
-        asOf: s.close,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        tradedQuantity: isZeroVolume ? 0 : 1000,
-      });
-    }
-    const definition: StrategyDefinition = {
-      name: "buy, take profit and re-enter",
-      timeframe: "D1",
-      structureId: "stock",
-      strikes: [],
-      sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
-      entry: alwaysTrueEntry,
-      exit: [{ kind: "profit_target", fractionOfPremium: exitFraction }],
-      adjustments: [],
-    };
-    const strategy: StrategyVersion = { id: "v1", definition, structure: stockStructure };
-    const first = assertDefined(calendar[0], "arbitraries: non-empty calendar");
-    const last = assertDefined(calendar.at(-1), "arbitraries: non-empty calendar");
-    const config: BacktestConfig = {
-      strategy,
-      universe: ["PETR4"],
-      period: { from: first.date, to: last.date },
-      initialCapital: centavos(initialCapitalReais * 100_00),
-      costModel: {
-        b3FeeRate: decimalString("0.0005"),
-        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
-        optionSlippageRate: decimalString("0"),
-        incomeTaxRate: decimalString("0.15"),
-        // Low enough that a month's own stock sales — even at the smallest end of
-        // initialCapitalReais's range — realistically breach it at least once across a
-        // property run's numRuns draws, so I7 actually exercises a taxable month instead of
-        // one that is always exempt.
-        monthlyStockSalesExemption: centavos(500_00),
-      },
-      riskProfile: {
-        declaredCapital: centavos(initialCapitalReais * 100_00),
-        limits: {
-          maxLossPerOperation: decimalString("1"),
-          maxExposurePerOperation: decimalString("1"),
-          maxOpenOperations: 5,
-          maxPremiumBought: decimalString("1"),
+        structureId: "stock",
+        strikes: [],
+        sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        entry: alwaysTrueEntry,
+        exit: [{ kind: "profit_target", fractionOfPremium: exitFraction }],
+        adjustments: [],
+      };
+      const strategy: StrategyVersion = { id: "v1", definition, structure: stockStructure };
+      const first = assertDefined(calendar[0], "arbitraries: non-empty calendar");
+      const last = assertDefined(calendar.at(-1), "arbitraries: non-empty calendar");
+      const config: BacktestConfig = {
+        strategy,
+        universe: ["PETR4"],
+        period: { from: first.date, to: last.date },
+        initialCapital: centavos(initialCapitalReais * 100_00),
+        costModel: {
+          b3FeeRate: decimalString("0.0005"),
+          brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+          optionSlippageRate: decimalString("0"),
+          incomeTaxRate: decimalString("0.15"),
+          // Low enough that a month's own stock sales — even at the smallest end of
+          // initialCapitalReais's range — realistically breach it at least once across a
+          // property run's numRuns draws, so I7 actually exercises a taxable month instead of
+          // one that is always exempt.
+          monthlyStockSalesExemption: centavos(500_00),
         },
-      },
-      limits: "enforce",
-      sizing: null,
-      walkForward: null,
-      seed: 1,
-    };
-    return {
-      config,
-      calendar,
-      candles,
-      cdiAnnualRate: decimalString((cdiBasisPoints / 10000).toFixed(6)),
-    };
-  });
+        riskProfile: {
+          declaredCapital: centavos(initialCapitalReais * 100_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+        limits: "enforce",
+        sizing: null,
+        walkForward: { windowSessions },
+        seed: 1,
+      };
+      return {
+        config,
+        calendar,
+        candles,
+        cdiAnnualRate: decimalString((cdiBasisPoints / 10000).toFixed(6)),
+      };
+    },
+  );

@@ -157,12 +157,62 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 
     await expect(new BacktestRunRepository(db, userA).findMine(runB.id)).rejects.toBeInstanceOf(
       BacktestRunNotFoundError,
     );
+  });
+
+  it("a comparison lists and reads only the user's own completed runs (#30)", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("compare-a");
+    const emailB = uniqueEmail("compare-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    async function completedRunOf(owner: { id: string; name: string; email: string }) {
+      const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+      const version = strategy.versions[0];
+      if (!version) throw new Error("expected a version");
+      const repository = new BacktestRunRepository(db, owner);
+      const input = {
+        strategyId: strategy.id,
+        strategyVersionId: version.id,
+        structure: STOCK_STRUCTURE,
+        universe: ["ZQIS3"],
+        period: { from: "2025-01-02", to: "2025-01-10" },
+        initialCapital: centavos(1_000_000),
+        costModel: DEFAULT_COST_MODEL,
+        riskProfile: defaultRiskProfile(centavos(1_000_000)),
+        limits: "warn" as const,
+        sizing: version.definition.sizing,
+        walkForward: { windowSessions: 63 },
+        seed: 1,
+      };
+      const complete = await repository.create(input);
+      await repository.complete(complete.id, {
+        result: completedResult(version),
+        configDigest: "x",
+        sessionsDone: 0,
+      });
+      const pending = await repository.create(input);
+      return { complete, pending };
+    }
+
+    const a = await completedRunOf(userA);
+    const b = await completedRunOf(userB);
+    const repositoryA = new BacktestRunRepository(db, userA);
+
+    const summaries = await repositoryA.listMineCompleteSummaries();
+    expect(summaries.map((summary) => summary.id)).toEqual([a.complete.id]);
+
+    const read = await repositoryA.findMineComplete([b.complete.id, a.pending.id, a.complete.id]);
+    expect(read.map((run) => run.id)).toEqual([a.complete.id]);
+    expect(read[0]?.walkForward).toEqual({ windowSessions: 63 });
   });
 
   it("user A cannot save progress or complete user B's backtest run", async () => {
@@ -188,6 +238,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 
@@ -236,6 +287,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
     expect(runB.status).toBe("pending");
@@ -272,6 +324,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 
@@ -308,6 +361,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn" as const,
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     };
 
@@ -365,6 +419,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 
@@ -412,6 +467,7 @@ describe("BacktestRunRepository isolation", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 

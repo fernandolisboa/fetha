@@ -4,7 +4,11 @@ import { notFound } from "next/navigation";
 
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
-import { getMyBacktestRunsForStrategy, t as backtestsStrings } from "@/modules/backtests";
+import {
+  compareHref,
+  getMyBacktestRunsForStrategy,
+  t as backtestsStrings,
+} from "@/modules/backtests";
 import { buttonVariants } from "@/components/ui/button";
 import { Panel, t as shellStrings } from "@/modules/shell";
 import {
@@ -38,6 +42,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
     notFound();
   }
 
+  const completedRunIds = runs.filter((run) => run.status === "complete").map((run) => run.id);
   const latestVersion = strategy.versions[strategy.versions.length - 1];
   if (!latestVersion) {
     notFound();
@@ -77,9 +82,19 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
 
       <Panel title={backtestsStrings.report.overline}>
         <div className="flex flex-col gap-3">
-          <Link href={`/estrategias/${strategy.id}/backtests/novo`} className={buttonVariants()}>
-            {backtestsStrings.create.submit}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/estrategias/${strategy.id}/backtests/novo`} className={buttonVariants()}>
+              {backtestsStrings.create.submit}
+            </Link>
+            {completedRunIds.length > 0 ? (
+              <Link
+                href={compareHref(completedRunIds.slice(0, 2))}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                {backtestsStrings.compare.link}
+              </Link>
+            ) : null}
+          </div>
           {runs.length > 0 ? (
             <ul className="flex flex-col gap-1 text-sm">
               {runs.map((run) => (

@@ -18,7 +18,13 @@ import {
 import { parseCentavosInput } from "@/lib/format/parse-money";
 
 import { createBacktestRunAction } from "../actions";
-import { costModelPresetIds, type CostModelPresetId } from "../default-config";
+import {
+  costModelPresetIds,
+  DEFAULT_WALK_FORWARD_WINDOW,
+  walkForwardWindowOptions,
+  type CostModelPresetId,
+  type WalkForwardWindowOption,
+} from "../default-config";
 import { t } from "../strings";
 
 export function CreateRunForm({
@@ -36,6 +42,9 @@ export function CreateRunForm({
   const [capital, setCapital] = useState("10.000,00");
   const [limits, setLimits] = useState<"enforce" | "warn">("warn");
   const [costModel, setCostModel] = useState<CostModelPresetId>("b3_default");
+  const [windowSessions, setWindowSessions] = useState<WalkForwardWindowOption>(
+    DEFAULT_WALK_FORWARD_WINDOW,
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -69,6 +78,7 @@ export function CreateRunForm({
           initialCapital: capitalCentavos,
           limits,
           costModel,
+          walkForwardWindowSessions: windowSessions,
         });
         if (result.error === "no_risk_profile") {
           setError(t.create.noRiskProfile);
@@ -184,6 +194,31 @@ export function CreateRunForm({
           <SelectContent>
             <SelectItem value="warn">{t.create.limitsWarn}</SelectItem>
             <SelectItem value="enforce">{t.create.limitsEnforce}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="backtest-walk-forward">{t.create.walkForward}</Label>
+        <p className="text-muted-foreground text-xs">{t.create.walkForwardHint}</p>
+        <Select
+          value={String(windowSessions)}
+          onValueChange={(next) => {
+            const option = walkForwardWindowOptions.find((value) => String(value) === next);
+            if (option !== undefined) {
+              setWindowSessions(option);
+            }
+          }}
+        >
+          <SelectTrigger id="backtest-walk-forward" className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {walkForwardWindowOptions.map((option) => (
+              <SelectItem key={option} value={String(option)}>
+                {t.create.walkForwardOptions[option]}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

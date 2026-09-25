@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/modules/auth";
+import { t as backtestsStrings } from "@/modules/backtests";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 import {
   CopyStrategyButton,
@@ -36,9 +37,14 @@ export default async function StrategiesPage() {
           </p>
           <h1 className="text-[22px] font-semibold tracking-tight">{t.list.title}</h1>
         </div>
-        <Link href="/estrategias/nova" className={buttonVariants()}>
-          {t.list.newStrategy}
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/estrategias/comparar" className={buttonVariants({ variant: "outline" })}>
+            {backtestsStrings.compare.link}
+          </Link>
+          <Link href="/estrategias/nova" className={buttonVariants()}>
+            {t.list.newStrategy}
+          </Link>
+        </div>
       </div>
 
       <Panel title={t.list.mine.title}>

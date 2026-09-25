@@ -86,6 +86,9 @@
   --row-height: 36px;
   --panel-padding: 10px 12px;
   --chart-stroke: var(--accent);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
 }
 
 [data-theme="terminal"] {
@@ -125,6 +128,9 @@
   --row-height: 32px;
   --panel-padding: 8px 10px;
   --chart-stroke: var(--ink);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
 }
 
 [data-theme="amplo"] {
@@ -164,6 +170,9 @@
   --row-height: 40px;
   --panel-padding: 12px 14px;
   --chart-stroke: var(--ink);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
 }
 
 @layer base {

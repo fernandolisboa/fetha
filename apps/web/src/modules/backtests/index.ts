@@ -1,4 +1,4 @@
-// Ten identifiers, the ones a consumer outside this module actually
+// The identifiers a consumer outside this module actually
 // reaches for (route handlers and pages under app/): server pieces only.
 // Client components live in ./client, kept off this barrel so a "use
 // client" boundary never pulls the repository (and its `next/headers`
@@ -10,6 +10,9 @@ export {
 } from "./backtest-run-repository";
 export { runBacktestChunk } from "./run-chunk";
 export { DEFAULT_COST_MODEL } from "./default-config";
-export { getMyBacktestRun, getMyBacktestRunsForStrategy } from "./queries";
+export { getMyBacktestRun, getMyBacktestRunsForStrategy, getMyComparison } from "./queries";
+export { compareHref, comparedRunIds, MAX_COMPARED_RUNS } from "./comparison";
+export { ComparisonView } from "./components/comparison-view";
+export { CompareRunsPicker } from "./components/compare-runs-picker";
 export { ReportPanel } from "./components/report-panel";
 export { runErrorMessage, isResumableRunError, t } from "./strings";

@@ -60,6 +60,8 @@ export const backtestRuns = pgTable(
     riskProfile: jsonb("risk_profile").$type<RiskProfile>().notNull(),
     limits: text("limits").$type<LimitMode>().notNull(),
     sizing: jsonb("sizing").$type<SizingRule | null>(),
+    // Null on runs created before #30: an immutable run never gains walk-forward windows later.
+    walkForwardWindowSessions: integer("walk_forward_window_sessions"),
     seed: integer("seed").notNull(),
     configDigest: text("config_digest").notNull(),
     status: text("status")
@@ -96,5 +98,9 @@ export const backtestRuns = pgTable(
       sql`${table.status} in ('pending', 'running', 'paused', 'complete', 'failed')`,
     ),
     check("backtest_runs_limits_check", sql`${table.limits} in ('enforce', 'warn')`),
+    check(
+      "backtest_runs_walk_forward_window_sessions_check",
+      sql`${table.walkForwardWindowSessions} is null or ${table.walkForwardWindowSessions} > 0`,
+    ),
   ],
 );

@@ -237,7 +237,7 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
   Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
 --accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
 --greek-gamma --greek-theta --greek-vega --font-display --font-body --font-mono --radius
---elevation --density --chart-stroke`.
+--elevation --density --chart-stroke --series-1 --series-2 --series-3`.
 - Instrumento: bg `#0f1115`, surface `#151922`, ink `#e6e8ee`, muted `#8d97a8`, accent
   `#3fb8c8`, up `#2fb36a`, down `#e0524f`, warning `#e0a83a`, IBM Plex Sans + IBM Plex Mono,
   radius 4px, body 13px.

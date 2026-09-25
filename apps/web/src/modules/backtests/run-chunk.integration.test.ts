@@ -231,6 +231,7 @@ function runConfig(setup: Awaited<ReturnType<typeof setUp>>): BacktestRunConfigI
     riskProfile: SINGLE_SLOT_RISK_PROFILE,
     limits: "enforce",
     sizing: setup.sizing,
+    walkForward: { windowSessions: 2 },
     seed: 42,
   };
 }

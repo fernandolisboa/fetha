@@ -166,7 +166,7 @@ export async function runBacktestChunk(
     riskProfile: run.riskProfile,
     limits: run.limits,
     sizing: run.sizing,
-    walkForward: null,
+    walkForward: run.walkForward,
     seed: run.seed,
   };
 
