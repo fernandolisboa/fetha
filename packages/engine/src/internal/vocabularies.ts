@@ -76,8 +76,13 @@ export const unsupportedAdjustmentRuleKinds = [
   "roll",
 ] as const satisfies readonly AdjustmentRule["kind"][];
 
-export const unsupportedThesisClaimKinds = [
+// #29 implements score() in full: the thesis claim's outcome is evaluated on the instrument's
+// nominal D1 close at the horizon session (close_above/close_below) or on the operation's own
+// P&L (operation_pnl_positive), ADR-0014 Q36.
+export const implementedThesisClaimKinds = [
   "close_above",
   "close_below",
   "operation_pnl_positive",
 ] as const satisfies readonly ThesisClaim["kind"][];
+
+export const unsupportedThesisClaimKinds = [] as const satisfies readonly ThesisClaim["kind"][];

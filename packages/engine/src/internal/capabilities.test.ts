@@ -31,9 +31,16 @@ describe("capabilities", () => {
     expect(caps.pricingModels).toEqual(["bsm_continuous_yield"]);
   });
 
-  it("reports the not-yet-implemented vocabularies as empty until their methods land", () => {
+  it("reports the not-yet-implemented adjustmentRules vocabulary as empty", () => {
     const caps = capabilities();
     expect(caps.adjustmentRules).toEqual([]);
-    expect(caps.thesisClaims).toEqual([]);
+  });
+
+  it("reports every implemented thesis claim kind", () => {
+    expect(capabilities().thesisClaims).toEqual([
+      "close_above",
+      "close_below",
+      "operation_pnl_positive",
+    ]);
   });
 });

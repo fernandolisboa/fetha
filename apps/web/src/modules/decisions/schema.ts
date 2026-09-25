@@ -5,6 +5,8 @@ import {
   timestamp,
   date,
   numeric,
+  bigint,
+  boolean,
   uniqueIndex,
   index,
   check,
@@ -12,6 +14,7 @@ import {
 import { sql } from "drizzle-orm";
 import { decisionKinds } from "@fetha/engine";
 import type { CostModel, ThesisClaim } from "@fetha/contracts";
+import type { Score } from "@fetha/engine";
 
 import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
@@ -95,5 +98,46 @@ export const decisions = pgTable(
       "decisions_horizon_on_or_after_decided_check",
       sql`${table.horizon} >= ((${table.decidedAt} at time zone 'America/Sao_Paulo')::date)`,
     ),
+  ],
+);
+
+// A decision's engine-computed score (#29, ADR-0005 as amended by
+// ADR-0014): append-only (enforced by the `decision_scores_no_update`
+// trigger, the same hand-appended pattern `decisions_no_update` uses),
+// exactly one row per decision (`decisionId` unique — the scoring job's own
+// idempotent insert relies on this to make `ON CONFLICT DO NOTHING`
+// correct). `score` is the full engine `Score` artifact; the other columns
+// are the same fields extracted for the track record's server-side
+// aggregations (hit rate, calibration, P&L over time) to filter and sum on
+// without parsing jsonb in every query. Money stays integer centavos
+// (CLAUDE.md); `maxLossUnbounded` carries the `"unbounded"` arm of the
+// engine's `PnlScore` union that a nullable bigint column cannot express on
+// its own.
+export const decisionScores = pgTable(
+  "decision_scores",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    decisionId: text("decision_id")
+      .notNull()
+      .references(() => decisions.id),
+    score: jsonb("score").$type<Score>().notNull(),
+    pnlCentavos: bigint("pnl_centavos", { mode: "number" }),
+    maxLossCentavos: bigint("max_loss_centavos", { mode: "number" }),
+    maxLossUnbounded: boolean("max_loss_unbounded").notNull().default(false),
+    normalizedPnl: numeric("normalized_pnl", { mode: "string" }),
+    claimHeld: boolean("claim_held"),
+    brier: numeric("brier", { mode: "string" }),
+    counterfactualPnlCentavos: bigint("counterfactual_pnl_centavos", { mode: "number" }),
+    engineVersion: text("engine_version").notNull(),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("decision_scores_decision_id_idx").on(table.decisionId),
+    index("decision_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
   ],
 );

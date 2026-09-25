@@ -6,6 +6,7 @@ import {
   implementedIndicatorKinds,
   implementedSizingRuleKinds,
   implementedStrikeSelectionKinds,
+  implementedThesisClaimKinds,
   implementedTimeframes,
 } from "./vocabularies";
 
@@ -19,7 +20,7 @@ export function capabilities(): Capabilities {
     sizingRules: [...implementedSizingRuleKinds],
     exitRules: [...implementedExitRuleKinds],
     adjustmentRules: [],
-    thesisClaims: [],
+    thesisClaims: [...implementedThesisClaimKinds],
     pricingModels: [...pricingModels],
   };
 }

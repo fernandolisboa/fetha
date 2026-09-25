@@ -58,7 +58,10 @@ function sessionDateAtOrBefore(
   return sessionAtOrBefore(calendar, at)?.date ?? null;
 }
 
-type PricedLeg = {
+// Exported for score's own max-loss computation (ADR-0014 Q46/Q13): score builds this same
+// shape from an operation's legs priced at their entry premium rather than a fresh market
+// price, then reuses computePayoffProfile below instead of re-deriving max loss.
+export type PricedLeg = {
   valuation: LegValuation;
   strike: DecimalString | null;
   premiumPerUnit: Decimal;
@@ -243,7 +246,7 @@ function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
   }, new Decimal(0));
 }
 
-function computePayoffProfile(
+export function computePayoffProfile(
   legs: readonly PricedLeg[],
   spot: DecimalString,
 ): {

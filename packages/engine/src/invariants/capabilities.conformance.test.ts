@@ -19,11 +19,11 @@ import {
   implementedStrikeSelectionKinds,
   implementedTimeframes,
   unsupportedAdjustmentRuleKinds,
+  implementedThesisClaimKinds,
   unsupportedExitRuleKinds,
   unsupportedExpirySelectionKinds,
   unsupportedSizingRuleKinds,
   unsupportedStrikeSelectionKinds,
-  unsupportedThesisClaimKinds,
 } from "../internal/vocabularies";
 
 // The engine cannot import contracts vocabularies as runtime values (ADR-0013), so
@@ -81,11 +81,11 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().adjustmentRules).toEqual([]);
   });
 
-  it("every thesisClaims kind is unsupported (no scoring method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedThesisClaimKinds)[number]>().toEqualTypeOf<
+  it("thesisClaims is implemented in full and matches the contracts ThesisClaim kinds exactly", () => {
+    expectTypeOf<(typeof implementedThesisClaimKinds)[number]>().toEqualTypeOf<
       ThesisClaim["kind"]
     >();
-    expect(capabilities().thesisClaims).toEqual([]);
+    expect(capabilities().thesisClaims).toEqual([...implementedThesisClaimKinds]);
   });
 
   it("pricingModels is implemented in full (bsm_continuous_yield, ADR-0002)", () => {

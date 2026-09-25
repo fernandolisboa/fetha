@@ -1,7 +1,6 @@
 import Decimal from "decimal.js";
 import type {
   Centavos,
-  CostModel,
   DecimalString,
   ExitRule,
   Instant,
@@ -50,6 +49,7 @@ import {
 } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { evaluateStrategy } from "./evaluate-strategy";
+import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
@@ -401,58 +401,9 @@ function missingMarkError<T>(
   return { ok: false, error: { code: "insufficient_data", needed } };
 }
 
-// The gross traded value of a fill or a mark, on the centavos scale but not yet rounded to an
-// integer Centavos: callers that compose it further (fillCosts) or need the unrounded value for
-// a sum keep it as a Decimal; callers that record it as money round it themselves.
-function grossCentavos(price: DecimalString, quantity: number | Decimal): Decimal {
-  return parseDecimal(price).mul(CENTAVOS_PER_REAL).mul(quantity);
-}
-
-function fillCosts(
-  costModel: CostModel,
-  price: DecimalString,
-  quantity: number,
-  kind: "stock" | "option" = "stock",
-): Centavos {
-  const gross = grossCentavos(price, quantity);
-  const b3Fee = gross.mul(parseDecimal(costModel.b3FeeRate)).round().toNumber();
-  const brokerage =
-    kind === "option" ? costModel.brokerage.optionPerContract : costModel.brokerage.stockPerOrder;
-  return toCentavos(b3Fee + brokerage);
-}
-
-// ADR-0013 "Fills": `Fill.price` includes slippage — the option reference price times
-// `(1 + optionSlippageRate)` for a buy and `(1 - optionSlippageRate)` for a sell, at scale 2.
-// A stock leg is never slipped (fills at the raw session open).
-function slippedOptionPrice(
-  reference: DecimalString,
-  side: Side,
-  rate: DecimalString,
-): DecimalString {
-  const factor =
-    side === "buy"
-      ? new Decimal(1).add(parseDecimal(rate))
-      : new Decimal(1).sub(parseDecimal(rate));
-  return toDecimalString(parseDecimal(reference).mul(factor), PRICE_SCALE);
-}
-
-// The slippage metric (ADR-0013 "Equity and metrics"): the sum over option fills of
-// `|price - reference| * quantity`, informational only since it is already inside `Fill.price`.
-function slippageCentavos(
-  reference: DecimalString,
-  filled: DecimalString,
-  quantity: number,
-): Centavos {
-  return toCentavos(
-    parseDecimal(filled)
-      .sub(reference)
-      .abs()
-      .mul(CENTAVOS_PER_REAL)
-      .mul(quantity)
-      .round()
-      .toNumber(),
-  );
-}
+// grossCentavos, fillCosts, slippedOptionPrice and slippageCentavos moved to
+// ./fill-pricing.ts (score's counterfactual fill also needs them, ADR-0014 Q40); this file
+// re-exports them under their original names to keep every call site below unchanged.
 
 function operationId(
   seq: number,

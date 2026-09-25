@@ -4,16 +4,21 @@ import { sessionDateSchema } from "@fetha/contracts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getDb } from "@/db/client";
-import { ingest, type IngestOutcome } from "@/modules/market-data";
+import { getDb, type Database } from "@/db/client";
+import { scoreDueDecisions } from "@/modules/decisions";
+import { freshness, ingest, type IngestOutcome } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 export const maxDuration = 300;
-// Ingestion and evaluation share this one `maxDuration` budget; the deadline
-// below leaves this much headroom for the evaluation's in-flight user to
-// finish and the response to serialize, rather than letting the platform
-// hard-kill the function mid-write (#19).
+// Ingestion, evaluation and scoring share this one `maxDuration` budget; the
+// deadline below leaves this much headroom for whichever step is in flight
+// to finish and the response to serialize, rather than letting the platform
+// hard-kill the function mid-write (#19, #29).
 const EVALUATION_SAFETY_MARGIN_MS = 15_000;
+// Scoring runs after evaluation in the same budget (#29): a second, smaller
+// margin so a scoring pass that is still running when the evaluation
+// deadline was already close never itself gets hard-killed mid-write.
+const SCORING_SAFETY_MARGIN_MS = 10_000;
 
 function isAuthorized(authorizationHeader: string | null): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -47,16 +52,56 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
 // 500 — they are reported alongside it so the owner can see them without
 // the ingestion retry (docs/adr/0010-intraday-evaluation-while-in-use.md's
 // addendum) firing for a session that already ingested cleanly.
+// The newest session in the drained range, the same "asOf" the scoring job
+// uses `evaluateSignalsForSession` already computes internally as `at`
+// (evaluate-signals.ts) — recomputed here rather than threaded out of that
+// function's return value, since `okSessions` is the same list both steps
+// derive it from.
+function newestSession(sessions: string[]): string | undefined {
+  return [...sessions].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).at(-1);
+}
+
+// A decision is due once its horizon reaches the latest session cotahist
+// actually has data for (brief item 2), not only a session this particular
+// run happened to drain: a re-run with nothing new to ingest (`okSessions`
+// empty) must still score decisions whose horizon a *previous* night's
+// ingestion already covers. `result.okSessions` is preferred when this run
+// drained something, since it is already in hand with no extra read.
+async function resolveScoringAsOfSession(
+  db: Database,
+  result: IngestOutcome,
+): Promise<string | undefined> {
+  if (cotahistSucceeded(result)) {
+    const newest = newestSession(result.okSessions);
+    if (newest) {
+      return newest;
+    }
+  }
+  const runs = await freshness(db);
+  return runs.find((run) => run.source === "cotahist" && run.status === "succeeded")?.session;
+}
+
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
   const db = getDb();
   const startedAt = Date.now();
   const result = await ingest(db, session ? { session } : {});
-  const deadlineAt = startedAt + maxDuration * 1000 - EVALUATION_SAFETY_MARGIN_MS;
+  const evaluationDeadlineAt = startedAt + maxDuration * 1000 - EVALUATION_SAFETY_MARGIN_MS;
   const evaluation =
     cotahistSucceeded(result) && result.okSessions.length > 0
-      ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt })
+      ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt: evaluationDeadlineAt })
       : null;
-  return NextResponse.json({ ...result, evaluation }, { status: result.ok ? 200 : 500 });
+
+  // Scoring is chained after evaluation, same run, same bearer (#29): its
+  // own failures never turn an otherwise successful ingestion response into
+  // a 500, reported alongside it the same way evaluation's are (round 2
+  // item 2 of #19 set that precedent for setup failures).
+  const scoringDeadlineAt = startedAt + maxDuration * 1000 - SCORING_SAFETY_MARGIN_MS;
+  const asOfSession = await resolveScoringAsOfSession(db, result);
+  const scoring = asOfSession
+    ? await scoreDueDecisions(db, asOfSession, { deadlineAt: scoringDeadlineAt })
+    : null;
+
+  return NextResponse.json({ ...result, evaluation, scoring }, { status: result.ok ? 200 : 500 });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
