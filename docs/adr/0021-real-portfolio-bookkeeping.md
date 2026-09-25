@@ -96,7 +96,7 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    stock with a daily candle), which also decides its asset class, on a trading session that has
    already opened. Only an unassigned fill can be deleted. Import is limited to 10 per minute and
    the other portfolio writes to 60 per minute per account; the reader refuses a sheet past
-   20,000 rows or Excel's last column, and scans the XML in linear time.
+   20,000 rows, 256 columns or 500,000 cells, and scans the XML in linear time.
 9. **Portfolio greeks.** `markToMarket` leaves option positions out of its greeks, so the
    dashboard adds each option held outside any operation from its own one-leg `priceOperation`;
    every open option counts once. `maxOpenOperations` counts the same operations the dashboard

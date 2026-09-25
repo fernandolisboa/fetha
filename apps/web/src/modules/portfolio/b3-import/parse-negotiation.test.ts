@@ -124,6 +124,14 @@ describe("readFirstSheet on hostile input", () => {
     );
   });
 
+  it("refuses sparse rows whose padding would exceed the cell ceiling", () => {
+    const started = performance.now();
+    expect(
+      readFirstSheet(workbookWith('<row><c r="IV1"><v>1</v></c></row>'.repeat(20_000))),
+    ).toEqual(NOT_XLSX);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
   it("refuses more rows than an export can have", () => {
     expect(readFirstSheet(workbookWith("<row/>".repeat(20_001)))).toEqual(NOT_XLSX);
   });

@@ -20,10 +20,12 @@ const ENTITIES: Record<string, string> = {
   apos: "'",
 };
 
-// Excel's last column (XFD) and a row ceiling far above a B3 export; past
-// either the file is not a spreadsheet this reader should keep in memory.
-const MAX_COLUMN_INDEX = 16_383;
+// Ceilings far above a B3 export (about ten columns): past any of them the
+// file is not a spreadsheet this reader should keep in memory. The cell
+// ceiling bounds the padding of sparse rows across the whole sheet.
+const MAX_COLUMN_INDEX = 255;
 const MAX_ROWS = 20_000;
+const MAX_CELLS = 500_000;
 const MAX_CODE_POINT = 0x10ffff;
 
 class MalformedXlsx extends Error {}
@@ -181,13 +183,15 @@ function sheetRows(xml: string, strings: string[]): Cell[][] {
   if (rowElements.length > MAX_ROWS) {
     throw new MalformedXlsx();
   }
+  let totalCells = 0;
   return rowElements.map((row) => {
     const cells: Cell[] = [];
     let next = 0;
     for (const cell of elements(row.body, "c")) {
       const reference = attribute(cell.attributes, "r");
       const index = reference ? columnIndex(reference) : next;
-      if (index > MAX_COLUMN_INDEX) {
+      totalCells += index + 1 - Math.min(cells.length, index + 1);
+      if (index > MAX_COLUMN_INDEX || totalCells > MAX_CELLS) {
         throw new MalformedXlsx();
       }
       while (cells.length < index) {
