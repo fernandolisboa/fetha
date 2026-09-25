@@ -62,6 +62,7 @@ export interface DueDecisionRow {
   costModel: (typeof decisions.$inferSelect)["costModel"];
   decidedAt: Date;
   strategyVersionId: string | null;
+  operationId: string | null;
 }
 
 function toDecisionScoreRow(row: typeof decisionScores.$inferSelect): DecisionScoreRow {
@@ -146,6 +147,7 @@ export class DecisionScoresRepository extends UserScopedRepository {
         costModel: decisions.costModel,
         decidedAt: decisions.decidedAt,
         strategyVersionId: decisions.strategyVersionId,
+        operationId: decisions.operationId,
       })
       .from(decisions)
       .leftJoin(decisionScores, eq(decisionScores.decisionId, decisions.id))

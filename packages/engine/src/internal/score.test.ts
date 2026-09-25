@@ -1229,6 +1229,73 @@ describe("score — settlement at expiry for the taken-operation path (ADR-0014 
   });
 });
 
+describe("score — a stock leg left once realized fills close every option leg (ADR-0022)", () => {
+  it("marks the stock leg to the horizon close instead of settling a stock-only remainder", () => {
+    const putSeries: OptionSeries = {
+      ticker: "PETR4P28",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-05",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [putSeries],
+      candles: [stockCandle("2024-01-05", "25.00", "25.00")],
+    };
+    const assignedPut: Operation = {
+      id: "op-assigned-put",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4P28",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("28.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const closedAtZero: Fill = {
+      ticker: "PETR4P28",
+      side: "buy",
+      quantity: quantity(100),
+      price: decimalString("0"),
+      session: "2024-01-05",
+      at: "2024-01-05T21:00:00.000Z",
+      costs: centavos(0),
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        horizon: "2024-01-05",
+        operation: assignedPut,
+        realizedFills: [closedAtZero],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // put premium realized at zero: (0 - 1.00) * (-1) * 100 * 100 = 10000
+    // delivered stock marked at the horizon close: (25.00 - 28.00) * 100 * 100 = -30000
+    expect(result.value.pnl).toBe(centavos(-20_000));
+  });
+});
+
 describe("score — a leg with no visible price is insufficient_data, never marked at entry (ADR-0014 Q54)", () => {
   it("is insufficient_data when a remaining leg has no visible market price", () => {
     const callSeries: OptionSeries = {

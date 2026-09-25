@@ -186,6 +186,12 @@ premium, max loss, max gain, any limit breaches) and the session it was priced i
 an Operation: it carries no lifecycle and no fills, and saving one does not open a position.
 _Avoid_: operation, draft, simulation
 
+**Held operation**:
+An open operation of the real portfolio whose expiry session has not closed, as the user sees it
+in `/carteira`: its legs at average cost and the fills behind them. The one kind of operation a
+hold, adjust or exit decision is recorded on (ADR-0022). One pending settlement is no longer held.
+_Avoid_: position (one instrument only), open trade
+
 **Fill**:
 One executed buy or sell of one instrument at one price and quantity, on one date. Fills are the
 atomic facts behind operations and positions.
@@ -328,7 +334,9 @@ _Avoid_: zero point, ponto de equilíbrio (in code)
 **Decision**:
 An explicit record by the user about an operation, existing or contemplated: enter, do not
 enter, hold, adjust (including roll) or exit; with date, rationale, a thesis and, optionally,
-the analysis that informed it. "Do not enter" is a first-class decision.
+the analysis that informed it. "Do not enter" is a first-class decision. A decision on an
+existing operation of the real portfolio (hold, adjust or exit) is scored on the position held
+when it was taken and the fills that followed (ADR-0022).
 _Avoid_: action, choice, trade idea, entry, order
 
 **Thesis**:

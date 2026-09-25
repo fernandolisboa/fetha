@@ -31,7 +31,7 @@ const en = {
   },
   errors: {
     invalid: "Some fields are invalid. Review the values before saving.",
-    not_found: "This signal or operation no longer exists.",
+    not_found: "This signal or operation no longer exists or is no longer open.",
     not_allowed: "This decision kind is not allowed here.",
     duplicate: "This signal already has a decision recorded.",
     horizon_in_past: "The horizon cannot be before today.",
@@ -67,6 +67,11 @@ const en = {
         "build_failed:unknown_decision_kind": "unknown decision kind",
         "build_failed:mismatched_expiry": "legs do not share a single expiry",
         "build_failed:invalid_inputs": "the recorded decision could not be read back",
+        "build_failed:operation_not_found": "the portfolio operation no longer exists",
+        "build_failed:no_position_at_decision":
+          "the operation held nothing when the decision was made",
+        "build_failed:unknown_series": "an option series is unknown to the reference data",
+        "build_failed:unresolvable_fill_session": "a fill's date is not on the trading calendar",
         "engine_error:invalid_input": "invalid input",
         "engine_error:missing_instrument": "missing instrument data",
         "engine_error:unsupported": "unsupported by the engine",
@@ -81,6 +86,7 @@ const en = {
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
+    originHeldOperation: (underlying: string) => `Portfolio operation · ${underlying}`,
     confidenceLabel: "Confidence",
     horizonLabel: "Horizon",
     claimLabel: "Thesis",
@@ -141,7 +147,7 @@ const ptBR = {
   },
   errors: {
     invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
-    not_found: "Esse sinal ou operação não existe mais.",
+    not_found: "Esse sinal ou operação não existe mais ou já não está aberta.",
     not_allowed: "Esse tipo de decisão não é permitido aqui.",
     duplicate: "Esse sinal já tem uma decisão registrada.",
     horizon_in_past: "O horizonte não pode ser anterior a hoje.",
@@ -172,6 +178,12 @@ const ptBR = {
         "build_failed:unknown_decision_kind": "tipo de decisão desconhecido",
         "build_failed:mismatched_expiry": "as pernas não compartilham um único vencimento",
         "build_failed:invalid_inputs": "não foi possível reler a decisão registrada",
+        "build_failed:operation_not_found": "a operação da carteira não existe mais",
+        "build_failed:no_position_at_decision":
+          "a operação não tinha posição quando a decisão foi tomada",
+        "build_failed:unknown_series": "uma série de opção não está nos dados de referência",
+        "build_failed:unresolvable_fill_session":
+          "a data de uma execução não está no calendário de pregões",
         "engine_error:invalid_input": "entrada inválida",
         "engine_error:missing_instrument": "dados do instrumento ausentes",
         "engine_error:unsupported": "não suportado pelo motor",
@@ -186,6 +198,7 @@ const ptBR = {
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
+    originHeldOperation: (underlying: string) => `Operação em carteira · ${underlying}`,
     confidenceLabel: "Confiança",
     horizonLabel: "Horizonte",
     claimLabel: "Tese",

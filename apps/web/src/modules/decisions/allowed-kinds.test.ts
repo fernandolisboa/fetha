@@ -27,4 +27,8 @@ describe("allowedDecisionKinds", () => {
       "do_not_enter",
     ]);
   });
+
+  it("allows hold / adjust / exit for a held operation", () => {
+    expect(allowedDecisionKinds({ kind: "held_operation" })).toEqual(["hold", "adjust", "exit"]);
+  });
 });

@@ -28,8 +28,10 @@ const OTHER_CONFLICT_CODES = new Set(["40001", "40P01"]);
 
 const HORIZON_CHECK_CONSTRAINT = "decisions_horizon_on_or_after_decided_check";
 
+const OPERATION_FOREIGN_KEY = "decisions_operation_id_user_id_operations_id_user_id_fk";
+
 export type DecisionPersistenceOutcome =
-  "duplicate_signal" | "invalid_horizon" | "conflict" | "unavailable" | null;
+  "duplicate_signal" | "invalid_horizon" | "unknown_operation" | "conflict" | "unavailable" | null;
 
 export function classifyDecisionPersistenceError(error: unknown): DecisionPersistenceOutcome {
   const candidate = error instanceof Error && "cause" in error ? error.cause : error;
@@ -41,6 +43,9 @@ export function classifyDecisionPersistenceError(error: unknown): DecisionPersis
   }
   if (candidate.code === "23514") {
     return candidate.constraint === HORIZON_CHECK_CONSTRAINT ? "invalid_horizon" : null;
+  }
+  if (candidate.code === "23503") {
+    return candidate.constraint === OPERATION_FOREIGN_KEY ? "unknown_operation" : null;
   }
   if (OTHER_CONFLICT_CODES.has(candidate.code)) {
     return "conflict";

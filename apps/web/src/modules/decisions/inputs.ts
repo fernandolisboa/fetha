@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   centavosSchema,
   contemplatedLegSchema,
+  decimalStringSchema,
   exitRuleSchema,
   adjustmentRuleSchema,
   sessionDateSchema,
@@ -50,8 +51,22 @@ export const operationDecisionInputsSchema = z.strictObject({
 });
 export type OperationDecisionInputs = z.infer<typeof operationDecisionInputsSchema>;
 
+// ADR-0022 item 3: the position as the user saw it when deciding (legs at
+// their average cost) and the fills behind it, which scoring reads to tell
+// the position apart from what the user did afterwards.
+export const heldOperationDecisionInputsSchema = z.strictObject({
+  originKind: z.literal("held_operation"),
+  underlying: tickerSchema,
+  expiry: sessionDateSchema.nullable(),
+  openedAt: sessionDateSchema,
+  legs: z.array(contemplatedLegSchema.extend({ entryPrice: decimalStringSchema })).min(1),
+  fillIds: z.array(z.string().min(1)).min(1),
+});
+export type HeldOperationDecisionInputs = z.infer<typeof heldOperationDecisionInputsSchema>;
+
 export const decisionInputsSchema = z.discriminatedUnion("originKind", [
   signalDecisionInputsSchema,
   operationDecisionInputsSchema,
+  heldOperationDecisionInputsSchema,
 ]);
 export type DecisionInputs = z.infer<typeof decisionInputsSchema>;

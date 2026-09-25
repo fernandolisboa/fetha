@@ -71,6 +71,26 @@ export type GroupResult =
 
 export type WriteResult = { ok: true } | { ok: false; reason: "not_found" | "conflict" };
 
+// A journal decision references the operation (ADR-0022 item 2): the
+// database refuses the delete, so the append-only journal never points at an
+// operation that no longer exists.
+export type UngroupResult = WriteResult | { ok: false; reason: "has_decisions" };
+
+const FOREIGN_KEY_VIOLATION = "23503";
+const DECISION_OPERATION_FK = "decisions_operation_id_user_id_operations_id_user_id_fk";
+
+function isReferencedByDecision(error: unknown): boolean {
+  const candidate = error instanceof Error && "cause" in error ? error.cause : error;
+  return (
+    typeof candidate === "object" &&
+    candidate !== null &&
+    "code" in candidate &&
+    candidate.code === FOREIGN_KEY_VIOLATION &&
+    "constraint" in candidate &&
+    candidate.constraint === DECISION_OPERATION_FK
+  );
+}
+
 // Explicit rather than `.returning()`: a bare `.returning()` on `fills`
 // cannot read back `seq`, an identity column drizzle marks as not-null only
 // on select.
@@ -263,7 +283,18 @@ export class PortfolioRepository extends UserScopedRepository {
     });
   }
 
-  async ungroup(operationId: string): Promise<WriteResult> {
+  async ungroup(operationId: string): Promise<UngroupResult> {
+    try {
+      return await this.ungroupInTransaction(operationId);
+    } catch (error) {
+      if (isReferencedByDecision(error)) {
+        return { ok: false, reason: "has_decisions" };
+      }
+      throw error;
+    }
+  }
+
+  private async ungroupInTransaction(operationId: string): Promise<WriteResult> {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select({ id: operations.id })

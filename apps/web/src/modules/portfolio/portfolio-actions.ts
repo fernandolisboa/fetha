@@ -54,6 +54,7 @@ export type PortfolioActionResult =
         | "unknown_instrument"
         | "not_found"
         | "conflict"
+        | "has_decisions"
         | "fills_unavailable"
         | "operation_unavailable"
         | "unknown_series"

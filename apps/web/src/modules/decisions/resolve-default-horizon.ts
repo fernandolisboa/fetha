@@ -79,3 +79,13 @@ export async function defaultHorizonsForOperations(
     now,
   );
 }
+
+// A held operation's default horizon is its own expiry (UBIQUITOUS_LANGUAGE.md
+// "Horizon"), under the same never-in-the-past rule; a stock-only operation
+// has none.
+export function defaultHorizonForHeldOperation(
+  expiry: SessionDate | null,
+  now: Date = new Date(),
+): SessionDate | null {
+  return expiry !== null && expiry >= todaySaoPauloDate(now) ? expiry : null;
+}

@@ -256,6 +256,17 @@ export async function scoreDueDecisions(
             continue;
           }
 
+          // ADR-0022 item 4: a held operation whose expired option is not
+          // settled yet waits for the user's confirmation, within the same
+          // window as missing data; past it the engine settles at intrinsic.
+          if (
+            built.settlementPending === true &&
+            !insufficientDataExhausted(await calendarForRun(), built.input.horizon)
+          ) {
+            decisionsSkipped += 1;
+            continue;
+          }
+
           const result = await scoringEngine.score(built.input);
           if (!result.ok) {
             decisionsSkipped += 1;
