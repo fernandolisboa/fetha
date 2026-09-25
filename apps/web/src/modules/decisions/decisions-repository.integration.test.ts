@@ -12,6 +12,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { seedStockOperation } from "@/db/test/held-operation";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
 import { SignalsRepository } from "@/modules/strategies/signals-repository";
@@ -421,5 +422,61 @@ describe("DecisionsRepository", () => {
     const repoA = new DecisionsRepository(db, userA);
     expect(await repoA.findLatestForOperations([operationIdB])).toEqual(new Map());
     expect(await repoB.findLatestForOperations([operationIdB])).not.toEqual(new Map());
+  });
+
+  it("isolation: a held-operation decision can only point at the recorder's own operation", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("isolation-held-a");
+    const emailB = uniqueEmail("isolation-held-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const underlyingB = randomTicker();
+    const { operationId: operationIdB, fillIds } = await seedStockOperation(
+      db,
+      userB,
+      underlyingB,
+      [{ side: "buy", quantity: 100, price: "30", session: "2031-06-02" }],
+    );
+    const inputs: DecisionInputs = {
+      originKind: "held_operation",
+      underlying: underlyingB,
+      expiry: null,
+      openedAt: "2031-06-02",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: underlyingB,
+          quantity: quantitySchema.parse(100),
+          entryPrice: decimalString("30.000000"),
+        },
+      ],
+      fillIds,
+    };
+    const record = {
+      kind: "hold" as const,
+      originKind: "held_operation" as const,
+      signalId: null,
+      contemplatedOperationId: null,
+      operationId: operationIdB,
+      strategyVersionId: null,
+      inputs,
+      rationale: "Holding",
+      claim: null,
+      confidence: confidenceSchema.parse("0.5"),
+      horizon: "2031-06-20",
+      costModel: DEFAULT_COST_MODEL,
+    };
+
+    await expect(new DecisionsRepository(db, userA).record(record)).rejects.toThrow();
+
+    const repoB = new DecisionsRepository(db, userB);
+    await repoB.record(record);
+    const repoA = new DecisionsRepository(db, userA);
+    expect(await repoA.findLatestForHeldOperations([operationIdB])).toEqual(new Map());
+    expect(await repoA.listMine()).toEqual([]);
+    expect(await repoB.findLatestForHeldOperations([operationIdB])).not.toEqual(new Map());
   });
 });

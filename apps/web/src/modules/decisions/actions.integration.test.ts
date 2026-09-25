@@ -17,6 +17,8 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { seedStockOperation } from "@/db/test/held-operation";
+import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
 import { SignalsRepository } from "@/modules/strategies/signals-repository";
@@ -407,5 +409,122 @@ describe("recordDecisionAction", () => {
 
     const repository = new DecisionsRepository(getDb(), owner);
     expect(await repository.listMine()).toEqual([]);
+  });
+});
+
+describe("recordDecisionAction on a held operation (ADR-0022)", () => {
+  async function heldOperation(owner: CurrentUser) {
+    const ticker = randomTicker();
+    const seeded = await seedStockOperation(getDb(), owner, ticker, [
+      { side: "buy", quantity: 200, price: "31.50", session: "2031-06-02" },
+    ]);
+    return { ticker, ...seeded };
+  }
+
+  it("user A cannot record a decision against user B's held operation", async () => {
+    const emailA = uniqueEmail("held-isolation-a");
+    const emailB = uniqueEmail("held-isolation-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const { operationId } = await heldOperation(userB);
+
+    currentUser = userA;
+    const result = await recordDecisionAction({
+      originKind: "held_operation",
+      targetId: operationId,
+      kind: "hold",
+      rationale: "Trying to decide on B's position",
+      claim: null,
+      confidence: confidenceSchema.parse("0.5"),
+      horizon: "2031-06-15",
+    });
+
+    expect(result).toEqual({ status: "error", error: "not_found" });
+    expect(await new DecisionsRepository(getDb(), userA).listMine()).toEqual([]);
+    expect(await new DecisionsRepository(getDb(), userB).listMine()).toEqual([]);
+  });
+
+  it("records a hold with the position as it stood, and keeps the operation grouped", async () => {
+    const email = uniqueEmail("held-record");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const { ticker, operationId, fillIds } = await heldOperation(owner);
+
+    const result = await recordDecisionAction({
+      originKind: "held_operation",
+      targetId: operationId,
+      kind: "hold",
+      rationale: "Trend intact",
+      claim: { kind: "operation_pnl_positive" },
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: "2031-06-15",
+    });
+    expect(result.status).toBe("ok");
+
+    const repository = new DecisionsRepository(getDb(), owner);
+    const [decision] = await repository.listMine();
+    expect(decision?.originKind).toBe("held_operation");
+    expect(decision?.operationId).toBe(operationId);
+    expect(decision?.inputs).toEqual({
+      originKind: "held_operation",
+      underlying: ticker,
+      expiry: null,
+      openedAt: "2031-06-02",
+      legs: [{ role: "stock", side: "buy", ticker, quantity: 200, entryPrice: "31.500000" }],
+      fillIds,
+    });
+    expect((await repository.findLatestForHeldOperations([operationId])).get(operationId)?.id).toBe(
+      decision?.id,
+    );
+
+    expect(await new PortfolioRepository(getDb(), owner).ungroup(operationId)).toEqual({
+      ok: false,
+      reason: "has_decisions",
+    });
+  });
+
+  it("allows only hold, adjust and exit", async () => {
+    const email = uniqueEmail("held-kind");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const { operationId } = await heldOperation(owner);
+
+    const result = await recordDecisionAction({
+      originKind: "held_operation",
+      targetId: operationId,
+      kind: "enter",
+      rationale: "Already in",
+      claim: null,
+      confidence: confidenceSchema.parse("0.5"),
+      horizon: "2031-06-15",
+    });
+
+    expect(result).toEqual({ status: "error", error: "not_allowed" });
+  });
+
+  it("refuses an operation that is no longer open", async () => {
+    const email = uniqueEmail("held-closed");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const { operationId } = await seedStockOperation(getDb(), owner, randomTicker(), [
+      { side: "buy", quantity: 100, price: "30", session: "2031-06-02" },
+      { side: "sell", quantity: 100, price: "33", session: "2031-06-03" },
+    ]);
+
+    const result = await recordDecisionAction({
+      originKind: "held_operation",
+      targetId: operationId,
+      kind: "exit",
+      rationale: "Already closed",
+      claim: null,
+      confidence: confidenceSchema.parse("0.5"),
+      horizon: "2031-06-15",
+    });
+
+    expect(result).toEqual({ status: "error", error: "not_found" });
   });
 });

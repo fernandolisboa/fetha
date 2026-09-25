@@ -50,3 +50,11 @@ export async function getMyDecisionsByOperationId(
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
   return repository.findLatestForOperations(operationIds);
 }
+
+// The portfolio's open operations' own latest decision, batched the same way.
+export async function getMyDecisionsByHeldOperationId(
+  operationIds: readonly string[],
+): Promise<Map<string, DecisionListItem>> {
+  const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  return repository.findLatestForHeldOperations(operationIds);
+}

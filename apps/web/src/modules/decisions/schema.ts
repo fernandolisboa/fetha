@@ -19,13 +19,13 @@ import type { Score } from "@fetha/engine";
 
 import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
-import { contemplatedOperations } from "../portfolio/schema";
+import { contemplatedOperations, operations } from "../portfolio/schema";
 
 import { journalOriginKinds } from "./allowed-kinds";
 import type { DecisionInputs } from "./inputs";
 
-// A user's explicit record about a signal or a contemplated operation
-// (UBIQUITOUS_LANGUAGE.md "Decision"): append-only (enforced by the
+// A user's explicit record about a signal, a contemplated operation or a
+// held operation (UBIQUITOUS_LANGUAGE.md "Decision"): append-only (enforced by the
 // `decisions_no_update` trigger, hand-appended to the generated migration
 // the same way strategy_versions and backtest_runs enforce their own
 // invariants, drizzle-kit having no first-class trigger API). `signal_id`
@@ -51,6 +51,11 @@ export const decisions = pgTable(
     contemplatedOperationId: text("contemplated_operation_id").references(
       () => contemplatedOperations.id,
     ),
+    // A held operation of the real portfolio (ADR-0022 item 2). Its composite
+    // foreign key below binds it to this row's own user, and with the
+    // default `no action` on delete it is also why an operation with
+    // decisions can no longer be ungrouped.
+    operationId: text("operation_id"),
     // Set for signal origin only (brief item 2): ScoreInput's DecisionOrigin
     // (packages/engine/src/api.ts) needs the strategy version to compute the
     // counterfactual (ADR-0014 Q40), and a contemplated operation has no
@@ -87,6 +92,11 @@ export const decisions = pgTable(
     // to another user's decision even if a caller passed a foreign
     // `decisionId` by mistake.
     uniqueIndex("decisions_id_user_id_idx").on(table.id, table.userId),
+    index("decisions_user_id_operation_id_idx").on(table.userId, table.operationId),
+    foreignKey({
+      columns: [table.operationId, table.userId],
+      foreignColumns: [operations.id, operations.userId],
+    }),
     check(
       "decisions_kind_check",
       sql`${table.kind} in (${sql.raw(decisionKinds.map((kind) => `'${kind}'`).join(", "))})`,
@@ -97,8 +107,9 @@ export const decisions = pgTable(
     ),
     check(
       "decisions_origin_match_check",
-      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null)
-        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null)`,
+      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null and ${table.operationId} is null)
+        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null and ${table.operationId} is null)
+        or (${table.originKind} = 'held_operation' and ${table.operationId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null)`,
     ),
     check("decisions_rationale_not_blank_check", sql`length(trim(${table.rationale})) > 0`),
     check(

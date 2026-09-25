@@ -10,9 +10,11 @@ import {
 import {
   decisionKinds,
   engine,
+  type Fill,
   type Operation,
   type OperationLeg,
   type ScoreInput,
+  type TradingSession,
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -22,11 +24,13 @@ import {
   expiryByTicker,
   tradingSessionOnOrAfter,
 } from "@/modules/market-data";
+import { heldOperationForScoring } from "@/modules/portfolio";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import type { DueDecisionRow } from "./decision-scores-repository";
 import {
   decisionInputsSchema,
+  type DecisionInputs,
   type OperationDecisionInputs,
   type SignalDecisionInputs,
 } from "./inputs";
@@ -49,10 +53,10 @@ export class MismatchedExpiryError extends Error {
   }
 }
 
-// The engine has no real portfolio to read fills from yet (#26): every
-// `Operation` this builds is a decision-time reconstruction from the
-// decision's own snapshot, not a fill history, so it needs a stable id of
-// its own that is never mistaken for a real operation's id.
+// A signal or contemplated-operation decision has no real operation behind
+// it: its `Operation` is a decision-time reconstruction from the decision's
+// own snapshot, not a fill history, so it needs a stable id of its own that
+// is never mistaken for a real operation's id.
 function syntheticOperationId(decisionId: string): string {
   return `decision-score:${decisionId}`;
 }
@@ -223,7 +227,7 @@ export async function buildScoreInput(
   // (round 3 item 5): returned as a build failure like every other gap here, not thrown, so the
   // caller's generic per-decision catch (which never marks a row unscorable, to keep retrying
   // a transient failure) does not retry an error no future data will resolve.
-  let inputs: OperationDecisionInputs | SignalDecisionInputs;
+  let inputs: DecisionInputs;
   let decidedAt: Instant;
   try {
     inputs = decisionInputsSchema.parse(row.inputs);
@@ -233,7 +237,9 @@ export async function buildScoreInput(
   }
 
   let operation: Operation | null = null;
+  let realizedFills: Fill[] = [];
   let origin: ScoreInput["origin"] = { kind: "manual" };
+  let horizonTradingSession: TradingSession | undefined;
 
   if (inputs.originKind === "signal") {
     try {
@@ -265,6 +271,27 @@ export async function buildScoreInput(
         strategy: { id: version.id, definition: version.definition, structure },
       };
     }
+  } else if (inputs.originKind === "held_operation") {
+    // ADR-0022 item 4: the position the decision was taken on and the
+    // realized fills from the portfolio, up to the horizon close.
+    horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
+    if (!horizonTradingSession) {
+      return { ok: false, reason: "unresolvable_horizon_session" };
+    }
+    if (!row.operationId) {
+      return { ok: false, reason: "invalid_inputs" };
+    }
+    const held = await heldOperationForScoring(db, scopedUser, {
+      operationId: row.operationId,
+      heldFillIds: inputs.fillIds,
+      decidedAt,
+      horizonClose: horizonTradingSession.close,
+    });
+    if (!held.ok) {
+      return { ok: false, reason: held.reason };
+    }
+    operation = held.operation;
+    realizedFills = held.realizedFills;
   } else {
     // Contemplated-operation origin: `origin` stays `manual` (there is no
     // strategy behind a hand-built operation), but the `Operation` itself
@@ -294,7 +321,7 @@ export async function buildScoreInput(
   // (#29 fix-web item 5): a horizon a user typed in can land on a weekend or
   // a holiday, and the claim/operation can only ever be evaluated against
   // the next session that actually trades.
-  const horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
+  horizonTradingSession ??= await tradingSessionOnOrAfter(db, row.horizon);
   if (!horizonTradingSession) {
     return { ok: false, reason: "unresolvable_horizon_session" };
   }
@@ -322,7 +349,7 @@ export async function buildScoreInput(
     confidence,
     claim: row.claim,
     ...(operation ? { operation } : {}),
-    realizedFills: [],
+    realizedFills,
     origin,
     costModel: row.costModel,
   };

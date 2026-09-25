@@ -127,7 +127,7 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
   not ingested yet (ADR-0017), so the engine does not rebase positions either.
 - An exercised or assigned option closes at zero and its premium stays in cash; it is not carried
   into the stock fill's cost, so the stock's average cost is the strike, not the tax basis. Cash
-  and equity are right; realized P&L arrives with the held-operation follow-up.
+  and equity are right; a decision's score counts the premium as realized P&L (ADR-0022).
 - The Negociação export has no time of day, so fills of one session are applied in the export's
   row order (then entry order); a same-day round trip can leave a different average cost than
   the broker's.

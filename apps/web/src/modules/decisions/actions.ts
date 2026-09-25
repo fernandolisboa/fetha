@@ -15,7 +15,12 @@ import {
 } from "@/modules/auth";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { tradingSessionForDate } from "@/modules/market-data";
-import { ContemplatedOperationNotFoundError, getMyOperation } from "@/modules/portfolio";
+import {
+  ContemplatedOperationNotFoundError,
+  getMyHeldOperation,
+  getMyOperation,
+  HeldOperationNotFoundError,
+} from "@/modules/portfolio";
 import {
   getMySignal,
   getStructures,
@@ -23,7 +28,7 @@ import {
   SignalNotFoundError,
 } from "@/modules/strategies";
 
-import { allowedDecisionKinds, type JournalOriginKind } from "./allowed-kinds";
+import { allowedDecisionKinds, journalOriginKinds, type JournalOriginKind } from "./allowed-kinds";
 import {
   DecisionsRepository,
   DuplicateSignalDecisionError,
@@ -34,7 +39,7 @@ import type { DecisionInputs } from "./inputs";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 const recordInputSchema = z.strictObject({
-  originKind: z.enum(["signal", "contemplated_operation"]),
+  originKind: z.enum(journalOriginKinds),
   targetId: z.string().min(1).max(200),
   kind: z.enum(decisionKinds),
   rationale: z.string().trim().min(1).max(2000),
@@ -151,7 +156,8 @@ export async function recordDecisionAction(
   } catch (error) {
     if (
       error instanceof SignalNotFoundError ||
-      error instanceof ContemplatedOperationNotFoundError
+      error instanceof ContemplatedOperationNotFoundError ||
+      error instanceof HeldOperationNotFoundError
     ) {
       return { status: "error", error: "not_found" };
     }
@@ -223,6 +229,38 @@ async function buildRecordInput({
         costModel: DEFAULT_COST_MODEL,
       },
       markSignalIdWhenAnswered: signal.id,
+    };
+  }
+
+  if (originKind === "held_operation") {
+    const held = await getMyHeldOperation(targetId);
+    if (!allowedDecisionKinds({ kind: "held_operation" }).includes(kind)) {
+      throw new KindNotAllowedError();
+    }
+    const inputs: DecisionInputs = {
+      originKind: "held_operation",
+      underlying: held.underlying,
+      expiry: held.expiry,
+      openedAt: held.openedAt,
+      legs: held.legs,
+      fillIds: held.fillIds,
+    };
+    return {
+      recordInput: {
+        kind,
+        originKind: "held_operation",
+        signalId: null,
+        contemplatedOperationId: null,
+        operationId: held.id,
+        strategyVersionId: null,
+        inputs,
+        rationale,
+        claim,
+        confidence,
+        horizon,
+        costModel: DEFAULT_COST_MODEL,
+      },
+      markSignalIdWhenAnswered: null,
     };
   }
 

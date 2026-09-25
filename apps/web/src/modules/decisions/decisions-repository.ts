@@ -22,6 +22,7 @@ export interface RecordDecisionInput {
   originKind: JournalOriginKind;
   signalId: string | null;
   contemplatedOperationId: string | null;
+  operationId?: string | null;
   strategyVersionId: string | null;
   inputs: DecisionInputs;
   rationale: string;
@@ -57,6 +58,7 @@ export interface DecisionListItem {
   decidedAt: Date;
   signalId: string | null;
   contemplatedOperationId: string | null;
+  operationId: string | null;
 }
 
 // Thrown on the unique partial index over (user_id, signal_id): a signal is
@@ -101,6 +103,7 @@ function toDecisionListItem(row: typeof decisions.$inferSelect): DecisionListIte
     decidedAt: row.decidedAt,
     signalId: row.signalId,
     contemplatedOperationId: row.contemplatedOperationId,
+    operationId: row.operationId,
     rationale: row.rationale,
     horizon: row.horizon,
     kind: parseDecisionKind(row.kind),
@@ -130,6 +133,7 @@ export class DecisionsRepository extends UserScopedRepository {
           originKind: input.originKind,
           signalId: input.signalId,
           contemplatedOperationId: input.contemplatedOperationId,
+          operationId: input.operationId ?? null,
           strategyVersionId: input.strategyVersionId,
           inputs,
           rationale: input.rationale,
@@ -217,6 +221,30 @@ export class DecisionsRepository extends UserScopedRepository {
     for (const row of rows) {
       if (row.contemplatedOperationId !== null && !map.has(row.contemplatedOperationId)) {
         map.set(row.contemplatedOperationId, toDecisionListItem(row));
+      }
+    }
+    return map;
+  }
+
+  // The latest decision on each of a page of held operations, the same way:
+  // a held operation takes a decision each time the user reassesses it.
+  async findLatestForHeldOperations(
+    operationIds: readonly string[],
+  ): Promise<Map<string, DecisionListItem>> {
+    if (operationIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select()
+      .from(decisions)
+      .where(
+        and(eq(decisions.userId, this.userId), inArray(decisions.operationId, [...operationIds])),
+      )
+      .orderBy(desc(decisions.decidedAt), desc(decisions.createdAt));
+
+    const map = new Map<string, DecisionListItem>();
+    for (const row of rows) {
+      if (row.operationId !== null && !map.has(row.operationId)) {
+        map.set(row.operationId, toDecisionListItem(row));
       }
     }
     return map;

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Centavos, DecimalString, SessionDate } from "@fetha/contracts";
 
 import {
@@ -200,7 +201,17 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
   );
 }
 
-function OperationsTable({ model }: { model: PortfolioReadModel }) {
+// Rendered by the page, which composes the decisions module into this
+// table: portfolio does not import decisions (it depends on portfolio).
+export type OperationDecisionSlot = (operationId: string) => ReactNode;
+
+function OperationsTable({
+  model,
+  decisionSlot,
+}: {
+  model: PortfolioReadModel;
+  decisionSlot?: OperationDecisionSlot;
+}) {
   if (model.operations.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.operations.empty}</p>;
   }
@@ -252,7 +263,10 @@ function OperationsTable({ model }: { model: PortfolioReadModel }) {
             </TableCell>
             <TableCell className="text-right">
               {operation.status === "open" && !pendingSettlement && (
-                <UngroupButton operationId={operation.id} />
+                <span className="inline-flex items-start justify-end gap-2">
+                  {decisionSlot?.(operation.id)}
+                  <UngroupButton operationId={operation.id} />
+                </span>
               )}
             </TableCell>
           </TableRow>
@@ -316,7 +330,13 @@ function Summary({ model }: { model: PortfolioReadModel }) {
   );
 }
 
-export function PortfolioDashboard({ model }: { model: PortfolioReadModel }) {
+export function PortfolioDashboard({
+  model,
+  decisionSlot,
+}: {
+  model: PortfolioReadModel;
+  decisionSlot?: OperationDecisionSlot;
+}) {
   const labelOf = new Map(
     model.operations.map(({ operation }) => [
       operation.id,
@@ -357,7 +377,7 @@ export function PortfolioDashboard({ model }: { model: PortfolioReadModel }) {
           )}
         </Panel>
         <Panel title={labels.operations.title}>
-          <OperationsTable model={model} />
+          <OperationsTable model={model} decisionSlot={decisionSlot} />
         </Panel>
         <Panel title={labels.fills.title}>
           <FillsPanel fills={fills} openOperations={openOperations} />

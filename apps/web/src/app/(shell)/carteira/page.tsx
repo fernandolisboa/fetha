@@ -14,9 +14,12 @@ import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
 import {
   allowedDecisionKinds,
+  defaultHorizonForHeldOperation,
   defaultHorizonsForOperations,
+  getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
   t as decisionsT,
+  type DecisionListItem,
 } from "@/modules/decisions";
 import { DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
@@ -26,6 +29,14 @@ import { getMyOperations, getMyPortfolio, PortfolioDashboard, t } from "@/module
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
 import { Panel, t as shellStrings } from "@/modules/shell";
 
+function LatestDecision({ decision }: { decision: DecisionListItem }) {
+  return (
+    <span className="text-muted-foreground text-xs">
+      {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
+    </span>
+  );
+}
+
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
 
 export default async function PortfolioPage() {
@@ -33,10 +44,36 @@ export default async function PortfolioPage() {
   const [portfolio, operations] = await Promise.all([getMyPortfolio(), getMyOperations()]);
 
   const operationIds = operations.map((operation) => operation.id);
-  const [decisionsByOperation, defaultHorizons] = await Promise.all([
+  const heldOperations = new Map(
+    portfolio.operations
+      .filter(
+        ({ operation, pendingSettlement }) => operation.status === "open" && !pendingSettlement,
+      )
+      .map(({ operation }) => [operation.id, operation]),
+  );
+  const [decisionsByOperation, defaultHorizons, decisionsByHeldOperation] = await Promise.all([
     getMyDecisionsByOperationId(operationIds),
     defaultHorizonsForOperations(getDb(), operations),
+    getMyDecisionsByHeldOperationId([...heldOperations.keys()]),
   ]);
+
+  const heldOperationDecision = (operationId: string) => {
+    const operation = heldOperations.get(operationId);
+    if (!operation) return null;
+    const latest = decisionsByHeldOperation.get(operationId);
+    return (
+      <span className="inline-flex flex-col items-end gap-1">
+        <DecisionBar
+          originKind="held_operation"
+          targetId={operation.id}
+          allowedKinds={allowedDecisionKinds({ kind: "held_operation" })}
+          defaultHorizon={defaultHorizonForHeldOperation(operation.expiry)}
+          defaultInstrument={operation.underlying}
+        />
+        {latest && <LatestDecision decision={latest} />}
+      </span>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6 px-5 py-8">
@@ -57,7 +94,7 @@ export default async function PortfolioPage() {
         </div>
       </div>
 
-      <PortfolioDashboard model={portfolio} />
+      <PortfolioDashboard model={portfolio} decisionSlot={heldOperationDecision} />
 
       <Panel title={t.list.title}>
         {operations.length === 0 ? (
@@ -105,9 +142,7 @@ export default async function PortfolioPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {decision ? (
-                        <span className="text-muted-foreground text-xs">
-                          {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
-                        </span>
+                        <LatestDecision decision={decision} />
                       ) : (
                         <DecisionBar
                           originKind="contemplated_operation"

@@ -7,7 +7,8 @@ vi.mock("@/modules/market-data", () => ({ expiryByTicker: vi.fn() }));
 
 const mockedExpiryByTicker = vi.mocked(expiryByTicker);
 
-const { defaultHorizonsForOperations } = await import("./resolve-default-horizon");
+const { defaultHorizonForHeldOperation, defaultHorizonsForOperations } =
+  await import("./resolve-default-horizon");
 
 const FIXED_NOW = new Date("2031-06-10T12:00:00.000Z");
 
@@ -56,5 +57,16 @@ describe("defaultHorizonsForOperations", () => {
     );
 
     expect(result.get("op-expired")).toBeNull();
+  });
+});
+
+describe("defaultHorizonForHeldOperation", () => {
+  it("defaults to the operation's expiry", () => {
+    expect(defaultHorizonForHeldOperation("2031-06-20", FIXED_NOW)).toBe("2031-06-20");
+  });
+
+  it("has no default for a stock-only operation or an expiry already past", () => {
+    expect(defaultHorizonForHeldOperation(null, FIXED_NOW)).toBeNull();
+    expect(defaultHorizonForHeldOperation("2031-06-09", FIXED_NOW)).toBeNull();
   });
 });

@@ -27,5 +27,6 @@ supersedes or amends them and says so.
 | 0019 | Vertical slices inside the single Next.js app: a module owns its tables                                         |
 | 0020 | Registration mode changes without a redeploy: Vercel Global Config, as in Feudo (amends 0016)                   |
 | 0021 | Real portfolio: fills are the only stored fact; positions, cash and operation legs are derived (qualifies 0006) |
+| 0022 | Decisions on held operations are scored on the position held and the portfolio's own fills (amends 0014)        |
 
 Open: none.

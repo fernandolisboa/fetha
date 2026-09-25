@@ -11,11 +11,16 @@ export { seedE2EDecision, type SeedE2EDecisionInput, type SeedE2EDecisionResult 
 export {
   getMyDecisions,
   getMyDecisionScores,
+  getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
   getMyDecisionsBySignalId,
   getMyTrackRecordStats,
 } from "./queries";
 export type { DecisionInputs } from "./inputs";
-export { defaultHorizonsForOperations, defaultHorizonsForSignals } from "./resolve-default-horizon";
+export {
+  defaultHorizonForHeldOperation,
+  defaultHorizonsForOperations,
+  defaultHorizonsForSignals,
+} from "./resolve-default-horizon";
 export { scoreDueDecisions, type ScoreDecisionsOutcome } from "./scoring-service";
 export { t } from "./strings";

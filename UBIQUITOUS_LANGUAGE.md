@@ -328,7 +328,9 @@ _Avoid_: zero point, ponto de equilíbrio (in code)
 **Decision**:
 An explicit record by the user about an operation, existing or contemplated: enter, do not
 enter, hold, adjust (including roll) or exit; with date, rationale, a thesis and, optionally,
-the analysis that informed it. "Do not enter" is a first-class decision.
+the analysis that informed it. "Do not enter" is a first-class decision. A decision on an
+existing operation of the real portfolio (hold, adjust or exit) is scored on the position held
+when it was taken and the fills that followed (ADR-0022).
 _Avoid_: action, choice, trade idea, entry, order
 
 **Thesis**:

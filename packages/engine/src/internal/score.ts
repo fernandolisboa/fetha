@@ -467,7 +467,12 @@ function computeOperationPnl(
 
   const notes: Note[] = [];
   if (remainingLegs.length > 0) {
-    if (operation.expiry !== null && operation.expiry <= horizonSession.date) {
+    // Only an option leg settles: once realized fills have closed every option leg (an
+    // assigned or exercised option closed at zero, ADR-0022), the stock legs left are kept
+    // and marked like any stock leg, never passed to settlement as a stock-only operation
+    // carrying an expiry, which the coherence check refuses.
+    const optionLegRemains = remainingLegs.some((leg) => leg.role !== "stock");
+    if (optionLegRemains && operation.expiry !== null && operation.expiry <= horizonSession.date) {
       const settled = settlementPnl(
         view,
         operation.underlying,

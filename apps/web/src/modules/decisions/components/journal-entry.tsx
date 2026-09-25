@@ -33,6 +33,9 @@ function origin(decision: DecisionListItem): string {
   if (decision.inputs.originKind === "signal") {
     return t.journal.originSignal(decision.inputs.strategyName, decision.inputs.ticker);
   }
+  if (decision.inputs.originKind === "held_operation") {
+    return t.journal.originHeldOperation(decision.inputs.underlying);
+  }
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 

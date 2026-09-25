@@ -14,6 +14,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { addStockFill, seedStockOperation } from "@/db/test/held-operation";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
@@ -493,5 +494,104 @@ describe("scoreDueDecisions with the real engine", () => {
     expect(row?.maxLossCentavos).toBe(400000);
     expect(row?.counterfactualPnlCentavos).toBe(49800);
     expect(row?.claimHeld).toBe(true);
+  });
+});
+
+// ADR-0022 item 4: a decision on a held operation is scored on the position
+// it was taken on (average cost as entry) and the portfolio's own fills
+// after it, not on a re-priced snapshot. Fixed past sessions, apart from the
+// dates the other tests here derive from today.
+describe("scoreDueDecisions on a held operation", () => {
+  const OPENED = "2024-07-01";
+  const DECIDED = "2024-07-02";
+  const PARTIAL_EXIT = "2024-07-03";
+  const HORIZON = "2024-07-08";
+  const SESSIONS = [OPENED, DECIDED, PARTIAL_EXIT, "2024-07-04", "2024-07-05", HORIZON];
+  // DEFAULT_COST_MODEL's entry cost of 100 shares at R$ 30,00: 0,05% of R$ 3.000,00.
+  const ENTRY_COSTS = 150;
+
+  async function heldDecision(kind: "hold" | "exit") {
+    const db = getDb();
+    const email = uniqueEmail(`held-${kind}`);
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+    for (const session of SESSIONS) {
+      await insertSession(session);
+      await insertCandle(ticker, session, session === HORIZON ? "36.000000" : "30.000000");
+    }
+    const { operationId, fillIds } = await seedStockOperation(db, owner, ticker, [
+      { side: "buy", quantity: 100, price: "30", session: OPENED },
+    ]);
+    const decision = await new DecisionsRepository(db, owner).record({
+      kind,
+      originKind: "held_operation",
+      signalId: null,
+      contemplatedOperationId: null,
+      operationId,
+      strategyVersionId: null,
+      inputs: {
+        originKind: "held_operation",
+        underlying: ticker,
+        expiry: null,
+        openedAt: OPENED,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker,
+            quantity: quantitySchema.parse(100),
+            entryPrice: decimalString("30.000000"),
+          },
+        ],
+        fillIds,
+      },
+      rationale: `Held-operation ${kind} integration test`,
+      claim: { kind: "operation_pnl_positive" },
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: HORIZON,
+      costModel: DEFAULT_COST_MODEL,
+      decidedAt: new Date(`${DECIDED}T15:00:00.000Z`),
+    });
+    return { db, owner, ticker, operationId, decision };
+  }
+
+  it("realizes the part sold after the decision and marks the rest at the horizon close", async () => {
+    const { db, owner, ticker, operationId, decision } = await heldDecision("hold");
+    await addStockFill(db, owner, operationId, ticker, {
+      side: "sell",
+      quantity: 40,
+      price: "34",
+      session: PARTIAL_EXIT,
+    });
+
+    const outcome = await scoreDueDecisions(db, { okSessions: [HORIZON] });
+    expect(outcome.errors.filter((error) => error.decisionId === decision.id)).toEqual([]);
+
+    const row = (await new DecisionScoresRepository(db, owner).findForDecisions([decision.id])).get(
+      decision.id,
+    );
+    // 40 × (34 − 30) realized + 60 × (36 − 30) marked, in centavos, net of entry costs.
+    expect(row?.pnlCentavos).toBe(16000 + 36000 - ENTRY_COSTS);
+    expect(row?.claimHeld).toBe(true);
+  });
+
+  it("scores an exit on the realized fill, net of its recorded costs", async () => {
+    const { db, owner, ticker, operationId, decision } = await heldDecision("exit");
+    await addStockFill(db, owner, operationId, ticker, {
+      side: "sell",
+      quantity: 100,
+      price: "33",
+      session: PARTIAL_EXIT,
+      costsCentavos: 500,
+    });
+
+    await scoreDueDecisions(db, { okSessions: [HORIZON] });
+
+    const row = (await new DecisionScoresRepository(db, owner).findForDecisions([decision.id])).get(
+      decision.id,
+    );
+    expect(row?.unscorableReason).toBeNull();
+    expect(row?.pnlCentavos).toBe(30000 - 500 - ENTRY_COSTS);
   });
 });
