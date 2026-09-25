@@ -422,6 +422,22 @@ describe("optionSeriesForFills and latestExpiredTradedSeries", () => {
     expect(resolved.has(seriesKey(ticker, "2098-03-01"))).toBe(false);
   });
 
+  it("does not resolve a fill to a cycle listed after it traded", async () => {
+    const underlying = uniqueTicker("LAT");
+    underlyings.push(underlying);
+    const ticker = `${underlying}A10`;
+    optionTickers.push(ticker);
+    await seedCycle(underlying, ticker, "2098-06-20", { session: "2098-05-04", close: "0.500000" });
+
+    const resolved = await optionSeriesForFills(getDb(), [
+      { ticker, session: "2097-10-10" },
+      { ticker, session: "2098-05-04" },
+    ]);
+
+    expect(resolved.has(seriesKey(ticker, "2097-10-10"))).toBe(false);
+    expect(resolved.get(seriesKey(ticker, "2098-05-04"))?.expiry).toBe("2098-06-20");
+  });
+
   it("finds the latest expired series that traded and whose expiry close is ingested", async () => {
     const underlying = uniqueTicker("EXD");
     underlyings.push(underlying);

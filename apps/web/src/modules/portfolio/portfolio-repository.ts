@@ -21,6 +21,8 @@ import {
   type OperationStatus,
 } from "./schema";
 
+const INSERT_CHUNK = 1000;
+
 export interface FillRecord extends LedgerFill {
   id: string;
   source: FillSource;
@@ -138,29 +140,43 @@ export class PortfolioRepository extends UserScopedRepository {
     return rows.map(toOperationRecord);
   }
 
-  async countOpenOperations(): Promise<number> {
-    const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(operations)
-      .where(and(eq(operations.userId, this.userId), eq(operations.status, "open")));
-    return row?.count ?? 0;
-  }
-
   // Idempotent for import-keyed fills (ADR-0021 item 7): a key this user
   // already has is skipped, never duplicated or overwritten.
   async insertFills(newFills: readonly NewFill[]): Promise<{ inserted: number }> {
     if (newFills.length === 0) {
       return { inserted: 0 };
     }
-    const inserted = await this.db
-      .insert(fills)
-      .values(newFills.map((fill) => ({ ...fill, userId: this.userId })))
-      .onConflictDoNothing({
-        target: [fills.userId, fills.importKey],
-        where: sql`${fills.importKey} is not null`,
-      })
-      .returning({ id: fills.id });
-    return { inserted: inserted.length };
+    // Postgres caps one statement at 65,535 bind parameters (~13 per fill).
+    return this.db.transaction(async (tx) => {
+      let inserted = 0;
+      for (let start = 0; start < newFills.length; start += INSERT_CHUNK) {
+        const rows = await tx
+          .insert(fills)
+          .values(
+            newFills
+              .slice(start, start + INSERT_CHUNK)
+              .map((fill) => ({ ...fill, userId: this.userId })),
+          )
+          .onConflictDoNothing({
+            target: [fills.userId, fills.importKey],
+            where: sql`${fills.importKey} is not null`,
+          })
+          .returning({ id: fills.id });
+        inserted += rows.length;
+      }
+      return { inserted };
+    });
+  }
+
+  // An option fill imported before its series reached the reference data is
+  // stored without an expiry; a later import fills it in once it resolves.
+  async resolveExpiries(resolved: readonly { id: string; expiry: SessionDate }[]): Promise<void> {
+    for (const { id, expiry } of resolved) {
+      await this.db
+        .update(fills)
+        .set({ expiry })
+        .where(and(eq(fills.id, id), eq(fills.userId, this.userId), isNull(fills.expiry)));
+    }
   }
 
   async deleteUnassignedFill(id: string): Promise<WriteResult> {

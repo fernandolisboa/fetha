@@ -30,7 +30,9 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    positions, operation legs and cash as inputs, so deriving them is the caller's job:
    `modules/portfolio/bookkeeping.ts`, pure functions with property tests, no I/O. Everything
    valued (prices, fair value, greeks, P&L, limits, settlement outcomes) still comes from the
-   engine.
+   engine. This qualifies ADR-0006 ("`packages/engine` contains every computation Fetha
+   shows"): ledger arithmetic over the user's own fills (net quantity, average cost, cash) sits
+   at the portfolio edge; every valuation stays in the engine.
    - _Average cost_ is the moving average of the fills that opened the net position (B3's "custo
      médio"): a fill in the direction of the position re-averages it, a fill against it reduces
      the quantity at the same average, and a fill that crosses zero opens the opposite position
@@ -38,7 +40,10 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    - _Option positions are keyed by series, not ticker_: `(ticker, expiry)`. B3 reuses option
      tickers across listing cycles (ADR-0017), so a ticker alone would net an expired cycle
      against the next one. An option fill's expiry is resolved when the fill is written, as the
-     earliest listed expiry for that ticker on or after the fill's session.
+     earliest expiry for that ticker on or after the fill's session among cycles already listed
+     by then (first seen in the registry, or first traded, on or before the session); a fill
+     that resolves to nothing keeps no expiry and shows as an unknown series, and a later import
+     fills the expiry in once the reference data has the series.
    - _Cash_ is the declared capital of the current risk profile (zero without one) plus every
      fill's cash flow: sells add, buys subtract, costs subtract; each fill's `price × quantity`
      is rounded to centavos half-up, the engine's own rounding. Declared capital is read as the
@@ -69,6 +74,8 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
 7. **B3 import.** The source is the "Negociação" export of B3's investor area, `.xlsx`, with the
    columns `Data do Negócio`, `Tipo de Movimentação`, `Mercado`, `Prazo/Vencimento`,
    `Instituição`, `Código de Negociação`, `Quantidade`, `Preço`, `Valor`, found by header name.
+   `Prazo/Vencimento` and `Valor` are not read: an option's expiry comes from the reference data
+   (item 3) and the amount is quantity times price.
    - _Markets._ "Mercado à Vista" and "Mercado Fracionário" are stock fills (a fractional ticker's
      trailing `F` is dropped); "Opção de Compra" and "Opção de Venda" are option fills. Exercise
      rows are skipped and counted: the settlement flow is the one source of exercise fills, so
@@ -86,8 +93,15 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    - _Fixture._ The recorded fixture reproduces the documented column layout with synthetic
      trades; it is replaced by an anonymized real export once the owner provides one.
 8. **Manual entry** accepts only a ticker the reference data knows (a listed option series, or a
-   stock with a daily candle), which also decides its asset class. Only an unassigned fill can be
-   deleted.
+   stock with a daily candle), which also decides its asset class, on a trading session that has
+   already opened. Only an unassigned fill can be deleted. Import is limited to 10 per minute and
+   the other portfolio writes to 60 per minute per account; the reader refuses a sheet past
+   20,000 rows or Excel's last column, and scans the XML in linear time.
+9. **Portfolio greeks.** `markToMarket` leaves option positions out of its greeks, so the
+   dashboard adds each option held outside any operation from its own one-leg `priceOperation`;
+   every open option counts once. `maxOpenOperations` counts the same operations the dashboard
+   marks: an open operation whose expiry session has closed is pending settlement, not open
+   risk.
 
 ## Consequences
 
@@ -105,6 +119,18 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
   over several underlyings for the portfolio.
 - The glossary's "Fills import" names the export; "Position" says an option position is per
   series.
+
+## Known limitations
+
+- Corporate actions are not applied to fills: a split or a bonus issue leaves positions at their
+  pre-event quantity and average cost until the user records the adjustment by hand. Factors are
+  not ingested yet (ADR-0017), so the engine does not rebase positions either.
+- An exercised or assigned option closes at zero and its premium stays in cash; it is not carried
+  into the stock fill's cost, so the stock's average cost is the strike, not the tax basis. Cash
+  and equity are right; realized P&L arrives with the held-operation follow-up.
+- The Negociação export has no time of day, so fills of one session are applied in the export's
+  row order (then entry order); a same-day round trip can leave a different average cost than
+  the broker's.
 
 ## Considered options
 

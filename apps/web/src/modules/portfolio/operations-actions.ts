@@ -6,6 +6,7 @@ import { contemplatedLegSchema, tickerSchema, type ContemplatedLeg } from "@feth
 import type { OperationPricing } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
+import { nowInstant } from "@/lib/instant";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
@@ -22,7 +23,7 @@ import { getStructures } from "@/modules/strategies";
 
 import { priceOperationLegs } from "./engine-client";
 import { OperationsRepository } from "./operations-repository";
-import { PortfolioRepository } from "./portfolio-repository";
+import { countLiveOpenOperations } from "./portfolio-service";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { validateLegsAgainstStructure } from "./validate-legs";
 
@@ -121,7 +122,7 @@ export async function priceOperationAction(input: {
 
     const [riskProfile, openOperationCount] = await Promise.all([
       currentRiskProfile(),
-      new PortfolioRepository(getDb(), user).countOpenOperations(),
+      countLiveOpenOperations(getDb(), user, nowInstant()),
     ]);
     const result = await priceOperationLegs(
       parsed.data.underlying,
@@ -168,7 +169,7 @@ export async function saveOperationAction(input: {
 
     const [riskProfile, openOperationCount] = await Promise.all([
       currentRiskProfile(),
-      new PortfolioRepository(getDb(), user).countOpenOperations(),
+      countLiveOpenOperations(getDb(), user, nowInstant()),
     ]);
     const priced = await priceOperationLegs(
       parsed.data.underlying,

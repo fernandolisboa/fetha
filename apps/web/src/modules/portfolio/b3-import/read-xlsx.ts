@@ -20,16 +20,74 @@ const ENTITIES: Record<string, string> = {
   apos: "'",
 };
 
+// Excel's last column (XFD) and a row ceiling far above a B3 export; past
+// either the file is not a spreadsheet this reader should keep in memory.
+const MAX_COLUMN_INDEX = 16_383;
+const MAX_ROWS = 20_000;
+const MAX_CODE_POINT = 0x10ffff;
+
+class MalformedXlsx extends Error {}
+
+function codePoint(value: number): string {
+  if (!Number.isInteger(value) || value > MAX_CODE_POINT || (value >= 0xd800 && value <= 0xdfff)) {
+    throw new MalformedXlsx();
+  }
+  return String.fromCodePoint(value);
+}
+
 function decodeXml(text: string): string {
-  return text.replace(/&(#x[0-9a-fA-F]+|#\d+|\w+);/g, (match, entity: string) => {
+  return text.replace(/&(#x[0-9a-fA-F]{1,6}|#\d{1,7}|\w{1,8});/g, (match, entity: string) => {
     if (entity.startsWith("#x")) {
-      return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+      return codePoint(Number.parseInt(entity.slice(2), 16));
     }
     if (entity.startsWith("#")) {
-      return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+      return codePoint(Number.parseInt(entity.slice(1), 10));
     }
     return ENTITIES[entity] ?? match;
   });
+}
+
+interface Element {
+  attributes: string;
+  body: string;
+}
+
+// Every `<tag ...>body</tag>` or `<tag .../>` in document order, scanned with
+// indexOf so the cost stays linear in the input: a backtracking regex over
+// an unclosed tag rescans to the end of the input for every occurrence.
+function elements(xml: string, tag: string): Element[] {
+  const found: Element[] = [];
+  const open = `<${tag}`;
+  const close = `</${tag}>`;
+  let from = 0;
+  for (;;) {
+    const start = xml.indexOf(open, from);
+    if (start === -1) {
+      return found;
+    }
+    const boundary = xml.charAt(start + open.length);
+    if (boundary !== ">" && boundary !== "/" && !/\s/.test(boundary)) {
+      from = start + open.length;
+      continue;
+    }
+    const tagEnd = xml.indexOf(">", start);
+    if (tagEnd === -1) {
+      throw new MalformedXlsx();
+    }
+    const selfClosing = xml.charAt(tagEnd - 1) === "/";
+    const attributes = xml.slice(start + open.length, selfClosing ? tagEnd - 1 : tagEnd);
+    if (selfClosing) {
+      found.push({ attributes, body: "" });
+      from = tagEnd + 1;
+      continue;
+    }
+    const end = xml.indexOf(close, tagEnd);
+    if (end === -1) {
+      throw new MalformedXlsx();
+    }
+    found.push({ attributes, body: xml.slice(tagEnd + 1, end) });
+    from = end + close.length;
+  }
 }
 
 function attribute(attributes: string, name: string): string | null {
@@ -37,32 +95,42 @@ function attribute(attributes: string, name: string): string | null {
   return match ? decodeXml(match[1] ?? "") : null;
 }
 
-function textRuns(xml: string): string {
-  let text = "";
-  const withoutPhonetics = xml.replace(/<rPh\b[\s\S]*?<\/rPh>/g, "");
-  for (const match of withoutPhonetics.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)) {
-    text += decodeXml(match[1] ?? "");
+function withoutPhonetics(xml: string): string {
+  let kept = "";
+  let from = 0;
+  for (;;) {
+    const start = xml.indexOf("<rPh", from);
+    if (start === -1) {
+      return kept + xml.slice(from);
+    }
+    const end = xml.indexOf("</rPh>", start);
+    if (end === -1) {
+      throw new MalformedXlsx();
+    }
+    kept += xml.slice(from, start);
+    from = end + "</rPh>".length;
   }
-  return text;
+}
+
+function textRuns(xml: string): string {
+  return elements(withoutPhonetics(xml), "t")
+    .map((run) => decodeXml(run.body))
+    .join("");
 }
 
 function sharedStrings(xml: string | undefined): string[] {
-  if (!xml) {
-    return [];
-  }
-  return [...xml.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map((match) => textRuns(match[1] ?? ""));
+  return xml ? elements(xml, "si").map((item) => textRuns(item.body)) : [];
 }
 
 function firstSheetPath(workbook: string, rels: string): string | null {
-  const sheet = /<sheet\b([^>]*)\/?>/.exec(workbook);
-  const relationId = sheet ? attribute(sheet[1] ?? "", "r:id") : null;
+  const [sheet] = elements(workbook, "sheet");
+  const relationId = sheet ? attribute(sheet.attributes, "r:id") : null;
   if (!relationId) {
     return null;
   }
-  for (const match of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
-    const attributes = match[1] ?? "";
-    if (attribute(attributes, "Id") === relationId) {
-      const target = attribute(attributes, "Target");
+  for (const relation of elements(rels, "Relationship")) {
+    if (attribute(relation.attributes, "Id") === relationId) {
+      const target = attribute(relation.attributes, "Target");
       if (!target) {
         return null;
       }
@@ -73,17 +141,25 @@ function firstSheetPath(workbook: string, rels: string): string | null {
 }
 
 function columnIndex(reference: string): number {
-  const letters = /^[A-Z]+/.exec(reference)?.[0] ?? "";
+  const letters = /^[A-Z]{1,3}/.exec(reference)?.[0] ?? "";
   let index = 0;
   for (const letter of letters) {
     index = index * 26 + (letter.charCodeAt(0) - 64);
   }
+  if (index - 1 > MAX_COLUMN_INDEX) {
+    throw new MalformedXlsx();
+  }
   return index - 1;
+}
+
+function valueOf(body: string): string | undefined {
+  const [value] = elements(body, "v");
+  return value?.body;
 }
 
 function cellValue(attributes: string, body: string, strings: string[]): Cell {
   const type = attribute(attributes, "t");
-  const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1];
+  const raw = valueOf(body);
   switch (type) {
     case "s": {
       const value = raw === undefined ? undefined : strings[Number.parseInt(raw, 10)];
@@ -101,23 +177,27 @@ function cellValue(attributes: string, body: string, strings: string[]): Cell {
 }
 
 function sheetRows(xml: string, strings: string[]): Cell[][] {
-  const rows: Cell[][] = [];
-  for (const row of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+  const rowElements = elements(xml, "row");
+  if (rowElements.length > MAX_ROWS) {
+    throw new MalformedXlsx();
+  }
+  return rowElements.map((row) => {
     const cells: Cell[] = [];
     let next = 0;
-    for (const cell of (row[1] ?? "").matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const attributes = cell[1] ?? "";
-      const reference = attribute(attributes, "r");
+    for (const cell of elements(row.body, "c")) {
+      const reference = attribute(cell.attributes, "r");
       const index = reference ? columnIndex(reference) : next;
+      if (index > MAX_COLUMN_INDEX) {
+        throw new MalformedXlsx();
+      }
       while (cells.length < index) {
         cells.push(null);
       }
-      cells[index] = cellValue(attributes, cell[2] ?? "", strings);
+      cells[index] = cellValue(cell.attributes, cell.body, strings);
       next = index + 1;
     }
-    rows.push(cells);
-  }
-  return rows;
+    return cells;
+  });
 }
 
 // A minimal OOXML reader (ADR-0021 item 7): the first worksheet's cells as
@@ -152,12 +232,27 @@ export function readFirstSheet(bytes: Uint8Array): XlsxReadResult {
   if (!workbook || !rels) {
     return { ok: false, error: "not_xlsx" };
   }
-  const sheetPath = firstSheetPath(strFromU8(workbook), strFromU8(rels));
+  let sheetPath: string | null;
+  try {
+    sheetPath = firstSheetPath(strFromU8(workbook), strFromU8(rels));
+  } catch (error) {
+    if (error instanceof MalformedXlsx) {
+      return { ok: false, error: "not_xlsx" };
+    }
+    throw error;
+  }
   const sheet = sheetPath ? entries[sheetPath] : undefined;
   if (!sheet) {
     return { ok: false, error: "not_xlsx" };
   }
   const stringsEntry = entries[SHARED_STRINGS];
-  const strings = sharedStrings(stringsEntry ? strFromU8(stringsEntry) : undefined);
-  return { ok: true, rows: sheetRows(strFromU8(sheet), strings) };
+  try {
+    const strings = sharedStrings(stringsEntry ? strFromU8(stringsEntry) : undefined);
+    return { ok: true, rows: sheetRows(strFromU8(sheet), strings) };
+  } catch (error) {
+    if (error instanceof MalformedXlsx) {
+      return { ok: false, error: "not_xlsx" };
+    }
+    throw error;
+  }
 }

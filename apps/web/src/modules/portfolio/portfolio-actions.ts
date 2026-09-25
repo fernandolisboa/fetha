@@ -8,8 +8,18 @@ import { getDb } from "@/db/client";
 import { nowInstant } from "@/lib/instant";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { parseCentavosInput } from "@/lib/format/parse-money";
-import { requireUser, withAuthenticatedAction } from "@/modules/auth";
-import { latestCandle, optionSeriesForFills, seriesKey } from "@/modules/market-data";
+import {
+  AccountRateLimitExceededError,
+  enforceAccountRateLimit,
+  requireUser,
+  withAuthenticatedAction,
+} from "@/modules/auth";
+import {
+  latestCandle,
+  optionSeriesForFills,
+  seriesKey,
+  tradingSessionForDate,
+} from "@/modules/market-data";
 
 import { parseNegotiationRows, type SkipReason } from "./b3-import/parse-negotiation";
 import { readFirstSheet } from "./b3-import/read-xlsx";
@@ -29,7 +39,10 @@ export type ImportFillsResult =
       alreadyImported: number;
       skipped: Record<SkipReason, number>;
     }
-  | { status: "error"; error: "no_file" | "too_large" | "not_xlsx" | "missing_columns" }
+  | {
+      status: "error";
+      error: "no_file" | "too_large" | "not_xlsx" | "missing_columns" | "rate_limited";
+    }
   | { status: "error"; error: "invalid_row"; row: number };
 
 export type PortfolioActionResult =
@@ -48,8 +61,33 @@ export type PortfolioActionResult =
         | "mixed_expiries"
         | "empty"
         | "no_proposal"
-        | "invalid_choice";
+        | "invalid_choice"
+        | "not_a_session"
+        | "rate_limited";
     };
+
+const IMPORT_RATE_LIMIT = { windowSeconds: 60, max: 10 };
+const WRITE_RATE_LIMIT = { windowSeconds: 60, max: 60 };
+
+async function withinRateLimit(
+  email: string,
+  path: "portfolio/import" | "portfolio/write",
+): Promise<boolean> {
+  try {
+    await enforceAccountRateLimit(
+      getDb(),
+      email,
+      path,
+      path === "portfolio/import" ? IMPORT_RATE_LIMIT : WRITE_RATE_LIMIT,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return false;
+    }
+    throw error;
+  }
+}
 
 function revalidatePortfolio() {
   revalidatePath("/carteira");
@@ -70,6 +108,9 @@ async function optionExpiries(
 export async function importFillsAction(formData: FormData): Promise<ImportFillsResult> {
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/import"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) {
       return { status: "error" as const, error: "no_file" as const };
@@ -104,7 +145,18 @@ export async function importFillsAction(formData: FormData): Promise<ImportFills
       source: "b3_import",
       importKey: fill.importKey,
     }));
-    const { inserted } = await new PortfolioRepository(getDb(), user).insertFills(newFills);
+    const repository = new PortfolioRepository(getDb(), user);
+    const { inserted } = await repository.insertFills(newFills);
+    const unresolved = (await repository.listFills()).filter(
+      (fill) => fill.assetClass === "option" && fill.expiry === null,
+    );
+    const resolved = await optionExpiries(unresolved);
+    await repository.resolveExpiries(
+      unresolved.flatMap((fill) => {
+        const expiry = resolved.get(seriesKey(fill.ticker, fill.session));
+        return expiry ? [{ id: fill.id, expiry }] : [];
+      }),
+    );
     revalidatePortfolio();
     return {
       status: "ok" as const,
@@ -141,7 +193,16 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
 
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/write"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const db = getDb();
+    // A fill dated on a day the market has not opened yet would open an
+    // operation after the mark session, which the engine refuses outright.
+    const tradingSession = await tradingSessionForDate(db, session);
+    if (!tradingSession || new Date(tradingSession.open) > new Date(nowInstant())) {
+      return { status: "error" as const, error: "not_a_session" as const };
+    }
     const series = (await optionSeriesForFills(db, [{ ticker, session }])).get(
       seriesKey(ticker, session),
     );
@@ -176,6 +237,9 @@ export async function deleteFillAction(id: unknown): Promise<PortfolioActionResu
   }
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/write"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const result = await new PortfolioRepository(getDb(), user).deleteUnassignedFill(parsed.data);
     revalidatePortfolio();
     return result.ok
@@ -196,6 +260,9 @@ export async function groupFillsAction(input: unknown): Promise<PortfolioActionR
   }
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/write"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const db = getDb();
     const repository = new PortfolioRepository(db, user);
     const series = await seriesByHolding(db, await repository.listFills());
@@ -221,6 +288,9 @@ export async function ungroupOperationAction(id: unknown): Promise<PortfolioActi
   }
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/write"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const result = await new PortfolioRepository(getDb(), user).ungroup(parsed.data);
     revalidatePortfolio();
     return result.ok
@@ -262,6 +332,9 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
 
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
+    if (!(await withinRateLimit(user.email, "portfolio/write"))) {
+      return { status: "error" as const, error: "rate_limited" as const };
+    }
     const db = getDb();
     const repository = new PortfolioRepository(db, user);
     const [fills, operations] = await Promise.all([
@@ -281,10 +354,10 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
       return { status: "error" as const, error: "no_proposal" as const };
     }
     const proposal = await proposeSettlementFor(db, operation.id, plan.state, expiry);
-    if (!proposal.ok || !(await hasExpired(db, expiry, nowInstant()))) {
+    if (!proposal || !(await hasExpired(db, expiry, nowInstant()))) {
       return { status: "error" as const, error: "no_proposal" as const };
     }
-    const settlement = planSettlement(operation.underlying, expiry, proposal.value.legs, choices);
+    const settlement = planSettlement(operation.underlying, expiry, proposal.legs, choices);
     if (!settlement.ok) {
       return { status: "error" as const, error: settlement.reason };
     }

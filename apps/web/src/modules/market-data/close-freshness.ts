@@ -1,17 +1,6 @@
 import type { SessionDate } from "@fetha/contracts";
 
-const TIME_ZONE = "America/Sao_Paulo";
-
-const isoDateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function isoDateInSaoPaulo(date: Date): string {
-  return isoDateFormatter.format(date);
-}
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 function parseIsoDate(isoDate: string): { year: number; month: number; day: number } {
   const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
@@ -40,7 +29,7 @@ export type CloseFreshness =
 // it against a live `now` (an installed PWA left open past midnight) and
 // render the pt-BR phrase from `shell/strings.ts` itself.
 export function closeFreshnessKind(session: SessionDate, now: Date = new Date()): CloseFreshness {
-  const today = isoDateInSaoPaulo(now);
+  const today = todaySaoPauloDate(now);
   if (session === today) {
     return { kind: "today" };
   }

@@ -44,5 +44,5 @@ export {
   type ChainSeries,
   type ResolvedOptionSeries,
 } from "./repositories/option-repository";
-export { buildPortfolioMarketView, mergeMarketViews } from "./portfolio-view";
+export { buildPortfolioMarketView } from "./portfolio-view";
 export { latestSessionOnOrBefore } from "./repositories/calendar-repository";

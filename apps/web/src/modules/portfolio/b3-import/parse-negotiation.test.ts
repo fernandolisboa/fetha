@@ -87,6 +87,54 @@ describe("readFirstSheet", () => {
   });
 });
 
+function workbookWith(sheet: string, strings?: string): Uint8Array {
+  return zipSync({
+    "xl/workbook.xml": strToU8(
+      '<workbook><sheets><sheet name="a" r:id="rId1"/></sheets></workbook>',
+    ),
+    "xl/_rels/workbook.xml.rels": strToU8(
+      '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+    ),
+    "xl/worksheets/sheet1.xml": strToU8(sheet),
+    ...(strings === undefined ? {} : { "xl/sharedStrings.xml": strToU8(strings) }),
+  });
+}
+
+describe("readFirstSheet on hostile input", () => {
+  const NOT_XLSX = { ok: false, error: "not_xlsx" };
+  const repeated = (fragment: string) =>
+    fragment.repeat(Math.floor((8 * 1024 * 1024) / fragment.length));
+
+  it.each([
+    ["unclosed rows", repeated("<row>"), undefined],
+    ["unclosed cells", `<row>${repeated("<c>")}</row>`, undefined],
+    ["unclosed values", `<row><c>${repeated("<v>")}</c></row>`, undefined],
+    ["unclosed shared strings", "<row/>", repeated("<si>")],
+    ["unclosed text runs", "<row/>", `<si>${repeated("<t>")}</si>`],
+    ["unclosed phonetic runs", "<row/>", `<si>${repeated("<rPh>")}</si>`],
+  ])("refuses %s at the inflated cap in linear time", (_label, sheet, strings) => {
+    const started = performance.now();
+    expect(readFirstSheet(workbookWith(sheet, strings))).toEqual(NOT_XLSX);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it("refuses a column past Excel's last one instead of padding to it", () => {
+    expect(readFirstSheet(workbookWith('<row><c r="ZZZZZZ1"><v>1</v></c></row>'))).toEqual(
+      NOT_XLSX,
+    );
+  });
+
+  it("refuses more rows than an export can have", () => {
+    expect(readFirstSheet(workbookWith("<row/>".repeat(20_001)))).toEqual(NOT_XLSX);
+  });
+
+  it("refuses a numeric entity outside Unicode", () => {
+    expect(
+      readFirstSheet(workbookWith('<row><c t="inlineStr"><is><t>&#x110000;</t></is></c></row>')),
+    ).toEqual(NOT_XLSX);
+  });
+});
+
 describe("parseNegotiationRows", () => {
   it("parses the recorded fixture into fills, oldest first, counting skipped rows", () => {
     const sheet = readFirstSheet(fixture);
@@ -142,6 +190,14 @@ describe("parseNegotiationRows", () => {
     expect(result).toMatchObject({
       ok: true,
       fills: [{ session: "2026-09-15", quantity: 1000, price: "12.34" }],
+    });
+  });
+
+  it("refuses a dot-decimal text price instead of reading it as thousands", () => {
+    expect(parseNegotiationRows([HEADER, row({ 7: s("0.35") })])).toEqual({
+      ok: false,
+      error: "invalid_row",
+      row: 2,
     });
   });
 

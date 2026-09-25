@@ -104,14 +104,24 @@ function parseSession(cell: Cell | undefined): SessionDate | null {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(iso) ? iso : null;
 }
 
+// Text cells use pt-BR separators; a "." is only ever a thousands separator,
+// so "0.35" (a dot-decimal text cell) is refused rather than read as 35.
+function ptBrNumber(text: string): string | null {
+  const compact = text.replace(/R\$/g, "").replace(/\s/g, "");
+  if (!/^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+(,\d+)?$/.test(compact)) {
+    return null;
+  }
+  return compact.replace(/\./g, "").replace(",", ".");
+}
+
 function parseNumber(cell: Cell | undefined): Decimal | null {
   if (!cell) {
     return null;
   }
-  const raw =
-    cell.type === "number"
-      ? cell.value
-      : cell.value.replace(/R\$/g, "").replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const raw = cell.type === "number" ? cell.value : ptBrNumber(cell.value);
+  if (raw === null) {
+    return null;
+  }
   try {
     const value = new Decimal(raw);
     return value.isFinite() ? value : null;

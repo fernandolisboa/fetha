@@ -105,4 +105,6 @@ See `docs/adr/`: numeric representation (0001), option pricing (0002), no broker
 evaluation, backtest and scoring rules settled with it (0014), themes as per-user token sets
 (0015), auth and tenancy: Better Auth, the user account as the tenant (0016), reference data
 ingestion: sources, partitioning, retries, freshness, adjustment (0017), magic link, password
-reset and database-backed rate limiting (0018).
+reset and database-backed rate limiting (0018), vertical slices inside the single Next.js app
+(0019), registration mode through Vercel Global Config (0020), real portfolio bookkeeping: fills
+are stored, positions and cash derived (0021).

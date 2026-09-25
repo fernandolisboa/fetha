@@ -55,7 +55,7 @@ const {
   recordFillAction,
   ungroupOperationAction,
 } = await import("./portfolio-actions");
-const { loadPortfolio } = await import("./portfolio-service");
+const { countLiveOpenOperations, loadPortfolio } = await import("./portfolio-service");
 const { PortfolioRepository } = await import("./portfolio-repository");
 
 const createdEmails: string[] = [];
@@ -239,6 +239,37 @@ describe("importFillsAction", () => {
     });
   });
 
+  it("fills in an option fill's expiry on a later import once its series is listed", async () => {
+    const owner = await signIn("import-repair");
+    const form = new FormData();
+    form.set("file", fixtureFile());
+    await importFillsAction(form);
+    const repository = new PortfolioRepository(getDb(), owner);
+    const pending = (await repository.listFills()).find((fill) => fill.ticker === "PETRJ320");
+    expect(pending?.expiry).toBeNull();
+
+    const isin = `BRTEST${crypto.randomUUID().slice(0, 6)}`;
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin,
+        ticker: "PETRJ320",
+        underlying: "PETR4",
+        right: "call",
+        strike: "32.00000000",
+        expiry: "2026-10-16",
+        style: "american",
+        asOf: new Date("2026-09-01T13:00:00.000Z"),
+      });
+    try {
+      expect(await importFillsAction(form)).toMatchObject({ status: "ok", inserted: 0 });
+      const repaired = (await repository.listFills()).find((fill) => fill.ticker === "PETRJ320");
+      expect(repaired?.expiry).toBe("2026-10-16");
+    } finally {
+      await getDb().delete(optionSeries).where(eq(optionSeries.isin, isin));
+    }
+  });
+
   it("refuses a file that is not a workbook", async () => {
     await signIn("not-xlsx");
     const form = new FormData();
@@ -248,6 +279,15 @@ describe("importFillsAction", () => {
 });
 
 describe("the portfolio from fills to a confirmed settlement", () => {
+  it("rate-limits imports per account", async () => {
+    await signIn("import-rate");
+    const empty = new FormData();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect(await importFillsAction(empty)).toEqual({ status: "error", error: "no_file" });
+    }
+    expect(await importFillsAction(empty)).toEqual({ status: "error", error: "rate_limited" });
+  });
+
   it("records, groups, marks and settles a covered call", async () => {
     const market = await seedMarket();
     const owner = await signIn("flow");
@@ -263,6 +303,16 @@ describe("the portfolio from fills to a confirmed settlement", () => {
         costs: "",
       }),
     ).toEqual({ status: "error", error: "unknown_instrument" });
+    expect(
+      await recordFillAction({
+        ticker: market.underlying,
+        side: "buy",
+        quantity: 100,
+        price: "30,00",
+        session: "1999-03-06",
+        costs: "",
+      }),
+    ).toEqual({ status: "error", error: "not_a_session" });
 
     for (const input of [
       { ticker: market.underlying, side: "buy", price: "30,00", costs: "5,00" },
@@ -286,6 +336,12 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     });
 
     const beforeExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[4] ?? ""));
+    expect(await countLiveOpenOperations(getDb(), owner, closeOf(market.sessions[4] ?? ""))).toBe(
+      1,
+    );
+    expect(await countLiveOpenOperations(getDb(), owner, closeOf(market.sessions[8] ?? ""))).toBe(
+      0,
+    );
     expect(beforeExpiry.cash).toBe(-300_000 - 500 + 15_000 + 15_000);
     expect(beforeExpiry.valuation).toMatchObject({ ok: true });
     expect(beforeExpiry.positions.map((row) => row.holding.ticker).sort()).toEqual(
@@ -304,16 +360,18 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     expect(stale?.fairValue).not.toBeNull();
     expect(beforeExpiry.operations[0]?.valuation).not.toBeNull();
     expect(beforeExpiry.pendingSettlements).toEqual([]);
+    if (!beforeExpiry.valuation?.ok || !beforeExpiry.greeks) throw new Error("expected greeks");
+    const engineTotals = beforeExpiry.valuation.value.totals.greeks;
+    expect(Number(beforeExpiry.greeks.delta)).toBeLessThan(Number(engineTotals.delta));
+    expect(Number(beforeExpiry.greeks.vega)).toBeLessThan(Number(engineTotals.vega));
 
     const afterExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[8] ?? ""));
     expect(afterExpiry.expiredHoldings.map((entry) => entry.holding.ticker)).toEqual([
       market.otherCall,
     ]);
     const [pending] = afterExpiry.pendingSettlements;
-    if (!pending?.proposal.ok) throw new Error("expected a settlement proposal");
-    expect(
-      new Map(pending.proposal.value.legs.map((leg) => [leg.leg.ticker, leg.outcome])),
-    ).toEqual(
+    if (!pending?.proposal) throw new Error("expected a settlement proposal");
+    expect(new Map(pending.proposal.legs.map((leg) => [leg.leg.ticker, leg.outcome]))).toEqual(
       new Map([
         [market.underlying, "kept"],
         [market.call, "assigned"],
@@ -354,8 +412,8 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     });
     const regrouped = await loadPortfolio(getDb(), owner, closeOf(market.sessions[9] ?? ""));
     const worthless = regrouped.pendingSettlements[0];
-    if (!worthless?.proposal.ok) throw new Error("expected a second proposal");
-    expect(worthless.proposal.value.legs[0]?.outcome).toBe("expired_worthless");
+    if (!worthless?.proposal) throw new Error("expected a second proposal");
+    expect(worthless.proposal.legs[0]?.outcome).toBe("expired_worthless");
     expect(
       await confirmSettlementAction({
         operationId: worthless.operation.id,

@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatBRL } from "@/lib/format/brl";
+import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
@@ -133,8 +133,8 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
 function settlementLegs(
   pending: PortfolioReadModel["pendingSettlements"][number],
 ): SettlementLegView[] {
-  if (!pending.proposal.ok) return [];
-  return pending.proposal.value.legs.map((settlement) => ({
+  if (!pending.proposal) return [];
+  return pending.proposal.legs.map((settlement) => ({
     ticker: settlement.leg.ticker,
     role: settlement.leg.role,
     side: settlement.leg.side,
@@ -161,12 +161,12 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
                 {pending.state.expiry && session(pending.state.expiry)}
               </span>
             </span>
-            {pending.proposal.ok ? (
+            {pending.proposal ? (
               <SettlementDialog
                 operationId={pending.operation.id}
                 underlying={pending.operation.underlying}
-                expiry={session(pending.proposal.value.expiry)}
-                underlyingClose={pending.proposal.value.underlyingClose}
+                expiry={session(pending.proposal.expiry)}
+                underlyingClose={pending.proposal.underlyingClose}
                 legs={settlementLegs(pending)}
               />
             ) : (
@@ -282,11 +282,17 @@ function Summary({ model }: { model: PortfolioReadModel }) {
             label={labels.stats.unrealizedPnl}
             value={signedMoney(totals?.unrealizedPnl ?? null)}
           />
-          {totals && (
+          {model.greeks && (
             <>
-              <StatBlock label={labels.stats.delta} value={formatDecimal(totals.greeks.delta, 0)} />
-              <StatBlock label={labels.stats.theta} value={formatDecimal(totals.greeks.theta)} />
-              <StatBlock label={labels.stats.vega} value={formatDecimal(totals.greeks.vega)} />
+              <StatBlock label={labels.stats.delta} value={formatDecimal(model.greeks.delta, 0)} />
+              <StatBlock
+                label={labels.stats.theta}
+                value={`${formatPriceBRL(model.greeks.theta)} ${t.builder.greeksPanel.thetaUnit}`}
+              />
+              <StatBlock
+                label={labels.stats.vega}
+                value={`${formatPriceBRL(model.greeks.vega)} ${t.builder.greeksPanel.vegaUnit}`}
+              />
             </>
           )}
         </div>

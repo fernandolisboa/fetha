@@ -104,14 +104,18 @@ describe("PortfolioRepository", () => {
 
     const grouped = await repository.group(null, [buy.id], openPlan);
     if (!grouped.ok) throw new Error(grouped.reason);
-    expect(await repository.countOpenOperations()).toBe(1);
+    expect((await repository.listOperations()).map((operation) => operation.status)).toEqual([
+      "open",
+    ]);
 
     const regrouped = await repository.group(grouped.operationId, [sell.id], (planned) => {
       expect(planned.map((fill) => fill.id).sort()).toEqual([buy.id, sell.id].sort());
       return { ok: true, state: { ...openState(planned), status: "closed", closedAt } };
     });
     expect(regrouped).toEqual({ ok: true, operationId: grouped.operationId });
-    expect(await repository.countOpenOperations()).toBe(0);
+    expect((await repository.listOperations()).map((operation) => operation.status)).toEqual([
+      "closed",
+    ]);
     expect(await repository.ungroup(grouped.operationId)).toEqual({
       ok: false,
       reason: "not_found",
@@ -185,7 +189,6 @@ describe("PortfolioRepository isolation", () => {
 
     expect((await repositoryB.listFills()).map((fill) => fill.id)).toEqual([bOwn.id]);
     expect(await repositoryB.listOperations()).toEqual([]);
-    expect(await repositoryB.countOpenOperations()).toBe(0);
 
     expect(await repositoryB.deleteUnassignedFill(aLoose.id)).toEqual({
       ok: false,

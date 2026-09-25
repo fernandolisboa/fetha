@@ -1,4 +1,6 @@
+import { Decimal } from "decimal.js";
 import {
+  decimalStringSchema,
   optionRightSchema,
   quantitySchema,
   sessionDateSchema,
@@ -9,7 +11,10 @@ import {
 } from "@fetha/contracts";
 import {
   engine,
+  type Greeks,
   type LegValuation,
+  type MarketView,
+  type OperationPricing,
   type OperationValuation,
   type PortfolioValuation,
   type Result,
@@ -54,7 +59,7 @@ export interface PendingSettlement {
   operation: OperationRecord;
   state: OperationState;
   fillIds: string[];
-  proposal: Result<SettlementProposal>;
+  proposal: SettlementProposal | null;
   strikes: Record<string, string>;
 }
 
@@ -75,6 +80,7 @@ export interface PortfolioReadModel {
   riskProfile: RiskProfile | null;
   cash: number;
   valuation: Result<PortfolioValuation> | null;
+  greeks: Greeks | null;
   positions: PositionRow[];
   unknownSeries: Holding[];
   expiredHoldings: ExpiredHolding[];
@@ -125,6 +131,25 @@ async function expiredBy(
   return expired;
 }
 
+// The open operations `maxOpenOperations` counts, the same set the dashboard
+// marks: one whose expiry session has closed is pending settlement, not open
+// risk (ADR-0021 item 5).
+export async function countLiveOpenOperations(
+  db: Database,
+  user: ScopedUser,
+  at: Instant,
+): Promise<number> {
+  const open = (await new PortfolioRepository(db, user).listOperations()).filter(
+    (operation) => operation.status === "open",
+  );
+  const expired = await expiredBy(
+    db,
+    open.flatMap((operation) => (operation.expiry ? [operation.expiry] : [])),
+    at,
+  );
+  return open.filter((operation) => !operation.expiry || !expired.has(operation.expiry)).length;
+}
+
 export async function hasExpired(db: Database, expiry: SessionDate, at: Instant): Promise<boolean> {
   return (await expiredBy(db, [expiry], at)).has(expiry);
 }
@@ -141,25 +166,59 @@ export async function proposeSettlementFor(
   id: string,
   state: OperationState,
   expiry: SessionDate,
-): Promise<Result<SettlementProposal>> {
+): Promise<SettlementProposal | null> {
   const session = await tradingSessionForDate(db, expiry);
   if (!session) {
-    return {
-      ok: false,
-      error: {
-        code: "insufficient_data",
-        needed: {
-          from: `${expiry}T00:00:00.000Z`,
-          to: `${expiry}T00:00:00.000Z`,
-          instruments: [state.underlying],
-          timeframes: [],
-          collections: [],
-        },
-      },
-    };
+    return null;
   }
   const view = await buildOperationMarketView(db, state.underlying, session.close);
-  return engine.proposeSettlement({ view, operation: toEngineOperation(id, state) });
+  const proposal = await engine.proposeSettlement({
+    view,
+    operation: toEngineOperation(id, state),
+  });
+  return proposal.ok ? proposal.value : null;
+}
+
+async function priceOneLeg(
+  view: MarketView,
+  at: Instant,
+  holding: Holding,
+  series: SeriesByHolding,
+): Promise<Result<OperationPricing> | null> {
+  const facts = series.get(holdingKey(holding.ticker, holding.expiry));
+  if (holding.assetClass !== "option" || !facts) {
+    return null;
+  }
+  const quantity = holding.position.quantity;
+  return engine.priceOperation({
+    view,
+    at,
+    legs: [
+      {
+        role: facts.right,
+        side: quantity > 0 ? "buy" : "sell",
+        ticker: holding.ticker,
+        quantity: quantitySchema.parse(Math.abs(quantity)),
+      },
+    ],
+  });
+}
+
+// `markToMarket` leaves option positions out of its greeks (ADR-0013 #26 addendum); an option
+// held outside any operation is added here from its own one-leg pricing, so the totals cover
+// every open option exactly once.
+function addGreeks(all: readonly Greeks[]): Greeks {
+  const sum = (key: keyof Greeks) =>
+    decimalStringSchema.parse(
+      all.reduce((acc, greeks) => acc.add(greeks[key]), new Decimal(0)).toFixed(6),
+    );
+  return {
+    delta: sum("delta"),
+    gamma: sum("gamma"),
+    theta: sum("theta"),
+    vega: sum("vega"),
+    rho: sum("rho"),
+  };
 }
 
 // Everything the portfolio page reads, valued by the engine at `at`
@@ -258,6 +317,7 @@ export async function loadPortfolio(
   ];
 
   let valuation: Result<PortfolioValuation> | null = null;
+  let greeks: Greeks | null = null;
   const fairValues = new Map<string, LegValuation["fairValue"]>();
   if (underlyings.length > 0) {
     const view = await buildPortfolioMarketView(db, underlyings, at);
@@ -269,30 +329,26 @@ export async function loadPortfolio(
       cash,
       ...(riskProfile ? { riskProfile } : {}),
     });
-    await Promise.all(
-      liveHoldings.map(async (holding) => {
-        const facts = series.get(holdingKey(holding.ticker, holding.expiry));
-        if (holding.assetClass !== "option" || !facts) {
-          return;
-        }
-        const quantity = holding.position.quantity;
-        const pricing = await engine.priceOperation({
-          view,
-          at,
-          legs: [
-            {
-              role: facts.right,
-              side: quantity > 0 ? "buy" : "sell",
-              ticker: holding.ticker,
-              quantity: quantitySchema.parse(Math.abs(quantity)),
-            },
-          ],
-        });
-        if (pricing.ok) {
-          fairValues.set(holding.ticker, pricing.value.legs[0]?.fairValue ?? null);
-        }
-      }),
+    const standalone = holdingsFromFills(unassigned).filter(
+      (holding) => holding.assetClass === "option" && !isExpiredSeries(holding),
     );
+    const [, standaloneGreeks] = await Promise.all([
+      Promise.all(
+        liveHoldings.map(async (holding) => {
+          const pricing = await priceOneLeg(view, at, holding, series);
+          if (pricing?.ok) {
+            fairValues.set(holding.ticker, pricing.value.legs[0]?.fairValue ?? null);
+          }
+        }),
+      ),
+      Promise.all(standalone.map((holding) => priceOneLeg(view, at, holding, series))),
+    ]);
+    if (valuation.ok) {
+      greeks = addGreeks([
+        valuation.value.totals.greeks,
+        ...standaloneGreeks.flatMap((pricing) => (pricing?.ok ? [pricing.value.greeks] : [])),
+      ]);
+    }
   }
 
   const valued = valuation?.ok ? valuation.value : null;
@@ -301,6 +357,7 @@ export async function loadPortfolio(
     riskProfile,
     cash,
     valuation,
+    greeks,
     positions: liveHoldings.map((holding) => ({
       holding,
       series: holding.expiry
