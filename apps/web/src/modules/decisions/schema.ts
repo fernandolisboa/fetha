@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   index,
   check,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { decisionKinds } from "@fetha/engine";
@@ -76,6 +77,16 @@ export const decisions = pgTable(
     uniqueIndex("decisions_user_id_signal_id_idx")
       .on(table.userId, table.signalId)
       .where(sql`${table.signalId} is not null`),
+    // Not a business constraint (the primary key already makes `id` unique
+    // on its own): Postgres requires a unique constraint on exactly the
+    // referenced column set before `decision_scores`' composite foreign key
+    // below can target `(id, user_id)`. That composite FK is the security
+    // invariant this index exists for (#29 fix-web item 1): a score row's
+    // `user_id` is bound to its `decision_id`'s own `user_id` at the
+    // database level, so `insertIfAbsent` can never attach one user's score
+    // to another user's decision even if a caller passed a foreign
+    // `decisionId` by mistake.
+    uniqueIndex("decisions_id_user_id_idx").on(table.id, table.userId),
     check(
       "decisions_kind_check",
       sql`${table.kind} in (${sql.raw(decisionKinds.map((kind) => `'${kind}'`).join(", "))})`,
@@ -112,7 +123,13 @@ export const decisions = pgTable(
 // without parsing jsonb in every query. Money stays integer centavos
 // (CLAUDE.md); `maxLossUnbounded` carries the `"unbounded"` arm of the
 // engine's `PnlScore` union that a nullable bigint column cannot express on
-// its own.
+// its own. `score`/`unscorableReason` are mutually exclusive (#29 fix-web
+// item 8): a decision the engine can never score (a non-retriable engine
+// error, a build failure that cannot heal, or `insufficient_data` that has
+// outlived its retry window) still gets exactly one terminal row, with
+// `score` null and `unscorableReason` naming why, so `dueForUser`'s
+// left-join-on-`decision_scores` still treats it as answered and the
+// nightly job never retries it forever.
 export const decisionScores = pgTable(
   "decision_scores",
   {
@@ -122,10 +139,9 @@ export const decisionScores = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    decisionId: text("decision_id")
-      .notNull()
-      .references(() => decisions.id),
-    score: jsonb("score").$type<Score>().notNull(),
+    decisionId: text("decision_id").notNull(),
+    score: jsonb("score").$type<Score>(),
+    unscorableReason: text("unscorable_reason"),
     pnlCentavos: bigint("pnl_centavos", { mode: "number" }),
     maxLossCentavos: bigint("max_loss_centavos", { mode: "number" }),
     maxLossUnbounded: boolean("max_loss_unbounded").notNull().default(false),
@@ -139,5 +155,21 @@ export const decisionScores = pgTable(
   (table) => [
     uniqueIndex("decision_scores_decision_id_idx").on(table.decisionId),
     index("decision_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
+    // Composite FK, not the plain `decisionId -> decisions.id` this replaces
+    // (#29 fix-web item 1, security BLOCKING): binds this row's own
+    // `user_id` to the `user_id` of the decision it scores, at the database
+    // level, over `decisions_id_user_id_idx` above. A write that names a
+    // real `decisionId` but the wrong `userId` (an isolation break, not a
+    // legitimate reference) is now a foreign-key violation, not a silently
+    // accepted row a `WHERE user_id = ...` read would have hidden.
+    foreignKey({
+      columns: [table.decisionId, table.userId],
+      foreignColumns: [decisions.id, decisions.userId],
+    }),
+    check(
+      "decision_scores_score_xor_unscorable_check",
+      sql`(${table.score} is not null and ${table.unscorableReason} is null)
+        or (${table.score} is null and ${table.unscorableReason} is not null)`,
+    ),
   ],
 );

@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
-const freshnessMock = vi.hoisted(() => vi.fn());
 const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock("@/modules/market-data", () => ({ ingest: ingestMock, freshness: freshnessMock }));
+vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
 vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
 
@@ -31,17 +30,18 @@ describe("cron ingest route", () => {
       evaluationsWritten: 0,
       errors: [],
     });
-    freshnessMock.mockReset().mockResolvedValue([]);
-    scoreDueDecisionsMock.mockReset().mockImplementation((_db: unknown, asOfSession: string) =>
-      Promise.resolve({
-        asOfSession,
-        usersScored: 0,
-        usersSkipped: 0,
-        decisionsScored: 0,
-        decisionsSkipped: 0,
-        errors: [],
-      }),
-    );
+    scoreDueDecisionsMock
+      .mockReset()
+      .mockImplementation((_db: unknown, input: { okSessions: readonly string[] }) =>
+        Promise.resolve({
+          asOfSession: input.okSessions[0] ?? "",
+          usersScored: 0,
+          usersSkipped: 0,
+          decisionsScored: 0,
+          decisionsSkipped: 0,
+          errors: [],
+        }),
+      );
   });
 
   afterEach(() => {
@@ -99,14 +99,17 @@ describe("cron ingest route", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, "2026-09-08", expect.any(Object));
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith(
+      {},
+      { okSessions: ["2026-09-08"] },
+      expect.any(Object),
+    );
     const body: unknown = await response.json();
     expect(body).toMatchObject({ scoring: { asOfSession: "2026-09-08", decisionsScored: 0 } });
   });
 
-  it("still scores decisions due against a previously ingested session when this run drains nothing new", async () => {
+  it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {
     ingestMock.mockResolvedValue({ session: null, okSessions: [], ok: true, sources: [] });
-    freshnessMock.mockResolvedValue([{ source: "cotahist", status: "succeeded", session: "2026-09-07" }]);
     const { GET } = await import("./route");
     const response = await GET(
       new Request("http://localhost/api/cron/ingest", {
@@ -114,7 +117,7 @@ describe("cron ingest route", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, "2026-09-07", expect.any(Object));
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, { okSessions: [] }, expect.any(Object));
   });
 
   it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {
@@ -124,7 +127,7 @@ describe("cron ingest route", () => {
       usersSkipped: 0,
       decisionsScored: 0,
       decisionsSkipped: 1,
-      errors: ["engine_error:unresolvable_view"],
+      errors: [{ decisionId: "decision-1", kind: "engine_error:unresolvable_view" }],
     });
     const { GET } = await import("./route");
     const response = await GET(
@@ -134,7 +137,9 @@ describe("cron ingest route", () => {
     );
     expect(response.status).toBe(200);
     const body: unknown = await response.json();
-    expect(body).toMatchObject({ scoring: { errors: ["engine_error:unresolvable_view"] } });
+    expect(body).toMatchObject({
+      scoring: { errors: [{ decisionId: "decision-1", kind: "engine_error:unresolvable_view" }] },
+    });
   });
 
   it("skips the signal evaluation when ingestion reports no session", async () => {
@@ -206,6 +211,7 @@ describe("cron ingest route", () => {
     );
     expect(response.status).toBe(500);
     expect(evaluateSignalsMock).not.toHaveBeenCalled();
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, { okSessions: [] }, expect.any(Object));
     const body: unknown = await response.json();
     expect(body).toMatchObject({ evaluation: null });
   });

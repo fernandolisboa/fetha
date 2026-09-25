@@ -36,11 +36,25 @@ function origin(decision: DecisionListItem): string {
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 
+function unscorableReasonLabel(reason: string): string {
+  return t.journal.score.unscorableReasons[reason] ?? reason;
+}
+
 // The score row's own words (brief item 4): normalized P&L, raw P&L, the
 // thesis claim's outcome in one of three states, Brier and — only for a
 // `do_not_enter` decision, the one kind a counterfactual makes sense for —
-// what the P&L would have been had the user entered anyway.
+// what the P&L would have been had the user entered anyway. A terminal
+// unscorable row (#29 fix-web item 8) shows the short reason instead of any
+// of that — there is no score to show components for.
 function ScoreDetails({ decision, score }: { decision: DecisionListItem; score: DecisionScoreRow }) {
+  if (score.unscorableReason !== null) {
+    return (
+      <div className="text-muted-foreground text-[12px]">
+        {t.journal.score.unscorable} — {unscorableReasonLabel(score.unscorableReason)}
+      </div>
+    );
+  }
+
   const thesisSentence =
     score.claimHeld === null
       ? t.journal.score.thesisNone

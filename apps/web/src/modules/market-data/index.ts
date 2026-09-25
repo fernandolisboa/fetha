@@ -12,6 +12,7 @@ export {
   loadMarketView,
   previousTradingSession,
   tradingSessionForDate,
+  tradingSessionOnOrAfter,
 } from "./market-view";
 // Market data is read-only to user-facing code (CLAUDE.md principle 5):
 // upsertDailyCandles/upsertTradingSessions stay module-private, written
@@ -32,6 +33,7 @@ export {
   buildOperationMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
+  type BuildOperationMarketViewOptions,
 } from "./market-view";
 export {
   expiryByTicker,

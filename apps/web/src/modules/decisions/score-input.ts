@@ -4,6 +4,7 @@ import {
   type Confidence,
   type DecimalString,
   type Instant,
+  type Structure,
   type Ticker,
 } from "@fetha/contracts";
 import {
@@ -19,9 +20,9 @@ import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   buildOperationMarketView,
   expiryByTicker,
-  tradingSessionForDate,
+  tradingSessionOnOrAfter,
 } from "@/modules/market-data";
-import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
+import { StrategiesRepository } from "@/modules/strategies";
 
 import type { DueDecisionRow } from "./decision-scores-repository";
 import {
@@ -38,6 +39,13 @@ export class MissingEntryPriceError extends Error {
   constructor(ticker: string) {
     super(`no snapshotted entry price for leg ${ticker}`);
     this.name = "MissingEntryPriceError";
+  }
+}
+
+export class MismatchedExpiryError extends Error {
+  constructor() {
+    super("operation legs do not share a single expiry (ADR-0014 Q43)");
+    this.name = "MismatchedExpiryError";
   }
 }
 
@@ -61,16 +69,29 @@ function matchEntryPrice(
   return pricingLegs.find((entry) => entry.ticker === ticker)?.price ?? null;
 }
 
+type ResolveExpiryResult = { ok: true; expiry: string | null } | { ok: false };
+
+// ADR-0014 Q43: every option leg of a structure shares one expiry. Asserted
+// here, not assumed (#29 fix-web item 11): a chain rollover or a data gap
+// that leaves two of an operation's own legs pointing at different expiries
+// is a build failure (`mismatched_expiry`), not a silent pick of "the first
+// leg's expiry" the way `deriveDefaultHorizon` (horizon.ts) gets away with
+// for a fresh structure that has never rolled.
 async function resolveExpiry(
   db: Database,
   legs: { ticker: Ticker; role: string }[],
-): Promise<string | null> {
+): Promise<ResolveExpiryResult> {
   const optionTickers = legs.filter((leg) => leg.role !== "stock").map((leg) => leg.ticker);
   if (optionTickers.length === 0) {
-    return null;
+    return { ok: true, expiry: null };
   }
   const expiries = await expiryByTicker(db, optionTickers);
-  return expiries.get(optionTickers[0] as string) ?? null;
+  const resolved = optionTickers.map((ticker) => expiries.get(ticker) ?? null);
+  const distinctExpiries = new Set(resolved);
+  if (distinctExpiries.size > 1) {
+    return { ok: false };
+  }
+  return { ok: true, expiry: resolved[0] ?? null };
 }
 
 // Builds the `Operation` a signal-entry decision was taken on, from the
@@ -99,12 +120,15 @@ async function operationFromSignalInputs(
     }
     return { ...leg, entryPrice };
   });
-  const expiry = await resolveExpiry(db, legs);
+  const resolvedExpiry = await resolveExpiry(db, legs);
+  if (!resolvedExpiry.ok) {
+    throw new MismatchedExpiryError();
+  }
   return {
     id: syntheticOperationId(decisionId),
     underlying: inputs.ticker,
     legs,
-    expiry,
+    expiry: resolvedExpiry.expiry,
     openedAt: inputs.session,
     strategyVersionId,
     rolledFrom: null,
@@ -157,30 +181,19 @@ async function operationFromContemplatedInputs(
     }
     legs.push({ ...leg, entryPrice });
   }
-  const expiry = await resolveExpiry(db, legs);
+  const resolvedExpiry = await resolveExpiry(db, legs);
+  if (!resolvedExpiry.ok) {
+    throw new MismatchedExpiryError();
+  }
   return {
     id: syntheticOperationId(decisionId),
     underlying: inputs.underlying,
     legs,
-    expiry,
+    expiry: resolvedExpiry.expiry,
     openedAt: inputs.session,
     strategyVersionId: null,
     rolledFrom: null,
   };
-}
-
-async function buildScoreMarketView(
-  db: Database,
-  underlying: Ticker,
-  claimInstrument: Ticker | undefined,
-  at: Instant,
-) {
-  const primary = await buildOperationMarketView(db, underlying, at);
-  if (!claimInstrument || claimInstrument === underlying) {
-    return primary;
-  }
-  const claimView = await buildOperationMarketView(db, claimInstrument, at);
-  return { ...primary, candles: [...primary.candles, ...claimView.candles] };
 }
 
 // Builds the `ScoreInput` the engine's `score` takes for one due decision
@@ -195,6 +208,12 @@ export async function buildScoreInput(
   db: Database,
   scopedUser: ScopedUser,
   row: DueDecisionRow,
+  // Resolved once per scoring run and passed in, not re-fetched per decision
+  // (#29 fix-web item 11, architecture advisory): the structure catalog is
+  // shared reference data (ADR-0012) that never changes mid-run, so every
+  // decision in a run reuses the same in-memory list `scoreDueDecisions`
+  // loaded once instead of a `StructuresRepository.listAll()` query each.
+  structures: readonly Structure[],
 ): Promise<BuildScoreInputResult> {
   if (!DECISION_KIND_VALUES.has(row.kind)) {
     return { ok: false, reason: "unknown_decision_kind" };
@@ -212,6 +231,9 @@ export async function buildScoreInput(
       if (error instanceof MissingEntryPriceError) {
         return { ok: false, reason: "missing_entry_price" };
       }
+      if (error instanceof MismatchedExpiryError) {
+        return { ok: false, reason: "mismatched_expiry" };
+      }
       throw error;
     }
 
@@ -221,7 +243,6 @@ export async function buildScoreInput(
       if (!version) {
         return { ok: false, reason: "missing_strategy_version" };
       }
-      const structures = await new StructuresRepository(db).listAll();
       const structure = structures.find(
         (candidate) => candidate.id === version.definition.structureId,
       );
@@ -241,7 +262,14 @@ export async function buildScoreInput(
     // only claim that needs the operation to score at all (it drives P&L
     // and the counterfactual); every other claim is fine thesis-only when
     // re-pricing comes back empty.
-    operation = await operationFromContemplatedInputs(db, row.id, decidedAt, inputs);
+    try {
+      operation = await operationFromContemplatedInputs(db, row.id, decidedAt, inputs);
+    } catch (error) {
+      if (error instanceof MismatchedExpiryError) {
+        return { ok: false, reason: "mismatched_expiry" };
+      }
+      throw error;
+    }
     if (!operation && row.claim?.kind === "operation_pnl_positive") {
       return { ok: false, reason: "missing_entry_price" };
     }
@@ -251,18 +279,22 @@ export async function buildScoreInput(
   const claimInstrument =
     row.claim && row.claim.kind !== "operation_pnl_positive" ? row.claim.instrument : undefined;
 
-  const horizonSession = row.horizon;
-  const horizonTradingSession = await tradingSessionForDate(db, horizonSession);
+  // Resolved to the first trading session on or after the stored horizon
+  // (#29 fix-web item 5): a horizon a user typed in can land on a weekend or
+  // a holiday, and the claim/operation can only ever be evaluated against
+  // the next session that actually trades.
+  const horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
   if (!horizonTradingSession) {
     return { ok: false, reason: "unresolvable_horizon_session" };
   }
 
-  const view = await buildScoreMarketView(
-    db,
-    underlying,
-    claimInstrument,
-    horizonTradingSession.close,
-  );
+  const view = await buildOperationMarketView(db, underlying, horizonTradingSession.close, {
+    // Widened to cover `decidedAt` (#29 fix-web item 4): the default
+    // 30-session trailing floor otherwise drops it for any horizon more
+    // than 30 sessions out.
+    from: decidedAt,
+    extraInstruments: claimInstrument && claimInstrument !== underlying ? [claimInstrument] : [],
+  });
 
   const confidence: Confidence = confidenceSchema.parse(row.confidence);
 
@@ -270,7 +302,7 @@ export async function buildScoreInput(
     view,
     subject: row.kind as ScoreInput["subject"],
     decidedAt,
-    horizon: horizonSession,
+    horizon: horizonTradingSession.date,
     confidence,
     claim: row.claim,
     ...(operation ? { operation } : {}),

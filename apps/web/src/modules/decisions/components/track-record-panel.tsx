@@ -5,12 +5,12 @@ import { scaleLinear, scaleTime } from "@visx/scale";
 import { LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
+import { Circle } from "@visx/shape";
 import { decimalStringSchema, type DecimalString } from "@fetha/contracts";
 
-import { formatDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
-import { Panel } from "@/modules/shell";
+import { Panel } from "@/modules/shell/client";
 import {
   Table,
   TableBody,
@@ -29,18 +29,64 @@ function ratio(numerator: number, denominator: number): DecimalString {
   return decimalStringSchema.parse((numerator / denominator).toFixed(4));
 }
 
+// A session-date string ("2026-10-17") to a stable, timezone-immune `Date`
+// for `scaleTime`'s domain: midday UTC so this chart's ordering can never
+// shift a point to the adjacent calendar day the way midnight-UTC would near
+// the São Paulo/UTC boundary (the same reasoning `journal-entry.tsx`'s own
+// `formatSessionDate` documents for display).
+function sessionDateToChartDate(session: string): Date {
+  return new Date(`${session}T12:00:00.000Z`);
+}
+
+function formatSessionTick(session: string): string {
+  const [year, month, day] = session.split("-");
+  return `${day ?? ""}/${month ?? ""}`;
+}
+
 function PnlOverTimeChart({ width, points }: { width: number; points: TrackRecordStats["pnlOverTime"] }) {
   const height = Math.round((width * 200) / 320);
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
 
-  const plot = points.map((point) => ({ at: point.scoredAt, value: Number(point.normalizedPnl) }));
+  const plot = points.map((point) => ({
+    horizon: point.horizon,
+    at: sessionDateToChartDate(point.horizon),
+    value: Number(point.normalizedPnl),
+  }));
+  const maxAbs = Math.max(0.01, ...plot.map((point) => Math.abs(point.value)));
+  const yScale = scaleLinear({ domain: [-maxAbs, maxAbs], range: [innerHeight, 0] });
+
+  // A single scored decision has no time span to plot a line over — its own
+  // domain start and end are the same instant, which `scaleTime` cannot
+  // usefully interpolate a `LinePath` across (#29 fix-web item 9's
+  // "degenerate/single-point domain"). Drawn as one dot at mid-width
+  // instead of a zero-length line.
+  if (plot.length === 1) {
+    const point = plot[0];
+    return (
+      <svg width={width} height={height} role="img" aria-label={t.trackRecord.pnlOverTimeTitle}>
+        <Group left={MARGIN.left} top={MARGIN.top}>
+          <Circle cx={innerWidth / 2} cy={point ? yScale(point.value) : innerHeight / 2} r={3} fill="var(--chart-stroke)" />
+          <AxisLeft
+            scale={yScale}
+            stroke="var(--line-soft)"
+            tickStroke="var(--line-soft)"
+            tickFormat={(value) => `${String(Math.round(Number(value) * 100))}%`}
+            tickLabelProps={() => ({
+              fill: "var(--muted)",
+              fontSize: 10,
+              fontFamily: "var(--font-mono)",
+            })}
+          />
+        </Group>
+      </svg>
+    );
+  }
+
   const xScale = scaleTime({
     domain: [plot[0]?.at ?? new Date(), plot.at(-1)?.at ?? new Date()],
     range: [0, innerWidth],
   });
-  const maxAbs = Math.max(0.01, ...plot.map((point) => Math.abs(point.value)));
-  const yScale = scaleLinear({ domain: [-maxAbs, maxAbs], range: [innerHeight, 0] });
 
   return (
     <svg width={width} height={height} role="img" aria-label={t.trackRecord.pnlOverTimeTitle}>
@@ -57,7 +103,7 @@ function PnlOverTimeChart({ width, points }: { width: number; points: TrackRecor
           scale={xScale}
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
-          tickFormat={(value) => formatDate(value as Date)}
+          tickFormat={(value) => formatSessionTick((value as Date).toISOString().slice(0, 10))}
           tickLabelProps={() => ({
             fill: "var(--muted)",
             fontSize: 10,

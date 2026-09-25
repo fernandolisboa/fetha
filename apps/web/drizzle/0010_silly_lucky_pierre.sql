@@ -1,8 +1,10 @@
+CREATE UNIQUE INDEX "decisions_id_user_id_idx" ON "decisions" USING btree ("id","user_id");--> statement-breakpoint
 CREATE TABLE "decision_scores" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"decision_id" text NOT NULL,
-	"score" jsonb NOT NULL,
+	"score" jsonb,
+	"unscorable_reason" text,
 	"pnl_centavos" bigint,
 	"max_loss_centavos" bigint,
 	"max_loss_unbounded" boolean DEFAULT false NOT NULL,
@@ -11,11 +13,13 @@ CREATE TABLE "decision_scores" (
 	"brier" numeric,
 	"counterfactual_pnl_centavos" bigint,
 	"engine_version" text NOT NULL,
-	"scored_at" timestamp with time zone DEFAULT now() NOT NULL
+	"scored_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "decision_scores_score_xor_unscorable_check" CHECK (("decision_scores"."score" is not null and "decision_scores"."unscorable_reason" is null)
+        or ("decision_scores"."score" is null and "decision_scores"."unscorable_reason" is not null))
 );
 --> statement-breakpoint
 ALTER TABLE "decision_scores" ADD CONSTRAINT "decision_scores_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "decision_scores" ADD CONSTRAINT "decision_scores_decision_id_decisions_id_fk" FOREIGN KEY ("decision_id") REFERENCES "public"."decisions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "decision_scores" ADD CONSTRAINT "decision_scores_decision_id_user_id_decisions_id_user_id_fk" FOREIGN KEY ("decision_id","user_id") REFERENCES "public"."decisions"("id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "decision_scores_decision_id_idx" ON "decision_scores" USING btree ("decision_id");--> statement-breakpoint
 CREATE INDEX "decision_scores_user_id_scored_at_idx" ON "decision_scores" USING btree ("user_id","scored_at");--> statement-breakpoint
 -- Scores are append-only (docs/adr/0005 as amended by ADR-0014, brief item

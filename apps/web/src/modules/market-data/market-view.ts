@@ -29,8 +29,10 @@ import { candles, macroPoints, optionDailyPrices, optionSeries } from "./schema"
 
 import {
   calendarWindowThroughExpiry,
+  latestSessionOnOrBefore,
   sessionBefore,
   sessionByDate,
+  sessionOnOrAfter,
   sessionsInRange,
   sessionsUpTo,
 } from "./repositories/calendar-repository";
@@ -397,6 +399,17 @@ export async function tradingSessionForDate(
   return row ? toTradingSession(row) : undefined;
 }
 
+// The first trading session on or after `date`, engine-shaped (#29 fix-web
+// item 5): `decisions/score-input.ts`'s own resolution of a stored horizon
+// that may not itself be a trading session.
+export async function tradingSessionOnOrAfter(
+  db: Database,
+  date: string,
+): Promise<TradingSession | undefined> {
+  const row = await sessionOnOrAfter(db, date);
+  return row ? toTradingSession(row) : undefined;
+}
+
 // The engine-shaped trading session immediately before `date` (#19: the
 // nightly evaluation's `since` anchor for a multi-session catch-up).
 export async function previousTradingSession(
@@ -438,25 +451,45 @@ function furthestExpiry(seriesExpiries: readonly string[]): string | null {
   );
 }
 
+export interface BuildOperationMarketViewOptions {
+  // Widens the calendar floor below (#29 fix-web item 4, correctness
+  // BLOCKING): the scoring job's own view must cover `decidedAt` through the
+  // horizon's close, and the default `CALENDAR_WINDOW_SESSIONS`-session
+  // trailing floor drops `decidedAt` for any horizon more than 30 sessions
+  // out. `from` only ever widens the floor already computed from `at`; it
+  // can never narrow it.
+  from?: Instant;
+  // Extra underlyings whose own recent closes this view should carry
+  // alongside the primary `underlying` (#29 fix-web item 4): the scoring
+  // job's thesis claim can name an instrument other than the operation's own
+  // underlying (e.g. an index claim on an operation over a stock), and
+  // without this a caller had to build two separate views and splice their
+  // `candles` together by hand (score-input.ts's old `buildScoreMarketView`).
+  extraInstruments?: readonly Ticker[];
+}
+
 // Assembles the slice of `MarketView` `priceOperation` needs to price one
 // underlying and its option chain as of `at`: the underlying's own recent
 // closes (a stock leg's price source), the chain's series and latest day
 // prices, the calendar (time-to-expiry) and the CDI rate (the risk-free
 // proxy `priceOperation` defaults to when none is given). The calendar
-// covers both the trailing window (indicator-style lookback) and every
-// session through the furthest expiry in the chain, or
-// `resolveTimeToExpiryYears` reports `calendar_gap` for every option leg
-// (round 1 item 1). Watchlists, quotes and dividend yields are the
-// intraday tier, omitted here only costs the engine's own defaulting notes
-// (`dividend_yield_defaulted`), never a wrong price. A second entry point
-// over the same `emptyMarketView`/`toTradingSession`/`toEngineCandle`
-// helpers `loadMarketView` (above) shares (round 1 item 12).
+// covers both the trailing window (indicator-style lookback, widened by
+// `options.from` when given) and every session through the furthest expiry
+// in the chain, or `resolveTimeToExpiryYears` reports `calendar_gap` for
+// every option leg (round 1 item 1). Watchlists, quotes and dividend yields
+// are the intraday tier, omitted here only costs the engine's own
+// defaulting notes (`dividend_yield_defaulted`), never a wrong price. A
+// second entry point over the same
+// `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers
+// `loadMarketView` (above) shares (round 1 item 12).
 export async function buildOperationMarketView(
   db: Database,
   underlying: Ticker,
   at: Instant,
+  options: BuildOperationMarketViewOptions = {},
 ): Promise<MarketView> {
   const atDate = new Date(at);
+  const extraInstruments = options.extraInstruments ?? [];
 
   // The trailing edge of the calendar window, computed once up front so the
   // option series and price queries below can bound themselves by it: with
@@ -464,16 +497,28 @@ export async function buildOperationMarketView(
   // ever listed and `optionDailyPrices` scans every session it was ever
   // priced on (PR #76 round 2 item 5). A structure's furthest expiry can
   // still extend the calendar forward past this floor (below); it can never
-  // move the floor itself, which only depends on `at`.
+  // move the floor itself, which only depends on `at` (and, for a caller
+  // that passes `options.from`, on that earlier instant too).
   const pastCalendarRows = await calendarWindowThroughExpiry(
     db,
     atDate,
     CALENDAR_WINDOW_SESSIONS,
     null,
   );
-  const calendarFloor = pastCalendarRows[0]?.date;
+  let calendarFloor = pastCalendarRows[0]?.date;
+  let pastWindowSessions = CALENDAR_WINDOW_SESSIONS;
 
-  const [seriesRows, candleRows, cdiRow, corporateActionRows] = await Promise.all([
+  if (options.from) {
+    const fromDate = new Date(options.from);
+    const fromSession = await latestSessionOnOrBefore(db, fromDate);
+    if (fromSession && (!calendarFloor || fromSession.date < calendarFloor)) {
+      calendarFloor = fromSession.date;
+      const widenedRange = await sessionsInRange(db, fromDate, atDate);
+      pastWindowSessions = Math.max(pastWindowSessions, widenedRange.length);
+    }
+  }
+
+  const [seriesRows, candleRows, extraCandleRows, cdiRow, corporateActionRows] = await Promise.all([
     db
       .select()
       .from(optionSeries)
@@ -495,7 +540,21 @@ export async function buildOperationMarketView(
         ),
       )
       .orderBy(desc(candles.session))
-      .limit(CANDLE_WINDOW_SESSIONS),
+      .limit(Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions)),
+    extraInstruments.length === 0
+      ? Promise.resolve([])
+      : db
+          .select()
+          .from(candles)
+          .where(
+            and(
+              inArray(candles.ticker, [...extraInstruments]),
+              eq(candles.timeframe, DAILY_TIMEFRAME),
+              lte(candles.asOf, atDate),
+            ),
+          )
+          .orderBy(desc(candles.session))
+          .limit(Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions) * extraInstruments.length),
     db
       .select()
       .from(macroPoints)
@@ -508,24 +567,26 @@ export async function buildOperationMarketView(
   const calendarRows = await calendarWindowThroughExpiry(
     db,
     atDate,
-    CALENDAR_WINDOW_SESSIONS,
+    pastWindowSessions,
     furthestExpiry(seriesRows.map((row) => row.expiry)),
   );
 
   const calendar: TradingSession[] = calendarRows.map(toTradingSession);
 
-  const candleView: Candle[] = [...candleRows].reverse().map((row) =>
-    toEngineCandle({
-      ticker: tickerSchema.parse(row.ticker),
-      session: sessionDateSchema.parse(row.session),
-      asOf: row.asOf,
-      open: toDecimal(row.open),
-      high: toDecimal(row.high),
-      low: toDecimal(row.low),
-      close: toDecimal(row.close),
-      tradedQuantity: row.tradedQuantity,
-    }),
-  );
+  const candleView: Candle[] = [...candleRows, ...extraCandleRows]
+    .reverse()
+    .map((row) =>
+      toEngineCandle({
+        ticker: tickerSchema.parse(row.ticker),
+        session: sessionDateSchema.parse(row.session),
+        asOf: row.asOf,
+        open: toDecimal(row.open),
+        high: toDecimal(row.high),
+        low: toDecimal(row.low),
+        close: toDecimal(row.close),
+        tradedQuantity: row.tradedQuantity,
+      }),
+    );
 
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
     ticker: row.ticker,

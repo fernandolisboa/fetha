@@ -1,5 +1,5 @@
 {
-  "id": "0b9ec57d-7c2e-4749-9b18-9b57f37d30f5",
+  "id": "40d5a84d-7b53-4147-bc96-96c479c6d987",
   "prevId": "17e379a2-bc85-4284-9376-082ca012cc62",
   "version": "7",
   "dialect": "postgresql",
@@ -872,7 +872,13 @@
           "name": "score",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "unscorable_reason": {
+          "name": "unscorable_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "pnl_centavos": {
           "name": "pnl_centavos",
@@ -983,15 +989,17 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "decision_scores_decision_id_decisions_id_fk": {
-          "name": "decision_scores_decision_id_decisions_id_fk",
+        "decision_scores_decision_id_user_id_decisions_id_user_id_fk": {
+          "name": "decision_scores_decision_id_user_id_decisions_id_user_id_fk",
           "tableFrom": "decision_scores",
           "tableTo": "decisions",
           "columnsFrom": [
-            "decision_id"
+            "decision_id",
+            "user_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "user_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -1000,7 +1008,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "decision_scores_score_xor_unscorable_check": {
+          "name": "decision_scores_score_xor_unscorable_check",
+          "value": "(\"decision_scores\".\"score\" is not null and \"decision_scores\".\"unscorable_reason\" is null)\n        or (\"decision_scores\".\"score\" is null and \"decision_scores\".\"unscorable_reason\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.decisions": {
@@ -1140,6 +1153,27 @@
           ],
           "isUnique": true,
           "where": "\"decisions\".\"signal_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "decisions_id_user_id_idx": {
+          "name": "decisions_id_user_id_idx",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}

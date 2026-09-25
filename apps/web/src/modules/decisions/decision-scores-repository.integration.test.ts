@@ -131,7 +131,12 @@ function scoreFixture(overrides: Partial<Score> = {}): Score {
   } as Score;
 }
 
-function newScore(decisionId: string, overrides: Partial<NewDecisionScore> = {}): NewDecisionScore {
+type ScoredNewDecisionScore = Extract<NewDecisionScore, { score: Score }>;
+
+function newScore(
+  decisionId: string,
+  overrides: Partial<Omit<ScoredNewDecisionScore, "decisionId" | "score">> = {},
+): NewDecisionScore {
   return {
     decisionId,
     score: scoreFixture(),
@@ -314,5 +319,82 @@ describe("DecisionScoresRepository", () => {
     expect(statsA.scoredCount).toBe(0);
 
     expect(await repoB.listMine()).toHaveLength(1);
+  });
+
+  it("isolation: repoA.insertIfAbsent(score for decisionB) is rejected by the composite FK, and repoB.dueForUser still lists decisionB (#29 fix-web item 1)", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const emailA = uniqueEmail("composite-fk-a");
+    const emailB = uniqueEmail("composite-fk-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+
+    const decisionB = await createDecision(userB, randomTicker(), "2031-06-15");
+
+    const repoA = new DecisionScoresRepository(db, userA);
+    await expect(repoA.insertIfAbsent(newScore(decisionB.id))).rejects.toThrow();
+
+    const repoB = new DecisionScoresRepository(db, userB);
+    const dueRows = await repoB.dueForUser("2031-06-15");
+    expect(dueRows.map((row) => row.id)).toEqual([decisionB.id]);
+  });
+
+  it("inserts a terminal unscorable row (score null, unscorableReason set) and excludes it from track record stats", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("unscorable");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const decision = await createDecision(owner, randomTicker(), "2031-06-15");
+
+    const repository = new DecisionScoresRepository(db, owner);
+    const result = await repository.insertIfAbsent({
+      decisionId: decision.id,
+      unscorableReason: "insufficient_data",
+      engineVersion: "test-1",
+    });
+
+    expect(result.inserted).toBe(true);
+    const mine = await repository.listMine();
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.score).toBeNull();
+    expect(mine[0]?.unscorableReason).toBe("insufficient_data");
+
+    const stats = await repository.trackRecordStats();
+    expect(stats.scoredCount).toBe(0);
+    expect(stats.pnlOverTime).toEqual([]);
+
+    const dueRows = await repository.dueForUser("2031-06-15");
+    expect(dueRows).toEqual([]);
+  });
+
+  it("rejects a row with both score and unscorableReason set, and a row with neither (append-only check constraint)", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("xor-check");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const decisionA = await createDecision(owner, randomTicker(), "2031-06-15");
+    const decisionB = await createDecision(owner, randomTicker(), "2031-06-15");
+
+    const { decisionScores } = await import("./schema");
+    await expect(
+      db.insert(decisionScores).values({
+        userId: owner.id,
+        decisionId: decisionA.id,
+        score: scoreFixture(),
+        unscorableReason: "insufficient_data",
+        engineVersion: "test-1",
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(decisionScores).values({
+        userId: owner.id,
+        decisionId: decisionB.id,
+        engineVersion: "test-1",
+      }),
+    ).rejects.toThrow();
   });
 });

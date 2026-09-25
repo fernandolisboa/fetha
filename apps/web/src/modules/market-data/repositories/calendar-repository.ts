@@ -65,6 +65,25 @@ export async function recentSessions(
   return rows.reverse();
 }
 
+// The first trading session on or after `date` (#29 fix-web item 5): a
+// stored horizon can land on a weekend or a holiday (nothing stops a user
+// from typing one in), and the decision is due once trading actually
+// reaches it, not on the calendar date itself — the same "closes above a
+// level" claim on a Saturday can only ever resolve against the following
+// Monday's close.
+export async function sessionOnOrAfter(
+  db: Database,
+  date: string,
+): Promise<{ date: string; open: Date; close: Date } | undefined> {
+  const [row] = await db
+    .select()
+    .from(tradingSessions)
+    .where(gte(tradingSessions.date, date))
+    .orderBy(asc(tradingSessions.date))
+    .limit(1);
+  return row;
+}
+
 export async function sessionByDate(
   db: Database,
   date: string,

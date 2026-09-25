@@ -197,7 +197,7 @@ describe("scoreDueDecisions with the real engine", () => {
       costModel: DEFAULT_COST_MODEL,
     });
 
-    const outcome = await scoreDueDecisions(db, horizonSession);
+    const outcome = await scoreDueDecisions(db, { okSessions: [horizonSession] });
 
     expect(outcome.errors).toEqual([]);
     expect(outcome.decisionsScored).toBe(1);
@@ -208,10 +208,10 @@ describe("scoreDueDecisions with the real engine", () => {
     expect(row).toBeDefined();
     expect(row?.claimHeld).toBe(true);
     expect(row?.pnlCentavos).toBeNull();
-    expect(row?.score.thesis.claim).not.toBeNull();
+    expect(row?.score?.thesis.claim).not.toBeNull();
     expect(row?.engineVersion).toEqual(expect.any(String));
 
-    const rerun = await scoreDueDecisions(db, horizonSession);
+    const rerun = await scoreDueDecisions(db, { okSessions: [horizonSession] });
     expect(rerun.decisionsScored).toBe(0);
     expect((await scoresRepository.listMine())).toHaveLength(1);
   });
@@ -219,9 +219,13 @@ describe("scoreDueDecisions with the real engine", () => {
   // A candle at `decidedSession` gives `operationFromContemplatedInputs`
   // something to re-price the snapshotted stock leg against at `decidedAt`:
   // entryPrice R$ 40,00. A candle at `horizonSession` marks it to R$ 45,00.
-  // pnl = (45 - 40) * 100 (centavos/real) * 100 (quantity) = 50 000 centavos.
-  // maxLoss (long stock, unbounded upside) = entryPrice * quantity * 100 =
-  // 400 000 centavos. normalizedPnl = 50 000 / 400 000 = 0.125.
+  // Gross pnl = (45 - 40) * 100 (centavos/real) * 100 (quantity) =
+  // 50 000 centavos, less the B3 fee on the R$ 4 000,00 entry (0.05% =>
+  // 200 centavos) = 49 800 centavos (the taken-operation pnl subtracts its
+  // own entry costs under the cost model, the same rule the counterfactual
+  // below already followed). maxLoss (long stock, unbounded upside) =
+  // entryPrice * quantity * 100 = 400 000 centavos. normalizedPnl =
+  // 49 800 / 400 000 = 0.1245.
   it("scores an enter decision's operation_pnl_positive claim with pnl, maxLoss and normalizedPnl", async () => {
     const db = getDb();
     await ensureStockStructure();
@@ -264,7 +268,7 @@ describe("scoreDueDecisions with the real engine", () => {
       costModel: DEFAULT_COST_MODEL,
     });
 
-    const outcome = await scoreDueDecisions(db, horizonSession);
+    const outcome = await scoreDueDecisions(db, { okSessions: [horizonSession] });
 
     expect(outcome.errors).toEqual([]);
     expect(outcome.decisionsScored).toBe(1);
@@ -273,11 +277,11 @@ describe("scoreDueDecisions with the real engine", () => {
     const scores = await scoresRepository.findForDecisions([decision.id]);
     const row = scores.get(decision.id);
     expect(row).toBeDefined();
-    expect(row?.pnlCentavos).toBe(50000);
+    expect(row?.pnlCentavos).toBe(49800);
     expect(row?.maxLossCentavos).toBe(400000);
     expect(row?.maxLossUnbounded).toBe(false);
     expect(row?.normalizedPnl ? new Decimal(row.normalizedPnl).toString() : null).toEqual(
-      new Decimal("0.125").toString(),
+      new Decimal("0.1245").toString(),
     );
     expect(row?.claimHeld).toBe(true);
   });
@@ -333,7 +337,7 @@ describe("scoreDueDecisions with the real engine", () => {
       costModel: DEFAULT_COST_MODEL,
     });
 
-    const outcome = await scoreDueDecisions(db, horizonSession);
+    const outcome = await scoreDueDecisions(db, { okSessions: [horizonSession] });
 
     expect(outcome.errors).toEqual([]);
     expect(outcome.decisionsScored).toBe(1);
