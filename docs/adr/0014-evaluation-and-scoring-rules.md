@@ -165,15 +165,15 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   into), so this finalization happens directly in the period-end sweep.
 - **Scoring details settled with `score` (Q54, #29; sharpens ADR-0005 and Q40/Q46).** Proposed by
   the implementing agent on 2026-09-25 and pending the owner's review on the PR.
-  - *No look-ahead at the horizon.* The horizon session close must be strictly after `decidedAt`;
+  - _No look-ahead at the horizon._ The horizon session close must be strictly after `decidedAt`;
     otherwise `score` is `invalid_input`, and the journal refuses such a horizon when a decision
     is recorded (a decision taken after today's close cannot have today as its horizon). A stored
     horizon that is not a trading session is scored on the first session on or after it.
-  - *Thesis.* `close_above`/`close_below` compare the nominal D1 close at the horizon session
+  - _Thesis._ `close_above`/`close_below` compare the nominal D1 close at the horizon session
     strictly (`>`, `<`). `operation_pnl_positive` on a "do not enter" decision is judged on the
     counterfactual P&L, the operation not taken being the operation the claim is about; without an
     operation it is `invalid_input`.
-  - *P&L of a taken operation* (enter, hold, adjust, exit) runs from the legs' entry prices to the
+  - _P&L of a taken operation_ (enter, hold, adjust, exit) runs from the legs' entry prices to the
     horizon close, net of entry costs from the stored cost model, the same fill-cost model the
     counterfactual uses. Quantity closed by `realizedFills` realizes at the fill price net of its
     costs; the rest is marked at the horizon close with Q42's stale mark and Q51's split factors.
@@ -181,13 +181,13 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
     expiry close, as `proposeSettlement` would settle them. A leg with no visible price is
     `insufficient_data`, never a silent zero. Income tax is not modeled in a score on either path:
     the score measures judgment on the operation, not the user's tax position.
-  - *"Do not enter"* held nothing, so its `pnl` is zero and its `normalizedPnl` is zero over the
+  - _"Do not enter"_ held nothing, so its `pnl` is zero and its `normalizedPnl` is zero over the
     operation's max loss (null when that is unbounded or zero). A counterfactual that never fills
     before the horizon is `null` with note `missed_entry`.
-  - *Inputs until the portfolio exists (#26).* `realizedFills` is always empty and the operation is
+  - _Inputs until the portfolio exists (#26)._ `realizedFills` is always empty and the operation is
     rebuilt from the decision's snapshot: a signal's proposal prices, or, for a saved operation,
     its legs re-priced by `priceOperation` at the decision instant.
-  - *Storage and job.* The nightly job scores after ingestion and evaluation, once per decision,
+  - _Storage and job._ The nightly job scores after ingestion and evaluation, once per decision,
     append-only. A decision that cannot be scored reaches a terminal "unscorable" row with its
     reason instead of being retried forever: at once for errors no later data can fix, and five
     sessions after the horizon for missing data.

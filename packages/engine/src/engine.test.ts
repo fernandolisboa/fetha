@@ -145,9 +145,7 @@ describe("engine", () => {
     expect(result.value.thesis).toEqual({ claim: null });
     expect(result.value.counterfactualPnl).toBeNull();
     expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "no_operation" }));
-    expect(result.value.notes).toContainEqual(
-      expect.objectContaining({ code: "no_thesis_claim" }),
-    );
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "no_thesis_claim" }));
     expect(result.value.provenance.engineVersion).toBe(ENGINE_VERSION);
   });
 

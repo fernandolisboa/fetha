@@ -238,7 +238,10 @@ const CONFIDENCE_BUCKET_WIDTH = 20;
 // rather than opening a degenerate single-value "100-120%" one.
 function confidenceBucketLabel(confidence: string): string {
   const percent = Math.min(100, new Decimal(confidence).times(100).toDecimalPlaces(0).toNumber());
-  const lower = Math.min(80, Math.floor(percent / CONFIDENCE_BUCKET_WIDTH) * CONFIDENCE_BUCKET_WIDTH);
+  const lower = Math.min(
+    80,
+    Math.floor(percent / CONFIDENCE_BUCKET_WIDTH) * CONFIDENCE_BUCKET_WIDTH,
+  );
   const upper = lower + CONFIDENCE_BUCKET_WIDTH;
   return `${String(lower)}-${String(upper)}%`;
 }
