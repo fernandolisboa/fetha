@@ -11,7 +11,7 @@ import type { DecimalString } from "@fetha/contracts";
 import { formatDate } from "@/lib/format/date-time";
 import { formatPercent } from "@/lib/format/percent";
 
-import type { CumulativeReturnPoint } from "../comparison";
+import { fitLabel, spreadLabels, type CumulativeReturnPoint } from "../comparison";
 
 export type ComparisonSeries = {
   id: string;
@@ -20,8 +20,13 @@ export type ComparisonSeries = {
   points: CumulativeReturnPoint[];
 };
 
-const MARGIN = { top: 12, right: 96, bottom: 28, left: 56 };
+const MARGIN = { top: 12, bottom: 28, left: 56 };
 const HEIGHT = 280;
+const LABEL_FONT_SIZE = 11;
+// IBM Plex Mono advances 0.6em per glyph.
+const LABEL_CHAR_WIDTH = LABEL_FONT_SIZE * 0.6;
+const LABEL_GAP = 6;
+const LABEL_LINE = 13;
 
 function toDate(session: string): Date {
   return new Date(`${session}T12:00:00Z`);
@@ -42,7 +47,10 @@ function valueAt(points: CumulativeReturnPoint[], session: string): number | nul
 
 function Chart({ width, series }: { width: number; series: ComparisonSeries[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
+  const longest = Math.max(...series.map((s) => s.label.length));
+  const labelChars = Math.min(longest, Math.floor((width * 0.3) / LABEL_CHAR_WIDTH));
+  const marginRight = Math.ceil(labelChars * LABEL_CHAR_WIDTH) + LABEL_GAP * 2;
+  const innerWidth = Math.max(0, width - MARGIN.left - marginRight);
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
 
   const sessions = [...new Set(series.flatMap((s) => s.points.map((p) => p.session)))].sort();
@@ -75,6 +83,11 @@ function Chart({ width, series }: { width: number; series: ComparisonSeries[] })
   }
 
   const hoveredX = hovered ? xScale(toDate(hovered)) : null;
+  const labelYs = spreadLabels(
+    series.map((s) => yScale(s.points.at(-1)?.value ?? 0)),
+    LABEL_LINE,
+    innerHeight,
+  );
 
   return (
     <div className="relative">
@@ -97,20 +110,21 @@ function Chart({ width, series }: { width: number; series: ComparisonSeries[] })
               strokeWidth={2}
             />
           ))}
-          {series.map((s) => {
+          {series.map((s, index) => {
             const end = s.points.at(-1);
             if (!end) return null;
             return (
               <text
                 key={`${s.id}-label`}
-                x={xScale(toDate(end.session)) + 6}
-                y={yScale(end.value)}
+                x={xScale(toDate(end.session)) + LABEL_GAP}
+                y={labelYs[index]}
                 dy="0.32em"
                 fill="var(--ink)"
-                fontSize={11}
+                fontSize={LABEL_FONT_SIZE}
                 fontFamily="var(--font-mono)"
               >
-                {s.label}
+                <title>{s.label}</title>
+                {fitLabel(s.label, labelChars)}
               </text>
             );
           })}
@@ -205,7 +219,9 @@ export function ComparisonChart({ series }: { series: ComparisonSeries[] }) {
           </li>
         ))}
       </ul>
-      <ParentSize>{({ width }) => <Chart width={width} series={plotted} />}</ParentSize>
+      <ParentSize style={{ height: HEIGHT }}>
+        {({ width }) => (width > 0 ? <Chart width={width} series={plotted} /> : null)}
+      </ParentSize>
     </div>
   );
 }

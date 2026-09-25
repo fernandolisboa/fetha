@@ -7,6 +7,7 @@ import {
   ComparisonView,
   getMyComparison,
   MAX_COMPARED_RUNS,
+  requestedRunIds,
   t,
 } from "@/modules/backtests";
 import { Panel } from "@/modules/shell";
@@ -20,7 +21,7 @@ export default async function CompareBacktestsPage({
 }) {
   await requireUser();
   const { run } = await searchParams;
-  const requested = run === undefined ? 0 : Array.isArray(run) ? run.length : 1;
+  const requested = requestedRunIds(run).length;
   const ids = comparedRunIds(run);
   const { groups, runs } = await getMyComparison(ids);
 

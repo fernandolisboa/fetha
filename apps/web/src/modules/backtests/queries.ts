@@ -1,7 +1,7 @@
 import { cache } from "react";
 
 import { getDb } from "@/db/client";
-import { formatDate } from "@/lib/format/date-time";
+import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { forCurrentUser } from "@/modules/auth";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { getMyStrategies, getMyStrategy } from "@/modules/strategies";
@@ -11,9 +11,7 @@ import {
   type BacktestRunRecord,
   type BacktestRunSummary,
 } from "./backtest-run-repository";
-import { runLabels } from "./comparison";
-import type { PickerGroup } from "./components/compare-runs-picker";
-import type { ComparedRun } from "./components/comparison-view";
+import { runLabels, type ComparedRun, type PickerGroup } from "./comparison";
 
 export const getMyBacktestRun = cache(async (runId: string): Promise<BacktestRunRecord> => {
   const repository = await forCurrentUser(getDb(), BacktestRunRepository);
@@ -66,7 +64,7 @@ export async function getMyComparison(ids: readonly string[]): Promise<Compariso
     strategyId: run.strategyId,
     strategyName: names.get(run.strategyId) ?? "",
     versionNumber: versionNumbers.get(run.strategyVersionId) ?? 0,
-    createdAt: formatDate(run.createdAt),
+    createdAt: formatDateTime(run.createdAt),
   });
 
   const pickerLabels = new Map<string, string>();

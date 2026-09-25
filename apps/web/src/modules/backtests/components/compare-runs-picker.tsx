@@ -7,11 +7,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
-import { compareHref, MAX_COMPARED_RUNS } from "../comparison";
+import { compareHref, MAX_COMPARED_RUNS, type PickerGroup } from "../comparison";
 import { t } from "../strings";
-
-export type PickerRun = { id: string; label: string; period: string };
-export type PickerGroup = { strategyId: string; strategyName: string; runs: PickerRun[] };
 
 export function CompareRunsPicker({
   groups,

@@ -246,7 +246,8 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
 - Spacing 4px base, page padding 16px 20px, panel gap 14px; motion 120ms hover, 180ms shell;
   `prefers-reduced-motion` respected.
 - Charts: candles `--up`/`--down`; payoff line `--chart-stroke` with gain/loss areas at 12%;
-  greeks by their tokens; risk bands up/warning/down; never dual axes or pies.
+  greeks by their tokens; risk bands up/warning/down; a run comparison draws one line per run in
+  `--series-1..3`, never for gain, loss or risk; never dual axes or pies.
 - Formatting: `R$ 1.234,56`, `−R$ 1.234,56`, `2,08%`, `10,65% a.a.`, `17/10/2026`, `14:32`,
   `28 sessões`, `America/Sao_Paulo`.
 

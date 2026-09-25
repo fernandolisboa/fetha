@@ -7,8 +7,11 @@ import {
   compareHref,
   comparedRunIds,
   cumulativeReturns,
+  fitLabel,
   MAX_COMPARED_RUNS,
+  requestedRunIds,
   returnTone,
+  spreadLabels,
   runLabels,
 } from "./comparison";
 
@@ -39,6 +42,10 @@ describe("comparedRunIds", () => {
     expect(comparedRunIds(undefined)).toEqual([]);
     expect(comparedRunIds("a")).toEqual(["a"]);
     expect(comparedRunIds(["a", " ", "b", "a"])).toEqual(["a", "b"]);
+  });
+
+  it("counts a requested run once, however often it is repeated", () => {
+    expect(requestedRunIds(["a", "a", "b", ""])).toEqual(["a", "b"]);
   });
 
   it("keeps at most the comparison's ceiling", () => {
@@ -133,5 +140,29 @@ describe("runLabels", () => {
     expect([
       ...runLabels([run("a", "s1", 2, "24/09/2026"), run("b", "s1", 2, "25/09/2026")]).values(),
     ]).toEqual(["v2 · 24/09/2026", "v2 · 25/09/2026"]);
+  });
+});
+
+describe("spreadLabels", () => {
+  it("keeps labels that are already apart where they are", () => {
+    expect(spreadLabels([10, 50, 90], 12, 200)).toEqual([10, 50, 90]);
+  });
+
+  it("pushes colliding labels apart and keeps each on its own line's order", () => {
+    expect(spreadLabels([100, 95, 30], 12, 200)).toEqual([107, 95, 30]);
+  });
+
+  it("shifts the stack up when it would run past the bottom", () => {
+    expect(spreadLabels([200, 198], 12, 200)).toEqual([200, 188]);
+  });
+});
+
+describe("fitLabel", () => {
+  it("keeps a label that fits", () => {
+    expect(fitLabel("Tendência v1", 12)).toBe("Tendência v1");
+  });
+
+  it("cuts a long label with an ellipsis", () => {
+    expect(fitLabel("Tendência PETR4 v2", 10)).toBe("Tendência…");
   });
 });

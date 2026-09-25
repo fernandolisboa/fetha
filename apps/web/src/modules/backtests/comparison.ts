@@ -1,15 +1,28 @@
 import { Decimal } from "decimal.js";
 import type { Centavos, DecimalString, SessionDate } from "@fetha/contracts";
-import type { EquityPoint, WalkForwardWindow } from "@fetha/engine";
+import type { BacktestRun, EquityPoint, WalkForwardWindow } from "@fetha/engine";
 
 // ADR-0023: three is where the comparison series palette still separates every pair of lines,
 // including under colour-vision deficiency; a fourth run is a second comparison.
 export const MAX_COMPARED_RUNS = 3;
 
-export function comparedRunIds(param: string | string[] | undefined): string[] {
+export type ComparedRun = {
+  id: string;
+  href: string;
+  label: string;
+  result: BacktestRun;
+};
+
+export type PickerRun = { id: string; label: string; period: string };
+export type PickerGroup = { strategyId: string; strategyName: string; runs: PickerRun[] };
+
+export function requestedRunIds(param: string | string[] | undefined): string[] {
   const values = param === undefined ? [] : Array.isArray(param) ? param : [param];
-  const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-  return unique.slice(0, MAX_COMPARED_RUNS);
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+export function comparedRunIds(param: string | string[] | undefined): string[] {
+  return requestedRunIds(param).slice(0, MAX_COMPARED_RUNS);
 }
 
 export function compareHref(ids: readonly string[]): string {
@@ -79,7 +92,7 @@ export type LabelInput = {
 };
 
 // A run is named by its version when every compared run belongs to one strategy, and by strategy
-// and version otherwise; two runs of the same version are told apart by their creation date.
+// and version otherwise; two runs of the same version are told apart by their creation date and time.
 export function runLabels(runs: readonly LabelInput[]): Map<string, string> {
   const oneStrategy = new Set(runs.map((run) => run.strategyId)).size <= 1;
   const base = runs.map((run) =>
@@ -94,4 +107,23 @@ export function runLabels(runs: readonly LabelInput[]): Map<string, string> {
       return [run.id, duplicated ? `${label} · ${run.createdAt}` : label];
     }),
   );
+}
+
+export function spreadLabels(ys: readonly number[], minGap: number, height: number): number[] {
+  const order = ys.map((y, index) => ({ y, index })).sort((a, b) => a.y - b.y);
+  const placed = order.map(({ y }) => y);
+  for (let i = 1; i < placed.length; i += 1) {
+    placed[i] = Math.max(placed[i] ?? 0, (placed[i - 1] ?? 0) + minGap);
+  }
+  const overflow = Math.max(0, (placed.at(-1) ?? 0) - height);
+  const result = new Array<number>(ys.length);
+  order.forEach(({ index }, i) => {
+    result[index] = (placed[i] ?? 0) - overflow;
+  });
+  return result;
+}
+
+export function fitLabel(label: string, maxChars: number): string {
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, Math.max(0, maxChars - 1))}…`;
 }

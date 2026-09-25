@@ -125,9 +125,7 @@ const en = {
     pickEmpty: "No completed backtest yet. Run at least two to compare them.",
     tooFew: "Pick at least two completed runs.",
     tooMany: "Only the first {max} runs are compared.",
-    changeSelection: "Change selection",
     version: "v{number}",
-    run: "Run",
     setup: {
       title: "Setup",
       period: "Period",
@@ -320,9 +318,7 @@ const ptBR = {
     pickEmpty: "Nenhum backtest concluído ainda. Rode pelo menos dois para compará-los.",
     tooFew: "Marque pelo menos duas simulações concluídas.",
     tooMany: "Só as {max} primeiras simulações entram na comparação.",
-    changeSelection: "Trocar seleção",
     version: "v{number}",
-    run: "Simulação",
     setup: {
       title: "Configuração",
       period: "Período",

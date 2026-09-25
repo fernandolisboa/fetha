@@ -42,7 +42,11 @@ review on the PR.
    monthly (ADR-0013 "Taxes"), while windows are session counts that can cut a month. A
    `MonthlyTax` is attributed to the window holding that month's last session inside the period,
    where the month's gains are complete. The engine previously counted a cut month in both
-   windows, so the windows' taxes summed to more than the run's. A property test now checks that
+   windows, so the windows' taxes summed to more than the run's. The basis is the month the gains
+   were made, not the session the tax leaves cash: that deduction happens on the last session of
+   the following month (ADR-0013 "Taxes"), so it lowers the equity, and hence the `totalReturn`, of
+   whichever window holds that later session. A window's `taxes` and its return can therefore
+   reflect different months' tax; summed over all windows both reconcile with the run. A property test now checks that
    the windows tile the period and that their sessions, operations, fees, taxes and slippage sum
    to the whole run's.
 5. **Annualized metrics stay null in short windows.** `cagr` and `sharpe` follow the run rule

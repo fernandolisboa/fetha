@@ -86,7 +86,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
             <Link href={`/estrategias/${strategy.id}/backtests/novo`} className={buttonVariants()}>
               {backtestsStrings.create.submit}
             </Link>
-            {completedRunIds.length > 0 ? (
+            {completedRunIds.length >= 2 ? (
               <Link
                 href={compareHref(completedRunIds.slice(0, 2))}
                 className={buttonVariants({ variant: "outline" })}

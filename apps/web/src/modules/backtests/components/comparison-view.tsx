@@ -10,17 +10,10 @@ import { cn } from "@/lib/utils";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
 
-import { alignWindows, cumulativeReturns, returnTone } from "../comparison";
+import { alignWindows, cumulativeReturns, returnTone, type ComparedRun } from "../comparison";
 import { t } from "../strings";
 import { ComparisonChart } from "./comparison-chart";
 import { limitModeLabel } from "./report-panel";
-
-export type ComparedRun = {
-  id: string;
-  href: string;
-  label: string;
-  result: BacktestRun;
-};
 
 const seriesColors = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
 const toneClass = { up: "text-up", down: "text-down", flat: "" } as const;
@@ -60,7 +53,7 @@ function RunHeaders({ runs }: { runs: ComparedRun[] }) {
   return (
     <>
       {runs.map((run, index) => (
-        <th key={run.id} scope="col" className="py-2 text-right font-normal normal-case">
+        <th key={run.id} scope="col" className="py-2 pl-4 text-right font-normal normal-case">
           <Link
             href={run.href}
             className="text-foreground inline-flex items-center gap-2 underline-offset-4 hover:underline"
@@ -142,7 +135,7 @@ export function ComparisonView({ runs }: { runs: ComparedRun[] }) {
                 {row.label}
               </th>
               {runs.map((run) => (
-                <td key={run.id} className="py-2 text-right font-mono tabular-nums">
+                <td key={run.id} className="py-2 pl-4 text-right font-mono tabular-nums">
                   {row.render(run.result)}
                 </td>
               ))}
@@ -171,7 +164,7 @@ export function ComparisonView({ runs }: { runs: ComparedRun[] }) {
                 {row.label}
               </th>
               {runs.map((run) => (
-                <td key={run.id} className="py-2 text-right font-mono tabular-nums">
+                <td key={run.id} className="py-2 pl-4 text-right font-mono tabular-nums">
                   {row.render(run.result.metrics)}
                 </td>
               ))}
@@ -197,7 +190,7 @@ export function ComparisonView({ runs }: { runs: ComparedRun[] }) {
                   <td
                     key={runs[index]?.id ?? index}
                     className={cn(
-                      "py-2 text-right font-mono tabular-nums",
+                      "py-2 pl-4 text-right font-mono tabular-nums",
                       cell
                         ? toneClass[returnTone(cell.metrics.totalReturn)]
                         : "text-muted-foreground",
