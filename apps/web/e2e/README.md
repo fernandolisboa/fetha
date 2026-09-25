@@ -62,3 +62,12 @@ cron's manual POST trigger and confirms `/diario` shows the decision already sco
 confirmada" and a Brier score, not "sem pontuação ainda" — proving the scoring job (#29) ran in
 the same cron run. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as `signals.spec.ts`, and the
 same PETR4/`2026-09-08`+`2026-09-09` ingestion precondition.
+
+`portfolio.spec.ts` covers the real portfolio (#26): it imports the synthetic B3 "Negociação"
+fixture (`src/modules/portfolio/b3-import/fixtures/negociacao.xlsx`) through the import dialog and
+checks the result line and the PETR4 position, then records a fill in a real expired PETR4 series,
+groups it into an operation, confirms the proposed settlement and checks the operation is
+"vencida". The series comes from the E2E-only route `/api/e2e/expired-series` (404 in production
+or when `E2E_SECRET` is unset, same guard as `/api/e2e/verification-link`), which reads shared
+reference data only: the latest expired PETR4 series that traded before expiry and whose expiry
+close is ingested. Needs `E2E_SECRET` and ingested PETR4 option data in the preview database.

@@ -31,7 +31,7 @@ import type { JournalOriginKind } from "../allowed-kinds";
 import { parseConfidencePercent } from "../parse-confidence";
 import { parseLevelInput } from "../parse-level";
 import { t } from "../strings";
-import { todaySaoPauloDate } from "../today-sao-paulo";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 type ThesisClaimKind = (typeof thesisClaimKinds)[number];
 

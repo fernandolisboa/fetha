@@ -1,11 +1,12 @@
-import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, min, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";
 import { calendarWindowThroughExpiry } from "./calendar-repository";
+import { DAILY_TIMEFRAME } from "./candle-repository";
 import { ensureMonthlyPartition } from "./partitions";
 
 const CHUNK_SIZE = 1000;
@@ -274,4 +275,132 @@ export async function optionChainForUnderlying(
         lastPrice: matchesCurrentCycle && value ? { value, session: priceRow.session } : null,
       };
     });
+}
+
+export interface ResolvedOptionSeries {
+  ticker: string;
+  underlying: string;
+  right: string;
+  strike: string;
+  expiry: string;
+}
+
+export function seriesKey(ticker: string, session: string): string {
+  return `${ticker}|${session}`;
+}
+
+// The series a fill in `ticker` on `session` traded: B3 reuses option
+// tickers across listing cycles (ADR-0017), so it is the earliest listed
+// expiry on or after that session, the latest registry snapshot winning a
+// tie, among cycles already listed by then (first seen in the registry or
+// first traded on or before the session). Keyed by `seriesKey`; a pair with
+// no such series is absent.
+export async function optionSeriesForFills(
+  db: Database,
+  fills: readonly { ticker: string; session: string }[],
+): Promise<Map<string, ResolvedOptionSeries>> {
+  const tickers = [...new Set(fills.map((fill) => fill.ticker))];
+  if (tickers.length === 0) {
+    return new Map();
+  }
+  const [rows, firstTrades] = await Promise.all([
+    db
+      .select({
+        ticker: optionSeries.ticker,
+        underlying: optionSeries.underlying,
+        right: optionSeries.right,
+        strike: optionSeries.strike,
+        expiry: optionSeries.expiry,
+        asOf: optionSeries.asOf,
+      })
+      .from(optionSeries)
+      .where(inArray(optionSeries.ticker, tickers))
+      .orderBy(asc(optionSeries.expiry), desc(optionSeries.asOf)),
+    db
+      .select({
+        ticker: optionDailyPrices.ticker,
+        expiry: optionDailyPrices.expiry,
+        first: min(optionDailyPrices.session),
+      })
+      .from(optionDailyPrices)
+      .where(inArray(optionDailyPrices.ticker, tickers))
+      .groupBy(optionDailyPrices.ticker, optionDailyPrices.expiry),
+  ]);
+  const firstTraded = new Map(
+    firstTrades.map((trade) => [`${trade.ticker}|${trade.expiry}`, trade.first]),
+  );
+
+  const resolved = new Map<string, ResolvedOptionSeries>();
+  for (const fill of fills) {
+    const match = rows.find((row) => {
+      if (row.ticker !== fill.ticker || row.expiry < fill.session) {
+        return false;
+      }
+      const listed = row.asOf.toISOString().slice(0, 10);
+      const traded = firstTraded.get(`${row.ticker}|${row.expiry}`);
+      return listed <= fill.session || (traded != null && traded <= fill.session);
+    });
+    if (match) {
+      resolved.set(seriesKey(fill.ticker, fill.session), {
+        ticker: match.ticker,
+        underlying: match.underlying,
+        right: match.right,
+        strike: match.strike,
+        expiry: match.expiry,
+      });
+    }
+  }
+  return resolved;
+}
+
+export interface ExpiredTradedSeries {
+  ticker: string;
+  session: string;
+  expiry: string;
+  close: string;
+}
+
+// E2E fixture lookup: the most recently expired series of `underlying` that
+// traded before its expiry, restricted to expiries whose underlying close is
+// ingested so a settlement proposal can be built for it.
+export async function latestExpiredTradedSeries(
+  db: Database,
+  underlying: string,
+): Promise<ExpiredTradedSeries | null> {
+  const [row] = await db
+    .select({
+      ticker: optionDailyPrices.ticker,
+      session: optionDailyPrices.session,
+      expiry: optionDailyPrices.expiry,
+      close: optionDailyPrices.close,
+    })
+    .from(optionDailyPrices)
+    .innerJoin(
+      optionSeries,
+      and(
+        eq(optionSeries.ticker, optionDailyPrices.ticker),
+        eq(optionSeries.expiry, optionDailyPrices.expiry),
+      ),
+    )
+    .innerJoin(
+      candles,
+      and(
+        eq(candles.ticker, optionSeries.underlying),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        eq(candles.session, optionDailyPrices.expiry),
+      ),
+    )
+    .where(
+      and(
+        eq(optionSeries.underlying, underlying),
+        lt(optionDailyPrices.session, optionDailyPrices.expiry),
+        isNotNull(optionDailyPrices.close),
+      ),
+    )
+    .orderBy(desc(optionDailyPrices.expiry), desc(optionDailyPrices.session))
+    .limit(1);
+  if (!row?.close) {
+    return null;
+  }
+  return { ticker: row.ticker, session: row.session, expiry: row.expiry, close: row.close };
 }

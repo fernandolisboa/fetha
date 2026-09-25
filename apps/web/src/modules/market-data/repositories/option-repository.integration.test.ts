@@ -2,10 +2,15 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
 
 import { ensureMonthlyPartition } from "./partitions";
-import { optionChainForUnderlying } from "./option-repository";
+import {
+  latestExpiredTradedSeries,
+  optionChainForUnderlying,
+  optionSeriesForFills,
+  seriesKey,
+} from "./option-repository";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "20:00:00.000Z";
@@ -329,5 +334,135 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toBeNull();
+  });
+});
+
+describe("optionSeriesForFills and latestExpiredTradedSeries", () => {
+  const underlyings: string[] = [];
+  const optionTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    const seeded = underlyings.splice(0);
+    const tickers = optionTickers.splice(0);
+    if (seeded.length > 0) {
+      await db.delete(optionSeries).where(inArray(optionSeries.underlying, seeded));
+      await db.delete(candles).where(inArray(candles.ticker, seeded));
+    }
+    if (tickers.length > 0) {
+      await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, tickers));
+    }
+  });
+
+  async function seedCycle(
+    underlying: string,
+    ticker: string,
+    expiry: string,
+    traded: { session: string; close: string } | null,
+  ): Promise<void> {
+    const db = getDb();
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${ticker}-${expiry}`,
+      ticker,
+      underlying,
+      right: "call",
+      strike: "10.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date("2098-01-02T13:00:00.000Z"),
+    });
+    if (traded) {
+      await ensureMonthlyPartition(db, "option_daily_prices", traded.session);
+      await db.insert(optionDailyPrices).values({
+        ticker,
+        session: traded.session,
+        asOf: new Date(`${traded.session}T20:00:00.000Z`),
+        right: "call",
+        strike: "10.00000000",
+        expiry,
+        average: traded.close,
+        close: traded.close,
+        trades: 1,
+        tradedQuantity: 100,
+      });
+    }
+  }
+
+  async function seedUnderlyingClose(underlying: string, session: string): Promise<void> {
+    const db = getDb();
+    await ensureMonthlyPartition(db, "candles", session);
+    await db.insert(candles).values({
+      ticker: underlying,
+      timeframe: "1d",
+      session,
+      asOf: new Date(`${session}T21:00:00.000Z`),
+      open: "10.000000",
+      high: "10.000000",
+      low: "10.000000",
+      close: "10.000000",
+      tradedQuantity: 100,
+    });
+  }
+
+  it("resolves a reused ticker to the listing cycle the fill's session traded in", async () => {
+    const underlying = uniqueTicker("CYC");
+    underlyings.push(underlying);
+    const ticker = `${underlying}A10`;
+    await seedCycle(underlying, ticker, "2098-01-16", null);
+    await seedCycle(underlying, ticker, "2098-02-20", null);
+
+    const resolved = await optionSeriesForFills(getDb(), [
+      { ticker, session: "2098-01-10" },
+      { ticker, session: "2098-01-20" },
+      { ticker, session: "2098-03-01" },
+    ]);
+
+    expect(resolved.get(seriesKey(ticker, "2098-01-10"))?.expiry).toBe("2098-01-16");
+    expect(resolved.get(seriesKey(ticker, "2098-01-20"))?.expiry).toBe("2098-02-20");
+    expect(resolved.has(seriesKey(ticker, "2098-03-01"))).toBe(false);
+  });
+
+  it("does not resolve a fill to a cycle listed after it traded", async () => {
+    const underlying = uniqueTicker("LAT");
+    underlyings.push(underlying);
+    const ticker = `${underlying}A10`;
+    optionTickers.push(ticker);
+    await seedCycle(underlying, ticker, "2098-06-20", { session: "2098-05-04", close: "0.500000" });
+
+    const resolved = await optionSeriesForFills(getDb(), [
+      { ticker, session: "2097-10-10" },
+      { ticker, session: "2098-05-04" },
+    ]);
+
+    expect(resolved.has(seriesKey(ticker, "2097-10-10"))).toBe(false);
+    expect(resolved.get(seriesKey(ticker, "2098-05-04"))?.expiry).toBe("2098-06-20");
+  });
+
+  it("finds the latest expired series that traded and whose expiry close is ingested", async () => {
+    const underlying = uniqueTicker("EXD");
+    underlyings.push(underlying);
+    const older = `${underlying}A10`;
+    const newer = `${underlying}B10`;
+    const noClose = `${underlying}C10`;
+    optionTickers.push(older, newer, noClose);
+    await seedCycle(underlying, older, "2098-01-16", { session: "2098-01-12", close: "0.500000" });
+    await seedCycle(underlying, newer, "2098-02-20", { session: "2098-02-18", close: "0.700000" });
+    await seedCycle(underlying, noClose, "2098-03-20", {
+      session: "2098-03-18",
+      close: "0.900000",
+    });
+    await seedUnderlyingClose(underlying, "2098-01-16");
+    await seedUnderlyingClose(underlying, "2098-02-20");
+
+    expect(await latestExpiredTradedSeries(getDb(), underlying)).toEqual({
+      ticker: newer,
+      session: "2098-02-18",
+      expiry: "2098-02-20",
+      close: "0.700000",
+    });
+  });
+
+  it("returns null when the underlying has no expired traded series", async () => {
+    expect(await latestExpiredTradedSeries(getDb(), uniqueTicker("NON"))).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import type { ContemplatedOperation } from "@/modules/portfolio";
 import type { SignalListItem } from "@/modules/strategies";
 
 import { deriveDefaultHorizon } from "./horizon";
-import { todaySaoPauloDate } from "./today-sao-paulo";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 interface HorizonLeg {
   role: LegRole;

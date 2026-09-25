@@ -31,7 +31,7 @@ import {
   type RecordDecisionInput,
 } from "./decisions-repository";
 import type { DecisionInputs } from "./inputs";
-import { todaySaoPauloDate } from "./today-sao-paulo";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 const recordInputSchema = z.strictObject({
   originKind: z.enum(["signal", "contemplated_operation"]),

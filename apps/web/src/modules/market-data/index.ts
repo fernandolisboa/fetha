@@ -37,7 +37,12 @@ export {
 } from "./market-view";
 export {
   expiryByTicker,
+  latestExpiredTradedSeries,
   optionChainForUnderlying,
+  optionSeriesForFills,
+  seriesKey,
   type ChainSeries,
+  type ResolvedOptionSeries,
 } from "./repositories/option-repository";
+export { buildPortfolioMarketView } from "./portfolio-view";
 export { latestSessionOnOrBefore } from "./repositories/calendar-repository";

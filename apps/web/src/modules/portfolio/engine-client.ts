@@ -11,14 +11,13 @@ import { buildOperationMarketView } from "@/modules/market-data";
 // `no_risk_profile` and leaves `limitBreaches` empty, which is what draws
 // the "sem perfil de risco" chip).
 //
-// `openOperationCount` is always 0: a Contemplated Operation carries no
-// lifecycle and does not count toward `maxOpenOperations`
-// (UBIQUITOUS_LANGUAGE.md "Contemplated operation"); there is no real,
-// counted Operation yet (#26 wires the real portfolio's open count here).
+// `openOperationCount` is the user's open real Operations (ADR-0021): the
+// engine counts the priced proposal as one more on top of them.
 export async function priceOperationLegs(
   underlying: Ticker,
   legs: ContemplatedLeg[],
   riskProfile: RiskProfile | null,
+  openOperationCount: number,
   at: Instant = nowInstant(),
 ): Promise<Result<OperationPricing>> {
   const view = await buildOperationMarketView(getDb(), underlying, at);
@@ -31,7 +30,7 @@ export async function priceOperationLegs(
       ticker: leg.ticker,
       quantity: leg.quantity,
     })),
-    openOperationCount: 0,
+    openOperationCount,
     ...(riskProfile ? { riskProfile } : {}),
   });
 }

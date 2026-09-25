@@ -33,9 +33,9 @@ export function RiskNotice({ breaches }: { breaches: LimitBreach[] }) {
         {t.builder.riskNotice.title}
       </p>
       <ul className="flex flex-col gap-1">
-        {breaches.map((breach) => (
+        {breaches.map((breach, index) => (
           <li
-            key={breach.limit}
+            key={`${breach.limit}-${String(index)}`}
             className="text-muted-foreground font-mono text-[12px] tabular-nums"
           >
             {t.builder.riskNotice.limits[breach.limit]}: {formatLimitValue(breach)} &gt;{" "}

@@ -68,7 +68,8 @@ exposing module's interface, never through its tables.
 6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
-   confirms or corrects.
+   confirms or corrects. Only fills and operations are stored; positions and cash are derived
+   from fills, and cash starts from the declared capital (ADR-0021).
 
 ## Invariants
 
@@ -104,4 +105,6 @@ See `docs/adr/`: numeric representation (0001), option pricing (0002), no broker
 evaluation, backtest and scoring rules settled with it (0014), themes as per-user token sets
 (0015), auth and tenancy: Better Auth, the user account as the tenant (0016), reference data
 ingestion: sources, partitioning, retries, freshness, adjustment (0017), magic link, password
-reset and database-backed rate limiting (0018).
+reset and database-backed rate limiting (0018), vertical slices inside the single Next.js app
+(0019), registration mode through Vercel Global Config (0020), real portfolio bookkeeping: fills
+are stored, positions and cash derived (0021).
