@@ -275,3 +275,56 @@ export async function optionChainForUnderlying(
       };
     });
 }
+
+export interface ResolvedOptionSeries {
+  ticker: string;
+  underlying: string;
+  right: string;
+  strike: string;
+  expiry: string;
+}
+
+export function seriesKey(ticker: string, session: string): string {
+  return `${ticker}|${session}`;
+}
+
+// The series a fill in `ticker` on `session` traded: B3 reuses option
+// tickers across listing cycles (ADR-0017), so it is the earliest listed
+// expiry on or after that session, the latest registry snapshot winning a
+// tie. Keyed by `seriesKey`; a pair with no such series is absent.
+export async function optionSeriesForFills(
+  db: Database,
+  fills: readonly { ticker: string; session: string }[],
+): Promise<Map<string, ResolvedOptionSeries>> {
+  const tickers = [...new Set(fills.map((fill) => fill.ticker))];
+  if (tickers.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      ticker: optionSeries.ticker,
+      underlying: optionSeries.underlying,
+      right: optionSeries.right,
+      strike: optionSeries.strike,
+      expiry: optionSeries.expiry,
+      asOf: optionSeries.asOf,
+    })
+    .from(optionSeries)
+    .where(inArray(optionSeries.ticker, tickers))
+    .orderBy(asc(optionSeries.expiry), desc(optionSeries.asOf));
+
+  const resolved = new Map<string, ResolvedOptionSeries>();
+  for (const fill of fills) {
+    const match = rows.find((row) => row.ticker === fill.ticker && row.expiry >= fill.session);
+    if (match) {
+      resolved.set(seriesKey(fill.ticker, fill.session), {
+        ticker: match.ticker,
+        underlying: match.underlying,
+        right: match.right,
+        strike: match.strike,
+        expiry: match.expiry,
+      });
+    }
+  }
+  return resolved;
+}

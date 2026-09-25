@@ -25,6 +25,7 @@ import { priceLegsAt } from "./price-operation";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
 import { resolveLegMarketPrice } from "./resolve-market-price";
+import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
@@ -377,15 +378,22 @@ export function markToMarket(
   }
 
   const positionValuations: PortfolioValuation["positions"] = [];
+  const optionPositionTickers = new Set<string>();
   const unpricedPositionTickers: string[] = [];
   for (const position of input.positions) {
+    // A position in a listed series is marked from that series' day price, not from candles
+    // (#26: every option position was unpriced while this was hard-coded to "stock").
+    const isOption = resolveSeries(input.view, position.ticker, input.at) !== null;
+    if (isOption) {
+      optionPositionTickers.add(position.ticker);
+    }
     const resolved = resolveLegMarketPrice(
       input.view,
       position.ticker,
       input.at,
       undefined,
       markSession,
-      "stock",
+      isOption ? "option" : "stock",
     );
     const price = resolved?.value ?? null;
     const positionNotes: Note[] = [];
@@ -455,7 +463,10 @@ export function markToMarket(
     positionValuations.reduce((acc, p) => acc + (p.unrealizedPnl ?? 0), 0),
   );
   const positionsDelta = positionValuations.reduce(
-    (sum, p) => (p.price !== null ? sum.add(p.position.quantity) : sum),
+    (sum, p) =>
+      p.price !== null && !optionPositionTickers.has(p.position.ticker)
+        ? sum.add(p.position.quantity)
+        : sum,
     new Decimal(0),
   );
   const greeks: Greeks = GREEK_KEYS.reduce(

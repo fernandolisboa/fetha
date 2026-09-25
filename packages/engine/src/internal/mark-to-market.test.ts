@@ -845,6 +845,45 @@ describe("markToMarket", () => {
     });
   });
 
+  it("marks a standalone option position from its own series' day price, stale with its session, #26", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETRA12", "12.00")],
+      optionPrices: [
+        {
+          ticker: "PETRA12",
+          session: "2024-01-01",
+          asOf: "2024-01-01T21:00:00.000Z",
+          average: decimalString("0.40"),
+          close: decimalString("0.50"),
+          trades: 3,
+          tradedQuantity: 300,
+        },
+      ],
+    };
+    const position: Position = {
+      ticker: "PETRA12",
+      quantity: signedQuantity(-100),
+      averageCost: decimalString("0.80"),
+    };
+    const result = markToMarket(
+      { view, at, positions: [position], operations: [], cash: centavos(10_000) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [valued] = result.value.positions;
+    expect(valued?.price).toBe("0.50");
+    expect(valued?.priceSource).toBe("close");
+    expect(valued?.stale).toEqual({ session: "2024-01-01" });
+    expect(valued?.value).toBe(-5000);
+    expect(valued?.unrealizedPnl).toBe(3000);
+    expect(result.value.totals.equity).toBe(5000);
+    // A bare position carries no greeks; an option's delta is not one per share, so only the
+    // operations holding it can contribute it.
+    expect(result.value.totals.greeks.delta).toBe("0.000000");
+  });
+
   it("returns missing_instrument when the operation's underlying has no visible spot", () => {
     const result = markToMarket(
       { view: baseView, at, positions: [], operations: [stockOperation()], cash: centavos(0) },
