@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
+const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
+vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -28,6 +30,18 @@ describe("cron ingest route", () => {
       evaluationsWritten: 0,
       errors: [],
     });
+    scoreDueDecisionsMock
+      .mockReset()
+      .mockImplementation((_db: unknown, input: { okSessions: readonly string[] }) =>
+        Promise.resolve({
+          asOfSession: input.okSessions[0] ?? "",
+          usersScored: 0,
+          usersSkipped: 0,
+          decisionsScored: 0,
+          decisionsSkipped: 0,
+          errors: [],
+        }),
+      );
   });
 
   afterEach(() => {
@@ -74,6 +88,81 @@ describe("cron ingest route", () => {
     const body: unknown = await response.json();
     expect(body).toMatchObject({
       evaluation: { sessions: ["2026-09-08"], usersEvaluated: 0, signalsWritten: 0 },
+    });
+  });
+
+  it("chains scoring onto the session ingestion just reported, after evaluation", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith(
+      {},
+      { okSessions: ["2026-09-08"] },
+      expect.any(Object),
+    );
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ scoring: { asOfSession: "2026-09-08", decisionsScored: 0 } });
+  });
+
+  it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {
+    ingestMock.mockResolvedValue({ session: null, okSessions: [], ok: true, sources: [] });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, { okSessions: [] }, expect.any(Object));
+  });
+
+  it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {
+    scoreDueDecisionsMock.mockResolvedValue({
+      asOfSession: "2026-09-08",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 1,
+      errors: [{ decisionId: "decision-1", kind: "engine_error:unresolvable_view" }],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({
+      scoring: { errors: [{ decisionId: "decision-1", kind: "engine_error:unresolvable_view" }] },
+    });
+  });
+
+  it("stays 200 with the ingestion and evaluation body intact when scoring's own setup fails (round 3 item 4)", async () => {
+    scoreDueDecisionsMock.mockResolvedValue({
+      asOfSession: "",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 0,
+      errors: [{ decisionId: null, kind: "setup_failed" }],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({
+      ok: true,
+      evaluation: { sessions: ["2026-09-08"], usersEvaluated: 0 },
+      scoring: { asOfSession: "", errors: [{ decisionId: null, kind: "setup_failed" }] },
     });
   });
 
@@ -146,6 +235,7 @@ describe("cron ingest route", () => {
     );
     expect(response.status).toBe(500);
     expect(evaluateSignalsMock).not.toHaveBeenCalled();
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, { okSessions: [] }, expect.any(Object));
     const body: unknown = await response.json();
     expect(body).toMatchObject({ evaluation: null });
   });

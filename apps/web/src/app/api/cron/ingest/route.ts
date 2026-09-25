@@ -5,15 +5,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db/client";
+import { scoreDueDecisions } from "@/modules/decisions";
 import { ingest, type IngestOutcome } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 export const maxDuration = 300;
-// Ingestion and evaluation share this one `maxDuration` budget; the deadline
-// below leaves this much headroom for the evaluation's in-flight user to
-// finish and the response to serialize, rather than letting the platform
-// hard-kill the function mid-write (#19).
-const EVALUATION_SAFETY_MARGIN_MS = 15_000;
+// Ingestion, evaluation and scoring share this one `maxDuration` budget and
+// this one deadline (#29 fix-web item 11: scoring's own margin used to be
+// smaller than evaluation's, which put its deadline *later* — backwards for
+// a step that runs after evaluation and closer to the hard limit). One
+// shared margin means scoring's deadline is never later than evaluation's,
+// leaving this much headroom for whichever step is in flight to finish and
+// the response to serialize, rather than letting the platform hard-kill the
+// function mid-write (#19, #29).
+const SAFETY_MARGIN_MS = 15_000;
 
 function isAuthorized(authorizationHeader: string | null): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -46,17 +51,33 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
 // failures never turn an otherwise successful ingestion response into a
 // 500 — they are reported alongside it so the owner can see them without
 // the ingestion retry (docs/adr/0010-intraday-evaluation-while-in-use.md's
-// addendum) firing for a session that already ingested cleanly.
+// addendum) firing for a session that already ingested cleanly. Scoring is
+// chained after evaluation the same way (#29); it resolves its own as-of
+// session from `okSessions` (#29 fix-web item 11: moved into
+// `scoreDueDecisions` itself, this route only decides whether this run's
+// own cotahist step succeeded).
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
   const db = getDb();
   const startedAt = Date.now();
   const result = await ingest(db, session ? { session } : {});
-  const deadlineAt = startedAt + maxDuration * 1000 - EVALUATION_SAFETY_MARGIN_MS;
+  const deadlineAt = startedAt + maxDuration * 1000 - SAFETY_MARGIN_MS;
   const evaluation =
     cotahistSucceeded(result) && result.okSessions.length > 0
       ? await evaluateSignalsForSession(db, result.okSessions, { deadlineAt })
       : null;
-  return NextResponse.json({ ...result, evaluation }, { status: result.ok ? 200 : 500 });
+
+  // Scoring is chained after evaluation, same run, same bearer, same
+  // deadline (#29): its own failures never turn an otherwise successful
+  // ingestion response into a 500, reported alongside it the same way
+  // evaluation's are (round 2 item 2 of #19 set that precedent for setup
+  // failures).
+  const scoring = await scoreDueDecisions(
+    db,
+    { okSessions: cotahistSucceeded(result) ? result.okSessions : [] },
+    { deadlineAt },
+  );
+
+  return NextResponse.json({ ...result, evaluation, scoring }, { status: result.ok ? 200 : 500 });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {

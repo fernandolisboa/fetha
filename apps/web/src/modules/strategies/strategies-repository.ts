@@ -211,6 +211,31 @@ export class StrategiesRepository extends UserScopedRepository {
     return result;
   }
 
+  // A single strategy version by id, scoped by this user through the
+  // strategy it belongs to (#29's decision-scoring job: `decisions.strategy_version_id`
+  // never crosses a tenant boundary since only the owner's own strategy
+  // could have produced the signal a decision answered, but this join makes
+  // that a query-level guarantee rather than an assumption). Returns null
+  // for a version that does not exist or belongs to another user, never a
+  // thrown not-found — the caller treats a vanished strategy version as
+  // "cannot score this decision" the same way `unknown_structure` is
+  // handled in `evaluateSignalsForSession`.
+  async findVersionForScoring(strategyVersionId: string): Promise<StrategyVersionRecord | null> {
+    const [row] = await this.db
+      .select({
+        id: strategyVersions.id,
+        versionNumber: strategyVersions.versionNumber,
+        definition: strategyVersions.definition,
+        definitionDigest: strategyVersions.definitionDigest,
+        createdAt: strategyVersions.createdAt,
+      })
+      .from(strategyVersions)
+      .innerJoin(strategies, eq(strategies.id, strategyVersions.strategyId))
+      .where(and(eq(strategyVersions.id, strategyVersionId), eq(strategies.userId, this.userId)));
+
+    return row ? this.parseVersionRow(row) : null;
+  }
+
   async setVisibility(strategyId: string, visibility: StrategyVisibility): Promise<void> {
     const result = await this.db
       .update(strategies)

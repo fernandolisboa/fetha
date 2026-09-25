@@ -51,3 +51,14 @@ opens the DecisionBar dialog, records "Não entrar" with a rationale, confirms t
 recorded decision instead of the dialog trigger, then opens `/diario` and confirms the journal
 entry with the same kind and rationale. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as
 `signals.spec.ts`.
+
+`scoring.spec.ts` seeds a thesis-only decision through the E2E-only route
+`/api/e2e/seed-decision` (404 in production or when `E2E_SECRET` is unset, same shape as
+`/api/e2e/verification-link`; the write itself goes through `seedE2EDecision`,
+`@/modules/decisions` — the route imports no `@/modules/*/schema` and writes no table directly),
+backdated to `decided_at` on the already-ingested session `2026-09-08` with `horizon` the _next_
+ingested session `2026-09-09` (no look-ahead, #29 fix-web item 3), then triggers the nightly
+cron's manual POST trigger and confirms `/diario` shows the decision already scored — "Tese
+confirmada" and a Brier score, not "sem pontuação ainda" — proving the scoring job (#29) ran in
+the same cron run. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as `signals.spec.ts`, and the
+same PETR4/`2026-09-08`+`2026-09-09` ingestion precondition.

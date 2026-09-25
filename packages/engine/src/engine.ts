@@ -1,7 +1,6 @@
 import type {
   BacktestProgress,
   Capabilities,
-  CapabilityVocabulary,
   DataWindow,
   DataWindowInput,
   Engine,
@@ -21,6 +20,7 @@ import type {
   Result,
   RunBacktestInput,
   Score,
+  ScoreInput,
   SettlementProposal,
 } from "./api";
 import { ENGINE_VERSION, pricingModels } from "./api";
@@ -33,14 +33,9 @@ import { markToMarket as computeMarkToMarket } from "./internal/mark-to-market";
 import { priceOperation as computePriceOperation } from "./internal/price-operation";
 import { proposeSettlement as computeProposeSettlement } from "./internal/propose-settlement";
 import { runBacktest as computeRunBacktest } from "./internal/run-backtest";
-import { unsupportedThesisClaimKinds } from "./internal/vocabularies";
+import { score as computeScore } from "./internal/score";
 
 const pricingModelKind = pricingModels[0];
-const thesisClaimKind = unsupportedThesisClaimKinds[0];
-
-function unsupported<T>(vocabulary: CapabilityVocabulary, kind: string): Promise<Result<T>> {
-  return Promise.resolve({ ok: false, error: { code: "unsupported", vocabulary, kind } });
-}
 
 // Every method that computes an artifact stamps it with the same four fields, read off the
 // view it was handed (round 1 item 12): one place instead of five copies of the same object
@@ -89,8 +84,8 @@ export const engine: Engine = {
     return Promise.resolve(computeProposeSettlement(input, provenanceBaseFor(input.view)));
   },
 
-  score(): Promise<Result<Score>> {
-    return unsupported("thesisClaims", thesisClaimKind);
+  score(input: ScoreInput): Promise<Result<Score>> {
+    return Promise.resolve(computeScore(input, provenanceBaseFor(input.view)));
   },
 
   impliedVolatilityIndex(

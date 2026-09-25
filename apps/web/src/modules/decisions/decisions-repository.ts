@@ -29,6 +29,12 @@ export interface RecordDecisionInput {
   confidence: Confidence;
   horizon: SessionDate;
   costModel: CostModel;
+  // Overrides the column's own `defaultNow()` (#29 fix-web item 3): every
+  // production caller (`actions.ts`) omits this and gets "now", the same as
+  // before. The only caller that ever sets it is `seedE2EDecision`, backing
+  // a fixed, already-ingested session so the E2E scoring flow does not
+  // depend on the wall-clock date the suite happens to run on.
+  decidedAt?: Date;
 }
 
 // Display names (strategy name, structure name) live inside `inputs`, not as
@@ -131,6 +137,7 @@ export class DecisionsRepository extends UserScopedRepository {
           confidence: input.confidence,
           horizon: input.horizon,
           costModel: input.costModel,
+          ...(input.decidedAt ? { decidedAt: input.decidedAt } : {}),
         })
         .returning();
 

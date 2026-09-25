@@ -35,6 +35,7 @@ const en = {
     not_allowed: "This decision kind is not allowed here.",
     duplicate: "This signal already has a decision recorded.",
     horizon_in_past: "The horizon cannot be before today.",
+    horizon_session_closed: "Today's session has already closed. Pick another date.",
     rate_limited: "Too many decisions recorded recently. Try again in a moment.",
     unavailable: "Couldn't save right now. Try again in a moment.",
   },
@@ -42,7 +43,41 @@ const en = {
   journal: {
     overline: "Journal",
     title: "Journal",
-    score: { pending: "not yet scored" },
+    score: {
+      pending: "not yet scored",
+      pnlLabel: "P&L",
+      normalizedPnlLabel: "Normalized P&L",
+      thesisHeld: "Thesis confirmed",
+      thesisNotHeld: "Thesis not confirmed",
+      thesisNone: "No verifiable thesis",
+      brierLabel: "Brier score",
+      counterfactualLabel: "Had you entered",
+      unscorable: "Not scorable",
+      // Every reason a real run can insert (round 3 item 10): a code
+      // missing here — a new engine error, `scoring_failed`, or anything
+      // this map falls behind on — falls back to `unscorableReasonGeneric`,
+      // never the raw storage code, which is an internal detail, not a
+      // sentence in the user's own language.
+      unscorableReasons: {
+        "build_failed:missing_entry_price": "no entry price recorded",
+        "build_failed:missing_strategy_version": "the strategy version no longer exists",
+        "build_failed:unknown_structure": "the structure is no longer in the catalog",
+        "build_failed:unresolvable_horizon_session":
+          "the horizon date is not on the trading calendar",
+        "build_failed:unknown_decision_kind": "unknown decision kind",
+        "build_failed:mismatched_expiry": "legs do not share a single expiry",
+        "build_failed:invalid_inputs": "the recorded decision could not be read back",
+        "engine_error:invalid_input": "invalid input",
+        "engine_error:missing_instrument": "missing instrument data",
+        "engine_error:unsupported": "unsupported by the engine",
+        "engine_error:no_series_matches": "no matching option series",
+        "engine_error:degenerate_strikes": "degenerate option strikes",
+        "engine_error:unsizeable": "operation could not be sized",
+        "engine_error:checkpoint_mismatch": "checkpoint mismatch",
+        insufficient_data: "market data never arrived",
+      } as Record<string, string>,
+      unscorableReasonGeneric: "could not be scored",
+    },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
@@ -53,6 +88,23 @@ const en = {
     claimCloseAbove: (instrument: string, level: string) => `${instrument} closes above ${level}`,
     claimCloseBelow: (instrument: string, level: string) => `${instrument} closes below ${level}`,
     claimOperationPnlPositive: "Operation's P&L is positive",
+  },
+  trackRecord: {
+    title: "Track record",
+    hitRateLabel: "Hit rate",
+    hitRateSentence: (held: number, total: number) =>
+      `${String(held)}/${String(total)} claims held`,
+    hitRateEmpty: "No scored claims yet",
+    calibrationTitle: "Calibration",
+    meanBrierLabel: "Mean Brier score",
+    calibrationBucketHeader: "Stated confidence",
+    calibrationHitRateHeader: "Realized hit rate",
+    calibrationCountHeader: "Decisions",
+    calibrationEmpty: "No scored claims yet",
+    pnlOverTimeTitle: "Normalized P&L over time",
+    pnlOverTimeEmpty: "No scored decisions yet",
+    aiCalibrationTitle: "AI calibration",
+    aiCalibrationEmpty: "No AI analyses yet",
   },
 } as const;
 
@@ -93,6 +145,7 @@ const ptBR = {
     not_allowed: "Esse tipo de decisão não é permitido aqui.",
     duplicate: "Esse sinal já tem uma decisão registrada.",
     horizon_in_past: "O horizonte não pode ser anterior a hoje.",
+    horizon_session_closed: "O pregão de hoje já fechou. Escolha outra data.",
     rate_limited: "Muitas decisões registradas em pouco tempo. Tente novamente em instantes.",
     unavailable: "Não foi possível salvar agora. Tente novamente em instantes.",
   },
@@ -100,7 +153,36 @@ const ptBR = {
   journal: {
     overline: "Diário",
     title: "Diário",
-    score: { pending: "sem pontuação ainda" },
+    score: {
+      pending: "sem pontuação ainda",
+      pnlLabel: "Resultado",
+      normalizedPnlLabel: "Resultado normalizado",
+      thesisHeld: "Tese confirmada",
+      thesisNotHeld: "Tese não confirmada",
+      thesisNone: "Sem tese verificável",
+      brierLabel: "Escore de Brier",
+      counterfactualLabel: "Se tivesse entrado",
+      unscorable: "Não pontuável",
+      unscorableReasons: {
+        "build_failed:missing_entry_price": "sem preço de entrada registrado",
+        "build_failed:missing_strategy_version": "a versão da estratégia não existe mais",
+        "build_failed:unknown_structure": "a estrutura não está mais no catálogo",
+        "build_failed:unresolvable_horizon_session":
+          "a data do horizonte não está no calendário de pregões",
+        "build_failed:unknown_decision_kind": "tipo de decisão desconhecido",
+        "build_failed:mismatched_expiry": "as pernas não compartilham um único vencimento",
+        "build_failed:invalid_inputs": "não foi possível reler a decisão registrada",
+        "engine_error:invalid_input": "entrada inválida",
+        "engine_error:missing_instrument": "dados do instrumento ausentes",
+        "engine_error:unsupported": "não suportado pelo motor",
+        "engine_error:no_series_matches": "nenhuma série de opção correspondente",
+        "engine_error:degenerate_strikes": "strikes de opção degenerados",
+        "engine_error:unsizeable": "não foi possível dimensionar a operação",
+        "engine_error:checkpoint_mismatch": "checkpoint incompatível",
+        insufficient_data: "os dados de mercado nunca chegaram",
+      } as Record<string, string>,
+      unscorableReasonGeneric: "não foi possível pontuar",
+    },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
@@ -112,6 +194,23 @@ const ptBR = {
     claimCloseBelow: (instrument: string, level: string) =>
       `${instrument} fecha abaixo de ${level}`,
     claimOperationPnlPositive: "Resultado da operação é positivo",
+  },
+  trackRecord: {
+    title: "Histórico de acertos",
+    hitRateLabel: "Taxa de acerto",
+    hitRateSentence: (held: number, total: number) =>
+      `${String(held)} de ${String(total)} teses confirmadas`,
+    hitRateEmpty: "Nenhuma tese pontuada ainda",
+    calibrationTitle: "Calibração",
+    meanBrierLabel: "Escore de Brier médio",
+    calibrationBucketHeader: "Confiança declarada",
+    calibrationHitRateHeader: "Taxa de acerto real",
+    calibrationCountHeader: "Decisões",
+    calibrationEmpty: "Nenhuma tese pontuada ainda",
+    pnlOverTimeTitle: "Resultado normalizado ao longo do tempo",
+    pnlOverTimeEmpty: "Nenhuma decisão pontuada ainda",
+    aiCalibrationTitle: "Calibração da IA",
+    aiCalibrationEmpty: "Ainda não há análises de IA",
   },
 };
 

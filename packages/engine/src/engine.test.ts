@@ -105,38 +105,49 @@ describe("engine", () => {
     expect(indicatorsResult.ok).toBe(true);
   });
 
-  it.each([
-    [
-      "score",
-      () =>
-        engine.score({
-          view: emptyView,
-          subject: "analysis",
-          decidedAt: "2024-01-01T00:00:00.000Z",
-          horizon: "2024-02-01",
-          confidence: confidence("0.6"),
-          claim: null,
-          realizedFills: [],
-          origin: { kind: "manual" },
-          costModel: {
-            b3FeeRate: decimalString("0.0003"),
-            brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
-            optionSlippageRate: decimalString("0.01"),
-            incomeTaxRate: decimalString("0.15"),
-            monthlyStockSalesExemption: centavos(20_000_00),
+  it("scores an analysis with no operation end to end through the Engine interface", async () => {
+    const result = await engine.score({
+      view: {
+        ...emptyView,
+        calendar: [
+          {
+            date: "2024-01-01",
+            open: "2024-01-01T13:00:00.000Z",
+            close: "2024-01-01T21:00:00.000Z",
           },
-        } satisfies ScoreInput),
-      { code: "unsupported", vocabulary: "thesisClaims", kind: "close_above" },
-    ],
-  ] as const)(
-    "%s returns its documented unsupported error without throwing",
-    async (_name, call, expected) => {
-      const result = await call();
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error).toEqual(expected);
-    },
-  );
+          {
+            date: "2024-02-01",
+            open: "2024-02-01T13:00:00.000Z",
+            close: "2024-02-01T21:00:00.000Z",
+          },
+        ],
+      },
+      subject: "analysis",
+      decidedAt: "2024-01-01T14:00:00.000Z",
+      horizon: "2024-02-01",
+      confidence: confidence("0.6"),
+      claim: null,
+      realizedFills: [],
+      origin: { kind: "manual" },
+      costModel: {
+        b3FeeRate: decimalString("0.0003"),
+        brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+        optionSlippageRate: decimalString("0.01"),
+        incomeTaxRate: decimalString("0.15"),
+        monthlyStockSalesExemption: centavos(20_000_00),
+      },
+    } satisfies ScoreInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.pnl).toBeNull();
+    expect(result.value.maxLoss).toBeNull();
+    expect(result.value.normalizedPnl).toBeNull();
+    expect(result.value.thesis).toEqual({ claim: null });
+    expect(result.value.counterfactualPnl).toBeNull();
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "no_operation" }));
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "no_thesis_claim" }));
+    expect(result.value.provenance.engineVersion).toBe(ENGINE_VERSION);
+  });
 
   it("marks a stock-only portfolio to market end to end through the Engine interface", async () => {
     const result = await engine.markToMarket({

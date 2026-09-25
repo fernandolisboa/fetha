@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -16,6 +17,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
 import { SignalsRepository } from "@/modules/strategies/signals-repository";
 import { StrategiesRepository } from "@/modules/strategies/strategies-repository";
@@ -333,6 +335,75 @@ describe("recordDecisionAction", () => {
         horizon: sessionDateSchema.parse(yesterdayIso),
       }),
     ).resolves.toEqual({ status: "error", error: "horizon_in_past" });
+
+    const repository = new DecisionsRepository(getDb(), owner);
+    expect(await repository.listMine()).toEqual([]);
+  });
+
+  it("rejects a horizon of today once today's own session has already closed (#29 fix-web item 12)", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("horizon-today-closed");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const ticker = randomTicker();
+    const signal = await createSignal(owner, ticker);
+
+    const today = todaySaoPauloDate();
+    await getDb()
+      .insert(tradingSessions)
+      .values({
+        date: today,
+        open: new Date(Date.now() - 8 * 60 * 60 * 1000),
+        close: new Date(Date.now() - 1000),
+      })
+      .onConflictDoUpdate({
+        target: tradingSessions.date,
+        set: {
+          open: new Date(Date.now() - 8 * 60 * 60 * 1000),
+          close: new Date(Date.now() - 1000),
+        },
+      });
+
+    await expect(
+      recordDecisionAction({
+        originKind: "signal",
+        targetId: signal.id,
+        kind: "enter",
+        rationale: "Today's session has already closed",
+        claim: null,
+        confidence: confidenceSchema.parse("0.5"),
+        horizon: sessionDateSchema.parse(today),
+      }),
+    ).resolves.toEqual({ status: "error", error: "horizon_session_closed" });
+
+    const repository = new DecisionsRepository(getDb(), owner);
+    expect(await repository.listMine()).toEqual([]);
+  });
+
+  it("rejects a horizon of today when today is not a trading session at all", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("horizon-today-not-a-session");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const ticker = randomTicker();
+    const signal = await createSignal(owner, ticker);
+
+    const today = todaySaoPauloDate();
+    await getDb().delete(tradingSessions).where(eq(tradingSessions.date, today));
+
+    await expect(
+      recordDecisionAction({
+        originKind: "signal",
+        targetId: signal.id,
+        kind: "enter",
+        rationale: "Today is not a trading session",
+        claim: null,
+        confidence: confidenceSchema.parse("0.5"),
+        horizon: sessionDateSchema.parse(today),
+      }),
+    ).resolves.toEqual({ status: "error", error: "horizon_session_closed" });
 
     const repository = new DecisionsRepository(getDb(), owner);
     expect(await repository.listMine()).toEqual([]);

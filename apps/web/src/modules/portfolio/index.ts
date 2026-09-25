@@ -9,6 +9,7 @@ export {
   ContemplatedOperationNotFoundError,
   OperationsRepository,
   type ContemplatedOperation,
+  type SaveContemplatedOperationInput,
 } from "./operations-repository";
 export { getMyOperation, getMyOperations } from "./operations-queries";
 export { declareRiskProfileAction, type RiskProfileActionResult } from "./risk-profile-actions";
