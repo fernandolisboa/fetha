@@ -14,7 +14,13 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { addStockFill, seedStockOperation } from "@/db/test/held-operation";
+import {
+  addFills,
+  addStockFill,
+  seedOperation,
+  seedOptionSeries,
+  seedStockOperation,
+} from "@/db/test/held-operation";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
@@ -593,5 +599,127 @@ describe("scoreDueDecisions on a held operation", () => {
     );
     expect(row?.unscorableReason).toBeNull();
     expect(row?.pnlCentavos).toBe(30000 - 500 - ENTRY_COSTS);
+  });
+});
+
+// ADR-0022 item 4: an option still open once its expiry is inside the
+// horizon waits for the user's settlement, whose fills then score the
+// premium as realized P&L and follow the delivered stock to the horizon.
+describe("scoreDueDecisions on a held operation with an expired option", () => {
+  const OPENED = "2024-08-01";
+  const DECIDED = "2024-08-02";
+  const EXPIRY = "2024-08-09";
+  const SESSIONS = [
+    OPENED,
+    DECIDED,
+    "2024-08-05",
+    "2024-08-06",
+    "2024-08-07",
+    "2024-08-08",
+    EXPIRY,
+  ];
+  const AFTER_EXPIRY = ["2024-08-12", "2024-08-13", "2024-08-14", "2024-08-15", "2024-08-16"];
+  // DEFAULT_COST_MODEL's entry costs: 0,05% of R$ 100,00 plus R$ 0,99
+  // brokerage on the put, 0,05% of R$ 3.000,00 on the delivered stock.
+  const PUT_ENTRY_COSTS = 5 + 99;
+  const STOCK_ENTRY_COSTS = 150;
+  const removals: (() => Promise<void>)[] = [];
+
+  afterEach(async () => {
+    for (const remove of removals.splice(0)) {
+      await remove();
+    }
+  });
+
+  async function shortPutDecision() {
+    const db = getDb();
+    const email = uniqueEmail("held-short-put");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const underlying = randomTicker();
+    const put = tickerSchema.parse(
+      `P${crypto.randomUUID().replaceAll("-", "").slice(0, 7).toUpperCase()}`,
+    );
+    for (const session of [...SESSIONS, ...AFTER_EXPIRY]) {
+      await insertSession(session);
+      await insertCandle(underlying, session, session >= EXPIRY ? "28.000000" : "31.000000");
+    }
+    removals.push(
+      await seedOptionSeries(db, {
+        ticker: put,
+        underlying,
+        right: "put",
+        strike: "30.00000000",
+        expiry: EXPIRY,
+        listedOn: OPENED,
+      }),
+    );
+    const { operationId, fillIds } = await seedOperation(db, owner, [
+      { ticker: put, expiry: EXPIRY, side: "sell", quantity: 100, price: "1.00", session: OPENED },
+    ]);
+    const decision = await new DecisionsRepository(db, owner).record({
+      kind: "hold",
+      originKind: "held_operation",
+      signalId: null,
+      contemplatedOperationId: null,
+      operationId,
+      strategyVersionId: null,
+      inputs: {
+        originKind: "held_operation",
+        underlying,
+        expiry: EXPIRY,
+        openedAt: OPENED,
+        legs: [
+          {
+            role: "put",
+            side: "sell",
+            ticker: put,
+            quantity: quantitySchema.parse(100),
+            entryPrice: decimalString("1.000000"),
+          },
+        ],
+        fillIds,
+      },
+      rationale: "Holding the short put to expiry",
+      claim: { kind: "operation_pnl_positive" },
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: EXPIRY,
+      costModel: DEFAULT_COST_MODEL,
+      decidedAt: new Date(`${DECIDED}T15:00:00.000Z`),
+    });
+    return { db, owner, underlying, put, operationId, decision };
+  }
+
+  it("waits for the settlement, then scores the premium and the delivered stock", async () => {
+    const { db, owner, underlying, put, operationId, decision } = await shortPutDecision();
+    const scores = new DecisionScoresRepository(db, owner);
+
+    await scoreDueDecisions(db, { okSessions: [EXPIRY] });
+    expect((await scores.findForDecisions([decision.id])).get(decision.id)).toBeUndefined();
+
+    await addFills(db, owner, operationId, [
+      { ticker: put, expiry: EXPIRY, side: "buy", quantity: 100, price: "0", session: EXPIRY },
+      { ticker: underlying, side: "buy", quantity: 100, price: "30", session: EXPIRY },
+    ]);
+    await scoreDueDecisions(db, { okSessions: [AFTER_EXPIRY[0] ?? EXPIRY] });
+
+    const row = (await scores.findForDecisions([decision.id])).get(decision.id);
+    expect(row?.unscorableReason).toBeNull();
+    // 100 × 1,00 premium realized at zero, 100 × (28 − 30) on the delivered
+    // stock, net of the model's entry costs on both legs.
+    expect(row?.pnlCentavos).toBe(10000 - 20000 - PUT_ENTRY_COSTS - STOCK_ENTRY_COSTS);
+    expect(row?.claimHeld).toBe(false);
+  });
+
+  it("settles at intrinsic once the retry window has passed without a settlement", async () => {
+    const { db, owner, decision } = await shortPutDecision();
+
+    await scoreDueDecisions(db, { okSessions: [AFTER_EXPIRY.at(-1) ?? EXPIRY] });
+
+    const row = (await new DecisionScoresRepository(db, owner).findForDecisions([decision.id])).get(
+      decision.id,
+    );
+    expect(row?.unscorableReason).toBeNull();
+    expect(row?.pnlCentavos).not.toBeNull();
   });
 });

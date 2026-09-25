@@ -52,7 +52,10 @@ export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperatio
   if (!plan.ok || plan.state.legs.length === 0) {
     throw new HeldOperationNotFoundError();
   }
-  const expiry = plan.state.expiry;
+  // A stock leg left after its options closed keeps the options' expiry in
+  // the plan; only an option leg still open makes that expiry binding.
+  const hasOptionLeg = plan.state.legs.some((leg) => leg.role !== "stock");
+  const expiry = hasOptionLeg ? plan.state.expiry : null;
   if (expiry && (await hasExpired(db, expiry, nowInstant()))) {
     throw new HeldOperationNotFoundError();
   }
@@ -114,6 +117,7 @@ export async function heldOperationForScoring(
     decidedAt: request.decidedAt,
     decisionDate,
     horizonClose: request.horizonClose,
+    horizonDate: todaySaoPauloDate(new Date(request.horizonClose)),
     closeOf: (session) => closes.get(session) ?? null,
     rightOf: (ticker, expiry) =>
       expiry ? (series.get(holdingKey(ticker, expiry))?.right ?? null) : null,

@@ -47,6 +47,7 @@ function input(overrides: Partial<RealizedOperationInput>): RealizedOperationInp
     decidedAt: "2026-09-10T15:00:00.000Z",
     decisionDate: "2026-09-10",
     horizonClose: closeOf("2026-10-16"),
+    horizonDate: "2026-10-16",
     closeOf,
     rightOf: (ticker) => (ticker === PUT ? "put" : ticker === CALL ? "call" : null),
     ...overrides,
@@ -56,6 +57,7 @@ function input(overrides: Partial<RealizedOperationInput>): RealizedOperationInp
 function expectOk(result: ReturnType<typeof realizedOperation>): {
   operation: Operation;
   realizedFills: Fill[];
+  settlementPending: boolean;
 } {
   if (!result.ok) {
     throw new Error(`expected ok, got ${result.reason}`);
@@ -218,6 +220,42 @@ describe("realizedOperation", () => {
     expect(realizedFills).toEqual([
       expect.objectContaining({ ticker: PUT, side: "buy", quantity: 100, price: "0" }),
     ]);
+  });
+
+  it("flags a settlement still pending while an option is open past its expiry", () => {
+    const soldPut = fill({
+      ticker: PUT,
+      assetClass: "option",
+      side: "sell",
+      quantity: 100,
+      price: "1.20" as DecimalString,
+      expiry: EXPIRY,
+    });
+    const unconfirmed = input({
+      expiry: EXPIRY,
+      fills: [soldPut],
+      heldFillIds: new Set([soldPut.id]),
+    });
+    expect(expectOk(realizedOperation(unconfirmed)).settlementPending).toBe(true);
+
+    const beforeExpiry = {
+      ...unconfirmed,
+      horizonClose: closeOf("2026-10-09"),
+      horizonDate: "2026-10-09",
+    };
+    expect(expectOk(realizedOperation(beforeExpiry)).settlementPending).toBe(false);
+
+    const closedAtZero = fill({
+      ticker: PUT,
+      assetClass: "option",
+      side: "buy",
+      quantity: 100,
+      price: "0" as DecimalString,
+      session: EXPIRY,
+      expiry: EXPIRY,
+    });
+    const confirmed = { ...unconfirmed, fills: [soldPut, closedAtZero] };
+    expect(expectOk(realizedOperation(confirmed)).settlementPending).toBe(false);
   });
 
   it("refuses a decision with no position behind it", () => {

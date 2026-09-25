@@ -63,10 +63,10 @@ exposing module's interface, never through its tables.
 5. **Decide and journal.** From a signal, an operation or a structure, the user requests an
    analysis (on demand, capped) and records a decision (enter, do not enter, hold, adjust, exit)
    with a thesis and horizon; an open operation of the real portfolio takes hold, adjust or exit
-   decisions, scored on the position held and its own fills (ADR-0022). At the horizon the
-   engine scores the decision (#29); the analysis
-   is scored the same way once #28 lands (ADR-0005). The journal shows the user's track record
-   today; the AI calibration slot stays an empty state until #28 gives it analyses to score.
+   decisions, scored on the position held and its own fills once any expired option is settled
+   (ADR-0022). At the horizon the engine scores the decision (#29); the analysis is scored the
+   same way once #28 lands (ADR-0005). The journal shows the user's track record today; the AI
+   calibration slot stays an empty state until #28 gives it analyses to score.
 6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user

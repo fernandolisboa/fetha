@@ -19,7 +19,11 @@ import { SignalsRepository } from "@/modules/strategies/signals-repository";
 import { StrategiesRepository } from "@/modules/strategies/strategies-repository";
 import { structures } from "@/modules/strategies/schema";
 
-import { DecisionsRepository, DuplicateSignalDecisionError } from "./decisions-repository";
+import {
+  DecisionsRepository,
+  DuplicateSignalDecisionError,
+  UnknownOperationError,
+} from "./decisions-repository";
 import type { DecisionInputs } from "./inputs";
 
 function decimalString(value: string): DecimalString {
@@ -470,7 +474,9 @@ describe("DecisionsRepository", () => {
       costModel: DEFAULT_COST_MODEL,
     };
 
-    await expect(new DecisionsRepository(db, userA).record(record)).rejects.toThrow();
+    await expect(new DecisionsRepository(db, userA).record(record)).rejects.toThrow(
+      UnknownOperationError,
+    );
 
     const repoB = new DecisionsRepository(db, userB);
     await repoB.record(record);

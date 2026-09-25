@@ -33,6 +33,7 @@ import {
   DecisionsRepository,
   DuplicateSignalDecisionError,
   InvalidHorizonError,
+  UnknownOperationError,
   type RecordDecisionInput,
 } from "./decisions-repository";
 import type { DecisionInputs } from "./inputs";
@@ -157,7 +158,8 @@ export async function recordDecisionAction(
     if (
       error instanceof SignalNotFoundError ||
       error instanceof ContemplatedOperationNotFoundError ||
-      error instanceof HeldOperationNotFoundError
+      error instanceof HeldOperationNotFoundError ||
+      error instanceof UnknownOperationError
     ) {
       return { status: "error", error: "not_found" };
     }

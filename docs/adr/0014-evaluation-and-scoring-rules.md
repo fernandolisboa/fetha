@@ -184,10 +184,10 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   - _"Do not enter"_ held nothing, so its `pnl` is zero and its `normalizedPnl` is zero over the
     operation's max loss (null when that is unbounded or zero). A counterfactual that never fills
     before the horizon is `null` with note `missed_entry`.
-  - _Inputs until the portfolio exists (#26)._ `realizedFills` is always empty and the operation is
-    rebuilt from the decision's snapshot: a signal's proposal prices, or, for a saved operation,
-    its legs re-priced by `priceOperation` at the decision instant. A decision on a held
-    operation of the real portfolio reads its operation and `realizedFills` from the
+  - _Inputs of a signal or a saved operation (#26)._ `realizedFills` is always empty and the
+    operation is rebuilt from the decision's snapshot: a signal's proposal prices, or, for a
+    saved operation, its legs re-priced by `priceOperation` at the decision instant. A decision
+    on a held operation of the real portfolio reads its operation and `realizedFills` from the
     portfolio's fills instead (ADR-0022).
   - _Storage and job._ The nightly job scores after ingestion and evaluation, once per decision,
     append-only. A decision that cannot be scored reaches a terminal "unscorable" row with its

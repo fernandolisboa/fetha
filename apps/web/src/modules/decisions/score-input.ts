@@ -14,7 +14,6 @@ import {
   type Operation,
   type OperationLeg,
   type ScoreInput,
-  type TradingSession,
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -35,7 +34,8 @@ import {
   type SignalDecisionInputs,
 } from "./inputs";
 
-export type BuildScoreInputResult = { ok: true; input: ScoreInput } | { ok: false; reason: string };
+export type BuildScoreInputResult =
+  { ok: true; input: ScoreInput; settlementPending?: boolean } | { ok: false; reason: string };
 
 const DECISION_KIND_VALUES = new Set<string>(decisionKinds);
 
@@ -239,7 +239,15 @@ export async function buildScoreInput(
   let operation: Operation | null = null;
   let realizedFills: Fill[] = [];
   let origin: ScoreInput["origin"] = { kind: "manual" };
-  let horizonTradingSession: TradingSession | undefined;
+  let settlementPending = false;
+  // Resolved to the first trading session on or after the stored horizon
+  // (#29 fix-web item 5): a horizon a user typed in can land on a weekend or
+  // a holiday, and the claim/operation can only ever be evaluated against
+  // the next session that actually trades.
+  const horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
+  if (!horizonTradingSession) {
+    return { ok: false, reason: "unresolvable_horizon_session" };
+  }
 
   if (inputs.originKind === "signal") {
     try {
@@ -274,10 +282,6 @@ export async function buildScoreInput(
   } else if (inputs.originKind === "held_operation") {
     // ADR-0022 item 4: the position the decision was taken on and the
     // realized fills from the portfolio, up to the horizon close.
-    horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
-    if (!horizonTradingSession) {
-      return { ok: false, reason: "unresolvable_horizon_session" };
-    }
     if (!row.operationId) {
       return { ok: false, reason: "invalid_inputs" };
     }
@@ -292,6 +296,7 @@ export async function buildScoreInput(
     }
     operation = held.operation;
     realizedFills = held.realizedFills;
+    settlementPending = held.settlementPending;
   } else {
     // Contemplated-operation origin: `origin` stays `manual` (there is no
     // strategy behind a hand-built operation), but the `Operation` itself
@@ -316,15 +321,6 @@ export async function buildScoreInput(
   const underlying = inputs.originKind === "signal" ? inputs.ticker : inputs.underlying;
   const claimInstrument =
     row.claim && row.claim.kind !== "operation_pnl_positive" ? row.claim.instrument : undefined;
-
-  // Resolved to the first trading session on or after the stored horizon
-  // (#29 fix-web item 5): a horizon a user typed in can land on a weekend or
-  // a holiday, and the claim/operation can only ever be evaluated against
-  // the next session that actually trades.
-  horizonTradingSession ??= await tradingSessionOnOrAfter(db, row.horizon);
-  if (!horizonTradingSession) {
-    return { ok: false, reason: "unresolvable_horizon_session" };
-  }
 
   const view = await buildOperationMarketView(db, underlying, horizonTradingSession.close, {
     // Widened to cover `decidedAt` (#29 fix-web item 4): the default
@@ -354,5 +350,5 @@ export async function buildScoreInput(
     costModel: row.costModel,
   };
 
-  return { ok: true, input: scoreInput };
+  return { ok: true, input: scoreInput, settlementPending };
 }

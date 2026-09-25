@@ -33,7 +33,7 @@ export interface Holding {
 
 const AVERAGE_COST_SCALE = 6;
 
-function chronological(a: LedgerFill, b: LedgerFill): number {
+export function chronological(a: LedgerFill, b: LedgerFill): number {
   return a.session === b.session ? a.seq - b.seq : a.session.localeCompare(b.session);
 }
 

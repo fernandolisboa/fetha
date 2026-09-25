@@ -81,6 +81,15 @@ export class InvalidHorizonError extends Error {
   }
 }
 
+// Thrown by the operation foreign key (ADR-0022 item 2): the held operation
+// was ungrouped between the action's read and the insert.
+export class UnknownOperationError extends Error {
+  constructor() {
+    super("The operation no longer exists");
+    this.name = "UnknownOperationError";
+  }
+}
+
 const DECISION_KIND_VALUES = new Set<string>(decisionKinds);
 function parseDecisionKind(value: string): DecisionKind {
   if (!DECISION_KIND_VALUES.has(value)) {
@@ -156,6 +165,9 @@ export class DecisionsRepository extends UserScopedRepository {
       }
       if (outcome === "invalid_horizon") {
         throw new InvalidHorizonError();
+      }
+      if (outcome === "unknown_operation") {
+        throw new UnknownOperationError();
       }
       throw error;
     }

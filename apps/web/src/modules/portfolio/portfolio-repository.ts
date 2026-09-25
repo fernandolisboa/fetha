@@ -76,13 +76,18 @@ export type WriteResult = { ok: true } | { ok: false; reason: "not_found" | "con
 // operation that no longer exists.
 export type UngroupResult = WriteResult | { ok: false; reason: "has_decisions" };
 
-function isForeignKeyViolation(error: unknown): boolean {
+const FOREIGN_KEY_VIOLATION = "23503";
+const DECISION_OPERATION_FK = "decisions_operation_id_user_id_operations_id_user_id_fk";
+
+function isReferencedByDecision(error: unknown): boolean {
   const candidate = error instanceof Error && "cause" in error ? error.cause : error;
   return (
     typeof candidate === "object" &&
     candidate !== null &&
     "code" in candidate &&
-    candidate.code === "23503"
+    candidate.code === FOREIGN_KEY_VIOLATION &&
+    "constraint" in candidate &&
+    candidate.constraint === DECISION_OPERATION_FK
   );
 }
 
@@ -282,7 +287,7 @@ export class PortfolioRepository extends UserScopedRepository {
     try {
       return await this.ungroupInTransaction(operationId);
     } catch (error) {
-      if (isForeignKeyViolation(error)) {
+      if (isReferencedByDecision(error)) {
         return { ok: false, reason: "has_decisions" };
       }
       throw error;

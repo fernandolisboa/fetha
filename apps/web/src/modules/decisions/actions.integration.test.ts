@@ -17,7 +17,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { seedStockOperation } from "@/db/test/held-operation";
+import { seedOperation, seedOptionSeries, seedStockOperation } from "@/db/test/held-operation";
 import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -526,5 +526,104 @@ describe("recordDecisionAction on a held operation (ADR-0022)", () => {
     });
 
     expect(result).toEqual({ status: "error", error: "not_found" });
+  });
+
+  // An option series that expired on 2024-05-17, for the two tests below.
+  async function expiredOption(right: "call" | "put") {
+    const underlying = randomTicker();
+    const option = tickerSchema.parse(
+      `O${crypto.randomUUID().replaceAll("-", "").slice(0, 7).toUpperCase()}`,
+    );
+    const removeSeries = await seedOptionSeries(getDb(), {
+      ticker: option,
+      underlying,
+      right,
+      strike: "32.00000000",
+      expiry: "2024-05-17",
+      listedOn: "2024-05-01",
+    });
+    return { underlying, option, removeSeries };
+  }
+
+  it("accepts a stock position whose options closed before an expiry that has passed", async () => {
+    const email = uniqueEmail("held-options-closed");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const { underlying, option, removeSeries } = await expiredOption("call");
+    try {
+      const { operationId } = await seedOperation(getDb(), owner, [
+        { ticker: underlying, side: "buy", quantity: 100, price: "30", session: "2024-05-02" },
+        {
+          ticker: option,
+          expiry: "2024-05-17",
+          side: "sell",
+          quantity: 100,
+          price: "1.00",
+          session: "2024-05-02",
+        },
+        {
+          ticker: option,
+          expiry: "2024-05-17",
+          side: "buy",
+          quantity: 100,
+          price: "0.20",
+          session: "2024-05-10",
+        },
+      ]);
+
+      const result = await recordDecisionAction({
+        originKind: "held_operation",
+        targetId: operationId,
+        kind: "hold",
+        rationale: "Call bought back, keeping the shares",
+        claim: null,
+        confidence: confidenceSchema.parse("0.5"),
+        horizon: "2031-06-15",
+      });
+      expect(result.status).toBe("ok");
+
+      const [decision] = await new DecisionsRepository(getDb(), owner).listMine();
+      expect(decision?.inputs).toMatchObject({
+        originKind: "held_operation",
+        expiry: null,
+        legs: [{ role: "stock", side: "buy", ticker: underlying, quantity: 100 }],
+      });
+    } finally {
+      await removeSeries();
+    }
+  });
+
+  it("refuses an operation pending settlement: an option still open past its expiry", async () => {
+    const email = uniqueEmail("held-pending-settlement");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const { option, removeSeries } = await expiredOption("put");
+    try {
+      const { operationId } = await seedOperation(getDb(), owner, [
+        {
+          ticker: option,
+          expiry: "2024-05-17",
+          side: "sell",
+          quantity: 100,
+          price: "1.00",
+          session: "2024-05-02",
+        },
+      ]);
+
+      const result = await recordDecisionAction({
+        originKind: "held_operation",
+        targetId: operationId,
+        kind: "hold",
+        rationale: "Expired, not settled yet",
+        claim: null,
+        confidence: confidenceSchema.parse("0.5"),
+        horizon: "2031-06-15",
+      });
+      expect(result).toEqual({ status: "error", error: "not_found" });
+    } finally {
+      await removeSeries();
+    }
   });
 });

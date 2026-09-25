@@ -9,27 +9,30 @@ date: 2026-09-25
 
 Issue #108 follows #26 (ADR-0021 item 1). A user can now hold real operations, grouped from
 their fills, but the journal only accepts decisions on signals and contemplated operations, and
-scoring rebuilds every operation from a snapshot with no realized fills (ADR-0014 Q54, "Inputs
-until the portfolio exists"). The issue asks for a `held_operation` origin with the kinds that
-fit a position already held, scoring with the portfolio's realized fills (an option closed at
-zero on exercise counting as realized P&L), isolation tests, journal and track record, and the
-LGPD export. It leaves open what the position at decision time is, how later fills enter the
-score and what happens to a grouped operation once the journal points at it. The implementing
-agent picked the defaults below on 2026-09-25; they are pending the owner's review on the PR.
+scoring rebuilds every operation from a snapshot with no realized fills (ADR-0014 Q54, then
+headed "Inputs until the portfolio exists", now "Inputs of a signal or a saved operation"). The
+issue asks for a `held_operation` origin with the kinds that fit a position already held,
+scoring with the portfolio's realized fills (an option closed at zero on exercise counting as
+realized P&L), isolation tests, journal and track record, and the LGPD export. It leaves open
+what the position at decision time is, how later fills enter the score and what happens to a
+grouped operation once the journal points at it. The implementing agent picked the defaults
+below on 2026-09-25; they are pending the owner's review on the PR.
 
 ## Decision
 
 1. **Origin and kinds.** `held_operation` is a third journal origin next to `signal` and
    `contemplated_operation`. Its kinds are hold, adjust and exit. A decision is accepted only on
-   an operation that is open and not pending settlement (its expiry session has not closed), the
-   same set the dashboard marks. A held operation takes any number of decisions over its life,
+   an operation that is open and not pending settlement (no option leg still open once its expiry
+   session has closed), the same set the dashboard marks. A stock leg left after its options
+   closed is held with no expiry. A held operation takes any number of decisions over its life,
    one each time the user reassesses it; `/carteira` shows the latest next to the decision bar on
    each open operation row.
 2. **Reference.** `decisions.operation_id` points at the portfolio's `operations` row through a
    composite foreign key on `(operation_id, user_id)`, so a decision can never reference another
    user's operation. With the default `no action` on delete, an operation that has decisions can
-   no longer be ungrouped: the delete is refused and the user sees why. The append-only journal
-   therefore never points at an operation that no longer exists.
+   no longer be ungrouped: the delete is refused and the user sees why. A decision recorded while
+   another tab ungroups its operation hits the same key and is refused as not found. The
+   append-only journal therefore never points at an operation that no longer exists.
 3. **Snapshot.** The decision stores the position as the user saw it: underlying, expiry, opened
    session, the legs at their average cost (ADR-0021 item 3) and the ids of the operation's fills
    at that moment.
@@ -50,6 +53,12 @@ agent picked the defaults below on 2026-09-25; they are pending the owner's revi
      closing fill at zero price is a realized fill (the premium realized), and the delivered or
      received stock either closes the operation's stock leg or opens one at the strike, which is
      then marked to the horizon close or closed by a later fill.
+   - _Settlement timing._ A score is final, and the settlement can only be confirmed once the
+     expiry session has closed, after the nightly job has already seen the horizon. So while an
+     option leg is still open with its expiry at or before the horizon, the decision is not
+     scored yet; it waits for the user's settlement within the same five-session window as
+     missing data (ADR-0014 Q54, "Storage and job"). Past the window it is scored with the
+     engine settling that leg at intrinsic value at the expiry close.
    - _Costs._ Entry costs follow Q54 on every leg, from the decision's stored cost model; a
      fill's own recorded costs apply to the part of it that closes a leg.
    - _Origin._ The engine origin is `manual` (no strategy behind a held operation), so there is no
@@ -83,10 +92,18 @@ agent picked the defaults below on 2026-09-25; they are pending the owner's revi
 - The max loss that normalizes the P&L is the max loss of every leg held between the decision
   and the horizon, taken together. For an adjusted, rolled or assigned operation it overstates
   the risk actually carried at any one time, so its normalized P&L is smaller in magnitude.
+- After a fill that crosses zero, the merged legs hold both a long and a short leg on the same
+  ticker; the engine may then find the max loss unbounded, and the normalized P&L is null, not
+  just smaller.
 - A later fill whose opening part adds to a leg is costed by the model at the merged entry
-  price, not by its own recorded costs.
+  price, not by its own recorded costs, and the held fills' recorded costs are not used either.
+  A fill imported from the Negociação export has no recorded costs, so an exit realized
+  through the import is scored with no exit cost.
 - Corporate actions are still not applied to fills (ADR-0021 limitation), so a split between the
-  opening and the horizon rebases the entry only as far as the engine's own factors allow.
+  opening and the horizon rebases the entry only as far as the engine's own factors allow. The
+  engine rebases every leg from the operation's opening, so a leg opened after the decision at
+  post-split prices would be rebased twice; the ticket that applies corporate actions must
+  rebase only the legs opened before the split.
 
 ## Considered options
 

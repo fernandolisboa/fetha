@@ -44,6 +44,15 @@ describe("classifyDecisionPersistenceError", () => {
     expect(classifyDecisionPersistenceError(pgError("23514"))).toBeNull();
   });
 
+  it("classifies the held-operation foreign key violation as unknown_operation", () => {
+    expect(
+      classifyDecisionPersistenceError(
+        wrapped(pgError("23503", "decisions_operation_id_user_id_operations_id_user_id_fk")),
+      ),
+    ).toBe("unknown_operation");
+    expect(classifyDecisionPersistenceError(pgError("23503", "other_fk"))).toBeNull();
+  });
+
   it("classifies a serialization-failure or lock-not-available error as a conflict", () => {
     expect(classifyDecisionPersistenceError(pgError("40001"))).toBe("conflict");
     expect(classifyDecisionPersistenceError(pgError("40P01"))).toBe("conflict");

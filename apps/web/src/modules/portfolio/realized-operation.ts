@@ -9,7 +9,7 @@ import {
 } from "@fetha/contracts";
 import type { Fill, Operation, OperationLeg, OptionRight, Side } from "@fetha/engine";
 
-import { operationLegs, type LedgerFill } from "./bookkeeping";
+import { chronological, operationLegs, type LedgerFill } from "./bookkeeping";
 
 const ENTRY_PRICE_SCALE = 6;
 
@@ -27,6 +27,7 @@ export interface RealizedOperationInput {
   decidedAt: Instant;
   decisionDate: SessionDate;
   horizonClose: Instant;
+  horizonDate: SessionDate;
   closeOf: (session: SessionDate) => Instant | null;
   rightOf: (ticker: Ticker, expiry: SessionDate | null) => OptionRight | null;
 }
@@ -35,7 +36,7 @@ export type RealizedOperationRefusal =
   "no_position_at_decision" | "unknown_series" | "unresolvable_fill_session";
 
 export type RealizedOperationResult =
-  | { ok: true; operation: Operation; realizedFills: Fill[] }
+  | { ok: true; operation: Operation; realizedFills: Fill[]; settlementPending: boolean }
   | { ok: false; reason: RealizedOperationRefusal };
 
 interface LegState {
@@ -44,10 +45,6 @@ interface LegState {
   ticker: Ticker;
   quantity: number;
   cost: Decimal;
-}
-
-function chronological(a: LedgerFill, b: LedgerFill): number {
-  return a.session === b.session ? a.seq - b.seq : a.session.localeCompare(b.session);
 }
 
 function legKey(ticker: string, side: Side): string {
@@ -170,6 +167,13 @@ export function realizedOperation(input: RealizedOperationInput): RealizedOperat
   if (hasOptionLeg && input.expiry === null) {
     return { ok: false, reason: "unknown_series" };
   }
+  // An option still open once its expiry is inside the horizon means the
+  // user has not confirmed the settlement yet (ADR-0022 item 4).
+  const optionOpen = operationLegsOut.some(
+    (leg) => leg.role !== "stock" && (net.get(leg.ticker) ?? 0) !== 0,
+  );
+  const settlementPending =
+    optionOpen && input.expiry !== null && input.expiry <= input.horizonDate;
   return {
     ok: true,
     operation: {
@@ -182,5 +186,6 @@ export function realizedOperation(input: RealizedOperationInput): RealizedOperat
       rolledFrom: null,
     },
     realizedFills,
+    settlementPending,
   };
 }

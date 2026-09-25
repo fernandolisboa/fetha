@@ -186,6 +186,12 @@ premium, max loss, max gain, any limit breaches) and the session it was priced i
 an Operation: it carries no lifecycle and no fills, and saving one does not open a position.
 _Avoid_: operation, draft, simulation
 
+**Held operation**:
+An open operation of the real portfolio whose expiry session has not closed, as the user sees it
+in `/carteira`: its legs at average cost and the fills behind them. The one kind of operation a
+hold, adjust or exit decision is recorded on (ADR-0022). One pending settlement is no longer held.
+_Avoid_: position (one instrument only), open trade
+
 **Fill**:
 One executed buy or sell of one instrument at one price and quantity, on one date. Fills are the
 atomic facts behind operations and positions.
