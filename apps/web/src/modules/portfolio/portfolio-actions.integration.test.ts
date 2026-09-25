@@ -335,6 +335,10 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       status: "ok",
     });
 
+    const beforeOpening = await loadPortfolio(getDb(), owner, closeOf(market.sessions[1] ?? ""));
+    expect(beforeOpening.valuation).toMatchObject({ ok: true });
+    expect(beforeOpening.operations[0]?.valuation).toBeNull();
+
     const beforeExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[4] ?? ""));
     expect(await countLiveOpenOperations(getDb(), owner, closeOf(market.sessions[4] ?? ""))).toBe(
       1,

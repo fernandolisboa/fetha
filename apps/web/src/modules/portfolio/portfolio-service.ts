@@ -22,6 +22,7 @@ import {
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   buildOperationMarketView,
@@ -301,7 +302,10 @@ export async function loadPortfolio(
           }),
         ),
       });
-    } else {
+    } else if (state.openedAt <= todaySaoPauloDate(new Date(at))) {
+      // An operation opened after the mark date (a mis-dated imported fill)
+      // would make the engine refuse the whole valuation; it stays listed
+      // without a mark instead.
       liveOperations.push({ record: operation, state });
     }
   }
