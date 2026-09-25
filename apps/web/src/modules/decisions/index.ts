@@ -7,6 +7,7 @@ export {
   type TrackRecordStats,
 } from "./decision-scores-repository";
 export { DecisionsRepository, type DecisionListItem } from "./decisions-repository";
+export { seedE2EDecision, type SeedE2EDecisionInput, type SeedE2EDecisionResult } from "./e2e-seed";
 export {
   getMyDecisions,
   getMyDecisionScores,

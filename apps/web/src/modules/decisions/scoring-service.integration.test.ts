@@ -213,7 +213,150 @@ describe("scoreDueDecisions with the real engine", () => {
 
     const rerun = await scoreDueDecisions(db, { okSessions: [horizonSession] });
     expect(rerun.decisionsScored).toBe(0);
-    expect((await scoresRepository.listMine())).toHaveLength(1);
+    expect(await scoresRepository.listMine()).toHaveLength(1);
+  });
+
+  // #29 fix-web item 4: the engine's own `score()` refuses a `ScoreInput`
+  // whose `view.calendar` has no session at or before `decidedAt`
+  // (packages/engine/src/internal/score.ts). With a horizon more than 30
+  // sessions out, the old, unwidened trailing-30-from-horizon window would
+  // silently drop `decidedAt`'s own session — this reproduces that gap with
+  // 41 consecutive daily sessions between `decidedSession` and the horizon
+  // (more than `CALENDAR_WINDOW_SESSIONS`) and asserts the decision still
+  // scores end to end.
+  it("scores a decision whose horizon is more than 30 sessions after decidedAt", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("real-engine-long-horizon");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const horizonSession = sessionOffset(decidedSession, 40);
+    for (let i = 0; i <= 40; i += 1) {
+      await insertSession(sessionOffset(decidedSession, i));
+    }
+    await insertCandle(ticker, horizonSession, "45.000000");
+
+    const operationRepository = new OperationsRepository(db, owner);
+    const saved = await operationRepository.save({
+      structureId: "stock",
+      underlying: ticker,
+      legs: [{ role: "stock", side: "buy", ticker, quantity: quantitySchema.parse(100) }],
+      session: decidedSession,
+      netPremiumCentavos: centavos(300000),
+      maxLossCentavos: centavos(300000),
+      maxGainCentavos: null,
+      breachedLimits: [],
+    });
+
+    const decisionsRepository = new DecisionsRepository(db, owner);
+    const decision = await decisionsRepository.record({
+      kind: "do_not_enter",
+      originKind: "contemplated_operation",
+      signalId: null,
+      contemplatedOperationId: saved.id,
+      strategyVersionId: null,
+      inputs: operationInputs(ticker, decidedSession),
+      rationale: "Real-engine long-horizon integration test",
+      claim: { kind: "close_above", instrument: ticker, level: decimalString("40") },
+      confidence: confidenceSchema.parse("0.7"),
+      horizon: horizonSession,
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const outcome = await scoreDueDecisions(db, { okSessions: [horizonSession] });
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.decisionsScored).toBe(1);
+
+    const scoresRepository = new DecisionScoresRepository(db, owner);
+    const row = (await scoresRepository.findForDecisions([decision.id])).get(decision.id);
+    expect(row).toBeDefined();
+    expect(row?.score).not.toBeNull();
+    expect(row?.unscorableReason).toBeNull();
+    expect(row?.claimHeld).toBe(true);
+  });
+
+  // #29 fix-web item 5: a horizon stored on a non-trading date (here, a
+  // fabricated calendar gap — no session row at all for `gapDate`) resolves
+  // to the first trading session on or after it, and the decision scores
+  // against that resolved session, not the raw stored date.
+  it("scores a decision whose stored horizon lands on a date with no trading session", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("real-engine-non-session-horizon");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+
+    // A date range far from the other tests in this file's own inserted
+    // sessions (isolation from `trading_sessions` being shared, global
+    // reference data, not scoped per test): otherwise a nearby test's own
+    // insertion could accidentally fill in "the gap" this test relies on.
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const gapDate = sessionOffset(decidedSession, 200);
+    const resolvedSession = sessionOffset(decidedSession, 201);
+    await insertSession(decidedSession);
+    await insertSession(resolvedSession);
+    await insertCandle(ticker, resolvedSession, "45.000000");
+
+    // Deleted (and restored in `finally`) rather than merely assumed absent:
+    // `trading_sessions` is shared, global reference data another
+    // integration test file's own fixture (a seeded multi-year calendar)
+    // could otherwise have already filled in for this exact synthetic date,
+    // quietly defeating the one thing this test exists to exercise.
+    const [existingGapSession] = await db
+      .select()
+      .from(tradingSessions)
+      .where(eq(tradingSessions.date, gapDate));
+    if (existingGapSession) {
+      await db.delete(tradingSessions).where(eq(tradingSessions.date, gapDate));
+    }
+
+    try {
+      const operationRepository = new OperationsRepository(db, owner);
+      const saved = await operationRepository.save({
+        structureId: "stock",
+        underlying: ticker,
+        legs: [{ role: "stock", side: "buy", ticker, quantity: quantitySchema.parse(100) }],
+        session: decidedSession,
+        netPremiumCentavos: centavos(300000),
+        maxLossCentavos: centavos(300000),
+        maxGainCentavos: null,
+        breachedLimits: [],
+      });
+
+      const decisionsRepository = new DecisionsRepository(db, owner);
+      const decision = await decisionsRepository.record({
+        kind: "do_not_enter",
+        originKind: "contemplated_operation",
+        signalId: null,
+        contemplatedOperationId: saved.id,
+        strategyVersionId: null,
+        inputs: operationInputs(ticker, decidedSession),
+        rationale: "Real-engine non-session-horizon integration test",
+        claim: { kind: "close_above", instrument: ticker, level: decimalString("40") },
+        confidence: confidenceSchema.parse("0.7"),
+        horizon: gapDate,
+        costModel: DEFAULT_COST_MODEL,
+      });
+
+      const outcome = await scoreDueDecisions(db, { okSessions: [resolvedSession] });
+
+      expect(outcome.errors).toEqual([]);
+      expect(outcome.decisionsScored).toBe(1);
+
+      const scoresRepository = new DecisionScoresRepository(db, owner);
+      const row = (await scoresRepository.findForDecisions([decision.id])).get(decision.id);
+      expect(row).toBeDefined();
+      expect(row?.claimHeld).toBe(true);
+    } finally {
+      if (existingGapSession) {
+        await db.insert(tradingSessions).values(existingGapSession).onConflictDoNothing();
+      }
+    }
   });
 
   // A candle at `decidedSession` gives `operationFromContemplatedInputs`

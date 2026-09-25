@@ -1,60 +1,43 @@
 import { NextResponse } from "next/server";
-import { centavosSchema, decimalStringSchema, quantitySchema, tickerSchema } from "@fetha/contracts";
+import {
+  centavosSchema,
+  confidenceSchema,
+  decimalStringSchema,
+  quantitySchema,
+  tickerSchema,
+} from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { isProductionDeployment, readE2ESecret, requireUser, UnauthenticatedError } from "@/modules/auth";
-import { DEFAULT_COST_MODEL } from "@/modules/backtests";
-import { decisions } from "@/modules/decisions/schema";
-import type { DecisionInputs } from "@/modules/decisions";
-import { OperationsRepository } from "@/modules/portfolio";
-import { structures } from "@/modules/strategies/schema";
+import {
+  isProductionDeployment,
+  readE2ESecret,
+  requireUser,
+  UnauthenticatedError,
+} from "@/modules/auth";
+import { seedE2EDecision } from "@/modules/decisions";
 
 import { timingSafeEqualStrings } from "../verification-link/timing-safe-equal-strings";
 
-// The ingested session `decisions.spec.ts` and `signals.spec.ts` already
-// use for the manual cron trigger: real cotahist data for it exists on
-// every environment this route is reachable on (never production, guarded
-// below), so a claim scored against it is scored against real market data,
-// not a fixture.
-const INGESTED_SESSION = "2026-09-09";
+// The two sessions `decisions.spec.ts` and `signals.spec.ts` already use for
+// the manual cron trigger: real cotahist data for both exists on every
+// environment this route is reachable on (never production, guarded
+// below), so a claim scored against them is scored against real market
+// data, not a fixture. `DECIDED_SESSION` is strictly before `HORIZON`
+// (quant: no look-ahead, #29 fix-web item 3) — the decision is recorded as
+// if taken during `DECIDED_SESSION`'s own close, and its horizon only
+// arrives on the *next* ingested session.
+const DECIDED_SESSION = "2026-09-08";
+const HORIZON = "2026-09-09";
 const UNDERLYING = tickerSchema.parse("PETR4");
-const STOCK_STRUCTURE_ID = "stock";
-
-async function ensureStockStructure(): Promise<void> {
-  await getDb()
-    .insert(structures)
-    .values({
-      id: STOCK_STRUCTURE_ID,
-      name: "Compra de ação",
-      legs: [{ role: "stock", side: "buy", ratio: 1 }],
-    })
-    .onConflictDoNothing();
-}
-
-function operationInputs(): DecisionInputs {
-  return {
-    originKind: "contemplated_operation",
-    underlying: UNDERLYING,
-    structureId: STOCK_STRUCTURE_ID,
-    structureName: "Compra de ação",
-    legs: [
-      { role: "stock", side: "buy", ticker: UNDERLYING, quantity: quantitySchema.parse(100) },
-    ],
-    session: INGESTED_SESSION,
-    netPremiumCentavos: centavosSchema.parse(300000),
-    maxLossCentavos: centavosSchema.parse(300000),
-    maxGainCentavos: null,
-    breachedLimits: [],
-  };
-}
 
 // E2E-only, mirroring `/api/e2e/verification-link` exactly (404 in
 // production or with no `E2E_SECRET` configured, constant-time header
 // compare): seeds a decision the nightly scoring job (#29) can pick up on
 // its very next run, without going through the UI form `decisions.spec.ts`
-// already covers. A single `INSERT`, never an `UPDATE` — the same
-// append-only shape every other write to `decisions` has (schema.ts,
-// `decisions_no_update`).
+// already covers. Every write goes through `seedE2EDecision`
+// (`@/modules/decisions`) — no `@/modules/*/schema` import and no direct
+// table write here (#29 fix-web item 3): this route only assembles the
+// fixture's own values and reports the module's own typed outcome.
 export async function POST(request: Request): Promise<Response> {
   const configuredSecret = readE2ESecret();
   if (isProductionDeployment() || !configuredSecret) {
@@ -76,48 +59,32 @@ export async function POST(request: Request): Promise<Response> {
     throw error;
   }
 
-  const db = getDb();
-  await ensureStockStructure();
-
-  const operationsRepository = new OperationsRepository(db, user);
-  const operation = await operationsRepository.save({
-    structureId: STOCK_STRUCTURE_ID,
+  const result = await seedE2EDecision(getDb(), user, {
     underlying: UNDERLYING,
-    legs: [
-      { role: "stock", side: "buy", ticker: UNDERLYING, quantity: quantitySchema.parse(100) },
-    ],
-    session: INGESTED_SESSION,
+    session: DECIDED_SESSION,
+    decidedAt: new Date(`${DECIDED_SESSION}T21:05:00.000Z`),
+    horizon: HORIZON,
+    legs: [{ role: "stock", side: "buy", ticker: UNDERLYING, quantity: quantitySchema.parse(100) }],
     netPremiumCentavos: centavosSchema.parse(300000),
     maxLossCentavos: centavosSchema.parse(300000),
     maxGainCentavos: null,
-    breachedLimits: [],
+    // Virtually certain to hold against real B3 data: PETR4 has not closed
+    // at or below R$ 1 in the ingested session range this route is ever
+    // exercised against.
+    claim: { kind: "close_above", instrument: UNDERLYING, level: decimalStringSchema.parse("1") },
+    confidence: confidenceSchema.parse("0.7"),
+    rationale: "Seeded by the E2E scoring flow (seed-decision route).",
   });
 
-  const [row] = await db
-    .insert(decisions)
-    .values({
-      userId: user.id,
-      kind: "do_not_enter",
-      originKind: "contemplated_operation",
-      signalId: null,
-      contemplatedOperationId: operation.id,
-      strategyVersionId: null,
-      inputs: operationInputs(),
-      rationale: "Seeded by the E2E scoring flow (seed-decision route).",
-      // Virtually certain to hold against real B3 data: PETR4 has not
-      // closed at or below R$ 1 in the ingested session range this route
-      // is ever exercised against.
-      claim: { kind: "close_above", instrument: UNDERLYING, level: decimalStringSchema.parse("1") },
-      confidence: "0.7",
-      horizon: INGESTED_SESSION,
-      costModel: DEFAULT_COST_MODEL,
-      decidedAt: new Date(`${INGESTED_SESSION}T21:05:00.000Z`),
-    })
-    .returning({ id: decisions.id });
-
-  if (!row) {
-    return NextResponse.json({ error: "failed to insert decision" }, { status: 500 });
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        error:
+          "the shared structure catalog has no 'stock' structure seeded (run db:seed-structures)",
+      },
+      { status: 500 },
+    );
   }
 
-  return NextResponse.json({ id: row.id }, { status: 201 });
+  return NextResponse.json({ id: result.id }, { status: 201 });
 }

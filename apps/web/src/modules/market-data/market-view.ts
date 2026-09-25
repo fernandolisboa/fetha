@@ -509,11 +509,20 @@ export async function buildOperationMarketView(
   let pastWindowSessions = CALENDAR_WINDOW_SESSIONS;
 
   if (options.from) {
-    const fromDate = new Date(options.from);
-    const fromSession = await latestSessionOnOrBefore(db, fromDate);
+    const fromSession = await latestSessionOnOrBefore(db, new Date(options.from));
     if (fromSession && (!calendarFloor || fromSession.date < calendarFloor)) {
       calendarFloor = fromSession.date;
-      const widenedRange = await sessionsInRange(db, fromDate, atDate);
+      // Counted from the start of the floor session's own calendar day, not
+      // from `options.from` itself: `sessionsInRange`'s own `close >= from`
+      // condition would otherwise drop the floor session whenever `from`
+      // falls after that session's close (an `at` late in the trading day,
+      // or simply "now" on a day whose session has already closed), losing
+      // exactly the session this floor was just resolved to.
+      const widenedRange = await sessionsInRange(
+        db,
+        new Date(`${fromSession.date}T00:00:00.000Z`),
+        atDate,
+      );
       pastWindowSessions = Math.max(pastWindowSessions, widenedRange.length);
     }
   }
@@ -573,20 +582,18 @@ export async function buildOperationMarketView(
 
   const calendar: TradingSession[] = calendarRows.map(toTradingSession);
 
-  const candleView: Candle[] = [...candleRows, ...extraCandleRows]
-    .reverse()
-    .map((row) =>
-      toEngineCandle({
-        ticker: tickerSchema.parse(row.ticker),
-        session: sessionDateSchema.parse(row.session),
-        asOf: row.asOf,
-        open: toDecimal(row.open),
-        high: toDecimal(row.high),
-        low: toDecimal(row.low),
-        close: toDecimal(row.close),
-        tradedQuantity: row.tradedQuantity,
-      }),
-    );
+  const candleView: Candle[] = [...candleRows, ...extraCandleRows].reverse().map((row) =>
+    toEngineCandle({
+      ticker: tickerSchema.parse(row.ticker),
+      session: sessionDateSchema.parse(row.session),
+      asOf: row.asOf,
+      open: toDecimal(row.open),
+      high: toDecimal(row.high),
+      low: toDecimal(row.low),
+      close: toDecimal(row.close),
+      tradedQuantity: row.tradedQuantity,
+    }),
+  );
 
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
     ticker: row.ticker,

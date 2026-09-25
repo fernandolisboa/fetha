@@ -4,10 +4,11 @@ import { registerAndSignIn } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // Seeds a thesis-only decision through the E2E-only `/api/e2e/seed-decision`
-// route (backdated `decided_at` for the already-ingested session
-// `2026-09-09`, horizon the same session), then triggers the nightly cron's
-// manual POST trigger — same one `signals.spec.ts` and `decisions.spec.ts`
-// use — and confirms `/diario` shows the decision already scored, with its
+// route (backdated `decided_at` to the already-ingested session
+// `2026-09-08`, horizon the *next* ingested session `2026-09-09` — no
+// look-ahead, #29 fix-web item 3), then triggers the nightly cron's manual
+// POST trigger — same one `signals.spec.ts` and `decisions.spec.ts` use —
+// and confirms `/diario` shows the decision already scored, with its
 // components (#29 acceptance criterion b), not "pendente".
 const e2eSecret = process.env.E2E_SECRET;
 const cronSecret = process.env.CRON_SECRET;

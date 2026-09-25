@@ -39,11 +39,17 @@ function sessionDateToChartDate(session: string): Date {
 }
 
 function formatSessionTick(session: string): string {
-  const [year, month, day] = session.split("-");
+  const [, month, day] = session.split("-");
   return `${day ?? ""}/${month ?? ""}`;
 }
 
-function PnlOverTimeChart({ width, points }: { width: number; points: TrackRecordStats["pnlOverTime"] }) {
+function PnlOverTimeChart({
+  width,
+  points,
+}: {
+  width: number;
+  points: TrackRecordStats["pnlOverTime"];
+}) {
   const height = Math.round((width * 200) / 320);
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
@@ -66,7 +72,12 @@ function PnlOverTimeChart({ width, points }: { width: number; points: TrackRecor
     return (
       <svg width={width} height={height} role="img" aria-label={t.trackRecord.pnlOverTimeTitle}>
         <Group left={MARGIN.left} top={MARGIN.top}>
-          <Circle cx={innerWidth / 2} cy={point ? yScale(point.value) : innerHeight / 2} r={3} fill="var(--chart-stroke)" />
+          <Circle
+            cx={innerWidth / 2}
+            cy={point ? yScale(point.value) : innerHeight / 2}
+            r={3}
+            fill="var(--chart-stroke)"
+          />
           <AxisLeft
             scale={yScale}
             stroke="var(--line-soft)"
@@ -164,14 +175,18 @@ export function TrackRecordPanel({ stats }: { stats: TrackRecordStats }) {
               <TableRow>
                 <TableHead>{t.trackRecord.calibrationBucketHeader}</TableHead>
                 <TableHead className="text-right">{t.trackRecord.calibrationCountHeader}</TableHead>
-                <TableHead className="text-right">{t.trackRecord.calibrationHitRateHeader}</TableHead>
+                <TableHead className="text-right">
+                  {t.trackRecord.calibrationHitRateHeader}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {stats.confidenceBuckets.map((bucket) => (
                 <TableRow key={bucket.bucket}>
                   <TableCell className="font-mono">{bucket.bucket}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">{bucket.count}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {bucket.count}
+                  </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {formatPercent(ratio(bucket.heldCount, bucket.count))}
                   </TableCell>
@@ -187,7 +202,9 @@ export function TrackRecordPanel({ stats }: { stats: TrackRecordStats }) {
           <p className="text-muted-foreground text-sm">{t.trackRecord.pnlOverTimeEmpty}</p>
         ) : (
           <ParentSize>
-            {({ width }) => (width > 0 ? <PnlOverTimeChart width={width} points={stats.pnlOverTime} /> : null)}
+            {({ width }) =>
+              width > 0 ? <PnlOverTimeChart width={width} points={stats.pnlOverTime} /> : null
+            }
           </ParentSize>
         )}
       </Panel>
