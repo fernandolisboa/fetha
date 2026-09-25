@@ -12,6 +12,7 @@ import type {
   Fill,
   MarketView,
   Operation,
+  OptionDayPrice,
   OptionSeries,
   ScoreInput,
   StrategyVersion,
@@ -59,6 +60,18 @@ function stockCandle(session: string, open: string, close: string, tradedQuantit
     low: decimalString(open),
     close: decimalString(close),
     tradedQuantity,
+  };
+}
+
+function optionDayPrice(ticker: string, session: string, average: string): OptionDayPrice {
+  return {
+    ticker,
+    session,
+    asOf: `${session}T21:00:00.000Z`,
+    average: decimalString(average),
+    close: decimalString(average),
+    trades: 10,
+    tradedQuantity: 100,
   };
 }
 
@@ -523,6 +536,7 @@ describe("score — max loss shapes", () => {
       ...emptyView,
       optionSeries: [callSeries],
       candles: [stockCandle("2024-01-05", "20.00", "20.00")],
+      optionPrices: [optionDayPrice("PETR4C28", "2024-01-05", "4.50")],
     };
     const nakedShortCall: Operation = {
       id: "op-2",
@@ -1097,6 +1111,434 @@ describe("score — remaining coverage: view integrity, coherence, short legs, u
     // exit fires at the session-5 close but there is no later session to fill it before the
     // horizon; the position is marked to the horizon close (16.00) instead.
     expect(result.value.counterfactualPnl).toBe(centavos(60_000));
+  });
+});
+
+describe("score — look-ahead guard between decidedAt and the horizon close (ADR-0014 Q54)", () => {
+  it("rejects decidedAt after the horizon session close on the same date", () => {
+    const result = score(
+      { ...baseInput, decidedAt: "2024-01-05T22:00:00.000Z", horizon: "2024-01-05" },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "horizon",
+      message:
+        "the horizon session close must be strictly after decidedAt; it would otherwise be scored on a close already public at decision time",
+    });
+  });
+});
+
+describe("score — settlement at expiry for the taken-operation path (ADR-0014 Q41)", () => {
+  const callSeries: OptionSeries = {
+    ticker: "PETR4C28",
+    underlying: "PETR4",
+    right: "call",
+    strike: decimalString("28.00"),
+    expiry: "2024-01-05",
+    style: "european",
+    asOf: "2024-01-01T00:00:00.000Z",
+  };
+
+  function longCallOperation(entryPrice: string): Operation {
+    return {
+      id: "op-call",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString(entryPrice),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+  }
+
+  it("settles a long call OTM at expiry at zero, ignoring a stale last trade", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-05", "20.00", "20.00")],
+      optionPrices: [optionDayPrice("PETR4C28", "2024-01-03", "0.30")],
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: longCallOperation("2.00") },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // OTM at expiry (strike 28.00 > close 20.00): settles at zero, the stale last trade of
+    // 0.30 is never read; (0 - 2.00) * 100 * 1
+    expect(result.value.pnl).toBe(centavos(-200));
+  });
+
+  it("settles a long call ITM at expiry at intrinsic value", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-05", "33.00", "33.00")],
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: longCallOperation("2.00") },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // ITM at expiry: intrinsic = 33.00 - 28.00 = 5.00; (5.00 - 2.00) * 100 * 1
+    expect(result.value.pnl).toBe(centavos(300));
+  });
+
+  it("carries a kept stock leg to the horizon close alongside a settled option leg (covered call)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-05", "33.00", "33.00")],
+    };
+    const coveredCall: Operation = {
+      id: "op-covered",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: coveredCall },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // stock leg kept, marked at the horizon close: (33.00 - 30.00) * 100 * 100 = 30000
+    // call leg assigned at intrinsic 5.00: (5.00 - 1.00) * (-1) * 100 * 1 = -400
+    expect(result.value.pnl).toBe(centavos(29_600));
+  });
+});
+
+describe("score — a leg with no visible price is insufficient_data, never marked at entry (ADR-0014 Q54)", () => {
+  it("is insufficient_data when a remaining leg has no visible market price", () => {
+    const callSeries: OptionSeries = {
+      ticker: "PETR4C28",
+      underlying: "PETR4",
+      right: "call",
+      strike: decimalString("28.00"),
+      expiry: "2024-02-01",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-05", "20.00", "20.00")],
+    };
+    const operation: Operation = {
+      id: "op-nc",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-02-01",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score({ ...baseInput, view, operation }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "insufficient_data",
+      needed: {
+        from: "2024-01-05T13:00:00.000Z",
+        to: "2024-01-05T21:00:00.000Z",
+        instruments: ["PETR4C28"],
+        timeframes: ["D1"],
+        collections: ["optionPrices"],
+      },
+    });
+  });
+});
+
+describe("score — cost symmetry (ADR-0014 Q54)", () => {
+  const costModel: CostModel = {
+    b3FeeRate: decimalString("0.0005"),
+    brokerage: { stockPerOrder: centavos(500), optionPerContract: centavos(0) },
+    optionSlippageRate: decimalString("0"),
+    incomeTaxRate: decimalString("0"),
+    monthlyStockSalesExemption: centavos(0),
+  };
+
+  it("subtracts entry costs from the taken-operation pnl on the same fill-cost model as the counterfactual", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [stockCandle("2024-01-05", "13.00", "13.00")],
+    };
+    const result = score(
+      { ...baseInput, view, costModel, operation: stockOperation() },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // gross mark: (13.00 - 10.00) * 100 * 100 = 30000
+    // entry costs: gross 10.00*100*100=100000; b3Fee 100000*0.0005=50; brokerage 500; total 550
+    expect(result.value.pnl).toBe(centavos(29_450));
+    expect(result.value.maxLoss).toBe(centavos(100_000));
+    expect(result.value.normalizedPnl).toBe(decimalString("0.294500"));
+  });
+});
+
+describe("score — operation_pnl_positive held=false fixtures (ADR-0014 Q54)", () => {
+  it("does not hold for a losing taken operation", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [stockCandle("2024-01-05", "8.00", "8.00")],
+    };
+    const claim: ThesisClaim = { kind: "operation_pnl_positive" };
+    const result = score(
+      { ...baseInput, view, claim, operation: stockOperation(), confidence: confidence("0.7") },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // (8.00 - 10.00) * 100 * 100 = -20000
+    expect(result.value.pnl).toBe(centavos(-20_000));
+    expect(result.value.thesis).toMatchObject({ claim, held: false });
+  });
+
+  it("does not hold for a losing counterfactual", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [
+        stockCandle("2024-01-02", "10.00", "10.00"),
+        stockCandle("2024-01-05", "7.00", "7.00"),
+      ],
+    };
+    const claim: ThesisClaim = { kind: "operation_pnl_positive" };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        claim,
+        subject: "do_not_enter",
+        operation: stockOperation(),
+        origin: { kind: "manual" },
+        confidence: confidence("0.7"),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // entry fill at the session-2 open (10.00); marked at the horizon close (7.00):
+    // (7.00 - 10.00) * 100 * 100
+    expect(result.value.counterfactualPnl).toBe(centavos(-30_000));
+    expect(result.value.thesis).toMatchObject({ claim, held: false });
+  });
+});
+
+describe("score — counterfactual settlement at expiry for a signal origin (ADR-0014 Q40/Q41)", () => {
+  it("settles the counterfactual at expiry when no exit rule ever fires before it", () => {
+    const callSeries: OptionSeries = {
+      ticker: "PETR4C28",
+      underlying: "PETR4",
+      right: "call",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-06",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      optionPrices: [optionDayPrice("PETR4C28", "2024-01-02", "2.00")],
+      candles: [stockCandle("2024-01-06", "20.00", "20.00")],
+    };
+    const callStructure: Structure = {
+      id: "call",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: {
+        name: "test",
+        timeframe: "D1",
+        structureId: "call",
+        strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+        expiry: { kind: "business_days", min: 1, max: 60 },
+        sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        entry: alwaysTrue,
+        exit: [],
+        adjustments: [],
+      },
+      structure: callStructure,
+    };
+    const operation: Operation = {
+      id: "op-call",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-06",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const claim: ThesisClaim = { kind: "operation_pnl_positive" };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        claim,
+        horizon: "2024-01-06",
+        subject: "do_not_enter",
+        operation,
+        origin: { kind: "signal", strategy },
+        confidence: confidence("0.7"),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // entry fill at the session-2 average (2.00, no slippage); OTM at expiry (strike 28.00 >
+    // close 20.00): settles at zero; (0 - 2.00) * 100 * 1
+    expect(result.value.counterfactualPnl).toBe(centavos(-200));
+    expect(result.value.thesis).toMatchObject({ claim, held: false });
+  });
+});
+
+describe("score — realized fills matched by ticker and side, rebased by the split factor (ADR-0014 Q51/Q54)", () => {
+  it("rejects an ambiguous fill when two legs share the same ticker and side", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [stockCandle("2024-01-05", "13.00", "13.00")],
+    };
+    const twoLegOperation = stockOperation({
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(50),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(50),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+    });
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        operation: twoLegOperation,
+        realizedFills: [
+          {
+            ticker: "PETR4",
+            side: "sell",
+            quantity: quantity(10),
+            price: decimalString("11.00"),
+            session: "2024-01-03",
+            at: "2024-01-03T14:00:00.000Z",
+            costs: centavos(0),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "realizedFills[0].ticker",
+      message:
+        "two operation legs share this fill's ticker and side; the fill cannot be matched unambiguously",
+    });
+  });
+
+  it("rebases a realized fill's entry basis by the split factor visible through the fill's own session", () => {
+    const view: MarketView = {
+      ...emptyView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [stockCandle("2024-01-05", "6.50", "6.50")],
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        operation: stockOperation(),
+        realizedFills: [
+          {
+            ticker: "PETR4",
+            side: "sell",
+            quantity: quantity(50),
+            price: decimalString("6.00"),
+            session: "2024-01-04",
+            at: "2024-01-04T14:00:00.000Z",
+            costs: centavos(0),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // effective entry 5.00 (10.00 * 0.5 factor visible through the fill's own session);
+    // fill: effective quantity 50 / 0.5 = 100: (6.00 - 5.00) * 100 * 100 = 10000
+    // remaining 50 nominal marked at the horizon close (6.50): effective quantity 100,
+    // (6.50 - 5.00) * 100 * 100 = 15000
+    expect(result.value.pnl).toBe(centavos(25_000));
   });
 });
 
