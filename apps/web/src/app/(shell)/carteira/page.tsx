@@ -20,15 +20,17 @@ import {
 } from "@/modules/decisions";
 import { DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
-import { formatDate } from "@/lib/format/date-time";
-import { getMyOperations, t } from "@/modules/portfolio";
-import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
+import { formatDate, formatDateTime } from "@/lib/format/date-time";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
+import { getMyOperations, getMyPortfolio, PortfolioDashboard, t } from "@/modules/portfolio";
+import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
+import { Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
 
 export default async function PortfolioPage() {
   await requireUser();
-  const operations = await getMyOperations();
+  const [portfolio, operations] = await Promise.all([getMyPortfolio(), getMyOperations()]);
 
   const operationIds = operations.map((operation) => operation.id);
   const [decisionsByOperation, defaultHorizons] = await Promise.all([
@@ -37,23 +39,30 @@ export default async function PortfolioPage() {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 py-8">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 px-5 py-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-            {shellStrings.destinations.portfolio}
+            {shellStrings.destinations.portfolio} · {t.dashboard.markedAt}{" "}
+            <span className="font-mono tabular-nums">{formatDateTime(new Date(portfolio.at))}</span>
           </p>
-          <h1 className="text-[22px] font-semibold tracking-tight">{t.list.title}</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight">{t.dashboard.title}</h1>
         </div>
-        <Link href="/carteira/nova-operacao" className={buttonVariants()}>
-          {t.list.newOperation}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
+            {t.list.newOperation}
+          </Link>
+          <RecordFillDialog today={todaySaoPauloDate()} />
+          <ImportFillsDialog />
+        </div>
       </div>
 
-      {operations.length === 0 ? (
-        <EmptyState sentence={t.list.empty} />
-      ) : (
-        <Panel>
+      <PortfolioDashboard model={portfolio} />
+
+      <Panel title={t.list.title}>
+        {operations.length === 0 ? (
+          <p className="text-muted-foreground text-[13px]">{t.list.empty}</p>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -114,8 +123,8 @@ export default async function PortfolioPage() {
               })}
             </TableBody>
           </Table>
-        </Panel>
-      )}
+        )}
+      </Panel>
     </div>
   );
 }

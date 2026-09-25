@@ -107,7 +107,7 @@ async function signIn(label: string): Promise<CurrentUser> {
   if (!row) {
     throw new Error("failed to insert test user");
   }
-  currentUser = row as unknown as CurrentUser;
+  currentUser = row;
   return currentUser;
 }
 

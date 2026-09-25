@@ -1921,6 +1921,15 @@ operation)` (`internal/resolve-expiry-close.ts`) replaces `markToMarket`'s and
   `Note` messages, independently declared a third time each, are now the shared
   `STALE_PRICE_NOTE`/`NO_RISK_PROFILE_NOTE` constants (`internal/notes.ts`) (round 3 item 10).
 
+### #26 addendum: standalone option positions in `markToMarket`
+
+The real portfolio (#26, ADR-0021) passes option positions that belong to no operation. Before
+#26, `markToMarket` priced every `Position` as a stock, so such a position came back without a
+price. It now prices a position as an option when `resolveSeries(view, ticker, at)` finds a listed
+series (same mid/last/close/average ladder and stale-mark rule as a leg), and leaves option
+positions out of `positionsDelta`: `PositionValuation` carries no greeks, so the portfolio delta
+stays the stock positions' delta plus each operation's own. No type in `api.ts` changed.
+
 ### #22 addendum: payoff sampled at every strike and break-even (`computePayoffProfile`)
 
 Issue #22 (the operation builder UI) surfaced a gap in `computePayoffProfile`

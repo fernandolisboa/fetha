@@ -26,5 +26,6 @@ supersedes or amends them and says so.
 | 0018 | Magic link, password reset and database-backed rate limiting (amends 0016)                          |
 | 0019 | Vertical slices inside the single Next.js app: a module owns its tables                             |
 | 0020 | Registration mode changes without a redeploy: Vercel Global Config, as in Feudo (amends 0016)       |
+| 0021 | Real portfolio: fills are the only stored fact; positions, cash and operation legs are derived      |
 
 Open: none.

@@ -51,7 +51,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 const { recordDecisionAction } = await import("./actions");
 const { DecisionsRepository } = await import("./decisions-repository");
-const { todaySaoPauloDate } = await import("./today-sao-paulo");
+const { todaySaoPauloDate } = await import("@/lib/today-sao-paulo");
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;

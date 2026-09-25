@@ -194,7 +194,9 @@ _Avoid_: trade, execution, order
 **Position**:
 The net quantity a user currently holds in one instrument, with its average cost, as the result
 of all fills in that instrument. Signed: positive when net long, negative when net short (a
-written option); never zero, since a closed position is no position.
+written option); never zero, since a closed position is no position. An option position is per
+series (ticker and expiry), since B3 reuses option tickers across listing cycles. Derived from
+fills on read, never stored (ADR-0021).
 _Avoid_: holding, exposure, custody
 
 **Portfolio**:
@@ -214,8 +216,10 @@ own.
 _Avoid_: auto-exercise, expiry processing, liquidação (in code)
 
 **Fills import**:
-Loading a user's executed trades from the spreadsheet exported by B3's investor area, which
-produces fills for any broker. Brokerage notes are a later import source.
+Loading a user's executed trades from the "Negociação" spreadsheet exported by B3's investor
+area, which produces fills for any broker. Re-importing the same rows adds nothing; exercise rows
+are skipped, since confirmed settlements are the one source of exercise fills (ADR-0021).
+Brokerage notes are a later import source.
 _Avoid_: sync, broker integration (there is none)
 
 ### Backtesting

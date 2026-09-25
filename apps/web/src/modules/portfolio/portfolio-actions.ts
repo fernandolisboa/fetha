@@ -6,6 +6,7 @@ import { sessionDateSchema, tickerSchema, type SessionDate } from "@fetha/contra
 
 import { getDb } from "@/db/client";
 import { nowInstant } from "@/lib/instant";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { parseCentavosInput } from "@/lib/format/parse-money";
 import { requireUser, withAuthenticatedAction } from "@/modules/auth";
 import { latestCandle, optionSeriesForFills, seriesKey } from "@/modules/market-data";
@@ -134,6 +135,9 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
     return { status: "error", error: "invalid_input" };
   }
   const { ticker, side, quantity, session } = parsed.data;
+  if (session > todaySaoPauloDate()) {
+    return { status: "error", error: "invalid_input" };
+  }
 
   return withAuthenticatedAction(async () => {
     const user = await requireUser();

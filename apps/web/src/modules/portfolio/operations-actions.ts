@@ -22,6 +22,7 @@ import { getStructures } from "@/modules/strategies";
 
 import { priceOperationLegs } from "./engine-client";
 import { OperationsRepository } from "./operations-repository";
+import { PortfolioRepository } from "./portfolio-repository";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { validateLegsAgainstStructure } from "./validate-legs";
 
@@ -118,8 +119,16 @@ export async function priceOperationAction(input: {
       throw error;
     }
 
-    const riskProfile = await currentRiskProfile();
-    const result = await priceOperationLegs(parsed.data.underlying, parsed.data.legs, riskProfile);
+    const [riskProfile, openOperationCount] = await Promise.all([
+      currentRiskProfile(),
+      new PortfolioRepository(getDb(), user).countOpenOperations(),
+    ]);
+    const result = await priceOperationLegs(
+      parsed.data.underlying,
+      parsed.data.legs,
+      riskProfile,
+      openOperationCount,
+    );
     if (!result.ok) {
       return { status: "error", error: "unpriceable" };
     }
@@ -157,8 +166,16 @@ export async function saveOperationAction(input: {
       return { status: "error", error: "invalid" };
     }
 
-    const riskProfile = await currentRiskProfile();
-    const priced = await priceOperationLegs(parsed.data.underlying, parsed.data.legs, riskProfile);
+    const [riskProfile, openOperationCount] = await Promise.all([
+      currentRiskProfile(),
+      new PortfolioRepository(getDb(), user).countOpenOperations(),
+    ]);
+    const priced = await priceOperationLegs(
+      parsed.data.underlying,
+      parsed.data.legs,
+      riskProfile,
+      openOperationCount,
+    );
     if (!priced.ok) {
       return { status: "error", error: "unpriceable" };
     }

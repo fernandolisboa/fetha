@@ -5,11 +5,12 @@ import { formatDecimal } from "@/lib/format/decimal";
 
 import { t } from "../strings";
 
-function StatBlock({ label, value }: { label: string; value: string }) {
+export function StatBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="border-line-soft flex flex-col gap-1 border-t pt-3 first:border-t-0 first:pt-0">
       <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</p>
       <p className="font-mono text-[18px] tabular-nums">{value}</p>
+      {sub && <p className="text-muted-foreground text-[12px]">{sub}</p>}
     </div>
   );
 }

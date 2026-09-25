@@ -1,11 +1,12 @@
-import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";
 import { calendarWindowThroughExpiry } from "./calendar-repository";
+import { DAILY_TIMEFRAME } from "./candle-repository";
 import { ensureMonthlyPartition } from "./partitions";
 
 const CHUNK_SIZE = 1000;
@@ -327,4 +328,56 @@ export async function optionSeriesForFills(
     }
   }
   return resolved;
+}
+
+export interface ExpiredTradedSeries {
+  ticker: string;
+  session: string;
+  expiry: string;
+  close: string;
+}
+
+// E2E fixture lookup: the most recently expired series of `underlying` that
+// traded before its expiry, restricted to expiries whose underlying close is
+// ingested so a settlement proposal can be built for it.
+export async function latestExpiredTradedSeries(
+  db: Database,
+  underlying: string,
+): Promise<ExpiredTradedSeries | null> {
+  const [row] = await db
+    .select({
+      ticker: optionDailyPrices.ticker,
+      session: optionDailyPrices.session,
+      expiry: optionDailyPrices.expiry,
+      close: optionDailyPrices.close,
+    })
+    .from(optionDailyPrices)
+    .innerJoin(
+      optionSeries,
+      and(
+        eq(optionSeries.ticker, optionDailyPrices.ticker),
+        eq(optionSeries.expiry, optionDailyPrices.expiry),
+      ),
+    )
+    .innerJoin(
+      candles,
+      and(
+        eq(candles.ticker, optionSeries.underlying),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        eq(candles.session, optionDailyPrices.expiry),
+      ),
+    )
+    .where(
+      and(
+        eq(optionSeries.underlying, underlying),
+        lt(optionDailyPrices.session, optionDailyPrices.expiry),
+        isNotNull(optionDailyPrices.close),
+      ),
+    )
+    .orderBy(desc(optionDailyPrices.expiry), desc(optionDailyPrices.session))
+    .limit(1);
+  if (!row?.close) {
+    return null;
+  }
+  return { ticker: row.ticker, session: row.session, expiry: row.expiry, close: row.close };
 }

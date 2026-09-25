@@ -37,6 +37,7 @@ export {
 } from "./market-view";
 export {
   expiryByTicker,
+  latestExpiredTradedSeries,
   optionChainForUnderlying,
   optionSeriesForFills,
   seriesKey,

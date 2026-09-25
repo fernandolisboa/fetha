@@ -68,7 +68,8 @@ exposing module's interface, never through its tables.
 6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
-   confirms or corrects.
+   confirms or corrects. Only fills and operations are stored; positions and cash are derived
+   from fills, and cash starts from the declared capital (ADR-0021).
 
 ## Invariants
 

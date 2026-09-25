@@ -54,7 +54,9 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
 5. **Mark to market.** The dashboard calls `markToMarket` at the current instant with the current
    risk profile, the open operations, and the positions whose series has not expired. An option
    position whose expiry session has closed is not passed in (the engine would resolve its reused
-   ticker to the next cycle); it is listed as pending settlement instead. Fair value next to a
+   ticker to the next cycle); it is listed as pending settlement instead, and so is an open
+   operation whose expiry session has closed, which is left out of `markToMarket` for the same
+   reason. Fair value next to a
    stale option mark (Q42, DESIGN.md "Stale") comes from a one-leg `priceOperation` at the same
    instant, since `PositionValuation` carries none.
 6. **Settlement.** Every open operation whose expiry session has closed gets a
@@ -88,6 +90,13 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    deleted.
 
 ## Consequences
+
+- The engine's `markToMarket` priced every `Position` as a stock, so a standalone option position
+  (one not grouped into an operation) came back unpriced. It now prices a position as an option
+  when its ticker resolves to a listed series in the view, and leaves option positions out of
+  `positionsDelta` (their greeks are not in `PositionValuation`, so the portfolio delta stays the
+  stock delta plus the operations' own). The interface is unchanged; ADR-0013's #26 addendum
+  records it.
 
 - `portfolio` owns `fills` and `operations`, both user-scoped with isolation tests; a fill's
   operation is a composite foreign key on `(operation_id, user_id)`, so a fill can never point at
