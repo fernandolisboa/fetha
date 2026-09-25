@@ -42,7 +42,16 @@ const en = {
   journal: {
     overline: "Journal",
     title: "Journal",
-    score: { pending: "not yet scored" },
+    score: {
+      pending: "not yet scored",
+      pnlLabel: "P&L",
+      normalizedPnlLabel: "Normalized P&L",
+      thesisHeld: "Thesis confirmed",
+      thesisNotHeld: "Thesis not confirmed",
+      thesisNone: "No verifiable thesis",
+      brierLabel: "Brier score",
+      counterfactualLabel: "Had you entered",
+    },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
@@ -53,6 +62,22 @@ const en = {
     claimCloseAbove: (instrument: string, level: string) => `${instrument} closes above ${level}`,
     claimCloseBelow: (instrument: string, level: string) => `${instrument} closes below ${level}`,
     claimOperationPnlPositive: "Operation's P&L is positive",
+  },
+  trackRecord: {
+    title: "Track record",
+    hitRateLabel: "Hit rate",
+    hitRateSentence: (held: number, total: number) => `${String(held)}/${String(total)} claims held`,
+    hitRateEmpty: "No scored claims yet",
+    calibrationTitle: "Calibration",
+    meanBrierLabel: "Mean Brier score",
+    calibrationBucketHeader: "Stated confidence",
+    calibrationHitRateHeader: "Realized hit rate",
+    calibrationCountHeader: "Decisions",
+    calibrationEmpty: "No scored claims yet",
+    pnlOverTimeTitle: "Normalized P&L over time",
+    pnlOverTimeEmpty: "No scored decisions yet",
+    aiCalibrationTitle: "AI calibration",
+    aiCalibrationEmpty: "No AI analyses yet",
   },
 } as const;
 
@@ -100,7 +125,16 @@ const ptBR = {
   journal: {
     overline: "Diário",
     title: "Diário",
-    score: { pending: "sem pontuação ainda" },
+    score: {
+      pending: "sem pontuação ainda",
+      pnlLabel: "Resultado",
+      normalizedPnlLabel: "Resultado normalizado",
+      thesisHeld: "Tese confirmada",
+      thesisNotHeld: "Tese não confirmada",
+      thesisNone: "Sem tese verificável",
+      brierLabel: "Escore de Brier",
+      counterfactualLabel: "Se tivesse entrado",
+    },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
@@ -112,6 +146,22 @@ const ptBR = {
     claimCloseBelow: (instrument: string, level: string) =>
       `${instrument} fecha abaixo de ${level}`,
     claimOperationPnlPositive: "Resultado da operação é positivo",
+  },
+  trackRecord: {
+    title: "Histórico de acertos",
+    hitRateLabel: "Taxa de acerto",
+    hitRateSentence: (held: number, total: number) => `${String(held)} de ${String(total)} teses confirmadas`,
+    hitRateEmpty: "Nenhuma tese pontuada ainda",
+    calibrationTitle: "Calibração",
+    meanBrierLabel: "Escore de Brier médio",
+    calibrationBucketHeader: "Confiança declarada",
+    calibrationHitRateHeader: "Taxa de acerto real",
+    calibrationCountHeader: "Decisões",
+    calibrationEmpty: "Nenhuma tese pontuada ainda",
+    pnlOverTimeTitle: "Resultado normalizado ao longo do tempo",
+    pnlOverTimeEmpty: "Nenhuma decisão pontuada ainda",
+    aiCalibrationTitle: "Calibração da IA",
+    aiCalibrationEmpty: "Ainda não há análises de IA",
   },
 };
 

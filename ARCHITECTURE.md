@@ -64,8 +64,10 @@ Cycles are not forbidden by lint. One exists today, through `client.ts` on both 
 Pages under `src/app/(shell)/…` and the public auth pages are thin: get the session, call one
 or two module entry points, render. Route handlers under `src/app/api/` are the three adapters
 (`auth/[...all]` delegates to Better Auth; `cron/ingest` authenticates the bearer, runs
-`ingest` then `evaluateSignalsForSession`; `backtests/[id]/run` runs one chunk) plus an
-E2E-only helper. A handler parses, authenticates, calls the module, maps errors to responses;
+`ingest`, then `evaluateSignalsForSession`, then `scoreDueDecisions`, one shared `maxDuration`
+budget, each step's own failures reported alongside a 200 rather than turning it into a 500;
+`backtests/[id]/run` runs one chunk) plus E2E-only helpers. A handler parses, authenticates,
+calls the module, maps errors to responses;
 it holds no business rule. `getDb()` is obtained at this edge and passed into the module.
 
 ## Shared kernel
@@ -92,7 +94,7 @@ it holds no business rule. `getDb()` is obtained at this edge and passed into th
 | `portfolio`   | `contemplated_operations`, `risk_profiles`                                                                                          | `priceOperationAction`, `saveOperationAction`, `loadChainAction`, `declareRiskProfileAction`, `getMyOperations`, `getCurrentRiskProfile`, `OperationsRepository`, `RiskProfileRepository` / client: `OperationBuilderForm`, `RiskProfileForm`                                | `auth`, `market-data`, `strategies`, `shell` (client)                  |
 | `backtests`   | `backtest_runs`                                                                                                                     | `runBacktestChunk`, `getMyBacktestRun`, `getMyBacktestRunsForStrategy`, the run error classes, `ReportPanel` / client: `CreateRunForm`, `RunBacktestButton`                                                                                                                  | `auth`, `market-data`, `portfolio`, `strategies`, `watchlist`, `shell` |
 | `shell`       | none                                                                                                                                | `AppShell`, `Panel`, `EmptyState`, `usePublishMarketBarInstrument` / client: `Panel`, `EmptyState`, `usePublishMarketBarInstrument`                                                                                                                                          | `auth`, `preferences`, `market-data` (client)                          |
-| `decisions`   | `decisions`                                                                                                                         | `allowedDecisionKinds`, `getMyDecisions`, `getMyDecisionsBySignalId`, `getMyDecisionsByOperationId`, `defaultHorizonsForSignals`, `defaultHorizonsForOperations`, `DecisionsRepository`, `DecisionListItem`, `JournalEntry` / client: `DecisionBar`                          | `auth`, `market-data`, `strategies`, `portfolio`, `backtests`          |
+| `decisions`   | `decisions`, `decision_scores`                                                                                                      | `allowedDecisionKinds`, `getMyDecisions`, `getMyDecisionsBySignalId`, `getMyDecisionsByOperationId`, `getMyDecisionScores`, `getMyTrackRecordStats`, `defaultHorizonsForSignals`, `defaultHorizonsForOperations`, `scoreDueDecisions`, `DecisionsRepository`, `DecisionScoresRepository`, `DecisionListItem`, `JournalEntry`, `TrackRecordPanel` / client: `DecisionBar`   | `auth`, `market-data`, `strategies`, `portfolio`, `backtests`          |
 
 `engine` is not a slice: it is `packages/engine`, consumed through its frozen interface by
 `strategies`, `portfolio`, `backtests` and `market-data`.

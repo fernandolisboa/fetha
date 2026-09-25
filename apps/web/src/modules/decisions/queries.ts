@@ -3,11 +3,32 @@ import { cache } from "react";
 import { getDb } from "@/db/client";
 import { forCurrentUser } from "@/modules/auth";
 
+import {
+  DecisionScoresRepository,
+  type DecisionScoreRow,
+  type TrackRecordStats,
+} from "./decision-scores-repository";
 import { DecisionsRepository, type DecisionListItem } from "./decisions-repository";
 
 export const getMyDecisions = cache(async (): Promise<DecisionListItem[]> => {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
   return repository.listMine();
+});
+
+// The journal's score column, batched over this user's own decisions in one
+// query (brief item 4): a decision with no score row yet is simply absent
+// from the map, and `JournalEntry` renders "pendente" for it.
+export const getMyDecisionScores = cache(
+  async (decisionIds: readonly string[]): Promise<Map<string, DecisionScoreRow>> => {
+    if (decisionIds.length === 0) return new Map();
+    const repository = await forCurrentUser(getDb(), DecisionScoresRepository);
+    return repository.findForDecisions(decisionIds);
+  },
+);
+
+export const getMyTrackRecordStats = cache(async (): Promise<TrackRecordStats> => {
+  const repository = await forCurrentUser(getDb(), DecisionScoresRepository);
+  return repository.trackRecordStats();
 });
 
 // SignalRow's own "answered" state (brief item 5), batched over the given

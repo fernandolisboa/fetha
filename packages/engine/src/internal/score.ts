@@ -18,7 +18,7 @@ import type {
 } from "../api";
 import { batchTruncationReport } from "./batch-truncation";
 import { sessionAtOrBefore, sessionByDate, sortedCalendar } from "./calendar";
-import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import { CENTAVOS_PER_REAL, PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { evaluateStrategy as computeEvaluateStrategy } from "./evaluate-strategy";
 import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
 import { invalidInput } from "./errors";
@@ -28,7 +28,8 @@ import type { ProvenanceBase } from "./provenance";
 import { proposeSettlement as computeProposeSettlement } from "./propose-settlement";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
-import { toCentavos } from "./scalars";
+import { toCentavos, toQuantity } from "./scalars";
+import { splitFactorProduct } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
@@ -67,6 +68,24 @@ const MISSED_ENTRY_NOTE: Note = {
     "no fill opportunity for the untaken operation before the horizon; counterfactualPnl is null",
 };
 
+// ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
+// share count and effective entry price are rebased by the product of every split/reverse-split
+// factor visible at `at` between the operation's `openedAt` and `through` (mark-to-market's own
+// `rebasedLegs`). An option leg's own ticker never carries a factor (a split forces a series
+// rollover, ADR-0013 #25 addendum), so this is a no-op (F = 1) for every option leg.
+function legSplitFactor(
+  view: MarketView,
+  ticker: string,
+  openedAt: SessionDate,
+  through: SessionDate,
+  at: Instant,
+): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
+  const factors = view.corporateActions.filter(
+    (f) => f.ticker === ticker && isAtOrBefore(f.asOf, at),
+  );
+  return splitFactorProduct(factors, openedAt, through);
+}
+
 function dummyValuation(leg: OperationLeg): LegValuation {
   return {
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
@@ -85,24 +104,56 @@ function dummyValuation(leg: OperationLeg): LegValuation {
 function buildEntryPricedLegs(
   view: MarketView,
   at: Instant,
+  openedAt: SessionDate,
+  through: SessionDate,
   legs: readonly OperationLeg[],
 ): { ok: true; value: PricedLeg[] } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
-  for (const leg of legs) {
+  for (const [legIndex, leg] of legs.entries()) {
+    const factorResult = legSplitFactor(view, leg.ticker, openedAt, through, at);
+    if (!factorResult.ok) return factorResult;
+    const factor = factorResult.value;
+    const effectiveQuantity = new Decimal(leg.quantity).div(factor).floor().toNumber();
+    if (effectiveQuantity <= 0) {
+      if (leg.role !== "stock") {
+        return {
+          ok: false,
+          error: invalidInput(
+            `operation.legs[${String(legIndex)}]`,
+            "a corporate-action factor dissolves a non-stock leg below one effective unit",
+          ),
+        };
+      }
+      continue;
+    }
+    if (!Number.isSafeInteger(effectiveQuantity)) {
+      return {
+        ok: false,
+        error: invalidInput(
+          `operation.legs[${String(legIndex)}]`,
+          "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
+        ),
+      };
+    }
+    const effectiveLeg: OperationLeg = {
+      ...leg,
+      quantity: toQuantity(effectiveQuantity),
+      entryPrice: toDecimalString(parseDecimal(leg.entryPrice).mul(factor), PRICE_SCALE),
+    };
     if (leg.role === "stock") {
       priced.push({
-        valuation: dummyValuation(leg),
+        valuation: dummyValuation(effectiveLeg),
         strike: null,
-        premiumPerUnit: parseDecimal(leg.entryPrice),
+        premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
       });
       continue;
     }
     const series = resolveSeries(view, leg.ticker, at);
     if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
     priced.push({
-      valuation: dummyValuation(leg),
+      valuation: dummyValuation(effectiveLeg),
       strike: series.strike,
-      premiumPerUnit: parseDecimal(leg.entryPrice),
+      premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
     });
   }
   return { ok: true, value: priced };
@@ -111,12 +162,19 @@ function buildEntryPricedLegs(
 function computeOperationMaxLoss(
   view: MarketView,
   at: Instant,
+  horizonSession: SessionDate,
   operation: Operation,
 ): { ok: true; value: Centavos | "unbounded" } | { ok: false; error: EngineError } {
   const spot = resolveUnderlyingSpot(view, operation.underlying, at);
   if (!spot)
     return { ok: false, error: { code: "missing_instrument", ticker: operation.underlying } };
-  const legsResult = buildEntryPricedLegs(view, at, operation.legs);
+  const legsResult = buildEntryPricedLegs(
+    view,
+    at,
+    operation.openedAt,
+    horizonSession,
+    operation.legs,
+  );
   if (!legsResult.ok) return legsResult;
   const { maxLoss } = computePayoffProfile(legsResult.value, spot);
   return { ok: true, value: maxLoss };
@@ -208,6 +266,15 @@ function computeOperationPnl(
   for (const [legIndex, leg] of operation.legs.entries()) {
     const remaining = leg.quantity - (closedByLeg.get(legIndex) ?? 0);
     if (remaining <= 0) continue;
+    const factorResult = legSplitFactor(
+      view,
+      leg.ticker,
+      operation.openedAt,
+      horizonSession,
+      horizonClose,
+    );
+    if (!factorResult.ok) return factorResult;
+    const factor = factorResult.value;
     const resolved = resolveLegMarketPrice(
       view,
       leg.ticker,
@@ -216,13 +283,14 @@ function computeOperationPnl(
       horizonSession,
       leg.role === "stock" ? "stock" : "option",
     );
-    const mark = resolved?.value ?? leg.entryPrice;
+    const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
+    const mark = resolved?.value ? parseDecimal(resolved.value) : effectiveEntry;
     pnl = pnl.add(
-      parseDecimal(mark)
-        .sub(parseDecimal(leg.entryPrice))
+      mark
+        .sub(effectiveEntry)
         .mul(sign(leg.side))
         .mul(CENTAVOS_PER_REAL)
-        .mul(remaining),
+        .mul(new Decimal(remaining).div(factor)),
     );
   }
 
@@ -270,11 +338,15 @@ function findFillSession(
 function markLegsToHorizon(
   view: MarketView,
   legs: readonly OperationLeg[],
+  openedAt: SessionDate,
   horizonSession: SessionDate,
   horizonClose: Instant,
-): Decimal {
+): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
   let pnl = new Decimal(0);
   for (const leg of legs) {
+    const factorResult = legSplitFactor(view, leg.ticker, openedAt, horizonSession, horizonClose);
+    if (!factorResult.ok) return factorResult;
+    const factor = factorResult.value;
     const resolved = resolveLegMarketPrice(
       view,
       leg.ticker,
@@ -283,16 +355,17 @@ function markLegsToHorizon(
       horizonSession,
       leg.role === "stock" ? "stock" : "option",
     );
-    const mark = resolved?.value ?? leg.entryPrice;
+    const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
+    const mark = resolved?.value ? parseDecimal(resolved.value) : effectiveEntry;
     pnl = pnl.add(
-      parseDecimal(mark)
-        .sub(parseDecimal(leg.entryPrice))
+      mark
+        .sub(effectiveEntry)
         .mul(sign(leg.side))
         .mul(CENTAVOS_PER_REAL)
-        .mul(leg.quantity),
+        .mul(new Decimal(leg.quantity).div(factor)),
     );
   }
-  return pnl;
+  return { ok: true, value: pnl };
 }
 
 function computeCounterfactual(
@@ -327,12 +400,15 @@ function computeCounterfactual(
   }));
 
   if (input.origin.kind === "manual") {
-    const pnl = markLegsToHorizon(
+    const marked = markLegsToHorizon(
       input.view,
       filledLegs,
+      entryOpportunity.session.date,
       horizonSession.date,
       horizonSession.close,
-    ).sub(entryCosts);
+    );
+    if (!marked.ok) return marked;
+    const pnl = marked.value.sub(entryCosts);
     return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
   }
 
@@ -376,23 +452,35 @@ function computeCounterfactual(
       const exitCosts = exitOpportunity.fills.reduce((acc, f) => acc + f.costs, 0);
       let pnl = new Decimal(0);
       for (const f of exitOpportunity.fills) {
+        const factorResult = legSplitFactor(
+          input.view,
+          f.leg.ticker,
+          entryOpportunity.session.date,
+          exitOpportunity.session.date,
+          exitOpportunity.session.close,
+        );
+        if (!factorResult.ok) return factorResult;
+        const factor = factorResult.value;
         pnl = pnl.add(
           parseDecimal(f.price)
-            .sub(parseDecimal(f.leg.entryPrice))
+            .sub(parseDecimal(f.leg.entryPrice).mul(factor))
             .mul(sign(f.leg.side))
             .mul(CENTAVOS_PER_REAL)
-            .mul(f.leg.quantity),
+            .mul(new Decimal(f.leg.quantity).div(factor)),
         );
       }
       pnl = pnl.sub(entryCosts).sub(exitCosts);
       return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
     }
-    const pnl = markLegsToHorizon(
+    const marked = markLegsToHorizon(
       input.view,
       filledLegs,
+      entryOpportunity.session.date,
       horizonSession.date,
       horizonSession.close,
-    ).sub(entryCosts);
+    );
+    if (!marked.ok) return marked;
+    const pnl = marked.value.sub(entryCosts);
     return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
   }
 
@@ -405,6 +493,17 @@ function computeCounterfactual(
     let pnl = new Decimal(0).sub(entryCosts);
     for (const legSettlement of settlement.value.legs) {
       const leg = legSettlement.leg;
+      const factorResult = legSplitFactor(
+        input.view,
+        leg.ticker,
+        entryOpportunity.session.date,
+        horizonSession.date,
+        horizonSession.close,
+      );
+      if (!factorResult.ok) return factorResult;
+      const factor = factorResult.value;
+      const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
+      const effectiveQuantity = new Decimal(leg.quantity).div(factor);
       if (legSettlement.outcome === "kept") {
         const resolved = resolveLegMarketPrice(
           input.view,
@@ -414,34 +513,33 @@ function computeCounterfactual(
           horizonSession.date,
           "stock",
         );
-        const mark = resolved?.value ?? leg.entryPrice;
+        const mark = resolved?.value ? parseDecimal(resolved.value) : effectiveEntry;
         pnl = pnl.add(
-          parseDecimal(mark)
-            .sub(parseDecimal(leg.entryPrice))
-            .mul(sign(leg.side))
-            .mul(CENTAVOS_PER_REAL)
-            .mul(leg.quantity),
+          mark.sub(effectiveEntry).mul(sign(leg.side)).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity),
         );
         continue;
       }
-      const settleValue = legSettlement.intrinsicValue;
+      const settleValue = parseDecimal(legSettlement.intrinsicValue).mul(factor);
       pnl = pnl.add(
-        parseDecimal(settleValue)
-          .sub(parseDecimal(leg.entryPrice))
+        settleValue
+          .sub(effectiveEntry)
           .mul(sign(leg.side))
           .mul(CENTAVOS_PER_REAL)
-          .mul(leg.quantity),
+          .mul(effectiveQuantity),
       );
     }
     return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
   }
 
-  const pnl = markLegsToHorizon(
+  const marked = markLegsToHorizon(
     input.view,
     filledLegs,
+    entryOpportunity.session.date,
     horizonSession.date,
     horizonSession.close,
-  ).sub(entryCosts);
+  );
+  if (!marked.ok) return marked;
+  const pnl = marked.value.sub(entryCosts);
   return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
 }
 
@@ -566,7 +664,12 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
   if (!operation) {
     notes.push(NO_OPERATION_NOTE);
   } else {
-    const maxLossResult = computeOperationMaxLoss(input.view, horizonSession.close, operation);
+    const maxLossResult = computeOperationMaxLoss(
+      input.view,
+      horizonSession.close,
+      horizonSession.date,
+      operation,
+    );
     if (!maxLossResult.ok) return err(maxLossResult.error);
     maxLoss = maxLossResult.value;
 

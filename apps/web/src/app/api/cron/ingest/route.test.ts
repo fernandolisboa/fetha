@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
+const freshnessMock = vi.hoisted(() => vi.fn());
+const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
+vi.mock("@/modules/market-data", () => ({ ingest: ingestMock, freshness: freshnessMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
+vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -28,6 +31,17 @@ describe("cron ingest route", () => {
       evaluationsWritten: 0,
       errors: [],
     });
+    freshnessMock.mockReset().mockResolvedValue([]);
+    scoreDueDecisionsMock.mockReset().mockImplementation((_db: unknown, asOfSession: string) =>
+      Promise.resolve({
+        asOfSession,
+        usersScored: 0,
+        usersSkipped: 0,
+        decisionsScored: 0,
+        decisionsSkipped: 0,
+        errors: [],
+      }),
+    );
   });
 
   afterEach(() => {
@@ -75,6 +89,52 @@ describe("cron ingest route", () => {
     expect(body).toMatchObject({
       evaluation: { sessions: ["2026-09-08"], usersEvaluated: 0, signalsWritten: 0 },
     });
+  });
+
+  it("chains scoring onto the session ingestion just reported, after evaluation", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, "2026-09-08", expect.any(Object));
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ scoring: { asOfSession: "2026-09-08", decisionsScored: 0 } });
+  });
+
+  it("still scores decisions due against a previously ingested session when this run drains nothing new", async () => {
+    ingestMock.mockResolvedValue({ session: null, okSessions: [], ok: true, sources: [] });
+    freshnessMock.mockResolvedValue([{ source: "cotahist", status: "succeeded", session: "2026-09-07" }]);
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, "2026-09-07", expect.any(Object));
+  });
+
+  it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {
+    scoreDueDecisionsMock.mockResolvedValue({
+      asOfSession: "2026-09-08",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 1,
+      errors: ["engine_error:unresolvable_view"],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ scoring: { errors: ["engine_error:unresolvable_view"] } });
   });
 
   it("skips the signal evaluation when ingestion reports no session", async () => {

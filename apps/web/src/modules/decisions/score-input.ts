@@ -2,6 +2,7 @@ import {
   confidenceSchema,
   instantSchema,
   type Confidence,
+  type DecimalString,
   type Instant,
   type Ticker,
 } from "@fetha/contracts";
@@ -41,8 +42,8 @@ function syntheticOperationId(decisionId: string): string {
 function matchEntryPrice(
   ticker: Ticker,
   index: number,
-  pricingLegs: { ticker: Ticker; price: string | null }[],
-): string | null {
+  pricingLegs: { ticker: Ticker; price: DecimalString | null }[],
+): DecimalString | null {
   const byIndex = pricingLegs[index];
   if (byIndex && byIndex.ticker === ticker) {
     return byIndex.price;

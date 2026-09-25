@@ -163,6 +163,22 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   `sessionsTried` equal to the attempts actually made, rather than discarding it silently.
   `evaluateStrategy` is not called on the final session (there is no next session left to fill
   into), so this finalization happens directly in the period-end sweep.
+- **Scoring details settled with `score` (Q54, #29; sharpens ADR-0005 and Q40/Q46).** Proposed by
+  the implementing agent on 2026-09-25 and pending the owner's review on the PR.
+  `close_above`/`close_below` compare the nominal D1 close at the horizon session strictly (`>`,
+  `<`); a missing horizon candle for the claim instrument is `insufficient_data`, and the nightly
+  job retries it on a later run. `operation_pnl_positive` on a "do not enter" decision is judged
+  on the counterfactual P&L, since the operation not taken is the operation the claim is about;
+  without an operation it is `invalid_input`. For enter, hold, adjust and exit, `pnl` runs from
+  the legs' entry prices to the horizon close: quantity closed by `realizedFills` realizes at the
+  fill price net of its costs and the rest is marked at the horizon close, with Q42's stale mark
+  and Q51's split factors. A "do not enter" decision held nothing, so its `pnl` is zero and its
+  `normalizedPnl` is zero over the operation's max loss (null when that is unbounded or zero). A
+  counterfactual that never fills before the horizon is `null` with note `missed_entry`. Until
+  the real portfolio exists (#26), `realizedFills` is always empty and the operation is rebuilt
+  from the decision's snapshot: a signal's proposal prices, or, for a saved operation, the legs
+  re-priced by `priceOperation` at the decision instant. Scores are stored append-only, one per
+  decision, and computed by the nightly job after ingestion and evaluation.
 
 ## Consequences
 

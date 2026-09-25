@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import type { Centavos, DecimalString } from "@fetha/contracts";
 import type { Score } from "@fetha/engine";
 

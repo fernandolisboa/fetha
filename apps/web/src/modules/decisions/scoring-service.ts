@@ -1,4 +1,3 @@
-import type { Centavos, DecimalString } from "@fetha/contracts";
 import { engine as realEngine, type Engine, type Score } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -36,15 +35,13 @@ function toNewDecisionScore(
   score: Score,
   engineVersion: string,
 ): NewDecisionScore {
-  const pnlCentavos = score.pnl === null ? null : (score.pnl as Centavos);
+  const pnlCentavos = score.pnl;
   const maxLossUnbounded = score.maxLoss === "unbounded";
-  const maxLossCentavos =
-    score.maxLoss === null || score.maxLoss === "unbounded" ? null : (score.maxLoss as Centavos);
-  const normalizedPnl = score.normalizedPnl as DecimalString | null;
+  const maxLossCentavos = score.maxLoss === null || score.maxLoss === "unbounded" ? null : score.maxLoss;
+  const normalizedPnl = score.normalizedPnl;
   const claimHeld = score.thesis.claim === null ? null : score.thesis.held;
-  const brier = score.thesis.claim === null ? null : (score.thesis.brier as DecimalString);
-  const counterfactualPnlCentavos =
-    score.counterfactualPnl === null ? null : (score.counterfactualPnl as Centavos);
+  const brier = score.thesis.claim === null ? null : score.thesis.brier;
+  const counterfactualPnlCentavos = score.counterfactualPnl;
 
   return {
     decisionId,
