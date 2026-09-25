@@ -53,13 +53,20 @@ const en = {
       brierLabel: "Brier score",
       counterfactualLabel: "Had you entered",
       unscorable: "Not scorable",
+      // Every reason a real run can insert (round 3 item 10): a code
+      // missing here — a new engine error, `scoring_failed`, or anything
+      // this map falls behind on — falls back to `unscorableReasonGeneric`,
+      // never the raw storage code, which is an internal detail, not a
+      // sentence in the user's own language.
       unscorableReasons: {
         "build_failed:missing_entry_price": "no entry price recorded",
         "build_failed:missing_strategy_version": "the strategy version no longer exists",
         "build_failed:unknown_structure": "the structure is no longer in the catalog",
-        "build_failed:unresolvable_horizon_session": "the horizon date is not on the trading calendar",
+        "build_failed:unresolvable_horizon_session":
+          "the horizon date is not on the trading calendar",
         "build_failed:unknown_decision_kind": "unknown decision kind",
         "build_failed:mismatched_expiry": "legs do not share a single expiry",
+        "build_failed:invalid_inputs": "the recorded decision could not be read back",
         "engine_error:invalid_input": "invalid input",
         "engine_error:missing_instrument": "missing instrument data",
         "engine_error:unsupported": "unsupported by the engine",
@@ -69,6 +76,7 @@ const en = {
         "engine_error:checkpoint_mismatch": "checkpoint mismatch",
         insufficient_data: "market data never arrived",
       } as Record<string, string>,
+      unscorableReasonGeneric: "could not be scored",
     },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
@@ -84,7 +92,8 @@ const en = {
   trackRecord: {
     title: "Track record",
     hitRateLabel: "Hit rate",
-    hitRateSentence: (held: number, total: number) => `${String(held)}/${String(total)} claims held`,
+    hitRateSentence: (held: number, total: number) =>
+      `${String(held)}/${String(total)} claims held`,
     hitRateEmpty: "No scored claims yet",
     calibrationTitle: "Calibration",
     meanBrierLabel: "Mean Brier score",
@@ -158,9 +167,11 @@ const ptBR = {
         "build_failed:missing_entry_price": "sem preço de entrada registrado",
         "build_failed:missing_strategy_version": "a versão da estratégia não existe mais",
         "build_failed:unknown_structure": "a estrutura não está mais no catálogo",
-        "build_failed:unresolvable_horizon_session": "a data do horizonte não está no calendário de pregões",
+        "build_failed:unresolvable_horizon_session":
+          "a data do horizonte não está no calendário de pregões",
         "build_failed:unknown_decision_kind": "tipo de decisão desconhecido",
         "build_failed:mismatched_expiry": "as pernas não compartilham um único vencimento",
+        "build_failed:invalid_inputs": "não foi possível reler a decisão registrada",
         "engine_error:invalid_input": "entrada inválida",
         "engine_error:missing_instrument": "dados do instrumento ausentes",
         "engine_error:unsupported": "não suportado pelo motor",
@@ -170,6 +181,7 @@ const ptBR = {
         "engine_error:checkpoint_mismatch": "checkpoint incompatível",
         insufficient_data: "os dados de mercado nunca chegaram",
       } as Record<string, string>,
+      unscorableReasonGeneric: "não foi possível pontuar",
     },
     originSignal: (strategyName: string, ticker: string) => `${strategyName} · ${ticker}`,
     originOperation: (structureName: string, underlying: string) =>
@@ -186,7 +198,8 @@ const ptBR = {
   trackRecord: {
     title: "Histórico de acertos",
     hitRateLabel: "Taxa de acerto",
-    hitRateSentence: (held: number, total: number) => `${String(held)} de ${String(total)} teses confirmadas`,
+    hitRateSentence: (held: number, total: number) =>
+      `${String(held)} de ${String(total)} teses confirmadas`,
     hitRateEmpty: "Nenhuma tese pontuada ainda",
     calibrationTitle: "Calibração",
     meanBrierLabel: "Escore de Brier médio",

@@ -43,6 +43,17 @@ function formatSessionTick(session: string): string {
   return `${day ?? ""}/${month ?? ""}`;
 }
 
+// `scaleTime` cannot usefully interpolate a `LinePath` across a domain whose
+// start and end are the same instant (#29 fix-web item 9): a single scored
+// decision is the obvious case, but several decisions sharing one horizon
+// date collapse the domain the same way, not just a `plot.length === 1`
+// check (round 3 item 8).
+export function isDegenerateChartDomain(points: readonly { at: Date }[]): boolean {
+  if (points.length <= 1) return true;
+  const first = points[0]?.at.getTime();
+  return points.every((point) => point.at.getTime() === first);
+}
+
 function PnlOverTimeChart({
   width,
   points,
@@ -62,22 +73,25 @@ function PnlOverTimeChart({
   const maxAbs = Math.max(0.01, ...plot.map((point) => Math.abs(point.value)));
   const yScale = scaleLinear({ domain: [-maxAbs, maxAbs], range: [innerHeight, 0] });
 
-  // A single scored decision has no time span to plot a line over — its own
-  // domain start and end are the same instant, which `scaleTime` cannot
-  // usefully interpolate a `LinePath` across (#29 fix-web item 9's
-  // "degenerate/single-point domain"). Drawn as one dot at mid-width
-  // instead of a zero-length line.
-  if (plot.length === 1) {
-    const point = plot[0];
+  // A single scored decision, or several sharing one horizon date, has no
+  // time span to plot a line over — the domain start and end collapse to the
+  // same instant, which `scaleTime` cannot usefully interpolate a `LinePath`
+  // across (#29 fix-web item 9, widened by round 3 item 8 beyond just
+  // `plot.length === 1`). Every point that shares that instant is drawn as
+  // its own dot at mid-width instead of a zero-length line.
+  if (isDegenerateChartDomain(plot)) {
     return (
       <svg width={width} height={height} role="img" aria-label={t.trackRecord.pnlOverTimeTitle}>
         <Group left={MARGIN.left} top={MARGIN.top}>
-          <Circle
-            cx={innerWidth / 2}
-            cy={point ? yScale(point.value) : innerHeight / 2}
-            r={3}
-            fill="var(--chart-stroke)"
-          />
+          {plot.map((point, index) => (
+            <Circle
+              key={`${point.horizon}-${String(index)}`}
+              cx={innerWidth / 2}
+              cy={yScale(point.value)}
+              r={3}
+              fill="var(--chart-stroke)"
+            />
+          ))}
           <AxisLeft
             scale={yScale}
             stroke="var(--line-soft)"

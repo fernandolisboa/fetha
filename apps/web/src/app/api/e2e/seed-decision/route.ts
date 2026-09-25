@@ -77,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   if (!result.ok) {
+    if (result.reason === "e2e_not_available") {
+      return new NextResponse(null, { status: 404 });
+    }
     return NextResponse.json(
       {
         error:

@@ -218,8 +218,19 @@ export async function buildScoreInput(
   if (!DECISION_KIND_VALUES.has(row.kind)) {
     return { ok: false, reason: "unknown_decision_kind" };
   }
-  const inputs = decisionInputsSchema.parse(row.inputs);
-  const decidedAt = instantSchema.parse(row.decidedAt.toISOString());
+  // A decision row whose stored `inputs`/`decidedAt` no longer parse (a shape an older app
+  // version wrote, corrupted or hand-edited data) can never be fixed by retrying tomorrow night
+  // (round 3 item 5): returned as a build failure like every other gap here, not thrown, so the
+  // caller's generic per-decision catch (which never marks a row unscorable, to keep retrying
+  // a transient failure) does not retry an error no future data will resolve.
+  let inputs: OperationDecisionInputs | SignalDecisionInputs;
+  let decidedAt: Instant;
+  try {
+    inputs = decisionInputsSchema.parse(row.inputs);
+    decidedAt = instantSchema.parse(row.decidedAt.toISOString());
+  } catch {
+    return { ok: false, reason: "invalid_inputs" };
+  }
 
   let operation: Operation | null = null;
   let origin: ScoreInput["origin"] = { kind: "manual" };
@@ -296,7 +307,12 @@ export async function buildScoreInput(
     extraInstruments: claimInstrument && claimInstrument !== underlying ? [claimInstrument] : [],
   });
 
-  const confidence: Confidence = confidenceSchema.parse(row.confidence);
+  let confidence: Confidence;
+  try {
+    confidence = confidenceSchema.parse(row.confidence);
+  } catch {
+    return { ok: false, reason: "invalid_inputs" };
+  }
 
   const scoreInput: ScoreInput = {
     view,

@@ -1,4 +1,4 @@
-import { engine as realEngine, type Engine, type Score } from "@fetha/engine";
+import { engine as realEngine, type Engine, type Score, type TradingSession } from "@fetha/engine";
 import type { Structure } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
@@ -30,7 +30,7 @@ export interface ScoreDecisionsOptions {
   // append-only, isolation, error handling) be unit/integration-tested with
   // a fake engine, independent of whatever `@fetha/engine`'s `score()`
   // itself does. The real engine (`@fetha/engine`) is the default.
-  engine?: Pick<Engine, "score">;
+  engine?: Pick<Engine, "score" | "capabilities">;
 }
 
 export interface ScoreErrorEntry {
@@ -62,6 +62,23 @@ const RETRIABLE_ERROR_CODE = "insufficient_data";
 // instrument that was delisted), not a night away from catching up.
 const INSUFFICIENT_DATA_RETRY_SESSIONS = 5;
 
+// Same code `evaluateSignalsForSession` reports for the same situation (round 3 item 4): a
+// transient failure reading `resolveAsOfSession`/`freshness`, the structure catalog or the
+// due-user list must return an empty outcome with this error entry, not throw the whole cron
+// run's response into a 500 the ingestion and evaluation results already in hand did not earn.
+const SETUP_FAILED = "setup_failed";
+
+function setupFailedOutcome(): ScoreDecisionsOutcome {
+  return {
+    asOfSession: "",
+    usersScored: 0,
+    usersSkipped: 0,
+    decisionsScored: 0,
+    decisionsSkipped: 0,
+    errors: [{ decisionId: null, kind: SETUP_FAILED }],
+  };
+}
+
 function newestSession(sessions: readonly string[]): string | undefined {
   return [...sessions].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).at(-1);
 }
@@ -85,10 +102,15 @@ async function resolveAsOfSession(
   return runs.find((run) => run.source === "cotahist" && run.status === "succeeded")?.session;
 }
 
-function scoredNewDecisionScore(decisionId: string, score: Score, engineVersion: string): NewDecisionScore {
+function scoredNewDecisionScore(
+  decisionId: string,
+  score: Score,
+  engineVersion: string,
+): NewDecisionScore {
   const pnlCentavos = score.pnl;
   const maxLossUnbounded = score.maxLoss === "unbounded";
-  const maxLossCentavos = score.maxLoss === null || score.maxLoss === "unbounded" ? null : score.maxLoss;
+  const maxLossCentavos =
+    score.maxLoss === null || score.maxLoss === "unbounded" ? null : score.maxLoss;
   const normalizedPnl = score.normalizedPnl;
   const claimHeld = score.thesis.claim === null ? null : score.thesis.held;
   const brier = score.thesis.claim === null ? null : score.thesis.brier;
@@ -108,16 +130,22 @@ function scoredNewDecisionScore(decisionId: string, score: Score, engineVersion:
   };
 }
 
-function unscorableNewDecisionScore(decisionId: string, reason: string): NewDecisionScore {
-  return { decisionId, unscorableReason: reason, engineVersion: realEngine.capabilities().engineVersion };
+function unscorableNewDecisionScore(
+  decisionId: string,
+  reason: string,
+  engineVersion: string,
+): NewDecisionScore {
+  return { decisionId, unscorableReason: reason, engineVersion };
 }
 
-async function insufficientDataExhausted(
-  db: Database,
+// `calendar` is resolved once per run by the caller, not once per decision
+// (round 3 item 9): `asOfSession` is fixed for the whole run, so every
+// decision's own exhaustion check reads the same trailing calendar instead
+// of re-querying it on every retriable `insufficient_data` result.
+function insufficientDataExhausted(
+  calendar: readonly TradingSession[],
   resolvedHorizon: string,
-  asOfSession: string,
-): Promise<boolean> {
-  const calendar = await calendarUpTo(db, new Date(`${asOfSession}T23:59:59.999Z`));
+): boolean {
   const sessionsSinceHorizon = calendar.filter((session) => session.date > resolvedHorizon).length;
   return sessionsSinceHorizon >= INSUFFICIENT_DATA_RETRY_SESSIONS;
 }
@@ -145,17 +173,51 @@ export async function scoreDueDecisions(
   const now = options.now ?? Date.now;
   const scoringEngine = options.engine ?? realEngine;
 
-  const asOfSession = await resolveAsOfSession(db, input);
-  if (!asOfSession) {
-    return { asOfSession: "", usersScored: 0, usersSkipped: 0, decisionsScored: 0, decisionsSkipped: 0, errors: [] };
+  let asOfSession: string | undefined;
+  let structures: readonly Structure[];
+  let userIds: string[];
+  try {
+    asOfSession = await resolveAsOfSession(db, input);
+    if (!asOfSession) {
+      return {
+        asOfSession: "",
+        usersScored: 0,
+        usersSkipped: 0,
+        decisionsScored: 0,
+        decisionsSkipped: 0,
+        errors: [],
+      };
+    }
+
+    // Resolved once per run, not once per decision (#29 fix-web item 11): the
+    // structure catalog is shared reference data (ADR-0012) that never
+    // changes mid-run.
+    structures = await new StructuresRepository(db).listAll();
+
+    userIds = await dueDecisionUserIds(db, asOfSession);
+  } catch (error) {
+    console.error(
+      "scoreDueDecisions setup failed",
+      error instanceof Error ? error.message : "unknown error",
+    );
+    return setupFailedOutcome();
   }
 
-  // Resolved once per run, not once per decision (#29 fix-web item 11): the
-  // structure catalog is shared reference data (ADR-0012) that never
-  // changes mid-run.
-  const structures: readonly Structure[] = await new StructuresRepository(db).listAll();
+  const unscorableEngineVersion = scoringEngine.capabilities().engineVersion;
+  // Reassigned here, not read as the outer `let` directly (its own
+  // `string | undefined` declared type survives into the closure below,
+  // where flow narrowing does not apply): resolved once, since the setup
+  // block above has already returned for every path where it stays unset.
+  const resolvedAsOfSession: string = asOfSession;
 
-  const userIds = await dueDecisionUserIds(db, asOfSession);
+  // Memoized, not fetched per decision (round 3 item 9): `asOfSession` is
+  // fixed for the whole run, so every decision's own `insufficient_data`
+  // exhaustion check can share the one calendar read the first check makes.
+  let calendarUpToAsOf: readonly TradingSession[] | null = null;
+  async function calendarForRun(): Promise<readonly TradingSession[]> {
+    calendarUpToAsOf ??= await calendarUpTo(db, new Date(`${resolvedAsOfSession}T23:59:59.999Z`));
+    return calendarUpToAsOf;
+  }
 
   let usersScored = 0;
   let usersSkipped = 0;
@@ -171,7 +233,7 @@ export async function scoreDueDecisions(
     const scopedUser = { id: userId };
     try {
       const repository = new DecisionScoresRepository(db, scopedUser);
-      const due = await repository.dueForUser(asOfSession);
+      const due = await repository.dueForUser(resolvedAsOfSession);
       let scoredAny = false;
 
       for (const row of due) {
@@ -184,7 +246,13 @@ export async function scoreDueDecisions(
           if (!built.ok) {
             decisionsSkipped += 1;
             errors.push({ decisionId: row.id, kind: `build_failed:${built.reason}` });
-            await repository.insertIfAbsent(unscorableNewDecisionScore(row.id, `build_failed:${built.reason}`));
+            await repository.insertIfAbsent(
+              unscorableNewDecisionScore(
+                row.id,
+                `build_failed:${built.reason}`,
+                unscorableEngineVersion,
+              ),
+            );
             continue;
           }
 
@@ -192,16 +260,25 @@ export async function scoreDueDecisions(
           if (!result.ok) {
             decisionsSkipped += 1;
             if (result.error.code === RETRIABLE_ERROR_CODE) {
-              const exhausted = await insufficientDataExhausted(db, built.input.horizon, asOfSession);
+              const exhausted = insufficientDataExhausted(
+                await calendarForRun(),
+                built.input.horizon,
+              );
               if (exhausted) {
                 errors.push({ decisionId: row.id, kind: `unscorable:${RETRIABLE_ERROR_CODE}` });
-                await repository.insertIfAbsent(unscorableNewDecisionScore(row.id, RETRIABLE_ERROR_CODE));
+                await repository.insertIfAbsent(
+                  unscorableNewDecisionScore(row.id, RETRIABLE_ERROR_CODE, unscorableEngineVersion),
+                );
               }
               continue;
             }
             errors.push({ decisionId: row.id, kind: `engine_error:${result.error.code}` });
             await repository.insertIfAbsent(
-              unscorableNewDecisionScore(row.id, `engine_error:${result.error.code}`),
+              unscorableNewDecisionScore(
+                row.id,
+                `engine_error:${result.error.code}`,
+                unscorableEngineVersion,
+              ),
             );
             continue;
           }
@@ -228,5 +305,12 @@ export async function scoreDueDecisions(
     }
   }
 
-  return { asOfSession, usersScored, usersSkipped, decisionsScored, decisionsSkipped, errors };
+  return {
+    asOfSession: resolvedAsOfSession,
+    usersScored,
+    usersSkipped,
+    decisionsScored,
+    decisionsSkipped,
+    errors,
+  };
 }

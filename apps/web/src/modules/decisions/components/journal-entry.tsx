@@ -36,8 +36,12 @@ function origin(decision: DecisionListItem): string {
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 
-function unscorableReasonLabel(reason: string): string {
-  return t.journal.score.unscorableReasons[reason] ?? reason;
+// A reason this run's own map has no translation for (round 3 item 10,
+// security: the raw storage code is an internal detail, never shown as if
+// it were a pt-BR sentence) falls back to a generic one instead of leaking
+// the code itself.
+export function unscorableReasonLabel(reason: string): string {
+  return t.journal.score.unscorableReasons[reason] ?? t.journal.score.unscorableReasonGeneric;
 }
 
 // The score row's own words (brief item 4): normalized P&L, raw P&L, the
@@ -46,7 +50,13 @@ function unscorableReasonLabel(reason: string): string {
 // what the P&L would have been had the user entered anyway. A terminal
 // unscorable row (#29 fix-web item 8) shows the short reason instead of any
 // of that — there is no score to show components for.
-function ScoreDetails({ decision, score }: { decision: DecisionListItem; score: DecisionScoreRow }) {
+function ScoreDetails({
+  decision,
+  score,
+}: {
+  decision: DecisionListItem;
+  score: DecisionScoreRow;
+}) {
   if (score.unscorableReason !== null) {
     return (
       <div className="text-muted-foreground text-[12px]">

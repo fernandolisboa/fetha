@@ -8,6 +8,7 @@ import type {
 } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
+import { isProductionDeployment, readE2ESecret } from "@/modules/auth";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { OperationsRepository, type SaveContemplatedOperationInput } from "@/modules/portfolio";
@@ -33,7 +34,9 @@ export interface SeedE2EDecisionInput {
 }
 
 export type SeedE2EDecisionResult =
-  { ok: true; id: string } | { ok: false; reason: "missing_stock_structure" };
+  | { ok: true; id: string }
+  | { ok: false; reason: "missing_stock_structure" }
+  | { ok: false; reason: "e2e_not_available" };
 
 // Backs the E2E-only `/api/e2e/seed-decision` route (#29 fix-web item 3),
 // and only that route: seeds a decision the nightly scoring job can pick up
@@ -50,6 +53,14 @@ export async function seedE2EDecision(
   scopedUser: ScopedUser,
   input: SeedE2EDecisionInput,
 ): Promise<SeedE2EDecisionResult> {
+  // The same production/E2E_SECRET-configured check the route already runs
+  // before ever calling in here (round 3 item 10, security): defense in
+  // depth, so this module refuses on its own — before any write — even if
+  // ever reached by a caller other than that one route.
+  if (isProductionDeployment() || !readE2ESecret()) {
+    return { ok: false, reason: "e2e_not_available" };
+  }
+
   const catalog = await new StructuresRepository(db).listAll();
   const stock = catalog.find((structure) => structure.id === STOCK_STRUCTURE_ID);
   if (!stock) {

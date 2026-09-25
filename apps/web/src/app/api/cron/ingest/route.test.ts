@@ -142,6 +142,30 @@ describe("cron ingest route", () => {
     });
   });
 
+  it("stays 200 with the ingestion and evaluation body intact when scoring's own setup fails (round 3 item 4)", async () => {
+    scoreDueDecisionsMock.mockResolvedValue({
+      asOfSession: "",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 0,
+      errors: [{ decisionId: null, kind: "setup_failed" }],
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({
+      ok: true,
+      evaluation: { sessions: ["2026-09-08"], usersEvaluated: 0 },
+      scoring: { asOfSession: "", errors: [{ decisionId: null, kind: "setup_failed" }] },
+    });
+  });
+
   it("skips the signal evaluation when ingestion reports no session", async () => {
     ingestMock.mockResolvedValue({ session: null, okSessions: [], ok: true, sources: [] });
     const { GET } = await import("./route");

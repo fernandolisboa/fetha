@@ -1,5 +1,12 @@
 import Decimal from "decimal.js";
-import type { Centavos, CostModel, DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type {
+  Centavos,
+  CostModel,
+  DecimalString,
+  Instant,
+  SessionDate,
+  Ticker,
+} from "@fetha/contracts";
 import type {
   EngineError,
   Fill,
@@ -18,7 +25,13 @@ import type {
 } from "../api";
 import { batchTruncationReport } from "./batch-truncation";
 import { sessionAtOrBefore, sessionByDate, sortedCalendar } from "./calendar";
-import { CENTAVOS_PER_REAL, PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import {
+  CENTAVOS_PER_REAL,
+  PRICE_SCALE,
+  RATIO_SCALE,
+  parseDecimal,
+  toDecimalString,
+} from "./decimal";
 import { evaluateStrategy as computeEvaluateStrategy } from "./evaluate-strategy";
 import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
 import { invalidInput } from "./errors";
@@ -94,6 +107,18 @@ const MISSED_ENTRY_NOTE: Note = {
   message:
     "no fill opportunity for the untaken operation before the horizon; counterfactualPnl is null",
 };
+
+// A leg marked at a session earlier than the one it is being marked to (`resolveLegMarketPrice`'s
+// own `stale` flag, ADR-0014 Q42) is still a valid mark, but the score should say so rather than
+// let a carried-forward price pass as a fresh one (round 3 item 3): reuses the `stale_price`
+// `NoteCode` markToMarket already uses for the same situation, with the ticker and session named
+// since a score can mark several legs across several calls.
+function staleMarkNote(ticker: Ticker, session: SessionDate): Note {
+  return {
+    code: "stale_price",
+    message: `${ticker} marked at its last trade on ${session} (ADR-0014 Q42), not a fresh price for the horizon`,
+  };
+}
 
 // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
 // share count and effective entry price are rebased by the product of every split/reverse-split
@@ -262,7 +287,10 @@ function validateAndMatchRealizedFills(
       };
     }
     const match = sideMatches[0];
-    invariant(match !== undefined, "validateAndMatchRealizedFills: sideMatches has exactly one element here");
+    invariant(
+      match !== undefined,
+      "validateAndMatchRealizedFills: sideMatches has exactly one element here",
+    );
     const { legIndex, leg } = match;
     const already = closedByLeg.get(legIndex) ?? 0;
     const total = already + fill.quantity;
@@ -302,7 +330,7 @@ function settlementPnl(
   openedAt: SessionDate,
   horizonSession: TradingSession,
   provenanceBase: ProvenanceBase,
-): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
+): { ok: true; value: Decimal; notes: Note[] } | { ok: false; error: EngineError } {
   const syntheticOperation: Operation = {
     id: "settlement",
     underlying,
@@ -319,9 +347,16 @@ function settlementPnl(
   if (!settlement.ok) return { ok: false, error: settlement.error };
 
   let pnl = new Decimal(0);
+  const notes: Note[] = [];
   for (const legSettlement of settlement.value.legs) {
     const leg = legSettlement.leg;
-    const factorResult = legSplitFactor(view, leg.ticker, openedAt, horizonSession.date, horizonSession.close);
+    const factorResult = legSplitFactor(
+      view,
+      leg.ticker,
+      openedAt,
+      horizonSession.date,
+      horizonSession.close,
+    );
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
@@ -349,6 +384,7 @@ function settlementPnl(
         return { ok: false, error: noMarketPriceError(leg.ticker, "stock", horizonSession) };
       }
       /* v8 ignore stop */
+      if (resolved.stale) notes.push(staleMarkNote(leg.ticker, resolved.stale.session));
       const mark = parseDecimal(resolved.value);
       pnl = pnl.add(
         mark.sub(effectiveEntry).mul(sign(leg.side)).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity),
@@ -365,7 +401,7 @@ function settlementPnl(
         .mul(effectiveQuantity),
     );
   }
-  return { ok: true, value: pnl };
+  return { ok: true, value: pnl, notes };
 }
 
 function computeOperationPnl(
@@ -376,7 +412,7 @@ function computeOperationPnl(
   operation: Operation,
   realizedFills: readonly Fill[],
   provenanceBase: ProvenanceBase,
-): { ok: true; value: Centavos } | { ok: false; error: EngineError } {
+): { ok: true; value: Centavos; notes: Note[] } | { ok: false; error: EngineError } {
   const matched = validateAndMatchRealizedFills(
     operation,
     decidedAt,
@@ -389,14 +425,26 @@ function computeOperationPnl(
   let pnl = new Decimal(0);
   for (const [fillIndex, fill] of realizedFills.entries()) {
     const legIndex = matched.value.legIndexByFillIndex[fillIndex];
-    invariant(legIndex !== undefined, "computeOperationPnl: every realized fill has a matched leg index");
+    invariant(
+      legIndex !== undefined,
+      "computeOperationPnl: every realized fill has a matched leg index",
+    );
     const leg = operation.legs[legIndex];
-    invariant(leg !== undefined, "computeOperationPnl: a matched legIndex must resolve an operation leg");
+    invariant(
+      leg !== undefined,
+      "computeOperationPnl: a matched legIndex must resolve an operation leg",
+    );
     // ADR-0014 Q51: the fill's own entry basis is rebased by every split factor visible
     // through the fill's own session, the same rebasing the marked remainder gets below —
     // a fill realized after a split must not compare a pre-split entry price to a
     // post-split fill price.
-    const factorResult = legSplitFactor(view, leg.ticker, operation.openedAt, fill.session, fill.at);
+    const factorResult = legSplitFactor(
+      view,
+      leg.ticker,
+      operation.openedAt,
+      fill.session,
+      fill.at,
+    );
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
@@ -417,6 +465,7 @@ function computeOperationPnl(
     remainingLegs.push({ ...leg, quantity: toQuantity(remaining) });
   }
 
+  const notes: Note[] = [];
   if (remainingLegs.length > 0) {
     if (operation.expiry !== null && operation.expiry <= horizonSession.date) {
       const settled = settlementPnl(
@@ -430,10 +479,12 @@ function computeOperationPnl(
       );
       if (!settled.ok) return settled;
       pnl = pnl.add(settled.value);
+      notes.push(...settled.notes);
     } else {
       const marked = markLegsToHorizon(view, remainingLegs, operation.openedAt, horizonSession);
       if (!marked.ok) return marked;
       pnl = pnl.add(marked.value);
+      notes.push(...marked.notes);
     }
   }
 
@@ -448,7 +499,7 @@ function computeOperationPnl(
   }
   pnl = pnl.sub(entryCosts);
 
-  return { ok: true, value: toCentavos(pnl.round().toNumber()) };
+  return { ok: true, value: toCentavos(pnl.round().toNumber()), notes };
 }
 
 type FillLeg = { leg: OperationLeg; price: DecimalString; costs: Centavos };
@@ -495,10 +546,17 @@ function markLegsToHorizon(
   legs: readonly OperationLeg[],
   openedAt: SessionDate,
   horizonSession: TradingSession,
-): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
+): { ok: true; value: Decimal; notes: Note[] } | { ok: false; error: EngineError } {
   let pnl = new Decimal(0);
+  const notes: Note[] = [];
   for (const leg of legs) {
-    const factorResult = legSplitFactor(view, leg.ticker, openedAt, horizonSession.date, horizonSession.close);
+    const factorResult = legSplitFactor(
+      view,
+      leg.ticker,
+      openedAt,
+      horizonSession.date,
+      horizonSession.close,
+    );
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const kind = legKind(leg);
@@ -513,6 +571,7 @@ function markLegsToHorizon(
     if (!resolved?.value) {
       return { ok: false, error: noMarketPriceError(leg.ticker, kind, horizonSession) };
     }
+    if (resolved.stale) notes.push(staleMarkNote(leg.ticker, resolved.stale.session));
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
     const mark = parseDecimal(resolved.value);
     pnl = pnl.add(
@@ -523,7 +582,41 @@ function markLegsToHorizon(
         .mul(new Decimal(leg.quantity).div(factor)),
     );
   }
-  return { ok: true, value: pnl };
+  return { ok: true, value: pnl, notes };
+}
+
+// The counterfactual's own close-out at the horizon (ADR-0014 Q41), shared by the manual-origin
+// path and every signal-origin fallback that reaches the horizon without an exit fill (round 3
+// item 1/2): an operation whose expiry is at or before the horizon session settles rather than
+// marks, on the same rule `computeOperationPnl` applies to the taken operation — a counterfactual
+// is not exempt from Q41 just because nothing was actually held.
+function settleOrMarkCounterfactualToHorizon(
+  view: MarketView,
+  provenanceBase: ProvenanceBase,
+  operation: Operation,
+  filledLegs: OperationLeg[],
+  entryOpportunitySession: SessionDate,
+  horizonSession: TradingSession,
+  entryCosts: number,
+): { ok: true; pnl: Centavos; notes: Note[] } | { ok: false; error: EngineError } {
+  if (operation.expiry !== null && operation.expiry <= horizonSession.date) {
+    const settled = settlementPnl(
+      view,
+      operation.underlying,
+      operation.expiry,
+      filledLegs,
+      entryOpportunitySession,
+      horizonSession,
+      provenanceBase,
+    );
+    if (!settled.ok) return { ok: false, error: settled.error };
+    const pnl = settled.value.sub(entryCosts);
+    return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: settled.notes };
+  }
+  const marked = markLegsToHorizon(view, filledLegs, entryOpportunitySession, horizonSession);
+  if (!marked.ok) return marked;
+  const pnl = marked.value.sub(entryCosts);
+  return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: marked.notes };
 }
 
 function computeCounterfactual(
@@ -559,10 +652,15 @@ function computeCounterfactual(
   }));
 
   if (input.origin.kind === "manual") {
-    const marked = markLegsToHorizon(input.view, filledLegs, entryOpportunity.session.date, horizonSession);
-    if (!marked.ok) return marked;
-    const pnl = marked.value.sub(entryCosts);
-    return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
+    return settleOrMarkCounterfactualToHorizon(
+      input.view,
+      provenanceBase,
+      operation,
+      filledLegs,
+      entryOpportunity.session.date,
+      horizonSession,
+      entryCosts,
+    );
   }
 
   const instruments = [...new Set([operation.underlying, ...filledLegs.map((l) => l.ticker)])];
@@ -625,31 +723,26 @@ function computeCounterfactual(
       pnl = pnl.sub(entryCosts).sub(exitCosts);
       return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
     }
-    const marked = markLegsToHorizon(input.view, filledLegs, entryOpportunity.session.date, horizonSession);
-    if (!marked.ok) return marked;
-    const pnl = marked.value.sub(entryCosts);
-    return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
-  }
-
-  if (operation.expiry !== null && operation.expiry <= horizonSession.date) {
-    const settled = settlementPnl(
+    return settleOrMarkCounterfactualToHorizon(
       input.view,
-      operation.underlying,
-      operation.expiry,
+      provenanceBase,
+      operation,
       filledLegs,
       entryOpportunity.session.date,
       horizonSession,
-      provenanceBase,
+      entryCosts,
     );
-    if (!settled.ok) return { ok: false, error: settled.error };
-    const pnl = settled.value.sub(entryCosts);
-    return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
   }
 
-  const marked = markLegsToHorizon(input.view, filledLegs, entryOpportunity.session.date, horizonSession);
-  if (!marked.ok) return marked;
-  const pnl = marked.value.sub(entryCosts);
-  return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
+  return settleOrMarkCounterfactualToHorizon(
+    input.view,
+    provenanceBase,
+    operation,
+    filledLegs,
+    entryOpportunity.session.date,
+    horizonSession,
+    entryCosts,
+  );
 }
 
 function computeThesis(
@@ -667,7 +760,9 @@ function computeThesis(
     case "close_below": {
       const rows = input.view.candles.filter(
         (c) =>
-          c.ticker === claim.instrument && c.timeframe === "D1" && c.session === horizonSession.date,
+          c.ticker === claim.instrument &&
+          c.timeframe === "D1" &&
+          c.session === horizonSession.date,
       );
       const candle = latestVisible(rows, horizonSession.close);
       if (!candle) {
@@ -819,6 +914,7 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       );
       if (!pnlResult.ok) return err(pnlResult.error);
       pnl = pnlResult.value;
+      notes.push(...pnlResult.notes);
     }
 
     if (maxLoss === "unbounded") {

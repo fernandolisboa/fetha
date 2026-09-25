@@ -449,9 +449,7 @@ describe("score — thesis claim", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.thesis).toEqual({ claim: null });
-    expect(result.value.notes).toContainEqual(
-      expect.objectContaining({ code: "no_thesis_claim" }),
-    );
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "no_thesis_claim" }));
   });
 
   it("a missing horizon candle for the claim instrument is insufficient_data", () => {
@@ -478,10 +476,7 @@ describe("score — no operation (ADR-0014 Q46)", () => {
       instrument: "PETR4",
       level: decimalString("12.00"),
     };
-    const result = score(
-      { ...baseInput, view, claim, subject: "analysis" },
-      provenanceBase,
-    );
+    const result = score({ ...baseInput, view, claim, subject: "analysis" }, provenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.pnl).toBeNull();
@@ -555,10 +550,7 @@ describe("score — max loss shapes", () => {
       strategyVersionId: null,
       rolledFrom: null,
     };
-    const result = score(
-      { ...baseInput, view, operation: nakedShortCall },
-      provenanceBase,
-    );
+    const result = score({ ...baseInput, view, operation: nakedShortCall }, provenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.maxLoss).toBe("unbounded");
@@ -589,9 +581,7 @@ describe("score — max loss shapes", () => {
     if (!result.ok) return;
     expect(result.value.maxLoss).toBe(centavos(0));
     expect(result.value.normalizedPnl).toBeNull();
-    expect(result.value.notes).toContainEqual(
-      expect.objectContaining({ code: "zero_max_loss" }),
-    );
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "zero_max_loss" }));
   });
 });
 
@@ -608,10 +598,7 @@ describe("score — invalid inputs", () => {
   });
 
   it("rejects a decidedAt not covered by any calendar session", () => {
-    const result = score(
-      { ...baseInput, decidedAt: "2023-12-01T00:00:00.000Z" },
-      provenanceBase,
-    );
+    const result = score({ ...baseInput, decidedAt: "2023-12-01T00:00:00.000Z" }, provenanceBase);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({
@@ -800,14 +787,16 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...emptyView,
       corporateActions: [
-        { ticker: "PETR4", exDate: "2024-01-03", asOf: "2024-01-03T00:00:00.000Z", factor: decimalString("0.5") },
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
       ],
       candles: [stockCandle("2024-01-05", "6.50", "6.50")],
     };
-    const result = score(
-      { ...baseInput, view, operation: stockOperation() },
-      provenanceBase,
-    );
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // effective quantity 200 @ effective entry 5.00; mark 6.50: (6.50-5.00)*100*200
@@ -820,14 +809,16 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...emptyView,
       corporateActions: [
-        { ticker: "PETR4", exDate: "2024-01-03", asOf: "2024-01-03T00:00:00.000Z", factor: decimalString("0") },
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0"),
+        },
       ],
       candles: [stockCandle("2024-01-05", "13.00", "13.00")],
     };
-    const result = score(
-      { ...baseInput, view, operation: stockOperation() },
-      provenanceBase,
-    );
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({
@@ -1447,6 +1438,276 @@ describe("score — counterfactual settlement at expiry for a signal origin (ADR
   });
 });
 
+describe("score — counterfactual settlement at expiry for a manual origin (ADR-0014 Q41/Q54, round 3 item 1)", () => {
+  const callSeries: OptionSeries = {
+    ticker: "PETR4C28",
+    underlying: "PETR4",
+    right: "call",
+    strike: decimalString("28.00"),
+    expiry: "2024-01-06",
+    style: "european",
+    asOf: "2024-01-01T00:00:00.000Z",
+  };
+
+  const costModel: CostModel = {
+    b3FeeRate: decimalString("0"),
+    brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(150) },
+    optionSlippageRate: decimalString("0"),
+    incomeTaxRate: decimalString("0"),
+    monthlyStockSalesExemption: centavos(0),
+  };
+
+  function callOperation(): Operation {
+    return {
+      id: "op-call",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-06",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+  }
+
+  it("settles the counterfactual at expiry OTM, never reading the stale post-expiry trade", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      optionPrices: [
+        optionDayPrice("PETR4C28", "2024-01-02", "2.00"),
+        optionDayPrice("PETR4C28", "2024-01-06", "0.30"),
+      ],
+      candles: [stockCandle("2024-01-06", "20.00", "20.00")],
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        costModel,
+        horizon: "2024-01-06",
+        subject: "do_not_enter",
+        operation: callOperation(),
+        origin: { kind: "manual" },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // entry fill at the session-2 average (2.00); OTM at expiry (strike 28.00 > close 20.00):
+    // settles at zero intrinsic value; (0 - 2.00) * 100 * 1 = -200, minus entry costs
+    // (b3Fee 0 + optionPerContract 150) = -350. The 0.30 trade on the expiry session, which
+    // markLegsToHorizon would have wrongly read before the fix, is never consulted.
+    expect(result.value.counterfactualPnl).toBe(centavos(-350));
+  });
+
+  it("settles the counterfactual at expiry ITM", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      optionPrices: [
+        optionDayPrice("PETR4C28", "2024-01-02", "2.00"),
+        optionDayPrice("PETR4C28", "2024-01-06", "0.30"),
+      ],
+      candles: [stockCandle("2024-01-06", "35.00", "35.00")],
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        costModel,
+        horizon: "2024-01-06",
+        subject: "do_not_enter",
+        operation: callOperation(),
+        origin: { kind: "manual" },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // ITM at expiry: intrinsic 35.00 - 28.00 = 7.00; (7.00 - 2.00) * 100 * 1 = 500, minus
+    // entry costs 150 = 350
+    expect(result.value.counterfactualPnl).toBe(centavos(350));
+  });
+});
+
+describe("score — counterfactual settlement at expiry for a signal origin whose exit fires but never fills (ADR-0014 Q41/Q54, round 3 item 2)", () => {
+  it("settles at expiry instead of marking a stale post-signal option trade", () => {
+    const callSeries: OptionSeries = {
+      ticker: "PETR4C28",
+      underlying: "PETR4",
+      right: "call",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-06",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      optionPrices: [
+        optionDayPrice("PETR4C28", "2024-01-02", "2.00"),
+        optionDayPrice("PETR4C28", "2024-01-04", "4.00"),
+      ],
+      candles: [
+        stockCandle("2024-01-02", "20.00", "20.00"),
+        stockCandle("2024-01-03", "20.00", "20.00"),
+        stockCandle("2024-01-04", "20.00", "20.00"),
+        stockCandle("2024-01-05", "20.00", "20.00"),
+        stockCandle("2024-01-06", "20.00", "20.00"),
+      ],
+    };
+    const callStructure: Structure = {
+      id: "call",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: {
+        name: "test",
+        timeframe: "D1",
+        structureId: "call",
+        strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+        expiry: { kind: "business_days", min: 1, max: 60 },
+        sizing: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        entry: alwaysTrue,
+        exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        adjustments: [],
+      },
+      structure: callStructure,
+    };
+    const operation: Operation = {
+      id: "op-call",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-06",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        horizon: "2024-01-06",
+        subject: "do_not_enter",
+        operation,
+        origin: { kind: "signal", strategy },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // entry fill at session-2 average (2.00); the profit_target exit fires on session-4
+    // (average 4.00, a 100% gain against the 50% threshold) but there is no later optionPrice
+    // to fill the exit before the horizon. The operation's own expiry (2024-01-06) is on the
+    // horizon session, so the fallback settles rather than marking the session-4 trade as if
+    // it were still fresh: OTM at expiry (strike 28.00 > close 20.00) settles at zero;
+    // (0 - 2.00) * 100 * 1 = -200, zero entry costs on the default cost model.
+    expect(result.value.counterfactualPnl).toBe(centavos(-200));
+  });
+});
+
+describe("score — stale mark note names the ticker and session (ADR-0014 Q42/Q54, round 3 item 3)", () => {
+  it("notes a taken-operation mark carried forward from an earlier session", () => {
+    const view: MarketView = {
+      ...emptyView,
+      candles: [stockCandle("2024-01-03", "11.00", "11.00")],
+    };
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toContainEqual({
+      code: "stale_price",
+      message:
+        "PETR4 marked at its last trade on 2024-01-03 (ADR-0014 Q42), not a fresh price for the horizon",
+    });
+  });
+
+  it("notes a kept stock leg settled alongside an expiring option leg when its own mark is stale", () => {
+    const callSeries: OptionSeries = {
+      ticker: "PETR4C28",
+      underlying: "PETR4",
+      right: "call",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-03",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    // The expiry session (2024-01-03) carries the operation's only candle, strictly earlier
+    // than the horizon (2024-01-05): `proposeSettlement` reads it fine (it needs a candle
+    // exactly on the expiry date), but the `kept` stock leg's own mark, resolved at the
+    // horizon close by the same latest-visible ladder, is stale for that later horizon.
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-03", "33.00", "33.00")],
+    };
+    const coveredCall: Operation = {
+      id: "op-covered",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-01-03",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: coveredCall },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // stock leg kept, marked at the last visible close (2024-01-03, stale for a 2024-01-05
+    // horizon): (33.00 - 30.00) * 100 * 100 = 30000
+    // call leg assigned at intrinsic 5.00: (5.00 - 1.00) * (-1) * 100 * 1 = -400
+    expect(result.value.pnl).toBe(centavos(29_600));
+    expect(result.value.notes).toContainEqual({
+      code: "stale_price",
+      message:
+        "PETR4 marked at its last trade on 2024-01-03 (ADR-0014 Q42), not a fresh price for the horizon",
+    });
+  });
+});
+
 describe("score — realized fills matched by ticker and side, rebased by the split factor (ADR-0014 Q51/Q54)", () => {
   it("rejects an ambiguous fill when two legs share the same ticker and side", () => {
     const view: MarketView = {
@@ -1561,7 +1822,8 @@ describe("score — Brier score bounds (property)", () => {
             { ...baseInput, view, claim, confidence: confidence(confidenceValue.toFixed(6)) },
             provenanceBase,
           );
-          if (!result.ok || result.value.thesis.claim === null) throw new Error("expected a scored claim");
+          if (!result.ok || result.value.thesis.claim === null)
+            throw new Error("expected a scored claim");
           const brier = Number(result.value.thesis.brier);
           expect(brier).toBeGreaterThanOrEqual(0);
           expect(brier).toBeLessThanOrEqual(1);

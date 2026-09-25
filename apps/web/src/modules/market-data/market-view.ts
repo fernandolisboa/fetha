@@ -523,7 +523,13 @@ export async function buildOperationMarketView(
         new Date(`${fromSession.date}T00:00:00.000Z`),
         atDate,
       );
-      pastWindowSessions = Math.max(pastWindowSessions, widenedRange.length);
+      // The 30-session indicator warm-up stays *below* the widened floor
+      // (round 3 item 7), not replaced by it: an indicator anchored on
+      // `fromSession` still needs its own trailing lookback, the same way it
+      // would with the unwidened floor. `Math.max` here would let a wide
+      // `decidedAt`..`at` span swallow that warm-up whenever it alone
+      // already exceeds `CALENDAR_WINDOW_SESSIONS`.
+      pastWindowSessions = widenedRange.length + CALENDAR_WINDOW_SESSIONS;
     }
   }
 

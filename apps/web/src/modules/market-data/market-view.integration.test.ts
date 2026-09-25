@@ -517,6 +517,51 @@ describe("buildOperationMarketView", () => {
     expect(view.candles[0]?.close).toBe("30.000000");
   });
 
+  it("keeps the 30-session warm-up below a decidedAt-widened floor, not swallowed by a wide decidedAt..at span (round 3 item 7)", async () => {
+    const underlying = uniqueTicker("WRM");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2098-01-05", 100);
+    await seedSessions(sessions);
+
+    const atSession = sessions[sessions.length - 1];
+    // decidedAt session 70 (index 69): the widened range decidedAt..at is 31
+    // sessions, itself already past the default 30-session floor.
+    const decidedAtSession = sessions[69];
+    // Session 45 (index 44): inside the fixed window's own extra 30-session
+    // warm-up below the widened floor (sessions 40..100), but strictly
+    // before `decidedAtSession` — the pre-fix `Math.max(30, widenedRange.length)`
+    // would have dropped it, since the unfixed window only ever reached back
+    // to `decidedAtSession` itself (session 70).
+    const warmupSession = sessions[44];
+    if (!atSession || !decidedAtSession || !warmupSession) {
+      throw new Error("fixture setup failed");
+    }
+
+    await upsertDailyCandles(db, warmupSession, new Date(`${warmupSession}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: warmupSession,
+        ticker: underlying,
+        open: "10.000000",
+        high: "10.500000",
+        low: "9.500000",
+        average: "10.000000",
+        close: "10.000000",
+        trades: 10,
+        tradedQuantity: 1000,
+      }),
+    ]);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const from = `${decidedAtSession}T13:00:00.000Z`;
+    const view = await buildOperationMarketView(db, underlying, at, { from });
+
+    expect(view.calendar.map((session) => session.date)).toContain(warmupSession);
+    expect(view.candles.some((candle) => candle.session === warmupSession)).toBe(true);
+  });
+
   it("fails typed instead of reaching the engine when a stored option right is out of vocabulary (round 2 item 2)", async () => {
     const underlying = uniqueTicker("BAD");
     cleanupTickers.push(underlying);

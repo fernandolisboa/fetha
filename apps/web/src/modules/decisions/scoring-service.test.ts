@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Result, Score, ScoreInput } from "@fetha/engine";
+import type { Capabilities, Engine, Result, Score, ScoreInput } from "@fetha/engine";
 
 const dueDecisionUserIds = vi.fn();
 vi.mock("./due-decision-users", () => ({ dueDecisionUserIds }));
@@ -51,6 +51,19 @@ function errResult(code: string): Result<Score> {
   return { ok: false, error: { code } } as Result<Score>;
 }
 
+const FAKE_ENGINE_VERSION = "fake-engine-1";
+
+// Widened past `Pick<Engine, "score">` (round 3 item 9): an unscorable row
+// must take its own `engineVersion` from whichever engine actually ran this
+// scoring pass, so every fixture below carries its own `capabilities()` the
+// same way the real engine does.
+function fakeEngine(score: Engine["score"]): Pick<Engine, "score" | "capabilities"> {
+  return {
+    score,
+    capabilities: () => ({ engineVersion: FAKE_ENGINE_VERSION }) as Capabilities,
+  };
+}
+
 const dueRow = { id: "decision-1" } as never;
 const builtInput = { horizon: "2026-09-09" } as unknown as ScoreInput;
 
@@ -71,7 +84,11 @@ describe("scoreDueDecisions", () => {
     buildScoreInput.mockResolvedValueOnce({ ok: true, input: builtInput });
     const score = vi.fn().mockResolvedValueOnce(okResult(scoreFixture()));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(score).toHaveBeenCalledTimes(1);
     expect(insertIfAbsent).toHaveBeenCalledWith(
@@ -88,10 +105,16 @@ describe("scoreDueDecisions", () => {
   });
 
   it("resolves the as-of session as the newest succeeded cotahist run when this run drained nothing new", async () => {
-    freshness.mockResolvedValue([{ source: "cotahist", status: "succeeded", session: "2026-09-07" }]);
+    freshness.mockResolvedValue([
+      { source: "cotahist", status: "succeeded", session: "2026-09-07" },
+    ]);
     dueDecisionUserIds.mockResolvedValue([]);
 
-    const outcome = await scoreDueDecisions(db, { okSessions: [] }, { engine: { score: vi.fn() } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: [] },
+      { engine: fakeEngine(vi.fn()) },
+    );
 
     expect(outcome.asOfSession).toBe("2026-09-07");
     expect(dueDecisionUserIds).toHaveBeenCalledWith(db, "2026-09-07");
@@ -100,10 +123,74 @@ describe("scoreDueDecisions", () => {
   it("does nothing when no as-of session can be resolved at all", async () => {
     freshness.mockResolvedValue([]);
 
-    const outcome = await scoreDueDecisions(db, { okSessions: [] }, { engine: { score: vi.fn() } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: [] },
+      { engine: fakeEngine(vi.fn()) },
+    );
 
     expect(outcome).toMatchObject({ asOfSession: "", usersScored: 0, usersSkipped: 0 });
     expect(dueDecisionUserIds).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty outcome with a setup_failed error, not a throw, when resolveAsOfSession's own read rejects (round 3 item 4)", async () => {
+    freshness.mockRejectedValue(new Error("connection reset"));
+
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: [] },
+      { engine: fakeEngine(vi.fn()) },
+    );
+
+    expect(outcome).toEqual({
+      asOfSession: "",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 0,
+      errors: [{ decisionId: null, kind: "setup_failed" }],
+    });
+    expect(dueDecisionUserIds).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty outcome with a setup_failed error, not a throw, when the structure catalog read rejects (round 3 item 4)", async () => {
+    listAll.mockRejectedValue(new Error("connection reset"));
+
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(vi.fn()) },
+    );
+
+    expect(outcome).toEqual({
+      asOfSession: "",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 0,
+      errors: [{ decisionId: null, kind: "setup_failed" }],
+    });
+    expect(dueDecisionUserIds).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty outcome with a setup_failed error, not a throw, when the due-user list read rejects (round 3 item 4)", async () => {
+    dueDecisionUserIds.mockRejectedValue(new Error("connection reset"));
+
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(vi.fn()) },
+    );
+
+    expect(outcome).toEqual({
+      asOfSession: "",
+      usersScored: 0,
+      usersSkipped: 0,
+      decisionsScored: 0,
+      decisionsSkipped: 0,
+      errors: [{ decisionId: null, kind: "setup_failed" }],
+    });
+    expect(dueForUser).not.toHaveBeenCalled();
   });
 
   it("is idempotent: a decision the repository reports as already inserted is not double-counted as newly scored", async () => {
@@ -113,7 +200,11 @@ describe("scoreDueDecisions", () => {
     insertIfAbsent.mockResolvedValueOnce({ inserted: false });
     const score = vi.fn().mockResolvedValueOnce(okResult(scoreFixture()));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.decisionsScored).toBe(0);
     expect(outcome.usersScored).toBe(0);
@@ -125,7 +216,11 @@ describe("scoreDueDecisions", () => {
     buildScoreInput.mockResolvedValueOnce({ ok: false, reason: "missing_entry_price" });
     const score = vi.fn();
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(score).not.toHaveBeenCalled();
     expect(outcome.decisionsSkipped).toBe(1);
@@ -136,8 +231,39 @@ describe("scoreDueDecisions", () => {
       expect.objectContaining({
         decisionId: "decision-1",
         unscorableReason: "build_failed:missing_entry_price",
+        engineVersion: FAKE_ENGINE_VERSION,
       }),
     );
+  });
+
+  it("takes an unscorable row's engineVersion from the engine actually in use, not the real engine (round 3 item 9)", async () => {
+    dueDecisionUserIds.mockResolvedValue(["user-a"]);
+    dueForUser.mockResolvedValueOnce([dueRow]);
+    buildScoreInput.mockResolvedValueOnce({ ok: true, input: builtInput });
+    const score = vi.fn().mockResolvedValueOnce(errResult("unresolvable_view"));
+
+    await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: fakeEngine(score) });
+
+    expect(insertIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({ decisionId: "decision-1", engineVersion: FAKE_ENGINE_VERSION }),
+    );
+  });
+
+  it("memoizes the calendar lookup for insufficient_data exhaustion once per run, not once per decision (round 3 item 9)", async () => {
+    dueDecisionUserIds.mockResolvedValue(["user-a"]);
+    const otherRow = { id: "decision-2" } as never;
+    dueForUser.mockResolvedValueOnce([dueRow, otherRow]);
+    buildScoreInput.mockResolvedValue({ ok: true, input: builtInput });
+    const score = vi.fn().mockResolvedValue(errResult("insufficient_data"));
+
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
+
+    expect(outcome.decisionsSkipped).toBe(2);
+    expect(calendarUpTo).toHaveBeenCalledTimes(1);
   });
 
   it("retries insufficient_data next run without reporting it as an error, while the retry window is open", async () => {
@@ -147,7 +273,11 @@ describe("scoreDueDecisions", () => {
     calendarUpTo.mockResolvedValue([{ date: "2026-09-09" }]);
     const score = vi.fn().mockResolvedValueOnce(errResult("insufficient_data"));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.decisionsSkipped).toBe(1);
     expect(outcome.errors).toEqual([]);
@@ -167,10 +297,16 @@ describe("scoreDueDecisions", () => {
     ]);
     const score = vi.fn().mockResolvedValueOnce(errResult("insufficient_data"));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-16"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-16"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.decisionsSkipped).toBe(1);
-    expect(outcome.errors).toEqual([{ decisionId: "decision-1", kind: "unscorable:insufficient_data" }]);
+    expect(outcome.errors).toEqual([
+      { decisionId: "decision-1", kind: "unscorable:insufficient_data" },
+    ]);
     expect(insertIfAbsent).toHaveBeenCalledWith(
       expect.objectContaining({ decisionId: "decision-1", unscorableReason: "insufficient_data" }),
     );
@@ -182,7 +318,11 @@ describe("scoreDueDecisions", () => {
     buildScoreInput.mockResolvedValueOnce({ ok: true, input: builtInput });
     const score = vi.fn().mockResolvedValueOnce(errResult("unresolvable_view"));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.decisionsSkipped).toBe(1);
     expect(outcome.errors).toEqual([
@@ -202,7 +342,7 @@ describe("scoreDueDecisions", () => {
     const outcome = await scoreDueDecisions(
       db,
       { okSessions: ["2026-09-09"] },
-      { deadlineAt: 0, now: () => 1, engine: { score: vi.fn() } },
+      { deadlineAt: 0, now: () => 1, engine: fakeEngine(vi.fn()) },
     );
 
     expect(outcome.usersSkipped).toBe(2);
@@ -215,7 +355,11 @@ describe("scoreDueDecisions", () => {
     buildScoreInput.mockResolvedValueOnce({ ok: true, input: builtInput });
     const score = vi.fn().mockResolvedValueOnce(okResult(scoreFixture()));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.errors).toEqual([{ decisionId: null, kind: "scoring_failed" }]);
     expect(outcome.decisionsScored).toBe(1);
@@ -230,7 +374,11 @@ describe("scoreDueDecisions", () => {
       .mockResolvedValueOnce({ ok: true, input: builtInput });
     const score = vi.fn().mockResolvedValueOnce(okResult(scoreFixture()));
 
-    const outcome = await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: { score } });
+    const outcome = await scoreDueDecisions(
+      db,
+      { okSessions: ["2026-09-09"] },
+      { engine: fakeEngine(score) },
+    );
 
     expect(outcome.errors).toEqual([{ decisionId: "decision-1", kind: "scoring_failed" }]);
     expect(outcome.decisionsScored).toBe(1);

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   centavosSchema,
@@ -61,11 +61,33 @@ function seedInput(ticker: Ticker): SeedE2EDecisionInput {
 }
 
 const createdEmails: string[] = [];
+const originalE2ESecret = process.env.E2E_SECRET;
+const originalVercelEnv = process.env.VERCEL_ENV;
+
+// `seedE2EDecision` now refuses on its own outside a real E2E environment
+// (round 3 item 10), the same production/E2E_SECRET-configured check the
+// route already runs: every test but the one exercising that refusal needs
+// a configured secret and a non-production deployment, the same env shape
+// CI's own E2E run gives the real route.
+beforeEach(() => {
+  process.env.E2E_SECRET = "test-e2e-secret";
+  delete process.env.VERCEL_ENV;
+});
 
 afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+  }
+  if (originalE2ESecret === undefined) {
+    delete process.env.E2E_SECRET;
+  } else {
+    process.env.E2E_SECRET = originalE2ESecret;
+  }
+  if (originalVercelEnv === undefined) {
+    delete process.env.VERCEL_ENV;
+  } else {
+    process.env.VERCEL_ENV = originalVercelEnv;
   }
 });
 
@@ -73,6 +95,32 @@ afterEach(async () => {
 // itself — a missing "stock" structure in the shared catalog is reported,
 // not papered over.
 describe("seedE2EDecision", () => {
+  it("refuses before any write when no E2E secret is configured (round 3 item 10)", async () => {
+    delete process.env.E2E_SECRET;
+    const email = uniqueEmail("no-secret");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const result = await seedE2EDecision(getDb(), owner, seedInput(randomTicker()));
+
+    expect(result).toEqual({ ok: false, reason: "e2e_not_available" });
+    const decisionsRepository = new DecisionsRepository(getDb(), owner);
+    expect(await decisionsRepository.listMine()).toEqual([]);
+  });
+
+  it("refuses before any write on a production deployment even with a secret configured (round 3 item 10)", async () => {
+    process.env.VERCEL_ENV = "production";
+    const email = uniqueEmail("production");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const result = await seedE2EDecision(getDb(), owner, seedInput(randomTicker()));
+
+    expect(result).toEqual({ ok: false, reason: "e2e_not_available" });
+    const decisionsRepository = new DecisionsRepository(getDb(), owner);
+    expect(await decisionsRepository.listMine()).toEqual([]);
+  });
+
   // Only the "stock" row is removed, and restored in `finally` regardless of
   // outcome (round-trip, not a destructive `DELETE FROM structures`): the
   // catalog is shared reference data other, sequentially-run integration

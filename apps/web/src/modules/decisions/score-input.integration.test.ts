@@ -371,4 +371,102 @@ describe("buildScoreInput signal-origin branch", () => {
 
     expect(result).toEqual({ ok: false, reason: "missing_strategy_version" });
   });
+
+  it("returns invalid_inputs instead of throwing when the stored confidence no longer parses (round 3 item 5)", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("signal-origin-invalid-confidence");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const horizonSession = sessionOffset(decidedSession, 5);
+    await insertSession(decidedSession);
+    await insertSession(horizonSession);
+    await insertCandle(ticker, decidedSession, "40.000000");
+    await insertCandle(ticker, horizonSession, "45.000000");
+
+    const strategiesRepository = new StrategiesRepository(db, owner);
+    const strategy = await strategiesRepository.createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("test setup: expected a version");
+
+    const decidedAt = new Date(`${decidedSession}T21:05:00.000Z`);
+    const view = await buildOperationMarketView(db, ticker, decidedAt.toISOString());
+    const leg = {
+      role: "stock" as const,
+      side: "buy" as const,
+      ticker,
+      quantity: quantitySchema.parse(100),
+    };
+    const pricing = await engine.priceOperation({
+      view,
+      at: decidedAt.toISOString(),
+      legs: [leg],
+      openOperationCount: 0,
+    });
+    if (!pricing.ok) {
+      throw new Error(
+        `test setup: expected pricing to succeed, got ${JSON.stringify(pricing.error)}`,
+      );
+    }
+    const proposal: Proposal = { legs: [leg], pricing: pricing.value };
+
+    const signalsRepository = new SignalsRepository(db, owner);
+    await signalsRepository.createSignals([
+      {
+        strategyId: strategy.id,
+        strategyVersionId: version.id,
+        ticker,
+        timeframe: "D1",
+        session: decidedSession,
+        at: decidedAt,
+        kind: "entry",
+        indicators: [],
+        proposal,
+        operationId: null,
+        rule: null,
+      },
+    ]);
+    const [signal] = await signalsRepository.listInbox();
+    if (!signal) throw new Error("test setup: expected a signal");
+
+    const inputs: SignalDecisionInputs = {
+      originKind: "signal",
+      strategyName: strategy.name,
+      ticker,
+      session: decidedSession,
+      kind: "entry",
+      indicators: [],
+      proposal,
+      rule: null,
+    };
+
+    const decisionsRepository = new DecisionsRepository(db, owner);
+    const decision = await decisionsRepository.record({
+      kind: "enter",
+      originKind: "signal",
+      signalId: signal.id,
+      contemplatedOperationId: null,
+      strategyVersionId: version.id,
+      inputs,
+      rationale: "Invalid-confidence score-input integration test",
+      claim: null,
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: sessionDateSchema.parse(horizonSession),
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const dueRow = await fetchDueDecisionRow(decision.id);
+    // The stored value read back can never be reproduced by the app's own
+    // write path (`confidenceSchema` gates every write): this stands in for
+    // a row an older app version wrote before the schema tightened, or one
+    // edited directly, the only realistic way this parse ever fails.
+    dueRow.confidence = "not-a-number";
+    const catalog = await new StructuresRepository(db).listAll();
+    const result = await buildScoreInput(db, owner, dueRow, catalog);
+
+    expect(result).toEqual({ ok: false, reason: "invalid_inputs" });
+  });
 });
