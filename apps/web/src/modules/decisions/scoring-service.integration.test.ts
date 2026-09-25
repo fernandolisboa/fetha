@@ -143,12 +143,15 @@ afterEach(async () => {
   }
 });
 
-// The one integration test with the real engine, on a thesis-only decision
-// (#29 brief): a contemplated-operation-origin decision never carries a
-// per-leg snapshot price today (score-input.ts), so it is always scored
-// thesis-only (ADR-0014 Q46) — exactly the case this exercises end to end,
-// through the real `@fetha/engine` `score`, not a fake.
+// Integration tests with the real engine, not a fake (#29 brief).
 describe("scoreDueDecisions with the real engine", () => {
+  // No candle is inserted before `decidedSession` here, so
+  // `operationFromContemplatedInputs` (score-input.ts) cannot re-price the
+  // snapshotted leg at `decidedAt` (no spot to resolve) and the operation
+  // stays `null` — this decision is scored thesis-only (ADR-0014 Q46), not
+  // because a contemplated-operation origin can never carry an operation
+  // (see the "enter"/"do_not_enter" tests below), but because re-pricing
+  // itself found nothing.
   it("scores a thesis-only decision's close_above claim against real candle data", async () => {
     const db = getDb();
     await ensureStockStructure();
@@ -211,5 +214,137 @@ describe("scoreDueDecisions with the real engine", () => {
     const rerun = await scoreDueDecisions(db, horizonSession);
     expect(rerun.decisionsScored).toBe(0);
     expect((await scoresRepository.listMine())).toHaveLength(1);
+  });
+
+  // A candle at `decidedSession` gives `operationFromContemplatedInputs`
+  // something to re-price the snapshotted stock leg against at `decidedAt`:
+  // entryPrice R$ 40,00. A candle at `horizonSession` marks it to R$ 45,00.
+  // pnl = (45 - 40) * 100 (centavos/real) * 100 (quantity) = 50 000 centavos.
+  // maxLoss (long stock, unbounded upside) = entryPrice * quantity * 100 =
+  // 400 000 centavos. normalizedPnl = 50 000 / 400 000 = 0.125.
+  it("scores an enter decision's operation_pnl_positive claim with pnl, maxLoss and normalizedPnl", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("real-engine-enter-operation");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const horizonSession = sessionOffset(decidedSession, 5);
+    await insertSession(decidedSession);
+    await insertSession(horizonSession);
+    await insertCandle(ticker, decidedSession, "40.000000");
+    await insertCandle(ticker, horizonSession, "45.000000");
+
+    const operationRepository = new OperationsRepository(db, owner);
+    const saved = await operationRepository.save({
+      structureId: "stock",
+      underlying: ticker,
+      legs: [{ role: "stock", side: "buy", ticker, quantity: quantitySchema.parse(100) }],
+      session: decidedSession,
+      netPremiumCentavos: centavos(300000),
+      maxLossCentavos: centavos(300000),
+      maxGainCentavos: null,
+      breachedLimits: [],
+    });
+
+    const decisionsRepository = new DecisionsRepository(db, owner);
+    const decision = await decisionsRepository.record({
+      kind: "enter",
+      originKind: "contemplated_operation",
+      signalId: null,
+      contemplatedOperationId: saved.id,
+      strategyVersionId: null,
+      inputs: operationInputs(ticker, decidedSession),
+      rationale: "Real-engine contemplated-operation enter integration test",
+      claim: { kind: "operation_pnl_positive" },
+      confidence: confidenceSchema.parse("0.7"),
+      horizon: horizonSession,
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const outcome = await scoreDueDecisions(db, horizonSession);
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.decisionsScored).toBe(1);
+
+    const scoresRepository = new DecisionScoresRepository(db, owner);
+    const scores = await scoresRepository.findForDecisions([decision.id]);
+    const row = scores.get(decision.id);
+    expect(row).toBeDefined();
+    expect(row?.pnlCentavos).toBe(50000);
+    expect(row?.maxLossCentavos).toBe(400000);
+    expect(row?.maxLossUnbounded).toBe(false);
+    expect(row?.normalizedPnl ? new Decimal(row.normalizedPnl).toString() : null).toEqual(
+      new Decimal("0.125").toString(),
+    );
+    expect(row?.claimHeld).toBe(true);
+  });
+
+  // Same snapshot, but `do_not_enter`: `pnl` stays 0 (nothing was held) and
+  // the counterfactual buys the leg the first session after `decidedSession`
+  // (session open R$ 40,00, same as the entry candle) and marks it to
+  // `horizonSession`'s R$ 45,00 close. Gross pnl 50 000 centavos, less the
+  // B3 fee on the R$ 4 000,00 entry (0.05% => 200 centavos) =
+  // 49 800 centavos.
+  it("scores a do_not_enter decision's operation_pnl_positive claim with a counterfactualPnl", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("real-engine-do-not-enter-operation");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const entrySession = sessionOffset(decidedSession, 2);
+    const horizonSession = sessionOffset(decidedSession, 5);
+    await insertSession(decidedSession);
+    await insertSession(entrySession);
+    await insertSession(horizonSession);
+    await insertCandle(ticker, decidedSession, "40.000000");
+    await insertCandle(ticker, entrySession, "40.000000");
+    await insertCandle(ticker, horizonSession, "45.000000");
+
+    const operationRepository = new OperationsRepository(db, owner);
+    const saved = await operationRepository.save({
+      structureId: "stock",
+      underlying: ticker,
+      legs: [{ role: "stock", side: "buy", ticker, quantity: quantitySchema.parse(100) }],
+      session: decidedSession,
+      netPremiumCentavos: centavos(300000),
+      maxLossCentavos: centavos(300000),
+      maxGainCentavos: null,
+      breachedLimits: [],
+    });
+
+    const decisionsRepository = new DecisionsRepository(db, owner);
+    const decision = await decisionsRepository.record({
+      kind: "do_not_enter",
+      originKind: "contemplated_operation",
+      signalId: null,
+      contemplatedOperationId: saved.id,
+      strategyVersionId: null,
+      inputs: operationInputs(ticker, decidedSession),
+      rationale: "Real-engine contemplated-operation do_not_enter integration test",
+      claim: { kind: "operation_pnl_positive" },
+      confidence: confidenceSchema.parse("0.3"),
+      horizon: horizonSession,
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const outcome = await scoreDueDecisions(db, horizonSession);
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.decisionsScored).toBe(1);
+
+    const scoresRepository = new DecisionScoresRepository(db, owner);
+    const scores = await scoresRepository.findForDecisions([decision.id]);
+    const row = scores.get(decision.id);
+    expect(row).toBeDefined();
+    expect(row?.pnlCentavos).toBe(0);
+    expect(row?.maxLossCentavos).toBe(400000);
+    expect(row?.counterfactualPnlCentavos).toBe(49800);
+    expect(row?.claimHeld).toBe(true);
   });
 });

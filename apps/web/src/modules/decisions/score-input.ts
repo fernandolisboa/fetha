@@ -6,7 +6,13 @@ import {
   type Instant,
   type Ticker,
 } from "@fetha/contracts";
-import { decisionKinds, type Operation, type OperationLeg, type ScoreInput } from "@fetha/engine";
+import {
+  decisionKinds,
+  engine,
+  type Operation,
+  type OperationLeg,
+  type ScoreInput,
+} from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -18,7 +24,11 @@ import {
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
 import type { DueDecisionRow } from "./decision-scores-repository";
-import { decisionInputsSchema, type SignalDecisionInputs } from "./inputs";
+import {
+  decisionInputsSchema,
+  type OperationDecisionInputs,
+  type SignalDecisionInputs,
+} from "./inputs";
 
 export type BuildScoreInputResult = { ok: true; input: ScoreInput } | { ok: false; reason: string };
 
@@ -101,6 +111,64 @@ async function operationFromSignalInputs(
   };
 }
 
+// Builds the `Operation` a contemplated-operation decision was taken on.
+// `contemplated_operations` snapshots only carry the leg roster
+// (`OperationDecisionInputs.legs`), not a per-leg entry price, so the legs
+// are re-priced deterministically with `engine.priceOperation` on a market
+// view truncated at `decidedAt` — the same call `priceOperationLegs`
+// (apps/web's builder, `portfolio/engine-client.ts`) made when the user saw
+// this operation, replayed at the decision's own instant instead of "now".
+// Returns `null` when pricing fails or a leg comes back with no price; the
+// caller decides whether that is an acceptable thesis-only fallback or a
+// hard failure, based on the decision's claim.
+async function operationFromContemplatedInputs(
+  db: Database,
+  decisionId: string,
+  decidedAt: Instant,
+  inputs: OperationDecisionInputs,
+): Promise<Operation | null> {
+  if (inputs.legs.length === 0) {
+    return null;
+  }
+  const view = await buildOperationMarketView(db, inputs.underlying, decidedAt);
+  const pricing = await engine.priceOperation({
+    view,
+    at: decidedAt,
+    legs: inputs.legs.map((leg) => ({
+      role: leg.role,
+      side: leg.side,
+      ticker: leg.ticker,
+      quantity: leg.quantity,
+    })),
+    openOperationCount: 0,
+  });
+  if (!pricing.ok) {
+    return null;
+  }
+  const pricingLegs = pricing.value.legs.map((legValuation) => ({
+    ticker: legValuation.leg.ticker,
+    price: legValuation.price,
+  }));
+  const legs: OperationLeg[] = [];
+  for (const [index, leg] of inputs.legs.entries()) {
+    const entryPrice = matchEntryPrice(leg.ticker, index, pricingLegs);
+    if (entryPrice === null) {
+      return null;
+    }
+    legs.push({ ...leg, entryPrice });
+  }
+  const expiry = await resolveExpiry(db, legs);
+  return {
+    id: syntheticOperationId(decisionId),
+    underlying: inputs.underlying,
+    legs,
+    expiry,
+    openedAt: inputs.session,
+    strategyVersionId: null,
+    rolledFrom: null,
+  };
+}
+
 async function buildScoreMarketView(
   db: Database,
   underlying: Ticker,
@@ -132,6 +200,7 @@ export async function buildScoreInput(
     return { ok: false, reason: "unknown_decision_kind" };
   }
   const inputs = decisionInputsSchema.parse(row.inputs);
+  const decidedAt = instantSchema.parse(row.decidedAt.toISOString());
 
   let operation: Operation | null = null;
   let origin: ScoreInput["origin"] = { kind: "manual" };
@@ -164,15 +233,19 @@ export async function buildScoreInput(
         strategy: { id: version.id, definition: version.definition, structure },
       };
     }
+  } else {
+    // Contemplated-operation origin: `origin` stays `manual` (there is no
+    // strategy behind a hand-built operation), but the `Operation` itself
+    // is reconstructed by re-pricing the snapshotted legs — see
+    // `operationFromContemplatedInputs`. `operation_pnl_positive` is the
+    // only claim that needs the operation to score at all (it drives P&L
+    // and the counterfactual); every other claim is fine thesis-only when
+    // re-pricing comes back empty.
+    operation = await operationFromContemplatedInputs(db, row.id, decidedAt, inputs);
+    if (!operation && row.claim?.kind === "operation_pnl_positive") {
+      return { ok: false, reason: "missing_entry_price" };
+    }
   }
-  // Contemplated-operation origin (brief limitation, reported in the PR
-  // notes): `contemplated_operations` snapshots only aggregate pricing
-  // (`net_premium_centavos`, `max_loss_centavos`, `max_gain_centavos`), not
-  // a per-leg entry price, so an `OperationLeg.entryPrice` cannot be
-  // reconstructed here without inventing a price the decision was never
-  // actually taken at. Scored thesis-only until a per-leg snapshot exists —
-  // `operation` and `origin` both stay at their `null`/`manual` default for
-  // this origin.
 
   const underlying = inputs.originKind === "signal" ? inputs.ticker : inputs.underlying;
   const claimInstrument =
@@ -196,7 +269,7 @@ export async function buildScoreInput(
   const scoreInput: ScoreInput = {
     view,
     subject: row.kind as ScoreInput["subject"],
-    decidedAt: instantSchema.parse(row.decidedAt.toISOString()),
+    decidedAt,
     horizon: horizonSession,
     confidence,
     claim: row.claim,
