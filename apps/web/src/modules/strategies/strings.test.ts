@@ -36,6 +36,17 @@ describe("evaluationLog.detailFor", () => {
     expect(t.inbox.evaluationLog.detailFor("something_unrecognized")).toBeUndefined();
   });
 
+  it("renders the unaffordable-budget sizing detail distinctly from the zero-units one (#59)", () => {
+    const zeroUnits = t.inbox.evaluationLog.detailFor("sizing yields fewer than one unit");
+    const unaffordableBudget = t.inbox.evaluationLog.detailFor(
+      "the declared capital and fraction cannot afford one unit",
+    );
+
+    expect(zeroUnits).toBeDefined();
+    expect(unaffordableBudget).toBeDefined();
+    expect(unaffordableBudget).not.toBe(zeroUnits);
+  });
+
   it("renders the same collection-neutral message regardless of which collection failed (#18 round 7 item 4)", () => {
     const ivRank = t.inbox.evaluationLog.detailFor(
       "unsatisfiable_collection:impliedVolatilityIndex",

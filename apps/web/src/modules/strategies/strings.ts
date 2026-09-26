@@ -17,6 +17,8 @@ const evaluationDetailEn: Record<string, string> = {
   "fixed_risk sizing is unsizeable against an unbounded max loss":
     "Fixed-risk sizing is unsizeable against an unbounded max loss",
   "sizing yields fewer than one unit": "Sizing yields fewer than one unit",
+  "the declared capital and fraction cannot afford one unit":
+    "The declared capital and fraction cannot afford one unit",
   "not enough market data to select strikes or price the proposal":
     "Not enough market data to select strikes or price the proposal",
   "profit_target cannot fire: the operation's premium base is zero":
@@ -96,6 +98,8 @@ const evaluationDetailPtBR: Record<string, string> = {
   "fixed_risk sizing is unsizeable against an unbounded max loss":
     "Dimensionamento por risco fixo não é possível com perda máxima ilimitada",
   "sizing yields fewer than one unit": "O dimensionamento resulta em menos de uma unidade",
+  "the declared capital and fraction cannot afford one unit":
+    "O capital declarado não cobre uma unidade",
   "not enough market data to select strikes or price the proposal":
     "Dados de mercado insuficientes para selecionar strikes ou precificar a proposta",
   "profit_target cannot fire: the operation's premium base is zero":

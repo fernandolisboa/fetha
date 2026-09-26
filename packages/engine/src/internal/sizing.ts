@@ -11,7 +11,8 @@ export type StockSizingInput = {
   price: DecimalString;
 };
 
-export type StockSizingReason = "no_declared_capital" | "unbounded_max_loss" | "zero_units";
+export type StockSizingReason =
+  "no_declared_capital" | "unbounded_max_loss" | "zero_units" | "unaffordable_budget";
 
 export type StockSizingResult =
   { ok: true; units: number } | { ok: false; detail: StockSizingReason };
@@ -37,5 +38,5 @@ export function sizeStockEntry(input: StockSizingInput): StockSizingResult {
   );
   const units = budgetCentavos.div(perUnitCentavos).floor().toNumber();
 
-  return units >= 1 ? { ok: true, units } : { ok: false, detail: "zero_units" };
+  return units >= 1 ? { ok: true, units } : { ok: false, detail: "unaffordable_budget" };
 }
