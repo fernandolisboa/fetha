@@ -75,5 +75,6 @@ close is ingested. Needs `E2E_SECRET` and ingested PETR4 option data in the prev
 `pwa-cache.spec.ts` covers the service worker's cache policy (#43, ADR-0025): it registers and
 signs in, waits until the worker controls the page, opens `/carteira` and fetches the session,
 then asserts Cache Storage holds no `/api/*` response, RSC payload or page, before and after
-signing out, and that the precached `offline.html` is the "Sem conexão" page. Needs `E2E_SECRET`
-only.
+signing out, and that the precached `offline.html` is the "Sem conexão" page. That test needs
+`E2E_SECRET`. A second test needs no secret: once the worker controls the page it switches the
+browser offline and checks that a navigation renders the "Sem conexão" page.

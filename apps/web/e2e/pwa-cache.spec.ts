@@ -6,8 +6,6 @@ import { registerAndSignIn } from "./helpers";
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 const e2eSecret = process.env.E2E_SECRET;
 
-test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the PWA cache flow.");
-
 async function cachedUrls(page: Page): Promise<URL[]> {
   const urls = await page.evaluate(async () => {
     const found: string[] = [];
@@ -36,6 +34,8 @@ test("the service worker never stores pages or API responses", async ({
   baseURL,
   request,
 }) => {
+  test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the signed-in cache flow.");
+
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.evaluate(async () => {
@@ -63,4 +63,18 @@ test("the service worker never stores pages or API responses", async ({
     return response ? response.text() : null;
   });
   expect(offlinePage).toContain("Sem conexão");
+});
+
+test("an offline navigation shows the static offline page", async ({ page, context }) => {
+  await page.goto("/entrar");
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+
+  await context.setOffline(true);
+  await page.goto("/carteira");
+
+  await expect(page.getByRole("heading", { name: "Sem conexão" })).toBeVisible();
 });
