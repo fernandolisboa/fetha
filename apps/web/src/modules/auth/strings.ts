@@ -68,6 +68,23 @@ const en = {
     invalidLinkBody: "Request a new password reset link below.",
     requestAgainLink: "Request a new reset link",
   },
+  deleteAccount: {
+    title: "Delete account",
+    subtitle:
+      "Deletes your account and every piece of data tied to it: portfolio, decisions, strategies, backtests, preferences and the access log. There is no undo. Export your data first if you want a copy.",
+    open: "Delete my account",
+    dialogTitle: "Delete your account for good?",
+    dialogDescription:
+      "Everything is deleted right away and cannot be recovered. Enter your password to confirm.",
+    passwordLabel: "Password",
+    confirm: "Delete account",
+    cancel: "Cancel",
+  },
+  accountDeleted: {
+    title: "Account deleted",
+    body: "Your account and all of its data were deleted. Thank you for using Fetha.",
+    home: "Back to the start",
+  },
   terms: {
     title: "Terms of use",
     body: "Content in progress.",
@@ -90,6 +107,8 @@ const en = {
     passwordResetRequestFailed: "We couldn't send the reset link. Try again.",
     passwordResetFailed: "We couldn't reset your password. Try again.",
     invalidResetToken: "This link is invalid or has expired.",
+    invalidPassword: "Incorrect password.",
+    deleteAccountFailed: "We couldn't delete your account. Try again.",
   },
   verificationEmail: {
     subject: "Confirm your email at Fetha",
@@ -179,6 +198,23 @@ const ptBR = {
     invalidLinkBody: "Peça um novo link de redefinição abaixo.",
     requestAgainLink: "Pedir um novo link de redefinição",
   },
+  deleteAccount: {
+    title: "Excluir conta",
+    subtitle:
+      "Exclui sua conta e todos os dados ligados a ela: carteira, decisões, estratégias, backtests, preferências e registro de acesso. Não dá para desfazer. Se quiser uma cópia, exporte seus dados antes.",
+    open: "Excluir minha conta",
+    dialogTitle: "Excluir sua conta de vez?",
+    dialogDescription:
+      "Tudo é apagado na hora e não pode ser recuperado. Digite sua senha para confirmar.",
+    passwordLabel: "Senha",
+    confirm: "Excluir conta",
+    cancel: "Cancelar",
+  },
+  accountDeleted: {
+    title: "Conta excluída",
+    body: "Sua conta e todos os dados dela foram apagados. Obrigado por usar o Fetha.",
+    home: "Voltar ao início",
+  },
   terms: {
     title: "Termos de uso",
     body: "Conteúdo em elaboração.",
@@ -201,6 +237,8 @@ const ptBR = {
     passwordResetRequestFailed: "Não foi possível enviar o link de redefinição. Tente novamente.",
     passwordResetFailed: "Não foi possível redefinir sua senha. Tente novamente.",
     invalidResetToken: "Esse link é inválido ou expirou.",
+    invalidPassword: "Senha incorreta.",
+    deleteAccountFailed: "Não foi possível excluir sua conta. Tente novamente.",
   },
   verificationEmail: {
     subject: "Confirme seu e-mail no Fetha",

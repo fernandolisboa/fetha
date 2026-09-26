@@ -321,3 +321,32 @@ export async function resetPassword(
 export async function signOut(requestHeaders: Headers): Promise<void> {
   await callAuthHandler("/sign-out", {}, requestHeaders);
 }
+
+export type DeleteAccountOutcome =
+  | { status: "ok" }
+  | { status: "invalid_password" }
+  | { status: "rate_limited" }
+  | { status: "failed" };
+
+export async function deleteAccount(
+  password: string,
+  requestHeaders: Headers,
+): Promise<DeleteAccountOutcome> {
+  const response = await callAuthHandler("/delete-user", { password }, requestHeaders);
+
+  if (!response) {
+    return { status: "failed" };
+  }
+  if (isRateLimited(response)) {
+    return { status: "rate_limited" };
+  }
+  if (response.ok) {
+    return { status: "ok" };
+  }
+
+  const body = await readJson<{ code?: string }>(response);
+  if (body?.code === "INVALID_PASSWORD") {
+    return { status: "invalid_password" };
+  }
+  return { status: "failed" };
+}

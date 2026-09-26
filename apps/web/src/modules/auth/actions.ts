@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { ActionState } from "./action-state";
+import { requireUser, withAuthenticatedAction } from "./session";
 import {
+  deleteAccount,
   requestPasswordReset,
   resendVerification,
   resetPassword,
@@ -15,6 +17,7 @@ import {
 } from "./service";
 import { t } from "./strings";
 import {
+  deleteAccountFormSchema,
   magicLinkFormSchema,
   requestPasswordResetFormSchema,
   resendVerificationFormSchema,
@@ -214,4 +217,32 @@ export async function signOutAction(): Promise<void> {
   const requestHeaders = await headers();
   await signOut(requestHeaders);
   redirect("/entrar");
+}
+
+export async function deleteAccountAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = deleteAccountFormSchema.safeParse({ password: formData.get("password") });
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidPassword };
+  }
+
+  const outcome = await withAuthenticatedAction(async () => {
+    await requireUser();
+    return deleteAccount(parsed.data.password, await headers());
+  });
+
+  switch (outcome.status) {
+    case "ok":
+      redirect("/conta-excluida");
+    case "invalid_password":
+      return { status: "error", message: errors.invalidPassword };
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
+    case "failed":
+      return { status: "error", message: errors.deleteAccountFailed };
+  }
 }

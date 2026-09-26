@@ -47,13 +47,16 @@ no operator path rewrites decision data today.
    `user_id` (or `…_user_id`) column in `information_schema` and fails when the export lacks it,
    so a new table cannot be forgotten.
 3. **Deletion.** Better Auth's `/delete-user` endpoint, called through the handler like every
-   other auth call (ADR-0016, so its rate limit applies), with the password mandatory: a
-   `hooks.before` rule refuses the call without a password or with a token, so neither session
-   freshness nor an emailed link can stand in for it. `beforeDelete` deletes the `invites` and
-   `mail_outbox` rows for the address. Deleting the `user` row cascades to every user-scoped
-   table. A test enumerates every table with a `user_id` column and asserts no row is left for the
-   deleted user, that `strategy_versions` of their strategies are gone, and that another user's
-   rows (including a copy of the deleted user's shared strategy) survive.
+   other auth call (ADR-0016), with the password mandatory: a `hooks.before` rule refuses the call
+   without a password or with a token, so neither session freshness nor an emailed link can stand
+   in for it, and `/delete-user/callback` answers 404. The endpoint answers "wrong password" to
+   whoever holds the session, so it is rate limited like sign-in: Better Auth's IP rule plus a
+   per-account bucket keyed by the session's email in the same hook. `beforeDelete` deletes the
+   rows that name the user without a `user_id`: `invites`, `mail_outbox`, and pending
+   password-reset and magic-link tokens in `verification`. Deleting the `user` row cascades to
+   every user-scoped table. A test enumerates every table with a `user_id` column and asserts no
+   row is left for the deleted user, that `strategy_versions` of their strategies are gone, and
+   that another user's rows (including a copy of the deleted user's shared strategy) survive.
 4. **Terms and privacy.** The text lives in `auth/strings.ts` and describes what the code does,
    including the retention of `rate_limits` (ADR-0024) and `access_log`. `CURRENT_TERMS_VERSION`
    changes with the text, so each new acceptance records which text was accepted.

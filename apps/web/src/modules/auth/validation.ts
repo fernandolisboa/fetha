@@ -39,6 +39,10 @@ export const resendVerificationFormSchema = emailOnlyFormSchema;
 export const magicLinkFormSchema = emailOnlyFormSchema;
 export const requestPasswordResetFormSchema = emailOnlyFormSchema;
 
+export const deleteAccountFormSchema = z.object({
+  password: z.string().min(1),
+});
+
 export const resetPasswordFormSchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8).max(128),
