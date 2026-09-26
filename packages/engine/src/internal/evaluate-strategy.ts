@@ -641,8 +641,10 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       const tickerResult = tickerState(ticker);
       if (!tickerResult.ok) return tickerResult;
       const state = tickerResult.value;
-      // An unparseable instant compares false both ways, as in isAfter/isAtOrBefore: nothing is
-      // "after" an unparseable `at`, and nothing is "at or before" it or after `since` either.
+      // An unparseable `at` or `since` compares false both ways, as in isAfter/isAtOrBefore:
+      // nothing is "after" an unparseable `at`, and nothing is "at or before" it or after `since`
+      // either. A candle's own asOf is a validated Instant (instantSchema), so nominalMs has no
+      // NaN to place.
       const upToAt = upperBound(state.nominalMs, atMs);
       const visible = Number.isNaN(atMs) ? state.nominal.length : upToAt;
 
