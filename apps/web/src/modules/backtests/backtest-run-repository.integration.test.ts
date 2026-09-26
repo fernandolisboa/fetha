@@ -7,6 +7,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { backtestRuns } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { loadMigrationStatements } from "@/db/test/migration-sql";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import {
@@ -580,33 +581,9 @@ describe("backtest_runs #73 optionPerContract -> optionPerOrder migration (0016_
       where id = ${run.id}
     `);
 
-    // The migration statements from 0016_option_per_order.sql, applied by
-    // hand here (the same statements `db:migrate` runs against fetha-preview
-    // and production): idempotent, keyed on the old key's presence.
-    await db.execute(sql`
-      update backtest_runs
-      set cost_model = (cost_model - 'brokerage')
-        || jsonb_build_object(
-          'brokerage',
-          (cost_model->'brokerage' - 'optionPerContract')
-            || jsonb_build_object('optionPerOrder', cost_model->'brokerage'->'optionPerContract')
-        )
-      where cost_model->'brokerage' ? 'optionPerContract'
-    `);
-    await db.execute(sql`
-      update backtest_runs
-      set result = jsonb_set(
-        result,
-        '{config,costModel,brokerage}',
-        (result->'config'->'costModel'->'brokerage' - 'optionPerContract')
-          || jsonb_build_object(
-            'optionPerOrder',
-            result->'config'->'costModel'->'brokerage'->'optionPerContract'
-          )
-      )
-      where result is not null
-        and result->'config'->'costModel'->'brokerage' ? 'optionPerContract'
-    `);
+    for (const statement of loadMigrationStatements("0016_option_per_order")) {
+      await db.execute(sql.raw(statement));
+    }
 
     const migrated = await repository.findMine(run.id);
     expect(migrated.costModel).toEqual(DEFAULT_COST_MODEL);

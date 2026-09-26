@@ -13,6 +13,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { loadMigrationStatements } from "@/db/test/migration-sql";
 import { seedStockOperation } from "@/db/test/held-operation";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -527,26 +528,21 @@ describe("decisions #73 optionPerContract -> optionPerOrder migration (0016_opti
 
     // Raw SQL, bypassing the typed repository and its strict Zod schema
     // entirely: this reproduces exactly the pre-#73 on-disk shape (the old
-    // key name), which the current schema would refuse to parse.
-    await db
-      .update(decisions)
-      .set({ costModel: sql`${JSON.stringify(oldShapeCostModel)}::jsonb` })
-      .where(eq(decisions.id, recorded.id));
+    // key name), which the current schema would refuse to parse. The
+    // immutability trigger has to step aside for the planting itself.
+    await db.execute(sql`alter table decisions disable trigger decisions_no_update`);
+    try {
+      await db
+        .update(decisions)
+        .set({ costModel: sql`${JSON.stringify(oldShapeCostModel)}::jsonb` })
+        .where(eq(decisions.id, recorded.id));
+    } finally {
+      await db.execute(sql`alter table decisions enable trigger decisions_no_update`);
+    }
 
-    // The 0016_option_per_order.sql statement for this table, applied by
-    // hand here (the same statement `db:migrate` runs against
-    // fetha-preview and production): idempotent, keyed on the old key's
-    // presence.
-    await db.execute(sql`
-      update decisions
-      set cost_model = (cost_model - 'brokerage')
-        || jsonb_build_object(
-          'brokerage',
-          (cost_model->'brokerage' - 'optionPerContract')
-            || jsonb_build_object('optionPerOrder', cost_model->'brokerage'->'optionPerContract')
-        )
-      where cost_model->'brokerage' ? 'optionPerContract'
-    `);
+    for (const statement of loadMigrationStatements("0016_option_per_order")) {
+      await db.execute(sql.raw(statement));
+    }
 
     const mine = await repository.listMine();
     const migrated = mine.find((entry) => entry.id === recorded.id);
