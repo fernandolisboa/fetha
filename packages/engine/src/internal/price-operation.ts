@@ -797,12 +797,12 @@ function resolveSizingUnits(
     return unitsFromPerUnit(new Decimal(maxLoss));
   }
 
-  // fixed_fractional sizes against the capital actually at risk: for a net-credit
-  // structure (netPremium > 0, premium received) that is the bounded max loss
-  // (ADR-0014's stop_loss base uses the same reasoning), never the premium received,
-  // which understates the risk of a spread.
-  const isNetCredit = netPremium > 0;
-  if (isNetCredit) {
+  // fixed_fractional sizes against the capital actually at risk: for a non-debit
+  // structure (netPremium >= 0, premium received or zero, e.g. a zero-cost risk
+  // reversal) that is the bounded max loss (ADR-0014's stop_loss base uses the same
+  // reasoning), never the premium received, which understates the risk of a spread.
+  const isNonDebit = netPremium >= 0;
+  if (isNonDebit) {
     if (maxLoss === "unbounded") return unboundedMaxLoss;
     return unitsFromPerUnit(new Decimal(maxLoss));
   }

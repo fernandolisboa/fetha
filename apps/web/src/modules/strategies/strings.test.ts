@@ -49,6 +49,10 @@ describe("evaluationLog.detailFor", () => {
     expect(unaffordableBudget).not.toBe(zeroUnits);
   });
 
+  it("keeps the pre-#59 sizing detail defined for evaluation records stored before the split", () => {
+    expect(t.inbox.evaluationLog.detailFor("sizing yields fewer than one unit")).toBeDefined();
+  });
+
   it("renders the same collection-neutral message regardless of which collection failed (#18 round 7 item 4)", () => {
     const ivRank = t.inbox.evaluationLog.detailFor(
       "unsatisfiable_collection:impliedVolatilityIndex",

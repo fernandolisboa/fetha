@@ -1988,7 +1988,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.proposal.pricing.legs[1]?.leg.side).toBe("sell");
   });
 
-  it("records unsizeable for an option entry when the sizing rule yields fewer than one unit", () => {
+  it("records unsizeable(unaffordable_budget) for an option entry when the budget cannot afford one unit (#59)", () => {
     const view: MarketView = {
       ...emptyView,
       calendar: calendarSessions(30),
@@ -2019,7 +2019,58 @@ describe("evaluateStrategy — option structures (#23)", () => {
     const result = evaluateStrategy(input);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.evaluations[0]?.outcome).toBe("unsizeable");
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-01T21:00:00.000Z",
+      session: "2024-01-01",
+      outcome: "unsizeable",
+      detail: "the declared capital and fraction cannot afford one unit",
+    });
+    expect(result.value.signals).toEqual([]);
+  });
+
+  it("records unsizeable(zero_units) for an option entry whose per-unit sizing base is genuinely zero (#59)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: [dailyCandle("PETR4", 0, "30.00")],
+      optionSeries: [
+        callSeries("PETR4C33", "33.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C33", sessionAt(0), "0.00")],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const zeroPremiumCall: Structure = {
+      id: "long-call",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "long-call",
+          strikes: [{ kind: "nearest", price: decimalString("33.00") }],
+          sizing: { kind: "fixed_risk", fraction: decimalString("0.5") },
+        }),
+        zeroPremiumCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-01T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-01T21:00:00.000Z",
+      session: "2024-01-01",
+      outcome: "unsizeable",
+      detail: "a unit carries no cost or risk to size against",
+    });
     expect(result.value.signals).toEqual([]);
   });
 
