@@ -200,6 +200,7 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
       riskProfile: fixtureRiskProfile(),
       limits: "enforce",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 
@@ -345,6 +346,7 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
       riskProfile: fixtureRiskProfile(),
       limits: "enforce",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
 

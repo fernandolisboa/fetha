@@ -1,0 +1,2 @@
+ALTER TABLE "backtest_runs" ADD COLUMN "walk_forward_window_sessions" integer;--> statement-breakpoint
+ALTER TABLE "backtest_runs" ADD CONSTRAINT "backtest_runs_walk_forward_window_sessions_check" CHECK ("backtest_runs"."walk_forward_window_sessions" is null or "backtest_runs"."walk_forward_window_sessions" > 0);

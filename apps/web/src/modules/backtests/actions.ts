@@ -22,7 +22,7 @@ import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategie
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { BacktestRunRepository } from "./backtest-run-repository";
-import { COST_MODEL_PRESETS, costModelPresetIds } from "./default-config";
+import { COST_MODEL_PRESETS, costModelPresetIds, walkForwardWindowOptions } from "./default-config";
 import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type CreateBacktestRunResult = {
@@ -39,6 +39,7 @@ const createInputSchema = z.strictObject({
   initialCapital: centavosSchema.positive(),
   limits: z.enum(["enforce", "warn"]),
   costModel: z.enum(costModelPresetIds as [string, ...string[]]),
+  walkForwardWindowSessions: z.union(walkForwardWindowOptions.map((value) => z.literal(value))),
 });
 
 const CREATE_RATE_LIMIT = { windowSeconds: 60, max: 10 };
@@ -213,6 +214,7 @@ async function createBacktestRun(
     riskProfile,
     limits: parsed.limits,
     sizing: version.definition.sizing,
+    walkForward: { windowSessions: parsed.walkForwardWindowSessions },
     seed: randomSeed(),
   });
 

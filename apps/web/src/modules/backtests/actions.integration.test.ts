@@ -144,6 +144,25 @@ afterEach(async () => {
 });
 
 describe("createBacktestRunAction", () => {
+  it("refuses a walk-forward window outside the offered lengths", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+
+    const result = await createBacktestRunAction({
+      strategyId: "does-not-matter",
+      strategyVersionId: "does-not-matter",
+      universe: [TICKER],
+      from: "2096-01-02",
+      to: "2096-01-10",
+      initialCapital: centavos(1_000_000),
+      limits: "warn",
+      costModel: "b3_default",
+      walkForwardWindowSessions: 50,
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+  });
+
   it("refuses to create a run when the user has not declared a risk profile", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
@@ -161,6 +180,7 @@ describe("createBacktestRunAction", () => {
       initialCapital: centavos(1_000_000),
       limits: "warn",
       costModel: "b3_default",
+      walkForwardWindowSessions: 63,
     });
 
     expect(result).toEqual({ status: "error", error: "no_risk_profile" });
@@ -233,6 +253,7 @@ describe("createBacktestRunAction", () => {
         initialCapital: centavos(500_000_00),
         limits: "enforce",
         costModel: "b3_default",
+        walkForwardWindowSessions: 63,
       });
     } catch (error) {
       if (!isRedirectError(error)) throw error;
@@ -262,6 +283,7 @@ describe("createBacktestRunAction", () => {
       initialCapital: centavos(1_000_000),
       limits: "warn" as const,
       costModel: "b3_default" as const,
+      walkForwardWindowSessions: 63 as const,
     };
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -343,6 +365,7 @@ describe("createBacktestRunAction", () => {
         initialCapital: centavos(500_000_00),
         limits: "enforce",
         costModel: "discount_broker",
+        walkForwardWindowSessions: 126,
       });
     } catch (error) {
       if (!isRedirectError(error)) throw error;
@@ -353,6 +376,7 @@ describe("createBacktestRunAction", () => {
     const runs = await new BacktestRunRepository(db, currentUser).listMineForStrategy(strategy.id);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.costModel).toEqual(DISCOUNT_BROKER_COST_MODEL);
+    expect(runs[0]?.walkForward).toEqual({ windowSessions: 126 });
   });
 
   it("never materialises the whole-period MarketView at creation time, only the narrow candle check (round 3 item 1)", async () => {
@@ -421,6 +445,7 @@ describe("createBacktestRunAction", () => {
         initialCapital: centavos(500_000_00),
         limits: "enforce",
         costModel: "b3_default",
+        walkForwardWindowSessions: 63,
       });
     } catch (error) {
       if (!isRedirectError(error)) throw error;
@@ -478,6 +503,7 @@ describe("createBacktestRunAction", () => {
       initialCapital: centavos(500_000_00),
       limits: "enforce",
       costModel: "b3_default",
+      walkForwardWindowSessions: 63,
     });
 
     expect(result).toEqual({ status: "error", error: "invalid" });
@@ -574,6 +600,7 @@ describe("createBacktestRunAction", () => {
           initialCapital: centavos(500_000_00),
           limits: "enforce",
           costModel: "b3_default",
+          walkForwardWindowSessions: 63,
         });
       } catch (error) {
         if (!isRedirectError(error)) throw error;
@@ -701,6 +728,7 @@ describe("createBacktestRunAction", () => {
       initialCapital: centavos(500_000_00),
       limits: "enforce",
       costModel: "b3_default",
+      walkForwardWindowSessions: 63,
     });
 
     expect(result).toEqual({ status: "error", error: "unsatisfiable_collection" });
@@ -751,6 +779,7 @@ describe("createBacktestRunAction", () => {
       initialCapital: centavos(1_000_000),
       limits: "warn",
       costModel: "b3_default",
+      walkForwardWindowSessions: 63,
     });
 
     expect(result).toEqual({ status: "error", error: "invalid" });

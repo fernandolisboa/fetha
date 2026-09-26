@@ -1,4 +1,4 @@
-import { and, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
   backtestCheckpointSchema,
   backtestRunSchema,
@@ -51,6 +51,7 @@ export interface BacktestRunConfigInput {
   riskProfile: RiskProfile;
   limits: LimitMode;
   sizing: SizingRule | null;
+  walkForward: { windowSessions: number } | null;
   seed: number;
 }
 
@@ -67,6 +68,7 @@ export interface BacktestRunRecord {
   riskProfile: RiskProfile;
   limits: LimitMode;
   sizing: SizingRule | null;
+  walkForward: { windowSessions: number } | null;
   seed: number;
   configDigest: string | null;
   status: BacktestRunStatus;
@@ -78,6 +80,14 @@ export interface BacktestRunRecord {
   error: string | null;
   createdAt: Date;
   completedAt: Date | null;
+}
+
+export interface BacktestRunSummary {
+  id: string;
+  strategyId: string;
+  strategyVersionId: string;
+  period: { from: SessionDate; to: SessionDate };
+  createdAt: Date;
 }
 
 export class BacktestRunNotFoundError extends Error {
@@ -163,6 +173,10 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
     riskProfile: riskProfileSchema.parse(row.riskProfile),
     limits: limitModeSchema.parse(row.limits),
     sizing: row.sizing ? sizingRuleSchema.parse(row.sizing) : null,
+    walkForward:
+      row.walkForwardWindowSessions === null
+        ? null
+        : { windowSessions: row.walkForwardWindowSessions },
     seed: row.seed,
     configDigest: row.configDigest,
     status: row.status,
@@ -198,6 +212,7 @@ export class BacktestRunRepository extends UserScopedRepository {
         riskProfile: input.riskProfile,
         limits: input.limits,
         sizing: input.sizing,
+        walkForwardWindowSessions: input.walkForward?.windowSessions ?? null,
         seed: input.seed,
         configDigest: "",
         status: "pending",
@@ -227,6 +242,46 @@ export class BacktestRunRepository extends UserScopedRepository {
       .from(backtestRuns)
       .where(and(eq(backtestRuns.strategyId, strategyId), eq(backtestRuns.userId, this.userId)));
     return rows.map(toRecord).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  // Completed runs only, without their (large) result: what a comparison picker lists.
+  async listMineCompleteSummaries(): Promise<BacktestRunSummary[]> {
+    const rows = await this.db
+      .select({
+        id: backtestRuns.id,
+        strategyId: backtestRuns.strategyId,
+        strategyVersionId: backtestRuns.strategyVersionId,
+        periodFrom: backtestRuns.periodFrom,
+        periodTo: backtestRuns.periodTo,
+        createdAt: backtestRuns.createdAt,
+      })
+      .from(backtestRuns)
+      .where(and(eq(backtestRuns.userId, this.userId), eq(backtestRuns.status, "complete")))
+      .orderBy(desc(backtestRuns.createdAt));
+    return rows.map((row) => ({
+      id: row.id,
+      strategyId: row.strategyId,
+      strategyVersionId: row.strategyVersionId,
+      period: periodSchema.parse({ from: row.periodFrom, to: row.periodTo }),
+      createdAt: row.createdAt,
+    }));
+  }
+
+  // Ids that are not this user's, or not complete, are left out rather than failing the read.
+  async findMineComplete(ids: readonly string[]): Promise<BacktestRunRecord[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(backtestRuns)
+      .where(
+        and(
+          inArray(backtestRuns.id, [...ids]),
+          eq(backtestRuns.userId, this.userId),
+          eq(backtestRuns.status, "complete"),
+        ),
+      );
+    const byId = new Map(rows.map((row) => [row.id, toRecord(row)]));
+    return ids.flatMap((id) => byId.get(id) ?? []);
   }
 
   // Claims the run for this call with a single conditional UPDATE instead

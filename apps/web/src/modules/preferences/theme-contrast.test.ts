@@ -16,6 +16,9 @@ const semanticTokens = [
   "--greek-theta",
   "--greek-vega",
   "--accent",
+  "--series-1",
+  "--series-2",
+  "--series-3",
 ];
 
 describe("theme contrast (DESIGN.md's design gate)", () => {

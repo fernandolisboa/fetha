@@ -263,8 +263,15 @@ _Avoid_: PnL curve, balance history
 The per-window view of a backtest run: the period cut into consecutive windows of a fixed number
 of sessions, with the run's metrics reported per window next to the whole-run metrics, so that
 instability over time is visible. No optimization and no out-of-sample test in v1 (ADR-0014);
-an operation belongs to the window where it opened.
+an operation belongs to the window where it opened. The window length is chosen when the run is
+created (ADR-0023).
 _Avoid_: out-of-sample test, optimization window, anchored walk-forward
+
+**Comparison**:
+Two or three completed backtest runs side by side: their setup, whole-run metrics, cumulative
+return curves and per-window returns, read from the persisted runs (ADR-0023). The runs may be
+versions of one strategy or different strategies.
+_Avoid_: benchmark, tournament, optimization
 
 ### Risk
 

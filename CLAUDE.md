@@ -237,7 +237,7 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
   Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
 --accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
 --greek-gamma --greek-theta --greek-vega --font-display --font-body --font-mono --radius
---elevation --density --chart-stroke`.
+--elevation --density --chart-stroke --series-1 --series-2 --series-3`.
 - Instrumento: bg `#0f1115`, surface `#151922`, ink `#e6e8ee`, muted `#8d97a8`, accent
   `#3fb8c8`, up `#2fb36a`, down `#e0524f`, warning `#e0a83a`, IBM Plex Sans + IBM Plex Mono,
   radius 4px, body 13px.
@@ -246,7 +246,8 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
 - Spacing 4px base, page padding 16px 20px, panel gap 14px; motion 120ms hover, 180ms shell;
   `prefers-reduced-motion` respected.
 - Charts: candles `--up`/`--down`; payoff line `--chart-stroke` with gain/loss areas at 12%;
-  greeks by their tokens; risk bands up/warning/down; never dual axes or pies.
+  greeks by their tokens; risk bands up/warning/down; a run comparison draws one line per run in
+  `--series-1..3`, never for gain, loss or risk; never dual axes or pies.
 - Formatting: `R$ 1.234,56`, `−R$ 1.234,56`, `2,08%`, `10,65% a.a.`, `17/10/2026`, `14:32`,
   `28 sessões`, `America/Sao_Paulo`.
 

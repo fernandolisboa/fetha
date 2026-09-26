@@ -1256,7 +1256,9 @@ declaredCapital` and divides by the notional cost of one unit; `fixed_risk` budg
   sessions from `period.from` (the last may be shorter) and reports the metrics above per
   window, computed on that window's slice of the equity curve; an operation belongs to the
   window where it opened. There is no optimization and the windows are not out-of-sample; they
-  show instability of one strategy version over time.
+  show instability of one strategy version over time. ADR-0023 sharpens two details: a window's
+  drawdown restarts from the window's own starting equity, and a month's tax counts in the one
+  window holding that month's last session.
 - `seed` is the only entropy; nothing in v1 consumes it, and it is part of the config so that
   any future consumer stays reproducible.
 

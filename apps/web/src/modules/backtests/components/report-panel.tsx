@@ -21,6 +21,7 @@ import { noteMessage, t } from "../strings";
 import { DistributionChart } from "./distribution-chart";
 import { DrawdownChart } from "./drawdown-chart";
 import { EquityCurveChart } from "./equity-curve-chart";
+import { WalkForwardTable } from "./walk-forward-table";
 
 const missedEntryReasonLabel: Record<MissedEntryReason, string> = {
   no_trades: "sem negócios na sessão",
@@ -212,6 +213,8 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
         </div>
       </Panel>
 
+      <WalkForwardTable run={run} />
+
       <Panel title={t.report.operationsTable.title}>
         <NotesFor run={run} codes={operationCodes} />
         {run.operations.length === 0 ? (
@@ -277,10 +280,6 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
         )}
       </Panel>
 
-      {/* Walk-forward windows are the immutable run's own creation-time
-          concern (issue #30 — a run cannot gain walk-forward retroactively)
-          and are out of this panel's scope; only the declared limits, which
-          every existing run already carries, render here. */}
       <Panel title={t.report.limitBreaches.title}>
         <DeclaredLimits riskProfile={run.config.riskProfile} mode={run.config.limits} />
         <NotesFor run={run} codes={limitBreachCodes} />

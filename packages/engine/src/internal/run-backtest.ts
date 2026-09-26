@@ -11,7 +11,6 @@ import {
   ENGINE_VERSION,
   pricingModels,
   type BacktestCheckpoint,
-  type BacktestConfig,
   type BacktestProgress,
   type BacktestRun,
   type Candle,
@@ -37,7 +36,12 @@ import {
   type TradingSession,
 } from "../api";
 import { batchTruncationReport } from "./batch-truncation";
-import { computeBacktestMetrics, sumCentavos, type MetricsInput } from "./backtest-metrics";
+import {
+  computeBacktestMetrics,
+  isSettledOperation,
+  sumCentavos,
+  type MetricsInput,
+} from "./backtest-metrics";
 import { computeMonthlyTax } from "./backtest-taxes";
 import { configDigest } from "./config-digest";
 import {
@@ -56,6 +60,7 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
+import { computeWalkForward } from "./walk-forward";
 
 type PendingEntry = {
   legs: Leg[];
@@ -1839,7 +1844,20 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     limitBreaches: state.limitBreaches,
     equityCurve: state.equityCurve,
     metrics,
-    walkForward: config.walkForward ? computeWalkForward(state, config, periodSessions) : null,
+    walkForward: config.walkForward
+      ? computeWalkForward({
+          windowSessions: config.walkForward.windowSessions,
+          periodSessions: periodSessions.map((s) => s.date),
+          initialCapital: config.initialCapital,
+          equityCurve: state.equityCurve,
+          rfPerSession: state.rfPerSession,
+          held: state.held,
+          operations: state.operations,
+          fills: state.fills,
+          taxes: state.taxesFinalized,
+          slippageEntries: state.slippageEntries,
+        })
+      : null,
     taxes: state.taxesFinalized,
     notes,
     provenance: {
@@ -1863,16 +1881,6 @@ function isLastSessionOfMonth(
   return next === undefined || monthKeyOf(next.date) !== monthKey;
 }
 
-// A settled operation is one whose pnl is a result, not a mark: closed by an exit rule or a
-// roll, or expired, but not closed by period_end (that pnl is a valuation, ADR-0013 "Equity and
-// metrics"). winRate and profitFactor are computed over settled operations only: an operation
-// closed at period_end, and an expired operation whose residual was only marked (not traded) at
-// period_end, are both a valuation rather than a result and are excluded the same way.
-function isSettledOperation(op: SimulatedOperation): boolean {
-  if (op.status === "expired") return op.residualSettledBy !== "period_end";
-  return op.closeReason.kind !== "period_end";
-}
-
 function buildMetricsInput(state: BacktestState, initialCapital: Centavos): MetricsInput {
   const settled = state.operations.filter(isSettledOperation);
   return {
@@ -1886,59 +1894,4 @@ function buildMetricsInput(state: BacktestState, initialCapital: Centavos): Metr
     taxes: sumCentavos(state.taxesFinalized.map((t) => t.tax)),
     slippage: sumCentavos(state.slippageEntries.map((s) => s.amount)),
   };
-}
-
-function computeWalkForward(
-  state: BacktestState,
-  config: BacktestConfig,
-  periodSessions: readonly TradingSession[],
-): NonNullable<BacktestRun["walkForward"]> {
-  /* v8 ignore start */
-  if (config.walkForward === null) {
-    throw new Error("run-backtest: computeWalkForward only called when walkForward is configured");
-  }
-  /* v8 ignore stop */
-  const windowSessions = config.walkForward.windowSessions;
-  const windows: NonNullable<BacktestRun["walkForward"]> = [];
-  for (let start = 0; start < periodSessions.length; start += windowSessions) {
-    const end = Math.min(periodSessions.length, start + windowSessions);
-    const windowSessionsSlice = periodSessions.slice(start, end);
-    const from = assertDefined(windowSessionsSlice[0], "run-backtest: non-empty window").date;
-    const to = assertDefined(windowSessionsSlice.at(-1), "run-backtest: non-empty window").date;
-    const equitySlice = state.equityCurve.slice(start, end);
-    const heldSlice = state.held.slice(start, end);
-    const rfSlice = state.rfPerSession.slice(start, end);
-    const baseline =
-      start === 0
-        ? config.initialCapital
-        : assertDefined(
-            state.equityCurve[start - 1],
-            "run-backtest: a completed run has one equity point per processed session",
-          ).equity;
-    const opsInWindow = state.operations.filter((op) => op.openedAt >= from && op.openedAt <= to);
-    const settled = opsInWindow.filter(isSettledOperation);
-    const { metrics } = computeBacktestMetrics({
-      equityCurve: equitySlice,
-      initialCapital: baseline,
-      rfPerSession: rfSlice,
-      held: heldSlice,
-      settledOperationPnls: settled.map((op) => op.pnl),
-      operationsCount: opsInWindow.length,
-      fees: sumCentavos(
-        state.fills.filter((f) => f.session >= from && f.session <= to).map((f) => f.costs),
-      ),
-      taxes: sumCentavos(
-        state.taxesFinalized
-          .filter((t) => t.month >= from.slice(0, 7) && t.month <= to.slice(0, 7))
-          .map((t) => t.tax),
-      ),
-      slippage: sumCentavos(
-        state.slippageEntries
-          .filter((s) => s.session >= from && s.session <= to)
-          .map((s) => s.amount),
-      ),
-    });
-    windows.push({ from, to, metrics });
-  }
-  return windows;
 }

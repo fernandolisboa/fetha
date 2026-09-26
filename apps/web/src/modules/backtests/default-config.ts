@@ -38,6 +38,13 @@ export const COST_MODEL_PRESETS = {
   discount_broker: DISCOUNT_BROKER_COST_MODEL,
 } as const;
 
+// Walk-forward window lengths in sessions (ADR-0023): about a month, a quarter, a half-year and a
+// year of B3 sessions. A quarter is the default: short enough to show several windows in a one- or
+// two-year run, long enough for each window to hold a few operations.
+export const walkForwardWindowOptions = [21, 63, 126, 252] as const;
+export type WalkForwardWindowOption = (typeof walkForwardWindowOptions)[number];
+export const DEFAULT_WALK_FORWARD_WINDOW: WalkForwardWindowOption = 63;
+
 export type CostModelPresetId = keyof typeof COST_MODEL_PRESETS;
 export const costModelPresetIds = Object.keys(COST_MODEL_PRESETS) as CostModelPresetId[];
 

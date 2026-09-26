@@ -153,6 +153,7 @@ describe("POST /api/backtests/[id]/run", () => {
       riskProfile: defaultRiskProfile(centavos(1_000_000)),
       limits: "warn",
       sizing: version.definition.sizing,
+      walkForward: null,
       seed: 1,
     });
     expect(runB.status).toBe("pending");

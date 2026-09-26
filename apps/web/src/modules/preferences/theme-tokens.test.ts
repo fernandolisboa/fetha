@@ -34,6 +34,9 @@ const designTokens = [
   "--elevation",
   "--density",
   "--chart-stroke",
+  "--series-1",
+  "--series-2",
+  "--series-3",
 ];
 
 describe("theme tokens", () => {

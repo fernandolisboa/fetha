@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type { Centavos, DecimalString } from "@fetha/contracts";
-import type { BacktestMetrics, EquityPoint, Note } from "../api";
+import type { BacktestMetrics, EquityPoint, Note, SimulatedOperation } from "../api";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { assertDefined } from "./invariant";
 import { toCentavos } from "./scalars";
@@ -169,4 +169,14 @@ export function computeBacktestMetrics(input: MetricsInput): {
 
 export function sumCentavos(values: readonly Centavos[]): Centavos {
   return toCentavos(values.reduce((acc, v) => acc + v, 0));
+}
+
+// A settled operation is one whose pnl is a result, not a mark: closed by an exit rule or a
+// roll, or expired, but not closed by period_end (that pnl is a valuation, ADR-0013 "Equity and
+// metrics"). winRate and profitFactor are computed over settled operations only: an operation
+// closed at period_end, and an expired operation whose residual was only marked (not traded) at
+// period_end, are both a valuation rather than a result and are excluded the same way.
+export function isSettledOperation(op: SimulatedOperation): boolean {
+  if (op.status === "expired") return op.residualSettledBy !== "period_end";
+  return op.closeReason.kind !== "period_end";
 }

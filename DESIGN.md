@@ -78,6 +78,9 @@ uppercase or metadata and meets 4.5:1 on `--bg` and `--surface`.
 | `--elevation`    | none                                                 | hairlines only                                  |
 | `--density`      | body 13px, row 36px, panel padding 10px 12px         |                                                 |
 | `--chart-stroke` | `--accent`                                           | payoff and equity lines                         |
+| `--series-1`     | `#3987e5`                                            | first run in a comparison                       |
+| `--series-2`     | `#d95926`                                            | second run in a comparison                      |
+| `--series-3`     | `#199e70`                                            | third run in a comparison                       |
 
 `globals.css` also derives implementation-only aliases of `--density` per theme —
 `--text-overline`, `--text-meta`, `--text-body`, `--text-input`, `--text-stat`, `--text-headline`,
@@ -140,7 +143,12 @@ Equity curve in `--chart-stroke` with drawdown as a `--down` area below; distrib
 as `--surface-2` bars with the zero bin marked. Greeks by their tokens, never by `--up`/`--down`.
 Risk bands: within limit `--up`, near limit (≥ 80%) `--warning`, breach `--down`. Grid recessive
 (`--line-soft`), axis labels `--muted` 11px mono, direct labels only for extremes and break-evens.
-Never dual axes, never pie charts.
+Never dual axes, never pie charts. A comparison of backtest runs draws each run's cumulative
+return (`equity / initialCapital − 1`) on one percentage axis, one line per run in `--series-1`,
+`--series-2`, `--series-3` in run order, with a dashed `--muted` zero line, a legend above, a
+direct label at each line's end and a crosshair tooltip; three runs at most, the size at which the
+three series tokens separate every pair under colour-vision deficiency (ADR-0023). The series
+tokens are the same in every theme and never stand for gain, loss or risk.
 
 ## Component inventory
 
