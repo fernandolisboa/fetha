@@ -16,6 +16,7 @@ import type {
   TradingSession,
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
+import { calendarIntegrityError } from "./validate-view-integrity";
 import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
@@ -877,6 +878,8 @@ export function priceOperation(
   input: PriceOperationInput,
   provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
+  const calendarError = calendarIntegrityError(input.view.calendar);
+  if (calendarError) return err(calendarError);
   if (Array.isArray(input.legs)) {
     const [firstLeg] = input.legs;
     if (!firstLeg) {

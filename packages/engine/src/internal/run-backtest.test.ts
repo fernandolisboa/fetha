@@ -773,7 +773,7 @@ describe("runBacktest — errors", () => {
     expect(result.error).toEqual({
       code: "invalid_input",
       path: "view.calendar",
-      message: "duplicate session 2024-01-02",
+      message: "duplicate calendar date 2024-01-02",
     });
   });
 

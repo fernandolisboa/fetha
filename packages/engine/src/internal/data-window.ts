@@ -1,7 +1,7 @@
 import type { IndicatorSpec, Instant, Timeframe } from "@fetha/contracts";
 import type { DataWindow, DataWindowInput, MarketViewCollection, TradingSession } from "../api";
 import { collectIndicatorSpecs } from "./collect-indicator-specs";
-import { instantMs, isAtOrBefore } from "./instant";
+import { compareInstants, instantMs, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { codeUnitCompare } from "./order";
 
@@ -16,7 +16,17 @@ const RECURSIVE_WARMUP_MULTIPLIER = 3;
 
 export function dataWindow(input: DataWindowInput): DataWindow {
   const { strategy, instruments, calendar, at, since } = input;
-  const sortedCalendar = [...calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
+  // One session per date (#40): a duplicated date would be walked twice and shorten the window.
+  // dataWindow never fails, so it keeps the earliest-opening row of a date; every method that
+  // computes over the view rejects the duplicate itself.
+  const sortedCalendar = [...calendar]
+    .sort(
+      (a, b) =>
+        codeUnitCompare(a.date, b.date) ||
+        compareInstants(a.open, b.open) ||
+        compareInstants(a.close, b.close),
+    )
+    .filter((session, i, sorted) => sorted[i - 1]?.date !== session.date);
 
   const indicators = collectIndicatorSpecs(strategy.definition);
   const candlesNeeded = Math.max(1, ...indicators.map(candleCountFor));

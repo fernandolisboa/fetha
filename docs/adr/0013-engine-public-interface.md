@@ -1381,7 +1381,8 @@ thrown exception from the engine is a bug.
 ### Ordering constraints
 
 Arrays in `MarketView` may arrive in any order; the engine sorts (I3). Duplicate keys (same
-ticker, timeframe and `asOf` for candles; same ticker and `exDate` for corporate-action factors;
+`date` for calendar sessions; same ticker, timeframe and `asOf` for candles; same ticker and
+`exDate` for corporate-action factors;
 same ticker and session for option prices; same series and `asOf` for macro points) are
 `invalid_input` — the engine consumes macro points latest-visible-by-`asOf` only (`rates.ts`'s
 `latestVisible`), never by `date`, so a `(series, asOf)` tie is what the check keys on, not a
@@ -1399,6 +1400,13 @@ surfaced; it resolves deterministically to the lower-strike row regardless of ar
 restarts the run from `config` (runs are immutable anyway). `calendar` must cover every session a
 call touches, else `insufficient_data`. `MarketView.dataVersion` and `datasetNotes` are copied
 into `provenance` unchanged (`null` and `[]` when absent).
+
+A duplicated calendar date is walked twice by every session count (time to expiry, a lookback),
+so every method that reads `view.calendar` rejects it as `invalid_input` at path `view.calendar`
+(#40). `dataWindow` cannot fail, so it keeps one row per date instead: the earliest-opening row.
+When two rows for the same date differ in hours, that row is not necessarily the one that yields
+the widest window, so the window returned is only a refetch hint for a calendar the computing
+methods reject anyway, not a guarantee tied to the deduplicated calendar's own window.
 
 ### Invariants
 

@@ -9,6 +9,7 @@ import type {
   Result,
 } from "../api";
 import { sessionAtOrBefore, sortedCalendar } from "./calendar";
+import { calendarIntegrityError } from "./validate-view-integrity";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -163,6 +164,8 @@ export function computeImpliedVolatilityIndex(
   at: Instant,
   provenanceBase: ProvenanceBase,
 ): Result<ImpliedVolatilityIndex> {
+  const calendarError = calendarIntegrityError(view.calendar);
+  if (calendarError) return err(calendarError);
   const spotValue = resolveUnderlyingSpot(view, underlying, at);
   if (!spotValue) return err({ code: "missing_instrument", ticker: underlying });
 

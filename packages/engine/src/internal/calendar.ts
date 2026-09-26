@@ -1,11 +1,16 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
 import type { TradingSession } from "../api";
 import { instantMs } from "./instant";
+import { codeUnitCompare, sortUnique } from "./order";
 import { upperBound } from "./search";
 
 export const SESSIONS_PER_YEAR = 252;
 
-type CalendarIndex = { sorted: readonly TradingSession[]; openMs: readonly number[] };
+type CalendarIndex = {
+  sorted: readonly TradingSession[];
+  openMs: readonly number[];
+  duplicateDate: SessionDate | null;
+};
 
 // Memoized per calendar array, like view-index.ts (#58): every pricing call and every session of
 // a backtest used to re-sort the whole calendar.
@@ -17,12 +22,25 @@ function calendarIndex(calendar: readonly TradingSession[]): CalendarIndex {
   const entries = calendar
     .map((session) => ({ session, openMs: instantMs(session.open) }))
     .sort((a, b) => a.openMs - b.openMs);
+  const dates = sortUnique(
+    calendar,
+    (session) => session.date,
+    (a, b) => codeUnitCompare(a.date, b.date),
+  );
   const index = {
     sorted: entries.map((e) => e.session),
     openMs: entries.map((e) => e.openMs),
+    duplicateDate: dates.ok ? null : dates.duplicateKey,
   };
   calendarIndexes.set(calendar, index);
   return index;
+}
+
+// The earliest date listed more than once (#40): a duplicated session is walked twice by every
+// session count (time to expiry, dataWindow's lookback), so each method that reads a calendar
+// rejects it.
+export function duplicateCalendarDate(calendar: readonly TradingSession[]): SessionDate | null {
+  return calendarIndex(calendar).duplicateDate;
 }
 
 export function sortedCalendar(calendar: readonly TradingSession[]): readonly TradingSession[] {
