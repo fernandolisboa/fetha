@@ -2,10 +2,21 @@ import { z } from "zod";
 
 import { normalizeEmail } from "./normalize-email";
 
-export const emailField = z.string().transform(normalizeEmail).pipe(z.email());
+export const emailField = z.string().transform(normalizeEmail).pipe(z.email().max(254));
+
+// The name is attacker-chosen whenever registration is open: someone can sign
+// up a victim's email with a name crafted to read as part of Fetha's own copy
+// (security audit A-07, #45). One line, no control characters, no links.
+export const nameField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^\P{C}+$/u)
+  .refine((name) => !/https?:\/\//i.test(name));
 
 export const signUpFormSchema = z.object({
-  name: z.string().trim().min(1).max(120),
+  name: nameField,
   email: emailField,
   password: z.string().min(8).max(128),
   termsAccepted: z.boolean(),

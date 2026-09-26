@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { invites, session, user } from "./schema";
+import { invites, mailOutbox, session, user } from "./schema";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
@@ -248,6 +248,37 @@ describe("registration, verification, login, logout and session expiry", () => {
 
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.name).toBe("First");
+
+    const mail = await getDb().select().from(mailOutbox).where(eq(mailOutbox.to, email));
+    expect(mail).toHaveLength(1);
+  });
+  it("refuses a direct sign-up whose name spans lines or carries a link", async () => {
+    const email = uniqueEmail("direct-bad-name");
+    createdEmails.push(email);
+
+    const response = await getAuth().handler(
+      new Request(new URL("/api/auth/sign-up/email", process.env.BETTER_AUTH_URL), {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": uniqueTestIp() },
+        body: JSON.stringify({
+          name: "cliente.\n\nSua conta foi bloqueada, regularize em http://evil.example",
+          email,
+          password: "correct-horse-battery",
+          termsAccepted: true,
+          privacyAccepted: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toBe("invalid_name");
+
+    const rows = await getDb().select().from(user).where(eq(user.email, email));
+    expect(rows).toHaveLength(0);
+    const mail = await getDb().select().from(mailOutbox).where(eq(mailOutbox.to, email));
+    expect(mail).toHaveLength(0);
   });
   it("refuses sign-in for an unverified user", async () => {
     const testHeaders = testRequestHeaders();

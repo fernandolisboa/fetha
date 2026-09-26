@@ -34,6 +34,36 @@ describe("signUpFormSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it.each([
+    ["a line feed", "cliente.\n\nSua conta foi bloqueada"],
+    ["a carriage return", "Nova\rUser"],
+    ["a tab", "Nova\tUser"],
+    ["a NUL", "Nova\u0000User"],
+    ["a zero-width space", "Nova\u200bUser"],
+    ["an http link", "Nova http://evil.example"],
+    ["an https link", "regularize em HTTPS://evil.example"],
+  ])("rejects a name with %s", (_label, name) => {
+    const result = signUpFormSchema.safeParse({
+      name,
+      email: "nova@example.com",
+      password: "correct-horse-battery",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a name with accents, apostrophes and hyphens", () => {
+    const result = signUpFormSchema.safeParse({
+      name: "João D'Ávila-Souza",
+      email: "nova@example.com",
+      password: "correct-horse-battery",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects an invalid email", () => {
     const result = signUpFormSchema.safeParse({
       name: "Nova User",
@@ -64,6 +94,36 @@ describe("magicLinkFormSchema", () => {
   it("normalizes the email", () => {
     const parsed = magicLinkFormSchema.parse({ email: "  Nova@Example.com " });
     expect(parsed.email).toBe("nova@example.com");
+  });
+
+  it.each([
+    ["a line feed", "cliente.\n\nSua conta foi bloqueada"],
+    ["a carriage return", "Nova\rUser"],
+    ["a tab", "Nova\tUser"],
+    ["a NUL", "Nova\u0000User"],
+    ["a zero-width space", "Nova\u200bUser"],
+    ["an http link", "Nova http://evil.example"],
+    ["an https link", "regularize em HTTPS://evil.example"],
+  ])("rejects a name with %s", (_label, name) => {
+    const result = signUpFormSchema.safeParse({
+      name,
+      email: "nova@example.com",
+      password: "correct-horse-battery",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a name with accents, apostrophes and hyphens", () => {
+    const result = signUpFormSchema.safeParse({
+      name: "João D'Ávila-Souza",
+      email: "nova@example.com",
+      password: "correct-horse-battery",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(true);
   });
 
   it("rejects an invalid email", () => {
@@ -113,5 +173,14 @@ describe("parseEmailQueryParam", () => {
 
   it("returns undefined for a value that is not an email", () => {
     expect(parseEmailQueryParam("<script>alert(1)</script>")).toBeUndefined();
+  });
+
+  it("drops an address longer than 254 characters", () => {
+    const local = "a".repeat(64);
+    const domain = `${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(63)}.com`;
+    expect(parseEmailQueryParam(`${local}@${domain}`)).toBeUndefined();
+    expect(parseEmailQueryParam(`${local}@${"b".repeat(63)}.com`)).toBe(
+      `${local}@${"b".repeat(63)}.com`,
+    );
   });
 });

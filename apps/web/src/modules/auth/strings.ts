@@ -93,8 +93,8 @@ const en = {
   },
   verificationEmail: {
     subject: "Confirm your email at Fetha",
-    text: "Hello, {name}. Confirm your email to start using Fetha: {url}\n\nIf you didn't create this account, ignore this email.",
-    html: '<p>Hello, {name}.</p><p>Confirm your email to start using Fetha:</p><p><a href="{url}">{url}</a></p><p>If you didn\'t create this account, ignore this email.</p>',
+    text: "Hello. Confirm your email to start using Fetha: {url}\n\nIf you didn't create this account, ignore this email.",
+    html: '<p>Hello.</p><p>Confirm your email to start using Fetha:</p><p><a href="{url}">{url}</a></p><p>If you didn\'t create this account, ignore this email.</p>',
   },
   magicLinkEmail: {
     subject: "Your Fetha magic link",
@@ -204,8 +204,8 @@ const ptBR = {
   },
   verificationEmail: {
     subject: "Confirme seu e-mail no Fetha",
-    text: "Olá, {name}. Confirme seu e-mail para começar a usar o Fetha: {url}\n\nSe você não criou esta conta, ignore este e-mail.",
-    html: '<p>Olá, {name}.</p><p>Confirme seu e-mail para começar a usar o Fetha:</p><p><a href="{url}">{url}</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>',
+    text: "Olá! Confirme seu e-mail para começar a usar o Fetha: {url}\n\nSe você não criou esta conta, ignore este e-mail.",
+    html: '<p>Olá!</p><p>Confirme seu e-mail para começar a usar o Fetha:</p><p><a href="{url}">{url}</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>',
   },
   magicLinkEmail: {
     subject: "Seu link mágico do Fetha",

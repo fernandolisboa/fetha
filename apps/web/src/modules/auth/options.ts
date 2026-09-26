@@ -28,6 +28,7 @@ import { evaluateRegistrationMode } from "./registration-policy";
 import { resolveRegistrationMode } from "./registration-mode";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
+import { nameField } from "./validation";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 5;
@@ -73,6 +74,8 @@ function readAccountRateLimitEmail(body: unknown): string | undefined {
   const parsed = accountRateLimitedBodySchema.safeParse(body);
   return parsed.success ? parsed.data.email : undefined;
 }
+
+const signUpNameSchema = z.object({ name: nameField });
 
 const signUpEmailBodySchema = z.object({
   email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
@@ -169,7 +172,7 @@ export function buildAuthOptions(
       autoSignInAfterVerification: false,
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user: verifyingUser, url }) => {
-        const email = buildVerificationEmail(verifyingUser.name, url);
+        const email = buildVerificationEmail(url);
         await mailer.send({ to: verifyingUser.email, ...email });
       },
     },
@@ -211,6 +214,12 @@ export function buildAuthOptions(
 
         if (ctx.path !== "/sign-up/email") {
           return;
+        }
+
+        // The sign-up form validates the name too, but this endpoint is
+        // reachable directly (#45).
+        if (!signUpNameSchema.safeParse(ctx.body).success) {
+          throw new APIError("BAD_REQUEST", { message: "invalid_name" });
         }
 
         const { email, termsAccepted, privacyAccepted } = readSignUpEmailBody(ctx.body);

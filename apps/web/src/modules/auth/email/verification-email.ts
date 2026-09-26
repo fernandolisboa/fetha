@@ -7,13 +7,13 @@ export interface VerificationEmail {
   html: string;
 }
 
-// The name comes from the sign-up form: a plain-text field, never parsed as
-// markup by an email client, so only the HTML part needs escaping.
-export function buildVerificationEmail(name: string, url: string): VerificationEmail {
+// No name in the body: whoever signs up chooses it, and with open
+// registration that can be someone other than the mailbox owner (#45).
+export function buildVerificationEmail(url: string): VerificationEmail {
   const copy = t.verificationEmail;
   return {
     subject: copy.subject,
-    text: copy.text.replaceAll("{name}", name).replaceAll("{url}", url),
-    html: copy.html.replaceAll("{name}", escapeHtml(name)).replaceAll("{url}", escapeHtml(url)),
+    text: copy.text.replaceAll("{url}", url),
+    html: copy.html.replaceAll("{url}", escapeHtml(url)),
   };
 }
