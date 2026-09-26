@@ -57,7 +57,7 @@ no operator path rewrites decision data today.
    every user-scoped table. A test enumerates every table with a `user_id` column and asserts no
    row is left for the deleted user, that `strategy_versions` of their strategies are gone, and
    that another user's rows (including a copy of the deleted user's shared strategy) survive.
-4. **Terms and privacy.** The text lives in `auth/strings.ts` and describes what the code does,
+4. **Terms and privacy.** The text lives in `auth/legal-text.ts` and describes what the code does,
    including the retention of `rate_limits` (ADR-0024) and `access_log`. `CURRENT_TERMS_VERSION`
    changes with the text, so each new acceptance records which text was accepted.
 

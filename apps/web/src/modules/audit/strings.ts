@@ -6,10 +6,8 @@ const en = {
     subtitle:
       "Each read or export of your portfolio and decision data, with the address and device it came from. Entries are kept for 180 days.",
     empty: "No access recorded yet.",
-    when: "When",
     event: "Access",
-    ipAddress: "IP address",
-    device: "Device",
+    origin: "Origin",
     unknown: "Unknown",
     events: {
       portfolio_read: "Portfolio read",
@@ -25,10 +23,8 @@ const ptBR = {
     subtitle:
       "Cada leitura ou exportação dos dados da sua carteira e das suas decisões, com o endereço e o dispositivo de origem. Os registros ficam guardados por 180 dias.",
     empty: "Nenhum acesso registrado ainda.",
-    when: "Quando",
     event: "Acesso",
-    ipAddress: "Endereço IP",
-    device: "Dispositivo",
+    origin: "Origem",
     unknown: "Desconhecido",
     events: {
       portfolio_read: "Leitura da carteira",
