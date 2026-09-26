@@ -17,4 +17,11 @@ export function toDecimalString(value: Decimal, scale: number): DecimalString {
   return canonical.toFixed(scale) as DecimalString;
 }
 
+// A listed strike (or any other already-exact value) formatted at no less precision than it
+// actually carries: `PRICE_SCALE` alone would round "11.005" to "11.01", silently changing the
+// value rather than just its trailing-zero form.
+export function toDecimalStringAtLeastScale(value: Decimal, minScale: number): DecimalString {
+  return toDecimalString(value, Math.max(minScale, value.decimalPlaces()));
+}
+
 export const ZERO_RATIO = toDecimalString(new Decimal(0), RATIO_SCALE);

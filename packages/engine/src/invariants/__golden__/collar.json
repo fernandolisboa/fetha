@@ -1,0 +1,82 @@
+{
+  "operations": [
+    {
+      "status": "expired",
+      "closedAt": "2024-01-16",
+      "pnl": -710,
+      "settlement": [
+        {
+          "leg": {
+            "role": "stock",
+            "side": "buy",
+            "ticker": "PETR4",
+            "quantity": 300,
+            "entryPrice": "15.00"
+          },
+          "outcome": "kept",
+          "intrinsicValue": null,
+          "fills": []
+        },
+        {
+          "leg": {
+            "role": "put",
+            "side": "buy",
+            "ticker": "PETR4P11",
+            "quantity": 3,
+            "entryPrice": "0.70"
+          },
+          "outcome": "expired_worthless",
+          "intrinsicValue": "0.00",
+          "fills": []
+        },
+        {
+          "leg": {
+            "role": "call",
+            "side": "sell",
+            "ticker": "PETR4C18",
+            "quantity": 3,
+            "entryPrice": "0.50"
+          },
+          "outcome": "expired_worthless",
+          "intrinsicValue": "0.00",
+          "fills": []
+        }
+      ]
+    }
+  ],
+  "fills": [
+    {
+      "ticker": "PETR4",
+      "side": "buy",
+      "quantity": 300,
+      "price": "15.00",
+      "session": "2024-01-03",
+      "at": "2024-01-03T13:00:00.000Z",
+      "costs": 325,
+      "operationId": "v1:PETR4:2024-01-03:0",
+      "source": "next_session_open"
+    },
+    {
+      "ticker": "PETR4",
+      "side": "sell",
+      "quantity": 300,
+      "price": "15.00",
+      "session": "2024-01-17",
+      "at": "2024-01-17T13:00:00.000Z",
+      "costs": 325,
+      "operationId": "v1:PETR4:2024-01-03:0",
+      "source": "next_session_open"
+    }
+  ],
+  "taxes": [
+    {
+      "month": "2024-01",
+      "stockSales": 450000,
+      "stockGain": -650,
+      "optionGain": -60,
+      "exemptGain": 0,
+      "netGain": -60,
+      "tax": 0
+    }
+  ]
+}

@@ -14,7 +14,7 @@ import type {
   Side,
   TradingSession,
 } from "../api";
-import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
 import type { ProvenanceBase } from "./provenance";
@@ -45,7 +45,9 @@ function insufficientCandlesForSession(underlying: Ticker, session: TradingSessi
   };
 }
 
-function settleLeg(
+// ADR-0014 Q41's exercise/assignment decision, shared with runBacktest (#72). Its fill is
+// cost-free; a caller with a cost model charges it on the fill itself.
+export function settleLeg(
   leg: OperationLeg,
   legIndex: number,
   underlying: Ticker,
@@ -66,7 +68,10 @@ function settleLeg(
   if (!parseDecimal(series.strike).gt(0)) {
     return {
       ok: false,
-      error: invalidInput(`legs[${String(legIndex)}].strike`, "a listed strike must be positive"),
+      error: invalidInput(
+        `legs[${String(legIndex)}].strike`,
+        `a listed strike must be positive (${series.ticker})`,
+      ),
     };
   }
 
@@ -94,7 +99,7 @@ function settleLeg(
           ticker: underlying,
           side: fillSide,
           quantity: leg.quantity,
-          price: toDecimalString(strike, PRICE_SCALE),
+          price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
           session,
           at,
           costs: toCentavos(0),

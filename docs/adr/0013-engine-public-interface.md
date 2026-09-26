@@ -1676,20 +1676,43 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   half its legs and leaves the rest pending, which would leave an unhedged position the strategy
   never asked for. Corporate-action rebasing (Q51) stays scoped to a stock leg's own ticker for the
   same exchange-adjustment reason exit rules do; an option leg's fill quantity is never rescaled.
-- **Settlement in a run is implemented in `run-backtest.ts` directly**, not by calling
-  `propose-settlement.ts`'s own settlement decision: at #23's own time of writing
-  `proposeSettlement` was itself still unimplemented (the #21 addendum), so #23 implemented the
-  exercise/assignment rule ADR-0014 Q41 already specifies (in-the-money by any amount, at the
-  expiry session's close) inline, once, in `resolveExpiringOperations`. `propose-settlement.ts`
-  has since landed (#25, merged as #61): `proposeSettlement` now exists, and its own `settleLeg`
-  makes exactly this same in-the-money/intrinsic-value/outcome decision — currently a private
-  function, called only from within that module, never from `run-backtest.ts`. **This is a seam
-  left for #72**: `resolveExpiringOperations`'s settlement-decision block
-  (`run-backtest.ts:1236-1300` at #23 round 2's own time of writing) is a candidate to delegate to
-  an exported `settleLeg` (or a thin wrapper around it) the same way fills already delegate to
-  `priceOperation`, leaving `run-backtest.ts` only the scheduling, fill-cost overlay, residual
-  bucketing, cash and tax concerns proper to a backtester — never the settlement decision itself,
-  duplicated a second time.
+- **Settlement in a run delegates to `propose-settlement.ts`'s own `settleLeg`** (#72), the same
+  way fills already delegate to `priceOperation`. At #23's own time of writing `proposeSettlement`
+  was itself still unimplemented (the #21 addendum), so #23 implemented the exercise/assignment
+  rule ADR-0014 Q41 already specifies (in-the-money by any amount, at the expiry session's close)
+  inline, once, in `resolveExpiringOperations`. `propose-settlement.ts` landed soon after (#25,
+  merged as #61) with its own private `settleLeg` making exactly this same in-the-money/intrinsic-
+  value/outcome decision, leaving the duplication as a seam for #72 to close: `settleLeg` is now
+  exported, and `resolveExpiringOperations` calls it per leg instead of reimplementing the
+  decision. `run-backtest.ts` keeps only what is proper to a backtester: reading `settleLeg`'s
+  outcome and intrinsic value as-is; overlaying its own cost model onto the bare, cost-free fill
+  `settleLeg` returns for a non-worthless leg (a settlement proposal is not itself a trade, the #25
+  addendum below); the average-cost residual bucketing; cash movement; and stock/option tax
+  bucketing. A stock leg's own split-adjusted quantity and cost-basis bucketing — never a
+  `settleLeg` concern, since a stock leg's outcome is always `kept` — stays inline, untouched.
+  - **Strike-validation delta, reconciled.** `settleLeg` rejects a non-positive listed strike
+    (`invalidInput`, "a listed strike must be positive (<ticker>)"); the inline code
+    `resolveExpiringOperations` replaced never checked this. Every real listed strike is positive
+    (B3 does not list a non-positive strike), so no fixture reaches this branch and the delegation
+    is not an observed behavior change — but it is a new, stricter guard against malformed
+    reference data at this one call site, disclosed here rather than silently introduced. A
+    malformed `MarketView` that previously settled against a zero or negative strike (producing a
+    nonsensical fill) now fails the run with `invalid_input` instead. The series ticker is folded
+    into the message itself, not just the `legs[i].strike` path, since `runBacktest` reads the
+    offending value off `view.optionSeries[]`, not off a caller-supplied field.
+  - **Price-scale delta, reconciled.** `settleLeg`'s fill price is the listed strike serialized at
+    `max(PRICE_SCALE, strike's own decimal places)`, not at `PRICE_SCALE` alone: a strike with more
+    than two decimals (reachable — `decimalStringSchema` carries no scale, and the persisted column
+    is `numeric(18, 8)`) keeps its exact value instead of rounding to centavos. `runBacktest` reuses
+    that same string for the recorded fill, `fillCosts`, `grossCentavos` and the buy/sell cost
+    accumulators, so a run's money is unchanged for every strike (main and this branch agree, byte
+    for byte, in centavos); the only change to a run's artifacts is that the recorded settlement
+    price is written in canonical form at no less than two decimals: trailing zeros beyond the
+    strike's own precision are dropped (`"11.00000000"` → `"11.00"`) and a strike with fewer than
+    two decimals is padded (`"183000"` → `"183000.00"`).
+    `proposeSettlement`, which was rounding a >2dp strike to centavos before this ticket, now
+    settles it at its exact value instead — a real money delta for that one caller, scoped to
+    strikes `proposeSettlement` never saw exercised in a fixture.
   - **Residual accounting is average-cost matching, not a leg-by-leg pairing.** Every stock-typed
     contribution touching an operation's expiry session — its own stock leg, if any, and every
     settlement fill an exercise or assignment produces — is bucketed into a total bought quantity
