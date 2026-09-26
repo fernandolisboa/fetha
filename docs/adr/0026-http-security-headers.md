@@ -29,9 +29,10 @@ object-src 'none'`
 2. The CSP leaves `default-src`, `script-src` and `style-src` unset. Those directives are what
    Next's inline scripts would violate; the four above are enforced now because nothing in the
    app frames itself, posts forms off-origin, sets `<base>` or embeds plugins. Checked on a
-   production build: no CSP console errors on the auth pages or on a server-action submit.
-3. A nonce-based `script-src 'self' 'nonce-…' 'strict-dynamic'` is the next step, introduced
-   report-only first and enforced once a preview shows no violations.
+   production build: no CSP console errors on the auth pages or on a server-action submit. On
+   the Vercel preview every response type carries the headers (pages, redirects, `sw.js`, fonts).
+3. A nonce-based `script-src 'self' 'nonce-…' 'strict-dynamic'` is the next step (#125),
+   introduced report-only first and enforced once a preview shows no violations.
 
 ## Consequences
 
