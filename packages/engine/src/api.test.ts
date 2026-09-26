@@ -17,6 +17,7 @@ import {
   ENGINE_VERSION,
   engineErrorCodes,
   evaluationOutcomes,
+  evaluationReasons,
   exerciseStyles,
   fillSources,
   impliedVolatilityIndexMethods,
@@ -48,6 +49,7 @@ import {
   type EngineErrorCode,
   type Evaluation,
   type EvaluationOutcome,
+  type EvaluationReason,
   type ExerciseStyle,
   type Fill,
   type FillSource,
@@ -328,6 +330,27 @@ describe("closed vocabularies", () => {
     ]);
   });
 
+  it("enumerates evaluation reasons — a stable code per detail sentence (#80)", () => {
+    expectTypeOf<(typeof evaluationReasons)[number]>().toEqualTypeOf<EvaluationReason>();
+    expect(evaluationReasons).toEqual([
+      "signal",
+      "conditions_not_met",
+      "no_candles",
+      "no_candles_in_catch_up_window",
+      "entry_condition_warmup",
+      "no_series_match",
+      "degenerate_strikes",
+      "no_declared_capital",
+      "unbounded_max_loss",
+      "zero_units",
+      "unaffordable_budget",
+      "insufficient_market_data_for_proposal",
+      "exit_rule_unknown",
+      "profit_target_zero_base",
+      "stop_loss_zero_base",
+    ]);
+  });
+
   it("enumerates backtest vocabularies", () => {
     expectTypeOf<(typeof limitModes)[number]>().toEqualTypeOf<LimitMode>();
     expect(limitModes).toEqual(["enforce", "warn"]);
@@ -407,6 +430,7 @@ describe("closed vocabularies", () => {
     ["volatilitySources", volatilitySources],
     ["signalKinds", signalKinds],
     ["evaluationOutcomes", evaluationOutcomes],
+    ["evaluationReasons", evaluationReasons],
     ["limitModes", limitModes],
     ["fillSources", fillSources],
     ["missedEntryReasons", missedEntryReasons],

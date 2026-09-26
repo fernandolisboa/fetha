@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { evaluationReasons } from "@fetha/engine";
 
-import { t } from "./strings";
+import { strategiesStrings, t } from "./strings";
 
 describe("evaluationLog.detailFor", () => {
   it("renders distinct text for each of the three failure codes introduced in evaluate-signals.ts (#19 round 3 item 7)", () => {
@@ -62,5 +63,21 @@ describe("evaluationLog.detailFor", () => {
     expect(ivRank).toBeDefined();
     expect(ivRank).toBe(somethingElse);
     expect(ivRank?.toLowerCase()).not.toContain("implied volatility");
+  });
+});
+
+describe("evaluationLog.reasonText (#80)", () => {
+  it("translates every EvaluationReason code the engine declares, in both locales", () => {
+    for (const reason of evaluationReasons) {
+      expect(strategiesStrings.en.inbox.evaluationLog.reasonText[reason]).toBeTruthy();
+      expect(strategiesStrings.ptBR.inbox.evaluationLog.reasonText[reason]).toBeTruthy();
+    }
+  });
+
+  it("renders distinct text for each code, per locale", () => {
+    const enTexts = new Set(Object.values(strategiesStrings.en.inbox.evaluationLog.reasonText));
+    const ptBRTexts = new Set(Object.values(strategiesStrings.ptBR.inbox.evaluationLog.reasonText));
+    expect(enTexts.size).toBe(evaluationReasons.length);
+    expect(ptBRTexts.size).toBe(evaluationReasons.length);
   });
 });

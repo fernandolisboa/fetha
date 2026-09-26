@@ -479,11 +479,46 @@ export const evaluationOutcomes = [
   "unsizeable",
 ] as const satisfies readonly EvaluationOutcome[];
 
+export type EvaluationReason =
+  | "signal"
+  | "conditions_not_met"
+  | "no_candles"
+  | "no_candles_in_catch_up_window"
+  | "entry_condition_warmup"
+  | "no_series_match"
+  | "degenerate_strikes"
+  | "no_declared_capital"
+  | "unbounded_max_loss"
+  | "zero_units"
+  | "unaffordable_budget"
+  | "insufficient_market_data_for_proposal"
+  | "exit_rule_unknown"
+  | "profit_target_zero_base"
+  | "stop_loss_zero_base";
+export const evaluationReasons = [
+  "signal",
+  "conditions_not_met",
+  "no_candles",
+  "no_candles_in_catch_up_window",
+  "entry_condition_warmup",
+  "no_series_match",
+  "degenerate_strikes",
+  "no_declared_capital",
+  "unbounded_max_loss",
+  "zero_units",
+  "unaffordable_budget",
+  "insufficient_market_data_for_proposal",
+  "exit_rule_unknown",
+  "profit_target_zero_base",
+  "stop_loss_zero_base",
+] as const satisfies readonly EvaluationReason[];
+
 export type EvaluationRecord = {
   ticker: Ticker;
   at: Instant;
   session: SessionDate;
   outcome: EvaluationOutcome;
+  reason: EvaluationReason;
   detail: string | null;
 };
 
@@ -2163,3 +2198,36 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
 already handles a version bump by restarting), never read back across an arbitrary span of engine
 history the way a completed run's `result` is.
+
+## Addendum: `EvaluationRecord.reason`, a stable code alongside `detail` (2026-09-26, #80)
+
+`EvaluationRecord.detail` was a free English sentence built ad hoc by `evaluate-strategy.ts`
+(`"no candles for this instrument and timeframe"`, `"fixed_risk sizing is unsizeable against an
+unbounded max loss"`, ...). `apps/web/src/modules/strategies/strings.ts` translated it to pt-BR by
+matching that exact sentence, which is brittle: any wording change to the engine's prose silently
+breaks the pt-BR translation with no compile-time signal. This addendum adds a required
+`reason: EvaluationReason` field to `EvaluationRecord`, a closed vocabulary (`evaluationReasons`,
+same pattern as `noteCodes`) with exactly one code per distinct detail sentence the engine emits;
+where a sentence carries a value (`profit_target`/`stop_loss` in the zero-base message, the
+sizing reason inside `sizingDetail`), the code names the situation and leaves the value out, the
+same rule `#19 round 3 item 7`'s web-side prefix codes (`engine_error:`, `catchup_clamped:`)
+already followed for details `evaluate-signals.ts` itself synthesizes outside the engine. `detail`
+is unchanged — an English sentence, kept for logs and debugging, never translated by the UI going
+forward. `reason` is additive to a frozen type (a new required field on an existing shape, not a
+new method or a narrowed one), the same class of change #21/#23/#25/#26 above made to other frozen
+types.
+
+`apps/web` translates by `reason` now (`strings.ts`'s `reasonText`, an exhaustive
+`Record<EvaluationReason, string>` that fails to typecheck if the engine ever adds a code the web
+has not translated yet), and keeps the old exact-sentence `evaluationDetailEn`/`evaluationDetailPtBR`
+maps as a fallback for a row written before this change: the `evaluations` table's own `reason`
+column is nullable and no backfill was written for the rows already on disk (`reason IS NULL`,
+`detail` still whatever English sentence the writing engine version produced) — a stored evaluation
+row is an operational log entry, not a value the owner audits or acts on twice, so leaving old rows
+exactly as they are and falling back to the legacy string match for them only was judged safe and
+proportionate; rewriting is available later if that judgment changes. The web-authored codes
+`unknown_structure`, `engine_error:<code>`, `catchup_clamped:<count>` and
+`unsatisfiable_collection:<collection>` are unaffected: `evaluate-signals.ts` writes those directly
+into `detail` itself, they were already stable codes rather than engine prose, and they carry no
+`reason` (the column stays null for every row that class of failure produces, evaluate-signals.ts
+never having an `EvaluationRecord` to read a `reason` from in the first place).

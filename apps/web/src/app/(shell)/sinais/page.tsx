@@ -93,7 +93,11 @@ export default async function SignalsPage() {
             </thead>
             <tbody>
               {evaluationLog.map((row) => {
-                const detail = row.detail ? t.inbox.evaluationLog.detailFor(row.detail) : undefined;
+                const detail = row.reason
+                  ? t.inbox.evaluationLog.reasonText[row.reason]
+                  : row.detail
+                    ? t.inbox.evaluationLog.detailFor(row.detail)
+                    : undefined;
                 return (
                   <tr key={row.id} className="border-line-soft border-b">
                     <td className="py-2">{row.strategyName}</td>

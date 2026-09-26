@@ -134,6 +134,9 @@ function failureEvaluations(
       session: session.date,
       at: new Date(session.close),
       outcome: "insufficient_data" as const,
+      // Never a `reason`: this is a web-authored code that never had an
+      // `EvaluationRecord` to read one from (#80).
+      reason: null,
       detail: code,
     })),
   );
@@ -211,6 +214,7 @@ function clampEvaluations(
     session: boundary.date,
     at: new Date(boundary.close),
     outcome: "insufficient_data" as const,
+    reason: null,
     detail: `catchup_clamped:${String(clamped.length)}`,
   }));
 }
@@ -521,6 +525,7 @@ export async function evaluateSignalsForSession(
           session: record.session,
           at: new Date(record.at),
           outcome: record.outcome,
+          reason: record.reason,
           detail: record.detail,
         }));
 

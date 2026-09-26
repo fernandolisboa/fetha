@@ -164,6 +164,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
         at: "2024-01-04T21:00:00.000Z",
         session: "2024-01-04",
         outcome: "signal",
+        reason: "signal",
         detail: null,
       },
     ]);
@@ -279,6 +280,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
         at: "2024-01-04T21:00:00.000Z",
         session: "2024-01-04",
         outcome: "conditions_not_met",
+        reason: "conditions_not_met",
         detail: null,
       },
     ]);
@@ -301,6 +303,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("entry_condition_warmup");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -409,6 +412,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.evaluations[0]?.reason).toBe("conditions_not_met");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -512,6 +516,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.evaluations[0]?.reason).toBe("conditions_not_met");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -533,6 +538,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     if (!result.ok) return;
     // No exit rules on the definition, so exit is never evaluated: conditions_not_met.
     expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.evaluations[0]?.reason).toBe("conditions_not_met");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -570,6 +576,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("no_series_match");
+    expect(result.value.evaluations[0]?.reason).toBe("no_series_match");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -686,6 +693,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
         at: "2024-01-04T21:00:00.000Z",
         session: "2024-01-04",
         outcome: "insufficient_data",
+        reason: "no_candles",
         detail: "no candles for this instrument and timeframe",
       },
     ]);
@@ -747,6 +755,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
         at,
         session: "2024-01-01",
         outcome: "insufficient_data",
+        reason: "no_candles_in_catch_up_window",
         detail: "no candles in (since, at] for this instrument and timeframe",
       },
     ]);
@@ -1221,6 +1230,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("exit_rule_unknown");
   });
 
   it("rejects a duplicate ticker in instruments as invalid_input", () => {
@@ -1652,60 +1662,75 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(signal.rule).toEqual(firstRule);
   });
 
-  it("does not fire a numeric exit rule whose base is zero, and records why", () => {
-    const closes = ["10.00", "10.00", "10.00", "10.50"];
-    const view: MarketView = {
-      ...emptyView,
-      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
-    };
-    const deltaNeutralOperation: Operation = {
-      id: "op-1",
-      underlying: "PETR4",
-      legs: [
-        {
-          role: "stock",
-          side: "buy",
-          ticker: "PETR4",
-          quantity: quantity(100),
-          entryPrice: decimalString("10.00"),
-        },
-        {
-          role: "stock",
-          side: "sell",
-          ticker: "PETR4",
-          quantity: quantity(100),
-          entryPrice: decimalString("10.00"),
-        },
-      ],
-      expiry: null,
-      openedAt: "2024-01-01",
-      strategyVersionId: "v1",
-      rolledFrom: null,
-    };
-    const input: EvaluateStrategyInput = {
-      view,
-      strategy: strategyVersion(
-        definition({
-          entry: closeAboveSma(3),
-          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
-        }),
-      ),
-      instruments: ["PETR4"],
-      at: "2024-01-04T21:00:00.000Z",
-      openOperations: [deltaNeutralOperation],
-    };
-    const result = evaluateStrategy(input);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.signals).toEqual([]);
-    expect(result.value.evaluations[0]).toEqual({
-      ticker: "PETR4",
-      at: "2024-01-04T21:00:00.000Z",
-      session: "2024-01-04",
-      outcome: "conditions_not_met",
+  it.each([
+    {
+      rule: { kind: "profit_target", fractionOfPremium: decimalString("0.5") },
+      reason: "profit_target_zero_base",
       detail: "profit_target cannot fire: the operation's premium base is zero",
-    });
-  });
+    },
+    {
+      rule: { kind: "stop_loss", multipleOfMaxLoss: decimalString("0.5") },
+      reason: "stop_loss_zero_base",
+      detail: "stop_loss cannot fire: the operation's max-loss base is zero",
+    },
+  ] as const)(
+    "does not fire a $rule.kind exit rule whose base is zero, and records why",
+    ({ rule, reason, detail }) => {
+      const closes = ["10.00", "10.00", "10.00", "10.50"];
+      const view: MarketView = {
+        ...emptyView,
+        candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+      };
+      const deltaNeutralOperation: Operation = {
+        id: "op-1",
+        underlying: "PETR4",
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            entryPrice: decimalString("10.00"),
+          },
+          {
+            role: "stock",
+            side: "sell",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            entryPrice: decimalString("10.00"),
+          },
+        ],
+        expiry: null,
+        openedAt: "2024-01-01",
+        strategyVersionId: "v1",
+        rolledFrom: null,
+      };
+      const input: EvaluateStrategyInput = {
+        view,
+        strategy: strategyVersion(
+          definition({
+            entry: closeAboveSma(3),
+            exit: [rule],
+          }),
+        ),
+        instruments: ["PETR4"],
+        at: "2024-01-04T21:00:00.000Z",
+        openOperations: [deltaNeutralOperation],
+      };
+      const result = evaluateStrategy(input);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.signals).toEqual([]);
+      expect(result.value.evaluations[0]).toEqual({
+        ticker: "PETR4",
+        at: "2024-01-04T21:00:00.000Z",
+        session: "2024-01-04",
+        outcome: "conditions_not_met",
+        reason,
+        detail,
+      });
+    },
+  );
 
   it("fires stop_loss on a short stock operation using |netPremium| as the max-loss base (unbounded max loss)", () => {
     const closes = ["10.00", "10.00", "10.00", "14.00"];
@@ -1787,6 +1812,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.evaluations[0]?.reason).toBe("conditions_not_met");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -1904,6 +1930,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
       at: "2024-01-04T21:00:00.000Z",
       session: "2024-01-04",
       outcome: "unsizeable",
+      reason: "unbounded_max_loss",
       detail: "fixed_risk sizing is unsizeable against an unbounded max loss",
     });
     expect(result.value.signals).toEqual([]);
@@ -2024,6 +2051,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
       at: "2024-01-01T21:00:00.000Z",
       session: "2024-01-01",
       outcome: "unsizeable",
+      reason: "unaffordable_budget",
       detail: "the declared capital and fraction cannot afford one unit",
     });
     expect(result.value.signals).toEqual([]);
@@ -2069,6 +2097,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
       at: "2024-01-01T21:00:00.000Z",
       session: "2024-01-01",
       outcome: "unsizeable",
+      reason: "zero_units",
       detail: "a unit carries no cost or risk to size against",
     });
     expect(result.value.signals).toEqual([]);
@@ -2105,6 +2134,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("degenerate_strikes");
+    expect(result.value.evaluations[0]?.reason).toBe("degenerate_strikes");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -2137,6 +2167,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("insufficient_market_data_for_proposal");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -2262,6 +2293,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("exit_rule_unknown");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -2372,6 +2404,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("conditions_not_met");
+    expect(result.value.evaluations[0]?.reason).toBe("conditions_not_met");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -2435,6 +2468,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("exit_rule_unknown");
     expect(result.value.signals).toEqual([]);
   });
 
@@ -2489,6 +2523,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("insufficient_data");
+    expect(result.value.evaluations[0]?.reason).toBe("exit_rule_unknown");
     expect(result.value.signals).toEqual([]);
   });
 

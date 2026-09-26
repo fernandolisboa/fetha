@@ -9,8 +9,10 @@ import {
 } from "@fetha/contracts";
 import {
   evaluationOutcomes,
+  evaluationReasons,
   signalKinds,
   type EvaluationOutcome,
+  type EvaluationReason,
   type IndicatorReading,
   type Proposal,
   type SignalKind,
@@ -40,6 +42,12 @@ export interface NewEvaluation {
   session: string;
   at: Date;
   outcome: EvaluationOutcome;
+  // Null for a row `evaluate-signals.ts` writes itself, outside any
+  // `EvaluationRecord` (`unknown_structure`, `engine_error:...`,
+  // `catchup_clamped:...`, `unsatisfiable_collection:...`, already stable
+  // codes in `detail`): only a row built straight from the engine's own
+  // `EvaluationRecord` carries its `reason` (#80).
+  reason: EvaluationReason | null;
   detail: string | null;
 }
 
@@ -68,6 +76,7 @@ export interface EvaluationLogItem {
   session: string;
   at: Date;
   outcome: EvaluationOutcome;
+  reason: EvaluationReason | null;
   detail: string | null;
 }
 
@@ -83,6 +92,7 @@ const EVALUATION_LOG_LIMIT = 200;
 
 const signalKindSchema = z.enum(signalKinds);
 const evaluationOutcomeSchema = z.enum(evaluationOutcomes);
+const evaluationReasonSchema = z.enum(evaluationReasons).nullable();
 const signalRuleSchema = z.union([exitRuleSchema, adjustmentRuleSchema]).nullable();
 
 function toStoredOperationId(operationId: string | null): string {
@@ -160,6 +170,7 @@ export class SignalsRepository extends UserScopedRepository {
           session: row.session,
           at: row.at,
           outcome: row.outcome,
+          reason: row.reason,
           detail: row.detail,
         })),
       )
@@ -290,6 +301,7 @@ export class SignalsRepository extends UserScopedRepository {
         session: evaluations.session,
         at: evaluations.at,
         outcome: evaluations.outcome,
+        reason: evaluations.reason,
         detail: evaluations.detail,
       })
       .from(evaluations)
@@ -306,6 +318,7 @@ export class SignalsRepository extends UserScopedRepository {
     return rows.map((row) => ({
       ...row,
       outcome: evaluationOutcomeSchema.parse(row.outcome),
+      reason: evaluationReasonSchema.parse(row.reason),
     }));
   }
 }

@@ -306,6 +306,7 @@ describe("engine", () => {
         at: "2024-01-01T00:00:00.000Z",
         session: "2024-01-01",
         outcome: "insufficient_data",
+        reason: "no_candles",
         detail: "no candles for this instrument and timeframe",
       },
     ]);
@@ -345,6 +346,7 @@ describe("engine", () => {
         at: "2024-01-01T00:00:00.000Z",
         session: "2024-01-01",
         outcome: "insufficient_data",
+        reason: "no_candles",
         detail: "no candles for this instrument and timeframe",
       },
     ]);

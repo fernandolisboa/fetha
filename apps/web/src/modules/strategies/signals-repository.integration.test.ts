@@ -86,6 +86,7 @@ function newEvaluation(strategyId: string, versionId: string, ticker: Ticker): N
     session: "2031-06-01",
     at: new Date("2031-06-01T21:00:00.000Z"),
     outcome: "conditions_not_met",
+    reason: "conditions_not_met",
     detail: null,
   };
 }

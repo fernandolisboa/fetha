@@ -1,9 +1,13 @@
-// The engine (packages/engine, no i18n) emits an evaluation's `detail` as
-// English prose from a closed, enumerable set of reasons (never a stable
-// code, unlike `outcome`). These map the strings known at the time of
-// writing; an unrecognized string is dropped rather than shown untranslated
-// (CLAUDE.md i18n: user-facing strings ship in pt-BR). A follow-up ticket
-// should have the engine emit a code instead.
+import type { EvaluationReason } from "@fetha/engine";
+
+// Legacy fallback only (#80): a row written before `EvaluationRecord.reason`
+// existed carries no code, only the engine's own English `detail` prose from
+// that time — matched here by exact string, or by prefix for the web's own
+// synthesized codes (`engine_error:`, `catchup_clamped:`,
+// `unsatisfiable_collection:`). Never used for a row that already has a
+// `reason`; see `reasonTextEn`/`reasonTextPtBR` below for that path. An
+// unrecognized string is dropped rather than shown untranslated (CLAUDE.md
+// i18n: user-facing strings ship in pt-BR).
 const evaluationDetailEn: Record<string, string> = {
   "no candles for this instrument and timeframe": "No candles for this instrument and timeframe",
   "no candles in (since, at] for this instrument and timeframe":
@@ -113,6 +117,49 @@ const evaluationDetailPtBR: Record<string, string> = {
   "stop_loss cannot fire: the operation's max-loss base is zero":
     "O stop não pode disparar: a base de perda máxima da operação é zero",
   unknown_structure: "A estrutura da estratégia não existe mais no catálogo",
+};
+
+// The engine's stable `EvaluationReason` code (#80), translated exhaustively:
+// a code the engine adds without a matching entry here fails to typecheck,
+// unlike the legacy `evaluationDetailEn`/`PtBR` string match above.
+const reasonTextEn: Record<EvaluationReason, string> = {
+  signal: "Signal",
+  conditions_not_met: "Conditions not met",
+  no_candles: "No candles for this instrument and timeframe",
+  no_candles_in_catch_up_window:
+    "No candles in the evaluated window for this instrument and timeframe",
+  entry_condition_warmup: "Entry condition needs more warm-up data",
+  no_series_match: "No listed option series satisfies the strike and expiry selection",
+  degenerate_strikes: "Two distinct strike ranks resolved to the same listed strike",
+  no_declared_capital: "No declared capital to size against",
+  unbounded_max_loss: "Fixed-risk sizing is unsizeable against an unbounded max loss",
+  zero_units: "A unit carries no cost or risk to size against",
+  unaffordable_budget: "The declared capital and fraction cannot afford one unit",
+  insufficient_market_data_for_proposal:
+    "Not enough market data to select strikes or price the proposal",
+  exit_rule_unknown: "Cannot evaluate this operation's exit rules right now",
+  profit_target_zero_base: "Profit target cannot fire: the operation's premium base is zero",
+  stop_loss_zero_base: "Stop loss cannot fire: the operation's max-loss base is zero",
+};
+
+const reasonTextPtBR: Record<EvaluationReason, string> = {
+  signal: "Sinal",
+  conditions_not_met: "Condições não atendidas",
+  no_candles: "Sem candles para este ativo nessa escala de tempo",
+  no_candles_in_catch_up_window:
+    "Sem candles no intervalo avaliado para este ativo nessa escala de tempo",
+  entry_condition_warmup: "A condição de entrada precisa de mais histórico de aquecimento",
+  no_series_match: "Nenhuma série de opção listada atende à seleção de strike e vencimento",
+  degenerate_strikes: "Dois ranks de strike distintos resolveram para o mesmo strike listado",
+  no_declared_capital: "Sem capital declarado para dimensionar",
+  unbounded_max_loss: "Dimensionamento por risco fixo não é possível com perda máxima ilimitada",
+  zero_units: "Não há custo nem risco por unidade para dimensionar",
+  unaffordable_budget: "O capital declarado, com essa fração, não cobre nem uma unidade",
+  insufficient_market_data_for_proposal:
+    "Dados de mercado insuficientes para selecionar strikes ou precificar a proposta",
+  exit_rule_unknown: "Não é possível avaliar as regras de saída desta operação agora",
+  profit_target_zero_base: "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
+  stop_loss_zero_base: "O stop não pode disparar: a base de perda máxima da operação é zero",
 };
 
 const en = {
@@ -261,6 +308,7 @@ const en = {
       empty: "No evaluation recorded yet.",
       detail: evaluationDetailEn,
       detailFor: detailLookup(evaluationDetailEn, evaluationDetailPrefixesEn),
+      reasonText: reasonTextEn,
     },
     outcomes: {
       signal: "Signal",
@@ -429,6 +477,7 @@ const ptBR = {
       empty: "Nenhuma avaliação registrada ainda.",
       detail: evaluationDetailPtBR,
       detailFor: detailLookup(evaluationDetailPtBR, evaluationDetailPrefixesPtBR),
+      reasonText: reasonTextPtBR,
     },
     outcomes: {
       signal: "Sinal",

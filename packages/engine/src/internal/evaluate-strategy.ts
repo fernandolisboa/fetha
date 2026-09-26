@@ -6,6 +6,7 @@ import {
   type CorporateActionFactor,
   type Evaluation,
   type EvaluationOutcome,
+  type EvaluationReason,
   type EvaluationRecord,
   type EvaluateStrategyInput,
   type ImpliedVolatilityIndexPoint,
@@ -50,6 +51,13 @@ const sizingDetail: Record<StockSizingReason, string> = {
   unaffordable_budget: "the declared capital and fraction cannot afford one unit",
 };
 
+const sizingReason: Record<StockSizingReason, EvaluationReason> = {
+  no_declared_capital: "no_declared_capital",
+  unbounded_max_loss: "unbounded_max_loss",
+  zero_units: "zero_units",
+  unaffordable_budget: "unaffordable_budget",
+};
+
 function invalidInput<T = Evaluation>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
@@ -59,9 +67,10 @@ function record(
   at: Instant,
   session: SessionDate,
   outcome: EvaluationOutcome,
+  reason: EvaluationReason,
   detail: string | null,
 ): EvaluationRecord {
-  return { ticker, at, session, outcome, detail };
+  return { ticker, at, session, outcome, reason, detail };
 }
 
 // Mirrored by `checkStrategyCoherence` in `packages/contracts/src/strategy-coherence.ts`
@@ -406,6 +415,10 @@ function businessDaysBeforeExpiry(
   return expiryIndex - atIndex;
 }
 
+function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReason {
+  return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
+}
+
 function zeroBaseMessage(kind: "profit_target" | "stop_loss"): string {
   const baseName = kind === "profit_target" ? "premium" : "max-loss";
   return `${kind} cannot fire: the operation's ${baseName} base is zero`;
@@ -656,6 +669,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             call.at,
             sessionForInstant(call.at),
             "insufficient_data",
+            "no_candles",
             "no candles for this instrument and timeframe",
           ),
         );
@@ -678,6 +692,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             call.at,
             sessionForInstant(call.at),
             "insufficient_data",
+            "no_candles_in_catch_up_window",
             "no candles in (since, at] for this instrument and timeframe",
           ),
         );
@@ -718,13 +733,23 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 c,
                 nominalCandle.session,
                 "insufficient_data",
+                "entry_condition_warmup",
                 "entry condition needs more warm-up data",
               ),
             );
             continue;
           }
           if (entryVerdict === "false") {
-            evaluations.push(record(ticker, c, nominalCandle.session, "conditions_not_met", null));
+            evaluations.push(
+              record(
+                ticker,
+                c,
+                nominalCandle.session,
+                "conditions_not_met",
+                "conditions_not_met",
+                null,
+              ),
+            );
             continue;
           }
 
@@ -778,6 +803,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       c,
                       nominalCandle.session,
                       "no_series_match",
+                      "no_series_match",
                       "no listed option series satisfies the strike and expiry selection",
                     ),
                   );
@@ -788,6 +814,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       ticker,
                       c,
                       nominalCandle.session,
+                      "degenerate_strikes",
                       "degenerate_strikes",
                       "two distinct strike ranks resolved to the same listed strike",
                     ),
@@ -800,6 +827,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       c,
                       nominalCandle.session,
                       "unsizeable",
+                      sizingReason[entryPricing.error.reason],
                       sizingDetail[entryPricing.error.reason],
                     ),
                   );
@@ -811,6 +839,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       c,
                       nominalCandle.session,
                       "insufficient_data",
+                      "insufficient_market_data_for_proposal",
                       "not enough market data to select strikes or price the proposal",
                     ),
                   );
@@ -830,7 +859,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               indicators,
               proposal: { legs: pricing.legs.map((legValuation) => legValuation.leg), pricing },
             });
-            evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
+            evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal", null));
             continue;
           }
 
@@ -848,6 +877,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 c,
                 nominalCandle.session,
                 "unsizeable",
+                sizingReason[sizingResult.detail],
                 sizingDetail[sizingResult.detail],
               ),
             );
@@ -902,13 +932,14 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               pricing,
             },
           });
-          evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
+          evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal", null));
           continue;
         }
 
         let instantFired = false;
         let instantUnknown = false;
         let zeroBaseDetail: string | null = null;
+        let zeroBaseReason: EvaluationReason | null = null;
         for (const op of activeOps) {
           // Resolved at this same instant `c`, not once for the whole since..at batch at
           // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
@@ -940,6 +971,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 }
                 if (outcome.zeroBase && zeroBaseDetail === null) {
                   zeroBaseDetail = zeroBaseMessage(rule.kind);
+                  zeroBaseReason = zeroBaseReasonFor(rule.kind);
                 }
                 if (outcome.fired) {
                   signals.push({
@@ -1027,6 +1059,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             c,
             nominalCandle.session,
             instantFired ? "signal" : instantUnknown ? "insufficient_data" : "conditions_not_met",
+            instantFired
+              ? "signal"
+              : (zeroBaseReason ?? (instantUnknown ? "exit_rule_unknown" : "conditions_not_met")),
             instantFired ? null : zeroBaseDetail,
           ),
         );

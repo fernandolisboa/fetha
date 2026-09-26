@@ -1,7 +1,12 @@
 import { pgTable, text, timestamp, jsonb, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdjustmentRule, ExitRule } from "@fetha/contracts";
-import { signalKinds, type IndicatorReading, type Proposal } from "@fetha/engine";
+import {
+  evaluationReasons,
+  signalKinds,
+  type IndicatorReading,
+  type Proposal,
+} from "@fetha/engine";
 
 import { user } from "../../auth/schema";
 import { strategies, strategyVersions } from "./strategies";
@@ -93,6 +98,15 @@ export const evaluations = pgTable(
     session: text("session").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull(),
     outcome: text("outcome").notNull(),
+    // The engine's stable `EvaluationReason` code (#80), null for a row this
+    // module wrote itself before this column existed, or for one of the
+    // web-authored failure codes (`unknown_structure`, `engine_error:...`,
+    // `catchup_clamped:...`, `unsatisfiable_collection:...`) that
+    // `evaluate-signals.ts` puts straight into `detail` without ever holding
+    // an `EvaluationRecord` to read a `reason` from. `detail` stays the
+    // engine's English sentence (or one of those codes) for logs, never
+    // translated from `reason` here.
+    reason: text("reason"),
     detail: text("detail"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -104,5 +118,9 @@ export const evaluations = pgTable(
       table.session,
     ),
     index("evaluations_user_id_strategy_id_idx").on(table.userId, table.strategyId),
+    check(
+      "evaluations_reason_check",
+      sql`${table.reason} is null or ${table.reason} in (${sql.raw(evaluationReasons.map((reason) => `'${reason}'`).join(", "))})`,
+    ),
   ],
 );
