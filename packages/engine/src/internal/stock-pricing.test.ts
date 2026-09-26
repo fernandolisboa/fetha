@@ -97,6 +97,38 @@ describe("priceStockLegs", () => {
     expect(pricing.spot).toBe(decimalString("30.00"));
   });
 
+  it("samples the payoff at the rounded axis point, not the full-precision one (#54)", () => {
+    // computePayoffProfile (price-operation.ts, shared as of #54) rounds each sampled
+    // underlying to PRICE_SCALE before pricing the leg at it, so the reported pnl always
+    // matches the reported underlying exactly; the old, separate stock-pricing.ts sampler
+    // rounded only the displayed underlying and priced the leg at the unrounded value,
+    // a label/value mismatch a chart plotting these pairs would silently misrepresent.
+    // 25.61 * 0.8 = 20.488, which rounds to 20.49; pricing at 20.49 rather than 20.488
+    // changes the pnl by 0.002 (real) * 1,950 (shares) * 100 (centavos/real) = 390 centavos.
+    const pricing = priceStockLegsOk({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.61"),
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(1950),
+          entryPrice: decimalString("25.61"),
+          priceSource: "close",
+        },
+      ],
+      view: emptyView,
+      provenanceBase,
+    });
+    expect(pricing.payoff).toEqual([
+      { underlying: decimalString("20.49"), pnl: centavos(-998400) },
+      { underlying: decimalString("25.61"), pnl: centavos(0) },
+      { underlying: decimalString("30.73"), pnl: centavos(998400) },
+    ]);
+  });
+
   it("checks the maxLossPerOperation limit against declared capital", () => {
     const riskProfile: RiskProfile = {
       declaredCapital: centavos(10_000_00),
@@ -364,7 +396,69 @@ describe("priceStockLegs", () => {
     });
     expect(pricing.maxLoss).toBe(centavos(0));
     expect(pricing.maxGain).toBe(centavos(0));
+    // A fully hedged pair has zero pnl at every underlying: no crossing is more
+    // distinguished than any other, so computePayoffProfile (shared with priceOperation)
+    // reports none rather than the single point it happens to sample.
     expect(pricing.breakEvens).toEqual([]);
+    expect(pricing.payoff).toHaveLength(3);
+  });
+
+  it("computes a break-even for two long stock legs at different prices (#54: the leg-count===1 special case never generalized)", () => {
+    const pricing = priceStockLegsOk({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("25.00"),
+          priceSource: "close",
+        },
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("30.00"),
+          priceSource: "close",
+        },
+      ],
+      view: emptyView,
+      provenanceBase,
+    });
+    expect(pricing.maxLoss).toBe(centavos(55_00 * 100));
+    expect(pricing.maxGain).toBe("unbounded");
+    expect(pricing.breakEvens).toEqual([decimalString("27.50")]);
+  });
+
+  it("passes through priceConcreteLegs' own error for a leg this module is not meant to receive (#54)", () => {
+    // `StockLegInput`'s `role` is `Leg["role"]`, not narrowed to `"stock"`; priceConcreteLegs
+    // still validates whatever it is given, so a misused caller sees its real error
+    // (missing_instrument, an unlisted series) rather than the adapter itself silently
+    // going through the stock branch on non-stock input.
+    const result = priceStockLegs({
+      at: "2024-01-10T20:00:00.000Z",
+      underlying: "PETR4",
+      spot: decimalString("25.00"),
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C25",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+          priceSource: "close",
+        },
+      ],
+      view: emptyView,
+      provenanceBase,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C25" });
   });
 
   it("returns invalid_input, never a silent zero default, when the visible cdi rate is at or below -1 (round 4 item 3)", () => {

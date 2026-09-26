@@ -85,7 +85,7 @@
       "payoff": [
        {
         "underlying": "28.02",
-        "pnl": -999756
+        "pnl": -1000327
        },
        {
         "underlying": "35.03",
@@ -93,7 +93,7 @@
        },
        {
         "underlying": "42.04",
-        "pnl": 999756
+        "pnl": 1000327
        }
       ],
       "breakEvens": [
@@ -1765,7 +1765,7 @@
       "payoff": [
        {
         "underlying": "20.49",
-        "pnl": -999814
+        "pnl": -999424
        },
        {
         "underlying": "25.61",
@@ -1773,7 +1773,7 @@
        },
        {
         "underlying": "30.73",
-        "pnl": 999814
+        "pnl": 999424
        }
       ],
       "breakEvens": [
@@ -2113,7 +2113,7 @@
       "payoff": [
        {
         "underlying": "19.98",
-        "pnl": -999799
+        "pnl": -998998
        },
        {
         "underlying": "24.97",
@@ -2121,7 +2121,7 @@
        },
        {
         "underlying": "29.96",
-        "pnl": 999799
+        "pnl": 998998
        }
       ],
       "breakEvens": [
@@ -2229,7 +2229,7 @@
       "payoff": [
        {
         "underlying": "20.09",
-        "pnl": -999880
+        "pnl": -999482
        },
        {
         "underlying": "25.11",
@@ -2237,7 +2237,7 @@
        },
        {
         "underlying": "30.13",
-        "pnl": 999880
+        "pnl": 999482
        }
       ],
       "breakEvens": [

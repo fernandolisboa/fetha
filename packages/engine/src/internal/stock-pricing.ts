@@ -1,29 +1,15 @@
-import Decimal from "decimal.js";
-import type { Centavos, DecimalString, Instant, RiskProfile, Ticker } from "@fetha/contracts";
+import type { Instant, DecimalString, RiskProfile, Ticker } from "@fetha/contracts";
 import type {
-  Greeks,
-  LegValuation,
-  LimitBreach,
+  LegInput,
   MarketView,
-  Note,
   OperationLeg,
   OperationPricing,
-  PayoffPoint,
   PriceSource,
   Provenance,
   Result,
 } from "../api";
-import {
-  CENTAVOS_PER_REAL,
-  parseDecimal,
-  PRICE_SCALE,
-  RATIO_SCALE,
-  toDecimalString,
-  ZERO_RATIO,
-} from "./decimal";
-import { NO_RISK_PROFILE_NOTE } from "./notes";
-import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
-import { toCentavos } from "./scalars";
+import { assertDefined } from "./invariant";
+import { priceLegsAtSpot } from "./price-operation";
 
 export type StockLegInput = OperationLeg & { priceSource: PriceSource };
 
@@ -41,199 +27,40 @@ export type PriceStockLegsInput = {
   >;
 };
 
-const zeroGreeks: Greeks = {
-  delta: ZERO_RATIO,
-  gamma: ZERO_RATIO,
-  theta: ZERO_RATIO,
-  vega: ZERO_RATIO,
-  rho: ZERO_RATIO,
-};
-
-function sign(side: OperationLeg["side"]): 1 | -1 {
-  return side === "buy" ? 1 : -1;
-}
-
+// Each leg is priced at its own entryPrice (`source: "given"`); the caller's priceSource has
+// no LegInput field, so it is restored after pricing.
 export function priceStockLegs(input: PriceStockLegsInput): Result<OperationPricing> {
-  const notes: Note[] = [];
-
-  const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
-  // ADR-0013's rates addendum applies the same rule to a stock leg's rate resolution as
-  // to an option leg's: an annualRate/annualYield at or below -1 is invalid_input before
-  // conversion, never a silent zero default (PR #53 round 4 item 3; superseding round 3
-  // item 8's note-only fix).
-  if (!riskFreeRateResolution.ok) return { ok: false, error: riskFreeRateResolution.error };
-  const riskFreeRate = riskFreeRateResolution.value;
-  notes.push(...riskFreeRateResolution.notes);
-
-  const dividendResolution = resolveDividendYield(
-    input.view.dividendYields,
-    input.underlying,
-    input.at,
-  );
-  if (!dividendResolution.ok) return { ok: false, error: dividendResolution.error };
-  const dividendYield = dividendResolution.value;
-  notes.push(...dividendResolution.notes);
-
-  const legValuations: LegValuation[] = input.legs.map((leg) => ({
-    leg,
+  const legs: LegInput[] = input.legs.map((leg) => ({
+    role: leg.role,
+    side: leg.side,
+    ticker: leg.ticker,
+    quantity: leg.quantity,
     price: leg.entryPrice,
-    priceSource: leg.priceSource,
-    stale: null,
-    fairValue: null,
-    impliedVolatility: null,
-    volatilitySource: null,
-    greeks: { ...zeroGreeks, delta: toDecimalString(new Decimal(1), RATIO_SCALE) },
-    timeToExpiryYears: null,
-    notes: [],
   }));
 
-  const netPremiumCentavos = input.legs.reduce(
-    (acc, leg) =>
-      acc.add(
-        new Decimal(sign(leg.side))
-          .neg()
-          .mul(parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL))
-          .mul(leg.quantity),
-      ),
-    new Decimal(0),
+  const priced = priceLegsAtSpot(
+    input.view,
+    input.at,
+    input.underlying,
+    input.spot,
+    legs,
+    input.riskProfile,
+    input.openOperationCount,
+    input.provenanceBase,
   );
-
-  const netSlope = input.legs.reduce((acc, leg) => acc + sign(leg.side) * leg.quantity, 0);
-  // The payoff of a net stock position as the underlying goes to zero is exactly the negative
-  // of what was paid to enter it: a long leg loses everything paid, a short leg keeps everything
-  // received, so this is the same figure as the net premium, not a separate computation.
-  const payoffAtZeroCentavos = netPremiumCentavos;
-
-  let maxLoss: Centavos | "unbounded";
-  let maxGain: Centavos | "unbounded";
-  if (netSlope > 0) {
-    maxGain = "unbounded";
-    maxLoss = toCentavos(
-      payoffAtZeroCentavos.isNegative() ? payoffAtZeroCentavos.neg().round().toNumber() : 0,
-    );
-  } else if (netSlope < 0) {
-    maxLoss = "unbounded";
-    maxGain = toCentavos(
-      payoffAtZeroCentavos.isPositive() ? payoffAtZeroCentavos.round().toNumber() : 0,
-    );
-  } else {
-    maxLoss = toCentavos(
-      payoffAtZeroCentavos.isNegative() ? payoffAtZeroCentavos.neg().round().toNumber() : 0,
-    );
-    maxGain = toCentavos(
-      payoffAtZeroCentavos.isPositive() ? payoffAtZeroCentavos.round().toNumber() : 0,
-    );
-  }
-
-  const [soleLeg] = input.legs;
-  const breakEvens: DecimalString[] =
-    input.legs.length === 1 && soleLeg
-      ? [toDecimalString(parseDecimal(soleLeg.entryPrice), PRICE_SCALE)]
-      : [];
-
-  const spot = input.spot;
-  const payoff: PayoffPoint[] = [0.8, 1, 1.2].map((factor) => {
-    const underlying = parseDecimal(spot).mul(factor);
-    const pnlCentavos = input.legs.reduce(
-      (acc, leg) =>
-        acc.add(
-          new Decimal(sign(leg.side))
-            .mul(underlying.sub(parseDecimal(leg.entryPrice)))
-            .mul(CENTAVOS_PER_REAL)
-            .mul(leg.quantity),
-        ),
-      new Decimal(0),
-    );
-    return {
-      underlying: toDecimalString(underlying, PRICE_SCALE),
-      pnl: toCentavos(pnlCentavos.round().toNumber()),
-    };
-  });
-
-  const greeks: Greeks = {
-    ...zeroGreeks,
-    delta: toDecimalString(new Decimal(netSlope), RATIO_SCALE),
-  };
-
-  const limitBreaches: LimitBreach[] = [];
-  if (!input.riskProfile) {
-    notes.push(NO_RISK_PROFILE_NOTE);
-  } else {
-    const capital = new Decimal(input.riskProfile.declaredCapital);
-    if (maxLoss !== "unbounded" && capital.gt(0)) {
-      const ratio = new Decimal(maxLoss).div(capital);
-      const allowed = parseDecimal(input.riskProfile.limits.maxLossPerOperation);
-      if (ratio.gt(allowed)) {
-        limitBreaches.push({
-          limit: "maxLossPerOperation",
-          value: toDecimalString(ratio, RATIO_SCALE),
-          allowed: input.riskProfile.limits.maxLossPerOperation,
-        });
-      }
-    }
-    const notionalCentavos = input.legs.reduce(
-      (acc, leg) => acc.add(parseDecimal(leg.entryPrice).mul(CENTAVOS_PER_REAL).mul(leg.quantity)),
-      new Decimal(0),
-    );
-    if (capital.gt(0)) {
-      const exposureRatio = notionalCentavos.div(capital);
-      const allowedExposure = parseDecimal(input.riskProfile.limits.maxExposurePerOperation);
-      if (exposureRatio.gt(allowedExposure)) {
-        limitBreaches.push({
-          limit: "maxExposurePerOperation",
-          value: toDecimalString(exposureRatio, RATIO_SCALE),
-          allowed: input.riskProfile.limits.maxExposurePerOperation,
-        });
-      }
-    }
-    if (capital.gt(0) && netPremiumCentavos.isNegative()) {
-      const premiumRatio = netPremiumCentavos.neg().div(capital);
-      const allowedPremium = parseDecimal(input.riskProfile.limits.maxPremiumBought);
-      if (premiumRatio.gt(allowedPremium)) {
-        limitBreaches.push({
-          limit: "maxPremiumBought",
-          value: toDecimalString(premiumRatio, RATIO_SCALE),
-          allowed: input.riskProfile.limits.maxPremiumBought,
-        });
-      }
-    }
-    const openCount = input.openOperationCount ?? 0;
-    if (openCount + 1 > input.riskProfile.limits.maxOpenOperations) {
-      limitBreaches.push({
-        limit: "maxOpenOperations",
-        value: toDecimalString(new Decimal(openCount + 1), RATIO_SCALE),
-        allowed: toDecimalString(
-          new Decimal(input.riskProfile.limits.maxOpenOperations),
-          RATIO_SCALE,
-        ),
-      });
-    }
-    if (limitBreaches.length > 0) {
-      notes.push({
-        code: "limit_breach_warned",
-        message: "the proposal breaches a risk-profile limit",
-      });
-    }
-  }
+  if (!priced.ok) return priced;
 
   return {
     ok: true,
     value: {
-      at: input.at,
-      underlying: input.underlying,
-      spot,
-      riskFreeRate,
-      dividendYield,
-      legs: legValuations,
-      netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
-      greeks,
-      payoff,
-      breakEvens,
-      maxLoss,
-      maxGain,
-      limitBreaches,
-      notes,
-      provenance: { ...input.provenanceBase, truncated: [] },
+      ...priced.value,
+      legs: priced.value.legs.map((valuation, index) => {
+        const stockLeg = assertDefined(
+          input.legs[index],
+          "priceStockLegs: priceLegsAtSpot returned a different number of legs",
+        );
+        return { ...valuation, leg: stockLeg, priceSource: stockLeg.priceSource };
+      }),
     },
   };
 }

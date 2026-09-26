@@ -1620,6 +1620,8 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   `evaluateStrategy` refused any structure with a non-`stock` leg with `unsupported`
   (`strikeSelections`) until #23 lifted that refusal by delegating to this same seam (see the #23
   addendum).
+- **`priceStockLegs` (#54) is now an adapter over `priceLegsAtSpot`** — see the #54 addendum
+  after the #58 addendum below.
 
 ### #16 addendum: `runBacktest` for stock-only strategies (extended by #23)
 
@@ -2077,6 +2079,55 @@ incrementally, with no change to the public interface or to any output:
 Golden outputs recorded from the #15 reading (`packages/engine/src/invariants/__golden__`: SMA,
 EMA/RSI/ATR and IV-rank runs with corporate actions, a chunked run and a `since..at` catch-up)
 guard the equality; `pnpm --filter @fetha/engine bench` times the 1,250 × 20 run.
+
+### #54 addendum: `priceStockLegs` as an adapter over `priceLegsAtSpot`
+
+`stock-pricing.ts`'s `priceStockLegs` (the #15/#16 addenda above) grew its own copy of
+`price-operation.ts`'s risk-limit checks, max-loss/max-gain sign logic, payoff sampling and
+aggregate-greeks reduction, and had already diverged from it by the time #54 found it.
+`price-operation.ts` now exports `priceLegsAtSpot(view, at, underlying, spot, legs, riskProfile,
+openOperationCount, provenanceBase)` — everything `priceLegsAt` does once it already has a spot
+(resolve the operation's rates once, then price the legs through the still-private
+`priceConcreteLegs`) — and `priceStockLegs` is a thin adapter over it: it converts each
+`StockLegInput` to a `LegInput` with `price` set to that leg's own `entryPrice` (so the
+mid/last/close/average ladder short-circuits to `source: "given"` regardless of
+`view.quotes`/`view.candles`, keeping the call as deterministic on an arbitrary or empty `view`
+as it always was — `priceStockLegs`'s own callers already know the price they want priced, unlike
+`priceOperation`'s, which may not), calls `priceLegsAtSpot` with the caller's own explicit `spot`,
+and restores `StockLegInput.priceSource` (a caller record of where the price came from that
+`LegInput`/`Leg` has no field for, and that the ladder's own `"given"` would otherwise overwrite)
+onto each resulting `LegValuation`. `priceConcreteLegs` and `resolveOperationRates` stay private;
+`priceLegsAt`, `priceOperation` and `priceLegsAtSpot` are the module's exported surface.
+`stock-pricing.ts` carries no computation of its own. Two divergences surfaced only once both
+paths ran the same fixtures, both resolved in `price-operation.ts`'s favor:
+
+- _Break-evens for two or more stock legs._ `priceStockLegs` special-cased `breakEvens` to
+  `[entryPrice]` for exactly one leg and `[]` for any other leg count, never generalized when
+  multi-leg stock structures became reachable. `computePayoffProfile`'s general algorithm (the
+  #22 addendum) already handles a net stock position correctly for any leg count — a single leg's
+  crossing point matches the old special case exactly, for a positive entry price; a flat
+  (net-delta-zero) payoff now correctly reports no break-even rather than the one point it
+  happens to sample (a later fix — no distinguished crossing exists when the payoff is
+  identically zero, so reporting the sampled `0` misled a payoff chart into drawing a crossing
+  that never happens). `evaluateStrategy`'s own fixtures never exercise more than one stock leg,
+  so no golden changed from either fix; `stock-pricing.test.ts` gained direct coverage.
+- _The payoff chart sampled the underlying at full precision, not at the rounded value it
+  reports._ `priceStockLegs` computed each of its three payoff points' `pnl` from the
+  full-precision `spot * factor`, rounding only the displayed `underlying` string — so the `pnl`
+  next to a displayed `"20.49"` was actually priced at `20.488`, a label/value mismatch a payoff
+  chart plotting these pairs would silently misrepresent. `computePayoffProfile` rounds the
+  sampled underlying to `PRICE_SCALE` before pricing at it (needed there since the same rounded
+  value is also deduplicated against each strike and break-even sample), which is the more
+  correct rule and is now the only one. This does change eight `pnl` values in
+  `catch-up-evaluation.json`, in four payoff blocks (the 0.8× and 1.2× point of each; never the
+  `underlying`, `breakEvens`, `netPremium`, `maxLoss`/`maxGain` or any other field) — the
+  smallest, most mechanical possible re-record of that golden, made only after `git diff`
+  confirmed nothing else in it moved. `stock-pricing.test.ts` gained a test asserting the
+  rounded-first sample directly.
+
+A stock proposal's `payoff` is therefore no longer always exactly three points:
+`computePayoffProfile` also samples each break-even, so a break-even that does not coincide with
+a 0.8×/1×/1.2× spot sample adds a point of its own.
 
 ## Considered options
 

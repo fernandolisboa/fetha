@@ -190,6 +190,44 @@ describe("priceOperation (concrete legs)", () => {
     expect(Number(result.value.legs[0]?.greeks?.delta)).toBeGreaterThan(0.5);
   });
 
+  it("reports no break-evens for an identically-zero payoff (buying and selling the same call at the same volatility)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C40", "40.00")],
+      macro: [
+        { series: "cdi", date: "2024-01-01", asOf: at, annualRate: decimalString("0.105709") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.20"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.20"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([]);
+    expect(result.value.maxLoss).toBe(centavos(0));
+    expect(result.value.maxGain).toBe(centavos(0));
+  });
+
   it("reports no_risk_profile and empty limitBreaches when no risk profile is supplied", () => {
     const result = priceOperation(
       {
