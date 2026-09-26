@@ -581,9 +581,11 @@ describe("backtest_runs #73 optionPerContract -> optionPerOrder migration (0016_
       where id = ${run.id}
     `);
 
-    for (const statement of loadMigrationStatements("0016_option_per_order")) {
-      await db.execute(sql.raw(statement));
-    }
+    await db.transaction(async (tx) => {
+      for (const statement of loadMigrationStatements("0016_option_per_order")) {
+        await tx.execute(sql.raw(statement));
+      }
+    });
 
     const migrated = await repository.findMine(run.id);
     expect(migrated.costModel).toEqual(DEFAULT_COST_MODEL);

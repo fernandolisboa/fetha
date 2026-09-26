@@ -540,9 +540,11 @@ describe("decisions #73 optionPerContract -> optionPerOrder migration (0016_opti
       await db.execute(sql`alter table decisions enable trigger decisions_no_update`);
     }
 
-    for (const statement of loadMigrationStatements("0016_option_per_order")) {
-      await db.execute(sql.raw(statement));
-    }
+    await db.transaction(async (tx) => {
+      for (const statement of loadMigrationStatements("0016_option_per_order")) {
+        await tx.execute(sql.raw(statement));
+      }
+    });
 
     const mine = await repository.listMine();
     const migrated = mine.find((entry) => entry.id === recorded.id);
