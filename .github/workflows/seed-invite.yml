@@ -12,6 +12,9 @@ concurrency:
   group: seed-invite
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   seed-invite:
     runs-on: ubuntu-latest

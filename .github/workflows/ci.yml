@@ -13,6 +13,9 @@ concurrency:
 env:
   NEXT_TELEMETRY_DISABLED: "1"
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
