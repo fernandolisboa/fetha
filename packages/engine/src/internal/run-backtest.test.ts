@@ -1807,6 +1807,14 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       "an object whose pendingTaxDeduction is neither null nor a plain object",
       (valid: object) => ({ ...valid, pendingTaxDeduction: "nope" }),
     ],
+    [
+      "an object whose optionStrikeAcrossCorporateActionNoted is not a boolean",
+      (valid: object) => ({ ...valid, optionStrikeAcrossCorporateActionNoted: "nope" }),
+    ],
+    [
+      "a pendingTaxDeduction whose tax is not finite",
+      (valid: object) => ({ ...valid, pendingTaxDeduction: { tax: "nope" } }),
+    ],
     ["cash is NaN", (valid: object) => ({ ...valid, cash: NaN })],
     ["cash is Infinity", (valid: object) => ({ ...valid, cash: Infinity })],
     [

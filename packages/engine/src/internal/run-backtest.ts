@@ -1197,12 +1197,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           continue;
         }
 
-        // The exercise/assignment decision itself — in-the-money check, intrinsic value,
-        // outcome — delegates to propose-settlement.ts's own settleLeg (ADR-0013's #23
-        // addendum, closed by #72): the same ADR-0014 Q41 rule, in one place. `settleLeg`
-        // also rejects a non-positive listed strike, a guard this call site never had; every
-        // real listed strike is positive, so this is strictly a new safety net, not an
-        // observed behavior change (see that same addendum for the reconciliation).
         const settled = settleLeg(
           leg,
           legIndex,
@@ -1231,9 +1225,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           continue;
         }
 
-        // settleLeg's own fill carries no cost — a settlement proposal is not itself a trade
-        // (ADR-0013 #25 addendum) — so the backtester's own cost model overlays it here, the
-        // same way a fill from priceOperation already gets its cost overlaid at entry and exit.
+        // settleLeg's fill is cost-free (a settlement proposal is not a trade, ADR-0013 #25
+        // addendum); the run charges its own cost model on it, as it does on every other fill.
         const bareFill = assertDefined(
           settled.value.fills[0],
           "run-backtest: settleLeg reports a non-worthless outcome with no fill",
