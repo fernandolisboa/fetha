@@ -114,6 +114,19 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("rejects a calendar that lists a session twice as invalid_input (#40)", () => {
+    const view: MarketView = { ...baseView, calendar: [...calendar, sessionAt(3)] };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_input",
+        path: "view.calendar",
+        message: `duplicate calendar date ${sessionAt(3).date}`,
+      },
+    });
+  });
+
   it("returns insufficient_data when the calendar has no session open at or before at", () => {
     const view: MarketView = { ...baseView, calendar: [] };
     const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);

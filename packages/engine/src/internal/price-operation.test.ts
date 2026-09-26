@@ -84,6 +84,35 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C40" });
   });
 
+  it("rejects a calendar that lists a session twice as invalid_input (#40)", () => {
+    const [first] = baseView.calendar;
+    if (!first) throw new Error("fixture calendar is empty");
+    const result = priceOperation(
+      {
+        view: { ...baseView, calendar: [...baseView.calendar, { ...first }] },
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_input",
+        path: "view.calendar",
+        message: `duplicate calendar date ${first.date}`,
+      },
+    });
+  });
+
   it("rejects a non-positive given volatility as invalid_input (round 4 item 5)", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
     const result = priceOperation(
