@@ -1,13 +1,17 @@
-import type { EvaluationReason } from "@fetha/engine";
+import type { EvaluationOutcome, EvaluationReason } from "@fetha/engine";
 
-// Legacy fallback only (#80): a row written before `EvaluationRecord.reason`
-// existed carries no code, only the engine's own English `detail` prose from
-// that time — matched here by exact string, or by prefix for the web's own
-// synthesized codes (`engine_error:`, `catchup_clamped:`,
-// `unsatisfiable_collection:`). Never used for a row that already has a
-// `reason`; see `reasonTextEn`/`reasonTextPtBR` below for that path. An
-// unrecognized string is dropped rather than shown untranslated (CLAUDE.md
-// i18n: user-facing strings ship in pt-BR).
+// Fallback for a row with no `reason` (#80). Two classes of row land here:
+// one written before `EvaluationRecord.reason` existed, carrying the
+// engine's own English `detail` prose from that time; and, going forward,
+// every row `evaluate-signals.ts` writes itself (`unknown_structure`,
+// `engine_error:`, `catchup_clamped:`, `unsatisfiable_collection:`) — those
+// are web-authored codes with no `EvaluationRecord` to read a `reason`
+// from, not prose the engine emits, so this fallback keeps serving them
+// rather than being a one-time migration shim. Matched here by exact
+// string, or by prefix for the variable-suffix codes. Never used for a row
+// that already has a `reason`; see `reasonTextEn`/`reasonTextPtBR` below
+// for that path. An unrecognized string is dropped rather than shown
+// untranslated (CLAUDE.md i18n: user-facing strings ship in pt-BR).
 const evaluationDetailEn: Record<string, string> = {
   "no candles for this instrument and timeframe": "No candles for this instrument and timeframe",
   "no candles in (since, at] for this instrument and timeframe":
@@ -121,10 +125,14 @@ const evaluationDetailPtBR: Record<string, string> = {
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:
 // a code the engine adds without a matching entry here fails to typecheck,
-// unlike the legacy `evaluationDetailEn`/`PtBR` string match above.
-const reasonTextEn: Record<EvaluationReason, string> = {
-  signal: "Signal",
-  conditions_not_met: "Conditions not met",
+// unlike the legacy `evaluationDetailEn`/`PtBR` string match above. `signal`
+// and `conditions_not_met` map to `null`: both reasons add nothing beyond
+// their own outcome label (`t.inbox.outcomes.signal` /
+// `t.inbox.outcomes.conditions_not_met` already say the same thing), so a
+// non-null entry here would render as a "Signal · Signal"-shaped repeat.
+const reasonTextEn: Record<EvaluationReason, string | null> = {
+  signal: null,
+  conditions_not_met: null,
   no_candles: "No candles for this instrument and timeframe",
   no_candles_in_catch_up_window:
     "No candles in the evaluated window for this instrument and timeframe",
@@ -142,9 +150,9 @@ const reasonTextEn: Record<EvaluationReason, string> = {
   stop_loss_zero_base: "Stop loss cannot fire: the operation's max-loss base is zero",
 };
 
-const reasonTextPtBR: Record<EvaluationReason, string> = {
-  signal: "Sinal",
-  conditions_not_met: "Condições não atendidas",
+const reasonTextPtBR: Record<EvaluationReason, string | null> = {
+  signal: null,
+  conditions_not_met: null,
   no_candles: "Sem candles para este ativo nessa escala de tempo",
   no_candles_in_catch_up_window:
     "Sem candles no intervalo avaliado para este ativo nessa escala de tempo",
@@ -493,3 +501,22 @@ const ptBR = {
 export const strategiesStrings = { en, ptBR } as const;
 
 export const t = strategiesStrings.ptBR;
+
+// Composes one evaluation log row's label: the outcome label alone, or the
+// outcome label followed by whatever extra a `reason` or (absent that) a
+// legacy `detail` string adds — never a suffix that only repeats the
+// outcome (`reasonText.signal`/`reasonText.conditions_not_met` are `null`
+// for exactly that reason).
+export function evaluationLabel(row: {
+  outcome: EvaluationOutcome;
+  reason: EvaluationReason | null;
+  detail: string | null;
+}): string {
+  const outcomeLabel = t.inbox.outcomes[row.outcome];
+  const suffix = row.reason
+    ? t.inbox.evaluationLog.reasonText[row.reason]
+    : row.detail
+      ? t.inbox.evaluationLog.detailFor(row.detail)
+      : undefined;
+  return suffix ? `${outcomeLabel} · ${suffix}` : outcomeLabel;
+}

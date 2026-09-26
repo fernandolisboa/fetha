@@ -1,2 +1,1 @@
-ALTER TABLE "evaluations" ADD COLUMN "reason" text;--> statement-breakpoint
-ALTER TABLE "evaluations" ADD CONSTRAINT "evaluations_reason_check" CHECK ("evaluations"."reason" is null or "evaluations"."reason" in ('signal', 'conditions_not_met', 'no_candles', 'no_candles_in_catch_up_window', 'entry_condition_warmup', 'no_series_match', 'degenerate_strikes', 'no_declared_capital', 'unbounded_max_loss', 'zero_units', 'unaffordable_budget', 'insufficient_market_data_for_proposal', 'exit_rule_unknown', 'profit_target_zero_base', 'stop_loss_zero_base'));
+ALTER TABLE "evaluations" ADD COLUMN "reason" text;

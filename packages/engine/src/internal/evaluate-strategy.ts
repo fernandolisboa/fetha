@@ -51,13 +51,6 @@ const sizingDetail: Record<StockSizingReason, string> = {
   unaffordable_budget: "the declared capital and fraction cannot afford one unit",
 };
 
-const sizingReason: Record<StockSizingReason, EvaluationReason> = {
-  no_declared_capital: "no_declared_capital",
-  unbounded_max_loss: "unbounded_max_loss",
-  zero_units: "zero_units",
-  unaffordable_budget: "unaffordable_budget",
-};
-
 function invalidInput<T = Evaluation>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
@@ -827,7 +820,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       c,
                       nominalCandle.session,
                       "unsizeable",
-                      sizingReason[entryPricing.error.reason],
+                      entryPricing.error.reason,
                       sizingDetail[entryPricing.error.reason],
                     ),
                   );
@@ -877,7 +870,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 c,
                 nominalCandle.session,
                 "unsizeable",
-                sizingReason[sizingResult.detail],
+                sizingResult.detail,
                 sizingDetail[sizingResult.detail],
               ),
             );
@@ -1061,8 +1054,10 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             instantFired ? "signal" : instantUnknown ? "insufficient_data" : "conditions_not_met",
             instantFired
               ? "signal"
-              : (zeroBaseReason ?? (instantUnknown ? "exit_rule_unknown" : "conditions_not_met")),
-            instantFired ? null : zeroBaseDetail,
+              : instantUnknown
+                ? "exit_rule_unknown"
+                : (zeroBaseReason ?? "conditions_not_met"),
+            instantFired || instantUnknown ? null : zeroBaseDetail,
           ),
         );
       }

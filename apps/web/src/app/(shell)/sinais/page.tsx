@@ -11,7 +11,13 @@ import {
 import { DecisionBar } from "@/modules/decisions/client";
 import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
-import { getMyEvaluationLog, getMySignals, SignalRow, t } from "@/modules/strategies";
+import {
+  evaluationLabel,
+  getMyEvaluationLog,
+  getMySignals,
+  SignalRow,
+  t,
+} from "@/modules/strategies";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.signals}` };
 
@@ -92,24 +98,14 @@ export default async function SignalsPage() {
               </tr>
             </thead>
             <tbody>
-              {evaluationLog.map((row) => {
-                const detail = row.reason
-                  ? t.inbox.evaluationLog.reasonText[row.reason]
-                  : row.detail
-                    ? t.inbox.evaluationLog.detailFor(row.detail)
-                    : undefined;
-                return (
-                  <tr key={row.id} className="border-line-soft border-b">
-                    <td className="py-2">{row.strategyName}</td>
-                    <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
-                    <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
-                    <td className="text-muted-foreground py-2">
-                      {t.inbox.outcomes[row.outcome]}
-                      {detail ? ` · ${detail}` : ""}
-                    </td>
-                  </tr>
-                );
-              })}
+              {evaluationLog.map((row) => (
+                <tr key={row.id} className="border-line-soft border-b">
+                  <td className="py-2">{row.strategyName}</td>
+                  <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
+                  <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
+                  <td className="text-muted-foreground py-2">{evaluationLabel(row)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

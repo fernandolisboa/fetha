@@ -1732,6 +1732,79 @@ describe("evaluateStrategy — stock-only strategies", () => {
     },
   );
 
+  it("prefers exit_rule_unknown over a zero-base reason when one active operation's bases are unresolvable and another's rule hits a zero base", () => {
+    const closes = ["10.00", "10.00", "10.00", "10.50"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const unresolvableOptionOperation: Operation = {
+      id: "op-unknown",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-02-01",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const deltaNeutralOperation: Operation = {
+      id: "op-zero-base",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "stock",
+          side: "sell",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+      ],
+      expiry: null,
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        definition({
+          entry: closeAboveSma(3),
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+        }),
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [unresolvableOptionOperation, deltaNeutralOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.signals).toEqual([]);
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-04T21:00:00.000Z",
+      session: "2024-01-04",
+      outcome: "insufficient_data",
+      reason: "exit_rule_unknown",
+      detail: null,
+    });
+  });
+
   it("fires stop_loss on a short stock operation using |netPremium| as the max-loss base (unbounded max loss)", () => {
     const closes = ["10.00", "10.00", "10.00", "14.00"];
     const view: MarketView = {
@@ -1935,6 +2008,32 @@ describe("evaluateStrategy — stock-only strategies", () => {
     });
     expect(result.value.signals).toEqual([]);
   });
+
+  it("is unsizeable(no_declared_capital) for a stock entry with no risk profile", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.evaluations[0]).toEqual({
+      ticker: "PETR4",
+      at: "2024-01-04T21:00:00.000Z",
+      session: "2024-01-04",
+      outcome: "unsizeable",
+      reason: "no_declared_capital",
+      detail: "no declared capital to size against",
+    });
+    expect(result.value.signals).toEqual([]);
+  });
 });
 
 describe("evaluateStrategy — option structures (#23)", () => {
@@ -2008,6 +2107,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.evaluations[0]?.outcome).toBe("signal");
+    expect(result.value.evaluations[0]?.reason).toBe("signal");
     expect(result.value.signals).toHaveLength(1);
     const signal = result.value.signals[0] as Extract<Signal, { kind: "entry" }>;
     expect(signal.proposal.legs.map((l) => l.role)).toEqual(["stock", "call"]);
