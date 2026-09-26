@@ -153,5 +153,9 @@ export function DistributionChart({ returns }: { returns: number[] }) {
   if (buildBins(returns).length === 0) {
     return <p className="text-muted-foreground text-sm">{t.report.distributionFlat}</p>;
   }
-  return <ParentSize>{({ width }) => <Chart width={width} returns={returns} />}</ParentSize>;
+  return (
+    <ParentSize style={{ height: HEIGHT }}>
+      {({ width }) => <Chart width={width} returns={returns} />}
+    </ParentSize>
+  );
 }

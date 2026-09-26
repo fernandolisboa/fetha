@@ -75,5 +75,9 @@ export function EquityCurveChart({ points }: { points: EquityPoint[] }) {
   if (points.length === 0) {
     return null;
   }
-  return <ParentSize>{({ width }) => <Chart width={width} points={points} />}</ParentSize>;
+  return (
+    <ParentSize style={{ height: HEIGHT }}>
+      {({ width }) => <Chart width={width} points={points} />}
+    </ParentSize>
+  );
 }
