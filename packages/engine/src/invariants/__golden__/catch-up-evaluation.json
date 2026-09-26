@@ -1,0 +1,3943 @@
+{
+ "ok": true,
+ "value": {
+  "signals": [
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK013",
+    "timeframe": "D1",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "36.47"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "35.86"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "15.789474"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK013",
+       "quantity": 1427
+      }
+     ],
+     "pricing": {
+      "at": "2019-03-28T20:00:00.000Z",
+      "underlying": "TCK013",
+      "spot": "35.03",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK013",
+         "quantity": 1427,
+         "entryPrice": "35.03",
+         "priceSource": "close"
+        },
+        "price": "35.03",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4998781,
+      "greeks": {
+       "delta": "1427.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "28.02",
+        "pnl": -999756
+       },
+       {
+        "underlying": "35.03",
+        "pnl": 0
+       },
+       {
+        "underlying": "42.04",
+        "pnl": 999756
+       }
+      ],
+      "breakEvens": [
+       "35.03"
+      ],
+      "maxLoss": 4998781,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-03-27T20:00:00.000Z",
+    "session": "2019-03-27",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-03-29T20:00:00.000Z",
+    "session": "2019-03-29",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-01T20:00:00.000Z",
+    "session": "2019-04-01",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-02T20:00:00.000Z",
+    "session": "2019-04-02",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-03T20:00:00.000Z",
+    "session": "2019-04-03",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-04T20:00:00.000Z",
+    "session": "2019-04-04",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-05T20:00:00.000Z",
+    "session": "2019-04-05",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-08T20:00:00.000Z",
+    "session": "2019-04-08",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-09T20:00:00.000Z",
+    "session": "2019-04-09",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-10T20:00:00.000Z",
+    "session": "2019-04-10",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-11T20:00:00.000Z",
+    "session": "2019-04-11",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-12T20:00:00.000Z",
+    "session": "2019-04-12",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-15T20:00:00.000Z",
+    "session": "2019-04-15",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.38"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.42"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.27"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.43"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.12"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.41"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.00"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.40"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.87"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.40"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-23T20:00:00.000Z",
+    "session": "2019-04-23",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.79"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.43"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-24T20:00:00.000Z",
+    "session": "2019-04-24",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.72"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.44"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-25T20:00:00.000Z",
+    "session": "2019-04-25",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.67"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.45"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-26T20:00:00.000Z",
+    "session": "2019-04-26",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.72"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.45"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-29T20:00:00.000Z",
+    "session": "2019-04-29",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.81"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.45"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-04-30T20:00:00.000Z",
+    "session": "2019-04-30",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "44.90"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.48"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-01T20:00:00.000Z",
+    "session": "2019-05-01",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.01"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.51"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-02T20:00:00.000Z",
+    "session": "2019-05-02",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.04"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.49"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-03T20:00:00.000Z",
+    "session": "2019-05-03",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.07"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.46"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-06T20:00:00.000Z",
+    "session": "2019-05-06",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.16"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.44"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-07T20:00:00.000Z",
+    "session": "2019-05-07",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.24"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.43"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-08T20:00:00.000Z",
+    "session": "2019-05-08",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.33"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.45"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-09T20:00:00.000Z",
+    "session": "2019-05-09",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.36"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.46"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-10T20:00:00.000Z",
+    "session": "2019-05-10",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "45.48"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "45.52"
+     }
+    ],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "compare",
+      "left": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 20
+       }
+      },
+      "comparator": "<",
+      "right": {
+       "kind": "indicator",
+       "indicator": {
+        "kind": "sma",
+        "length": 50
+       }
+      }
+     }
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-13T20:00:00.000Z",
+    "session": "2019-05-13",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-14T20:00:00.000Z",
+    "session": "2019-05-14",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-15T20:00:00.000Z",
+    "session": "2019-05-15",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-16T20:00:00.000Z",
+    "session": "2019-05-16",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-17T20:00:00.000Z",
+    "session": "2019-05-17",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-20T20:00:00.000Z",
+    "session": "2019-05-20",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-21T20:00:00.000Z",
+    "session": "2019-05-21",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-22T20:00:00.000Z",
+    "session": "2019-05-22",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-23T20:00:00.000Z",
+    "session": "2019-05-23",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-24T20:00:00.000Z",
+    "session": "2019-05-24",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-27T20:00:00.000Z",
+    "session": "2019-05-27",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-28T20:00:00.000Z",
+    "session": "2019-05-28",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-29T20:00:00.000Z",
+    "session": "2019-05-29",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-30T20:00:00.000Z",
+    "session": "2019-05-30",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-05-31T20:00:00.000Z",
+    "session": "2019-05-31",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-03T20:00:00.000Z",
+    "session": "2019-06-03",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-04T20:00:00.000Z",
+    "session": "2019-06-04",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-05T20:00:00.000Z",
+    "session": "2019-06-05",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-06T20:00:00.000Z",
+    "session": "2019-06-06",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-07T20:00:00.000Z",
+    "session": "2019-06-07",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-10T20:00:00.000Z",
+    "session": "2019-06-10",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-11T20:00:00.000Z",
+    "session": "2019-06-11",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-12T20:00:00.000Z",
+    "session": "2019-06-12",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-13T20:00:00.000Z",
+    "session": "2019-06-13",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-14T20:00:00.000Z",
+    "session": "2019-06-14",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-17T20:00:00.000Z",
+    "session": "2019-06-17",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "exit",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK023",
+    "timeframe": "D1",
+    "at": "2019-06-18T20:00:00.000Z",
+    "session": "2019-06-18",
+    "indicators": [],
+    "operationId": "held-2",
+    "rule": {
+     "kind": "stop_loss",
+     "multipleOfMaxLoss": "0.05"
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.56"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.90"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "26.315789"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 1996
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-16T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "25.05",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 1996,
+         "entryPrice": "25.05",
+         "priceSource": "close"
+        },
+        "price": "25.05",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4999980,
+      "greeks": {
+       "delta": "1996.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "20.04",
+        "pnl": -999996
+       },
+       {
+        "underlying": "25.05",
+        "pnl": 0
+       },
+       {
+        "underlying": "30.06",
+        "pnl": 999996
+       }
+      ],
+      "breakEvens": [
+       "25.05"
+      ],
+      "maxLoss": 4999980,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.57"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.91"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "15.789474"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 1952
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-17T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "25.61",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 1952,
+         "entryPrice": "25.61",
+         "priceSource": "close"
+        },
+        "price": "25.61",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4999072,
+      "greeks": {
+       "delta": "1952.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "20.49",
+        "pnl": -999814
+       },
+       {
+        "underlying": "25.61",
+        "pnl": 0
+       },
+       {
+        "underlying": "30.73",
+        "pnl": 999814
+       }
+      ],
+      "breakEvens": [
+       "25.61"
+      ],
+      "maxLoss": 4999072,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.57"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.93"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "21.052632"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 1980
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-18T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "25.25",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 1980,
+         "entryPrice": "25.25",
+         "priceSource": "close"
+        },
+        "price": "25.25",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4999500,
+      "greeks": {
+       "delta": "1980.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "20.20",
+        "pnl": -999900
+       },
+       {
+        "underlying": "25.25",
+        "pnl": 0
+       },
+       {
+        "underlying": "30.30",
+        "pnl": 999900
+       }
+      ],
+      "breakEvens": [
+       "25.25"
+      ],
+      "maxLoss": 4999500,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.56"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.93"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "10.526316"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 2000
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-19T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "25.00",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 2000,
+         "entryPrice": "25.00",
+         "priceSource": "close"
+        },
+        "price": "25.00",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -5000000,
+      "greeks": {
+       "delta": "2000.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "20.00",
+        "pnl": -1000000
+       },
+       {
+        "underlying": "25.00",
+        "pnl": 0
+       },
+       {
+        "underlying": "30.00",
+        "pnl": 1000000
+       }
+      ],
+      "breakEvens": [
+       "25.00"
+      ],
+      "maxLoss": 5000000,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.56"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.93"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "15.789474"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 2002
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-22T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "24.97",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 2002,
+         "entryPrice": "24.97",
+         "priceSource": "close"
+        },
+        "price": "24.97",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4998994,
+      "greeks": {
+       "delta": "2002.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "19.98",
+        "pnl": -999799
+       },
+       {
+        "underlying": "24.97",
+        "pnl": 0
+       },
+       {
+        "underlying": "29.96",
+        "pnl": 999799
+       }
+      ],
+      "breakEvens": [
+       "24.97"
+      ],
+      "maxLoss": 4998994,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   },
+   {
+    "kind": "entry",
+    "strategyVersionId": "synthetic",
+    "ticker": "TCK033",
+    "timeframe": "D1",
+    "at": "2019-04-23T20:00:00.000Z",
+    "session": "2019-04-23",
+    "indicators": [
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 20
+      },
+      "value": "25.61"
+     },
+     {
+      "indicator": {
+       "kind": "sma",
+       "length": 50
+      },
+      "value": "24.94"
+     },
+     {
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      },
+      "value": "26.315789"
+     }
+    ],
+    "proposal": {
+     "legs": [
+      {
+       "role": "stock",
+       "side": "buy",
+       "ticker": "TCK033",
+       "quantity": 1991
+      }
+     ],
+     "pricing": {
+      "at": "2019-04-23T20:00:00.000Z",
+      "underlying": "TCK033",
+      "spot": "25.11",
+      "riskFreeRate": "0.101202",
+      "dividendYield": "0.000000",
+      "legs": [
+       {
+        "leg": {
+         "role": "stock",
+         "side": "buy",
+         "ticker": "TCK033",
+         "quantity": 1991,
+         "entryPrice": "25.11",
+         "priceSource": "close"
+        },
+        "price": "25.11",
+        "priceSource": "close",
+        "stale": null,
+        "fairValue": null,
+        "impliedVolatility": null,
+        "volatilitySource": null,
+        "greeks": {
+         "delta": "1.000000",
+         "gamma": "0.000000",
+         "theta": "0.000000",
+         "vega": "0.000000",
+         "rho": "0.000000"
+        },
+        "timeToExpiryYears": null,
+        "notes": []
+       }
+      ],
+      "netPremium": -4999401,
+      "greeks": {
+       "delta": "1991.000000",
+       "gamma": "0.000000",
+       "theta": "0.000000",
+       "vega": "0.000000",
+       "rho": "0.000000"
+      },
+      "payoff": [
+       {
+        "underlying": "20.09",
+        "pnl": -999880
+       },
+       {
+        "underlying": "25.11",
+        "pnl": 0
+       },
+       {
+        "underlying": "30.13",
+        "pnl": 999880
+       }
+      ],
+      "breakEvens": [
+       "25.11"
+      ],
+      "maxLoss": 4999401,
+      "maxGain": "unbounded",
+      "limitBreaches": [],
+      "notes": [
+       {
+        "code": "dividend_yield_defaulted",
+        "message": "no dividend yield visible; defaulted to 0"
+       }
+      ],
+      "provenance": {
+       "engineVersion": "0.2.0",
+       "pricingModel": "bsm_continuous_yield",
+       "dataVersion": null,
+       "datasetNotes": [],
+       "truncated": []
+      }
+     }
+    }
+   }
+  ],
+  "evaluations": [
+   {
+    "ticker": "TCK003",
+    "at": "2019-03-27T20:00:00.000Z",
+    "session": "2019-03-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-03-29T20:00:00.000Z",
+    "session": "2019-03-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-01T20:00:00.000Z",
+    "session": "2019-04-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-02T20:00:00.000Z",
+    "session": "2019-04-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-03T20:00:00.000Z",
+    "session": "2019-04-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-04T20:00:00.000Z",
+    "session": "2019-04-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-05T20:00:00.000Z",
+    "session": "2019-04-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-08T20:00:00.000Z",
+    "session": "2019-04-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-09T20:00:00.000Z",
+    "session": "2019-04-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-10T20:00:00.000Z",
+    "session": "2019-04-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-11T20:00:00.000Z",
+    "session": "2019-04-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-12T20:00:00.000Z",
+    "session": "2019-04-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-15T20:00:00.000Z",
+    "session": "2019-04-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-23T20:00:00.000Z",
+    "session": "2019-04-23",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-24T20:00:00.000Z",
+    "session": "2019-04-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-25T20:00:00.000Z",
+    "session": "2019-04-25",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-26T20:00:00.000Z",
+    "session": "2019-04-26",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-29T20:00:00.000Z",
+    "session": "2019-04-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-04-30T20:00:00.000Z",
+    "session": "2019-04-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-01T20:00:00.000Z",
+    "session": "2019-05-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-02T20:00:00.000Z",
+    "session": "2019-05-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-03T20:00:00.000Z",
+    "session": "2019-05-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-06T20:00:00.000Z",
+    "session": "2019-05-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-07T20:00:00.000Z",
+    "session": "2019-05-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-08T20:00:00.000Z",
+    "session": "2019-05-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-09T20:00:00.000Z",
+    "session": "2019-05-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-10T20:00:00.000Z",
+    "session": "2019-05-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-13T20:00:00.000Z",
+    "session": "2019-05-13",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-14T20:00:00.000Z",
+    "session": "2019-05-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-15T20:00:00.000Z",
+    "session": "2019-05-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-16T20:00:00.000Z",
+    "session": "2019-05-16",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-17T20:00:00.000Z",
+    "session": "2019-05-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-20T20:00:00.000Z",
+    "session": "2019-05-20",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-21T20:00:00.000Z",
+    "session": "2019-05-21",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-22T20:00:00.000Z",
+    "session": "2019-05-22",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-23T20:00:00.000Z",
+    "session": "2019-05-23",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-24T20:00:00.000Z",
+    "session": "2019-05-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-27T20:00:00.000Z",
+    "session": "2019-05-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-28T20:00:00.000Z",
+    "session": "2019-05-28",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-29T20:00:00.000Z",
+    "session": "2019-05-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-30T20:00:00.000Z",
+    "session": "2019-05-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-05-31T20:00:00.000Z",
+    "session": "2019-05-31",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-03T20:00:00.000Z",
+    "session": "2019-06-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-04T20:00:00.000Z",
+    "session": "2019-06-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-05T20:00:00.000Z",
+    "session": "2019-06-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-06T20:00:00.000Z",
+    "session": "2019-06-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-07T20:00:00.000Z",
+    "session": "2019-06-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-10T20:00:00.000Z",
+    "session": "2019-06-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-11T20:00:00.000Z",
+    "session": "2019-06-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-12T20:00:00.000Z",
+    "session": "2019-06-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-13T20:00:00.000Z",
+    "session": "2019-06-13",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-14T20:00:00.000Z",
+    "session": "2019-06-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-17T20:00:00.000Z",
+    "session": "2019-06-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK003",
+    "at": "2019-06-18T20:00:00.000Z",
+    "session": "2019-06-18",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-03-27T20:00:00.000Z",
+    "session": "2019-03-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-03-29T20:00:00.000Z",
+    "session": "2019-03-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-01T20:00:00.000Z",
+    "session": "2019-04-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-02T20:00:00.000Z",
+    "session": "2019-04-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-03T20:00:00.000Z",
+    "session": "2019-04-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-04T20:00:00.000Z",
+    "session": "2019-04-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-05T20:00:00.000Z",
+    "session": "2019-04-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-08T20:00:00.000Z",
+    "session": "2019-04-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-09T20:00:00.000Z",
+    "session": "2019-04-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-10T20:00:00.000Z",
+    "session": "2019-04-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-11T20:00:00.000Z",
+    "session": "2019-04-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-12T20:00:00.000Z",
+    "session": "2019-04-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-15T20:00:00.000Z",
+    "session": "2019-04-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-24T20:00:00.000Z",
+    "session": "2019-04-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-25T20:00:00.000Z",
+    "session": "2019-04-25",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-26T20:00:00.000Z",
+    "session": "2019-04-26",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-29T20:00:00.000Z",
+    "session": "2019-04-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-04-30T20:00:00.000Z",
+    "session": "2019-04-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-01T20:00:00.000Z",
+    "session": "2019-05-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-02T20:00:00.000Z",
+    "session": "2019-05-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-03T20:00:00.000Z",
+    "session": "2019-05-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-06T20:00:00.000Z",
+    "session": "2019-05-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-07T20:00:00.000Z",
+    "session": "2019-05-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-08T20:00:00.000Z",
+    "session": "2019-05-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-09T20:00:00.000Z",
+    "session": "2019-05-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-10T20:00:00.000Z",
+    "session": "2019-05-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-13T20:00:00.000Z",
+    "session": "2019-05-13",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-14T20:00:00.000Z",
+    "session": "2019-05-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-15T20:00:00.000Z",
+    "session": "2019-05-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-16T20:00:00.000Z",
+    "session": "2019-05-16",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-17T20:00:00.000Z",
+    "session": "2019-05-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-20T20:00:00.000Z",
+    "session": "2019-05-20",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-21T20:00:00.000Z",
+    "session": "2019-05-21",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-22T20:00:00.000Z",
+    "session": "2019-05-22",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-23T20:00:00.000Z",
+    "session": "2019-05-23",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-24T20:00:00.000Z",
+    "session": "2019-05-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-27T20:00:00.000Z",
+    "session": "2019-05-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-28T20:00:00.000Z",
+    "session": "2019-05-28",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-29T20:00:00.000Z",
+    "session": "2019-05-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-30T20:00:00.000Z",
+    "session": "2019-05-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-05-31T20:00:00.000Z",
+    "session": "2019-05-31",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-03T20:00:00.000Z",
+    "session": "2019-06-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-04T20:00:00.000Z",
+    "session": "2019-06-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-05T20:00:00.000Z",
+    "session": "2019-06-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-06T20:00:00.000Z",
+    "session": "2019-06-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-07T20:00:00.000Z",
+    "session": "2019-06-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-10T20:00:00.000Z",
+    "session": "2019-06-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-11T20:00:00.000Z",
+    "session": "2019-06-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-12T20:00:00.000Z",
+    "session": "2019-06-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-14T20:00:00.000Z",
+    "session": "2019-06-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-17T20:00:00.000Z",
+    "session": "2019-06-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK013",
+    "at": "2019-06-18T20:00:00.000Z",
+    "session": "2019-06-18",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-03-27T20:00:00.000Z",
+    "session": "2019-03-27",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-03-29T20:00:00.000Z",
+    "session": "2019-03-29",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-01T20:00:00.000Z",
+    "session": "2019-04-01",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-02T20:00:00.000Z",
+    "session": "2019-04-02",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-03T20:00:00.000Z",
+    "session": "2019-04-03",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-04T20:00:00.000Z",
+    "session": "2019-04-04",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-05T20:00:00.000Z",
+    "session": "2019-04-05",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-08T20:00:00.000Z",
+    "session": "2019-04-08",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-09T20:00:00.000Z",
+    "session": "2019-04-09",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-10T20:00:00.000Z",
+    "session": "2019-04-10",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-11T20:00:00.000Z",
+    "session": "2019-04-11",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-12T20:00:00.000Z",
+    "session": "2019-04-12",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-15T20:00:00.000Z",
+    "session": "2019-04-15",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-23T20:00:00.000Z",
+    "session": "2019-04-23",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-24T20:00:00.000Z",
+    "session": "2019-04-24",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-25T20:00:00.000Z",
+    "session": "2019-04-25",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-26T20:00:00.000Z",
+    "session": "2019-04-26",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-29T20:00:00.000Z",
+    "session": "2019-04-29",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-04-30T20:00:00.000Z",
+    "session": "2019-04-30",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-01T20:00:00.000Z",
+    "session": "2019-05-01",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-02T20:00:00.000Z",
+    "session": "2019-05-02",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-03T20:00:00.000Z",
+    "session": "2019-05-03",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-06T20:00:00.000Z",
+    "session": "2019-05-06",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-07T20:00:00.000Z",
+    "session": "2019-05-07",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-08T20:00:00.000Z",
+    "session": "2019-05-08",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-09T20:00:00.000Z",
+    "session": "2019-05-09",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-10T20:00:00.000Z",
+    "session": "2019-05-10",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-13T20:00:00.000Z",
+    "session": "2019-05-13",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-14T20:00:00.000Z",
+    "session": "2019-05-14",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-15T20:00:00.000Z",
+    "session": "2019-05-15",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-16T20:00:00.000Z",
+    "session": "2019-05-16",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-17T20:00:00.000Z",
+    "session": "2019-05-17",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-20T20:00:00.000Z",
+    "session": "2019-05-20",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-21T20:00:00.000Z",
+    "session": "2019-05-21",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-22T20:00:00.000Z",
+    "session": "2019-05-22",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-23T20:00:00.000Z",
+    "session": "2019-05-23",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-24T20:00:00.000Z",
+    "session": "2019-05-24",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-27T20:00:00.000Z",
+    "session": "2019-05-27",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-28T20:00:00.000Z",
+    "session": "2019-05-28",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-29T20:00:00.000Z",
+    "session": "2019-05-29",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-30T20:00:00.000Z",
+    "session": "2019-05-30",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-05-31T20:00:00.000Z",
+    "session": "2019-05-31",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-03T20:00:00.000Z",
+    "session": "2019-06-03",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-04T20:00:00.000Z",
+    "session": "2019-06-04",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-05T20:00:00.000Z",
+    "session": "2019-06-05",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-06T20:00:00.000Z",
+    "session": "2019-06-06",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-07T20:00:00.000Z",
+    "session": "2019-06-07",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-10T20:00:00.000Z",
+    "session": "2019-06-10",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-11T20:00:00.000Z",
+    "session": "2019-06-11",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-12T20:00:00.000Z",
+    "session": "2019-06-12",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-13T20:00:00.000Z",
+    "session": "2019-06-13",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-14T20:00:00.000Z",
+    "session": "2019-06-14",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-17T20:00:00.000Z",
+    "session": "2019-06-17",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK023",
+    "at": "2019-06-18T20:00:00.000Z",
+    "session": "2019-06-18",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-03-27T20:00:00.000Z",
+    "session": "2019-03-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-03-28T20:00:00.000Z",
+    "session": "2019-03-28",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-03-29T20:00:00.000Z",
+    "session": "2019-03-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-01T20:00:00.000Z",
+    "session": "2019-04-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-02T20:00:00.000Z",
+    "session": "2019-04-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-03T20:00:00.000Z",
+    "session": "2019-04-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-04T20:00:00.000Z",
+    "session": "2019-04-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-05T20:00:00.000Z",
+    "session": "2019-04-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-08T20:00:00.000Z",
+    "session": "2019-04-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-09T20:00:00.000Z",
+    "session": "2019-04-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-10T20:00:00.000Z",
+    "session": "2019-04-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-11T20:00:00.000Z",
+    "session": "2019-04-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-12T20:00:00.000Z",
+    "session": "2019-04-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-15T20:00:00.000Z",
+    "session": "2019-04-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-16T20:00:00.000Z",
+    "session": "2019-04-16",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-17T20:00:00.000Z",
+    "session": "2019-04-17",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-18T20:00:00.000Z",
+    "session": "2019-04-18",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-19T20:00:00.000Z",
+    "session": "2019-04-19",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-22T20:00:00.000Z",
+    "session": "2019-04-22",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-23T20:00:00.000Z",
+    "session": "2019-04-23",
+    "outcome": "signal",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-24T20:00:00.000Z",
+    "session": "2019-04-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-25T20:00:00.000Z",
+    "session": "2019-04-25",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-26T20:00:00.000Z",
+    "session": "2019-04-26",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-29T20:00:00.000Z",
+    "session": "2019-04-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-04-30T20:00:00.000Z",
+    "session": "2019-04-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-01T20:00:00.000Z",
+    "session": "2019-05-01",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-02T20:00:00.000Z",
+    "session": "2019-05-02",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-03T20:00:00.000Z",
+    "session": "2019-05-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-06T20:00:00.000Z",
+    "session": "2019-05-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-07T20:00:00.000Z",
+    "session": "2019-05-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-08T20:00:00.000Z",
+    "session": "2019-05-08",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-09T20:00:00.000Z",
+    "session": "2019-05-09",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-10T20:00:00.000Z",
+    "session": "2019-05-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-13T20:00:00.000Z",
+    "session": "2019-05-13",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-14T20:00:00.000Z",
+    "session": "2019-05-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-15T20:00:00.000Z",
+    "session": "2019-05-15",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-16T20:00:00.000Z",
+    "session": "2019-05-16",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-17T20:00:00.000Z",
+    "session": "2019-05-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-20T20:00:00.000Z",
+    "session": "2019-05-20",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-21T20:00:00.000Z",
+    "session": "2019-05-21",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-22T20:00:00.000Z",
+    "session": "2019-05-22",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-23T20:00:00.000Z",
+    "session": "2019-05-23",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-24T20:00:00.000Z",
+    "session": "2019-05-24",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-27T20:00:00.000Z",
+    "session": "2019-05-27",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-28T20:00:00.000Z",
+    "session": "2019-05-28",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-29T20:00:00.000Z",
+    "session": "2019-05-29",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-30T20:00:00.000Z",
+    "session": "2019-05-30",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-05-31T20:00:00.000Z",
+    "session": "2019-05-31",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-03T20:00:00.000Z",
+    "session": "2019-06-03",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-04T20:00:00.000Z",
+    "session": "2019-06-04",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-05T20:00:00.000Z",
+    "session": "2019-06-05",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-06T20:00:00.000Z",
+    "session": "2019-06-06",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-07T20:00:00.000Z",
+    "session": "2019-06-07",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-10T20:00:00.000Z",
+    "session": "2019-06-10",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-11T20:00:00.000Z",
+    "session": "2019-06-11",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-12T20:00:00.000Z",
+    "session": "2019-06-12",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-13T20:00:00.000Z",
+    "session": "2019-06-13",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-14T20:00:00.000Z",
+    "session": "2019-06-14",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-17T20:00:00.000Z",
+    "session": "2019-06-17",
+    "outcome": "conditions_not_met",
+    "detail": null
+   },
+   {
+    "ticker": "TCK033",
+    "at": "2019-06-18T20:00:00.000Z",
+    "session": "2019-06-18",
+    "outcome": "conditions_not_met",
+    "detail": null
+   }
+  ],
+  "notes": [],
+  "provenance": {
+   "engineVersion": "0.2.0",
+   "pricingModel": "bsm_continuous_yield",
+   "truncated": [],
+   "dataVersion": null,
+   "datasetNotes": []
+  }
+ }
+}

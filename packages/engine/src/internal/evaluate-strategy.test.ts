@@ -15,7 +15,7 @@ import type {
   TradingSession,
 } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
-import { evaluateStrategy } from "./evaluate-strategy";
+import { createStrategyEvaluator, evaluateStrategy } from "./evaluate-strategy";
 
 const emptyView: MarketView = {
   calendar: [],
@@ -2517,5 +2517,78 @@ describe("evaluateStrategy — option structures (#23)", () => {
       path: "legs[1].strike",
       message: "a listed strike must be positive",
     });
+  });
+});
+
+describe("createStrategyEvaluator (#58)", () => {
+  const view: MarketView = {
+    ...emptyView,
+    calendar: calendarSessions(3),
+    candles: [0, 1, 2].map((i) => dailyCandle("PETR4", i, String(10 + i))),
+  };
+  const strategy = strategyVersion(definition({ entry: closeAboveSma(2) }));
+
+  it("answers every call exactly as evaluateStrategy does, over one shared view", () => {
+    const evaluate = createStrategyEvaluator({ view, strategy, instruments: ["PETR4"] });
+    for (const index of [0, 1, 2]) {
+      const at = `${sessionAt(index)}T21:00:00.000Z`;
+      const expected = evaluateStrategy({
+        view,
+        strategy,
+        instruments: ["PETR4"],
+        at,
+        riskProfile,
+      });
+      if (!expected.ok) throw new Error("expected an evaluation");
+      expect(evaluate({ at, riskProfile })).toEqual({
+        ok: true,
+        value: { signals: expected.value.signals, evaluations: expected.value.evaluations },
+      });
+    }
+  });
+
+  it("applies a factor whose asOf does not parse at every instant, as buildCandleSeries does", () => {
+    const factorAt = (asOf: string): MarketView => ({
+      ...emptyView,
+      calendar: calendarSessions(3),
+      candles: [
+        dailyCandle("PETR4", 0, "10"),
+        dailyCandle("PETR4", 1, "10"),
+        dailyCandle("PETR4", 2, "6"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(2),
+          asOf,
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+    });
+    const call = {
+      at: `${sessionAt(2)}T21:00:00.000Z`,
+      since: `${sessionAt(0)}T00:00:00.000Z`,
+      riskProfile,
+    };
+    const evaluateWith = (asOf: string) =>
+      createStrategyEvaluator({ view: factorAt(asOf), strategy, instruments: ["PETR4"] })(call);
+    const unparseable = evaluateWith("not an instant");
+    expect(unparseable.ok && unparseable.value.evaluations.at(-1)?.outcome).toBe("signal");
+    expect(unparseable).toEqual(evaluateWith(`${sessionAt(0)}T00:00:00.000Z`));
+  });
+
+  it("treats an unparseable at or since as isAfter and isAtOrBefore do: never after, never at or before", () => {
+    const evaluate = createStrategyEvaluator({ view, strategy, instruments: ["PETR4"] });
+    const latest = evaluate({ at: "not an instant", riskProfile });
+    expect(latest.ok && latest.value.evaluations.map((e) => e.session)).toEqual([sessionAt(2)]);
+    for (const call of [
+      { at: "not an instant", since: `${sessionAt(0)}T21:00:00.000Z` },
+      { at: `${sessionAt(2)}T21:00:00.000Z`, since: "not an instant" },
+    ]) {
+      const result = evaluate({ ...call, riskProfile });
+      expect(result.ok && result.value.evaluations.map((e) => e.detail)).toEqual([
+        "no candles in (since, at] for this instrument and timeframe",
+      ]);
+    }
   });
 });

@@ -1,11 +1,32 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
 import type { TradingSession } from "../api";
-import { compareInstants, isAtOrBefore } from "./instant";
+import { instantMs } from "./instant";
+import { upperBound } from "./search";
 
 export const SESSIONS_PER_YEAR = 252;
 
-export function sortedCalendar(calendar: readonly TradingSession[]): TradingSession[] {
-  return [...calendar].sort((a, b) => compareInstants(a.open, b.open));
+type CalendarIndex = { sorted: readonly TradingSession[]; openMs: readonly number[] };
+
+// Memoized per calendar array, like view-index.ts (#58): every pricing call and every session of
+// a backtest used to re-sort the whole calendar.
+const calendarIndexes = new WeakMap<readonly TradingSession[], CalendarIndex>();
+
+function calendarIndex(calendar: readonly TradingSession[]): CalendarIndex {
+  const cached = calendarIndexes.get(calendar);
+  if (cached) return cached;
+  const entries = calendar
+    .map((session) => ({ session, openMs: instantMs(session.open) }))
+    .sort((a, b) => a.openMs - b.openMs);
+  const index = {
+    sorted: entries.map((e) => e.session),
+    openMs: entries.map((e) => e.openMs),
+  };
+  calendarIndexes.set(calendar, index);
+  return index;
+}
+
+export function sortedCalendar(calendar: readonly TradingSession[]): readonly TradingSession[] {
+  return calendarIndex(calendar).sorted;
 }
 
 // Shared by every module that needs "the session `at` falls in" from an unsorted
@@ -15,11 +36,8 @@ export function sessionAtOrBefore(
   calendar: readonly TradingSession[],
   at: Instant,
 ): TradingSession | null {
-  let found: TradingSession | null = null;
-  for (const session of sortedCalendar(calendar)) {
-    if (isAtOrBefore(session.open, at)) found = session;
-  }
-  return found;
+  const { sorted, openMs } = calendarIndex(calendar);
+  return sorted[upperBound(openMs, instantMs(at)) - 1] ?? null;
 }
 
 // proposeSettlement's truncation instant is the expiry session's own close, which the

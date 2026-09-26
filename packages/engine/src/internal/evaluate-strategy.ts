@@ -8,7 +8,9 @@ import {
   type EvaluationOutcome,
   type EvaluationRecord,
   type EvaluateStrategyInput,
+  type ImpliedVolatilityIndexPoint,
   type IndicatorReading,
+  type IndicatorSeries,
   type LegInput,
   type MarketView,
   type Operation,
@@ -29,12 +31,13 @@ import {
 import { evaluateCondition, type ConditionContext } from "./condition-evaluator";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators } from "./indicators-computation";
-import { compareInstants, isAfter, isAtOrBefore } from "./instant";
+import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
 import { toQuantity } from "./scalars";
+import { groupBy, upperBound } from "./search";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
@@ -46,7 +49,7 @@ const sizingDetail: Record<StockSizingReason, string> = {
   zero_units: "sizing yields fewer than one unit",
 };
 
-function invalidInput(path: string, message: string): Result<Evaluation> {
+function invalidInput<T = Evaluation>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
@@ -60,25 +63,14 @@ function record(
   return { ticker, at, session, outcome, detail };
 }
 
-// The session for a record at `at` is the last calendar session whose `open <= at`, the same
-// rule dataWindow uses; when the view carries no calendar row for `at`, this falls back to
-// slicing the instant's own date (ADR-0013 "Missing instrument").
-function sessionForInstant(calendar: readonly TradingSession[], at: Instant): SessionDate {
-  const sorted = [...calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
-  let found: SessionDate | null = null;
-  for (const session of sorted) {
-    if (isAtOrBefore(session.open, at)) found = session.date;
-    else break;
-  }
-  return found ?? at.slice(0, 10);
-}
-
 // Mirrored by `checkStrategyCoherence` in `packages/contracts/src/strategy-coherence.ts`
 // (ADR-0013): this package cannot import that one at runtime, and that one
 // cannot import this one, so the two copies are kept in sync by
 // `apps/web/src/modules/strategies/coherence-conformance.test.ts` rather than
 // by a shared function.
-function validateCoherence(input: EvaluateStrategyInput): Result<Evaluation> | null {
+function validateCoherence(
+  input: Pick<EvaluateStrategyInput, "strategy">,
+): Result<Evaluation> | null {
   const { definition, structure } = input.strategy;
   if (definition.structureId !== structure.id) {
     return invalidInput(
@@ -157,20 +149,24 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
   return null;
 }
 
-function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluation> | null {
-  // Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
-  // (round 2 item 13), the same seam markToMarket and proposeSettlement already share:
-  // this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
-  // never had.
-  const viewIntegrityError = validateViewIntegrity(input.view);
-  if (viewIntegrityError) return { ok: false, error: viewIntegrityError };
+// Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
+// (round 2 item 13), the same seam markToMarket and proposeSettlement already share:
+// this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
+// never had.
+function validateIntegrity(view: MarketView): Result<Evaluation> | null {
+  const viewIntegrityError = validateViewIntegrity(view);
+  return viewIntegrityError ? { ok: false, error: viewIntegrityError } : null;
+}
 
-  const instrumentDupe = sortUnique(input.instruments, (t) => t, codeUnitCompare);
+function validateInstruments(instruments: readonly Ticker[]): Result<Evaluation> | null {
+  const instrumentDupe = sortUnique(instruments, (t) => t, codeUnitCompare);
   if (!instrumentDupe.ok) {
     return invalidInput("instruments", `duplicate instrument ${instrumentDupe.duplicateKey}`);
   }
+  return null;
+}
 
-  const openOperations = input.openOperations ?? [];
+function validateOperationIds(openOperations: readonly Operation[]): Result<Evaluation> | null {
   const operationIdDupe = sortUnique(
     openOperations,
     (op) => op.id,
@@ -179,8 +175,11 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   if (!operationIdDupe.ok) {
     return invalidInput("openOperations", `duplicate operation id ${operationIdDupe.duplicateKey}`);
   }
+  return null;
+}
 
-  for (const [index, c] of input.view.candles.entries()) {
+function validateViewContents(view: MarketView): Result<Evaluation> | null {
+  for (const [index, c] of view.candles.entries()) {
     for (const field of priceFields) {
       if (!isPositiveDecimal(c[field])) {
         return invalidInput(
@@ -192,7 +191,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   }
 
   const factorDupe = sortUnique(
-    input.view.corporateActions,
+    view.corporateActions,
     (f) => `${f.ticker}|${f.exDate}`,
     (a, b) => codeUnitCompare(a.ticker, b.ticker) || codeUnitCompare(a.exDate, b.exDate),
   );
@@ -203,7 +202,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
     );
   }
 
-  for (const [index, f] of input.view.corporateActions.entries()) {
+  for (const [index, f] of view.corporateActions.entries()) {
     if (!isPositiveDecimal(f.factor)) {
       return invalidInput(
         `view.corporateActions[${String(index)}].factor`,
@@ -213,7 +212,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   }
 
   const macroDupe = sortUnique(
-    input.view.macro,
+    view.macro,
     (m) => `${m.series}|${m.asOf}`,
     (a, b) => codeUnitCompare(a.series, b.series) || compareInstants(a.asOf, b.asOf),
   );
@@ -222,7 +221,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   }
 
   const dividendDupe = sortUnique(
-    input.view.dividendYields,
+    view.dividendYields,
     (d) => `${d.underlying}|${d.asOf}`,
     (a, b) => codeUnitCompare(a.underlying, b.underlying) || compareInstants(a.asOf, b.asOf),
   );
@@ -233,7 +232,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
     );
   }
 
-  for (const [index, m] of input.view.macro.entries()) {
+  for (const [index, m] of view.macro.entries()) {
     if (parseDecimal(m.annualRate).lte(-1)) {
       return invalidInput(
         `view.macro[${String(index)}].annualRate`,
@@ -242,7 +241,7 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
     }
   }
 
-  for (const [index, d] of input.view.dividendYields.entries()) {
+  for (const [index, d] of view.dividendYields.entries()) {
     if (parseDecimal(d.annualYield).lte(-1)) {
       return invalidInput(
         `view.dividendYields[${String(index)}].annualYield`,
@@ -252,16 +251,6 @@ function validateBatchInvariants(input: EvaluateStrategyInput): Result<Evaluatio
   }
 
   return null;
-}
-
-function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Map<Ticker, T[]> {
-  const byTicker = new Map<Ticker, T[]>();
-  for (const row of rows) {
-    const bucket = byTicker.get(row.ticker);
-    if (bucket) bucket.push(row);
-    else byTicker.set(row.ticker, [row]);
-  }
-  return byTicker;
 }
 
 type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
@@ -421,469 +410,656 @@ function zeroBaseMessage(kind: "profit_target" | "stop_loss"): string {
   return `${kind} cannot fire: the operation's ${baseName} base is zero`;
 }
 
-export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluation> {
-  const coherenceError = validateCoherence(input);
-  if (coherenceError) return coherenceError;
+type EvaluationBase = Pick<EvaluateStrategyInput, "view" | "strategy" | "instruments">;
+export type EvaluationCall = Pick<
+  EvaluateStrategyInput,
+  "at" | "since" | "openOperations" | "riskProfile"
+>;
+export type StrategyEvaluator = (
+  call: EvaluationCall,
+) => Result<Pick<Evaluation, "signals" | "evaluations">>;
 
-  const hasOptionLegs = input.strategy.structure.legs.some((leg) => leg.role !== "stock");
+type Readings = { candle: Candle; values: Map<string, DecimalString | null> };
 
-  if (input.since !== undefined && compareInstants(input.since, input.at) >= 0) {
-    return invalidInput("since", "since must be strictly before at");
-  }
+// One ticker's slice of the view, built once per evaluator (#58): its nominal series over every
+// asOf, and its adjusted series with indicators per factor epoch (how many of its corporate
+// actions are visible, taken in asOf order). The nominal series is sorted by asOf and every
+// indicator is causal, so the readings at an instant `c` of the series built over every candle
+// equal those of the series truncated at `c` while the same factors are visible; a factor
+// published later starts a new epoch. An IV index whose points are not published in session
+// order breaks that prefix property, so that ticker recomputes per instant instead.
+type TickerState = {
+  view: MarketView;
+  nominal: Candle[];
+  nominalMs: number[];
+  factorMs: number[];
+  factorsByAsOf: CorporateActionFactor[];
+  prefixStable: boolean;
+  epochs: Map<number, Result<IndicatorSeries>>;
+};
 
-  const openOperationsError = validateOpenOperations(input);
-  if (openOperationsError) return openOperationsError;
-
-  const batchError = validateBatchInvariants(input);
-  if (batchError) return batchError;
-
-  const openOperations = input.openOperations ?? [];
-  const distinctSpecs = dedupeIndicatorSpecs(collectIndicatorSpecs(input.strategy.definition));
-  const needsIv = distinctSpecs.some((spec) => spec.kind === "iv_rank");
-
-  const truncated = batchTruncationReport({
-    candles: input.view.candles,
-    corporateActions: input.view.corporateActions,
-    impliedVolatilityIndex: input.view.impliedVolatilityIndex,
-    macro: input.view.macro,
-    dividendYields: input.view.dividendYields,
-    instruments: input.instruments,
-    at: input.at,
-    needsIv,
+function ivPublishedInSessionOrder(
+  points: readonly ImpliedVolatilityIndexPoint[],
+  ticker: Ticker,
+): boolean {
+  const own = points
+    .filter((p) => p.underlying === ticker)
+    .sort((a, b) => codeUnitCompare(a.session, b.session));
+  return own.every((p, i) => {
+    const previous = own[i - 1];
+    return previous === undefined || !isAfter(previous.asOf, p.asOf);
   });
+}
 
-  const signals: Signal[] = [];
-  const evaluations: EvaluationRecord[] = [];
-  const timeframe = input.strategy.definition.timeframe;
+// What an evaluator derives from the view alone, shared by every evaluator over the same view
+// object: runBacktest builds one evaluator per call, and a caller running a backtest in chunks
+// hands every chunk the same view. Keyed on the object's identity; the engine never mutates its
+// inputs and treats them as immutable values (ADR-0013).
+type ViewCache = {
+  integrity?: Result<Evaluation> | null;
+  contents?: Result<Evaluation> | null;
+  candlesByTicker?: Map<Ticker, Candle[]>;
+  actionsByTicker?: Map<Ticker, CorporateActionFactor[]>;
+  calendarByDate?: TradingSession[];
+  tickers: Map<string, Result<TickerState>>;
+};
 
-  const candlesByTicker = partitionByTicker<Candle>(input.view.candles);
-  const actionsByTicker = partitionByTicker<CorporateActionFactor>(input.view.corporateActions);
+const viewCaches = new WeakMap<MarketView, ViewCache>();
 
-  for (const ticker of input.instruments) {
+function viewCache(view: MarketView): ViewCache {
+  let cache = viewCaches.get(view);
+  if (!cache) {
+    cache = { tickers: new Map() };
+    viewCaches.set(view, cache);
+  }
+  return cache;
+}
+
+// Validation and every per-ticker series are computed once, on first use, and reused by every
+// call: runBacktest evaluates the same view once per session (#58), which recomputed all of it
+// from scratch each time. Each check still reports on the first call that would have reached it,
+// in the same order, so an evaluator's results are exactly evaluateStrategy's.
+export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator {
+  const { view, strategy, instruments } = base;
+  const coherenceError = validateCoherence(base);
+  const hasOptionLegs = strategy.structure.legs.some((leg) => leg.role !== "stock");
+  const distinctSpecs = dedupeIndicatorSpecs(collectIndicatorSpecs(strategy.definition));
+  const needsIv = distinctSpecs.some((spec) => spec.kind === "iv_rank");
+  const timeframe = strategy.definition.timeframe;
+
+  const cache = viewCache(view);
+  const specsKey = distinctSpecs.map(indicatorSpecKey).join(",");
+  let instrumentsError: { error: Result<Evaluation> | null } | null = null;
+
+  function tickerState(ticker: Ticker): Result<TickerState> {
+    const key = `${ticker}|${timeframe}|${specsKey}`;
+    const cached = cache.tickers.get(key);
+    if (cached) return cached;
+    cache.candlesByTicker ??= groupBy(view.candles, (c) => c.ticker);
+    cache.actionsByTicker ??= groupBy(view.corporateActions, (f) => f.ticker);
     const tickerView: MarketView = {
-      ...input.view,
-      candles: candlesByTicker.get(ticker) ?? [],
-      corporateActions: actionsByTicker.get(ticker) ?? [],
+      ...view,
+      candles: cache.candlesByTicker.get(ticker) ?? [],
+      corporateActions: cache.actionsByTicker.get(ticker) ?? [],
     };
-
-    const nominalSeries = buildCandleSeries({
+    // Built at the ticker's latest asOf so the series holds every candle; a call's own `at` is
+    // applied as a prefix. None of buildCandleSeries's errors depend on `at`.
+    const latest = tickerView.candles.reduce<Candle | null>(
+      (acc, c) => (acc === null || isAfter(c.asOf, acc.asOf) ? c : acc),
+      null,
+    );
+    const series = buildCandleSeries({
       candles: tickerView.candles,
       corporateActions: tickerView.corporateActions,
       ticker,
       timeframe,
-      at: input.at,
+      at: latest?.asOf ?? new Date(0).toISOString(),
     });
-    if (!nominalSeries.ok) {
-      return invalidInput(nominalSeries.error.path, nominalSeries.error.message);
+    let state: Result<TickerState>;
+    if (!series.ok) {
+      state = invalidInput(series.error.path, series.error.message);
+    } else {
+      // A factor whose asOf does not parse is never "after" any instant, so buildCandleSeries
+      // applies it at every `at`: it sorts first and belongs to every epoch.
+      const byAsOf = tickerView.corporateActions
+        .map((factor) => {
+          const ms = instantMs(factor.asOf);
+          return { factor, ms: Number.isNaN(ms) ? -Infinity : ms };
+        })
+        .sort((a, b) => (a.ms < b.ms ? -1 : a.ms > b.ms ? 1 : 0));
+      const factorsByAsOf = byAsOf.map((entry) => entry.factor);
+      state = {
+        ok: true,
+        value: {
+          view: tickerView,
+          nominal: series.value.nominal,
+          nominalMs: series.value.nominal.map((c) => instantMs(c.asOf)),
+          factorMs: byAsOf.map((entry) => entry.ms),
+          factorsByAsOf,
+          prefixStable: !needsIv || ivPublishedInSessionOrder(view.impliedVolatilityIndex, ticker),
+          epochs: new Map(),
+        },
+      };
     }
+    cache.tickers.set(key, state);
+    return state;
+  }
 
-    if (nominalSeries.value.nominal.length === 0) {
-      evaluations.push(
-        record(
-          ticker,
-          input.at,
-          sessionForInstant(input.view.calendar, input.at),
-          "insufficient_data",
-          "no candles for this instrument and timeframe",
-        ),
-      );
-      continue;
-    }
-
-    const instants =
-      input.since !== undefined
-        ? nominalSeries.value.nominal.filter(
-            (c) => isAfter(c.asOf, input.since as string) && isAtOrBefore(c.asOf, input.at),
-          )
-        : [
-            assertDefined(
-              nominalSeries.value.nominal.at(-1),
-              "evaluateStrategy: missing latest candle",
-            ),
-          ];
-
-    if (instants.length === 0) {
-      evaluations.push(
-        record(
-          ticker,
-          input.at,
-          sessionForInstant(input.view.calendar, input.at),
-          "insufficient_data",
-          "no candles in (since, at] for this instrument and timeframe",
-        ),
-      );
-      continue;
-    }
-
-    const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
-
-    for (const nominalCandle of instants) {
-      const c = nominalCandle.asOf;
-      const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
-
-      const indicatorsResult = computeIndicators({
-        view: tickerView,
-        ticker,
+  function readingsAt(state: TickerState, index: number, c: Instant): Result<Readings> {
+    const nominalCandle = assertDefined(state.nominal[index], "evaluateStrategy: instant");
+    let indicators: Result<IndicatorSeries>;
+    let position = index;
+    if (state.prefixStable) {
+      const epoch = upperBound(state.factorMs, instantMs(c));
+      const cached = state.epochs.get(epoch);
+      if (cached) {
+        indicators = cached;
+      } else {
+        const last = assertDefined(state.nominal.at(-1), "evaluateStrategy: non-empty series");
+        indicators = computeIndicators({
+          view: { ...state.view, corporateActions: state.factorsByAsOf.slice(0, epoch) },
+          ticker: nominalCandle.ticker,
+          timeframe,
+          indicators: distinctSpecs,
+          at: last.asOf,
+          form: "adjusted",
+        });
+        state.epochs.set(epoch, indicators);
+      }
+    } else {
+      indicators = computeIndicators({
+        view: state.view,
+        ticker: nominalCandle.ticker,
         timeframe,
         indicators: distinctSpecs,
         at: c,
         form: "adjusted",
       });
-      if (!indicatorsResult.ok) return { ok: false, error: indicatorsResult.error };
-
-      const currentAdjusted = assertDefined(
-        indicatorsResult.value.candles.at(-1),
-        "evaluateStrategy: missing current adjusted candle",
+      if (indicators.ok) position = indicators.value.candles.length - 1;
+    }
+    if (!indicators.ok) return indicators;
+    const values = new Map<string, DecimalString | null>();
+    for (const series of indicators.value.series) {
+      values.set(
+        indicatorSpecKey(series.indicator),
+        assertDefined(series.values[position], "evaluateStrategy: missing indicator value"),
       );
-      const rawIndicatorValues = new Map<string, DecimalString | null>();
-      for (const series of indicatorsResult.value.series) {
-        rawIndicatorValues.set(
-          indicatorSpecKey(series.indicator),
-          assertDefined(series.values.at(-1), "evaluateStrategy: missing indicator value"),
+    }
+    return {
+      ok: true,
+      value: {
+        candle: assertDefined(
+          indicators.value.candles[position],
+          "evaluateStrategy: missing current adjusted candle",
+        ),
+        values,
+      },
+    };
+  }
+
+  // The session for a record at `at` is the last calendar session whose `open <= at`, the same
+  // rule dataWindow uses; when the view carries no calendar row for `at`, this falls back to
+  // slicing the instant's own date (ADR-0013 "Missing instrument").
+  function sessionForInstant(at: Instant): SessionDate {
+    // Sorted by date, not by open, and scanned until the first session opening after `at`: the
+    // rule evaluateStrategy has always applied, which differs from sessionAtOrBefore's only on a
+    // calendar whose dates and opens disagree in order.
+    cache.calendarByDate ??= [...view.calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
+    let found: SessionDate | null = null;
+    for (const session of cache.calendarByDate) {
+      if (isAtOrBefore(session.open, at)) found = session.date;
+      else break;
+    }
+    return found ?? at.slice(0, 10);
+  }
+
+  return (call) => {
+    if (coherenceError) return coherenceError;
+
+    if (call.since !== undefined && compareInstants(call.since, call.at) >= 0) {
+      return invalidInput("since", "since must be strictly before at");
+    }
+
+    const openOperationsError = validateOpenOperations({ ...base, ...call });
+    if (openOperationsError) return openOperationsError;
+
+    if (cache.integrity === undefined) cache.integrity = validateIntegrity(view);
+    if (cache.integrity) return cache.integrity;
+    instrumentsError ??= { error: validateInstruments(instruments) };
+    if (instrumentsError.error) return instrumentsError.error;
+    const openOperations = call.openOperations ?? [];
+    const operationIdError = validateOperationIds(openOperations);
+    if (operationIdError) return operationIdError;
+    if (cache.contents === undefined) cache.contents = validateViewContents(view);
+    if (cache.contents) return cache.contents;
+
+    const signals: Signal[] = [];
+    const evaluations: EvaluationRecord[] = [];
+    const atMs = instantMs(call.at);
+
+    for (const ticker of instruments) {
+      const tickerResult = tickerState(ticker);
+      if (!tickerResult.ok) return tickerResult;
+      const state = tickerResult.value;
+      // An unparseable `at` or `since` compares false both ways, as in isAfter/isAtOrBefore:
+      // nothing is "after" an unparseable `at`, and nothing is "at or before" it or after `since`
+      // either. A candle's own asOf is a validated Instant (instantSchema), so nominalMs has no
+      // NaN to place.
+      const upToAt = upperBound(state.nominalMs, atMs);
+      const visible = Number.isNaN(atMs) ? state.nominal.length : upToAt;
+
+      if (visible === 0) {
+        evaluations.push(
+          record(
+            ticker,
+            call.at,
+            sessionForInstant(call.at),
+            "insufficient_data",
+            "no candles for this instrument and timeframe",
+          ),
         );
+        continue;
       }
-      const decimalIndicatorValues = new Map<string, Decimal | null>(
-        [...rawIndicatorValues.entries()].map(([key, value]) => [
-          key,
-          value === null ? null : parseDecimal(value),
-        ]),
-      );
-      const ctx: ConditionContext = {
-        candle: currentAdjusted,
-        indicatorValues: decimalIndicatorValues,
-      };
 
-      if (activeOps.length === 0) {
-        const entryVerdict = evaluateCondition(input.strategy.definition.entry, ctx);
-        if (entryVerdict === "unknown") {
-          evaluations.push(
-            record(
-              ticker,
-              c,
-              nominalCandle.session,
-              "insufficient_data",
-              "entry condition needs more warm-up data",
-            ),
-          );
-          continue;
-        }
-        if (entryVerdict === "false") {
-          evaluations.push(record(ticker, c, nominalCandle.session, "conditions_not_met", null));
-          continue;
-        }
+      const instants: number[] = [];
+      if (call.since !== undefined) {
+        const sinceMs = instantMs(call.since);
+        const from = Number.isNaN(sinceMs) ? upToAt : upperBound(state.nominalMs, sinceMs);
+        for (let i = from; i < upToAt; i += 1) instants.push(i);
+      } else {
+        instants.push(visible - 1);
+      }
 
-        const openOperationCount = openOperations.filter(
-          (op) => op.openedAt <= nominalCandle.session,
-        ).length;
-        const entrySpecs = dedupeIndicatorSpecs(
-          collectSpecsFromCondition(input.strategy.definition.entry),
+      if (instants.length === 0) {
+        evaluations.push(
+          record(
+            ticker,
+            call.at,
+            sessionForInstant(call.at),
+            "insufficient_data",
+            "no candles in (since, at] for this instrument and timeframe",
+          ),
         );
-        const indicators: IndicatorReading[] = entrySpecs.map((spec) => ({
-          indicator: spec,
-          value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
-        }));
+        continue;
+      }
 
-        if (hasOptionLegs) {
-          // Strike/expiry selection and pricing for an option structure are priceOperation's
-          // own job (ADR-0013's #23 addendum): evaluateStrategy never re-implements
-          // resolveLegSelection or the payoff model, it builds the same LegSelection a
-          // human-priced proposal would use and calls the one public pricing seam.
-          const expiry = assertDefined(
-            input.strategy.definition.expiry,
-            "evaluateStrategy: coherence guarantees an expiry selection for option legs",
+      const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
+
+      for (const index of instants) {
+        const nominalCandle = assertDefined(
+          state.nominal[index],
+          "evaluateStrategy: instant index within the series",
+        );
+        const c = nominalCandle.asOf;
+        const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
+
+        const readings = readingsAt(state, index, c);
+        if (!readings.ok) return { ok: false, error: readings.error };
+        const currentAdjusted = readings.value.candle;
+        const rawIndicatorValues = readings.value.values;
+        const decimalIndicatorValues = new Map<string, Decimal | null>(
+          [...rawIndicatorValues.entries()].map(([key, value]) => [
+            key,
+            value === null ? null : parseDecimal(value),
+          ]),
+        );
+        const ctx: ConditionContext = {
+          candle: currentAdjusted,
+          indicatorValues: decimalIndicatorValues,
+        };
+
+        if (activeOps.length === 0) {
+          const entryVerdict = evaluateCondition(strategy.definition.entry, ctx);
+          if (entryVerdict === "unknown") {
+            evaluations.push(
+              record(
+                ticker,
+                c,
+                nominalCandle.session,
+                "insufficient_data",
+                "entry condition needs more warm-up data",
+              ),
+            );
+            continue;
+          }
+          if (entryVerdict === "false") {
+            evaluations.push(record(ticker, c, nominalCandle.session, "conditions_not_met", null));
+            continue;
+          }
+
+          const openOperationCount = openOperations.filter(
+            (op) => op.openedAt <= nominalCandle.session,
+          ).length;
+          const entrySpecs = dedupeIndicatorSpecs(
+            collectSpecsFromCondition(strategy.definition.entry),
           );
-          const entryPricing = priceOperation(
-            {
-              view: input.view,
-              at: c,
-              legs: {
-                structure: input.strategy.structure,
-                underlying: ticker,
-                strikes: input.strategy.definition.strikes,
-                expiry,
-                quantity: input.strategy.definition.sizing,
+          const indicators: IndicatorReading[] = entrySpecs.map((spec) => ({
+            indicator: spec,
+            value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
+          }));
+
+          if (hasOptionLegs) {
+            // Strike/expiry selection and pricing for an option structure are priceOperation's
+            // own job (ADR-0013's #23 addendum): evaluateStrategy never re-implements
+            // resolveLegSelection or the payoff model, it builds the same LegSelection a
+            // human-priced proposal would use and calls the one public pricing seam.
+            const expiry = assertDefined(
+              strategy.definition.expiry,
+              "evaluateStrategy: coherence guarantees an expiry selection for option legs",
+            );
+            const entryPricing = priceOperation(
+              {
+                view: view,
+                at: c,
+                legs: {
+                  structure: strategy.structure,
+                  underlying: ticker,
+                  strikes: strategy.definition.strikes,
+                  expiry,
+                  quantity: strategy.definition.sizing,
+                },
+                openOperationCount,
+                ...(call.riskProfile !== undefined ? { riskProfile: call.riskProfile } : {}),
               },
-              openOperationCount,
-              ...(input.riskProfile !== undefined ? { riskProfile: input.riskProfile } : {}),
-            },
-            {
+              {
+                engineVersion: ENGINE_VERSION,
+                pricingModel: "bsm_continuous_yield",
+                dataVersion: view.dataVersion ?? null,
+                datasetNotes: view.datasetNotes ?? [],
+              },
+            );
+            if (!entryPricing.ok) {
+              switch (entryPricing.error.code) {
+                case "no_series_matches":
+                  evaluations.push(
+                    record(
+                      ticker,
+                      c,
+                      nominalCandle.session,
+                      "no_series_match",
+                      "no listed option series satisfies the strike and expiry selection",
+                    ),
+                  );
+                  continue;
+                case "degenerate_strikes":
+                  evaluations.push(
+                    record(
+                      ticker,
+                      c,
+                      nominalCandle.session,
+                      "degenerate_strikes",
+                      "two distinct strike ranks resolved to the same listed strike",
+                    ),
+                  );
+                  continue;
+                case "unsizeable":
+                  evaluations.push(
+                    record(
+                      ticker,
+                      c,
+                      nominalCandle.session,
+                      "unsizeable",
+                      sizingDetail[entryPricing.error.reason],
+                    ),
+                  );
+                  continue;
+                case "insufficient_data":
+                  evaluations.push(
+                    record(
+                      ticker,
+                      c,
+                      nominalCandle.session,
+                      "insufficient_data",
+                      "not enough market data to select strikes or price the proposal",
+                    ),
+                  );
+                  continue;
+                default:
+                  return { ok: false, error: entryPricing.error };
+              }
+            }
+            const pricing = entryPricing.value;
+            signals.push({
+              kind: "entry",
+              strategyVersionId: strategy.id,
+              ticker,
+              timeframe,
+              at: c,
+              session: nominalCandle.session,
+              indicators,
+              proposal: { legs: pricing.legs.map((legValuation) => legValuation.leg), pricing },
+            });
+            evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
+            continue;
+          }
+
+          const legs = strategy.structure.legs;
+          const sizingResult = sizeStockEntry({
+            sizing: strategy.definition.sizing,
+            declaredCapital: call.riskProfile?.declaredCapital ?? null,
+            legs: legs.map((leg) => ({ side: leg.side, ratio: leg.ratio })),
+            price: nominalCandle.close,
+          });
+          if (!sizingResult.ok) {
+            evaluations.push(
+              record(
+                ticker,
+                c,
+                nominalCandle.session,
+                "unsizeable",
+                sizingDetail[sizingResult.detail],
+              ),
+            );
+            continue;
+          }
+
+          const operationLegs: OperationLeg[] = legs.map((leg) => ({
+            role: "stock",
+            side: leg.side,
+            ticker,
+            quantity: toQuantity(leg.ratio * sizingResult.units),
+            entryPrice: nominalCandle.close,
+          }));
+          const stockPricingResult = priceStockLegs({
+            at: c,
+            underlying: ticker,
+            spot: nominalCandle.close,
+            legs: operationLegs.map((leg) => ({ ...leg, priceSource: "close" as const })),
+            view: view,
+            riskProfile: call.riskProfile,
+            openOperationCount,
+            provenanceBase: {
               engineVersion: ENGINE_VERSION,
               pricingModel: "bsm_continuous_yield",
-              dataVersion: input.view.dataVersion ?? null,
-              datasetNotes: input.view.datasetNotes ?? [],
+              dataVersion: view.dataVersion ?? null,
+              datasetNotes: view.datasetNotes ?? [],
             },
+          });
+          // validateBatchInvariants rejects any macro/dividendYields point with an annual
+          // rate at or below -1 before this loop prices an entry, so priceStockLegs cannot
+          // fail here.
+          invariant(
+            stockPricingResult.ok,
+            "signal pricing: view invariants were already validated",
           );
-          if (!entryPricing.ok) {
-            switch (entryPricing.error.code) {
-              case "no_series_matches":
-                evaluations.push(
-                  record(
-                    ticker,
-                    c,
-                    nominalCandle.session,
-                    "no_series_match",
-                    "no listed option series satisfies the strike and expiry selection",
-                  ),
-                );
-                continue;
-              case "degenerate_strikes":
-                evaluations.push(
-                  record(
-                    ticker,
-                    c,
-                    nominalCandle.session,
-                    "degenerate_strikes",
-                    "two distinct strike ranks resolved to the same listed strike",
-                  ),
-                );
-                continue;
-              case "unsizeable":
-                evaluations.push(
-                  record(
-                    ticker,
-                    c,
-                    nominalCandle.session,
-                    "unsizeable",
-                    sizingDetail[entryPricing.error.reason],
-                  ),
-                );
-                continue;
-              case "insufficient_data":
-                evaluations.push(
-                  record(
-                    ticker,
-                    c,
-                    nominalCandle.session,
-                    "insufficient_data",
-                    "not enough market data to select strikes or price the proposal",
-                  ),
-                );
-                continue;
-              default:
-                return { ok: false, error: entryPricing.error };
-            }
-          }
-          const pricing = entryPricing.value;
+          const pricing = stockPricingResult.value;
           signals.push({
             kind: "entry",
-            strategyVersionId: input.strategy.id,
+            strategyVersionId: strategy.id,
             ticker,
             timeframe,
             at: c,
             session: nominalCandle.session,
             indicators,
-            proposal: { legs: pricing.legs.map((legValuation) => legValuation.leg), pricing },
+            proposal: {
+              legs: operationLegs.map((leg) => ({
+                role: leg.role,
+                side: leg.side,
+                ticker: leg.ticker,
+                quantity: leg.quantity,
+              })),
+              pricing,
+            },
           });
           evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
           continue;
         }
 
-        const legs = input.strategy.structure.legs;
-        const sizingResult = sizeStockEntry({
-          sizing: input.strategy.definition.sizing,
-          declaredCapital: input.riskProfile?.declaredCapital ?? null,
-          legs: legs.map((leg) => ({ side: leg.side, ratio: leg.ratio })),
-          price: nominalCandle.close,
-        });
-        if (!sizingResult.ok) {
-          evaluations.push(
-            record(
-              ticker,
-              c,
-              nominalCandle.session,
-              "unsizeable",
-              sizingDetail[sizingResult.detail],
-            ),
+        let instantFired = false;
+        let instantUnknown = false;
+        let zeroBaseDetail: string | null = null;
+        for (const op of activeOps) {
+          // Resolved at this same instant `c`, not once for the whole since..at batch at
+          // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
+          // within a catch-up batch, so a base resolved once at the batch's own end would let
+          // an earlier instant see a later instant's rates.
+          const bases = computeExitRuleBases(op, view, c);
+          if (bases === null) {
+            instantUnknown = true;
+            continue;
+          }
+          const visibleFactors = state.view.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
+          const splitFactorResult = splitFactorProduct(
+            visibleFactors,
+            op.openedAt,
+            nominalCandle.session,
           );
-          continue;
-        }
-
-        const operationLegs: OperationLeg[] = legs.map((leg) => ({
-          role: "stock",
-          side: leg.side,
-          ticker,
-          quantity: toQuantity(leg.ratio * sizingResult.units),
-          entryPrice: nominalCandle.close,
-        }));
-        const stockPricingResult = priceStockLegs({
-          at: c,
-          underlying: ticker,
-          spot: nominalCandle.close,
-          legs: operationLegs.map((leg) => ({ ...leg, priceSource: "close" as const })),
-          view: input.view,
-          riskProfile: input.riskProfile,
-          openOperationCount,
-          provenanceBase: {
-            engineVersion: ENGINE_VERSION,
-            pricingModel: "bsm_continuous_yield",
-            dataVersion: input.view.dataVersion ?? null,
-            datasetNotes: input.view.datasetNotes ?? [],
-          },
-        });
-        // validateBatchInvariants rejects any macro/dividendYields point with an annual
-        // rate at or below -1 before this loop prices an entry, so priceStockLegs cannot
-        // fail here.
-        invariant(stockPricingResult.ok, "signal pricing: view invariants were already validated");
-        const pricing = stockPricingResult.value;
-        signals.push({
-          kind: "entry",
-          strategyVersionId: input.strategy.id,
-          ticker,
-          timeframe,
-          at: c,
-          session: nominalCandle.session,
-          indicators,
-          proposal: {
-            legs: operationLegs.map((leg) => ({
-              role: leg.role,
-              side: leg.side,
-              ticker: leg.ticker,
-              quantity: leg.quantity,
-            })),
-            pricing,
-          },
-        });
-        evaluations.push(record(ticker, c, nominalCandle.session, "signal", null));
-        continue;
-      }
-
-      let instantFired = false;
-      let instantUnknown = false;
-      let zeroBaseDetail: string | null = null;
-      for (const op of activeOps) {
-        // Resolved at this same instant `c`, not once for the whole since..at batch at
-        // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
-        // within a catch-up batch, so a base resolved once at the batch's own end would let
-        // an earlier instant see a later instant's rates.
-        const bases = computeExitRuleBases(op, input.view, c);
-        if (bases === null) {
-          instantUnknown = true;
-          continue;
-        }
-        const visibleFactors = tickerView.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
-        const splitFactorResult = splitFactorProduct(
-          visibleFactors,
-          op.openedAt,
-          nominalCandle.session,
-        );
-        if (!splitFactorResult.ok) return { ok: false, error: splitFactorResult.error };
-        const splitFactor = splitFactorResult.value;
-        let fired = false;
-        for (const rule of input.strategy.definition.exit) {
-          if (fired) break;
-          switch (rule.kind) {
-            case "profit_target":
-            case "stop_loss": {
-              const outcome = evaluateNumericExitRule(rule, op, input.view, c, bases, splitFactor);
-              if (outcome.unknown) {
-                instantUnknown = true;
+          if (!splitFactorResult.ok) return { ok: false, error: splitFactorResult.error };
+          const splitFactor = splitFactorResult.value;
+          let fired = false;
+          for (const rule of strategy.definition.exit) {
+            if (fired) break;
+            switch (rule.kind) {
+              case "profit_target":
+              case "stop_loss": {
+                const outcome = evaluateNumericExitRule(rule, op, view, c, bases, splitFactor);
+                if (outcome.unknown) {
+                  instantUnknown = true;
+                  break;
+                }
+                if (outcome.zeroBase && zeroBaseDetail === null) {
+                  zeroBaseDetail = zeroBaseMessage(rule.kind);
+                }
+                if (outcome.fired) {
+                  signals.push({
+                    kind: "exit",
+                    strategyVersionId: strategy.id,
+                    ticker,
+                    timeframe,
+                    at: c,
+                    session: nominalCandle.session,
+                    indicators: [],
+                    operationId: op.id,
+                    rule,
+                  });
+                  fired = true;
+                }
                 break;
               }
-              if (outcome.zeroBase && zeroBaseDetail === null) {
-                zeroBaseDetail = zeroBaseMessage(rule.kind);
-              }
-              if (outcome.fired) {
-                signals.push({
-                  kind: "exit",
-                  strategyVersionId: input.strategy.id,
-                  ticker,
-                  timeframe,
-                  at: c,
-                  session: nominalCandle.session,
-                  indicators: [],
-                  operationId: op.id,
-                  rule,
-                });
-                fired = true;
-              }
-              break;
-            }
-            case "condition": {
-              const verdict = evaluateCondition(rule.condition, ctx);
-              if (verdict === "true") {
-                const ruleSpecs = dedupeIndicatorSpecs(collectSpecsFromCondition(rule.condition));
-                const indicators: IndicatorReading[] = ruleSpecs.map((spec) => ({
-                  indicator: spec,
-                  value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
-                }));
-                signals.push({
-                  kind: "exit",
-                  strategyVersionId: input.strategy.id,
-                  ticker,
-                  timeframe,
-                  at: c,
-                  session: nominalCandle.session,
-                  indicators,
-                  operationId: op.id,
-                  rule,
-                });
-                fired = true;
-              } else if (verdict === "unknown") {
-                instantUnknown = true;
-              }
-              break;
-            }
-            case "days_before_expiry": {
-              // Coherence rejects days_before_expiry on a stock-only definition, so an
-              // active operation reaching this branch always carries an expiry.
-              const expiry = assertPresent(
-                op.expiry,
-                "evaluateStrategy: an operation with option legs always carries an expiry",
-              );
-              const remaining = businessDaysBeforeExpiry(input.view.calendar, c, expiry);
-              // computeExitRuleBases already resolved a time to expiry for this same
-              // operation's option leg(s), against this same view.calendar and instant, so
-              // the session-index lookup here cannot fail once activeOps reaches this op:
-              // any calendar or expiry that could make it fail would have already made
-              // computeExitRuleBases return null and this op never reach this switch.
-              /* v8 ignore start */
-              if (remaining === null) {
-                instantUnknown = true;
+              case "condition": {
+                const verdict = evaluateCondition(rule.condition, ctx);
+                if (verdict === "true") {
+                  const ruleSpecs = dedupeIndicatorSpecs(collectSpecsFromCondition(rule.condition));
+                  const indicators: IndicatorReading[] = ruleSpecs.map((spec) => ({
+                    indicator: spec,
+                    value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
+                  }));
+                  signals.push({
+                    kind: "exit",
+                    strategyVersionId: strategy.id,
+                    ticker,
+                    timeframe,
+                    at: c,
+                    session: nominalCandle.session,
+                    indicators,
+                    operationId: op.id,
+                    rule,
+                  });
+                  fired = true;
+                } else if (verdict === "unknown") {
+                  instantUnknown = true;
+                }
                 break;
               }
-              /* v8 ignore stop */
-              if (remaining <= rule.businessDays) {
-                signals.push({
-                  kind: "exit",
-                  strategyVersionId: input.strategy.id,
-                  ticker,
-                  timeframe,
-                  at: c,
-                  session: nominalCandle.session,
-                  indicators: [],
-                  operationId: op.id,
-                  rule,
-                });
-                fired = true;
+              case "days_before_expiry": {
+                // Coherence rejects days_before_expiry on a stock-only definition, so an
+                // active operation reaching this branch always carries an expiry.
+                const expiry = assertPresent(
+                  op.expiry,
+                  "evaluateStrategy: an operation with option legs always carries an expiry",
+                );
+                const remaining = businessDaysBeforeExpiry(view.calendar, c, expiry);
+                // computeExitRuleBases already resolved a time to expiry for this same
+                // operation's option leg(s), against this same view.calendar and instant, so
+                // the session-index lookup here cannot fail once activeOps reaches this op:
+                // any calendar or expiry that could make it fail would have already made
+                // computeExitRuleBases return null and this op never reach this switch.
+                /* v8 ignore start */
+                if (remaining === null) {
+                  instantUnknown = true;
+                  break;
+                }
+                /* v8 ignore stop */
+                if (remaining <= rule.businessDays) {
+                  signals.push({
+                    kind: "exit",
+                    strategyVersionId: strategy.id,
+                    ticker,
+                    timeframe,
+                    at: c,
+                    session: nominalCandle.session,
+                    indicators: [],
+                    operationId: op.id,
+                    rule,
+                  });
+                  fired = true;
+                }
+                break;
               }
-              break;
             }
           }
+          if (fired) instantFired = true;
         }
-        if (fired) instantFired = true;
+        evaluations.push(
+          record(
+            ticker,
+            c,
+            nominalCandle.session,
+            instantFired ? "signal" : instantUnknown ? "insufficient_data" : "conditions_not_met",
+            instantFired ? null : zeroBaseDetail,
+          ),
+        );
       }
-      evaluations.push(
-        record(
-          ticker,
-          c,
-          nominalCandle.session,
-          instantFired ? "signal" : instantUnknown ? "insufficient_data" : "conditions_not_met",
-          instantFired ? null : zeroBaseDetail,
-        ),
-      );
     }
-  }
 
+    return { ok: true, value: { signals, evaluations } };
+  };
+}
+
+export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluation> {
+  const result = createStrategyEvaluator(input)(input);
+  if (!result.ok) return result;
+  const needsIv = dedupeIndicatorSpecs(collectIndicatorSpecs(input.strategy.definition)).some(
+    (spec) => spec.kind === "iv_rank",
+  );
   return {
     ok: true,
     value: {
-      signals,
-      evaluations,
+      ...result.value,
       notes: [],
       provenance: {
         engineVersion: ENGINE_VERSION,
         pricingModel: "bsm_continuous_yield",
-        truncated,
+        truncated: batchTruncationReport({
+          candles: input.view.candles,
+          corporateActions: input.view.corporateActions,
+          impliedVolatilityIndex: input.view.impliedVolatilityIndex,
+          macro: input.view.macro,
+          dividendYields: input.view.dividendYields,
+          instruments: input.instruments,
+          at: input.at,
+          needsIv,
+        }),
         dataVersion: input.view.dataVersion ?? null,
         datasetNotes: input.view.datasetNotes ?? [],
       },

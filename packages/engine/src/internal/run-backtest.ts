@@ -52,7 +52,9 @@ import {
   toDecimalString,
 } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
-import { evaluateStrategy } from "./evaluate-strategy";
+import { createStrategyEvaluator } from "./evaluate-strategy";
+import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
+import { groupBy } from "./search";
 import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
@@ -330,53 +332,50 @@ function monthKeyOf(session: SessionDate): string {
 // close for candles"): a normal candle is always visible by its own session's close, but a
 // candle restated later (asOf pushed past that close) must stay invisible to a fill or a mark
 // computed at that close, per I1.
+function indexTickerSessions<T extends { ticker: Ticker; session: SessionDate; asOf: Instant }>(
+  rows: readonly T[],
+): Map<Ticker, SessionRows<T>> {
+  return new Map(
+    [...groupBy(rows, (row) => row.ticker)].map(([ticker, bucket]) => [
+      ticker,
+      indexBySession(bucket),
+    ]),
+  );
+}
+
 function candleFor(
-  candlesByTicker: Map<Ticker, Candle[]>,
+  candlesByTicker: Map<Ticker, SessionRows<Candle>>,
   ticker: Ticker,
   session: SessionDate,
   visibleAt: Instant,
 ): Candle | null {
-  const candles = candlesByTicker.get(ticker) ?? [];
-  return candles.find((c) => c.session === session && isAtOrBefore(c.asOf, visibleAt)) ?? null;
+  return rowOnSession(candlesByTicker.get(ticker), session, visibleAt);
 }
 
+// Both call sites only ask about a ticker that already has an open operation, which can only
+// exist because a fill found a candle for it on or before this same session in an
+// uninterrupted run — but a resumed run's view can legitimately lack that history if the
+// caller didn't carry it over, so both callers turn a null into insufficient_data.
 function lastKnownClose(
-  candlesByTicker: Map<Ticker, Candle[]>,
+  candlesByTicker: Map<Ticker, SessionRows<Candle>>,
   ticker: Ticker,
   uptoSession: SessionDate,
   visibleAt: Instant,
 ): DecimalString | null {
-  const candles = (candlesByTicker.get(ticker) ?? []).filter(
-    (c) => c.session <= uptoSession && isAtOrBefore(c.asOf, visibleAt),
-  );
-  // Both call sites only ask about a ticker that already has an open operation, which can only
-  // exist because a fill found a candle for it on or before this same session in an
-  // uninterrupted run — but a resumed run's view can legitimately lack that history if the
-  // caller didn't carry it over, so both callers turn this into insufficient_data.
-  if (candles.length === 0) return null;
-  return assertDefined(
-    candles.reduce((latest, c) => (c.session > latest.session ? c : latest)),
-    "run-backtest: reduce over a non-empty array always yields a value",
-  ).close;
+  return lastKnownRow(candlesByTicker.get(ticker), uptoSession, visibleAt)?.close ?? null;
 }
 
 // The option-leg mirror of lastKnownClose (ADR-0014 Q42, a stale mark carried forward from
 // the series' last trade): close before average, matching the same ladder priceOperation's
 // own market-price resolution uses.
 function lastKnownOptionPrice(
-  optionPricesByTicker: Map<Ticker, OptionDayPrice[]>,
+  optionPricesByTicker: Map<Ticker, SessionRows<OptionDayPrice>>,
   ticker: Ticker,
   uptoSession: SessionDate,
   visibleAt: Instant,
 ): DecimalString | null {
-  const rows = (optionPricesByTicker.get(ticker) ?? []).filter(
-    (p) => p.session <= uptoSession && isAtOrBefore(p.asOf, visibleAt),
-  );
-  if (rows.length === 0) return null;
-  const latest = assertDefined(
-    rows.reduce((best, p) => (p.session > best.session ? p : best)),
-    "run-backtest: reduce over a non-empty array always yields a value",
-  );
+  const latest = lastKnownRow(optionPricesByTicker.get(ticker), uptoSession, visibleAt);
+  if (latest === null) return null;
   return latest.close ?? latest.average;
 }
 
@@ -534,36 +533,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     }
   }
 
-  const candlesByTicker = new Map<Ticker, Candle[]>();
-  for (const c of view.candles) {
-    if (c.timeframe !== "D1") continue;
-    const bucket = candlesByTicker.get(c.ticker);
-    if (bucket) bucket.push(c);
-    else candlesByTicker.set(c.ticker, [c]);
-  }
+  const candlesByTicker = indexTickerSessions(view.candles.filter((c) => c.timeframe === "D1"));
 
-  const corporateActionsByTicker = new Map<Ticker, typeof view.corporateActions>();
-  for (const f of view.corporateActions) {
-    const bucket = corporateActionsByTicker.get(f.ticker);
-    if (bucket) bucket.push(f);
-    else corporateActionsByTicker.set(f.ticker, [f]);
-  }
+  const corporateActionsByTicker = groupBy(view.corporateActions, (f) => f.ticker);
 
-  const optionPricesByTicker = new Map<Ticker, OptionDayPrice[]>();
-  for (const p of view.optionPrices) {
-    const bucket = optionPricesByTicker.get(p.ticker);
-    if (bucket) bucket.push(p);
-    else optionPricesByTicker.set(p.ticker, [p]);
-  }
-
-  function optionDayPriceFor(
-    ticker: Ticker,
-    session: SessionDate,
-    visibleAt: Instant,
-  ): OptionDayPrice | null {
-    const rows = optionPricesByTicker.get(ticker) ?? [];
-    return rows.find((p) => p.session === session && isAtOrBefore(p.asOf, visibleAt)) ?? null;
-  }
+  const optionPricesByTicker = indexTickerSessions(view.optionPrices);
 
   // A leg's fill readiness and price, uniform over the fill sources ADR-0013 "Fills" fixes
   // for a daily run: a stock leg at the next session's open, an option leg at the next
@@ -596,7 +570,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         kind: "stock",
       };
     }
-    const dayPrice = optionDayPriceFor(leg.ticker, session.date, session.close);
+    const dayPrice = rowOnSession(
+      optionPricesByTicker.get(leg.ticker),
+      session.date,
+      session.close,
+    );
     if (!dayPrice || dayPrice.tradedQuantity <= 0 || !dayPrice.average) return { ready: false };
     const filled = slippedOptionPrice(
       dayPrice.average,
@@ -1620,6 +1598,18 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return { ok: true, value: undefined };
   }
 
+  const evaluate = createStrategyEvaluator({
+    view,
+    strategy: {
+      ...config.strategy,
+      definition: {
+        ...config.strategy.definition,
+        sizing: config.sizing ?? config.strategy.definition.sizing,
+      },
+    },
+    instruments: config.universe,
+  });
+
   // Step 5: evaluates the strategy for the next signals and queues them (every session but the
   // last, which closePeriodEnd handles instead).
   function queueNextSignals(
@@ -1629,17 +1619,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   ): Result<void> {
     if (equity <= 0) state.equityClampEngaged = true;
     const currentEquity = Math.max(equity, 1);
-    const effectiveStrategy = {
-      ...config.strategy,
-      definition: {
-        ...config.strategy.definition,
-        sizing: config.sizing ?? config.strategy.definition.sizing,
-      },
-    };
-    const evalResult = evaluateStrategy({
-      view,
-      strategy: effectiveStrategy,
-      instruments: config.universe,
+    const evalResult = evaluate({
       at: session.close,
       openOperations: state.openOperations,
       riskProfile: {

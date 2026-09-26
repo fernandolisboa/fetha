@@ -11,3 +11,4 @@ skills-lock.json
 docs/design/workstation/*.dc.html
 docs/design/workstation/fetha-workstation.html
 docs/design/design-system/previews
+packages/engine/src/invariants/__golden__
