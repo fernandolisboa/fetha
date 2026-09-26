@@ -9,7 +9,7 @@ import {
   t as decisionsT,
 } from "@/modules/decisions";
 import { DecisionBar } from "@/modules/decisions/client";
-import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
+import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import {
   evaluationLabel,
@@ -37,12 +37,7 @@ export default async function SignalsPage() {
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.inbox.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.inbox.title}</h1>
-      </div>
+      <PageHeader overline={t.inbox.overline} headline={t.inbox.title} />
 
       <Panel>
         {signals.length === 0 ? (

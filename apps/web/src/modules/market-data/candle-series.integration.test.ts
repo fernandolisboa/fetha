@@ -7,7 +7,7 @@ import { candles, corporateActionFactors } from "./schema";
 
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { loadCandleSeries } from "./candle-series";
-import { upsertDailyCandles } from "./repositories/candle-repository";
+import { DAILY_TIMEFRAME, upsertDailyCandles } from "./repositories/candle-repository";
 
 const TICKER = "CSER3" as Ticker;
 
@@ -126,5 +126,41 @@ describe("loadCandleSeries", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.candles).toHaveLength(0);
+  });
+
+  it("reads rows stored under the storage timeframe (1d) as the engine's D1 request (issue #71)", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-11", new Date("2026-05-11T21:00:00.000Z"), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: "2026-05-11",
+        ticker: TICKER,
+        open: "10.000000",
+        high: "11.000000",
+        low: "9.000000",
+        average: "10.500000",
+        close: "10.750000",
+        trades: 100,
+        tradedQuantity: 5000,
+      }),
+    ]);
+
+    const [storedRow] = await db
+      .select({ timeframe: candles.timeframe })
+      .from(candles)
+      .where(eq(candles.ticker, TICKER));
+    expect(storedRow?.timeframe).toBe(DAILY_TIMEFRAME);
+    expect(DAILY_TIMEFRAME).toBe("1d");
+
+    const result = await loadCandleSeries(
+      db,
+      TICKER,
+      "nominal",
+      new Date("2026-05-12T12:00:00.000Z"),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candles).toHaveLength(1);
   });
 });

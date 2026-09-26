@@ -4,7 +4,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/modules/auth";
 import { t as backtestsStrings } from "@/modules/backtests";
-import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
+import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
   CopyStrategyButton,
   getMyStrategies,
@@ -30,22 +30,20 @@ export default async function StrategiesPage() {
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-            {t.list.overline}
-          </p>
-          <h1 className="text-[22px] font-semibold tracking-tight">{t.list.title}</h1>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/estrategias/comparar" className={buttonVariants({ variant: "outline" })}>
-            {backtestsStrings.compare.link}
-          </Link>
-          <Link href="/estrategias/nova" className={buttonVariants()}>
-            {t.list.newStrategy}
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        overline={t.list.overline}
+        headline={t.list.title}
+        actions={
+          <div className="flex gap-2">
+            <Link href="/estrategias/comparar" className={buttonVariants({ variant: "outline" })}>
+              {backtestsStrings.compare.link}
+            </Link>
+            <Link href="/estrategias/nova" className={buttonVariants()}>
+              {t.list.newStrategy}
+            </Link>
+          </div>
+        }
+      />
 
       <Panel title={t.list.mine.title}>
         {mine.length === 0 ? (

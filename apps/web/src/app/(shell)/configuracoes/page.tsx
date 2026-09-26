@@ -4,7 +4,7 @@ import { requireUser, SignOutButton } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
 import { RiskProfileForm } from "@/modules/portfolio/client";
-import { t } from "@/modules/shell";
+import { PageHeader, t } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}` };
 
@@ -15,12 +15,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {preferencesStrings.settings.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.destinations.settings}</h1>
-      </div>
+      <PageHeader
+        overline={preferencesStrings.settings.overline}
+        headline={t.destinations.settings}
+      />
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
         <div>

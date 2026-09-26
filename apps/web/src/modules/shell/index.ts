@@ -5,4 +5,5 @@ export {
   type MarketBarInstrument,
 } from "./components/market-bar-context";
 export { Panel } from "./components/panel";
+export { PageHeader } from "./components/page-header";
 export { shellStrings, t } from "./strings";

@@ -14,7 +14,7 @@ import {
   loadCandleSeries,
   t,
 } from "@/modules/market-data";
-import { Panel } from "@/modules/shell";
+import { PageHeader, Panel } from "@/modules/shell";
 
 export async function generateMetadata({
   params,
@@ -72,15 +72,12 @@ export default async function InstrumentPage({
         />
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-            {t.instrument.overline}
-          </p>
-          <h1 className="font-mono text-[22px] font-semibold tracking-tight uppercase">{ticker}</h1>
-        </div>
-        <CandleFormToggle ticker={ticker} form={form} />
-      </div>
+      <PageHeader
+        overline={t.instrument.overline}
+        headline={ticker}
+        headlineClassName="font-mono text-[22px] font-semibold tracking-tight uppercase"
+        actions={<CandleFormToggle ticker={ticker} form={form} />}
+      />
 
       <Panel>
         {!seriesResult.ok ? (

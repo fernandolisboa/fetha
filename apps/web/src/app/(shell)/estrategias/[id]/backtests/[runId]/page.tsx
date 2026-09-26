@@ -13,7 +13,7 @@ import {
 import { RunBacktestButton } from "@/modules/backtests/client";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
-import { Panel } from "@/modules/shell";
+import { PageHeader, Panel } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.report.overline}` };
 
@@ -36,20 +36,20 @@ export default async function BacktestReportPage({
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.report.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">
-          <span className="font-mono tabular-nums">
-            {formatDate(sessionDateToDisplayDate(run.period.from))}
-          </span>{" "}
-          —{" "}
-          <span className="font-mono tabular-nums">
-            {formatDate(sessionDateToDisplayDate(run.period.to))}
-          </span>
-        </h1>
-      </div>
+      <PageHeader
+        overline={t.report.overline}
+        headline={
+          <>
+            <span className="font-mono tabular-nums">
+              {formatDate(sessionDateToDisplayDate(run.period.from))}
+            </span>{" "}
+            —{" "}
+            <span className="font-mono tabular-nums">
+              {formatDate(sessionDateToDisplayDate(run.period.to))}
+            </span>
+          </>
+        }
+      />
 
       {run.status === "complete" && run.result ? (
         <ReportPanel run={run.result} />

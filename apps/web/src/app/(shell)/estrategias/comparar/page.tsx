@@ -10,7 +10,7 @@ import {
   requestedRunIds,
   t,
 } from "@/modules/backtests";
-import { Panel } from "@/modules/shell";
+import { PageHeader, Panel } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.compare.title}` };
 
@@ -27,12 +27,7 @@ export default async function CompareBacktestsPage({
 
   return (
     <div className="flex flex-col gap-6 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.compare.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.compare.title}</h1>
-      </div>
+      <PageHeader overline={t.compare.overline} headline={t.compare.title} />
 
       <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-3">

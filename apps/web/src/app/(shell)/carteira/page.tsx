@@ -27,7 +27,7 @@ import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { getMyOperations, getMyPortfolio, PortfolioDashboard, t } from "@/modules/portfolio";
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
-import { Panel, t as shellStrings } from "@/modules/shell";
+import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
 function LatestDecision({ decision }: { decision: DecisionListItem }) {
   return (
@@ -77,22 +77,25 @@ export default async function PortfolioPage() {
 
   return (
     <div className="flex flex-col gap-6 px-5 py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
+      <PageHeader
+        overline={
+          <>
             {shellStrings.destinations.portfolio} · {t.dashboard.markedAt}{" "}
             <span className="font-mono tabular-nums">{formatDateTime(new Date(portfolio.at))}</span>
-          </p>
-          <h1 className="text-[22px] font-semibold tracking-tight">{t.dashboard.title}</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
-            {t.list.newOperation}
-          </Link>
-          <RecordFillDialog today={todaySaoPauloDate()} />
-          <ImportFillsDialog />
-        </div>
-      </div>
+          </>
+        }
+        headline={t.dashboard.title}
+        actionsWrapperClassName="flex flex-wrap items-end justify-between gap-3"
+        actions={
+          <div className="flex items-center gap-2">
+            <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
+              {t.list.newOperation}
+            </Link>
+            <RecordFillDialog today={todaySaoPauloDate()} />
+            <ImportFillsDialog />
+          </div>
+        }
+      />
 
       <PortfolioDashboard model={portfolio} decisionSlot={heldOperationDecision} />
 
