@@ -9,6 +9,9 @@ concurrency:
   group: migrate-production
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   migrate-production:
     runs-on: ubuntu-latest
