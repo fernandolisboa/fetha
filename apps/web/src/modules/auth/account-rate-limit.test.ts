@@ -45,6 +45,7 @@ function buildFakeDb(options: {
   selects: Array<FakeRow | undefined>;
   inserts?: Array<() => Promise<unknown>>;
   updates?: Array<() => Promise<Array<{ id: string }>>>;
+  purge?: () => Promise<unknown>;
 }): Database {
   const select = vi.fn();
   for (const row of options.selects) {
@@ -61,7 +62,8 @@ function buildFakeDb(options: {
     update.mockReturnValueOnce(updateChain(returning));
   }
 
-  const deleteRows = vi.fn(() => ({ where: () => Promise.resolve() }));
+  const purge = options.purge ?? (() => Promise.resolve());
+  const deleteRows = vi.fn(() => ({ where: purge }));
 
   return { select, insert, update, delete: deleteRows } as unknown as Database;
 }
@@ -98,6 +100,47 @@ describe("enforceAccountRateLimit", () => {
         count: 1,
       }),
     );
+  });
+
+  it("counts a fresh request once and admits it even when the purge fails", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const db = buildFakeDb({
+      selects: [undefined],
+      inserts: [insertValues],
+      purge: () => Promise.reject(new Error("statement timeout")),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+    ).resolves.toBeUndefined();
+    expect(insertValues).toHaveBeenCalledTimes(1);
+
+    vi.restoreAllMocks();
+  });
+
+  it("admits a window reset even when the purge fails", async () => {
+    const now = Date.now();
+    const row: FakeRow = {
+      id: "1",
+      key: "k",
+      count: RULE.max,
+      lastRequest: now - RULE.windowSeconds * 1000 - 1,
+    };
+    const reset = vi.fn().mockResolvedValue([{ id: "1" }]);
+    const db = buildFakeDb({
+      selects: [row],
+      updates: [reset],
+      purge: () => Promise.reject(new Error("deadlock detected")),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+    ).resolves.toBeUndefined();
+    expect(reset).toHaveBeenCalledTimes(1);
+
+    vi.restoreAllMocks();
   });
 
   it("refuses a rule whose window outlives the bucket retention", async () => {

@@ -36,15 +36,28 @@ export function accountBucketKey(email: string, path: string): string {
   return `${ACCOUNT_KEY_PREFIX}${digest}|${path}`;
 }
 
-async function purgeExpiredAccountBuckets(db: Database, now: number): Promise<void> {
-  await db
-    .delete(rateLimit)
-    .where(
-      and(
-        like(rateLimit.key, `${ACCOUNT_KEY_PREFIX}%`),
-        lt(rateLimit.lastRequest, now - ACCOUNT_BUCKET_RETENTION_SECONDS * 1000),
-      ),
+// Housekeeping only: a failed purge must neither change how the request was
+// counted nor fail it. The cutoff comes from the database clock so a skewed
+// instance clock cannot delete buckets that are still live.
+async function purgeExpiredAccountBuckets(db: Database): Promise<void> {
+  try {
+    await db
+      .delete(rateLimit)
+      .where(
+        and(
+          like(rateLimit.key, `${ACCOUNT_KEY_PREFIX}%`),
+          lt(
+            rateLimit.lastRequest,
+            sql`(extract(epoch from now()) * 1000)::bigint - ${ACCOUNT_BUCKET_RETENTION_SECONDS * 1000}`,
+          ),
+        ),
+      );
+  } catch (error) {
+    console.error(
+      "account rate-limit purge failed",
+      error instanceof Error ? error.name : "Unknown",
     );
+  }
 }
 
 // Bounded to prevent retry storms; constraint that every account window stays at or below Better Auth's longest documented window lives in docs/adr/0018.
@@ -84,8 +97,6 @@ export async function enforceAccountRateLimit(
   if (!existing) {
     try {
       await db.insert(rateLimit).values({ key, count: 1, lastRequest: now });
-      await purgeExpiredAccountBuckets(db, now);
-      return;
     } catch (error) {
       // Another request created the row first between our read and this
       // insert. Re-read to confirm that is what happened (a real database
@@ -97,6 +108,8 @@ export async function enforceAccountRateLimit(
       }
       return enforceAccountRateLimit(db, email, path, rule, attempt + 1);
     }
+    await purgeExpiredAccountBuckets(db);
+    return;
   }
 
   if (now - existing.lastRequest >= windowMs) {
@@ -106,7 +119,7 @@ export async function enforceAccountRateLimit(
       .where(and(eq(rateLimit.key, key), lte(rateLimit.lastRequest, existing.lastRequest)))
       .returning({ id: rateLimit.id });
     if (reset.length > 0) {
-      await purgeExpiredAccountBuckets(db, now);
+      await purgeExpiredAccountBuckets(db);
       return;
     }
     // Another request already reset (or incremented) this row between our
