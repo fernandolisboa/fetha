@@ -28,6 +28,7 @@ import { evaluateRegistrationMode } from "./registration-policy";
 import { resolveRegistrationMode } from "./registration-mode";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
+import { emailField, nameField } from "./validation";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 5;
@@ -66,7 +67,7 @@ const ACCOUNT_RATE_LIMIT_RULES: Record<string, AccountRateLimitRule> = {
 };
 
 const accountRateLimitedBodySchema = z.object({
-  email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
+  email: emailField.optional(),
 });
 
 function readAccountRateLimitEmail(body: unknown): string | undefined {
@@ -74,8 +75,17 @@ function readAccountRateLimitEmail(body: unknown): string | undefined {
   return parsed.success ? parsed.data.email : undefined;
 }
 
+// Better Auth stores the name exactly as posted, so a name that only passes
+// once trimmed (edge line breaks) is refused rather than stored untrimmed.
+const signUpNameSchema = z.object({
+  name: z
+    .string()
+    .refine((name) => name === name.trim())
+    .pipe(nameField),
+});
+
 const signUpEmailBodySchema = z.object({
-  email: z.string().transform(normalizeEmail).pipe(z.email()).optional(),
+  email: emailField.optional(),
   termsAccepted: z.boolean().optional(),
   privacyAccepted: z.boolean().optional(),
 });
@@ -169,7 +179,7 @@ export function buildAuthOptions(
       autoSignInAfterVerification: false,
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user: verifyingUser, url }) => {
-        const email = buildVerificationEmail(verifyingUser.name, url);
+        const email = buildVerificationEmail(url);
         await mailer.send({ to: verifyingUser.email, ...email });
       },
     },
@@ -211,6 +221,12 @@ export function buildAuthOptions(
 
         if (ctx.path !== "/sign-up/email") {
           return;
+        }
+
+        // The sign-up form validates the name too, but this endpoint is
+        // reachable directly (#45).
+        if (!signUpNameSchema.safeParse(ctx.body).success) {
+          throw new APIError("BAD_REQUEST", { message: "invalid_name" });
         }
 
         const { email, termsAccepted, privacyAccepted } = readSignUpEmailBody(ctx.body);
