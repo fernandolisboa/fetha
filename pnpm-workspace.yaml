@@ -5,3 +5,10 @@ packages:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Security advisories in build-time transitive dependencies (#44):
+# @serwist/next pins browserslist 4.28.6 (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g) and
+# @esbuild-kit/core-utils pins esbuild 0.18 (GHSA-67mh-4wv8-2f99). Neither has an upstream fix.
+overrides:
+  browserslist: ^4.28.7
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0
