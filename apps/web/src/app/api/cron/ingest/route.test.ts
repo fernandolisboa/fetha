@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
 const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
+const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
 vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
+vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -21,6 +23,7 @@ describe("cron ingest route", () => {
       ok: true,
       sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
     });
+    purgeExpiredAccessLogMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
@@ -118,6 +121,35 @@ describe("cron ingest route", () => {
     );
     expect(response.status).toBe(200);
     expect(scoreDueDecisionsMock).toHaveBeenCalledWith({}, { okSessions: [] }, expect.any(Object));
+  });
+
+  it("purges expired access-log entries on every run and reports it", async () => {
+    purgeExpiredAccessLogMock.mockResolvedValue({ ok: true, deleted: 3 });
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(purgeExpiredAccessLogMock).toHaveBeenCalledTimes(1);
+    expect(await response.json()).toMatchObject({ accessLogPurge: { ok: true, deleted: 3 } });
+  });
+
+  it("stays 200 when the access-log purge fails", async () => {
+    purgeExpiredAccessLogMock.mockResolvedValue({ ok: false });
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ accessLogPurge: { ok: false } });
   });
 
   it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {

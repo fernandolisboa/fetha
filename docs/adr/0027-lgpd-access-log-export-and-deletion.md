@@ -23,18 +23,20 @@ no operator path rewrites decision data today.
 
 1. **Access log.** A new leaf module, `audit`, owns `access_log` (`user_id`, `event`,
    `occurred_at`, `ip_address`, `user_agent`). The closed vocabulary is `portfolio_read`,
-   `decisions_read` and `data_export`, validated with Zod on read. The rows are written by the
-   read models of `portfolio` and `decisions` (their `queries` files and `getMyHeldOperation`)
-   through `recordAccess(event)`, which is memoized per request so a page that reads decisions
-   three times writes one row. The repositories stay free of the write because system jobs
-   (nightly evaluation and scoring) use them too, and would otherwise log automated processing as
-   the user's own access. The IP is the first `x-forwarded-for` hop (Vercel sets it) and the user
-   agent is cut to 512 characters. A row lives 180 days: each write purges that user's older
-   rows, the same purge-on-write shape as ADR-0024. The user sees the latest entries under
-   Configurações. The rows are deleted with the account.
+   `decisions_read` and `data_export`, held by a `CHECK` constraint and by Zod on read. The rows
+   are written by the read models of `portfolio` and `decisions` (their `queries` files and
+   `getMyHeldOperation`) through `recordAccess(event)`, which is memoized per request so a page
+   that reads decisions three times writes one row. The repositories stay free of the write
+   because system jobs (nightly evaluation and scoring) use them too, and would otherwise log
+   automated processing as the user's own access. The IP is read in Better Auth's order
+   (`x-real-ip`, then the first `x-forwarded-for` hop, both set by Vercel) and stored only when it
+   parses as an address; the user agent is cut to 512 characters. A row lives 180 days: the
+   nightly cron purges older rows for every user, so a user who stops signing in is covered too,
+   and reports the count beside ingestion without ever turning the run into a 500. The user sees
+   the latest 50 entries under Configurações. The rows are deleted with the account.
 2. **Export.** Each module exposes an `exportMy…(db, user)` function from its entry point that
    returns its own rows for that user; the `account` module assembles them into one JSON document
-   (`format: "fetha-export/1"`) served as an attachment by `GET /api/conta/exportar`. The route
+   (`format: "fetha-export/1"`) streamed as an attachment by `GET /api/account/export`. The route
    takes the user from the session, applies the account rate limit and writes a `data_export`
    access-log row. Secrets never leave: password hashes, session tokens and OAuth tokens are
    omitted, session metadata (created, expires, IP, user agent) is kept. Numbers leave as stored:
@@ -71,7 +73,8 @@ no operator path rewrites decision data today.
 
 ## Consequences
 
-- Every portfolio or decision page view costs one insert and one purge delete on `access_log`.
+- Every portfolio or decision page view costs one insert on `access_log`; the nightly run adds
+  one delete over the `occurred_at` index.
 - A new user-scoped table fails the export and deletion tests until its module exports it.
 - Existing acceptances point at the previous terms version; asking those users to accept the new
   text again is a follow-up, not part of #31.

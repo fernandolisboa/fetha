@@ -3,17 +3,23 @@ import { describe, expect, it } from "vitest";
 import { readAccessContext } from "./request-context";
 
 describe("readAccessContext", () => {
-  it("takes the first x-forwarded-for hop", () => {
+  it("prefers x-real-ip, as Better Auth does", () => {
     const headers = new Headers({
-      "x-forwarded-for": " 203.0.113.7 , 10.0.0.1",
+      "x-real-ip": "198.51.100.2",
+      "x-forwarded-for": "203.0.113.7",
       "user-agent": "UA",
     });
-    expect(readAccessContext(headers)).toEqual({ ipAddress: "203.0.113.7", userAgent: "UA" });
+    expect(readAccessContext(headers)).toEqual({ ipAddress: "198.51.100.2", userAgent: "UA" });
   });
 
-  it("falls back to x-real-ip", () => {
-    const headers = new Headers({ "x-real-ip": "198.51.100.2" });
-    expect(readAccessContext(headers)).toEqual({ ipAddress: "198.51.100.2", userAgent: null });
+  it("falls back to the first x-forwarded-for hop", () => {
+    const headers = new Headers({ "x-forwarded-for": " 2001:db8::1 , 10.0.0.1" });
+    expect(readAccessContext(headers)).toEqual({ ipAddress: "2001:db8::1", userAgent: null });
+  });
+
+  it("stores null for a value that is not an address", () => {
+    const headers = new Headers({ "x-forwarded-for": "x".repeat(4096) });
+    expect(readAccessContext(headers).ipAddress).toBeNull();
   });
 
   it("stores nulls when the request carries neither", () => {

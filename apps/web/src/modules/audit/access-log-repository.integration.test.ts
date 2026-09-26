@@ -6,6 +6,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
 
 import { AccessLogRepository } from "./access-log-repository";
+import { purgeExpiredAccessLog } from "./retention";
 import { accessLog } from "./schema";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -69,18 +70,6 @@ describe("AccessLogRepository isolation", () => {
     const rows = await db.select().from(accessLog).where(eq(accessLog.userId, userB.id));
     expect(rows).toEqual([]);
   });
-
-  it("user A's purge never deletes user B's old rows", async () => {
-    const db = getDb();
-    const { userA, userB } = await twoUsers("purge");
-    const now = new Date();
-    const old = new Date(now.getTime() - 200 * DAY_MS);
-
-    await new AccessLogRepository(db, userB).record("portfolio_read", context, old);
-    await new AccessLogRepository(db, userA).record("portfolio_read", context, now);
-
-    expect(await new AccessLogRepository(db, userB).listRecent(50)).toHaveLength(1);
-  });
 });
 
 describe("AccessLogRepository", () => {
@@ -104,19 +93,32 @@ describe("AccessLogRepository", () => {
     expect(await repository.listRecent(1)).toHaveLength(1);
   });
 
-  it("drops the user's entries older than 180 days on the next write", async () => {
+  it("the nightly purge drops every user's entries older than 180 days, and only those", async () => {
     const db = getDb();
-    const { userA } = await twoUsers("retention");
-    const repository = new AccessLogRepository(db, userA);
+    const { userA, userB } = await twoUsers("retention");
     const now = new Date();
+    const expired = new Date(now.getTime() - 181 * DAY_MS);
+    const kept = new Date(now.getTime() - 179 * DAY_MS);
 
-    await repository.record("portfolio_read", context, new Date(now.getTime() - 181 * DAY_MS));
-    await repository.record("portfolio_read", context, new Date(now.getTime() - 179 * DAY_MS));
-    await repository.record("decisions_read", context, now);
+    await new AccessLogRepository(db, userA).record("portfolio_read", context, expired);
+    await new AccessLogRepository(db, userA).record("decisions_read", context, kept);
+    await new AccessLogRepository(db, userB).record("portfolio_read", context, expired);
 
-    const entries = await repository.listRecent(50);
-    expect(entries).toHaveLength(2);
-    expect(entries.map((entry) => entry.event)).toEqual(["decisions_read", "portfolio_read"]);
+    const outcome = await purgeExpiredAccessLog(db, now);
+
+    expect(outcome).toMatchObject({ ok: true });
+    const entriesA = await new AccessLogRepository(db, userA).listRecent(50);
+    expect(entriesA.map((entry) => entry.event)).toEqual(["decisions_read"]);
+    expect(await new AccessLogRepository(db, userB).listRecent(50)).toEqual([]);
+  });
+
+  it("refuses an event outside the vocabulary", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("check");
+
+    await expect(
+      db.insert(accessLog).values({ userId: userA.id, event: "made_up" }),
+    ).rejects.toThrow();
   });
 
   it("goes with the account", async () => {

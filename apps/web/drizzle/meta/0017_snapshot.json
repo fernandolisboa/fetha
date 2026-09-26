@@ -1,5 +1,5 @@
 {
-  "id": "30fa173c-693d-4223-81d9-f0434ea6df37",
+  "id": "d6c124d1-dd35-4eb7-8745-381a14981bc2",
   "prevId": "692a15ef-9893-4319-aa03-a5ca69fb84be",
   "version": "7",
   "dialect": "postgresql",
@@ -67,6 +67,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "access_log_occurred_at_idx": {
+          "name": "access_log_occurred_at_idx",
+          "columns": [
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -87,7 +102,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "access_log_event_check": {
+          "name": "access_log_event_check",
+          "value": "\"access_log\".\"event\" in ('portfolio_read', 'decisions_read', 'data_export')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.account": {
