@@ -11,8 +11,8 @@ import { seedUserFootprint } from "@/db/test/user-footprint";
 import { strategies, strategyVersions } from "@/modules/strategies/schema";
 
 import { getAuth } from "./auth";
-import { invites, mailOutbox, user } from "./schema";
-import { deleteAccount, signUp } from "./service";
+import { invites, mailOutbox, user, verification } from "./schema";
+import { deleteAccount, signInMagicLink, signUp } from "./service";
 import { testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
@@ -145,6 +145,43 @@ describe("account deletion", () => {
       .from(strategies)
       .where(eq(strategies.id, copy?.id ?? ""));
     expect(survivor?.copiedFromStrategyId).toBeNull();
+  });
+
+  it("leaves no pending magic-link or captured mail for the deleted address", async () => {
+    const db = getDb();
+    const { owner, headers } = await signedInUser("magic-link");
+    expect((await signInMagicLink({ email: owner.email }, testRequestHeaders())).status).toBe("ok");
+    const pending = await db
+      .select()
+      .from(verification)
+      .where(sql`${verification.value} like ${`%${owner.email}%`}`);
+    expect(pending.length).toBeGreaterThan(0);
+
+    expect(await deleteAccount(PASSWORD, headers)).toEqual({ status: "ok" });
+
+    const left = await db
+      .select()
+      .from(verification)
+      .where(sql`${verification.value} like ${`%${owner.email}%`}`);
+    expect(left).toEqual([]);
+    expect(await db.select().from(mailOutbox).where(eq(mailOutbox.to, owner.email))).toEqual([]);
+  });
+
+  it("limits password guesses per account, whatever the IP", async () => {
+    const { owner, headers } = await signedInUser("guesses");
+    const fromNewIp = (): Headers => {
+      const next = new Headers(headers);
+      next.set("x-forwarded-for", testRequestHeaders().get("x-forwarded-for") ?? "");
+      return next;
+    };
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      expect(await deleteAccount("not-the-password", fromNewIp())).toEqual({
+        status: "invalid_password",
+      });
+    }
+    expect(await deleteAccount(PASSWORD, fromNewIp())).toEqual({ status: "rate_limited" });
+    expect(await getDb().select().from(user).where(eq(user.id, owner.id))).toHaveLength(1);
   });
 
   it("keeps the account on a wrong password", async () => {

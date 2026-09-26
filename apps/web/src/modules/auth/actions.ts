@@ -3,9 +3,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getDb } from "@/db/client";
-
-import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
 import type { ActionState } from "./action-state";
 import { requireUser, withAuthenticatedAction } from "./session";
 import {
@@ -222,10 +219,6 @@ export async function signOutAction(): Promise<void> {
   redirect("/entrar");
 }
 
-// The action's own account bucket (docs/adr/0027): Better Auth's rule on
-// `/delete-user` is per IP, and this one is per signed-in account.
-const DELETE_ACCOUNT_RATE_LIMIT = { windowSeconds: 60, max: 3 };
-
 export async function deleteAccountAction(
   _prevState: ActionState,
   formData: FormData,
@@ -238,20 +231,7 @@ export async function deleteAccountAction(
   }
 
   const outcome = await withAuthenticatedAction(async () => {
-    const user = await requireUser();
-    try {
-      await enforceAccountRateLimit(
-        getDb(),
-        user.email,
-        "account/delete",
-        DELETE_ACCOUNT_RATE_LIMIT,
-      );
-    } catch (error) {
-      if (error instanceof AccountRateLimitExceededError) {
-        return { status: "rate_limited" } as const;
-      }
-      throw error;
-    }
+    await requireUser();
     return deleteAccount(parsed.data.password, await headers());
   });
 

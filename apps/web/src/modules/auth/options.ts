@@ -1,5 +1,5 @@
 import type { BetterAuthOptions } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
@@ -88,6 +88,11 @@ const signUpNameSchema = z.object({
 
 // Account deletion always takes the password (docs/adr/0027): Better Auth
 // would otherwise also accept a fresh session alone, or an emailed token.
+// Per signed-in account, next to the IP rule above: the endpoint answers
+// "wrong password" to whoever holds the session, so it is bounded the way
+// sign-in is (docs/adr/0027).
+const DELETE_USER_ACCOUNT_RULE: AccountRateLimitRule = { windowSeconds: 60, max: 3 };
+
 const deleteUserBodySchema = z.object({
   password: z.string().min(1),
   token: z.never().optional(),
@@ -237,8 +242,26 @@ export function buildAuthOptions(
         if (ctx.path === "/delete-user/callback") {
           throw new APIError("NOT_FOUND");
         }
-        if (ctx.path === "/delete-user" && !deleteUserBodySchema.safeParse(ctx.body).success) {
-          throw new APIError("BAD_REQUEST", { message: "password_required" });
+        if (ctx.path === "/delete-user") {
+          if (!deleteUserBodySchema.safeParse(ctx.body).success) {
+            throw new APIError("BAD_REQUEST", { message: "password_required" });
+          }
+          const session = await getSessionFromCtx(ctx);
+          if (session) {
+            try {
+              await enforceAccountRateLimit(
+                db,
+                session.user.email,
+                ctx.path,
+                DELETE_USER_ACCOUNT_RULE,
+              );
+            } catch (error) {
+              if (error instanceof AccountRateLimitExceededError) {
+                throw new APIError("TOO_MANY_REQUESTS", { message: "rate_limited" });
+              }
+              throw error;
+            }
+          }
         }
 
         if (ctx.path !== "/sign-up/email") {
