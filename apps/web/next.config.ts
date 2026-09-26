@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
-const nextConfig: NextConfig = {};
+import { securityHeaders } from "./src/lib/security-headers";
+
+const nextConfig: NextConfig = {
+  headers() {
+    return Promise.resolve([{ source: "/:path*", headers: securityHeaders }]);
+  },
+};
 
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
