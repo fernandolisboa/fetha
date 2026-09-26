@@ -1528,7 +1528,7 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   exactly zero as in a zero-cost risk reversal) sizes against the structure's bounded max loss,
   not the premium received or paid, which understates the capital actually at risk. A net-debit
   structure still sizes on the premium paid; when it carries a short leg its max loss can exceed
-  that premium, and today the risk-limit check is what catches it (follow-up: size net-debit
+  that premium, and today the risk-limit check is what catches it ([issue #131](https://github.com/fernandolisboa/fetha/issues/131): size net-debit
   structures on bounded max loss too). An unbounded max loss on a non-debit `fixed_fractional`
   structure is `unsizeable`
   (`unbounded_max_loss`), the same reading `fixed_risk` already gave a naked short option.
