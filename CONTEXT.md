@@ -110,4 +110,6 @@ ingestion: sources, partitioning, retries, freshness, adjustment (0017), magic l
 reset and database-backed rate limiting (0018), vertical slices inside the single Next.js app
 (0019), registration mode through Vercel Global Config (0020), real portfolio bookkeeping: fills
 are stored, positions and cash derived (0021), decisions on held operations scored with the
-portfolio's own fills (0022).
+portfolio's own fills (0022), strategy comparison and walk-forward over persisted runs (0023),
+account rate-limit keys hashed and purged (0024), a PWA that caches build output only (0025),
+HTTP security headers on every response (0026).
