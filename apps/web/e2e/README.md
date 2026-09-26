@@ -71,3 +71,9 @@ groups it into an operation, confirms the proposed settlement and checks the ope
 or when `E2E_SECRET` is unset, same guard as `/api/e2e/verification-link`), which reads shared
 reference data only: the latest expired PETR4 series that traded before expiry and whose expiry
 close is ingested. Needs `E2E_SECRET` and ingested PETR4 option data in the preview database.
+
+`pwa-cache.spec.ts` covers the service worker's cache policy (#43, ADR-0025): it registers and
+signs in, waits until the worker controls the page, opens `/carteira` and fetches the session,
+then asserts Cache Storage holds no `/api/*` response, RSC payload or page, before and after
+signing out, and that the precached `offline.html` is the "Sem conexão" page. Needs `E2E_SECRET`
+only.
