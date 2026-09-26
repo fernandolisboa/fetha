@@ -85,7 +85,7 @@ export default async function PortfolioPage() {
           </>
         }
         headline={t.dashboard.title}
-        actionsWrapperClassName="flex flex-wrap items-end justify-between gap-3"
+        actionsWrapperClassName="flex-wrap items-end gap-3"
         actions={
           <div className="flex items-center gap-2">
             <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>

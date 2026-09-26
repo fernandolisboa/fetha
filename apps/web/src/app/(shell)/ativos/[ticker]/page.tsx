@@ -75,7 +75,7 @@ export default async function InstrumentPage({
       <PageHeader
         overline={t.instrument.overline}
         headline={ticker}
-        headlineClassName="font-mono text-[22px] font-semibold tracking-tight uppercase"
+        headlineClassName="font-mono uppercase"
         actions={<CandleFormToggle ticker={ticker} form={form} />}
       />
 
