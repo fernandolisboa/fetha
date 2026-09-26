@@ -521,8 +521,8 @@ function valueLegs(
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
 // (PR #53 round 1 item 19). Not exported: `priceLegsAt`, `priceOperation` and
-// `priceLegsAtSpot` are the only public surface of this module (round 3 item 10, revised
-// by the #54 follow-up).
+// `priceLegsAtSpot` are the pricing surface of this module (round 3 item 10, revised by
+// the #54 follow-up); `computePayoffProfile` and `PricedLeg` are exported for `score`.
 function resolveOperationRates(
   view: MarketView,
   at: string,
