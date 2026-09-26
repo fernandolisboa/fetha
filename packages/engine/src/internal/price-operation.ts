@@ -535,11 +535,6 @@ function resolveOperationRates(
   };
 }
 
-// Exported for stock-pricing.ts's own adapter (#54): `priceStockLegs` prices a fixed,
-// pre-sized set of stock legs at an explicit spot and entry prices, the same shape this
-// function already prices for `priceLegsAt`'s concrete-legs branch, so it reuses this one
-// risk-limit/payoff/greeks implementation instead of a second copy that had already
-// diverged (break-evens for two or more stock legs, PR #54).
 export function priceConcreteLegs(
   view: MarketView,
   at: string,

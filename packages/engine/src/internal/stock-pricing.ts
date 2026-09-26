@@ -28,24 +28,9 @@ export type PriceStockLegsInput = {
   >;
 };
 
-// A thin adapter over `priceConcreteLegs` (#54): a stock-only proposal has no strike or
-// expiry selection to do, but once it has an explicit spot and each leg's own entry price it
-// is exactly the concrete-legs pricing pass `priceOperation` already runs, so the risk-limit
-// checks, the max-loss/max-gain sign logic, the three-point-plus-strike-plus-break-even
-// payoff sampling and the aggregate greeks all come from that one implementation now, not a
-// second copy of it that had already diverged (break-evens for two or more stock legs).
-//
-// `priceConcreteLegs` resolves each leg's price through the same mid/last/close/average
-// ladder `priceOperation` uses; giving it every leg's own `entryPrice` as `LegInput.price`
-// makes that ladder return exactly that price with `source: "given"`, deterministically,
-// with no dependency on `view.quotes`/`view.candles` for the ticker (`priceStockLegs`'s own
-// callers, unlike `priceOperation`'s, already know the price they want priced — a fresh
-// `evaluateStrategy` entry at the session's own close, an existing operation's own fill —
-// and expect it priced exactly, not rediscovered). `StockLegInput.priceSource` is the
-// caller's own record of where that price came from, not something `priceConcreteLegs` can
-// derive from a price it never had to look up; it is restored onto each `LegValuation`
-// (`leg` and `priceSource`) after pricing, the one piece of this shape `priceConcreteLegs`'s
-// `LegInput`/`Leg` types have no field for.
+// One pricing path for stock and option proposals (#54). Each leg is priced at its own
+// entryPrice (`source: "given"`); the caller's priceSource has no LegInput field, so it is
+// restored after pricing.
 export function priceStockLegs(input: PriceStockLegsInput): Result<OperationPricing> {
   const riskFreeRateResolution = resolveRiskFreeRate(input.view.macro, input.at);
   // ADR-0013's rates addendum applies the same rule to a stock leg's rate resolution as
