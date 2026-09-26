@@ -422,11 +422,46 @@ export const evaluationOutcomes = [
   "unsizeable",
 ] as const satisfies readonly EvaluationOutcome[];
 
+export type EvaluationReason =
+  | "signal"
+  | "conditions_not_met"
+  | "no_candles"
+  | "no_candles_in_catch_up_window"
+  | "entry_condition_warmup"
+  | "no_series_match"
+  | "degenerate_strikes"
+  | "no_declared_capital"
+  | "unbounded_max_loss"
+  | "zero_units"
+  | "unaffordable_budget"
+  | "insufficient_market_data_for_proposal"
+  | "exit_rule_unknown"
+  | "profit_target_zero_base"
+  | "stop_loss_zero_base";
+export const evaluationReasons = [
+  "signal",
+  "conditions_not_met",
+  "no_candles",
+  "no_candles_in_catch_up_window",
+  "entry_condition_warmup",
+  "no_series_match",
+  "degenerate_strikes",
+  "no_declared_capital",
+  "unbounded_max_loss",
+  "zero_units",
+  "unaffordable_budget",
+  "insufficient_market_data_for_proposal",
+  "exit_rule_unknown",
+  "profit_target_zero_base",
+  "stop_loss_zero_base",
+] as const satisfies readonly EvaluationReason[];
+
 export type EvaluationRecord = {
   ticker: Ticker;
   at: Instant;
   session: SessionDate;
   outcome: EvaluationOutcome;
+  reason: EvaluationReason;
   detail: string | null;
 };
 

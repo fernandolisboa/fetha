@@ -479,11 +479,46 @@ export const evaluationOutcomes = [
   "unsizeable",
 ] as const satisfies readonly EvaluationOutcome[];
 
+export type EvaluationReason =
+  | "signal"
+  | "conditions_not_met"
+  | "no_candles"
+  | "no_candles_in_catch_up_window"
+  | "entry_condition_warmup"
+  | "no_series_match"
+  | "degenerate_strikes"
+  | "no_declared_capital"
+  | "unbounded_max_loss"
+  | "zero_units"
+  | "unaffordable_budget"
+  | "insufficient_market_data_for_proposal"
+  | "exit_rule_unknown"
+  | "profit_target_zero_base"
+  | "stop_loss_zero_base";
+export const evaluationReasons = [
+  "signal",
+  "conditions_not_met",
+  "no_candles",
+  "no_candles_in_catch_up_window",
+  "entry_condition_warmup",
+  "no_series_match",
+  "degenerate_strikes",
+  "no_declared_capital",
+  "unbounded_max_loss",
+  "zero_units",
+  "unaffordable_budget",
+  "insufficient_market_data_for_proposal",
+  "exit_rule_unknown",
+  "profit_target_zero_base",
+  "stop_loss_zero_base",
+] as const satisfies readonly EvaluationReason[];
+
 export type EvaluationRecord = {
   ticker: Ticker;
   at: Instant;
   session: SessionDate;
   outcome: EvaluationOutcome;
+  reason: EvaluationReason;
   detail: string | null;
 };
 
@@ -1459,15 +1494,20 @@ enums is either reported or explicitly listed as unsupported.
 ### Change policy
 
 Additive changes are allowed without a new ADR: new optional input fields, new fields on
-artifacts, new `NoteCode`, `EvaluationOutcome` and `MissedEntryReason` members, new `kind`s in a
-contracts vocabulary (schema, engine code, capabilities and tests together). Every closed union
-the engine declares has an `as const` array beside it, and `api.test.ts` asserts that each array
-enumerates its union exactly, so adding a member means adding it to the type, the array and the
-test in one change; the arrays are what `capabilities()`, the UI and the AI prompts iterate
-over. Renames, removals,
-signature changes, new or removed methods, changes to the visibility rule or to the meaning of an
-existing field require a superseding ADR. `ENGINE_VERSION` bumps its minor on additive change and
-its major on a superseding ADR; checkpoints are valid only for the version that produced them.
+artifacts, new `NoteCode`, `EvaluationOutcome`, `EvaluationReason` and `MissedEntryReason`
+members, new `kind`s in a contracts vocabulary (schema, engine code, capabilities and tests
+together). Every closed union the engine declares has an `as const` array beside it, and
+`api.test.ts` asserts that each array enumerates its union exactly, so adding a member means
+adding it to the type, the array and the test in one change; the arrays are what `capabilities()`,
+the UI and the AI prompts iterate over. Renames, removals, signature changes, new or removed
+methods, changes to the visibility rule or to the meaning of an existing field require a
+superseding ADR. In practice `ENGINE_VERSION` does not bump on every additive change: #16, #21,
+#25, #59 and #80 all added fields to a frozen type and left it unchanged, while #23 bumped it
+(`"0.1.0"` to `"0.2.0"`) because it changed the shape of a checkpointed or persisted artifact
+(`SimulatedOperation` gained `residualSettledBy`, a field on the checkpointed backtest state),
+not merely because it was additive. The rule the repo actually follows: a bump tracks a
+checkpoint- or persistence-breaking shape change, never additivity by itself; checkpoints are
+valid only for the version that produced them.
 
 The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonIntegerAmountError`) were
 legacy and outside this interface, existing only because the `apps/web` placeholder page rendered
@@ -2163,3 +2203,53 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
 already handles a version bump by restarting), never read back across an arbitrary span of engine
 history the way a completed run's `result` is.
+
+## Addendum: `EvaluationRecord.reason`, a stable code alongside `detail` (2026-09-26, #80)
+
+`EvaluationRecord.detail` was a free English sentence built ad hoc by `evaluate-strategy.ts`
+(`"no candles for this instrument and timeframe"`, `"fixed_risk sizing is unsizeable against an
+unbounded max loss"`, ...). `apps/web/src/modules/strategies/strings.ts` translated it to pt-BR by
+matching that exact sentence, which is brittle: any wording change to the engine's prose silently
+breaks the pt-BR translation with no compile-time signal. This addendum adds a required
+`reason: EvaluationReason` field to `EvaluationRecord`, a closed vocabulary (`evaluationReasons`,
+same pattern as `noteCodes`) with exactly one code per distinct detail sentence the engine emits;
+where a sentence carries a value (`profit_target`/`stop_loss` in the zero-base message, the
+sizing reason inside `sizingDetail`), the code names the situation and leaves the value out, the
+same rule `#19 round 3 item 7`'s web-side prefix codes (`engine_error:`, `catchup_clamped:`)
+already followed for details `evaluate-signals.ts` itself synthesizes outside the engine. `detail`
+is unchanged — an English sentence, kept for logs and debugging, never translated by the UI going
+forward. `reason` is additive to a frozen type (a new required field on an existing shape, not a
+new method or a narrowed one), the same class of change #21/#23/#25/#26 above made to other frozen
+types.
+
+`apps/web` translates by `reason` now (`strings.ts`'s `reasonText`, an exhaustive
+`Record<EvaluationReason, string | null>` — `null` for `signal`/`conditions_not_met`, which add
+nothing beyond their own outcome label — that fails to typecheck if the engine ever adds a code the
+web has not translated yet), and keeps the old exact-sentence
+`evaluationDetailEn`/`evaluationDetailPtBR` maps (`detailFor`) as a fallback for any row with no
+`reason`: the `evaluations` table's own `reason` column is nullable and no backfill was written for
+the rows already on disk (`reason IS NULL`, `detail` still whatever English sentence the writing
+engine version produced) — a stored evaluation row is an operational log entry, not a value the
+owner audits or acts on twice, so leaving old rows exactly as they are and falling back to the
+legacy string match for them was judged safe and proportionate; rewriting is available later if
+that judgment changes. This fallback is not a one-time migration shim, though: the web-authored
+codes `unknown_structure`, `engine_error:<code>`, `catchup_clamped:<count>` and
+`unsatisfiable_collection:<collection>` stay unaffected by `reason` going forward too —
+`evaluate-signals.ts` writes those directly into `detail` itself and always sets `reason: null`,
+never having an `EvaluationRecord` to read a `reason` from in the first place — so `detailFor` keeps
+serving every row that class of failure produces, not only the rows written before this addendum. A
+follow-up issue to give the web's own failure codes a typed vocabulary of their own, so `detailFor`
+can eventually be retired entirely, will be filed separately; this addendum does not build it.
+
+`EvaluationRecord.detail` is now a pure function of `reason` for every record the engine itself
+emits (`evaluate-strategy.ts`'s `sizingDetail`, `zeroBaseMessage`, and the fixed strings at each
+`record(...)` call site all key off the same `reason` the call passes), so it carries no
+information beyond what `reason` already carries for those rows. It stays for now only because
+`apps/web`'s legacy fallback still needs an exact-sentence string to match for a pre-#80 row; it is
+deprecated in favour of `reason` and slated for removal in a superseding revision once that fallback
+is no longer needed.
+
+The `evaluations.reason` column is plain `text`, validated by Zod (`evaluationReasonSchema`) on
+read, with no CHECK constraint against `evaluationReasons`: its sibling `outcome` column already
+follows that pattern, and a CHECK duplicating the engine's vocabulary into Postgres would force a
+migration for every new reason with nothing in CI catching one left out.

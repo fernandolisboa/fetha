@@ -93,6 +93,18 @@ export const evaluations = pgTable(
     session: text("session").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull(),
     outcome: text("outcome").notNull(),
+    // The engine's stable `EvaluationReason` code (#80), null for a row this
+    // module wrote itself before this column existed, or for one of the
+    // web-authored failure codes (`unknown_structure`, `engine_error:...`,
+    // `catchup_clamped:...`, `unsatisfiable_collection:...`) that
+    // `evaluate-signals.ts` puts straight into `detail` without ever holding
+    // an `EvaluationRecord` to read a `reason` from. `detail` stays the
+    // engine's English sentence (or one of those codes) for logs, never
+    // translated from `reason` here. Plain `text`, no CHECK, same as the
+    // sibling `outcome` column: Zod (`evaluationReasonSchema` in
+    // `signals-repository.ts`) validates it on read, so the engine's closed
+    // vocabulary does not need a copy inside a migration too.
+    reason: text("reason"),
     detail: text("detail"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

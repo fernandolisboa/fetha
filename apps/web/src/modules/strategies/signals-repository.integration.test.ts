@@ -5,6 +5,7 @@ import {
   type StrategyDefinition,
   type Ticker,
 } from "@fetha/contracts";
+import { evaluationReasons } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
@@ -86,6 +87,7 @@ function newEvaluation(strategyId: string, versionId: string, ticker: Ticker): N
     session: "2031-06-01",
     at: new Date("2031-06-01T21:00:00.000Z"),
     outcome: "conditions_not_met",
+    reason: "conditions_not_met",
     detail: null,
   };
 }
@@ -169,6 +171,7 @@ describe("SignalsRepository isolation", () => {
     const logB = await repoB.listEvaluationLog();
     expect(logB).toHaveLength(1);
     expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
+    expect(logB[0]?.reason).toBe("conditions_not_met");
 
     // The watermark read is user-scoped too (#19 round 3 item 8): user A's
     // read for user B's own strategy version stays null even though B just
@@ -207,5 +210,40 @@ describe("SignalsRepository isolation", () => {
     const [stillUnread] = await repoB.listInbox();
     expect(stillUnread?.readAt).toBeNull();
     expect(await repoB.unreadCount()).toBe(1);
+  });
+
+  it("round-trips every EvaluationReason code through the reason column", async () => {
+    const db = getDb();
+    const email = uniqueEmail("reason-roundtrip");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("test setup: expected a version");
+    const ticker = randomTicker();
+    const repo = new SignalsRepository(db, owner);
+
+    for (const [index, reason] of evaluationReasons.entries()) {
+      await repo.createEvaluations([
+        {
+          ...newEvaluation(strategy.id, version.id, ticker),
+          session: `2031-07-${String(index + 1).padStart(2, "0")}`,
+          at: new Date(`2031-07-${String(index + 1).padStart(2, "0")}T21:00:00.000Z`),
+          outcome: "conditions_not_met",
+          reason,
+          detail: null,
+        },
+      ]);
+    }
+
+    const log = await repo.listEvaluationLog();
+    const reasonsByAt = new Map(log.map((row) => [row.at.toISOString(), row.reason]));
+    for (const [index, reason] of evaluationReasons.entries()) {
+      const at = new Date(
+        `2031-07-${String(index + 1).padStart(2, "0")}T21:00:00.000Z`,
+      ).toISOString();
+      expect(reasonsByAt.get(at)).toBe(reason);
+    }
   });
 });

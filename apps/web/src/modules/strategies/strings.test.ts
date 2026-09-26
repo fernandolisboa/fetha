@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { evaluationReasons } from "@fetha/engine";
 
-import { t } from "./strings";
+import { evaluationLabel, strategiesStrings, t } from "./strings";
+
+const reasonsWithNoText = new Set(["signal", "conditions_not_met"]);
 
 describe("evaluationLog.detailFor", () => {
   it("renders distinct text for each of the three failure codes introduced in evaluate-signals.ts (#19 round 3 item 7)", () => {
@@ -62,5 +65,86 @@ describe("evaluationLog.detailFor", () => {
     expect(ivRank).toBeDefined();
     expect(ivRank).toBe(somethingElse);
     expect(ivRank?.toLowerCase()).not.toContain("implied volatility");
+  });
+});
+
+describe("evaluationLog.reasonText (#80)", () => {
+  it("translates every EvaluationReason code the engine declares, in both locales, except signal and conditions_not_met (which add nothing beyond the outcome label)", () => {
+    for (const reason of evaluationReasons) {
+      if (reasonsWithNoText.has(reason)) {
+        expect(strategiesStrings.en.inbox.evaluationLog.reasonText[reason]).toBeNull();
+        expect(strategiesStrings.ptBR.inbox.evaluationLog.reasonText[reason]).toBeNull();
+        continue;
+      }
+      expect(strategiesStrings.en.inbox.evaluationLog.reasonText[reason]).toBeTruthy();
+      expect(strategiesStrings.ptBR.inbox.evaluationLog.reasonText[reason]).toBeTruthy();
+    }
+  });
+
+  it("renders distinct text for each code with a non-null text, per locale", () => {
+    const enTexts = new Set(
+      Object.values(strategiesStrings.en.inbox.evaluationLog.reasonText).filter(
+        (text): text is string => text !== null,
+      ),
+    );
+    const ptBRTexts = new Set(
+      Object.values(strategiesStrings.ptBR.inbox.evaluationLog.reasonText).filter(
+        (text): text is string => text !== null,
+      ),
+    );
+    expect(enTexts.size).toBe(evaluationReasons.length - reasonsWithNoText.size);
+    expect(ptBRTexts.size).toBe(evaluationReasons.length - reasonsWithNoText.size);
+  });
+});
+
+describe("evaluationLabel", () => {
+  it("renders just the outcome label when reason is signal", () => {
+    expect(evaluationLabel({ outcome: "signal", reason: "signal", detail: null })).toBe(
+      t.inbox.outcomes.signal,
+    );
+  });
+
+  it("renders just the outcome label when reason is conditions_not_met", () => {
+    expect(
+      evaluationLabel({
+        outcome: "conditions_not_met",
+        reason: "conditions_not_met",
+        detail: null,
+      }),
+    ).toBe(t.inbox.outcomes.conditions_not_met);
+  });
+
+  it("renders the outcome label followed by the reason text for a reason that adds information", () => {
+    const reasonText = t.inbox.evaluationLog.reasonText.unaffordable_budget;
+    expect(reasonText).toBeTruthy();
+    expect(
+      evaluationLabel({
+        outcome: "unsizeable",
+        reason: "unaffordable_budget",
+        detail: "the declared capital and fraction cannot afford one unit",
+      }),
+    ).toBe(`${t.inbox.outcomes.unsizeable} · ${reasonText ?? ""}`);
+  });
+
+  it("falls back to the legacy detail string when reason is null and the detail is recognized", () => {
+    const legacyText = t.inbox.evaluationLog.detail["no declared capital to size against"];
+    expect(legacyText).toBeTruthy();
+    expect(
+      evaluationLabel({
+        outcome: "unsizeable",
+        reason: null,
+        detail: "no declared capital to size against",
+      }),
+    ).toBe(`${t.inbox.outcomes.unsizeable} · ${legacyText ?? ""}`);
+  });
+
+  it("renders just the outcome label when reason is null and the detail is unrecognized", () => {
+    expect(
+      evaluationLabel({
+        outcome: "insufficient_data",
+        reason: null,
+        detail: "something_unrecognized",
+      }),
+    ).toBe(t.inbox.outcomes.insufficient_data);
   });
 });

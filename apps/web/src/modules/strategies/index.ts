@@ -35,4 +35,4 @@ export {
   type StrategyWithVersions,
 } from "./strategies-repository";
 export { StructuresRepository } from "./structures-repository";
-export { strategiesStrings, t } from "./strings";
+export { evaluationLabel, strategiesStrings, t } from "./strings";
