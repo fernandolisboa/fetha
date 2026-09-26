@@ -45,7 +45,12 @@ function insufficientCandlesForSession(underlying: Ticker, session: TradingSessi
   };
 }
 
-function settleLeg(
+// Exported for `run-backtest.ts` (#72): the decision below — which leg is in the money, its
+// intrinsic value, its outcome — is ADR-0014 Q41's exercise/assignment rule and belongs in one
+// place. A caller that needs the settlement fill's cost overlaid with its own cost model (a run
+// mid-backtest, unlike this module's own cost-free proposal) replaces `fills[i].costs` itself;
+// `settleLeg` never assumes a particular cost model.
+export function settleLeg(
   leg: OperationLeg,
   legIndex: number,
   underlying: Ticker,

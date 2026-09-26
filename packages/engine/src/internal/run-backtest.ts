@@ -44,13 +44,7 @@ import {
 } from "./backtest-metrics";
 import { computeMonthlyTax } from "./backtest-taxes";
 import { configDigest } from "./config-digest";
-import {
-  CENTAVOS_PER_REAL,
-  parseDecimal,
-  PRICE_SCALE,
-  RATIO_SCALE,
-  toDecimalString,
-} from "./decimal";
+import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
 import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
@@ -59,6 +53,7 @@ import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import { codeUnitCompare, sortUnique } from "./order";
+import { settleLeg } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -1178,7 +1173,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       let sellProceeds = new Decimal(0);
       let settlementCosts = new Decimal(0);
 
-      for (const leg of op.legs) {
+      for (const [legIndex, leg] of op.legs.entries()) {
         if (leg.role === "stock") {
           settlement.push({
             leg: leg as OperationLeg & { role: "stock" },
@@ -1202,23 +1197,22 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           continue;
         }
 
-        const series = resolveSeries(view, leg.ticker, session.close);
-        if (!series) {
-          return {
-            ok: false,
-            error: { code: "missing_instrument", ticker: leg.ticker },
-          };
-        }
-        const strike = series.strike;
-        const inTheMoney =
-          leg.role === "call"
-            ? parseDecimal(underlyingClose).gt(strike)
-            : parseDecimal(underlyingClose).lt(strike);
-        const intrinsic =
-          leg.role === "call"
-            ? Decimal.max(parseDecimal(underlyingClose).sub(strike), 0)
-            : Decimal.max(new Decimal(strike).sub(underlyingClose), 0);
-        const intrinsicValue = toDecimalString(intrinsic, PRICE_SCALE);
+        // The exercise/assignment decision itself — in-the-money check, intrinsic value,
+        // outcome — delegates to propose-settlement.ts's own settleLeg (ADR-0013's #23
+        // addendum, closed by #72): the same ADR-0014 Q41 rule, in one place. `settleLeg`
+        // also rejects a non-positive listed strike, a guard this call site never had; every
+        // real listed strike is positive, so this is strictly a new safety net, not an
+        // observed behavior change (see that same addendum for the reconciliation).
+        const settled = settleLeg(
+          leg,
+          legIndex,
+          op.underlying,
+          parseDecimal(underlyingClose),
+          session.date,
+          session.close,
+          view,
+        );
+        if (!settled.ok) return { ok: false, error: settled.error };
 
         // Every option leg folds its own premium into pnl the same way whether it expires
         // worthless or is exercised/assigned: the intrinsic value it carries shows up
@@ -1231,53 +1225,33 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           .neg();
         optionsPnl = optionsPnl.add(legPremiumPnl);
 
-        if (!inTheMoney) {
+        if (settled.value.fills.length === 0) {
           worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl);
-          settlement.push({
-            leg: leg as OperationLeg & { role: "call" | "put" },
-            outcome: "expired_worthless",
-            intrinsicValue,
-            fills: [],
-          } as LegSettlement);
+          settlement.push(settled.value);
           continue;
         }
 
-        const outcome = leg.side === "buy" ? "exercised" : "assigned";
-        const fillSide: "buy" | "sell" =
-          leg.role === "call"
-            ? leg.side === "buy"
-              ? "buy"
-              : "sell"
-            : leg.side === "buy"
-              ? "sell"
-              : "buy";
-        const costs = fillCosts(config.costModel, strike, leg.quantity);
-        const fill: Fill = {
-          ticker: op.underlying,
-          side: fillSide,
-          quantity: leg.quantity,
-          price: strike,
-          session: session.date,
-          at: session.close,
-          costs,
-        };
-        settlement.push({
-          leg: leg as OperationLeg & { role: "call" | "put" },
-          outcome,
-          intrinsicValue,
-          fills: [fill],
-        } as LegSettlement);
+        // settleLeg's own fill carries no cost — a settlement proposal is not itself a trade
+        // (ADR-0013 #25 addendum) — so the backtester's own cost model overlays it here, the
+        // same way a fill from priceOperation already gets its cost overlaid at entry and exit.
+        const bareFill = assertDefined(
+          settled.value.fills[0],
+          "run-backtest: settleLeg reports a non-worthless outcome with no fill",
+        );
+        const costs = fillCosts(config.costModel, bareFill.price, leg.quantity);
+        const fill: Fill = { ...bareFill, costs };
+        settlement.push({ ...settled.value, fills: [fill] });
         state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
         settlementCosts = settlementCosts.add(costs);
-        const gross = grossCentavos(strike, leg.quantity).round().toNumber();
-        state.cash -= (fillSide === "buy" ? 1 : -1) * gross + costs;
-        if (fillSide === "buy") {
+        const gross = grossCentavos(fill.price, leg.quantity).round().toNumber();
+        state.cash -= (fill.side === "buy" ? 1 : -1) * gross + costs;
+        if (fill.side === "buy") {
           buyQty = buyQty.add(leg.quantity);
-          buyCost = buyCost.add(parseDecimal(strike).mul(CENTAVOS_PER_REAL).mul(leg.quantity));
+          buyCost = buyCost.add(parseDecimal(fill.price).mul(CENTAVOS_PER_REAL).mul(leg.quantity));
         } else {
           sellQty = sellQty.add(leg.quantity);
           sellProceeds = sellProceeds.add(
-            parseDecimal(strike).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+            parseDecimal(fill.price).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
           );
           state.currentMonthStockSales += gross;
         }
