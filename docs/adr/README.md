@@ -30,5 +30,6 @@ supersedes or amends them and says so.
 | 0022 | Decisions on held operations are scored on the position held and the portfolio's own fills (amends 0014)        |
 | 0023 | Strategy comparison and walk-forward read persisted runs; windows chosen at creation (sharpens 0013)            |
 | 0024 | Account rate-limit buckets are keyed by an email hash and purged after 60 seconds (amends 0018)                 |
+| 0025 | The PWA caches build output only; pages and API responses never reach Cache Storage                             |
 
 Open: none.

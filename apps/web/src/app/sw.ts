@@ -1,6 +1,7 @@
-import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
+
+import { isObsoleteCache, OFFLINE_FALLBACK_URL, runtimeCaching } from "./pwa-cache";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -15,7 +16,20 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching,
+  fallbacks: {
+    entries: [{ url: OFFLINE_FALLBACK_URL, matcher: ({ request }) => request.mode === "navigate" }],
+  },
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) =>
+        Promise.all(names.filter(isObsoleteCache).map((name) => caches.delete(name))),
+      ),
+  );
 });
 
 serwist.addEventListeners();
