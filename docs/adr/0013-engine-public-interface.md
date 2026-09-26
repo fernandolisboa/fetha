@@ -905,14 +905,25 @@ export interface Engine {
   (`exDate > s` fails for it). The engine derives the **adjusted series
   at each evaluation instant `c`**: a nominal candle of session `s` has `open`, `high`, `low`
   and `close` multiplied by the product of that ticker's factors with `exDate > s` and
-  `asOf <= c`; `tradedQuantity` is not adjusted. A factor ingested later therefore never rewrites
-  an artifact computed at an earlier instant (I1). This amends ADR-0004 on one point: the
-  ingestion layer records and versions factors (`dataVersion`), the engine applies them.
+  `asOf <= c`; `tradedQuantity` is divided by that same product and rounded half up to the
+  nearest integer, per the glossary's corporate-action factor applying "to earlier prices and
+  quantities": a 2-for-1 split (factor `0.5`) halves the adjusted price and doubles the adjusted
+  share count of every session before the ex-date, so the traded financial value (price times
+  quantity) stays comparable across the event, up to the integer rounding of the share count. A
+  factor ingested later therefore never rewrites an artifact computed at an earlier instant (I1).
+  This amends ADR-0004 on one point: the ingestion layer records and versions factors
+  (`dataVersion`), the engine applies them.
 - Indicators, conditions and `iv_rank` read the adjusted series; strikes, option prices, fills,
   settlement and thesis claims read nominal. `IndicatorsInput.form` defaults to `adjusted`;
   `IndicatorSeries.candles` are the candles in the requested form.
 - `tradedQuantity` is the integer count of shares or contracts traded in the candle or session;
-  the DSL price field of the same name reads it.
+  the DSL price field of the same name reads it. `OptionDayPrice.tradedQuantity` and `trades` have
+  no adjusted form: option series are exchange-adjusted instead of engine-adjusted (Q51,
+  `splitFactor`, see below), and their nominal count is never scaled. A candle's financial volume
+  in reais is not a stored field (only `tradedQuantity` is), so there is nothing to leave
+  unscaled: were a financial-volume field added later, it would stay nominal, since price times
+  quantity is already invariant under the split and scaling it again would double-count the
+  factor.
 
 #### Rates, time and greeks (ADR-0002 conventions)
 

@@ -1,9 +1,15 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { Candle, CorporateActionFactor } from "../api";
 import { buildCandleSeries } from "./candle-series";
 import { decimalString } from "../test/support";
 
-const candle = (session: string, close: string, asOf = `${session}T21:00:00.000Z`): Candle => ({
+const candle = (
+  session: string,
+  close: string,
+  asOf = `${session}T21:00:00.000Z`,
+  tradedQuantity = 1000,
+): Candle => ({
   ticker: "PETR4",
   timeframe: "D1",
   session,
@@ -12,7 +18,7 @@ const candle = (session: string, close: string, asOf = `${session}T21:00:00.000Z
   high: decimalString(close),
   low: decimalString(close),
   close: decimalString(close),
-  tradedQuantity: 1000,
+  tradedQuantity,
 });
 
 describe("buildCandleSeries", () => {
@@ -54,6 +60,157 @@ describe("buildCandleSeries", () => {
     if (!result.ok) return;
     expect(result.value.adjusted.map((c) => c.close)).toEqual(["5.00", "5.10", "5.20"]);
     expect(result.value.nominal.map((c) => c.close)).toEqual(["10.00", "5.10", "5.20"]);
+  });
+
+  it("doubles tradedQuantity for sessions before a 2-for-1 split, leaving the ex-date session and after untouched", () => {
+    const candles = [
+      candle("2024-01-02", "10.00", undefined, 1000),
+      candle("2024-01-03", "5.10", undefined, 2000),
+      candle("2024-01-04", "5.20", undefined, 2100),
+    ];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.tradedQuantity)).toEqual([2000, 2000, 2100]);
+    expect(result.value.nominal.map((c) => c.tradedQuantity)).toEqual([1000, 2000, 2100]);
+  });
+
+  it("divides tradedQuantity by a 1-for-10 reverse split's factor, rounding a tie half up", () => {
+    const candles = [
+      candle("2024-01-02", "1.00", undefined, 1000),
+      candle("2024-01-03", "1.00", undefined, 1005),
+    ];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("10"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.tradedQuantity)).toEqual([100, 101]);
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["10.00", "10.00"]);
+  });
+
+  it("scales tradedQuantity by the product of every visible factor after the session", () => {
+    const candles = [
+      candle("2024-01-02", "10.00", undefined, 1000),
+      candle("2024-01-03", "5.00", undefined, 1000),
+      candle("2024-01-04", "2.50", undefined, 1000),
+    ];
+    const factorOn = (exDate: string): CorporateActionFactor => ({
+      ticker: "PETR4",
+      exDate,
+      asOf: `${exDate}T13:00:00.000Z`,
+      factor: decimalString("0.5"),
+    });
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factorOn("2024-01-03"), factorOn("2024-01-04")],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.tradedQuantity)).toEqual([4000, 2000, 1000]);
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["2.50", "2.50", "2.50"]);
+  });
+
+  it("rounds a non-integer scaled tradedQuantity half up, breaking exact ties upward", () => {
+    const candles = [candle("2024-01-02", "10.00", undefined, 1)];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-02T13:00:00.000Z",
+      factor: decimalString("0.4"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted[0]?.tradedQuantity).toBe(3);
+  });
+
+  it("keeps the adjusted tradedQuantity an integer for a factor product with a longer decimal expansion", () => {
+    const candles = [candle("2024-01-02", "10.00", undefined, 1000)];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-02T13:00:00.000Z",
+      factor: decimalString("0.6"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-02T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted[0]?.tradedQuantity).toBe(1667);
+    expect(Number.isInteger(result.value.adjusted[0]?.tradedQuantity)).toBe(true);
+  });
+
+  it("keeps the financial-value-like invariant: adjusted price times adjusted quantity approximates nominal price times nominal quantity", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: 1, max: 1_000_000 }),
+        fc.oneof(fc.integer({ min: 10, max: 900 }), fc.integer({ min: 1100, max: 20_000 })),
+        (closeCents, tradedQuantity, factorThousandths) => {
+          const close = (closeCents / 100).toFixed(2);
+          const factor = (factorThousandths / 1000).toFixed(3);
+          const candles = [candle("2024-01-02", close, undefined, tradedQuantity)];
+          const corporateAction: CorporateActionFactor = {
+            ticker: "PETR4",
+            exDate: "2024-01-03",
+            asOf: "2024-01-02T13:00:00.000Z",
+            factor: decimalString(factor),
+          };
+          const result = buildCandleSeries({
+            candles,
+            corporateActions: [corporateAction],
+            ticker: "PETR4",
+            timeframe: "D1",
+            at: "2024-01-02T23:00:00.000Z",
+          });
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          const adjusted = result.value.adjusted[0];
+          if (!adjusted) throw new Error("expected one adjusted candle");
+          const nominalValue = Number(close) * tradedQuantity;
+          const adjustedValue = Number(adjusted.close) * adjusted.tradedQuantity;
+          const tolerance = 0.5 * Number(adjusted.close) + 0.005 * adjusted.tradedQuantity + 0.01;
+          expect(Math.abs(adjustedValue - nominalValue)).toBeLessThanOrEqual(tolerance);
+        },
+      ),
+    );
   });
 
   it("ignores a factor whose asOf is after the truncation instant (I1)", () => {
