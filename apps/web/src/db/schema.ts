@@ -1,3 +1,4 @@
+export * from "../modules/audit/schema";
 export * from "../modules/auth/schema";
 export * from "../modules/backtests/schema";
 export * from "../modules/decisions/schema";

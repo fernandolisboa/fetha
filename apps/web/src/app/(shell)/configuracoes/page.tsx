@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
 import { requireUser, SignOutButton } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
@@ -12,6 +13,7 @@ export default async function SettingsPage() {
   await requireUser();
   const preferences = await getPreferences();
   const riskProfile = await getCurrentRiskProfile();
+  const accessLog = await getMyAccessLog();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
@@ -36,6 +38,14 @@ export default async function SettingsPage() {
           </p>
         </div>
         <RiskProfileForm current={riskProfile} />
+      </section>
+
+      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+        <div>
+          <h2 className="text-sm font-medium">{auditStrings.accessLog.title}</h2>
+          <p className="text-muted-foreground text-xs">{auditStrings.accessLog.subtitle}</p>
+        </div>
+        <AccessLogPanel entries={accessLog} />
       </section>
 
       <section>

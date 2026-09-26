@@ -408,6 +408,12 @@ password. Sign-in only: clicking it never creates a new account, so it cannot be
 terms/privacy acceptance or `REGISTRATION_MODE` (ADR-0018). pt-BR: "link mágico".
 _Avoid_: passwordless login, one-time login link
 
+**Access log**:
+The per-user record of each read or export of that user's portfolio and decision data: when,
+which event, from which IP address and device. Kept 180 days and shown under Configurações
+(ADR-0027). pt-BR: "registro de acesso".
+_Avoid_: audit trail (in copy), activity feed, history
+
 **Password reset**:
 The flow that lets a user set a new password after proving control of their email through a
 one-time link, revoking every session that predates the reset (ADR-0018).
