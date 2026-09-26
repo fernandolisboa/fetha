@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 
 import { readLatestLink, signUp } from "./support";
 
-const password = "correct-horse-battery-staple";
+export const password = "correct-horse-battery-staple";
 
 export async function registerAndSignIn(
   page: Page,

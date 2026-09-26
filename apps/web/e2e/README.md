@@ -81,4 +81,6 @@ browser offline and checks that a navigation renders the "Sem conexão" page.
 
 `account.spec.ts` covers the LGPD flows (#31, ADR-0027): it registers and signs in, downloads
 "Exportar meus dados" from Configurações, checks the file is a `fetha-export/1` document holding
-the new user, and checks the export shows up in the access log. Needs `E2E_SECRET`.
+the new user, and checks the export shows up in the access log. A second test deletes a fresh
+account from Configurações (a wrong password first, then the right one), lands on
+`/conta-excluida` and checks the same credentials no longer sign in. Needs `E2E_SECRET`.

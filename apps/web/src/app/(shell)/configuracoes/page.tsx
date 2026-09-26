@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
 import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
-import { requireUser, SignOutButton } from "@/modules/auth";
+import { DeleteAccountDialog, requireUser, SignOutButton, t as authStrings } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
 import { RiskProfileForm } from "@/modules/portfolio/client";
@@ -57,6 +57,16 @@ export default async function SettingsPage() {
           <p className="text-muted-foreground text-xs">{auditStrings.accessLog.subtitle}</p>
         </div>
         <AccessLogPanel entries={accessLog} />
+      </section>
+
+      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+        <div>
+          <h2 className="text-sm font-medium">{authStrings.deleteAccount.title}</h2>
+          <p className="text-muted-foreground text-xs">{authStrings.deleteAccount.subtitle}</p>
+        </div>
+        <div>
+          <DeleteAccountDialog />
+        </div>
       </section>
 
       <section>

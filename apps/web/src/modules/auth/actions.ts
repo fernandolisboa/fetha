@@ -3,8 +3,13 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getDb } from "@/db/client";
+
+import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
 import type { ActionState } from "./action-state";
+import { requireUser, withAuthenticatedAction } from "./session";
 import {
+  deleteAccount,
   requestPasswordReset,
   resendVerification,
   resetPassword,
@@ -15,6 +20,7 @@ import {
 } from "./service";
 import { t } from "./strings";
 import {
+  deleteAccountFormSchema,
   magicLinkFormSchema,
   requestPasswordResetFormSchema,
   resendVerificationFormSchema,
@@ -214,4 +220,49 @@ export async function signOutAction(): Promise<void> {
   const requestHeaders = await headers();
   await signOut(requestHeaders);
   redirect("/entrar");
+}
+
+// The action's own account bucket (docs/adr/0027): Better Auth's rule on
+// `/delete-user` is per IP, and this one is per signed-in account.
+const DELETE_ACCOUNT_RATE_LIMIT = { windowSeconds: 60, max: 3 };
+
+export async function deleteAccountAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = deleteAccountFormSchema.safeParse({ password: formData.get("password") });
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidPassword };
+  }
+
+  const outcome = await withAuthenticatedAction(async () => {
+    const user = await requireUser();
+    try {
+      await enforceAccountRateLimit(
+        getDb(),
+        user.email,
+        "account/delete",
+        DELETE_ACCOUNT_RATE_LIMIT,
+      );
+    } catch (error) {
+      if (error instanceof AccountRateLimitExceededError) {
+        return { status: "rate_limited" } as const;
+      }
+      throw error;
+    }
+    return deleteAccount(parsed.data.password, await headers());
+  });
+
+  switch (outcome.status) {
+    case "ok":
+      redirect("/conta-excluida");
+    case "invalid_password":
+      return { status: "error", message: errors.invalidPassword };
+    case "rate_limited":
+      return { status: "error", message: errors.rateLimited };
+    case "failed":
+      return { status: "error", message: errors.deleteAccountFailed };
+  }
 }

@@ -414,6 +414,11 @@ which event, from which IP address and device. Kept 180 days and shown under Con
 (ADR-0027). pt-BR: "registro de acesso".
 _Avoid_: audit trail (in copy), activity feed, history
 
+**Account deletion**:
+The user's own, immediate and final removal of their account and every row tied to it, confirmed
+with their password (ADR-0027). There is no grace period and no recovery. pt-BR: "excluir conta".
+_Avoid_: deactivation, closing the account, soft delete
+
 **Password reset**:
 The flow that lets a user set a new password after proving control of their email through a
 one-time link, revoking every session that predates the reset (ADR-0018).

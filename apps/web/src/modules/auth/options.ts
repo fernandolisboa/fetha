@@ -20,6 +20,7 @@ import { buildMagicLinkEmail } from "./email/magic-link-email";
 import { buildPasswordResetEmail } from "./email/password-reset-email";
 import { buildVerificationEmail } from "./email/verification-email";
 import { getMailer } from "./email/select";
+import { deleteOperationalRowsOf } from "./account-deletion";
 import type { Mailer } from "./email/mailer";
 import { isProductionDeployment, readAuthBaseUrl, type AuthEnv } from "./env";
 import { consumePendingInviteSafely, hasPendingInvite } from "./invite-repository";
@@ -47,6 +48,7 @@ const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["cust
   "/request-password-reset": { window: 60, max: 3 },
   "/reset-password": { window: 60, max: 5 },
   "/send-verification-email": { window: 60, max: 3 },
+  "/delete-user": { window: 60, max: 3 },
 };
 
 // The rules above are IP-and-path only (Better Auth has no per-account
@@ -82,6 +84,13 @@ const signUpNameSchema = z.object({
     .string()
     .refine((name) => name === name.trim())
     .pipe(nameField),
+});
+
+// Account deletion always takes the password (docs/adr/0027): Better Auth
+// would otherwise also accept a fresh session alone, or an emailed token.
+const deleteUserBodySchema = z.object({
+  password: z.string().min(1),
+  token: z.never().optional(),
 });
 
 const signUpEmailBodySchema = z.object({
@@ -144,6 +153,12 @@ export function buildAuthOptions(
       return [baseURL, new URL(request.url).origin];
     },
     user: {
+      deleteUser: {
+        enabled: true,
+        beforeDelete: async (deletedUser) => {
+          await deleteOperationalRowsOf(db, deletedUser);
+        },
+      },
       additionalFields: {
         // required: false here means "the client request body does not need
         // to carry it"; the value is always supplied by
@@ -217,6 +232,13 @@ export function buildAuthOptions(
               throw error;
             }
           }
+        }
+
+        if (ctx.path === "/delete-user/callback") {
+          throw new APIError("NOT_FOUND");
+        }
+        if (ctx.path === "/delete-user" && !deleteUserBodySchema.safeParse(ctx.body).success) {
+          throw new APIError("BAD_REQUEST", { message: "password_required" });
         }
 
         if (ctx.path !== "/sign-up/email") {

@@ -29,14 +29,7 @@ export interface UserFootprint {
   strategyVersionId: string;
 }
 
-// One row in every table that holds a user's data, inserted directly: the
-// LGPD export and deletion tests (docs/adr/0027) need breadth, not realistic
-// payloads, so jsonb columns carry placeholders no reader parses here.
-export async function seedUserFootprint(db: Database, owner: ScopedUser): Promise<UserFootprint> {
-  const userId = owner.id;
-  const tag = crypto.randomUUID();
-  const at = new Date();
-
+async function seedAuthRows(db: Database, userId: string, tag: string, at: Date): Promise<void> {
   await db.insert(session).values({
     id: `session-${tag}`,
     token: `token-${tag}`,
@@ -54,6 +47,25 @@ export async function seedUserFootprint(db: Database, owner: ScopedUser): Promis
     updatedAt: at,
     userId,
   });
+}
+
+// One row in every table that holds a user's data, inserted directly: the
+// LGPD export and deletion tests (docs/adr/0027) need breadth, not realistic
+// payloads, so jsonb columns carry placeholders no reader parses here.
+// `withAuthRows: false` leaves `session` and `account` alone, for a user who
+// already signed up for real and must keep a working password.
+export async function seedUserFootprint(
+  db: Database,
+  owner: ScopedUser,
+  { withAuthRows = true }: { withAuthRows?: boolean } = {},
+): Promise<UserFootprint> {
+  const userId = owner.id;
+  const tag = crypto.randomUUID();
+  const at = new Date();
+
+  if (withAuthRows) {
+    await seedAuthRows(db, userId, tag, at);
+  }
   await db.insert(termsAcceptances).values({ userId, termsVersion: "footprint" });
   const [profile] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId));
   await db

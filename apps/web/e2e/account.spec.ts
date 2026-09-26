@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
-import { registerAndSignIn } from "./helpers";
+import { password, registerAndSignIn } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 const e2eSecret = process.env.E2E_SECRET;
@@ -27,4 +27,27 @@ test("export my data as a JSON file", async ({ page, baseURL, request }) => {
 
   await page.reload();
   await expect(page.getByRole("cell", { name: "Exportação dos dados" })).toBeVisible();
+});
+
+test("delete my account and every piece of its data", async ({ page, baseURL, request }) => {
+  const email = await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.goto("/configuracoes");
+  await page.getByRole("button", { name: "Excluir minha conta" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Senha").fill("not-the-password");
+  await dialog.getByRole("button", { name: "Excluir conta" }).click();
+  await expect(dialog.getByText("Senha incorreta.")).toBeVisible();
+
+  await dialog.getByLabel("Senha").fill(password);
+  await dialog.getByRole("button", { name: "Excluir conta" }).click();
+  await expect(page).toHaveURL(/\/conta-excluida$/);
+  await expect(page.getByRole("heading", { name: "Conta excluída" })).toBeVisible();
+
+  await page.goto("/configuracoes");
+  await expect(page).toHaveURL(/\/entrar/);
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill(password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByText("E-mail ou senha incorretos.")).toBeVisible();
 });
