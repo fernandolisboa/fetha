@@ -771,21 +771,25 @@ function resolveSizingUnits(
     ok: false as const,
     error: { code: "unsizeable", reason: "zero_units" },
   } satisfies { ok: false; error: EngineError };
+  const unaffordableBudget = {
+    ok: false as const,
+    error: { code: "unsizeable", reason: "unaffordable_budget" },
+  } satisfies { ok: false; error: EngineError };
   const unboundedMaxLoss = {
     ok: false as const,
     error: { code: "unsizeable", reason: "unbounded_max_loss" },
   } satisfies { ok: false; error: EngineError };
 
-  // `zero_units` here conflates two different reasons: perUnit <= 0 is a genuinely zero
-  // max loss/premium, while floor(capital * fraction / perUnit) < 1 is a positive per-unit
-  // cost the budget cannot afford one unit of. Left unsplit pending a UnsizeableReason
-  // member for the unaffordable case (github.com/fernandolisboa/fetha/issues/59).
+  // `perUnit <= 0` is a genuinely zero max loss/premium (`zero_units`); a positive per-unit
+  // cost that `floor(capital * fraction / perUnit) < 1` cannot afford one unit of is a
+  // different situation (`unaffordable_budget`, issue #59): the structure has real risk or
+  // premium, the declared capital and fraction just do not cover one unit of it.
   const unitsFromPerUnit = (
     perUnit: Decimal,
   ): { ok: true; units: number } | { ok: false; error: EngineError } => {
     if (perUnit.lte(0)) return zeroUnits;
     const units = capital.mul(fraction).div(perUnit).floor().toNumber();
-    return units >= 1 ? { ok: true, units } : zeroUnits;
+    return units >= 1 ? { ok: true, units } : unaffordableBudget;
   };
 
   if (sizing.kind === "fixed_risk") {

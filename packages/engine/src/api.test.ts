@@ -231,7 +231,12 @@ describe("closed vocabularies", () => {
 
   it("enumerates unsizeable reasons", () => {
     expectTypeOf<(typeof unsizeableReasons)[number]>().toEqualTypeOf<UnsizeableReason>();
-    expect(unsizeableReasons).toEqual(["unbounded_max_loss", "no_declared_capital", "zero_units"]);
+    expect(unsizeableReasons).toEqual([
+      "unbounded_max_loss",
+      "no_declared_capital",
+      "zero_units",
+      "unaffordable_budget",
+    ]);
   });
 
   it("enumerates note codes", () => {

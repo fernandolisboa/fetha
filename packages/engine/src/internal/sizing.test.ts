@@ -23,14 +23,14 @@ describe("sizeStockEntry", () => {
     expect(result).toEqual({ ok: false, detail: "no_declared_capital" });
   });
 
-  it("is unsizeable when the fraction yields fewer than one unit", () => {
+  it("is unsizeable(unaffordable_budget) when the fraction yields fewer than one unit", () => {
     const result = sizeStockEntry({
       sizing: { kind: "fixed_fractional", fraction: decimalString("0.10") },
       declaredCapital: centavos(100_00),
       legs: [{ side: "buy", ratio: 1 }],
       price: decimalString("25.00"),
     });
-    expect(result).toEqual({ ok: false, detail: "zero_units" });
+    expect(result).toEqual({ ok: false, detail: "unaffordable_budget" });
   });
 
   it("is unsizeable when the price is non-positive, never dividing by zero", () => {

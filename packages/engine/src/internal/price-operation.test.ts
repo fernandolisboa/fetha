@@ -1963,7 +1963,7 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
   });
 
-  it("returns unsizeable(zero_units) when the budget cannot afford one unit (R$100 budget, R$500 per unit)", () => {
+  it("returns unsizeable(unaffordable_budget) when the budget cannot afford one unit (R$100 budget, R$500 per unit)", () => {
     const expensiveView: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -2004,7 +2004,7 @@ describe("priceOperation (selection: quantity resolution)", () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unaffordable_budget" });
   });
 
   it("returns missing_instrument when a LegSelection's underlying has no visible spot", () => {

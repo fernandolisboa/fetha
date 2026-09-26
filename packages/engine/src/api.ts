@@ -26,11 +26,13 @@ export const ENGINE_VERSION = "0.2.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
-export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital" | "zero_units";
+export type UnsizeableReason =
+  "unbounded_max_loss" | "no_declared_capital" | "zero_units" | "unaffordable_budget";
 export const unsizeableReasons = [
   "unbounded_max_loss",
   "no_declared_capital",
   "zero_units",
+  "unaffordable_budget",
 ] as const satisfies readonly UnsizeableReason[];
 
 export type EngineError =
