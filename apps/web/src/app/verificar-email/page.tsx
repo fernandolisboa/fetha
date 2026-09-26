@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AuthShell, ResendVerificationForm, t } from "@/modules/auth";
+import { AuthShell, parseEmailQueryParam, ResendVerificationForm, t } from "@/modules/auth";
 
 export const metadata: Metadata = { title: `Fetha · ${t.verifyEmail.title}` };
 
@@ -9,7 +9,8 @@ export default async function VerifyEmailPage({
 }: {
   searchParams: Promise<{ email?: string }>;
 }) {
-  const { email } = await searchParams;
+  const { email: rawEmail } = await searchParams;
+  const email = parseEmailQueryParam(rawEmail);
 
   return (
     <AuthShell title={t.verifyEmail.title}>
