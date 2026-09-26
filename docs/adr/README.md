@@ -32,5 +32,6 @@ supersedes or amends them and says so.
 | 0024 | Account rate-limit buckets are keyed by an email hash and purged after 60 seconds (amends 0018)                 |
 | 0025 | The PWA caches build output only; pages and API responses never reach Cache Storage                             |
 | 0026 | HTTP security headers on every response; a script-src CSP waits for nonces                                      |
+| 0027 | LGPD: an access log written by read models, a per-module data export, deletion through Better Auth              |
 
 Open: none.

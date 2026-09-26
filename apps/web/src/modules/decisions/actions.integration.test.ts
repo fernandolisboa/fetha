@@ -27,6 +27,10 @@ import { structures } from "@/modules/strategies/schema";
 
 let currentUser: CurrentUser | null = null;
 
+// The read models these actions call write an access-log row (docs/adr/0027),
+// which reads the request's headers.
+vi.mock("next/headers", () => ({ headers: () => Promise.resolve(new Headers()) }));
+
 vi.mock("@/modules/auth", async () => {
   const actual = await vi.importActual<typeof import("@/modules/auth")>("@/modules/auth");
   return {

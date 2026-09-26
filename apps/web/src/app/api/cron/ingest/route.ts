@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db/client";
+import { purgeExpiredAccessLog } from "@/modules/audit";
 import { scoreDueDecisions } from "@/modules/decisions";
 import { ingest, type IngestOutcome } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -77,7 +78,13 @@ async function runIngestion(session: string | undefined): Promise<NextResponse> 
     { deadlineAt },
   );
 
-  return NextResponse.json({ ...result, evaluation, scoring }, { status: result.ok ? 200 : 500 });
+  // Access-log retention (docs/adr/0027): reported alongside, never a 500.
+  const accessLogPurge = await purgeExpiredAccessLog(db);
+
+  return NextResponse.json(
+    { ...result, evaluation, scoring, accessLogPurge },
+    { status: result.ok ? 200 : 500 },
+  );
 }
 
 export async function GET(request: Request): Promise<NextResponse> {

@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { getDb } from "@/db/client";
+import { recordAccess } from "@/modules/audit";
 import { forCurrentUser } from "@/modules/auth";
 
 import {
@@ -12,6 +13,7 @@ import { DecisionsRepository, type DecisionListItem } from "./decisions-reposito
 
 export const getMyDecisions = cache(async (): Promise<DecisionListItem[]> => {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  await recordAccess("decisions_read");
   return repository.listMine();
 });
 
@@ -22,12 +24,14 @@ export const getMyDecisionScores = cache(
   async (decisionIds: readonly string[]): Promise<Map<string, DecisionScoreRow>> => {
     if (decisionIds.length === 0) return new Map();
     const repository = await forCurrentUser(getDb(), DecisionScoresRepository);
+    await recordAccess("decisions_read");
     return repository.findForDecisions(decisionIds);
   },
 );
 
 export const getMyTrackRecordStats = cache(async (): Promise<TrackRecordStats> => {
   const repository = await forCurrentUser(getDb(), DecisionScoresRepository);
+  await recordAccess("decisions_read");
   return repository.trackRecordStats();
 });
 
@@ -39,6 +43,7 @@ export async function getMyDecisionsBySignalId(
   signalIds: readonly string[],
 ): Promise<Map<string, DecisionListItem>> {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  await recordAccess("decisions_read");
   return repository.findForSignals(signalIds);
 }
 
@@ -48,6 +53,7 @@ export async function getMyDecisionsByOperationId(
   operationIds: readonly string[],
 ): Promise<Map<string, DecisionListItem>> {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  await recordAccess("decisions_read");
   return repository.findLatestForOperations(operationIds);
 }
 
@@ -56,5 +62,6 @@ export async function getMyDecisionsByHeldOperationId(
   operationIds: readonly string[],
 ): Promise<Map<string, DecisionListItem>> {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  await recordAccess("decisions_read");
   return repository.findLatestForHeldOperations(operationIds);
 }

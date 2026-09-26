@@ -19,6 +19,7 @@ data, the catalog and strategies a user chose to share.
 | module        | owns                                                                                                                                                                                                                             | exposes                                                                                |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `auth`        | accounts, sessions, registration mode, terms acceptance, sign-in (password or magic link), password reset, rate limiting                                                                                                         | the current user                                                                       |
+| `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                      | the current user's access log; `recordAccess` for read models                          |
 | `preferences` | per-user workstation settings (theme, rail collapse state)                                                                                                                                                                       | the current user's preferences                                                         |
 | `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface |
 | `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                              | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)               |
@@ -112,4 +113,5 @@ reset and database-backed rate limiting (0018), vertical slices inside the singl
 are stored, positions and cash derived (0021), decisions on held operations scored with the
 portfolio's own fills (0022), strategy comparison and walk-forward over persisted runs (0023),
 account rate-limit keys hashed and purged (0024), a PWA that caches build output only (0025),
-HTTP security headers on every response (0026).
+HTTP security headers on every response (0026), LGPD: access log, data export and account
+deletion (0027).

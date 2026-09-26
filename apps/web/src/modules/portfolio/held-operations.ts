@@ -6,6 +6,7 @@ import { getDb, type Database } from "@/db/client";
 import { nowInstant } from "@/lib/instant";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
+import { recordAccess } from "@/modules/audit";
 import { requireUser } from "@/modules/auth";
 import { tradingSessionForDate } from "@/modules/market-data";
 
@@ -35,6 +36,7 @@ export class HeldOperationNotFoundError extends Error {
 // expiry session has not closed; one pending settlement is settled, not held.
 export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperation> => {
   const user = await requireUser();
+  await recordAccess("portfolio_read");
   const db = getDb();
   const repository = new PortfolioRepository(db, user);
   const [operations, fills] = await Promise.all([
