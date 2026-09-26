@@ -18,13 +18,13 @@ async function cachedUrls(page: Page): Promise<URL[]> {
   return urls.map((url) => new URL(url));
 }
 
-function userData(urls: URL[]): string[] {
+function outsideBuildOutput(urls: URL[]): string[] {
   return urls
     .filter(
       (url) =>
-        url.pathname.startsWith("/api/") ||
-        url.searchParams.has("_rsc") ||
-        !/\.[a-z0-9]+$/i.test(url.pathname),
+        !url.pathname.startsWith("/_next/static/") &&
+        !url.pathname.startsWith("/icons/") &&
+        url.pathname !== "/offline.html",
     )
     .map((url) => url.pathname + url.search);
 }
@@ -48,14 +48,14 @@ test("the service worker never stores pages or API responses", async ({
   await expect(page).toHaveURL(/\/carteira/);
   expect(await page.evaluate(() => fetch("/api/auth/get-session").then((r) => r.status))).toBe(200);
 
-  expect(userData(await cachedUrls(page))).toEqual([]);
+  expect(outsideBuildOutput(await cachedUrls(page))).toEqual([]);
 
   await page.getByRole("button", { name: "Menu da conta" }).click();
   await page.getByRole("button", { name: "Sair" }).click();
   await expect(page).toHaveURL(/\/entrar/);
 
   const afterSignOut = await cachedUrls(page);
-  expect(userData(afterSignOut)).toEqual([]);
+  expect(outsideBuildOutput(afterSignOut)).toEqual([]);
   expect(afterSignOut.map((url) => url.pathname)).toContain("/offline.html");
 
   const offlinePage = await page.evaluate(async () => {
