@@ -1,0 +1,47 @@
+import { describe, expect, it } from "vitest";
+
+import { legalText } from "./legal-text";
+import { CURRENT_TERMS_VERSION } from "./terms";
+
+function versionDate(version: string): string {
+  const [year, month, day] = version.split("-");
+  return `${day ?? ""}/${month ?? ""}/${year ?? ""}`;
+}
+
+function fullText(language: keyof typeof legalText): string {
+  const { terms, privacy } = legalText[language];
+  return [terms, privacy]
+    .flatMap((document) => document.sections.flatMap((section) => section.paragraphs))
+    .join(" ");
+}
+
+describe("legal text", () => {
+  it("dates both documents with the terms version users accept", () => {
+    for (const language of ["en", "ptBR"] as const) {
+      const { terms, privacy } = legalText[language];
+      expect(terms.updated).toContain(versionDate(CURRENT_TERMS_VERSION));
+      expect(privacy.updated).toContain(versionDate(CURRENT_TERMS_VERSION));
+    }
+  });
+
+  it("ships the same structure in both languages", () => {
+    for (const key of ["terms", "privacy"] as const) {
+      const en = legalText.en[key].sections.map((section) => section.paragraphs.length);
+      const ptBR = legalText.ptBR[key].sections.map((section) => section.paragraphs.length);
+      expect(ptBR).toEqual(en);
+    }
+  });
+
+  it("states that every decision is the user's own and who answers for a provider token", () => {
+    const text = fullText("ptBR");
+    expect(text).toContain("Toda decisão que você tomar");
+    expect(text).toContain("token de um provedor de dados");
+  });
+
+  it("states the retention the code enforces", () => {
+    const text = fullText("ptBR");
+    expect(text).toContain("180 dias");
+    expect(text).toContain("SHA-256");
+    expect(text).toContain("cerca de um minuto");
+  });
+});
