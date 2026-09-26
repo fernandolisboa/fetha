@@ -1695,8 +1695,10 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     is `numeric(18, 8)`) keeps its exact value instead of rounding to centavos. `runBacktest` reuses
     that same string for the recorded fill, `fillCosts`, `grossCentavos` and the buy/sell cost
     accumulators, so a run's money is unchanged for every strike (main and this branch agree, byte
-    for byte, in centavos); the only change to a run's artifacts is that a round strike's recorded
-    settlement price loses its trailing zeros beyond two decimals (`"11.00000000"` → `"11.00"`).
+    for byte, in centavos); the only change to a run's artifacts is that the recorded settlement
+    price is written in canonical form at no less than two decimals: trailing zeros beyond the
+    strike's own precision are dropped (`"11.00000000"` → `"11.00"`) and a strike with fewer than
+    two decimals is padded (`"183000"` → `"183000.00"`).
     `proposeSettlement`, which was rounding a >2dp strike to centavos before this ticket, now
     settles it at its exact value instead — a real money delta for that one caller, scoped to
     strikes `proposeSettlement` never saw exercised in a fixture.
