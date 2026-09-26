@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { requireUser } from "@/modules/auth";
-import { EmptyState, t as shellStrings } from "@/modules/shell";
+import { EmptyState, PageHeader, t as shellStrings } from "@/modules/shell";
 import { getCurrentRiskProfile, t } from "@/modules/portfolio";
 import { OperationBuilderForm } from "@/modules/portfolio/client";
 import { getStructures } from "@/modules/strategies";
@@ -18,12 +18,7 @@ export default async function NewOperationPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.builder.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.builder.title}</h1>
-      </div>
+      <PageHeader overline={t.builder.overline} headline={t.builder.title} />
       <OperationBuilderForm structures={structures} hasRiskProfile={riskProfile !== null} />
     </div>
   );

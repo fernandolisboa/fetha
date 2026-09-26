@@ -9,7 +9,7 @@ import {
   TrackRecordPanel,
   t,
 } from "@/modules/decisions";
-import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
+import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.journal}` };
 
@@ -28,12 +28,7 @@ export default async function JournalPage() {
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.journal.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.journal.title}</h1>
-      </div>
+      <PageHeader overline={t.journal.overline} headline={t.journal.title} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
         <Panel>

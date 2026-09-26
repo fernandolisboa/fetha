@@ -4,7 +4,7 @@ import Link from "next/link";
 import { formatDate } from "@/lib/format/date-time";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
-import { EmptyState, Panel, t as shellStrings } from "@/modules/shell";
+import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
   AddInstrumentCombobox,
   getMyWatchlist,
@@ -21,15 +21,11 @@ export default async function WatchlistPage() {
   if (items.length === 0) {
     return (
       <div className="flex flex-1 flex-col gap-8 px-5 py-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-              {t.page.overline}
-            </p>
-            <h1 className="text-[22px] font-semibold tracking-tight">{t.page.title}</h1>
-          </div>
-          <AddInstrumentCombobox />
-        </div>
+        <PageHeader
+          overline={t.page.overline}
+          headline={t.page.title}
+          actions={<AddInstrumentCombobox />}
+        />
         <EmptyState sentence={shellStrings.emptyStates.watchlist.sentence} />
       </div>
     );
@@ -37,15 +33,11 @@ export default async function WatchlistPage() {
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-            {t.page.overline}
-          </p>
-          <h1 className="text-[22px] font-semibold tracking-tight">{t.page.title}</h1>
-        </div>
-        <AddInstrumentCombobox />
-      </div>
+      <PageHeader
+        overline={t.page.overline}
+        headline={t.page.title}
+        actions={<AddInstrumentCombobox />}
+      />
 
       <Panel>
         <table className="w-full text-left text-sm">

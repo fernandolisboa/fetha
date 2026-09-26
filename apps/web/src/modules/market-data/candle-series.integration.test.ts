@@ -8,6 +8,7 @@ import { candles, corporateActionFactors } from "./schema";
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { loadCandleSeries } from "./candle-series";
 import { upsertDailyCandles } from "./repositories/candle-repository";
+import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const TICKER = "CSER3" as Ticker;
 
@@ -126,5 +127,34 @@ describe("loadCandleSeries", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.candles).toHaveLength(0);
+  });
+
+  it("reads rows stored under the storage timeframe (1d) as the engine's D1 request (issue #71)", async () => {
+    const db = getDb();
+    const session = "2026-05-11";
+    await ensureMonthlyPartition(db, "candles", session);
+    await db.insert(candles).values({
+      ticker: TICKER,
+      timeframe: "1d",
+      session,
+      asOf: new Date("2026-05-11T21:00:00.000Z"),
+      open: "10.000000",
+      high: "11.000000",
+      low: "9.000000",
+      close: "10.750000",
+      tradedQuantity: 5000,
+    });
+
+    const result = await loadCandleSeries(
+      db,
+      TICKER,
+      "nominal",
+      new Date("2026-05-12T12:00:00.000Z"),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candles).toHaveLength(1);
+    expect(result.value.candles[0]?.close).toBe("10.750000");
   });
 });

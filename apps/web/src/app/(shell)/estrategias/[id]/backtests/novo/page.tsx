@@ -5,7 +5,7 @@ import { requireUser } from "@/modules/auth";
 import { t } from "@/modules/backtests";
 import { CreateRunForm } from "@/modules/backtests/client";
 import { getMyStrategy, StrategyNotFoundError } from "@/modules/strategies";
-import { Panel } from "@/modules/shell";
+import { PageHeader, Panel } from "@/modules/shell";
 import { getMyWatchlist } from "@/modules/watchlist";
 
 export const metadata: Metadata = { title: `Fetha · ${t.create.title}` };
@@ -32,12 +32,7 @@ export default async function NewBacktestRunPage({ params }: { params: Promise<{
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6 px-5 py-8">
-      <div>
-        <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
-          {t.create.overline}
-        </p>
-        <h1 className="text-[22px] font-semibold tracking-tight">{strategy.name}</h1>
-      </div>
+      <PageHeader overline={t.create.overline} headline={strategy.name} />
 
       <Panel>
         {watchlist.length === 0 ? (
