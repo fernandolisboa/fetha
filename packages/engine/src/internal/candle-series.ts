@@ -156,7 +156,11 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
         toDecimalString(new Decimal(c[field]).mul(product), PRICE_SCALE),
       ]),
     );
-    return { ...c, ...adjustedFields };
+    return {
+      ...c,
+      ...adjustedFields,
+      tradedQuantity: scaleTradedQuantity(c.tradedQuantity, product),
+    };
   });
 
   return { ok: true, value: { nominal, adjusted, truncated } };
@@ -164,4 +168,16 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
 
 export function isPositiveDecimal(value: string): boolean {
   return new Decimal(value).isPositive() && !new Decimal(value).isZero();
+}
+
+// UBIQUITOUS_LANGUAGE.md's corporate-action factor applies to "earlier prices and quantities":
+// tradedQuantity scales by the inverse of the price factor (a 2-for-1 split doubles the share
+// count that traded at half the price). Rounded half up to the nearest integer, ties included,
+// so the adjusted series never reports a fractional share count while staying the closest whole
+// number to the true pre-split count.
+function scaleTradedQuantity(tradedQuantity: number, product: Decimal): number {
+  return new Decimal(tradedQuantity)
+    .div(product)
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+    .toNumber();
 }
