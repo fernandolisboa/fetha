@@ -9,3 +9,4 @@ export { RemoveFromWatchlistButton } from "./components/remove-from-watchlist-bu
 export { getMyWatchlist, type WatchlistRow } from "./queries";
 export { watchlistStrings, t } from "./strings";
 export { WatchlistRepository, type WatchlistItem } from "./watchlist-repository";
+export { WatchlistDataExport } from "./data-export";

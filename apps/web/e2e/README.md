@@ -78,3 +78,7 @@ then asserts Cache Storage holds no `/api/*` response, RSC payload or page, befo
 signing out, and that the precached `offline.html` is the "Sem conexão" page. That test needs
 `E2E_SECRET`. A second test needs no secret: once the worker controls the page it switches the
 browser offline and checks that a navigation renders the "Sem conexão" page.
+
+`account.spec.ts` covers the LGPD flows (#31, ADR-0027): it registers and signs in, downloads
+"Exportar meus dados" from Configurações, checks the file is a `fetha-export/1` document holding
+the new user, and checks the export shows up in the access log. Needs `E2E_SECRET`.

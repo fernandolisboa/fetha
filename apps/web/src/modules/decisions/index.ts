@@ -24,3 +24,4 @@ export {
 } from "./resolve-default-horizon";
 export { scoreDueDecisions, type ScoreDecisionsOutcome } from "./scoring-service";
 export { t } from "./strings";
+export { DecisionsDataExport } from "./data-export";

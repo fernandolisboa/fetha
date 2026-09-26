@@ -25,3 +25,4 @@ export { declareRiskProfileAction, type RiskProfileActionResult } from "./risk-p
 export { getCurrentRiskProfile } from "./risk-profile-queries";
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
+export { PortfolioDataExport } from "./data-export";

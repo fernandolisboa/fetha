@@ -36,3 +36,4 @@ export {
 } from "./strategies-repository";
 export { StructuresRepository } from "./structures-repository";
 export { evaluationLabel, strategiesStrings, t } from "./strings";
+export { StrategiesDataExport } from "./data-export";

@@ -16,3 +16,4 @@ export { ComparisonView } from "./components/comparison-view";
 export { CompareRunsPicker } from "./components/compare-runs-picker";
 export { ReportPanel } from "./components/report-panel";
 export { runErrorMessage, isResumableRunError, t } from "./strings";
+export { BacktestsDataExport } from "./data-export";
