@@ -87,6 +87,55 @@ describe("buildCandleSeries", () => {
     expect(result.value.nominal.map((c) => c.tradedQuantity)).toEqual([1000, 2000, 2100]);
   });
 
+  it("divides tradedQuantity by a 1-for-10 reverse split's factor, rounding a tie half up", () => {
+    const candles = [
+      candle("2024-01-02", "1.00", undefined, 1000),
+      candle("2024-01-03", "1.00", undefined, 1005),
+    ];
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("10"),
+    };
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factor],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.tradedQuantity)).toEqual([100, 101]);
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["10.00", "10.00"]);
+  });
+
+  it("scales tradedQuantity by the product of every visible factor after the session", () => {
+    const candles = [
+      candle("2024-01-02", "10.00", undefined, 1000),
+      candle("2024-01-03", "5.00", undefined, 1000),
+      candle("2024-01-04", "2.50", undefined, 1000),
+    ];
+    const factorOn = (exDate: string): CorporateActionFactor => ({
+      ticker: "PETR4",
+      exDate,
+      asOf: `${exDate}T13:00:00.000Z`,
+      factor: decimalString("0.5"),
+    });
+    const result = buildCandleSeries({
+      candles,
+      corporateActions: [factorOn("2024-01-03"), factorOn("2024-01-04")],
+      ticker: "PETR4",
+      timeframe: "D1",
+      at: "2024-01-04T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.adjusted.map((c) => c.tradedQuantity)).toEqual([4000, 2000, 1000]);
+    expect(result.value.adjusted.map((c) => c.close)).toEqual(["2.50", "2.50", "2.50"]);
+  });
+
   it("rounds a non-integer scaled tradedQuantity half up, breaking exact ties upward", () => {
     const candles = [candle("2024-01-02", "10.00", undefined, 1)];
     const factor: CorporateActionFactor = {
@@ -133,10 +182,10 @@ describe("buildCandleSeries", () => {
       fc.property(
         fc.integer({ min: 100, max: 100_000 }),
         fc.integer({ min: 1, max: 1_000_000 }),
-        fc.integer({ min: 10, max: 900 }),
-        (closeCents, tradedQuantity, factorBasisPoints) => {
+        fc.oneof(fc.integer({ min: 10, max: 900 }), fc.integer({ min: 1100, max: 20_000 })),
+        (closeCents, tradedQuantity, factorThousandths) => {
           const close = (closeCents / 100).toFixed(2);
-          const factor = (factorBasisPoints / 1000).toFixed(3);
+          const factor = (factorThousandths / 1000).toFixed(3);
           const candles = [candle("2024-01-02", close, undefined, tradedQuantity)];
           const corporateAction: CorporateActionFactor = {
             ticker: "PETR4",
