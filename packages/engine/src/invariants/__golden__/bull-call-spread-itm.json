@@ -1,0 +1,90 @@
+{
+  "operations": [
+    {
+      "status": "expired",
+      "closedAt": "2024-01-16",
+      "pnl": -588,
+      "settlement": [
+        {
+          "leg": {
+            "role": "call",
+            "side": "buy",
+            "ticker": "PETR4C11",
+            "quantity": 250,
+            "entryPrice": "4.50"
+          },
+          "outcome": "exercised",
+          "intrinsicValue": "4.00",
+          "fills": [
+            {
+              "ticker": "PETR4",
+              "side": "buy",
+              "quantity": 250,
+              "price": "11.00",
+              "session": "2024-01-16",
+              "at": "2024-01-16T20:00:00.000Z",
+              "costs": 238
+            }
+          ]
+        },
+        {
+          "leg": {
+            "role": "call",
+            "side": "sell",
+            "ticker": "PETR4C13",
+            "quantity": 250,
+            "entryPrice": "2.50"
+          },
+          "outcome": "assigned",
+          "intrinsicValue": "2.00",
+          "fills": [
+            {
+              "ticker": "PETR4",
+              "side": "sell",
+              "quantity": 250,
+              "price": "13.00",
+              "session": "2024-01-16",
+              "at": "2024-01-16T20:00:00.000Z",
+              "costs": 263
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fills": [
+    {
+      "ticker": "PETR4",
+      "side": "buy",
+      "quantity": 250,
+      "price": "11.00",
+      "session": "2024-01-16",
+      "at": "2024-01-16T20:00:00.000Z",
+      "costs": 238,
+      "operationId": "v1:PETR4:2024-01-03:0",
+      "source": "settlement"
+    },
+    {
+      "ticker": "PETR4",
+      "side": "sell",
+      "quantity": 250,
+      "price": "13.00",
+      "session": "2024-01-16",
+      "at": "2024-01-16T20:00:00.000Z",
+      "costs": 263,
+      "operationId": "v1:PETR4:2024-01-03:0",
+      "source": "settlement"
+    }
+  ],
+  "taxes": [
+    {
+      "month": "2024-01",
+      "stockSales": 325000,
+      "stockGain": -588,
+      "optionGain": 0,
+      "exemptGain": 0,
+      "netGain": 0,
+      "tax": 0
+    }
+  ]
+}

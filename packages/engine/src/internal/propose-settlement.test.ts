@@ -101,6 +101,50 @@ describe("proposeSettlement", () => {
     });
   });
 
+  it("records a scale-8 strike's fill price at PRICE_SCALE, trailing zeros dropped (#72 review)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [optionSeries("PETR4C11", "call", "11.00000000")],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C11",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.fills[0]?.price).toBe(decimalString("11.00"));
+  });
+
+  it("records a strike with 3 decimal places at its own exact value, not rounded to centavos (#72 review)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [optionSeries("PETR4C11", "call", "11.005")],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C11",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.fills[0]?.price).toBe(decimalString("11.005"));
+  });
+
   it("lets a long call expire worthless out of the money", () => {
     const view: MarketView = {
       ...baseView,
@@ -563,7 +607,7 @@ describe("proposeSettlement", () => {
     expect(result.error).toEqual({
       code: "invalid_input",
       path: "legs[0].strike",
-      message: "a listed strike must be positive",
+      message: "a listed strike must be positive (PETR4C28)",
     });
   });
 
@@ -606,7 +650,7 @@ describe("proposeSettlement", () => {
     expect(result.error).toEqual({
       code: "invalid_input",
       path: "legs[2].strike",
-      message: "a listed strike must be positive",
+      message: "a listed strike must be positive (PETR4C30)",
     });
   });
 

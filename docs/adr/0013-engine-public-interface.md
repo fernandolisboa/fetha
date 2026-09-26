@@ -1680,13 +1680,26 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   bucketing. A stock leg's own split-adjusted quantity and cost-basis bucketing — never a
   `settleLeg` concern, since a stock leg's outcome is always `kept` — stays inline, untouched.
   - **Strike-validation delta, reconciled.** `settleLeg` rejects a non-positive listed strike
-    (`invalidInput`, "a listed strike must be positive"); the inline code `resolveExpiringOperations`
-    replaced never checked this. Every real listed strike is positive (B3 does not list a
-    non-positive strike), so no fixture reaches this branch and the delegation is not an observed
-    behavior change — but it is a new, stricter guard against malformed reference data at this one
-    call site, disclosed here rather than silently introduced. A malformed `MarketView` that
-    previously settled against a zero or negative strike (producing a nonsensical fill) now fails
-    the run with `invalid_input` instead.
+    (`invalidInput`, "a listed strike must be positive (<ticker>)"); the inline code
+    `resolveExpiringOperations` replaced never checked this. Every real listed strike is positive
+    (B3 does not list a non-positive strike), so no fixture reaches this branch and the delegation
+    is not an observed behavior change — but it is a new, stricter guard against malformed
+    reference data at this one call site, disclosed here rather than silently introduced. A
+    malformed `MarketView` that previously settled against a zero or negative strike (producing a
+    nonsensical fill) now fails the run with `invalid_input` instead. The series ticker is folded
+    into the message itself, not just the `legs[i].strike` path, since `runBacktest` reads the
+    offending value off `view.optionSeries[]`, not off a caller-supplied field.
+  - **Price-scale delta, reconciled.** `settleLeg`'s fill price is the listed strike serialized at
+    `max(PRICE_SCALE, strike's own decimal places)`, not at `PRICE_SCALE` alone: a strike with more
+    than two decimals (reachable — `decimalStringSchema` carries no scale, and the persisted column
+    is `numeric(18, 8)`) keeps its exact value instead of rounding to centavos. `runBacktest` reuses
+    that same string for the recorded fill, `fillCosts`, `grossCentavos` and the buy/sell cost
+    accumulators, so a run's money is unchanged for every strike (main and this branch agree, byte
+    for byte, in centavos); the only change to a run's artifacts is that a round strike's recorded
+    settlement price loses its trailing zeros beyond two decimals (`"11.00000000"` → `"11.00"`).
+    `proposeSettlement`, which was rounding a >2dp strike to centavos before this ticket, now
+    settles it at its exact value instead — a real money delta for that one caller, scoped to
+    strikes `proposeSettlement` never saw exercised in a fixture.
   - **Residual accounting is average-cost matching, not a leg-by-leg pairing.** Every stock-typed
     contribution touching an operation's expiry session — its own stock leg, if any, and every
     settlement fill an exercise or assignment produces — is bucketed into a total bought quantity

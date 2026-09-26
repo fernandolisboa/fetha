@@ -14,7 +14,7 @@ import type {
   Side,
   TradingSession,
 } from "../api";
-import { PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
+import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
 import type { ProvenanceBase } from "./provenance";
@@ -68,7 +68,10 @@ export function settleLeg(
   if (!parseDecimal(series.strike).gt(0)) {
     return {
       ok: false,
-      error: invalidInput(`legs[${String(legIndex)}].strike`, "a listed strike must be positive"),
+      error: invalidInput(
+        `legs[${String(legIndex)}].strike`,
+        `a listed strike must be positive (${series.ticker})`,
+      ),
     };
   }
 
@@ -96,7 +99,7 @@ export function settleLeg(
           ticker: underlying,
           side: fillSide,
           quantity: leg.quantity,
-          price: toDecimalString(strike, PRICE_SCALE),
+          price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
           session,
           at,
           costs: toCentavos(0),
