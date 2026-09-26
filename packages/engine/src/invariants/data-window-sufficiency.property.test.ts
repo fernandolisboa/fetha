@@ -64,7 +64,9 @@ function candleCloses(
       i === anchorIndex
         ? Math.max(0, Math.floor((Math.min(anchorMs, close) - open) / (minutes * 60_000)))
         : Math.max(1, Math.floor((close - open) / (minutes * 60_000)));
-    return Array.from({ length: bars }, (_, k) => open + (k + 1) * minutes * 60_000);
+    return Array.from({ length: bars }, (_, k) =>
+      Math.min(open + (k + 1) * minutes * 60_000, close),
+    );
   });
 }
 
@@ -147,12 +149,13 @@ const caseArbitrary = fc
     return { ...drawn, calendar, anchor: new Date(anchorMs).toISOString() };
   });
 
-// A from-scratch reference for the window's tightness, deliberately not calling data-window.ts:
-// `from` is always either the calendar's first session's open, or some session's close (never a
-// point mid-session), because the session walk-back only ever spends whole sessions. This finds
-// the same anchor session and walks back the same way data-window.ts must, but with each
-// comparison written fresh, so an off-by-one in data-window.ts's own session selection or loop
-// bound shows up as a mismatch here rather than being silently mirrored.
+// A second implementation of data-window.ts's walk-back, kept in lockstep on purpose: `from` is
+// always the first session's open or some session's close, and this recomputes it with the same
+// algorithm so that a stray edit to one copy fails against the other. It is not ground truth (a
+// bug shared by both copies is invisible, and a legitimate change to computeFrom must be made
+// here too); the implementation-independent guarantee is the pair of `>=` assertions below. A
+// candle-only oracle was tried and rejected: it cannot express the one-bar minimum a walked-back
+// session is credited with, nor the first-session fallback to its open.
 function referenceFrom(
   calendar: readonly TradingSession[],
   anchor: string,
