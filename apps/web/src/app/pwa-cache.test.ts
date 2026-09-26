@@ -41,31 +41,32 @@ describe("service worker runtime caching", () => {
     expect(writesToCache(matchOptions(path, mode, { RSC: "1" }))).toBe(false);
   });
 
-  it("caches content-hashed build output", () => {
-    expect(writesToCache(matchOptions("/_next/static/chunks/app-abc123.js", "no-cors"))).toBe(true);
+  it("leaves build output to the precache", () => {
+    expect(writesToCache(matchOptions("/_next/static/chunks/app-abc123.js", "no-cors"))).toBe(
+      false,
+    );
   });
 
   it("sends navigations to the network so the offline page can stand in", () => {
     expect(cachingEntryFor(matchOptions("/", "navigate"))?.handler).toBeInstanceOf(NetworkOnly);
   });
-
-  it("ignores another origin's build output", () => {
-    expect(
-      writesToCache(matchOptions("https://cdn.example/_next/static/chunks/x.js", "no-cors")),
-    ).toBe(false);
-  });
 });
 
 describe("isObsoleteCache", () => {
-  it.each(["apis", "pages", "pages-rsc", "pages-rsc-prefetch", "others", "static-data-assets"])(
-    "deletes the old %s cache",
-    (name) => {
-      expect(isObsoleteCache(name)).toBe(true);
-    },
-  );
+  it.each([
+    "apis",
+    "pages",
+    "pages-rsc",
+    "pages-rsc-prefetch",
+    "others",
+    "static-data-assets",
+    "next-static",
+    "next-static-js-assets",
+  ])("deletes the old %s cache", (name) => {
+    expect(isObsoleteCache(name)).toBe(true);
+  });
 
-  it("keeps the precache and the static build cache", () => {
+  it("keeps the precache", () => {
     expect(isObsoleteCache("serwist-precache-v2-https://fetha.vercel.app/")).toBe(false);
-    expect(isObsoleteCache("next-static")).toBe(false);
   });
 });

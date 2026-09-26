@@ -7,6 +7,9 @@ import { registerAndSignIn } from "./helpers";
 const e2eSecret = process.env.E2E_SECRET;
 
 async function cachedUrls(page: Page): Promise<URL[]> {
+  // A worker writes to Cache Storage after the response reaches the page, so
+  // an empty read right after a request proves nothing; let writes land first.
+  await page.waitForTimeout(1_000);
   const urls = await page.evaluate(async () => {
     const found: string[] = [];
     for (const name of await caches.keys()) {
