@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Database } from "@/db/client";
 
-import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
+import {
+  accountBucketKey,
+  AccountRateLimitExceededError,
+  enforceAccountRateLimit,
+} from "./account-rate-limit";
 
 interface FakeRow {
   id: string;
@@ -41,6 +45,7 @@ function buildFakeDb(options: {
   selects: Array<FakeRow | undefined>;
   inserts?: Array<() => Promise<unknown>>;
   updates?: Array<() => Promise<Array<{ id: string }>>>;
+  purge?: () => Promise<unknown>;
 }): Database {
   const select = vi.fn();
   for (const row of options.selects) {
@@ -57,10 +62,29 @@ function buildFakeDb(options: {
     update.mockReturnValueOnce(updateChain(returning));
   }
 
-  return { select, insert, update } as unknown as Database;
+  const purge = options.purge ?? (() => Promise.resolve());
+  const deleteRows = vi.fn(() => ({ where: purge }));
+
+  return { select, insert, update, delete: deleteRows } as unknown as Database;
 }
 
 const RULE = { windowSeconds: 60, max: 3 };
+
+describe("accountBucketKey", () => {
+  it("never carries the email in clear", () => {
+    const key = accountBucketKey("a@example.com", "/sign-in/email");
+    expect(key).not.toContain("@");
+    expect(key).not.toContain("example.com");
+    expect(key).toMatch(/^account:[A-Za-z0-9_-]{43}\|\/sign-in\/email$/);
+  });
+
+  it("is stable per email and distinct across emails", () => {
+    expect(accountBucketKey("a@example.com", "/p")).toBe(accountBucketKey("a@example.com", "/p"));
+    expect(accountBucketKey("a@example.com", "/p")).not.toBe(
+      accountBucketKey("b@example.com", "/p"),
+    );
+  });
+});
 
 describe("enforceAccountRateLimit", () => {
   it("creates a fresh counter row for a key with no prior request", async () => {
@@ -71,8 +95,60 @@ describe("enforceAccountRateLimit", () => {
       enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
     ).resolves.toBeUndefined();
     expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "a@example.com|/sign-in/email", count: 1 }),
+      expect.objectContaining({
+        key: accountBucketKey("a@example.com", "/sign-in/email"),
+        count: 1,
+      }),
     );
+  });
+
+  it("counts a fresh request once and admits it even when the purge fails", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const db = buildFakeDb({
+      selects: [undefined],
+      inserts: [insertValues],
+      purge: () => Promise.reject(new Error("statement timeout")),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+    ).resolves.toBeUndefined();
+    expect(insertValues).toHaveBeenCalledTimes(1);
+
+    vi.restoreAllMocks();
+  });
+
+  it("admits a window reset even when the purge fails", async () => {
+    const now = Date.now();
+    const row: FakeRow = {
+      id: "1",
+      key: "k",
+      count: RULE.max,
+      lastRequest: now - RULE.windowSeconds * 1000 - 1,
+    };
+    const reset = vi.fn().mockResolvedValue([{ id: "1" }]);
+    const db = buildFakeDb({
+      selects: [row],
+      updates: [reset],
+      purge: () => Promise.reject(new Error("deadlock detected")),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+    ).resolves.toBeUndefined();
+    expect(reset).toHaveBeenCalledTimes(1);
+
+    vi.restoreAllMocks();
+  });
+
+  it("refuses a rule whose window outlives the bucket retention", async () => {
+    const db = buildFakeDb({ selects: [] });
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/x", { windowSeconds: 61, max: 1 }),
+    ).rejects.toThrow("exceeds the bucket retention");
   });
 
   it("allows a request when the count is one below max (count === max - 1)", async () => {

@@ -1,14 +1,16 @@
-import { and, eq, gt, lt, lte, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+
+import { and, eq, gt, like, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { rateLimit } from "./schema";
 
 // Same table Better Auth's own database-backed rate limiter uses
-// (docs/adr/0016), keyed `email|path` instead of `ip|path` so the two
-// buckets never collide (an email always contains "@", an IP address
-// never does): this closes the A-01 gap where limiting was IP-and-path
-// only, so a distributed attacker rotating IPs against one account was
-// unbounded (docs/security-audit/2026-09-09.md).
+// (docs/adr/0016), keyed by a hash of the email instead of `ip|path`: this
+// closes the A-01 gap where limiting was IP-and-path only, so a distributed
+// attacker rotating IPs against one account was unbounded
+// (docs/security-audit/2026-09-09.md). The `account:` prefix can never
+// start an IP address, so the two bucket shapes never collide.
 export interface AccountRateLimitRule {
   windowSeconds: number;
   max: number;
@@ -21,8 +23,41 @@ export class AccountRateLimitExceededError extends Error {
   }
 }
 
-function buildKey(email: string, path: string): string {
-  return `${email}|${path}`;
+const ACCOUNT_KEY_PREFIX = "account:";
+
+// Buckets older than this are deleted whenever a bucket starts a new window,
+// so no rule's window may exceed it or a live bucket could be purged (#64).
+export const ACCOUNT_BUCKET_RETENTION_SECONDS = 60;
+
+// The email is hashed so the table never holds addresses in clear, including
+// ones typed at sign-in that never had an account (#64, docs/adr/0018).
+export function accountBucketKey(email: string, path: string): string {
+  const digest = createHash("sha256").update(email).digest("base64url");
+  return `${ACCOUNT_KEY_PREFIX}${digest}|${path}`;
+}
+
+// Housekeeping only: a failed purge must neither change how the request was
+// counted nor fail it. The cutoff comes from the database clock so a skewed
+// instance clock cannot delete buckets that are still live.
+async function purgeExpiredAccountBuckets(db: Database): Promise<void> {
+  try {
+    await db
+      .delete(rateLimit)
+      .where(
+        and(
+          like(rateLimit.key, `${ACCOUNT_KEY_PREFIX}%`),
+          lt(
+            rateLimit.lastRequest,
+            sql`(extract(epoch from now()) * 1000)::bigint - ${ACCOUNT_BUCKET_RETENTION_SECONDS * 1000}`,
+          ),
+        ),
+      );
+  } catch (error) {
+    console.error(
+      "account rate-limit purge failed",
+      error instanceof Error ? error.name : "Unknown",
+    );
+  }
 }
 
 // Bounded to prevent retry storms; constraint that every account window stays at or below Better Auth's longest documented window lives in docs/adr/0018.
@@ -46,11 +81,14 @@ export async function enforceAccountRateLimit(
   rule: AccountRateLimitRule,
   attempt = 0,
 ): Promise<void> {
+  if (rule.windowSeconds > ACCOUNT_BUCKET_RETENTION_SECONDS) {
+    throw new Error(`account rate-limit window for ${path} exceeds the bucket retention`);
+  }
   if (attempt >= MAX_ATTEMPTS) {
     throw new AccountRateLimitExceededError();
   }
 
-  const key = buildKey(email, path);
+  const key = accountBucketKey(email, path);
   const windowMs = rule.windowSeconds * 1000;
   const now = Date.now();
 
@@ -59,7 +97,6 @@ export async function enforceAccountRateLimit(
   if (!existing) {
     try {
       await db.insert(rateLimit).values({ key, count: 1, lastRequest: now });
-      return;
     } catch (error) {
       // Another request created the row first between our read and this
       // insert. Re-read to confirm that is what happened (a real database
@@ -71,6 +108,8 @@ export async function enforceAccountRateLimit(
       }
       return enforceAccountRateLimit(db, email, path, rule, attempt + 1);
     }
+    await purgeExpiredAccountBuckets(db);
+    return;
   }
 
   if (now - existing.lastRequest >= windowMs) {
@@ -80,6 +119,7 @@ export async function enforceAccountRateLimit(
       .where(and(eq(rateLimit.key, key), lte(rateLimit.lastRequest, existing.lastRequest)))
       .returning({ id: rateLimit.id });
     if (reset.length > 0) {
+      await purgeExpiredAccountBuckets(db);
       return;
     }
     // Another request already reset (or incremented) this row between our
@@ -107,8 +147,8 @@ export async function enforceAccountRateLimit(
 
   const fresh = await readRow(db, key);
   if (!fresh || now - fresh.lastRequest >= windowMs) {
-    // The row was reset (or vanished, though nothing here deletes rows)
-    // between our read and this update; re-read and retry rather than
+    // The row was reset (or purged as expired) between our read and this
+    // update; re-read and retry rather than
     // reject on the stale window we read at the top of this attempt.
     return enforceAccountRateLimit(db, email, path, rule, attempt + 1);
   }

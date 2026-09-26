@@ -29,5 +29,6 @@ supersedes or amends them and says so.
 | 0021 | Real portfolio: fills are the only stored fact; positions, cash and operation legs are derived (qualifies 0006) |
 | 0022 | Decisions on held operations are scored on the position held and the portfolio's own fills (amends 0014)        |
 | 0023 | Strategy comparison and walk-forward read persisted runs; windows chosen at creation (sharpens 0013)            |
+| 0024 | Account rate-limit buckets are keyed by an email hash and purged after 60 seconds (amends 0018)                 |
 
 Open: none.
