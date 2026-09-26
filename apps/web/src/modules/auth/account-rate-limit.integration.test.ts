@@ -4,7 +4,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db/client";
 import { rateLimit } from "./schema";
 
-import { enforceAccountRateLimit } from "./account-rate-limit";
+import {
+  ACCOUNT_BUCKET_RETENTION_SECONDS,
+  accountBucketKey,
+  enforceAccountRateLimit,
+} from "./account-rate-limit";
 
 function uniqueKey(label: string): string {
   return `fetha-account-rate-limit-${label}-${crypto.randomUUID()}@example.com`;
@@ -29,6 +33,38 @@ async function countAllowed(email: string, path: string, attempts: number): Prom
   return results.filter((result) => result.status === "fulfilled").length;
 }
 
+describe("enforceAccountRateLimit retention", () => {
+  it("purges buckets older than the retention when a bucket starts a new window (#64)", async () => {
+    const db = getDb();
+    const stale = accountBucketKey(uniqueKey("stale"), "/sign-in/email");
+    const live = accountBucketKey(uniqueKey("live"), "/sign-in/email");
+    const ipBucket = `203.0.113.7|/sign-in/email-${crypto.randomUUID()}`;
+    const email = uniqueKey("trigger");
+    const path = "/sign-in/email";
+    createdKeys.push(stale, live, ipBucket, accountBucketKey(email, path));
+
+    const longAgo = Date.now() - (ACCOUNT_BUCKET_RETENTION_SECONDS * 1000 + 1000);
+    await db.insert(rateLimit).values([
+      { key: stale, count: 1, lastRequest: longAgo },
+      { key: live, count: 1, lastRequest: Date.now() - 1000 },
+      { key: ipBucket, count: 1, lastRequest: longAgo },
+      { key: accountBucketKey(email, path), count: RULE.max, lastRequest: longAgo },
+    ]);
+
+    await enforceAccountRateLimit(db, email, path, RULE);
+
+    const keys = (await db.select({ key: rateLimit.key }).from(rateLimit)).map((row) => row.key);
+    expect(keys).not.toContain(stale);
+    expect(keys).toContain(live);
+    expect(keys).toContain(ipBucket);
+    const [trigger] = await db
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, accountBucketKey(email, path)));
+    expect(trigger?.count).toBe(1);
+  });
+});
+
 describe("enforceAccountRateLimit concurrency", () => {
   // Round-3 review item 1: both window-transition branches previously failed
   // open under concurrency (insert-race losers and reset-race losers were
@@ -37,7 +73,7 @@ describe("enforceAccountRateLimit concurrency", () => {
   it("admits at most max concurrent requests on a fresh key", async () => {
     const email = uniqueKey("fresh");
     const path = "/sign-in/email";
-    createdKeys.push(`${email}|${path}`);
+    createdKeys.push(accountBucketKey(email, path));
 
     const allowed = await countAllowed(email, path, 20);
 
@@ -47,7 +83,7 @@ describe("enforceAccountRateLimit concurrency", () => {
       await getDb()
         .select()
         .from(rateLimit)
-        .where(eq(rateLimit.key, `${email}|${path}`))
+        .where(eq(rateLimit.key, accountBucketKey(email, path)))
     )[0];
     expect(row?.count).toBe(RULE.max);
   });
@@ -56,7 +92,7 @@ describe("enforceAccountRateLimit concurrency", () => {
     const db = getDb();
     const email = uniqueKey("backdated");
     const path = "/sign-in/email";
-    const key = `${email}|${path}`;
+    const key = accountBucketKey(email, path);
     createdKeys.push(key);
 
     await db.insert(rateLimit).values({

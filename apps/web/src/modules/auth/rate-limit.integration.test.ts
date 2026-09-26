@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import { rateLimit } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
+import { accountBucketKey } from "./account-rate-limit";
 import { getAuth } from "./auth";
 import { requestPasswordReset, signIn, signInMagicLink } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
@@ -50,7 +51,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("shared-ip");
-    createdRateLimitKeys.push(`${ip}|/sign-in/email`, `${email}|/sign-in/email`);
+    createdRateLimitKeys.push(`${ip}|/sign-in/email`, accountBucketKey(email, "/sign-in/email"));
 
     // The configured rule (options.ts, RATE_LIMIT_CUSTOM_RULES) is
     // window: 10, max: 3.
@@ -67,7 +68,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("client-a");
-    createdRateLimitKeys.push(`${ip}|/sign-in/email`, `${email}|/sign-in/email`);
+    createdRateLimitKeys.push(`${ip}|/sign-in/email`, accountBucketKey(email, "/sign-in/email"));
 
     for (let i = 0; i < 3; i += 1) {
       await attemptSignIn(email, headers);
@@ -76,7 +77,10 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const otherIp = uniqueTestIp();
     const otherHeaders = testRequestHeaders(otherIp);
     const otherEmail = uniqueEmail("client-b");
-    createdRateLimitKeys.push(`${otherIp}|/sign-in/email`, `${otherEmail}|/sign-in/email`);
+    createdRateLimitKeys.push(
+      `${otherIp}|/sign-in/email`,
+      accountBucketKey(otherEmail, "/sign-in/email"),
+    );
 
     const outcome = await attemptSignIn(otherEmail, otherHeaders);
     expect(outcome.status).not.toBe("rate_limited");
@@ -94,7 +98,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     createdRateLimitKeys.push(
       `${firstIp}|/sign-in/email`,
       `${secondIp}|/sign-in/email`,
-      `${email}|/sign-in/email`,
+      accountBucketKey(email, "/sign-in/email"),
     );
 
     const outcomes = [];
@@ -109,11 +113,27 @@ describe("database-backed rate limiting on auth endpoints", () => {
     expect(limited.status).toBe("rate_limited");
   });
 
+  it("stores no email in clear, even for an address with no account (#64)", async () => {
+    const ip = uniqueTestIp();
+    const email = uniqueEmail("no-account");
+    createdRateLimitKeys.push(`${ip}|/sign-in/email`, accountBucketKey(email, "/sign-in/email"));
+
+    await attemptSignIn(email, testRequestHeaders(ip));
+
+    const rows = await getDb().select().from(rateLimit).where(like(rateLimit.key, "%@%"));
+    expect(rows).toHaveLength(0);
+    const [bucket] = await getDb()
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, accountBucketKey(email, "/sign-in/email")));
+    expect(bucket?.count).toBe(1);
+  });
+
   it("resets the sign-in limit once the window has elapsed", async () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("window-reset");
-    createdRateLimitKeys.push(`${ip}|/sign-in/email`, `${email}|/sign-in/email`);
+    createdRateLimitKeys.push(`${ip}|/sign-in/email`, accountBucketKey(email, "/sign-in/email"));
 
     for (let i = 0; i < 3; i += 1) {
       await attemptSignIn(email, headers);
@@ -122,7 +142,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     expect(limited.status).toBe("rate_limited");
 
     await expireRateLimitKey(`${ip}|/sign-in/email`, 10);
-    await expireRateLimitKey(`${email}|/sign-in/email`, 10);
+    await expireRateLimitKey(accountBucketKey(email, "/sign-in/email"), 10);
 
     const afterReset = await attemptSignIn(email, headers);
     expect(afterReset.status).not.toBe("rate_limited");
@@ -135,9 +155,9 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const magicLinkEmail = uniqueEmail("magic-link-bucket");
     createdRateLimitKeys.push(
       `${ip}|/sign-in/email`,
-      `${signInEmail}|/sign-in/email`,
+      accountBucketKey(signInEmail, "/sign-in/email"),
       `${ip}|/sign-in/magic-link`,
-      `${magicLinkEmail}|/sign-in/magic-link`,
+      accountBucketKey(magicLinkEmail, "/sign-in/magic-link"),
     );
 
     for (let i = 0; i < 3; i += 1) {
@@ -154,7 +174,10 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("magic-link-limit");
-    createdRateLimitKeys.push(`${ip}|/sign-in/magic-link`, `${email}|/sign-in/magic-link`);
+    createdRateLimitKeys.push(
+      `${ip}|/sign-in/magic-link`,
+      accountBucketKey(email, "/sign-in/magic-link"),
+    );
 
     // The magic-link plugin's own rule (options.ts) is window: 60, max: 3.
     const outcomes = [];
@@ -170,7 +193,10 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("magic-link-window-reset");
-    createdRateLimitKeys.push(`${ip}|/sign-in/magic-link`, `${email}|/sign-in/magic-link`);
+    createdRateLimitKeys.push(
+      `${ip}|/sign-in/magic-link`,
+      accountBucketKey(email, "/sign-in/magic-link"),
+    );
 
     for (let i = 0; i < 3; i += 1) {
       await signInMagicLink({ email }, headers);
@@ -179,7 +205,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     expect(limited.status).toBe("rate_limited");
 
     await expireRateLimitKey(`${ip}|/sign-in/magic-link`, 60);
-    await expireRateLimitKey(`${email}|/sign-in/magic-link`, 60);
+    await expireRateLimitKey(accountBucketKey(email, "/sign-in/magic-link"), 60);
 
     const afterReset = await signInMagicLink({ email }, headers);
     expect(afterReset.status).not.toBe("rate_limited");
@@ -189,7 +215,10 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("password-reset-limit");
-    createdRateLimitKeys.push(`${ip}|/request-password-reset`, `${email}|/request-password-reset`);
+    createdRateLimitKeys.push(
+      `${ip}|/request-password-reset`,
+      accountBucketKey(email, "/request-password-reset"),
+    );
 
     const outcomes = [];
     for (let i = 0; i < 4; i += 1) {
@@ -204,7 +233,10 @@ describe("database-backed rate limiting on auth endpoints", () => {
     const ip = uniqueTestIp();
     const headers = testRequestHeaders(ip);
     const email = uniqueEmail("password-reset-window-reset");
-    createdRateLimitKeys.push(`${ip}|/request-password-reset`, `${email}|/request-password-reset`);
+    createdRateLimitKeys.push(
+      `${ip}|/request-password-reset`,
+      accountBucketKey(email, "/request-password-reset"),
+    );
 
     for (let i = 0; i < 3; i += 1) {
       await requestPasswordReset({ email }, headers);
@@ -213,7 +245,7 @@ describe("database-backed rate limiting on auth endpoints", () => {
     expect(limited.status).toBe("rate_limited");
 
     await expireRateLimitKey(`${ip}|/request-password-reset`, 60);
-    await expireRateLimitKey(`${email}|/request-password-reset`, 60);
+    await expireRateLimitKey(accountBucketKey(email, "/request-password-reset"), 60);
 
     const afterReset = await requestPasswordReset({ email }, headers);
     expect(afterReset.status).not.toBe("rate_limited");

@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Database } from "@/db/client";
 
-import { AccountRateLimitExceededError, enforceAccountRateLimit } from "./account-rate-limit";
+import {
+  accountBucketKey,
+  AccountRateLimitExceededError,
+  enforceAccountRateLimit,
+} from "./account-rate-limit";
 
 interface FakeRow {
   id: string;
@@ -57,10 +61,28 @@ function buildFakeDb(options: {
     update.mockReturnValueOnce(updateChain(returning));
   }
 
-  return { select, insert, update } as unknown as Database;
+  const deleteRows = vi.fn(() => ({ where: () => Promise.resolve() }));
+
+  return { select, insert, update, delete: deleteRows } as unknown as Database;
 }
 
 const RULE = { windowSeconds: 60, max: 3 };
+
+describe("accountBucketKey", () => {
+  it("never carries the email in clear", () => {
+    const key = accountBucketKey("a@example.com", "/sign-in/email");
+    expect(key).not.toContain("@");
+    expect(key).not.toContain("example.com");
+    expect(key).toMatch(/^account:[A-Za-z0-9_-]{43}\|\/sign-in\/email$/);
+  });
+
+  it("is stable per email and distinct across emails", () => {
+    expect(accountBucketKey("a@example.com", "/p")).toBe(accountBucketKey("a@example.com", "/p"));
+    expect(accountBucketKey("a@example.com", "/p")).not.toBe(
+      accountBucketKey("b@example.com", "/p"),
+    );
+  });
+});
 
 describe("enforceAccountRateLimit", () => {
   it("creates a fresh counter row for a key with no prior request", async () => {
@@ -71,8 +93,19 @@ describe("enforceAccountRateLimit", () => {
       enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
     ).resolves.toBeUndefined();
     expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "a@example.com|/sign-in/email", count: 1 }),
+      expect.objectContaining({
+        key: accountBucketKey("a@example.com", "/sign-in/email"),
+        count: 1,
+      }),
     );
+  });
+
+  it("refuses a rule whose window outlives the bucket retention", async () => {
+    const db = buildFakeDb({ selects: [] });
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/x", { windowSeconds: 61, max: 1 }),
+    ).rejects.toThrow("exceeds the bucket retention");
   });
 
   it("allows a request when the count is one below max (count === max - 1)", async () => {
