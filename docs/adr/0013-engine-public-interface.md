@@ -1504,9 +1504,10 @@ methods, changes to the visibility rule or to the meaning of an existing field r
 superseding ADR. In practice `ENGINE_VERSION` does not bump on every additive change: #16, #21,
 #25, #59 and #80 all added fields to a frozen type and left it unchanged, while #23 bumped it
 (`"0.1.0"` to `"0.2.0"`) because it changed the shape of a checkpointed or persisted artifact
-(`Operation`'s legs gained option roles), not merely because it was additive. The rule the repo
-actually follows: a bump tracks a checkpoint- or persistence-breaking shape change, never
-additivity by itself; checkpoints are valid only for the version that produced them.
+(`SimulatedOperation` gained `residualSettledBy`, a field on the checkpointed backtest state),
+not merely because it was additive. The rule the repo actually follows: a bump tracks a
+checkpoint- or persistence-breaking shape change, never additivity by itself; checkpoints are
+valid only for the version that produced them.
 
 The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonIntegerAmountError`) were
 legacy and outside this interface, existing only because the `apps/web` placeholder page rendered
