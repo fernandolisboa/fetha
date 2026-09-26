@@ -3,7 +3,7 @@ import { costModelSchema } from "./cost-model";
 
 const costModel = {
   b3FeeRate: "0.0003",
-  brokerage: { stockPerOrder: 0, optionPerContract: 50 },
+  brokerage: { stockPerOrder: 0, optionPerOrder: 50 },
   optionSlippageRate: "0.01",
   incomeTaxRate: "0.15",
   monthlyStockSalesExemption: 2000000,
@@ -42,7 +42,7 @@ describe("costModelSchema", () => {
     expect(
       costModelSchema.safeParse({
         ...costModel,
-        brokerage: { stockPerOrder: -1, optionPerContract: 50 },
+        brokerage: { stockPerOrder: -1, optionPerOrder: 50 },
       }).success,
     ).toBe(false);
     expect(

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fetha/contracts";
 import type { BacktestRun } from "@fetha/engine";
@@ -521,5 +521,108 @@ describe("BacktestRunRepository isolation", () => {
       throw new Error("expected the loser to reject");
     }
     expect(loserOutcome.reason).toBeInstanceOf(BacktestRunAlreadyCompleteError);
+  });
+});
+
+describe("backtest_runs #73 optionPerContract -> optionPerOrder migration (0016_option_per_order)", () => {
+  it("migrates a row stored under the old key in cost_model and result.config.costModel, then reads it back through the repository", async () => {
+    const db = getDb();
+    const email = uniqueEmail("migration-73");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const repository = new BacktestRunRepository(db, owner);
+    const run = await repository.create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      walkForward: null,
+      seed: 1,
+    });
+
+    const oldShapeCostModel = {
+      b3FeeRate: DEFAULT_COST_MODEL.b3FeeRate,
+      brokerage: {
+        stockPerOrder: DEFAULT_COST_MODEL.brokerage.stockPerOrder,
+        optionPerContract: DEFAULT_COST_MODEL.brokerage.optionPerOrder,
+      },
+      optionSlippageRate: DEFAULT_COST_MODEL.optionSlippageRate,
+      incomeTaxRate: DEFAULT_COST_MODEL.incomeTaxRate,
+      monthlyStockSalesExemption: DEFAULT_COST_MODEL.monthlyStockSalesExemption,
+    };
+    const oldShapeResult = completedResult(version) as unknown as {
+      config: { costModel: unknown };
+    };
+    oldShapeResult.config.costModel = oldShapeCostModel;
+
+    // Raw SQL, bypassing the typed repository and its strict Zod schemas
+    // entirely: this reproduces exactly the pre-#73 on-disk shape (the old
+    // key name), which the current schema would refuse to parse.
+    await db.execute(sql`
+      update backtest_runs
+      set cost_model = ${JSON.stringify(oldShapeCostModel)}::jsonb,
+          status = 'complete',
+          config_digest = 'x',
+          sessions_done = 0,
+          completed_at = now(),
+          result = ${JSON.stringify(oldShapeResult)}::jsonb
+      where id = ${run.id}
+    `);
+
+    // The migration statements from 0016_option_per_order.sql, applied by
+    // hand here (the same statements `db:migrate` runs against fetha-preview
+    // and production): idempotent, keyed on the old key's presence.
+    await db.execute(sql`
+      update backtest_runs
+      set cost_model = (cost_model - 'brokerage')
+        || jsonb_build_object(
+          'brokerage',
+          (cost_model->'brokerage' - 'optionPerContract')
+            || jsonb_build_object('optionPerOrder', cost_model->'brokerage'->'optionPerContract')
+        )
+      where cost_model->'brokerage' ? 'optionPerContract'
+    `);
+    await db.execute(sql`
+      update backtest_runs
+      set result = jsonb_set(
+        result,
+        '{config,costModel,brokerage}',
+        (result->'config'->'costModel'->'brokerage' - 'optionPerContract')
+          || jsonb_build_object(
+            'optionPerOrder',
+            result->'config'->'costModel'->'brokerage'->'optionPerContract'
+          )
+      )
+      where result is not null
+        and result->'config'->'costModel'->'brokerage' ? 'optionPerContract'
+    `);
+
+    const migrated = await repository.findMine(run.id);
+    expect(migrated.costModel).toEqual(DEFAULT_COST_MODEL);
+    expect(migrated.result?.config.costModel).toEqual(DEFAULT_COST_MODEL);
+
+    const { rows } = await db.execute(
+      sql`select cost_model, result from backtest_runs where id = ${run.id}`,
+    );
+    const [raw] = rows;
+    if (!raw) throw new Error("expected the migrated row");
+    expect((raw as { cost_model: { brokerage: object } }).cost_model.brokerage).not.toHaveProperty(
+      "optionPerContract",
+    );
+    expect(
+      (raw as { result: { config: { costModel: { brokerage: object } } } }).result.config.costModel
+        .brokerage,
+    ).not.toHaveProperty("optionPerContract");
   });
 });

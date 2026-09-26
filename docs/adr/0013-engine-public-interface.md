@@ -1853,6 +1853,17 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     change reaching every config fixture and the config digest across both packages, out of
     scope for a fix-forward batch. Tracked in issue #73: rename to `optionPerOrder` or scale by
     contract count.
+  - **#73 resolved: `brokerage.optionPerContract` renamed to `brokerage.optionPerOrder`.** The
+    behavior above is unchanged — still a flat per-order charge, never scaled by contract count —
+    only the field name now matches it. `configDigest` hashes the config's own JSON, so every
+    stored `configDigest` computed before this rename no longer matches a freshly computed one; a
+    completed run's stored `result` is migrated in place (0016_option_per_order.sql), but a
+    paused run's checkpoint carries no digest of its own beyond the one checked against the
+    (also migrated) config at resume time, so a mismatch there is indistinguishable from any
+    other config edit between chunks: `runBacktestChunk` already treats it as a recoverable
+    `checkpoint_mismatch` and restarts the run from session zero against the current (migrated)
+    config, per this ADR's "Round 1 hardening" `checkpoint_mismatch` handling — accepted as the
+    consequence for any run left paused across the rename, not fixed further.
 
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 

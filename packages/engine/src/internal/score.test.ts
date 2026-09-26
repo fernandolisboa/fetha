@@ -43,7 +43,7 @@ const emptyView: MarketView = {
 
 const zeroCostModel: CostModel = {
   b3FeeRate: decimalString("0"),
-  brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+  brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
   optionSlippageRate: decimalString("0"),
   incomeTaxRate: decimalString("0"),
   monthlyStockSalesExemption: centavos(0),
@@ -1348,7 +1348,7 @@ describe("score — a leg with no visible price is insufficient_data, never mark
 describe("score — cost symmetry (ADR-0014 Q54)", () => {
   const costModel: CostModel = {
     b3FeeRate: decimalString("0.0005"),
-    brokerage: { stockPerOrder: centavos(500), optionPerContract: centavos(0) },
+    brokerage: { stockPerOrder: centavos(500), optionPerOrder: centavos(0) },
     optionSlippageRate: decimalString("0"),
     incomeTaxRate: decimalString("0"),
     monthlyStockSalesExemption: centavos(0),
@@ -1518,7 +1518,7 @@ describe("score — counterfactual settlement at expiry for a manual origin (ADR
 
   const costModel: CostModel = {
     b3FeeRate: decimalString("0"),
-    brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(150) },
+    brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(150) },
     optionSlippageRate: decimalString("0"),
     incomeTaxRate: decimalString("0"),
     monthlyStockSalesExemption: centavos(0),
@@ -1570,7 +1570,7 @@ describe("score — counterfactual settlement at expiry for a manual origin (ADR
     if (!result.ok) return;
     // entry fill at the session-2 average (2.00); OTM at expiry (strike 28.00 > close 20.00):
     // settles at zero intrinsic value; (0 - 2.00) * 100 * 1 = -200, minus entry costs
-    // (b3Fee 0 + optionPerContract 150) = -350. The 0.30 trade on the expiry session, which
+    // (b3Fee 0 + optionPerOrder 150) = -350. The 0.30 trade on the expiry session, which
     // markLegsToHorizon would have wrongly read before the fix, is never consulted.
     expect(result.value.counterfactualPnl).toBe(centavos(-350));
   });

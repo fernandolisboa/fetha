@@ -187,7 +187,7 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
         initialCapital: centavos(initialCapitalReais * 100_00),
         costModel: {
           b3FeeRate: decimalString("0.0005"),
-          brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+          brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
           optionSlippageRate: decimalString("0"),
           incomeTaxRate: decimalString("0.15"),
           // Low enough that a month's own stock sales — even at the smallest end of

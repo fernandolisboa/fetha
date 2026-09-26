@@ -19,7 +19,7 @@ const futureSession = calendar[9] as TradingSession;
 
 const zeroCostModel: CostModel = {
   b3FeeRate: decimalString("0"),
-  brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+  brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
   optionSlippageRate: decimalString("0"),
   incomeTaxRate: decimalString("0"),
   monthlyStockSalesExemption: centavos(0),

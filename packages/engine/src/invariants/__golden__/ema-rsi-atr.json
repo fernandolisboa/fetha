@@ -150,7 +150,7 @@
    "b3FeeRate": "0.0003",
    "brokerage": {
     "stockPerOrder": 0,
-    "optionPerContract": 0
+    "optionPerOrder": 0
    },
    "optionSlippageRate": "0",
    "incomeTaxRate": "0.15",
@@ -170,7 +170,7 @@
   "walkForward": null,
   "seed": 1
  },
- "configDigest": "3c8a13aa",
+ "configDigest": "0f4216f8",
  "operations": [
   {
    "id": "synthetic:TCK033:2019-03-28:1",
