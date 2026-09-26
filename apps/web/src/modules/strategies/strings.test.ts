@@ -37,7 +37,9 @@ describe("evaluationLog.detailFor", () => {
   });
 
   it("renders the unaffordable-budget sizing detail distinctly from the zero-units one (#59)", () => {
-    const zeroUnits = t.inbox.evaluationLog.detailFor("sizing yields fewer than one unit");
+    const zeroUnits = t.inbox.evaluationLog.detailFor(
+      "a unit carries no cost or risk to size against",
+    );
     const unaffordableBudget = t.inbox.evaluationLog.detailFor(
       "the declared capital and fraction cannot afford one unit",
     );
