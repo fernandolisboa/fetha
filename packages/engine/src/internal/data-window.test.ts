@@ -713,4 +713,57 @@ describe("dataWindow", () => {
     };
     expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(25);
   });
+
+  describe("pins `from` exactly when at falls exactly on a session's open (correctness review, PR #127 item 1)", () => {
+    it("D1: SMA(2) at the 4th session's own open reaches back to the 1st session's close, not further", () => {
+      const calendar = dailySessions(5);
+      const at = calendar[3]?.open as Instant;
+      const input: DataWindowInput = {
+        strategy: strategy(
+          definition({ entry: compareCondition(2, "sma"), timeframe: "D1", structureId: "stock" }),
+          stockStructure,
+        ),
+        instruments: ["PETR4"],
+        calendar,
+        at,
+      };
+      expect(dataWindow(input).from).toBe(calendar[0]?.close);
+    });
+
+    it("15m: SMA(2) at the 4th session's own open reaches back to the 2nd session's close, not further", () => {
+      const calendar = dailySessions(5);
+      const at = calendar[3]?.open as Instant;
+      const input: DataWindowInput = {
+        strategy: strategy(
+          definition({ entry: compareCondition(2, "sma"), timeframe: "15m", structureId: "stock" }),
+          stockStructure,
+        ),
+        instruments: ["PETR4"],
+        calendar,
+        at,
+      };
+      expect(dataWindow(input).from).toBe(calendar[1]?.close);
+    });
+
+    it("60m: SMA(1) at a session's own open reaches back only to the 3rd session's close, even though a session shorter than one 60m bar sits right before it (correctness review counterexample)", () => {
+      const calendar: TradingSession[] = [
+        { date: "2024-01-01", open: "2024-01-01T13:00:00.000Z", close: "2024-01-01T20:00:00.000Z" },
+        { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T20:00:00.000Z" },
+        { date: "2024-01-03", open: "2024-01-03T13:00:00.000Z", close: "2024-01-03T20:00:00.000Z" },
+        { date: "2024-01-04", open: "2024-01-04T13:00:00.000Z", close: "2024-01-04T13:30:00.000Z" },
+        { date: "2024-01-05", open: "2024-01-05T13:00:00.000Z", close: "2024-01-05T20:00:00.000Z" },
+      ];
+      const at: Instant = "2024-01-05T13:00:00.000Z";
+      const input: DataWindowInput = {
+        strategy: strategy(
+          definition({ entry: compareCondition(1, "sma"), timeframe: "60m", structureId: "stock" }),
+          stockStructure,
+        ),
+        instruments: ["PETR4"],
+        calendar,
+        at,
+      };
+      expect(dataWindow(input).from).toBe("2024-01-03T20:00:00.000Z");
+    });
+  });
 });

@@ -1392,8 +1392,10 @@ into `provenance` unchanged (`null` and `[]` when absent).
 
 A duplicated calendar date is walked twice by every session count (time to expiry, a lookback),
 so every method that reads `view.calendar` rejects it as `invalid_input` at path `view.calendar`
-(#40). `dataWindow` cannot fail, so it keeps one row per date instead, the earliest-opening one,
-and returns the same window as for the deduplicated calendar.
+(#40). `dataWindow` cannot fail, so it keeps one row per date instead: the earliest-opening row.
+When two rows for the same date differ in hours, that row is not necessarily the one that yields
+the widest window, so the window returned is only a refetch hint for a calendar the computing
+methods reject anyway, not a guarantee tied to the deduplicated calendar's own window.
 
 ### Invariants
 

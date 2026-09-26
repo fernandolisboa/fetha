@@ -509,7 +509,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     (a, b) => codeUnitCompare(a.date, b.date),
   );
   if (!calendarDupe.ok) {
-    return invalidInput("view.calendar", `duplicate session ${calendarDupe.duplicateKey}`);
+    return invalidInput("view.calendar", `duplicate calendar date ${calendarDupe.duplicateKey}`);
   }
   const sortedCalendar = calendarDupe.value;
   const periodSessions = sortedCalendar.filter(
