@@ -5,3 +5,4 @@ export { getMyAccessLog } from "./queries";
 export { recordAccess } from "./record-access";
 export { purgeExpiredAccessLog, type AccessLogPurgeOutcome } from "./retention";
 export { auditStrings, t } from "./strings";
+export { AuditDataExport } from "./data-export";

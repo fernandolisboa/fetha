@@ -4,3 +4,4 @@ export { PreferencesRepository, type Preferences } from "./preferences-repositor
 export { getPreferences } from "./queries";
 export { preferencesStrings, t } from "./strings";
 export { themeSchema, themes, type Theme } from "./theme";
+export { PreferencesDataExport } from "./data-export";

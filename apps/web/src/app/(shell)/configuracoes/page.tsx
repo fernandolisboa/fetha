@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ExportDataLink, t as accountStrings } from "@/modules/account";
 import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
 import { requireUser, SignOutButton } from "@/modules/auth";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
@@ -38,6 +39,16 @@ export default async function SettingsPage() {
           </p>
         </div>
         <RiskProfileForm current={riskProfile} />
+      </section>
+
+      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+        <div>
+          <h2 className="text-sm font-medium">{accountStrings.dataExport.title}</h2>
+          <p className="text-muted-foreground text-xs">{accountStrings.dataExport.subtitle}</p>
+        </div>
+        <div>
+          <ExportDataLink />
+        </div>
       </section>
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
