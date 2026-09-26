@@ -1,13 +1,13 @@
+import { buildCustomRoute } from "next/dist/lib/build-custom-route";
 import { describe, expect, it } from "vitest";
 
 import nextConfig from "../../next.config";
 
 async function headersFor(path: string): Promise<Map<string, string>> {
   const rules = (await nextConfig.headers?.()) ?? [];
-  const matching = rules.filter((rule) => {
-    const pattern = new RegExp(`^${rule.source.replace("/:path*", "(?:/.*)?")}$`);
-    return pattern.test(path);
-  });
+  const matching = rules.filter((rule) =>
+    new RegExp(buildCustomRoute("header", rule).regex).test(path),
+  );
   return new Map(matching.flatMap((rule) => rule.headers.map((h) => [h.key, h.value])));
 }
 
