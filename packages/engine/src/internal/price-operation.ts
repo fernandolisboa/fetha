@@ -274,9 +274,15 @@ export function computePayoffProfile(
 
   const evaluated = points.map((p) => ({ point: p, value: payoffAt(legs, p) }));
 
+  // A flat, delta-neutral payoff (every sampled point pnl 0, no slope at infinity either
+  // way) has no distinguished crossing: any underlying is equally "correct", which is why
+  // reporting the one sampled point (always 0) as a break-even misled a payoff chart into
+  // drawing a crossing that never happens (#54 follow-up review, quant/correctness item 3).
+  const isIdenticallyZero = slopeAtInfinity === 0 && evaluated.every((e) => e.value.isZero());
+
   const breakEvens: DecimalString[] = [];
   const first = evaluated[0];
-  if (first && first.value.isZero()) {
+  if (first && first.value.isZero() && !isIdenticallyZero) {
     breakEvens.push(toDecimalString(first.point, PRICE_SCALE));
   }
   for (let i = 1; i < evaluated.length; i += 1) {
@@ -514,8 +520,9 @@ function valueLegs(
 // by every step that happens to need a rate: the concrete-legs path resolves it once for
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
-// (PR #53 round 1 item 19). Not exported: `priceLegsAt` and `priceOperation` are the only
-// public surface of this module (round 3 item 10).
+// (PR #53 round 1 item 19). Not exported: `priceLegsAt`, `priceOperation` and
+// `priceLegsAtSpot` are the only public surface of this module (round 3 item 10, revised
+// by the #54 follow-up).
 function resolveOperationRates(
   view: MarketView,
   at: string,
@@ -535,7 +542,7 @@ function resolveOperationRates(
   };
 }
 
-export function priceConcreteLegs(
+function priceConcreteLegs(
   view: MarketView,
   at: string,
   underlying: string,
@@ -640,6 +647,45 @@ export function priceConcreteLegs(
   };
 }
 
+// Everything `priceLegsAt` needs once it already has a spot: resolve the operation's rates
+// and price the legs against that spot through `priceConcreteLegs`. `priceStockLegs`
+// (`stock-pricing.ts`, #54) is the other caller — its spot is the caller's own explicit
+// input, never resolved from `view`, which is why this is split out from `priceLegsAt`
+// instead of `priceConcreteLegs` itself being exported: `priceConcreteLegs` also takes an
+// already-resolved rate pair and rate notes, which a caller with only a spot has no reason
+// to assemble by hand.
+export function priceLegsAtSpot(
+  view: MarketView,
+  at: string,
+  underlying: string,
+  spot: DecimalString,
+  legs: readonly LegInput[],
+  riskProfile: RiskProfile | undefined,
+  openOperationCount: number | undefined,
+  provenanceBase: ProvenanceBase,
+  expiredIntrinsicBasis: DecimalString | null = null,
+  legPathAt?: (index: number) => string,
+): Result<OperationPricing> {
+  const ratesResolution = resolveOperationRates(view, at, underlying);
+  if (!ratesResolution.ok) return err(ratesResolution.error);
+
+  return priceConcreteLegs(
+    view,
+    at,
+    underlying,
+    spot,
+    ratesResolution.riskFreeRate,
+    ratesResolution.dividendYield,
+    ratesResolution.notes,
+    legs,
+    riskProfile,
+    openOperationCount,
+    provenanceBase,
+    expiredIntrinsicBasis,
+    legPathAt,
+  );
+}
+
 // Shared by priceOperation's concrete-legs branch and markToMarket's per-operation pricing
 // (round 1 item 12): both resolve the underlying's spot and rates, then price a fixed set of
 // legs through priceConcreteLegs, differing only in the error path a non-positive spot
@@ -662,17 +708,11 @@ export function priceLegsAt(
     return err(invalidInput(spotPath, "the underlying's spot must be positive"));
   }
 
-  const ratesResolution = resolveOperationRates(view, at, underlying);
-  if (!ratesResolution.ok) return err(ratesResolution.error);
-
-  return priceConcreteLegs(
+  return priceLegsAtSpot(
     view,
     at,
     underlying,
     spot,
-    ratesResolution.riskFreeRate,
-    ratesResolution.dividendYield,
-    ratesResolution.notes,
     legs,
     riskProfile,
     openOperationCount,

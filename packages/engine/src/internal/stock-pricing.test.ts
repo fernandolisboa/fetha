@@ -396,12 +396,11 @@ describe("priceStockLegs", () => {
     });
     expect(pricing.maxLoss).toBe(centavos(0));
     expect(pricing.maxGain).toBe(centavos(0));
-    // A fully hedged pair has zero pnl at every underlying, so the general break-even
-    // algorithm (computePayoffProfile, shared with priceOperation as of #54) reports the
-    // one point it samples, 0, as a crossing; the flat payoff makes any point equally
-    // "correct", not a distinguished one, which is exactly why the old leg-count===1
-    // special case reported none for this shape rather than a misleading single value.
-    expect(pricing.breakEvens).toEqual([decimalString("0.00")]);
+    // A fully hedged pair has zero pnl at every underlying: no crossing is more
+    // distinguished than any other, so computePayoffProfile (shared with priceOperation)
+    // reports none rather than the single point it happens to sample.
+    expect(pricing.breakEvens).toEqual([]);
+    expect(pricing.payoff).toHaveLength(3);
   });
 
   it("computes a break-even for two long stock legs at different prices (#54: the leg-count===1 special case never generalized)", () => {
