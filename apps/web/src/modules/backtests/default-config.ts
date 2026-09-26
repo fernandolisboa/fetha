@@ -9,7 +9,7 @@ function centavos(value: number): Centavos {
 }
 
 // The B3 defaults ADR-0004 names: emolument on the gross traded value (B3's
-// published Tarifa de Negociação), zero stock brokerage, a per-contract
+// published Tarifa de Negociação), zero stock brokerage, a flat per-order
 // option brokerage, a small option slippage, the simplified 15% monthly
 // income tax and the R$ 20.000 monthly stock-sales exemption (ADR-0004,
 // income-tax law 11.033/2004 art. 3 II). A run's cost model input (the
@@ -18,7 +18,7 @@ function centavos(value: number): Centavos {
 // nothing in v1 lets the owner edit a preset's individual fields further.
 export const DEFAULT_COST_MODEL: CostModel = {
   b3FeeRate: decimalString("0.0005"),
-  brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(99) },
+  brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(99) },
   optionSlippageRate: decimalString("0.001"),
   incomeTaxRate: decimalString("0.15"),
   monthlyStockSalesExemption: centavos(20_000_00),
@@ -30,7 +30,7 @@ export const DEFAULT_COST_MODEL: CostModel = {
 // criterion; the B3 fee itself does not vary by broker).
 export const DISCOUNT_BROKER_COST_MODEL: CostModel = {
   ...DEFAULT_COST_MODEL,
-  brokerage: { stockPerOrder: centavos(490), optionPerContract: centavos(99) },
+  brokerage: { stockPerOrder: centavos(490), optionPerOrder: centavos(99) },
 };
 
 export const COST_MODEL_PRESETS = {

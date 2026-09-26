@@ -12,8 +12,8 @@ construction: a signal computed at the close of session D can only be filled in 
 the strategy evaluator receives a data view truncated at D. Fills: stocks at the next session's
 open; options at the next session's average traded price (COTAHIST `PREMED`) plus configurable
 slippage; a series with no trades that day produces no fill and the missed entry is recorded.
-Costs are always charged: B3 fees, brokerage per order (defaults: zero for stocks, per-contract
-for options) and a simplified income tax (15% on monthly net gains; the R$ 20.000 monthly sales
+Costs are always charged: B3 fees, brokerage per order (defaults: zero for stocks, a flat
+per-order fee for options, `optionPerOrder`, never scaled by contract count) and a simplified income tax (15% on monthly net gains; the R$ 20.000 monthly sales
 exemption applies to stocks only, never to options; no loss carry-forward yet). Risk-profile
 limits are enforced by default and a run may be configured to only warn. Every dataset used by
 backtests documents its survivorship-bias properties (COTAHIST includes delisted instruments and

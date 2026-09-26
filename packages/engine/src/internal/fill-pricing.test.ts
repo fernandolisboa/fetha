@@ -12,7 +12,7 @@ import {
 
 const costModel: CostModel = {
   b3FeeRate: decimalString("0.0003"),
-  brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(50) },
+  brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(50) },
   optionSlippageRate: decimalString("0.01"),
   incomeTaxRate: decimalString("0.15"),
   monthlyStockSalesExemption: centavos(20_000_00),

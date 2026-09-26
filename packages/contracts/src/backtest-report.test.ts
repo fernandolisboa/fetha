@@ -56,7 +56,7 @@ describe("backtestRunSchema", () => {
       initialCapital: centavos(100_000_00),
       costModel: {
         b3FeeRate: "0.0005",
-        brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(99) },
+        brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(99) },
         optionSlippageRate: "0.001",
         incomeTaxRate: "0.15",
         monthlyStockSalesExemption: centavos(20_000_00),

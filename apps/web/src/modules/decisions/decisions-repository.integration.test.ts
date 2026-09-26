@@ -1,3 +1,4 @@
+import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   centavosSchema,
@@ -12,6 +13,7 @@ import {
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { loadMigrationStatements } from "@/db/test/migration-sql";
 import { seedStockOperation } from "@/db/test/held-operation";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -24,6 +26,7 @@ import {
   DuplicateSignalDecisionError,
   UnknownOperationError,
 } from "./decisions-repository";
+import { decisions } from "./schema";
 import type { DecisionInputs } from "./inputs";
 
 function decimalString(value: string): DecimalString {
@@ -484,5 +487,76 @@ describe("DecisionsRepository", () => {
     expect(await repoA.findLatestForHeldOperations([operationIdB])).toEqual(new Map());
     expect(await repoA.listMine()).toEqual([]);
     expect(await repoB.findLatestForHeldOperations([operationIdB])).not.toEqual(new Map());
+  });
+});
+
+describe("decisions #73 optionPerContract -> optionPerOrder migration (0016_option_per_order)", () => {
+  it("migrates a row stored under the old key in cost_model, then reads it back through the repository", async () => {
+    const db = getDb();
+    await ensureStockStructure();
+    const email = uniqueEmail("migration-73");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+    const { signal, strategyVersionId } = await createSignal(db, owner, ticker);
+
+    const repository = new DecisionsRepository(db, owner);
+    const recorded = await repository.record({
+      kind: "enter",
+      originKind: "signal",
+      signalId: signal.id,
+      contemplatedOperationId: null,
+      strategyVersionId,
+      inputs: signalInputs(ticker),
+      rationale: "Trend looks strong",
+      claim: { kind: "close_above", instrument: ticker, level: decimalString("40") },
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: "2031-06-15",
+      costModel: DEFAULT_COST_MODEL,
+    });
+
+    const oldShapeCostModel = {
+      b3FeeRate: DEFAULT_COST_MODEL.b3FeeRate,
+      brokerage: {
+        stockPerOrder: DEFAULT_COST_MODEL.brokerage.stockPerOrder,
+        optionPerContract: DEFAULT_COST_MODEL.brokerage.optionPerOrder,
+      },
+      optionSlippageRate: DEFAULT_COST_MODEL.optionSlippageRate,
+      incomeTaxRate: DEFAULT_COST_MODEL.incomeTaxRate,
+      monthlyStockSalesExemption: DEFAULT_COST_MODEL.monthlyStockSalesExemption,
+    };
+
+    // Raw SQL, bypassing the typed repository and its strict Zod schema
+    // entirely: this reproduces exactly the pre-#73 on-disk shape (the old
+    // key name), which the current schema would refuse to parse. The
+    // immutability trigger has to step aside for the planting itself.
+    await db.execute(sql`alter table decisions disable trigger decisions_no_update`);
+    try {
+      await db
+        .update(decisions)
+        .set({ costModel: sql`${JSON.stringify(oldShapeCostModel)}::jsonb` })
+        .where(eq(decisions.id, recorded.id));
+    } finally {
+      await db.execute(sql`alter table decisions enable trigger decisions_no_update`);
+    }
+
+    await db.transaction(async (tx) => {
+      for (const statement of loadMigrationStatements("0016_option_per_order")) {
+        await tx.execute(sql.raw(statement));
+      }
+    });
+
+    const mine = await repository.listMine();
+    const migrated = mine.find((entry) => entry.id === recorded.id);
+    expect(migrated?.costModel).toEqual(DEFAULT_COST_MODEL);
+
+    const { rows } = await db.execute(
+      sql`select cost_model from decisions where id = ${recorded.id}`,
+    );
+    const [raw] = rows;
+    if (!raw) throw new Error("expected the migrated row");
+    expect((raw as { cost_model: { brokerage: object } }).cost_model.brokerage).not.toHaveProperty(
+      "optionPerContract",
+    );
   });
 });

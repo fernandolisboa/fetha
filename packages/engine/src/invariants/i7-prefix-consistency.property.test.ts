@@ -210,7 +210,7 @@ describe("I7 Prefix-consistency", () => {
       initialCapital: centavos(10_000_00),
       costModel: {
         b3FeeRate: decimalString("0.0005"),
-        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         // Low enough that the profit-target exit closed on 2024-01-04 realizes a stock sale

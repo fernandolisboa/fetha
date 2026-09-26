@@ -7,7 +7,7 @@ export const costModelSchema = z.strictObject({
   b3FeeRate: nonNegativeDecimalSchema,
   brokerage: z.strictObject({
     stockPerOrder: nonNegativeCentavosSchema,
-    optionPerContract: nonNegativeCentavosSchema,
+    optionPerOrder: nonNegativeCentavosSchema,
   }),
   optionSlippageRate: nonNegativeDecimalSchema,
   incomeTaxRate: rightOpenUnitIntervalSchema,

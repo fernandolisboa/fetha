@@ -1507,7 +1507,12 @@ superseding ADR. In practice `ENGINE_VERSION` does not bump on every additive ch
 (`SimulatedOperation` gained `residualSettledBy`, a field on the checkpointed backtest state),
 not merely because it was additive. The rule the repo actually follows: a bump tracks a
 checkpoint- or persistence-breaking shape change, never additivity by itself; checkpoints are
-valid only for the version that produced them.
+valid only for the version that produced them. "Persistence-breaking" is judged on what remains
+on disk after the change's own migration has run, not on the raw diff: #73 renamed a field of a
+`contracts` type the frozen block imports (`CostModel.brokerage.optionPerContract` to
+`optionPerOrder`), a non-additive change recorded as an addendum below rather than as a
+superseding ADR because the frozen block's text is byte-identical and every persisted copy of
+the old shape is rewritten in place by the same PR, so no reader under `"0.2.0"` ever meets it.
 
 The `money` module exports (`Money`, `add`, `subtract`, `formatBRL`, `NonIntegerAmountError`) were
 legacy and outside this interface, existing only because the `apps/web` placeholder page rendered
@@ -1853,6 +1858,29 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     change reaching every config fixture and the config digest across both packages, out of
     scope for a fix-forward batch. Tracked in issue #73: rename to `optionPerOrder` or scale by
     contract count.
+  - **#73 resolved: `brokerage.optionPerContract` renamed to `brokerage.optionPerOrder`.** The
+    behavior above is unchanged — still a flat per-order charge, never scaled by contract count —
+    only the field name now matches it. `configDigest` hashes the config's own JSON, so every
+    stored `configDigest` computed before this rename no longer matches a freshly computed one; a
+    completed run's stored `result` is migrated in place (0016_option_per_order.sql), but a
+    paused run's checkpoint carries no digest of its own beyond the one checked against the
+    (also migrated) config at resume time, so a mismatch there is indistinguishable from any
+    other config edit between chunks: `runBacktestChunk` already treats it as a recoverable
+    `checkpoint_mismatch` and restarts the run from session zero against the current (migrated)
+    config, per this ADR's "Round 1 hardening" `checkpoint_mismatch` handling — accepted as the
+    consequence for any run left paused across the rename, not fixed further. Classification
+    under the change policy: a non-additive rename of a `contracts` field the frozen block
+    exposes through `BacktestConfig.costModel`, recorded as this addendum (the frozen block's
+    text is unchanged) and not bumping `ENGINE_VERSION`, because the checkpointed
+    `BacktestState` carries no `CostModel` and the migration leaves no persisted artifact in the
+    old shape; a bump would only restart the same paused runs a second way, through
+    `engineVersion`, and label migrated completed rows as produced by a version whose on-disk
+    shape they no longer have. Two consequences accepted with the migration: it disables the
+    row-immutability triggers of `backtest_runs` and `decisions` inside its own transaction
+    (a key rename is the one write those triggers were never meant to block, and the invariant
+    is never observable as absent), and a completed run's stored `configDigest` is left stale
+    on purpose, because nothing reads it back for comparison; only the resume path digests, and
+    it digests the migrated config.
 
 ### #25 addendum: `markToMarket` and `proposeSettlement`
 

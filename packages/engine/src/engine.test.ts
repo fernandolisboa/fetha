@@ -131,7 +131,7 @@ describe("engine", () => {
       origin: { kind: "manual" },
       costModel: {
         b3FeeRate: decimalString("0.0003"),
-        brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0.01"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(20_000_00),
@@ -381,7 +381,7 @@ describe("engine", () => {
         initialCapital: centavos(100_000_00),
         costModel: {
           b3FeeRate: decimalString("0.0003"),
-          brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+          brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
           optionSlippageRate: decimalString("0.01"),
           incomeTaxRate: decimalString("0.15"),
           monthlyStockSalesExemption: centavos(20_000_00),
@@ -451,7 +451,7 @@ describe("engine", () => {
         initialCapital: centavos(100_000_00),
         costModel: {
           b3FeeRate: decimalString("0"),
-          brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+          brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
           optionSlippageRate: decimalString("0"),
           incomeTaxRate: decimalString("0.15"),
           monthlyStockSalesExemption: centavos(20_000_00),

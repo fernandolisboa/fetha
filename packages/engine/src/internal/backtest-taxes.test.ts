@@ -5,7 +5,7 @@ import { computeMonthlyTax } from "./backtest-taxes";
 
 const costModel: CostModel = {
   b3FeeRate: decimalString("0.0003"),
-  brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+  brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
   optionSlippageRate: decimalString("0"),
   incomeTaxRate: decimalString("0.15"),
   monthlyStockSalesExemption: centavos(20_000_00),

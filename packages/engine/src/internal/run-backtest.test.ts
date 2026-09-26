@@ -105,7 +105,7 @@ function baseConfig(overrides: Partial<BacktestConfig> = {}): BacktestConfig {
     initialCapital: centavos(10_000_00),
     costModel: {
       b3FeeRate: decimalString("0.0005"),
-      brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+      brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
       optionSlippageRate: decimalString("0"),
       incomeTaxRate: decimalString("0.15"),
       monthlyStockSalesExemption: centavos(2_000_000_00),
@@ -287,7 +287,7 @@ describe("runBacktest — hand-computed fills, costs, taxes and metrics", () => 
     const config = baseConfig({
       costModel: {
         b3FeeRate: decimalString("0"),
-        brokerage: { stockPerOrder: centavos(150), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(150), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(2_000_000_00),
@@ -321,7 +321,7 @@ describe("runBacktest — hand-computed fills, costs, taxes and metrics", () => 
       riskProfile: { ...generousRiskProfile, declaredCapital: centavos(30_000_000_00) },
       costModel: {
         b3FeeRate: decimalString("0"),
-        brokerage: { stockPerOrder: centavos(0), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(2_000_000_00),
@@ -2035,7 +2035,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     const config = baseConfig({
       costModel: {
         b3FeeRate: decimalString("0"),
-        brokerage: { stockPerOrder: centavos(5_000_000), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(5_000_000), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(2_000_000_00),
@@ -2361,7 +2361,7 @@ describe("runBacktest — option structures (#23)", () => {
       walkForward: { windowSessions: 4 },
       costModel: {
         b3FeeRate: decimalString("0.0005"),
-        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(50) },
+        brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(50) },
         optionSlippageRate: decimalString("0.05"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(2_000_000_00),
@@ -2658,7 +2658,7 @@ describe("runBacktest — option structures (#23)", () => {
       period: { from: days[0] as string, to: days[19] as string },
       costModel: {
         b3FeeRate: decimalString("0.0005"),
-        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(0) },
+        brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(1),
@@ -2996,7 +2996,7 @@ describe("runBacktest — option structures (#23)", () => {
       period: { from: days[0] as string, to: days[8] as string },
       costModel: {
         b3FeeRate: decimalString("0.0005"),
-        brokerage: { stockPerOrder: centavos(100), optionPerContract: centavos(50) },
+        brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(50) },
         optionSlippageRate: decimalString("0"),
         incomeTaxRate: decimalString("0.15"),
         monthlyStockSalesExemption: centavos(2_000_000_00),
