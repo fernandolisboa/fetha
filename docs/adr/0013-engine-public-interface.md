@@ -1526,9 +1526,11 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   unit is unsizeable") — it is never clamped up to one unit, the bug round 1 found. A
   `fixed_fractional` quantity on a non-debit structure (`netPremium >= 0` — premium received, or
   exactly zero as in a zero-cost risk reversal) sizes against the structure's bounded max loss,
-  not the premium received or paid, which understates the capital actually at risk (a debit
-  structure's max loss is bounded by what it cost, so it keeps sizing on the premium paid); an
-  unbounded max loss on a non-debit `fixed_fractional` structure is `unsizeable`
+  not the premium received or paid, which understates the capital actually at risk. A net-debit
+  structure still sizes on the premium paid; when it carries a short leg its max loss can exceed
+  that premium, and today the risk-limit check is what catches it (follow-up: size net-debit
+  structures on bounded max loss too). An unbounded max loss on a non-debit `fixed_fractional`
+  structure is `unsizeable`
   (`unbounded_max_loss`), the same reading `fixed_risk` already gave a naked short option.
   `zero_units` conflated two distinct reasons — a genuinely zero max loss or premium, and a
   positive per-unit cost the declared capital and fraction cannot afford one unit of — so
