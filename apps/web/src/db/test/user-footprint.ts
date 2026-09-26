@@ -1,7 +1,9 @@
+import { eq } from "drizzle-orm";
+
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { accessLog } from "@/modules/audit/schema";
-import { account, session, termsAcceptances } from "@/modules/auth/schema";
+import { account, invites, session, termsAcceptances, user } from "@/modules/auth/schema";
 import { backtestRuns } from "@/modules/backtests/schema";
 import { decisions, decisionScores } from "@/modules/decisions/schema";
 import {
@@ -53,6 +55,15 @@ export async function seedUserFootprint(db: Database, owner: ScopedUser): Promis
     userId,
   });
   await db.insert(termsAcceptances).values({ userId, termsVersion: "footprint" });
+  const [profile] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId));
+  await db
+    .insert(invites)
+    .values({
+      email: profile?.email ?? `${tag}@example.com`,
+      consumedAt: at,
+      consumedByUserId: userId,
+    })
+    .onConflictDoNothing();
   await db.insert(accessLog).values({ userId, event: "portfolio_read" });
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });

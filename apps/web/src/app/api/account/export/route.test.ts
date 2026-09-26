@@ -36,7 +36,7 @@ describe("GET /api/account/export", () => {
   it("streams the signed-in user's export as an attachment and logs it", async () => {
     const { GET } = await import("./route");
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/account/export"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toBe(
@@ -48,12 +48,38 @@ describe("GET /api/account/export", () => {
     expect(recordAccessMock).toHaveBeenCalledWith("data_export");
   });
 
+  it("refuses a cross-site navigation, before reading the session", async () => {
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("http://localhost/api/account/export", {
+        headers: { "sec-fetch-site": "cross-site" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(requireUserMock).not.toHaveBeenCalled();
+    expect(accountExportStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("serves a same-origin click", async () => {
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("http://localhost/api/account/export", {
+        headers: { "sec-fetch-site": "same-origin" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   it("refuses a caller with no session", async () => {
     const { UnauthenticatedError } = await import("@/modules/auth");
     requireUserMock.mockRejectedValue(new UnauthenticatedError());
     const { GET } = await import("./route");
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/account/export"));
 
     expect(response.status).toBe(401);
     expect(accountExportStreamMock).not.toHaveBeenCalled();
@@ -65,7 +91,7 @@ describe("GET /api/account/export", () => {
     enforceAccountRateLimitMock.mockRejectedValue(new AccountRateLimitExceededError());
     const { GET } = await import("./route");
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/account/export"));
 
     expect(response.status).toBe(429);
     expect(await response.text()).toBe("Muitas exportações seguidas.");

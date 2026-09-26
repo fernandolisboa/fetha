@@ -34,15 +34,18 @@ no operator path rewrites decision data today.
    nightly cron purges older rows for every user, so a user who stops signing in is covered too,
    and reports the count beside ingestion without ever turning the run into a 500. The user sees
    the latest 50 entries under Configurações. The rows are deleted with the account.
-2. **Export.** Each module exposes an `exportMy…(db, user)` function from its entry point that
-   returns its own rows for that user; the `account` module assembles them into one JSON document
-   (`format: "fetha-export/1"`) streamed as an attachment by `GET /api/account/export`. The route
-   takes the user from the session, applies the account rate limit and writes a `data_export`
+2. **Export.** Each module with user-scoped tables exposes a `<Module>DataExport` from its entry
+   point: a `UserScopedRepository` whose `tables()` returns its own rows for that user, keyed by
+   table name. The `account` module streams them, one module at a time and one row per chunk,
+   into one JSON document (`format: "fetha-export/1"`) served as an attachment by
+   `GET /api/account/export`. The route refuses a cross-site request (`Sec-Fetch-Site`), takes
+   the user from the session, applies the account rate limit and writes a `data_export`
    access-log row. Secrets never leave: password hashes, session tokens and OAuth tokens are
-   omitted, session metadata (created, expires, IP, user agent) is kept. Numbers leave as stored:
-   decimals as strings, centavos as integers. A test enumerates every table with a `user_id`
-   column in `information_schema` and fails when the export lacks it, so a new table cannot be
-   forgotten.
+   omitted, session metadata (created, expires, IP, user agent) is kept. The `invites` row about
+   the user (email, created, consumed) is included although it has no `user_id`. Numbers leave
+   as stored: decimals as strings, centavos as integers. A test enumerates every table with a
+   `user_id` (or `…_user_id`) column in `information_schema` and fails when the export lacks it,
+   so a new table cannot be forgotten.
 3. **Deletion.** Better Auth's `/delete-user` endpoint, called through the handler like every
    other auth call (ADR-0016, so its rate limit applies), with the password mandatory: a
    `hooks.before` rule refuses the call without a password or with a token, so neither session

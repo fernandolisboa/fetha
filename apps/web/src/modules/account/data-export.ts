@@ -29,25 +29,31 @@ const SOURCES: readonly DataExportSource[] = [
   DecisionsDataExport,
 ];
 
-// One module at a time, so a user with many backtest runs never holds the
-// whole document in memory at once.
+// One module at a time and one row per chunk, so no single string holds a
+// whole table.
 export async function* accountExportChunks(
   db: Database,
   user: ScopedUser,
   exportedAt: Date,
 ): AsyncGenerator<string> {
   yield `{"format":${JSON.stringify(EXPORT_FORMAT)},"exportedAt":${JSON.stringify(exportedAt.toISOString())},"tables":{`;
-  let first = true;
+  let firstTable = true;
   for (const Source of SOURCES) {
     const tables = await new Source(db, user).tables();
     for (const [name, rows] of Object.entries(tables)) {
-      yield `${first ? "" : ","}${JSON.stringify(name)}:${JSON.stringify(rows)}`;
-      first = false;
+      yield `${firstTable ? "" : ","}${JSON.stringify(name)}:[`;
+      firstTable = false;
+      for (const [index, row] of rows.entries()) {
+        yield `${index === 0 ? "" : ","}${JSON.stringify(row)}`;
+      }
+      yield "]";
     }
   }
   yield "}}";
 }
 
+// A failure after the headers are out errors the stream, so the browser
+// reports a failed download instead of saving a truncated file.
 export function accountExportStream(
   db: Database,
   user: ScopedUser,
@@ -57,11 +63,16 @@ export function accountExportStream(
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const next = await chunks.next();
-      if (next.done) {
-        controller.close();
-      } else {
-        controller.enqueue(encoder.encode(next.value));
+      try {
+        const next = await chunks.next();
+        if (next.done) {
+          controller.close();
+        } else {
+          controller.enqueue(encoder.encode(next.value));
+        }
+      } catch (error) {
+        console.error("account export failed", error instanceof Error ? error.name : "Unknown");
+        controller.error(error);
       }
     },
     async cancel() {

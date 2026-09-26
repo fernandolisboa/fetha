@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { deleteTestUser } from "@/db/test/cleanup";
+import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
 import { seedUserFootprint } from "@/db/test/user-footprint";
 import { user } from "@/modules/auth/schema";
 
@@ -45,7 +45,7 @@ async function readExport(owner: { id: string; name: string; email: string }) {
 async function tablesWithUserId(): Promise<string[]> {
   const result = await getDb().execute<{ table_name: string }>(
     sql`select table_name from information_schema.columns
-        where table_schema = 'public' and column_name = 'user_id'`,
+        where table_schema = 'public' and (column_name = 'user_id' or column_name like '%\\_user\\_id')`,
   );
   return result.rows.map((row) => row.table_name);
 }
@@ -56,6 +56,7 @@ afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+    await deleteTestInvite(db, email);
   }
 });
 
@@ -66,8 +67,8 @@ async function twoSeededUsers(label: string) {
   const userA = await insertBareUser(emailA);
   const userB = await insertBareUser(emailB);
   await seedUserFootprint(getDb(), userA);
-  await seedUserFootprint(getDb(), userB);
-  return { userA, userB };
+  const footprintB = await seedUserFootprint(getDb(), userB);
+  return { userA, userB, footprintB };
 }
 
 describe("account data export", () => {
@@ -86,12 +87,14 @@ describe("account data export", () => {
   });
 
   it("user A's export holds none of user B's data", async () => {
-    const { userA, userB } = await twoSeededUsers("isolation");
+    const { userA, userB, footprintB } = await twoSeededUsers("isolation");
 
     const { text, document } = await readExport(userA);
 
     expect(text).not.toContain(userB.id);
     expect(text).not.toContain(userB.email);
+    expect(text).not.toContain(footprintB.strategyId);
+    expect(text).not.toContain(footprintB.strategyVersionId);
     for (const [table, rows] of Object.entries(document.tables)) {
       for (const row of rows) {
         if ("userId" in row) {

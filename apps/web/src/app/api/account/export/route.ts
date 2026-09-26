@@ -14,7 +14,18 @@ export const maxDuration = 60;
 
 const EXPORT_RATE_LIMIT = { windowSeconds: 60, max: 3 };
 
-export async function GET(): Promise<Response> {
+// A cookie-authenticated GET: a cross-site page could otherwise navigate a
+// signed-in user here and drop their whole export on disk (docs/adr/0027).
+function isCrossSite(request: Request): boolean {
+  const site = request.headers.get("sec-fetch-site");
+  return site !== null && site !== "same-origin" && site !== "none";
+}
+
+export async function GET(request: Request): Promise<Response> {
+  if (isCrossSite(request)) {
+    return NextResponse.json({ ok: false, error: "cross_site" }, { status: 403 });
+  }
+
   let user;
   try {
     user = await requireUser();
