@@ -2,6 +2,9 @@ import type { Instant, Ticker } from "@fetha/contracts";
 import type { MarketView, OptionSeries } from "../api";
 import { parseDecimal } from "./decimal";
 import { compareInstants, isAtOrBefore } from "./instant";
+import { rowsWithKey } from "./view-index";
+
+const seriesTickerOf = (series: OptionSeries): string => series.ticker;
 
 // Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose row
 // order is not meaningful, so a tie on distance must resolve to the same series regardless of
@@ -31,7 +34,7 @@ function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
 // latest-visible row per ticker, or a selection can pick a different series than the one
 // priced a moment later from the same view (I3, order invariance; PR #53 round 3 item 1).
 export function resolveSeries(view: MarketView, ticker: Ticker, at: Instant): OptionSeries | null {
-  const rows = view.optionSeries.filter((series) => series.ticker === ticker);
+  const rows = rowsWithKey(view.optionSeries, seriesTickerOf, ticker);
   let latest: OptionSeries | null = null;
   for (const row of rows) {
     if (!isAtOrBefore(row.asOf, at)) continue;

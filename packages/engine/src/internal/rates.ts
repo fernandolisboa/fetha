@@ -2,7 +2,10 @@ import Decimal from "decimal.js";
 import type { DecimalString, Instant, Ticker } from "@fetha/contracts";
 import type { DividendYieldPoint, EngineError, MacroPoint, Note } from "../api";
 import { parseDecimal, RATIO_SCALE, toDecimalString, ZERO_RATIO } from "./decimal";
-import { latestVisible } from "./visible";
+import { latestVisibleIndexed, rowsWithKey } from "./view-index";
+
+const seriesOf = (m: MacroPoint): string => m.series;
+const underlyingOf = (d: DividendYieldPoint): string => d.underlying;
 
 export type RateResolution =
   { ok: true; value: DecimalString; notes: Note[] } | { ok: false; error: EngineError };
@@ -19,10 +22,7 @@ function invalidAnnualRate(path: string): { ok: false; error: EngineError } {
 // 1 + cdi non-positive, which decimal.js's ln() throws on, so it is rejected before the
 // conversion rather than left to throw out of the pricing seam.
 export function resolveRiskFreeRate(macro: readonly MacroPoint[], at: Instant): RateResolution {
-  const cdiPoint = latestVisible(
-    macro.filter((m) => m.series === "cdi"),
-    at,
-  );
+  const cdiPoint = latestVisibleIndexed(rowsWithKey(macro, seriesOf, "cdi"), at);
   if (!cdiPoint) {
     return {
       ok: true,
@@ -46,10 +46,7 @@ export function resolveDividendYield(
   underlying: Ticker,
   at: Instant,
 ): RateResolution {
-  const point = latestVisible(
-    dividendYields.filter((d) => d.underlying === underlying),
-    at,
-  );
+  const point = latestVisibleIndexed(rowsWithKey(dividendYields, underlyingOf, underlying), at);
   if (!point) {
     return {
       ok: true,

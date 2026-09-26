@@ -1049,13 +1049,13 @@ selection and pricing to `priceOperation` itself (see the #23 addendum below), s
 below apply to every structure unless a note says otherwise. Decisions #15 took to make the
 stock-only subset concrete, still in force:
 
-- **Condition truncation per evaluation instant.** Each evaluation instant `c` gets its own
-  adjusted candle series and indicator readings, computed exactly as `indicators()` would at
-  `at = c` (candle close, corporate-action adjustment, indicator warm-up, all included): nothing
-  is cached or extrapolated across evaluation instants. This is the direct, unoptimized reading
-  of "each evaluation sees the view truncated at its own close" and is what makes I1 hold at every
-  inner instant for free, including a corporate-action factor whose `asOf` falls inside a later
-  instant's window but not an earlier one's. `provenance.truncated`, by contrast, is computed once
+- **Condition truncation per evaluation instant.** Each evaluation instant `c` reads the adjusted
+  candle and indicator values `indicators()` would return at `at = c` (candle close,
+  corporate-action adjustment, indicator warm-up, all included), which is what makes I1 hold at
+  every inner instant, including a corporate-action factor whose `asOf` falls inside a later
+  instant's window but not an earlier one's. #15 computed them literally, one fresh series per
+  instant; since #58 they come from series computed once per ticker and factor epoch (see the
+  #58 addendum), with byte-identical results. `provenance.truncated`, by contrast, is computed once
   for the whole call at `at` (rows for instruments outside `instruments`, or with `asOf` after
   `at`); per-instant truncation is not reported, matching "rows dropped by an inner instant are
   simply invisible to that evaluation; they are not reported."
@@ -1954,6 +1954,38 @@ evaluates changed.
   `payoff-chart.tsx` connects `payoff` points in array order with no sort or interpolation of its
   own, so an unsorted or duplicated array would draw a wrong line silently. The engine test for
   this addendum asserts ascending order and uniqueness alongside the collar's reference values.
+
+### #58 addendum: incremental evaluation
+
+`runBacktest` evaluates the strategy once per session over the same view, and #15's literal
+reading recomputed every adjusted series and indicator from scratch each time, so a run cost
+O(sessions²): 1,250 sessions × 20 instruments took minutes. The engine now reads the same values
+incrementally, with no change to the public interface or to any output:
+
+- **Factor epochs.** A ticker's nominal series is sorted by `asOf` and every indicator (SMA, EMA,
+  RSI, ATR, IV rank) is causal, so the readings at instant `c` of a series built over every candle
+  equal those of the series truncated at `c`, provided the same corporate-action factors are
+  visible. The engine builds each ticker's adjusted series and indicators once per factor epoch
+  (the number of its factors visible so far, in `asOf` order) and reads index `c` from it; a factor
+  published later starts a new epoch and a fresh series. An IV index whose points are not
+  published in session order is not prefix-stable, so a ticker reading `iv_rank` over one falls
+  back to a per-instant recomputation.
+- **One evaluator per view.** `runBacktest` builds one internal evaluator per call and asks it once
+  per session. Validation and per-ticker series are computed on first use and shared by every
+  evaluator over the same `MarketView` object, which covers a caller that runs a backtest in chunks
+  over one loaded view. Each validation still fails on the first call that would have reached it,
+  in the original order.
+- **Lookup indexes.** Calendar lookups (`sessionAtOrBefore`), latest-visible reads of quotes,
+  candles, option day prices, CDI and dividend yields, option-series resolution and
+  `runBacktest`'s own per-session candle and option-price reads use indexes built once per input
+  array instead of a scan per call. Each returns exactly the row its scan returned, ties included.
+- **Inputs are immutable.** Every cache is keyed on the identity of an input object or array. The
+  engine never mutates its inputs and callers must not either: a view mutated in place after a
+  call could be answered from a stale index.
+
+Golden outputs recorded from the #15 reading (`packages/engine/src/invariants/__golden__`: SMA,
+EMA/RSI/ATR and IV-rank runs with corporate actions, a chunked run and a `since..at` catch-up)
+guard the equality; `pnpm --filter @fetha/engine bench` times the 1,250 × 20 run.
 
 ## Considered options
 

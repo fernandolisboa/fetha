@@ -1,9 +1,13 @@
 import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type { MarketView } from "../api";
 import { parseDecimal, PRICE_SCALE, toDecimalString } from "./decimal";
-import { isAtOrBefore } from "./instant";
 import type { ResolvedMarketPrice } from "./option-pricing";
-import { latestVisible } from "./visible";
+import { lastVisibleByAsOfString, latestVisibleIndexed, rowsWithKey } from "./view-index";
+
+type Row = { ticker: Ticker };
+const tickerOf = (row: Row): string => row.ticker;
+const dailyCandleTickerOf = (c: MarketView["candles"][number]): string | null =>
+  c.timeframe === "D1" ? c.ticker : null;
 
 // The mid/last/close/average ladder is shared by pricing (price-operation.ts) and by
 // delta-based strike selection (resolve-leg-selection.ts): both must read the same
@@ -29,10 +33,7 @@ export function resolveLegMarketPrice(
   kind: "option" | "stock" = "option",
 ): ResolvedMarketPrice | null {
   if (given) return { value: given, source: "given", stale: null };
-  const quote = latestVisible(
-    view.quotes.filter((q) => q.ticker === ticker),
-    at,
-  );
+  const quote = latestVisibleIndexed(rowsWithKey(view.quotes, tickerOf, ticker), at);
   if (quote?.bid && quote.ask) {
     return {
       value: toDecimalString(
@@ -46,19 +47,13 @@ export function resolveLegMarketPrice(
   if (quote?.last) return { value: quote.last, source: "last", stale: null };
 
   if (kind === "stock") {
-    const candle = latestVisible(
-      view.candles.filter((c) => c.ticker === ticker && c.timeframe === "D1"),
-      at,
-    );
+    const candle = latestVisibleIndexed(rowsWithKey(view.candles, dailyCandleTickerOf, ticker), at);
     if (!candle) return null;
     const stale = atSession && candle.session !== atSession ? { session: candle.session } : null;
     return { value: candle.close, source: "close", stale };
   }
 
-  const dayPrice = latestVisible(
-    view.optionPrices.filter((p) => p.ticker === ticker),
-    at,
-  );
+  const dayPrice = latestVisibleIndexed(rowsWithKey(view.optionPrices, tickerOf, ticker), at);
   if (!dayPrice) return null;
   const stale = atSession && dayPrice.session !== atSession ? { session: dayPrice.session } : null;
   if (dayPrice.close) return { value: dayPrice.close, source: "close", stale };
@@ -75,10 +70,7 @@ export function resolveUnderlyingSpot(
   ticker: Ticker,
   at: Instant,
 ): DecimalString | null {
-  const quote = latestVisible(
-    view.quotes.filter((q) => q.ticker === ticker),
-    at,
-  );
+  const quote = latestVisibleIndexed(rowsWithKey(view.quotes, tickerOf, ticker), at);
   if (quote?.bid && quote.ask) {
     return toDecimalString(
       parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
@@ -86,9 +78,9 @@ export function resolveUnderlyingSpot(
     );
   }
   if (quote?.last) return quote.last;
-  const candle = view.candles
-    .filter((c) => c.ticker === ticker && c.timeframe === "D1" && isAtOrBefore(c.asOf, at))
-    .sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : 0))
-    .at(-1);
+  const candle = lastVisibleByAsOfString(
+    rowsWithKey(view.candles, dailyCandleTickerOf, ticker),
+    at,
+  );
   return candle?.close ?? null;
 }

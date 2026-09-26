@@ -1,0 +1,1807 @@
+{
+ "config": {
+  "strategy": {
+   "id": "synthetic",
+   "definition": {
+    "name": "synthetic",
+    "timeframe": "D1",
+    "structureId": "stock",
+    "strikes": [],
+    "sizing": {
+     "kind": "fixed_fractional",
+     "fraction": "0.05"
+    },
+    "entry": {
+     "kind": "compare",
+     "left": {
+      "kind": "indicator",
+      "indicator": {
+       "kind": "iv_rank",
+       "lookbackSessions": 20
+      }
+     },
+     "comparator": "<",
+     "right": {
+      "kind": "constant",
+      "value": "30"
+     }
+    },
+    "exit": [
+     {
+      "kind": "condition",
+      "condition": {
+       "kind": "not",
+       "condition": {
+        "kind": "compare",
+        "left": {
+         "kind": "indicator",
+         "indicator": {
+          "kind": "iv_rank",
+          "lookbackSessions": 20
+         }
+        },
+        "comparator": "<",
+        "right": {
+         "kind": "constant",
+         "value": "30"
+        }
+       }
+      }
+     }
+    ],
+    "adjustments": []
+   },
+   "structure": {
+    "id": "stock",
+    "name": "Stock",
+    "expiry": "shared",
+    "legs": [
+     {
+      "role": "stock",
+      "side": "buy",
+      "ratio": 1
+     }
+    ]
+   }
+  },
+  "universe": [
+   "TCK003",
+   "TCK013",
+   "TCK023"
+  ],
+  "period": {
+   "from": "2019-03-27",
+   "to": "2019-07-16"
+  },
+  "initialCapital": 100000000,
+  "costModel": {
+   "b3FeeRate": "0.0003",
+   "brokerage": {
+    "stockPerOrder": 0,
+    "optionPerContract": 0
+   },
+   "optionSlippageRate": "0",
+   "incomeTaxRate": "0.15",
+   "monthlyStockSalesExemption": 2000000
+  },
+  "riskProfile": {
+   "declaredCapital": 100000000,
+   "limits": {
+    "maxLossPerOperation": "1",
+    "maxExposurePerOperation": "1",
+    "maxOpenOperations": 3,
+    "maxPremiumBought": "1"
+   }
+  },
+  "limits": "warn",
+  "sizing": null,
+  "walkForward": null,
+  "seed": 1
+ },
+ "configDigest": "af71a85b",
+ "operations": [
+  {
+   "id": "synthetic:TCK013:2019-04-08:0",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 925,
+     "entryPrice": "54.02"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-04-08",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -13170,
+   "maxLoss": 4996850,
+   "status": "closed",
+   "closedAt": "2019-04-11",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-04-18:1",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1182,
+     "entryPrice": "42.28"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-04-18",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -90440,
+   "maxLoss": 4997496,
+   "status": "closed",
+   "closedAt": "2019-04-19",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-04-19:2",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 870,
+     "entryPrice": "57.35"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-04-19",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -133455,
+   "maxLoss": 4989450,
+   "status": "closed",
+   "closedAt": "2019-04-22",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-04-25:3",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 885,
+     "entryPrice": "56.30"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-04-25",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -136585,
+   "maxLoss": 4982550,
+   "status": "closed",
+   "closedAt": "2019-04-26",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-05-01:4",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1223,
+     "entryPrice": "40.73"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-05-01",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 114384,
+   "maxLoss": 4981279,
+   "status": "closed",
+   "closedAt": "2019-05-02",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-05-21:5",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 921,
+     "entryPrice": "54.12"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-05-21",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 117624,
+   "maxLoss": 4984452,
+   "status": "closed",
+   "closedAt": "2019-05-22",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-05-24:6",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1202,
+     "entryPrice": "41.53"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-05-24",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -109941,
+   "maxLoss": 4991906,
+   "status": "closed",
+   "closedAt": "2019-05-27",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-05-27:7",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 904,
+     "entryPrice": "55.16"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-05-27",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -88846,
+   "maxLoss": 4986464,
+   "status": "closed",
+   "closedAt": "2019-05-29",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-05-28:8",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1215,
+     "entryPrice": "41.00"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-05-28",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 143982,
+   "maxLoss": 4981500,
+   "status": "closed",
+   "closedAt": "2019-06-03",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-06-03:9",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 891,
+     "entryPrice": "56.00"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-03",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -100084,
+   "maxLoss": 4989600,
+   "status": "closed",
+   "closedAt": "2019-06-04",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-06-18:11",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 882,
+     "entryPrice": "56.52"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-18",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -164349,
+   "maxLoss": 4985064,
+   "status": "closed",
+   "closedAt": "2019-06-24",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-06-25:12",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 894,
+     "entryPrice": "55.75"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-25",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 30078,
+   "maxLoss": 4984050,
+   "status": "closed",
+   "closedAt": "2019-06-26",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-06-04:10",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1186,
+     "entryPrice": "42.01"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-04",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 229397,
+   "maxLoss": 4982386,
+   "status": "closed",
+   "closedAt": "2019-06-26",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-06-28:14",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 925,
+     "entryPrice": "53.87"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-28",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -60323,
+   "maxLoss": 4982975,
+   "status": "closed",
+   "closedAt": "2019-07-12",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK003:2019-07-05:15",
+   "underlying": "TCK003",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK003",
+     "quantity": 1336,
+     "entryPrice": "37.27"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-07-05",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": -320860,
+   "maxLoss": 4979272,
+   "status": "closed",
+   "closedAt": "2019-07-15",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK013:2019-07-15:16",
+   "underlying": "TCK013",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK013",
+     "quantity": 911,
+     "entryPrice": "54.78"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-07-15",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 117222,
+   "maxLoss": 4990458,
+   "status": "closed",
+   "closedAt": "2019-07-16",
+   "closeReason": {
+    "kind": "exit_rule",
+    "rule": {
+     "kind": "condition",
+     "condition": {
+      "kind": "not",
+      "condition": {
+       "kind": "compare",
+       "left": {
+        "kind": "indicator",
+        "indicator": {
+         "kind": "iv_rank",
+         "lookbackSessions": 20
+        }
+       },
+       "comparator": "<",
+       "right": {
+        "kind": "constant",
+        "value": "30"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "synthetic:TCK023:2019-06-27:13",
+   "underlying": "TCK023",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK023",
+     "quantity": 1168,
+     "entryPrice": "42.69"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-06-27",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 527608,
+   "maxLoss": 4986192,
+   "status": "closed",
+   "closedAt": "2019-07-16",
+   "closeReason": {
+    "kind": "period_end"
+   }
+  },
+  {
+   "id": "synthetic:TCK003:2019-07-16:17",
+   "underlying": "TCK003",
+   "legs": [
+    {
+     "role": "stock",
+     "side": "buy",
+     "ticker": "TCK003",
+     "quantity": 1408,
+     "entryPrice": "35.50"
+    }
+   ],
+   "expiry": null,
+   "openedAt": "2019-07-16",
+   "strategyVersionId": "synthetic",
+   "rolledFrom": null,
+   "pnl": 118180,
+   "maxLoss": 4998400,
+   "status": "closed",
+   "closedAt": "2019-07-16",
+   "closeReason": {
+    "kind": "period_end"
+   }
+  }
+ ],
+ "fills": [
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 925,
+   "price": "54.02",
+   "session": "2019-04-08",
+   "at": "2019-04-08T13:00:00.000Z",
+   "costs": 1499,
+   "operationId": "synthetic:TCK013:2019-04-08:0",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 925,
+   "price": "53.91",
+   "session": "2019-04-11",
+   "at": "2019-04-11T13:00:00.000Z",
+   "costs": 1496,
+   "operationId": "synthetic:TCK013:2019-04-08:0",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1182,
+   "price": "42.28",
+   "session": "2019-04-18",
+   "at": "2019-04-18T13:00:00.000Z",
+   "costs": 1499,
+   "operationId": "synthetic:TCK023:2019-04-18:1",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 870,
+   "price": "57.35",
+   "session": "2019-04-19",
+   "at": "2019-04-19T13:00:00.000Z",
+   "costs": 1497,
+   "operationId": "synthetic:TCK013:2019-04-19:2",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "sell",
+   "quantity": 1182,
+   "price": "41.54",
+   "session": "2019-04-19",
+   "at": "2019-04-19T13:00:00.000Z",
+   "costs": 1473,
+   "operationId": "synthetic:TCK023:2019-04-18:1",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 870,
+   "price": "55.85",
+   "session": "2019-04-22",
+   "at": "2019-04-22T13:00:00.000Z",
+   "costs": 1458,
+   "operationId": "synthetic:TCK013:2019-04-19:2",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 885,
+   "price": "56.30",
+   "session": "2019-04-25",
+   "at": "2019-04-25T13:00:00.000Z",
+   "costs": 1495,
+   "operationId": "synthetic:TCK013:2019-04-25:3",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 885,
+   "price": "54.79",
+   "session": "2019-04-26",
+   "at": "2019-04-26T13:00:00.000Z",
+   "costs": 1455,
+   "operationId": "synthetic:TCK013:2019-04-25:3",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1223,
+   "price": "40.73",
+   "session": "2019-05-01",
+   "at": "2019-05-01T13:00:00.000Z",
+   "costs": 1494,
+   "operationId": "synthetic:TCK023:2019-05-01:4",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "sell",
+   "quantity": 1223,
+   "price": "41.69",
+   "session": "2019-05-02",
+   "at": "2019-05-02T13:00:00.000Z",
+   "costs": 1530,
+   "operationId": "synthetic:TCK023:2019-05-01:4",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 921,
+   "price": "54.12",
+   "session": "2019-05-21",
+   "at": "2019-05-21T13:00:00.000Z",
+   "costs": 1495,
+   "operationId": "synthetic:TCK013:2019-05-21:5",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 921,
+   "price": "55.43",
+   "session": "2019-05-22",
+   "at": "2019-05-22T13:00:00.000Z",
+   "costs": 1532,
+   "operationId": "synthetic:TCK013:2019-05-21:5",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1202,
+   "price": "41.53",
+   "session": "2019-05-24",
+   "at": "2019-05-24T13:00:00.000Z",
+   "costs": 1498,
+   "operationId": "synthetic:TCK023:2019-05-24:6",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 904,
+   "price": "55.16",
+   "session": "2019-05-27",
+   "at": "2019-05-27T13:00:00.000Z",
+   "costs": 1496,
+   "operationId": "synthetic:TCK013:2019-05-27:7",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "sell",
+   "quantity": 1202,
+   "price": "40.64",
+   "session": "2019-05-27",
+   "at": "2019-05-27T13:00:00.000Z",
+   "costs": 1465,
+   "operationId": "synthetic:TCK023:2019-05-24:6",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1215,
+   "price": "41.00",
+   "session": "2019-05-28",
+   "at": "2019-05-28T13:00:00.000Z",
+   "costs": 1494,
+   "operationId": "synthetic:TCK023:2019-05-28:8",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 904,
+   "price": "54.21",
+   "session": "2019-05-29",
+   "at": "2019-05-29T13:00:00.000Z",
+   "costs": 1470,
+   "operationId": "synthetic:TCK013:2019-05-27:7",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 891,
+   "price": "56.00",
+   "session": "2019-06-03",
+   "at": "2019-06-03T13:00:00.000Z",
+   "costs": 1497,
+   "operationId": "synthetic:TCK013:2019-06-03:9",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "sell",
+   "quantity": 1215,
+   "price": "42.21",
+   "session": "2019-06-03",
+   "at": "2019-06-03T13:00:00.000Z",
+   "costs": 1539,
+   "operationId": "synthetic:TCK023:2019-05-28:8",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1186,
+   "price": "42.01",
+   "session": "2019-06-04",
+   "at": "2019-06-04T13:00:00.000Z",
+   "costs": 1495,
+   "operationId": "synthetic:TCK023:2019-06-04:10",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 891,
+   "price": "54.91",
+   "session": "2019-06-04",
+   "at": "2019-06-04T13:00:00.000Z",
+   "costs": 1468,
+   "operationId": "synthetic:TCK013:2019-06-03:9",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 882,
+   "price": "56.52",
+   "session": "2019-06-18",
+   "at": "2019-06-18T13:00:00.000Z",
+   "costs": 1496,
+   "operationId": "synthetic:TCK013:2019-06-18:11",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 882,
+   "price": "54.69",
+   "session": "2019-06-24",
+   "at": "2019-06-24T13:00:00.000Z",
+   "costs": 1447,
+   "operationId": "synthetic:TCK013:2019-06-18:11",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 894,
+   "price": "55.75",
+   "session": "2019-06-25",
+   "at": "2019-06-25T13:00:00.000Z",
+   "costs": 1495,
+   "operationId": "synthetic:TCK013:2019-06-25:12",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 894,
+   "price": "56.12",
+   "session": "2019-06-26",
+   "at": "2019-06-26T13:00:00.000Z",
+   "costs": 1505,
+   "operationId": "synthetic:TCK013:2019-06-25:12",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "sell",
+   "quantity": 1186,
+   "price": "43.97",
+   "session": "2019-06-26",
+   "at": "2019-06-26T13:00:00.000Z",
+   "costs": 1564,
+   "operationId": "synthetic:TCK023:2019-06-04:10",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK023",
+   "side": "buy",
+   "quantity": 1168,
+   "price": "42.69",
+   "session": "2019-06-27",
+   "at": "2019-06-27T13:00:00.000Z",
+   "costs": 1496,
+   "operationId": "synthetic:TCK023:2019-06-27:13",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 925,
+   "price": "53.87",
+   "session": "2019-06-28",
+   "at": "2019-06-28T13:00:00.000Z",
+   "costs": 1495,
+   "operationId": "synthetic:TCK013:2019-06-28:14",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK003",
+   "side": "buy",
+   "quantity": 1336,
+   "price": "37.27",
+   "session": "2019-07-05",
+   "at": "2019-07-05T13:00:00.000Z",
+   "costs": 1494,
+   "operationId": "synthetic:TCK003:2019-07-05:15",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 925,
+   "price": "53.25",
+   "session": "2019-07-12",
+   "at": "2019-07-12T13:00:00.000Z",
+   "costs": 1478,
+   "operationId": "synthetic:TCK013:2019-06-28:14",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "buy",
+   "quantity": 911,
+   "price": "54.78",
+   "session": "2019-07-15",
+   "at": "2019-07-15T13:00:00.000Z",
+   "costs": 1497,
+   "operationId": "synthetic:TCK013:2019-07-15:16",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK003",
+   "side": "sell",
+   "quantity": 1336,
+   "price": "34.89",
+   "session": "2019-07-15",
+   "at": "2019-07-15T13:00:00.000Z",
+   "costs": 1398,
+   "operationId": "synthetic:TCK003:2019-07-05:15",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK003",
+   "side": "buy",
+   "quantity": 1408,
+   "price": "35.50",
+   "session": "2019-07-16",
+   "at": "2019-07-16T13:00:00.000Z",
+   "costs": 1500,
+   "operationId": "synthetic:TCK003:2019-07-16:17",
+   "source": "next_session_open"
+  },
+  {
+   "ticker": "TCK013",
+   "side": "sell",
+   "quantity": 911,
+   "price": "56.10",
+   "session": "2019-07-16",
+   "at": "2019-07-16T13:00:00.000Z",
+   "costs": 1533,
+   "operationId": "synthetic:TCK013:2019-07-15:16",
+   "source": "next_session_open"
+  }
+ ],
+ "missedEntries": [],
+ "limitBreaches": [],
+ "equityCurve": [
+  {
+   "session": "2019-03-27",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-03-28",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-03-29",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-01",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-02",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-03",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-04",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-05",
+   "equity": 100000000,
+   "cash": 100000000,
+   "drawdown": "0.000000"
+  },
+  {
+   "session": "2019-04-08",
+   "equity": 99879176,
+   "cash": 95001651,
+   "drawdown": "0.001208"
+  },
+  {
+   "session": "2019-04-09",
+   "equity": 99933751,
+   "cash": 95001651,
+   "drawdown": "0.000662"
+  },
+  {
+   "session": "2019-04-10",
+   "equity": 99988326,
+   "cash": 95001651,
+   "drawdown": "0.000117"
+  },
+  {
+   "session": "2019-04-11",
+   "equity": 99986830,
+   "cash": 99986830,
+   "drawdown": "0.000132"
+  },
+  {
+   "session": "2019-04-12",
+   "equity": 99986830,
+   "cash": 99986830,
+   "drawdown": "0.000132"
+  },
+  {
+   "session": "2019-04-15",
+   "equity": 99986830,
+   "cash": 99986830,
+   "drawdown": "0.000132"
+  },
+  {
+   "session": "2019-04-16",
+   "equity": 99986830,
+   "cash": 99986830,
+   "drawdown": "0.000132"
+  },
+  {
+   "session": "2019-04-17",
+   "equity": 99986830,
+   "cash": 99986830,
+   "drawdown": "0.000132"
+  },
+  {
+   "session": "2019-04-18",
+   "equity": 99897863,
+   "cash": 94987835,
+   "drawdown": "0.001021"
+  },
+  {
+   "session": "2019-04-19",
+   "equity": 99764393,
+   "cash": 94905443,
+   "drawdown": "0.002356"
+  },
+  {
+   "session": "2019-04-22",
+   "equity": 99762935,
+   "cash": 99762935,
+   "drawdown": "0.002371"
+  },
+  {
+   "session": "2019-04-23",
+   "equity": 99762935,
+   "cash": 99762935,
+   "drawdown": "0.002371"
+  },
+  {
+   "session": "2019-04-24",
+   "equity": 99762935,
+   "cash": 99762935,
+   "drawdown": "0.002371"
+  },
+  {
+   "session": "2019-04-25",
+   "equity": 99627805,
+   "cash": 94778890,
+   "drawdown": "0.003722"
+  },
+  {
+   "session": "2019-04-26",
+   "equity": 99626350,
+   "cash": 99626350,
+   "drawdown": "0.003737"
+  },
+  {
+   "session": "2019-04-29",
+   "equity": 99626350,
+   "cash": 99626350,
+   "drawdown": "0.003737"
+  },
+  {
+   "session": "2019-04-30",
+   "equity": 99626350,
+   "cash": 99626350,
+   "drawdown": "0.003737"
+  },
+  {
+   "session": "2019-05-01",
+   "equity": 99742264,
+   "cash": 94643577,
+   "drawdown": "0.002577"
+  },
+  {
+   "session": "2019-05-02",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-03",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-06",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-07",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-08",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-09",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-10",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-13",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-14",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-15",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-16",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-17",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-20",
+   "equity": 99740734,
+   "cash": 99740734,
+   "drawdown": "0.002593"
+  },
+  {
+   "session": "2019-05-21",
+   "equity": 99859890,
+   "cash": 94754787,
+   "drawdown": "0.001401"
+  },
+  {
+   "session": "2019-05-22",
+   "equity": 99858358,
+   "cash": 99858358,
+   "drawdown": "0.001416"
+  },
+  {
+   "session": "2019-05-23",
+   "equity": 99858358,
+   "cash": 99858358,
+   "drawdown": "0.001416"
+  },
+  {
+   "session": "2019-05-24",
+   "equity": 99749882,
+   "cash": 94864954,
+   "drawdown": "0.002501"
+  },
+  {
+   "session": "2019-05-27",
+   "equity": 99706241,
+   "cash": 94760457,
+   "drawdown": "0.002938"
+  },
+  {
+   "session": "2019-05-28",
+   "equity": 99785907,
+   "cash": 89777463,
+   "drawdown": "0.002141"
+  },
+  {
+   "session": "2019-05-29",
+   "equity": 99762567,
+   "cash": 94676577,
+   "drawdown": "0.002374"
+  },
+  {
+   "session": "2019-05-30",
+   "equity": 99901077,
+   "cash": 94676577,
+   "drawdown": "0.000989"
+  },
+  {
+   "session": "2019-05-31",
+   "equity": 99805092,
+   "cash": 94676577,
+   "drawdown": "0.001949"
+  },
+  {
+   "session": "2019-06-03",
+   "equity": 99704937,
+   "cash": 94812456,
+   "drawdown": "0.002951"
+  },
+  {
+   "session": "2019-06-04",
+   "equity": 99835992,
+   "cash": 94719588,
+   "drawdown": "0.001640"
+  },
+  {
+   "session": "2019-06-05",
+   "equity": 99716206,
+   "cash": 94719588,
+   "drawdown": "0.002838"
+  },
+  {
+   "session": "2019-06-06",
+   "equity": 99763646,
+   "cash": 94719588,
+   "drawdown": "0.002364"
+  },
+  {
+   "session": "2019-06-07",
+   "equity": 99839550,
+   "cash": 94719588,
+   "drawdown": "0.001605"
+  },
+  {
+   "session": "2019-06-10",
+   "equity": 99738740,
+   "cash": 94719588,
+   "drawdown": "0.002613"
+  },
+  {
+   "session": "2019-06-11",
+   "equity": 99675882,
+   "cash": 94719588,
+   "drawdown": "0.003241"
+  },
+  {
+   "session": "2019-06-12",
+   "equity": 99822946,
+   "cash": 94719588,
+   "drawdown": "0.001771"
+  },
+  {
+   "session": "2019-06-13",
+   "equity": 99839550,
+   "cash": 94719588,
+   "drawdown": "0.001605"
+  },
+  {
+   "session": "2019-06-14",
+   "equity": 99821760,
+   "cash": 94719588,
+   "drawdown": "0.001782"
+  },
+  {
+   "session": "2019-06-17",
+   "equity": 99713834,
+   "cash": 94719588,
+   "drawdown": "0.002862"
+  },
+  {
+   "session": "2019-06-18",
+   "equity": 99697164,
+   "cash": 89733028,
+   "drawdown": "0.003028"
+  },
+  {
+   "session": "2019-06-19",
+   "equity": 99632466,
+   "cash": 89733028,
+   "drawdown": "0.003675"
+  },
+  {
+   "session": "2019-06-20",
+   "equity": 99710704,
+   "cash": 89733028,
+   "drawdown": "0.002893"
+  },
+  {
+   "session": "2019-06-21",
+   "equity": 99817782,
+   "cash": 89733028,
+   "drawdown": "0.001822"
+  },
+  {
+   "session": "2019-06-24",
+   "equity": 99719083,
+   "cash": 94555239,
+   "drawdown": "0.002809"
+  },
+  {
+   "session": "2019-06-25",
+   "equity": 99801664,
+   "cash": 89569694,
+   "drawdown": "0.001983"
+  },
+  {
+   "session": "2019-06-26",
+   "equity": 99798595,
+   "cash": 99798595,
+   "drawdown": "0.002014"
+  },
+  {
+   "session": "2019-06-27",
+   "equity": 99735195,
+   "cash": 94810907,
+   "drawdown": "0.002648"
+  },
+  {
+   "session": "2019-06-28",
+   "equity": 99697110,
+   "cash": 89821454,
+   "drawdown": "0.003029"
+  },
+  {
+   "session": "2019-07-01",
+   "equity": 99739377,
+   "cash": 89821454,
+   "drawdown": "0.002606"
+  },
+  {
+   "session": "2019-07-02",
+   "equity": 99955434,
+   "cash": 89821454,
+   "drawdown": "0.000446"
+  },
+  {
+   "session": "2019-07-03",
+   "equity": 99697266,
+   "cash": 89821454,
+   "drawdown": "0.003027"
+  },
+  {
+   "session": "2019-07-04",
+   "equity": 99588822,
+   "cash": 89821454,
+   "drawdown": "0.004112"
+  },
+  {
+   "session": "2019-07-05",
+   "equity": 99639427,
+   "cash": 84840688,
+   "drawdown": "0.003606"
+  },
+  {
+   "session": "2019-07-08",
+   "equity": 99761575,
+   "cash": 84840688,
+   "drawdown": "0.002384"
+  },
+  {
+   "session": "2019-07-09",
+   "equity": 99817980,
+   "cash": 84840688,
+   "drawdown": "0.001820"
+  },
+  {
+   "session": "2019-07-10",
+   "equity": 99671745,
+   "cash": 84840688,
+   "drawdown": "0.003283"
+  },
+  {
+   "session": "2019-07-11",
+   "equity": 99832089,
+   "cash": 84840688,
+   "drawdown": "0.001679"
+  },
+  {
+   "session": "2019-07-12",
+   "equity": 99837483,
+   "cash": 89764835,
+   "drawdown": "0.001625"
+  },
+  {
+   "session": "2019-07-15",
+   "equity": 99971192,
+   "cash": 89432786,
+   "drawdown": "0.000288"
+  },
+  {
+   "session": "2019-07-16",
+   "equity": 100154585,
+   "cash": 89521209,
+   "drawdown": "0.000000"
+  }
+ ],
+ "metrics": {
+  "sessions": 80,
+  "operations": 18,
+  "totalReturn": "0.001546",
+  "cagr": null,
+  "maxDrawdown": "0.004112",
+  "sharpe": null,
+  "winRate": "0.375000",
+  "profitFactor": "0.617943",
+  "exposure": "0.550000",
+  "fees": 50743,
+  "taxes": 25837,
+  "slippage": 0
+ },
+ "walkForward": null,
+ "taxes": [
+  {
+   "month": "2019-03",
+   "stockSales": 0,
+   "stockGain": 0,
+   "optionGain": 0,
+   "exemptGain": 0,
+   "netGain": 0,
+   "tax": 0
+  },
+  {
+   "month": "2019-04",
+   "stockSales": 19604568,
+   "stockGain": -373650,
+   "optionGain": 0,
+   "exemptGain": 0,
+   "netGain": -373650,
+   "tax": 0
+  },
+  {
+   "month": "2019-05",
+   "stockSales": 19989302,
+   "stockGain": 33221,
+   "optionGain": 0,
+   "exemptGain": 0,
+   "netGain": 33221,
+   "tax": 4983
+  },
+  {
+   "month": "2019-06",
+   "stockSales": 25076624,
+   "stockGain": 139024,
+   "optionGain": 0,
+   "exemptGain": 0,
+   "netGain": 139024,
+   "tax": 20854
+  },
+  {
+   "month": "2019-07",
+   "stockSales": 14697639,
+   "stockGain": -263961,
+   "optionGain": 0,
+   "exemptGain": 0,
+   "netGain": -263961,
+   "tax": 0
+  }
+ ],
+ "notes": [
+  {
+   "code": "short_window_not_annualized",
+   "message": "fewer than 126 sessions; cagr and sharpe are not annualized"
+  }
+ ],
+ "provenance": {
+  "engineVersion": "0.2.0",
+  "pricingModel": "bsm_continuous_yield",
+  "truncated": [],
+  "dataVersion": null,
+  "datasetNotes": []
+ }
+}
