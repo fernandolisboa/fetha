@@ -40,6 +40,8 @@ describe("signUpFormSchema", () => {
     ["a tab", "Nova\tUser"],
     ["a NUL", "Nova\u0000User"],
     ["a zero-width space", "Nova\u200bUser"],
+    ["a line separator", "Nova\u2028Sua conta foi bloqueada"],
+    ["a paragraph separator", "Nova\u2029User"],
     ["an http link", "Nova http://evil.example"],
     ["an https link", "regularize em HTTPS://evil.example"],
   ])("rejects a name with %s", (_label, name) => {
@@ -94,36 +96,6 @@ describe("magicLinkFormSchema", () => {
   it("normalizes the email", () => {
     const parsed = magicLinkFormSchema.parse({ email: "  Nova@Example.com " });
     expect(parsed.email).toBe("nova@example.com");
-  });
-
-  it.each([
-    ["a line feed", "cliente.\n\nSua conta foi bloqueada"],
-    ["a carriage return", "Nova\rUser"],
-    ["a tab", "Nova\tUser"],
-    ["a NUL", "Nova\u0000User"],
-    ["a zero-width space", "Nova\u200bUser"],
-    ["an http link", "Nova http://evil.example"],
-    ["an https link", "regularize em HTTPS://evil.example"],
-  ])("rejects a name with %s", (_label, name) => {
-    const result = signUpFormSchema.safeParse({
-      name,
-      email: "nova@example.com",
-      password: "correct-horse-battery",
-      termsAccepted: true,
-      privacyAccepted: true,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts a name with accents, apostrophes and hyphens", () => {
-    const result = signUpFormSchema.safeParse({
-      name: "João D'Ávila-Souza",
-      email: "nova@example.com",
-      password: "correct-horse-battery",
-      termsAccepted: true,
-      privacyAccepted: true,
-    });
-    expect(result.success).toBe(true);
   });
 
   it("rejects an invalid email", () => {

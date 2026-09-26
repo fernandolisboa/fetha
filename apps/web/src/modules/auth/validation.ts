@@ -12,7 +12,7 @@ export const nameField = z
   .trim()
   .min(1)
   .max(120)
-  .regex(/^\P{C}+$/u)
+  .regex(/^[^\p{C}\p{Zl}\p{Zp}]+$/u)
   .refine((name) => !/https?:\/\//i.test(name));
 
 export const signUpFormSchema = z.object({

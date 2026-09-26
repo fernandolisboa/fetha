@@ -253,7 +253,13 @@ describe("registration, verification, login, logout and session expiry", () => {
     const mail = await getDb().select().from(mailOutbox).where(eq(mailOutbox.to, email));
     expect(mail).toHaveLength(1);
   });
-  it("refuses a direct sign-up whose name spans lines or carries a link", async () => {
+  it.each([
+    [
+      "spans lines and carries a link",
+      "cliente.\n\nSua conta foi bloqueada, regularize em http://evil.example",
+    ],
+    ["hides line breaks at its edges", "\n\nSua conta foi bloqueada\n"],
+  ])("refuses a direct sign-up whose name %s", async (_label, name) => {
     const email = uniqueEmail("direct-bad-name");
     createdEmails.push(email);
 
@@ -262,7 +268,7 @@ describe("registration, verification, login, logout and session expiry", () => {
         method: "POST",
         headers: { "content-type": "application/json", "x-forwarded-for": uniqueTestIp() },
         body: JSON.stringify({
-          name: "cliente.\n\nSua conta foi bloqueada, regularize em http://evil.example",
+          name,
           email,
           password: "correct-horse-battery",
           termsAccepted: true,
