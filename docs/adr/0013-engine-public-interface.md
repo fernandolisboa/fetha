@@ -83,11 +83,13 @@ export const ENGINE_VERSION = "0.2.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
-export type UnsizeableReason = "unbounded_max_loss" | "no_declared_capital" | "zero_units";
+export type UnsizeableReason =
+  "unbounded_max_loss" | "no_declared_capital" | "zero_units" | "unaffordable_budget";
 export const unsizeableReasons = [
   "unbounded_max_loss",
   "no_declared_capital",
   "zero_units",
+  "unaffordable_budget",
 ] as const satisfies readonly UnsizeableReason[];
 
 export type EngineError =
@@ -1518,18 +1520,25 @@ implicit or wrong; this addendum records what shipped and the rules that came ou
   ticker, or the first option leg's listed underlying); every option leg must share one
   listed expiry — both `invalid_input` (path `legs`). A leg with no listed series is still
   `missing_instrument`, reported by its own valuation, not by this check.
-- **Sizing: `zero_units` and the net-credit divisor.** `UnsizeableReason` gains `zero_units`
+- **Sizing: `zero_units` and the non-debit divisor.** `UnsizeableReason` gains `zero_units`
   (additive, `api.ts` and the frozen block above updated together): a `SizingRule` that would
   otherwise size to fewer than one unit is unsizeable, per "Quantity" above ("fewer than one
   unit is unsizeable") — it is never clamped up to one unit, the bug round 1 found. A
-  `fixed_fractional` quantity on a net-credit structure (`netPremium > 0`, premium received)
-  sizes against the structure's bounded max loss, not the premium received, which understated the
-  capital actually at risk on a credit spread; an unbounded max loss on a net-credit
-  `fixed_fractional` structure is `unsizeable` (`unbounded_max_loss`), the same reading
-  `fixed_risk` already gave a naked short option. `zero_units` currently conflates two
-  distinct reasons — a genuinely zero max loss or premium, and a positive per-unit cost the
-  declared capital and fraction cannot afford one unit of — pending a `UnsizeableReason`
-  member for the unaffordable-budget case
+  `fixed_fractional` quantity on a non-debit structure (`netPremium >= 0` — premium received, or
+  exactly zero as in a zero-cost risk reversal) sizes against the structure's bounded max loss,
+  not the premium received or paid, which understates the capital actually at risk. A net-debit
+  structure still sizes on the premium paid; when it carries a short leg its max loss can exceed
+  that premium, and today the risk-limit check is what catches it ([issue #131](https://github.com/fernandolisboa/fetha/issues/131): size net-debit
+  structures on bounded max loss too). An unbounded max loss on a non-debit `fixed_fractional`
+  structure is `unsizeable`
+  (`unbounded_max_loss`), the same reading `fixed_risk` already gave a naked short option.
+  `zero_units` conflated two distinct reasons — a genuinely zero max loss or premium, and a
+  positive per-unit cost the declared capital and fraction cannot afford one unit of — so
+  `UnsizeableReason` gains `unaffordable_budget` (additive, `api.ts` and the frozen block above
+  updated together): `unitsFromPerUnit` (`price-operation.ts`) keeps `zero_units` only for
+  `perUnit.lte(0)` and reports `unaffordable_budget` when a positive per-unit cost floors to
+  fewer than one unit; `sizeStockEntry`'s own `StockSizingReason` (`sizing.ts`) carries the same
+  split so a stock entry and an option entry report the same distinction for the same situation
   ([issue #59](https://github.com/fernandolisboa/fetha/issues/59)).
 - **Spot precedence matches leg precedence.** The underlying's own spot and a leg's own price
   both resolve `mid` (bid/ask average) before `last`, `last` before a day's `close`, `close`

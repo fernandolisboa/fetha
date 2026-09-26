@@ -1963,7 +1963,7 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
   });
 
-  it("returns unsizeable(zero_units) when the budget cannot afford one unit (R$100 budget, R$500 per unit)", () => {
+  it("returns unsizeable(unaffordable_budget) when the budget cannot afford one unit (R$100 budget, R$500 per unit)", () => {
     const expensiveView: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -2004,7 +2004,147 @@ describe("priceOperation (selection: quantity resolution)", () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toEqual({ code: "unsizeable", reason: "zero_units" });
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unaffordable_budget" });
+  });
+
+  it("sizes a fixed_fractional zero-net-premium structure against maxLoss, not zero premium (#59)", () => {
+    const riskReversalView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const riskReversalStructure: Structure = {
+      id: "zero-cost-risk-reversal",
+      name: "Zero-cost risk reversal",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: riskReversalView,
+        at,
+        legs: {
+          structure: riskReversalStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.netPremium).toBe(0);
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    expect(result.value.maxLoss).toBe(498_400);
+    expect(result.value.legs[0]?.leg.quantity).toBe(178);
+    expect(result.value.legs[1]?.leg.quantity).toBe(178);
+  });
+
+  it("returns unsizeable(unbounded_max_loss) for a fixed_fractional zero-net-premium structure with a naked short call leg (#59)", () => {
+    const zeroNetUnboundedView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C33", "33.00"),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C33",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const collarShortStructure: Structure = {
+      id: "long-put-short-call",
+      name: "Long put, short call",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: zeroNetUnboundedView,
+        at,
+        legs: {
+          structure: collarShortStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("33.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unbounded_max_loss" });
   });
 
   it("returns missing_instrument when a LegSelection's underlying has no visible spot", () => {

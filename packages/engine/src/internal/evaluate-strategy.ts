@@ -46,7 +46,8 @@ import { validateViewIntegrity } from "./validate-view-integrity";
 const sizingDetail: Record<StockSizingReason, string> = {
   no_declared_capital: "no declared capital to size against",
   unbounded_max_loss: "fixed_risk sizing is unsizeable against an unbounded max loss",
-  zero_units: "sizing yields fewer than one unit",
+  zero_units: "a unit carries no cost or risk to size against",
+  unaffordable_budget: "the declared capital and fraction cannot afford one unit",
 };
 
 function invalidInput<T = Evaluation>(path: string, message: string): Result<T> {
