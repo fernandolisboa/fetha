@@ -162,7 +162,7 @@ export function PayoffChart({
     return null;
   }
   return (
-    <ParentSize>
+    <ParentSize style={{ height: "auto", aspectRatio: "800 / 340" }}>
       {({ width }) =>
         width > 0 ? (
           <Chart width={width} points={points} spot={Number(spot)} breakEvens={breakEvens} />

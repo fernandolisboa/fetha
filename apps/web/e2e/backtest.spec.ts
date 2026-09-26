@@ -74,4 +74,10 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
 
   await page.getByRole("button", { name: /Executar|Continuar/ }).click();
   await expect(page.getByText("Curva de patrimônio")).toBeVisible();
+  // visx's ParentSize clips the chart to its own measured box, so a chart
+  // with no explicit height is in the DOM yet drawn 0px tall.
+  const equityChart = page.getByRole("img", { name: "Curva de patrimônio" });
+  await expect
+    .poll(() => equityChart.evaluate((svg) => svg.parentElement?.clientHeight ?? 0))
+    .toBeGreaterThan(0);
 });

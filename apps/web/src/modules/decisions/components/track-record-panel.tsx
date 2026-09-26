@@ -215,7 +215,7 @@ export function TrackRecordPanel({ stats }: { stats: TrackRecordStats }) {
         {stats.pnlOverTime.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.trackRecord.pnlOverTimeEmpty}</p>
         ) : (
-          <ParentSize>
+          <ParentSize style={{ height: "auto", aspectRatio: "320 / 200" }}>
             {({ width }) =>
               width > 0 ? <PnlOverTimeChart width={width} points={stats.pnlOverTime} /> : null
             }
