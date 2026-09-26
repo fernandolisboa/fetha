@@ -2547,6 +2547,36 @@ describe("createStrategyEvaluator (#58)", () => {
     }
   });
 
+  it("applies a factor whose asOf does not parse at every instant, as buildCandleSeries does", () => {
+    const factorAt = (asOf: string): MarketView => ({
+      ...emptyView,
+      calendar: calendarSessions(3),
+      candles: [
+        dailyCandle("PETR4", 0, "10"),
+        dailyCandle("PETR4", 1, "10"),
+        dailyCandle("PETR4", 2, "6"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(2),
+          asOf,
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+    });
+    const call = {
+      at: `${sessionAt(2)}T21:00:00.000Z`,
+      since: `${sessionAt(0)}T00:00:00.000Z`,
+      riskProfile,
+    };
+    const evaluateWith = (asOf: string) =>
+      createStrategyEvaluator({ view: factorAt(asOf), strategy, instruments: ["PETR4"] })(call);
+    const unparseable = evaluateWith("not an instant");
+    expect(unparseable.ok && unparseable.value.evaluations.at(-1)?.outcome).toBe("signal");
+    expect(unparseable).toEqual(evaluateWith(`${sessionAt(0)}T00:00:00.000Z`));
+  });
+
   it("treats an unparseable at or since as isAfter and isAtOrBefore do: never after, never at or before", () => {
     const evaluate = createStrategyEvaluator({ view, strategy, instruments: ["PETR4"] });
     const latest = evaluate({ at: "not an instant", riskProfile });

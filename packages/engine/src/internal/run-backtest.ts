@@ -54,6 +54,7 @@ import {
 import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
 import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
+import { groupBy } from "./search";
 import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
@@ -334,13 +335,12 @@ function monthKeyOf(session: SessionDate): string {
 function indexTickerSessions<T extends { ticker: Ticker; session: SessionDate; asOf: Instant }>(
   rows: readonly T[],
 ): Map<Ticker, SessionRows<T>> {
-  const byTicker = new Map<Ticker, T[]>();
-  for (const row of rows) {
-    const bucket = byTicker.get(row.ticker);
-    if (bucket) bucket.push(row);
-    else byTicker.set(row.ticker, [row]);
-  }
-  return new Map([...byTicker].map(([ticker, bucket]) => [ticker, indexBySession(bucket)]));
+  return new Map(
+    [...groupBy(rows, (row) => row.ticker)].map(([ticker, bucket]) => [
+      ticker,
+      indexBySession(bucket),
+    ]),
+  );
 }
 
 function candleFor(
@@ -535,12 +535,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
   const candlesByTicker = indexTickerSessions(view.candles.filter((c) => c.timeframe === "D1"));
 
-  const corporateActionsByTicker = new Map<Ticker, typeof view.corporateActions>();
-  for (const f of view.corporateActions) {
-    const bucket = corporateActionsByTicker.get(f.ticker);
-    if (bucket) bucket.push(f);
-    else corporateActionsByTicker.set(f.ticker, [f]);
-  }
+  const corporateActionsByTicker = groupBy(view.corporateActions, (f) => f.ticker);
 
   const optionPricesByTicker = indexTickerSessions(view.optionPrices);
 

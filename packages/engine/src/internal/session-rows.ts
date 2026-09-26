@@ -1,6 +1,7 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
 import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
+import { upperBound } from "./search";
 
 type SessionRow = { session: SessionDate; asOf: Instant };
 
@@ -16,17 +17,6 @@ export function indexBySession<T extends SessionRow>(rows: readonly T[]): Sessio
   return { rows: sorted, sessions: sorted.map((row) => row.session) };
 }
 
-function firstAfter(sessions: readonly SessionDate[], session: SessionDate): number {
-  let low = 0;
-  let high = sessions.length;
-  while (low < high) {
-    const mid = (low + high) >>> 1;
-    if (assertDefined(sessions[mid], "firstAfter: index within bounds") <= session) low = mid + 1;
-    else high = mid;
-  }
-  return low;
-}
-
 // The first-listed row of `session` visible at `visibleAt`: `rows.find(...)` on the input.
 export function rowOnSession<T extends SessionRow>(
   index: SessionRows<T> | undefined,
@@ -34,7 +24,7 @@ export function rowOnSession<T extends SessionRow>(
   visibleAt: Instant,
 ): T | null {
   if (!index) return null;
-  const end = firstAfter(index.sessions, session);
+  const end = upperBound(index.sessions, session);
   let start = end;
   while (start > 0 && index.sessions[start - 1] === session) start -= 1;
   for (let i = start; i < end; i += 1) {
@@ -54,7 +44,7 @@ export function lastKnownRow<T extends SessionRow>(
 ): T | null {
   if (!index) return null;
   let found: T | null = null;
-  for (let i = firstAfter(index.sessions, upto) - 1; i >= 0; i -= 1) {
+  for (let i = upperBound(index.sessions, upto) - 1; i >= 0; i -= 1) {
     const row = assertDefined(index.rows[i], "lastKnownRow: index within bounds");
     if (found !== null && row.session !== found.session) break;
     if (isAtOrBefore(row.asOf, visibleAt)) found = row;

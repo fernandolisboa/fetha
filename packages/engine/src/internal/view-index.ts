@@ -1,6 +1,6 @@
 import type { Instant } from "@fetha/contracts";
 import { instantMs } from "./instant";
-import { upperBound } from "./search";
+import { groupBy, upperBound } from "./search";
 
 // Lookup indexes over a MarketView's collections (#58). A backtest asks the same view the same
 // kind of question once per session, and every lookup below used to filter and scan the whole
@@ -30,14 +30,7 @@ export function rowsWithKey<T>(
   }
   let grouped = byRows.get(rows);
   if (!grouped) {
-    grouped = new Map();
-    for (const row of rows) {
-      const k = keyOf(row);
-      if (k === null) continue;
-      const bucket = grouped.get(k);
-      if (bucket) bucket.push(row);
-      else grouped.set(k, [row]);
-    }
+    grouped = groupBy(rows, keyOf);
     byRows.set(rows, grouped);
   }
   return grouped.get(key) ?? noRows;

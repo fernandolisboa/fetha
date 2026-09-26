@@ -37,7 +37,7 @@ import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
 import { toQuantity } from "./scalars";
-import { upperBound } from "./search";
+import { groupBy, upperBound } from "./search";
 import { sizeStockEntry, type StockSizingReason } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
@@ -251,16 +251,6 @@ function validateViewContents(view: MarketView): Result<Evaluation> | null {
   }
 
   return null;
-}
-
-function partitionByTicker<T extends { ticker: Ticker }>(rows: readonly T[]): Map<Ticker, T[]> {
-  const byTicker = new Map<Ticker, T[]>();
-  for (const row of rows) {
-    const bucket = byTicker.get(row.ticker);
-    if (bucket) bucket.push(row);
-    else byTicker.set(row.ticker, [row]);
-  }
-  return byTicker;
 }
 
 type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
@@ -505,8 +495,8 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     const key = `${ticker}|${timeframe}|${specsKey}`;
     const cached = cache.tickers.get(key);
     if (cached) return cached;
-    cache.candlesByTicker ??= partitionByTicker<Candle>(view.candles);
-    cache.actionsByTicker ??= partitionByTicker<CorporateActionFactor>(view.corporateActions);
+    cache.candlesByTicker ??= groupBy(view.candles, (c) => c.ticker);
+    cache.actionsByTicker ??= groupBy(view.corporateActions, (f) => f.ticker);
     const tickerView: MarketView = {
       ...view,
       candles: cache.candlesByTicker.get(ticker) ?? [],
@@ -529,16 +519,22 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     if (!series.ok) {
       state = invalidInput(series.error.path, series.error.message);
     } else {
-      const factorsByAsOf = [...tickerView.corporateActions].sort((a, b) =>
-        compareInstants(a.asOf, b.asOf),
-      );
+      // A factor whose asOf does not parse is never "after" any instant, so buildCandleSeries
+      // applies it at every `at`: it sorts first and belongs to every epoch.
+      const byAsOf = tickerView.corporateActions
+        .map((factor) => {
+          const ms = instantMs(factor.asOf);
+          return { factor, ms: Number.isNaN(ms) ? -Infinity : ms };
+        })
+        .sort((a, b) => (a.ms < b.ms ? -1 : a.ms > b.ms ? 1 : 0));
+      const factorsByAsOf = byAsOf.map((entry) => entry.factor);
       state = {
         ok: true,
         value: {
           view: tickerView,
           nominal: series.value.nominal,
           nominalMs: series.value.nominal.map((c) => instantMs(c.asOf)),
-          factorMs: factorsByAsOf.map((f) => instantMs(f.asOf)),
+          factorMs: byAsOf.map((entry) => entry.ms),
           factorsByAsOf,
           prefixStable: !needsIv || ivPublishedInSessionOrder(view.impliedVolatilityIndex, ticker),
           epochs: new Map(),
@@ -605,6 +601,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
   // rule dataWindow uses; when the view carries no calendar row for `at`, this falls back to
   // slicing the instant's own date (ADR-0013 "Missing instrument").
   function sessionForInstant(at: Instant): SessionDate {
+    // Sorted by date, not by open, and scanned until the first session opening after `at`: the
+    // rule evaluateStrategy has always applied, which differs from sessionAtOrBefore's only on a
+    // calendar whose dates and opens disagree in order.
     cache.calendarByDate ??= [...view.calendar].sort((a, b) => codeUnitCompare(a.date, b.date));
     let found: SessionDate | null = null;
     for (const session of cache.calendarByDate) {
