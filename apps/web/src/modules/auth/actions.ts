@@ -3,7 +3,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getDb } from "@/db/client";
+
 import type { ActionState } from "./action-state";
+import { hasPassword } from "./credential";
 import { requireUser, withAuthenticatedAction } from "./session";
 import {
   deleteAccount,
@@ -225,7 +228,10 @@ export async function setPasswordAction(
   }
 
   const outcome = await withAuthenticatedAction(async () => {
-    await requireUser();
+    const currentUser = await requireUser();
+    if (await hasPassword(getDb(), currentUser)) {
+      return { status: "already_set" } as const;
+    }
     return setInitialPassword(parsed.data.newPassword, await headers());
   });
 

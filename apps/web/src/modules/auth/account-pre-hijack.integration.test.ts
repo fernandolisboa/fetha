@@ -96,8 +96,8 @@ describe("account pre-hijacking (#144)", () => {
     createdEmails.push(email);
     await attackerSignsUp(email);
 
-    const session = await openVerificationLink(email);
-    expect((await setInitialPassword("the-owners-own-password", session)).status).toBe("ok");
+    const sessionHeaders = await openVerificationLink(email);
+    expect((await setInitialPassword("the-owners-own-password", sessionHeaders)).status).toBe("ok");
 
     const owner = await signIn(
       { email, password: "the-owners-own-password" },
@@ -115,10 +115,12 @@ describe("account pre-hijacking (#144)", () => {
       { name: "Owner", email, termsAccepted: true, privacyAccepted: true },
       testRequestHeaders(),
     );
-    const session = await openVerificationLink(email);
-    expect((await setInitialPassword("the-first-password", session)).status).toBe("ok");
+    const sessionHeaders = await openVerificationLink(email);
+    expect((await setInitialPassword("the-first-password", sessionHeaders)).status).toBe("ok");
 
-    expect((await setInitialPassword("a-second-password", session)).status).toBe("already_set");
+    expect((await setInitialPassword("a-second-password", sessionHeaders)).status).toBe(
+      "already_set",
+    );
     const outcome = await signIn({ email, password: "the-first-password" }, testRequestHeaders());
     expect(outcome.status).toBe("ok");
   });
@@ -128,8 +130,8 @@ describe("account pre-hijacking (#144)", () => {
     expect(outcome.status).toBe("failed");
   });
 
-  it("replaces a still-unverified account when the email signs up again", async () => {
-    const email = uniqueEmail("replace");
+  it("keeps a still-unverified account and sends it a fresh link when the email signs up again", async () => {
+    const email = uniqueEmail("resend-on-sign-up");
     createdEmails.push(email);
     await attackerSignsUp(email);
     const [pending] = await getDb().select().from(user).where(eq(user.email, email));
@@ -142,10 +144,26 @@ describe("account pre-hijacking (#144)", () => {
 
     expect(outcome.status).toBe("ok");
     const rows = await getDb().select().from(user).where(eq(user.email, email));
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.id).not.toBe(pending?.id);
-    expect(rows[0]?.name).toBe("Vitoria Dona");
-    expect(await findLatestVerificationLink(getDb(), email)).toBeDefined();
+    expect(rows.map((row) => row.id)).toEqual([pending?.id]);
+    const sessionHeaders = await openVerificationLink(email);
+    expect((await setInitialPassword("the-owners-own-password", sessionHeaders)).status).toBe("ok");
+    const attacker = await signIn({ email, password: ATTACKER_PASSWORD }, testRequestHeaders());
+    expect(attacker.status).toBe("invalid_credentials");
+  });
+
+  it("limits sign-ups per email, whatever the IP", async () => {
+    const email = uniqueEmail("per-email-limit");
+    createdEmails.push(email);
+    const attempt = () =>
+      signUp(
+        { name: "Owner", email, termsAccepted: true, privacyAccepted: true },
+        testRequestHeaders(),
+      );
+
+    for (let index = 0; index < 3; index += 1) {
+      expect((await attempt()).status).toBe("ok");
+    }
+    expect((await attempt()).status).toBe("rate_limited");
   });
 
   it("keeps a verified account when the email signs up again", async () => {
@@ -155,8 +173,8 @@ describe("account pre-hijacking (#144)", () => {
       { name: "Owner", email, termsAccepted: true, privacyAccepted: true },
       testRequestHeaders(),
     );
-    const session = await openVerificationLink(email);
-    await setInitialPassword("the-owners-password", session);
+    const sessionHeaders = await openVerificationLink(email);
+    await setInitialPassword("the-owners-password", sessionHeaders);
     const [before] = await getDb().select().from(user).where(eq(user.email, email));
 
     const outcome = await signUp(

@@ -2,9 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { deleteTestUser } from "@/db/test/cleanup";
+import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
 
-import { user, verification } from "./schema";
+import { invites, user, verification } from "./schema";
 import { purgeUnverifiedAccounts, UNVERIFIED_ACCOUNT_RETENTION_HOURS } from "./unverified-accounts";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -16,6 +16,7 @@ afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+    await deleteTestInvite(db, email);
   }
 });
 
@@ -82,5 +83,18 @@ describe("purgeUnverifiedAccounts", () => {
       .from(verification)
       .where(eq(verification.identifier, identifier));
     expect(rows).toHaveLength(0);
+  });
+
+  it("puts back to pending the invite a purged account had consumed", async () => {
+    const stale = await insertUser("stale-invite", false, UNVERIFIED_ACCOUNT_RETENTION_HOURS + 1);
+    await getDb()
+      .insert(invites)
+      .values({ email: stale.email, consumedAt: stale.createdAt, consumedByUserId: stale.id });
+
+    await purgeUnverifiedAccounts(getDb(), NOW);
+
+    const [invite] = await getDb().select().from(invites).where(eq(invites.email, stale.email));
+    expect(invite?.consumedAt).toBeNull();
+    expect(invite?.consumedByUserId).toBeNull();
   });
 });

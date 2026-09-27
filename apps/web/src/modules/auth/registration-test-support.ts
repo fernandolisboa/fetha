@@ -40,8 +40,8 @@ export async function registerVerifiedUser(
   if (outcome.status !== "ok") {
     throw new Error(`sign-up failed for ${input.email}: ${outcome.status}`);
   }
-  const session = await openVerificationLink(input.email);
-  const passwordOutcome = await setInitialPassword(input.password, session);
+  const sessionHeaders = await openVerificationLink(input.email);
+  const passwordOutcome = await setInitialPassword(input.password, sessionHeaders);
   if (passwordOutcome.status !== "ok") {
     throw new Error(`setting the password failed for ${input.email}: ${passwordOutcome.status}`);
   }

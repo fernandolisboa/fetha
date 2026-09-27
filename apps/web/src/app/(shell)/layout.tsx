@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { getSession } from "@/modules/auth";
+import { getDb } from "@/db/client";
+import { getSession, hasPassword } from "@/modules/auth";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
 import { getMyUnreadSignalCount } from "@/modules/strategies";
@@ -10,6 +11,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const user = await getSession();
   if (!user) {
     redirect("/entrar");
+  }
+  // Account deletion takes the password (docs/adr/0027), so no signed-in
+  // screen is reachable before one is set (docs/adr/0028).
+  if (!(await hasPassword(getDb(), user))) {
+    redirect("/definir-senha");
   }
 
   const [preferences, unreadSignalCount] = await Promise.all([
