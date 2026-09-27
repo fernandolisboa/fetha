@@ -14,12 +14,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "4.5.4"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "eslint": "9.39.5",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.69.0",
+    "typescript-eslint": "8.70.1",
     "vitest": "4.1.11"
   }
 }
