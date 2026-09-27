@@ -1128,6 +1128,87 @@ describe("loadMarketView", () => {
     expect(view.dataVersion).not.toBe(calendarVersion);
   });
 
+  it("calendarVersion covers the forward-extended sessions past period.to, not only the in-window ones (#90 follow-up)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("CVX");
+    cleanupTickers.push(ticker);
+    const optionTicker = `${ticker}W1`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2098-03-02", 40);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const firstSession = sessions[0] ?? "";
+    const periodFrom = sessions[25] ?? "";
+    const periodTo = sessions[29] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    // Strictly inside the forward extension: after period.to, on or before
+    // expiry, so this session only ever surfaces through the calendar's
+    // extension past `to`, never through the in-window sessions alone.
+    const extensionSession = sessions[35] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: ticker,
+      right: "call",
+      strike: "12.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+
+    const revisedAsOf = new Date("2099-01-01T00:00:00.000Z");
+    await db
+      .update(tradingSessions)
+      .set({ asOf: revisedAsOf })
+      .where(eq(tradingSessions.date, extensionSession));
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], periodFrom, periodTo);
+    const { view, calendarVersion } = await loadMarketViewWithCalendarVersion(db, window);
+
+    expect(expiry > periodTo).toBe(true);
+    expect(extensionSession > periodTo).toBe(true);
+    expect(extensionSession <= expiry).toBe(true);
+    expect(view.calendar.some((session) => session.date === extensionSession)).toBe(true);
+
+    const calendarDates = view.calendar.map((session) => session.date);
+    const sessionRows = await db
+      .select({ asOf: tradingSessions.asOf })
+      .from(tradingSessions)
+      .where(inArray(tradingSessions.date, calendarDates));
+    const expectedCalendarVersion = sessionRows.reduce<Date | undefined>(
+      (max, row) => (max === undefined || row.asOf > max ? row.asOf : max),
+      undefined,
+    );
+
+    expect(calendarVersion).toBe(revisedAsOf.toISOString());
+    expect(calendarVersion).toBe(expectedCalendarVersion?.toISOString());
+  });
+
   it("populates the option chain when the strategy's structure carries an option leg (round 2 item 1)", async () => {
     const db = getDb();
     const ticker = uniqueTicker("OPT");
