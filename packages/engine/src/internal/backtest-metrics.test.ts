@@ -358,6 +358,40 @@ describe("computeBacktestMetrics", () => {
     expect(metrics.sharpe).toBe(decimalString("-1.414214"));
   });
 
+  it("never folds warm-up's own risk-free rate into the first observed session's rf (ADR-0041)", () => {
+    // 126 observed sessions, flat equity, rf 1% on the first and the 64th: two equal excess
+    // returns of -0.01. Prepending 10 warm-up sessions at 1% each must leave sharpe unchanged;
+    // compounding them in would turn the first excess into -(1.01^11 - 1) instead.
+    const observedCount = 126;
+    const warmup = 10;
+    const run = (prefix: number) => {
+      const total = prefix + observedCount;
+      const rfPerSession = Array.from({ length: total }, (_, i) =>
+        decimalString(i < prefix || i === prefix || i === prefix + 63 ? "0.01" : "0"),
+      );
+      const flags = Array.from({ length: total }, (_, i) => i >= prefix);
+      return computeBacktestMetrics({
+        equityCurve: Array.from({ length: total }, (_, i) =>
+          point(`s${String(i)}`, 100_000_00, "0"),
+        ),
+        initialCapital: centavos(100_000_00),
+        rfPerSession,
+        held: Array.from({ length: total }, () => false),
+        observed: flags,
+        postWarmup: flags,
+        settledOperationPnls: [],
+        operationsCount: 0,
+        fees: centavos(0),
+        taxes: centavos(0),
+        slippage: centavos(0),
+      }).metrics.sharpe;
+    };
+    // Two -0.01 excess returns among 126: mean -0.02/126, sample stdev by the same formula,
+    // times sqrt(252), reproduced independently with decimal.js.
+    expect(run(0)).toBe(decimalString("-2.008048"));
+    expect(run(warmup)).toBe(run(0));
+  });
+
   it("guards every ratio against a zero initial capital instead of dividing by zero", () => {
     const { metrics } = computeBacktestMetrics({
       equityCurve: [point("2024-01-02", 0, "0"), point("2024-01-03", 0, "0")],

@@ -51,14 +51,19 @@ function sampleStdev(values: readonly Decimal[]): Decimal | null {
 // return itself does: a return computed against the previous *observed* equity point implicitly
 // spans every unobserved (gap or warm-up) session in between, so the per-session rf of those
 // dropped sessions is compounded forward into the next observed session's own rf here, rather than
-// compared only against that session's single day's rate (ADR-0041).
+// compared only against that session's single day's rate (ADR-0041). Compounding starts at the
+// first post-warm-up session: equity sits flat at the baseline through warm-up, so the first
+// observed return spans only the sessions from there on, and warm-up's own rf would otherwise land
+// as one large negative excess return in a span ADR-0041 excludes from track record.
 function compoundedRfForObserved(
   rfPerSession: readonly DecimalString[],
   observed: readonly boolean[],
+  postWarmup: readonly boolean[],
 ): Decimal[] {
   const result: Decimal[] = [];
   let compounded = new Decimal(1);
   for (let i = 0; i < rfPerSession.length; i += 1) {
+    if (!(postWarmup[i] ?? false)) continue;
     const rf = new Decimal(rfPerSession[i] ?? "0");
     compounded = compounded.mul(new Decimal(1).add(rf));
     if (observed[i] ?? false) {
@@ -107,7 +112,11 @@ export function computeBacktestMetrics(rawInput: MetricsInput): {
   const elapsedSessions = pwEquity.length;
 
   // Sharpe: a path statistic over the observed subsequence only.
-  const obsCompoundedRf = compoundedRfForObserved(rawInput.rfPerSession, rawInput.observed);
+  const obsCompoundedRf = compoundedRfForObserved(
+    rawInput.rfPerSession,
+    rawInput.observed,
+    rawInput.postWarmup,
+  );
   const obsEquitySeries = [
     new Decimal(rawInput.initialCapital),
     ...obsEquity.map((p) => new Decimal(p.equity)),
