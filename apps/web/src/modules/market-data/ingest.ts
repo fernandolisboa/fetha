@@ -11,6 +11,7 @@ import { gaps, latestSession } from "./freshness";
 import { withSourceLock } from "./repositories/advisory-lock";
 import { upsertDailyCandles } from "./repositories/candle-repository";
 import {
+  deleteUnlistedTradingSessions,
   sessionByDate,
   sessionsFrom,
   upsertTradingSessions,
@@ -259,16 +260,38 @@ async function runCalendarSources(
   const lastYear = now.getUTCFullYear() + 1;
   const outcomes: SourceOutcome[] = [];
   for (let year = FIRST_INGESTED_CALENDAR_YEAR; year <= lastYear; year += 1) {
+    const sessions = tradingSessionsForYear(year);
     const outcome = await runSource(
       db,
       "calendar",
       calendarMarkerSession(year),
       maxDurationMs,
-      () => Promise.resolve(upsertTradingSessions(db, tradingSessionsForYear(year))),
+      () => upsertTradingSessions(db, sessions),
     );
     outcomes.push(outcome);
+    if (outcome.error === undefined) {
+      outcomes.push(await removeUnlistedSessions(db, year, sessions));
+    }
   }
   return mergeOutcomes("calendar", outcomes);
+}
+
+// Runs on every ingestion, not only when the year's marker changes: a stale
+// date can predate the marker it would have changed (an earlier fixed marker,
+// or a corrected file whose closures hash to the same day offset), and the
+// delete is a no-op once the year matches its source (docs/adr/0017).
+async function removeUnlistedSessions(
+  db: Database,
+  year: number,
+  sessions: ReturnType<typeof tradingSessionsForYear>,
+): Promise<SourceOutcome> {
+  try {
+    const removed = await deleteUnlistedTradingSessions(db, year, sessions);
+    return { source: "calendar", skipped: removed === 0, rowCount: removed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    return { source: "calendar", skipped: false, rowCount: 0, error: message };
+  }
 }
 
 export interface IngestOptions {

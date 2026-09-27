@@ -87,8 +87,9 @@ export const backtestRuns = pgTable(
     // Stamped alongside `dataVersion`, but from the `calendarVersion`
     // `market-data`'s `loadMarketViewWithCalendarVersion` returns next to
     // the view: `max(as_of)` over the calendar sessions the run's own
-    // window loaded (calendar-repository.ts's `as_of` moves only on a real
-    // open/close change). A run created before this column existed carries
+    // window loaded (calendar-repository.ts's `as_of` moves on a real
+    // open/close change, and on every session when a date is removed from the
+    // calendar). A run created before this column existed carries
     // `null` and is stamped, not failed, on its next chunk.
     calendarVersion: text("calendar_version"),
     error: text("error"),

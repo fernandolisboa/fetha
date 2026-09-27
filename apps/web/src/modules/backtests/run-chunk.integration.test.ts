@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import type {
   Centavos,
   DecimalString,
@@ -12,10 +12,13 @@ import { engine } from "@fetha/engine";
 import { getDb } from "@/db/client";
 import { backtestRuns } from "./schema";
 import { user } from "@/modules/auth/schema";
-import { candles, optionSeries } from "@/modules/market-data/schema";
+import { candles, optionSeries, tradingSessions } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
-import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
+import {
+  deleteUnlistedTradingSessions,
+  upsertTradingSessions,
+} from "@/modules/market-data/repositories/calendar-repository";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import {
@@ -537,6 +540,48 @@ describe("runBacktestChunk", () => {
     } finally {
       await upsertTradingSessions(db, [
         { date: revised, open: `${revised}T13:00:00.000Z`, close: `${revised}T20:00:00.000Z` },
+      ]);
+    }
+  });
+
+  it("fails the run rather than mix calendars when a session inside the window stops being a trading session between chunks", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+
+    const removed = SESSIONS[8] ?? "";
+    const year = Number(removed.slice(0, 4));
+    const stillListed = (
+      await db
+        .select()
+        .from(tradingSessions)
+        .where(
+          and(
+            gte(tradingSessions.date, `${String(year)}-01-01`),
+            lte(tradingSessions.date, `${String(year)}-12-31`),
+          ),
+        )
+    )
+      .filter((row) => row.date !== removed)
+      .map((row) => ({
+        date: row.date,
+        open: row.open.toISOString(),
+        close: row.close.toISOString(),
+      }));
+    try {
+      expect(await deleteUnlistedTradingSessions(db, year, stillListed)).toBe(1);
+
+      const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+      expect(secondChunk).toEqual({ status: "failed", error: "data_version_changed" });
+    } finally {
+      await upsertTradingSessions(db, [
+        { date: removed, open: `${removed}T13:00:00.000Z`, close: `${removed}T20:00:00.000Z` },
       ]);
     }
   });

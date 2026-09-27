@@ -245,11 +245,11 @@ calendar.
 session-close instant: the nightly `upsertTradingSessions` re-writes every session it ingests, but
 `as_of` moves only when a session's own `open` or `close` actually changes (its `ON CONFLICT`
 guard is `(open, close) IS DISTINCT FROM (excluded.open, excluded.close)`), so an unrevised
-calendar re-write does not touch it. `market-data`'s `loadMarketViewWithCalendarVersion` reads
+calendar re-write does not touch it; the only other move is the whole-calendar re-stamp when a date
+is removed (the #183 addendum below). `market-data`'s `loadMarketViewWithCalendarVersion` reads
 this column so `apps/web`'s backtest runner can detect a real calendar revision inside a run's window between
-chunks (ADR-0013's #90 addendum); `upsertTradingSessions` never deletes a row, so a date that stops
-being a trading session keeps its old row and its old `as_of` indefinitely, a known gap that
-addendum states rather than fixes.
+chunks (ADR-0013's #90 addendum). A date that stops being a trading session is deleted, and the
+rest of the calendar re-stamped, by the addendum at the end of this ADR (#183).
 
 ## Monthly partitioning
 
@@ -362,3 +362,48 @@ token.
 - **A generic `MarketDataProvider` implementation per reference-data source**: rejected (see
   "Port" above); no second implementation, no per-user token, and it would blur the one interface
   this codebase actually needs to keep stable (ADR-0006).
+
+## Addendum: a date a calendar year no longer lists is deleted (2026-09-27, #183)
+
+`upsertTradingSessions` only inserts or updates, so a date that stopped being a trading session (a
+holiday declared after the fact, a corrected ANBIMA file, a new B3 closure) used to keep its row
+and its old `as_of` forever: indicators, expiry counting and backtests kept treating it as a
+session, and `calendarVersion` (`max(as_of)`) never moved for a chunked backtest straddling the
+correction.
+
+After each year's `runSource`, the calendar step now runs
+`deleteUnlistedTradingSessions(year, sessions)`. A calendar ingestion covers a whole year, so any
+stored date in `[year-01-01, year-12-31]` the year's source no longer lists is deleted. Deleting a
+row cannot move `max(as_of)` over the rows that remain, so the same statement (two data-modifying
+CTEs) also sets `as_of = now()` on **every** surviving `trading_sessions` row whenever it deletes
+at least one. Any backtest chunk whose window saw the removed date therefore fails with
+`data_version_changed` on its next chunk instead of resuming on a different calendar. The removed
+count is added to the calendar outcome's `rowCount`, and a removal makes the outcome not `skipped`.
+
+- **Every ingestion, not only a changed marker**: the upsert stays behind the year's marker
+  session, but the delete runs on every ingestion. A stale row can predate the marker that would
+  have re-run its year (the old fixed `{year}-01-01` marker, or a corrected file whose closures
+  fold to the same day offset mod 365), and the delete matches nothing once the year agrees with
+  its source, so the nightly cost is one no-op statement per ingested year. The first ingestion
+  after this change also removes any stale row already in production.
+- **Why re-stamp the whole table, not only the removed date's neighbors**: re-stamping only the
+  sessions either side of the removed date is enough for any window holding the removed date plus
+  another session, but whole-table is the version that needs no argument to be correct, and a
+  removal only happens when a deploy changes the committed holiday file or B3's closures. The cost
+  is that every backtest in flight at that moment fails once and is re-run.
+- **Nothing is removed on an unchanged calendar**: the delete matches no row, the update is guarded
+  by `exists (select 1 from removed)`, and `as_of` stays untouched, as before.
+- **An empty source list deletes nothing** rather than wiping a year; the parser already refuses a
+  year with too few holidays (`CalendarValidationError`).
+- **Not atomic with the upsert**: the upsert and the delete are separate statements, so a market
+  view loaded between them sees a revised open/close next to a date about to be removed. A run that
+  also completes within that chunk is not failed by the re-stamp. Accepted: both statements come
+  from the same deploy-time source change, seconds apart.
+- **Not checked**: candles or option prices already ingested on a removed date stay where they
+  are, and the engine does not require a candle's date to be a calendar session, so an indicator
+  could count a bar the calendar no longer has. A holiday has no COTAHIST file, so this only
+  happens on a wrong correction; tracked as #189.
+- **Rejected: a tombstone column** (`removed_at`, or `is_session`) with a fresh `as_of`. Every
+  calendar query (market view, freshness, decisions' horizon lookup, the option chain's expiry
+  join) would have to filter it, and forgetting one filter reintroduces the exact bug; nothing
+  needs the removed row itself once the date is no longer a session.
