@@ -38,7 +38,7 @@ export function RemoveFromWatchlistButton({ ticker }: { ticker: string }) {
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         onClick={remove}
         disabled={pending}
         aria-label={`${t.remove.action} ${ticker}`}

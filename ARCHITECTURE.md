@@ -84,6 +84,8 @@ browser bootstrap settings only (Zod `jitless`).
   `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `document-policy`
   (the per-request document policy). No business rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
+- `src/components/`: app-owned shared components built on those primitives (`error-notice`).
+  No module imports.
 
 ## Modules
 

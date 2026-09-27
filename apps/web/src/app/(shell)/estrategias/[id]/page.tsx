@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { SessionDate } from "@fetha/contracts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -11,6 +12,7 @@ import {
   t as backtestsStrings,
 } from "@/modules/backtests";
 import { DiscardRunButton } from "@/modules/backtests/client";
+import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
@@ -24,6 +26,10 @@ import {
 } from "@/modules/strategies";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.strategies}` };
+
+function periodLabel(period: { from: SessionDate; to: SessionDate }): string {
+  return `${formatDate(sessionDateToDisplayDate(period.from))} – ${formatDate(sessionDateToDisplayDate(period.to))}`;
+}
 
 export default async function EditStrategyPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
@@ -107,16 +113,13 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
                     href={`/estrategias/${strategy.id}/backtests/${run.id}`}
                     className="underline-offset-4 hover:underline"
                   >
-                    {run.period.from} — {run.period.to}
+                    {periodLabel(run.period)}
                   </Link>{" "}
                   <span className="text-muted-foreground text-xs">
                     ({formatDate(run.createdAt)})
                   </span>
                   {isActiveRun(run) ? (
-                    <DiscardRunButton
-                      runId={run.id}
-                      runLabel={`${run.period.from} — ${run.period.to}`}
-                    />
+                    <DiscardRunButton runId={run.id} runLabel={periodLabel(run.period)} />
                   ) : null}
                 </li>
               ))}

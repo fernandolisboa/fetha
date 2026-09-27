@@ -88,7 +88,9 @@ export default async function StrategiesPage() {
                     <TableCell className="py-0 text-right">
                       <DiscardRunButton
                         runId={run.id}
-                        runLabel={`${run.strategyName} (${run.period})`}
+                        runLabel={
+                          run.strategyName ? `${run.strategyName} (${run.period})` : run.period
+                        }
                       />
                     </TableCell>
                   </TableRow>
