@@ -85,7 +85,7 @@ export function CreateRunForm({
         } else if (result.error === "unsatisfiable_collection") {
           setError(t.create.unsatisfiableCollection);
         } else if (result.error === "too_many_active") {
-          setError(t.create.tooManyActive);
+          setError(t.tooManyActive);
         } else {
           setError(t.create.error);
         }

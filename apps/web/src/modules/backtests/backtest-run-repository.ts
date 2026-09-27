@@ -22,6 +22,7 @@ import type { BacktestCheckpoint, BacktestRun, LimitMode } from "@fetha/engine";
 import { z } from "zod";
 
 import { backtestRuns, type backtestRunStatuses } from "./schema";
+import type { Database } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 // The engine's own SimulatedOperation/LegSettlement discriminated unions
@@ -119,8 +120,19 @@ export class ActiveBacktestRunLimitError extends Error {
   }
 }
 
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
 export const MAX_ACTIVE_BACKTEST_RUNS = 2;
-const ACTIVE_STATUSES: BacktestRunStatus[] = ["pending", "running", "paused"];
+const COUNTS_AS_ACTIVE: Record<BacktestRunStatus, boolean> = {
+  pending: true,
+  running: true,
+  paused: true,
+  complete: false,
+  failed: false,
+};
+const ACTIVE_STATUSES = Object.entries(COUNTS_AS_ACTIVE)
+  .filter(([, active]) => active)
+  .map(([status]) => status as BacktestRunStatus);
 
 export class BacktestRunClaimError extends Error {
   constructor() {
@@ -207,22 +219,27 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
 // checks.
 export class BacktestRunRepository extends UserScopedRepository {
   // Open registration lets anyone hold runs that each keep a 300 s function
-  // busy per chunk (#147, docs/adr/0032). The count and the insert share a
-  // per-user advisory lock, so concurrent creates cannot both pass it.
+  // busy per chunk (#147, docs/adr/0032). Every way into the active set
+  // (create, and claim from "failed") counts under one per-user advisory
+  // lock, so concurrent calls cannot both pass the cap.
+  private async enforceActiveCap(tx: Transaction): Promise<void> {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${this.userId}`}, 0))`,
+    );
+    const [active] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(backtestRuns)
+      .where(
+        and(eq(backtestRuns.userId, this.userId), inArray(backtestRuns.status, ACTIVE_STATUSES)),
+      );
+    if ((active?.count ?? 0) >= MAX_ACTIVE_BACKTEST_RUNS) {
+      throw new ActiveBacktestRunLimitError();
+    }
+  }
+
   async create(input: BacktestRunConfigInput): Promise<BacktestRunRecord> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${this.userId}`}, 0))`,
-      );
-      const [active] = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(backtestRuns)
-        .where(
-          and(eq(backtestRuns.userId, this.userId), inArray(backtestRuns.status, ACTIVE_STATUSES)),
-        );
-      if ((active?.count ?? 0) >= MAX_ACTIVE_BACKTEST_RUNS) {
-        throw new ActiveBacktestRunLimitError();
-      }
+      await this.enforceActiveCap(tx);
       const [row] = await tx
         .insert(backtestRuns)
         .values({
@@ -326,8 +343,25 @@ export class BacktestRunRepository extends UserScopedRepository {
   // though its checkpoint is still whatever the last successful inner call
   // left behind.
   async claim(id: string, now: Date = new Date()): Promise<BacktestRunRecord> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ status: backtestRuns.status })
+        .from(backtestRuns)
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+        .limit(1);
+      if (!current) {
+        throw new BacktestRunNotFoundError();
+      }
+      if (current.status === "failed") {
+        await this.enforceActiveCap(tx);
+      }
+      return this.claimRow(tx, id, now);
+    });
+  }
+
+  private async claimRow(tx: Transaction, id: string, now: Date): Promise<BacktestRunRecord> {
     const staleCutoff = new Date(now.getTime() - STALE_LEASE_MS);
-    const [row] = await this.db
+    const [row] = await tx
       .update(backtestRuns)
       // `error` is cleared, not just overwritten on the next `fail()`: a run
       // reclaimed from "failed" that goes on to complete must not carry its
@@ -346,14 +380,6 @@ export class BacktestRunRepository extends UserScopedRepository {
       )
       .returning();
     if (!row) {
-      const existing = await this.db
-        .select({ id: backtestRuns.id })
-        .from(backtestRuns)
-        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
-        .limit(1);
-      if (existing.length === 0) {
-        throw new BacktestRunNotFoundError();
-      }
       throw new BacktestRunClaimError();
     }
     return toRecord(row);

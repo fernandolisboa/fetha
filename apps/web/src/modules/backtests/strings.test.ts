@@ -21,13 +21,10 @@ describe("isResumableRunError", () => {
   });
 });
 
-describe("create strings", () => {
-  it("state the active-run cap the repository enforces", () => {
-    expect(backtestsStrings.en.create.tooManyActive).toContain(
-      `${String(MAX_ACTIVE_BACKTEST_RUNS)} backtests`,
-    );
-    expect(backtestsStrings.ptBR.create.tooManyActive).toContain(
-      `${String(MAX_ACTIVE_BACKTEST_RUNS)} backtests`,
-    );
+describe("active-run cap copy", () => {
+  it("states the cap the repository enforces, in words", () => {
+    expect(MAX_ACTIVE_BACKTEST_RUNS).toBe(2);
+    expect(backtestsStrings.en.tooManyActive).toContain("two backtests");
+    expect(backtestsStrings.ptBR.tooManyActive).toContain("dois backtests");
   });
 });

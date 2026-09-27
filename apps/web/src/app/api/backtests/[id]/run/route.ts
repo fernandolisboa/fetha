@@ -8,6 +8,7 @@ import {
   UnauthenticatedError,
 } from "@/modules/auth";
 import {
+  ActiveBacktestRunLimitError,
   BacktestRunAlreadyCompleteError,
   BacktestRunClaimError,
   BacktestRunNotFoundError,
@@ -61,6 +62,9 @@ export async function POST(
   } catch (error) {
     if (error instanceof BacktestRunNotFoundError) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    if (error instanceof ActiveBacktestRunLimitError) {
+      return NextResponse.json({ ok: false, error: "too_many_active" }, { status: 409 });
     }
     if (
       error instanceof BacktestRunAlreadyCompleteError ||

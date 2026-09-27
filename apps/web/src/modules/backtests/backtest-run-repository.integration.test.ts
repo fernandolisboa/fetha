@@ -631,7 +631,7 @@ describe("BacktestRunRepository active-run cap (#147)", () => {
       walkForward: { windowSessions: 63 },
       seed: 1,
     };
-    return { repository: new BacktestRunRepository(db, owner), input, version };
+    return { owner, repository: new BacktestRunRepository(db, owner), input, version };
   }
 
   it("refuses a run beyond the cap until one of the user's runs completes", async () => {
@@ -659,6 +659,49 @@ describe("BacktestRunRepository active-run cap (#147)", () => {
     await expect(mine.repository.create(mine.input)).resolves.toMatchObject({
       status: "pending",
     });
+  });
+
+  it("resumes a failed run only while the user is under the cap", async () => {
+    const { repository, input, version } = await setUp("claim-failed");
+
+    const failed = await repository.create(input);
+    await repository.claim(failed.id);
+    await repository.fail(failed.id, "no_market_data");
+    const first = await repository.create(input);
+    await repository.create(input);
+
+    await expect(repository.claim(failed.id)).rejects.toBeInstanceOf(ActiveBacktestRunLimitError);
+    await expect(repository.claim(first.id)).resolves.toMatchObject({ status: "running" });
+
+    await repository.complete(first.id, {
+      result: completedResult(version),
+      configDigest: "x",
+      sessionsDone: 0,
+    });
+    await expect(repository.claim(failed.id)).resolves.toMatchObject({ status: "running" });
+  });
+
+  it("waits for the per-user lock before counting", async () => {
+    const db = getDb();
+    const { owner, repository, input } = await setUp("lock");
+
+    let created: Promise<unknown> = Promise.resolve();
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${owner.id}`}, 0))`,
+      );
+      created = repository.create(input);
+      const outcome = await Promise.race([
+        created.then(() => "created"),
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve("waiting");
+          }, 500);
+        }),
+      ]);
+      expect(outcome).toBe("waiting");
+    });
+    await expect(created).resolves.toMatchObject({ status: "pending" });
   });
 
   it("admits at most the cap when creates race", async () => {

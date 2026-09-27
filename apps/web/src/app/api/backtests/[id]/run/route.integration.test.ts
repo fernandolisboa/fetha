@@ -127,6 +127,51 @@ describe("POST /api/backtests/[id]/run", () => {
     await expect(seventh.json()).resolves.toEqual({ ok: false, error: "rate_limited" });
   });
 
+  it("refuses to resume a failed run past the active-run cap with 409 too_many_active (#147)", async () => {
+    vi.resetModules();
+    const { POST } = await import("./route");
+
+    const db = getDb();
+    const email = uniqueEmail("cap");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+    const repository = new BacktestRunRepository(db, currentUser);
+    const input = {
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQRT3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn" as const,
+      sizing: version.definition.sizing,
+      walkForward: null,
+      seed: 1,
+    };
+    const failed = await repository.create(input);
+    await repository.claim(failed.id);
+    await repository.fail(failed.id, "no_market_data");
+    await repository.create(input);
+    await repository.create(input);
+
+    const response = await POST(
+      new Request(`http://localhost/api/backtests/${failed.id}/run`, { method: "POST" }),
+      { params: Promise.resolve({ id: failed.id }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "too_many_active" });
+    await expect(repository.findMine(failed.id)).resolves.toMatchObject({ status: "failed" });
+  });
+
   it("returns 404 for user A's POST against user B's run, with no status change on B's row (round 5 item 3)", async () => {
     vi.resetModules();
     const { POST } = await import("./route");
