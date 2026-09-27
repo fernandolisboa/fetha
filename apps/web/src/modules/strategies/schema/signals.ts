@@ -96,10 +96,11 @@ export const evaluations = pgTable(
     // The engine's stable `EvaluationReason` code (#80) for a row built
     // straight from an `EvaluationRecord`, or one of the web-authored
     // `WebEvaluationReason` codes (#133: `unknown_structure`, `engine_error`,
-    // `catchup_clamped`, `unsatisfiable_collection`) for an outcome
-    // `evaluate-signals.ts` records itself, outside any `EvaluationRecord`.
-    // Null only for a row written before either vocabulary existed. `detail`
-    // is a plain log field: null for a row built from an `EvaluationRecord`
+    // `catchup_clamped`, `unsatisfiable_collection`, `market_view_too_large`,
+    // `no_market_data`) for an outcome `evaluate-signals.ts` records itself,
+    // outside any `EvaluationRecord`. Null only for a row written before
+    // either vocabulary existed. `detail` is a plain log field: null for a
+    // row built from an `EvaluationRecord`
     // (the engine's own `detail` was removed, ADR-0039, since it was a pure
     // function of `reason`); the one parameter a web-authored reason carries
     // (the engine error code, the dropped-session count, the collection

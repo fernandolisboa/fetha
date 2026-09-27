@@ -3,12 +3,15 @@ import type { EvaluationOutcome, EvaluationReason } from "@fetha/engine";
 import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vocabulary";
 
 // One rendering function per web-authored reason (#133, follow-up from
-// #80): `unknown_structure` and `unsatisfiable_collection` carry no
-// user-facing parameter (the collection name is an internal identifier,
-// never surfaced — round 7 item 4's collection-neutral copy carries
-// forward unchanged), `engine_error` and `catchup_clamped` render the
-// `detail` column's own parameter (the engine error code, the dropped
-// session count).
+// #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
+// and `no_market_data` carry no user-facing parameter (the collection name
+// is an internal identifier, never surfaced — round 7 item 4's
+// collection-neutral copy carries forward unchanged), `engine_error` and
+// `catchup_clamped` render the `detail` column's own parameter (the engine
+// error code, the dropped session count). `market_view_too_large` and
+// `no_market_data` mirror the wording `backtests/strings.ts`'s `webErrors`
+// already uses for the same two `loadMarketView` failures in a backtest
+// run.
 type WebReasonFormatter = (detail: string | null) => string;
 
 const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
@@ -17,6 +20,9 @@ const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
   catchup_clamped: (detail) => `Catch-up capped: ${detail ?? "0"} older session(s) skipped`,
   unsatisfiable_collection: () =>
     "Requires market data with no source yet for one of this strategy's indicators",
+  market_view_too_large: () =>
+    "This watchlist lists more option series than a single evaluation can load. Narrow the watchlist and try again.",
+  no_market_data: () => "No market data is available for this period; the evaluation was skipped.",
 };
 
 const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
@@ -26,6 +32,10 @@ const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
     `Atualização limitada: ${detail ?? "0"} sessão(ões) mais antiga(s) ignorada(s)`,
   unsatisfiable_collection: () =>
     "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
+  market_view_too_large: () =>
+    "Essa watchlist lista mais séries de opções do que uma avaliação consegue carregar de uma vez. Reduza a watchlist e tente de novo.",
+  no_market_data: () =>
+    "Não há dados de mercado disponíveis para esse período; a avaliação foi ignorada.",
 };
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:

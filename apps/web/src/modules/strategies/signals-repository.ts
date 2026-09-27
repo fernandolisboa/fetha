@@ -51,7 +51,8 @@ export interface NewEvaluation {
   outcome: EvaluationOutcome;
   // Null only for a row written before either vocabulary existed (pre-#80);
   // every row `evaluate-signals.ts` writes today carries one, engine or
-  // web (#133).
+  // web (#133) — `market_view_too_large` and `no_market_data` included, so
+  // this is a real invariant of the current writer, not an aspiration.
   reason: StoredEvaluationReason | null;
   detail: string | null;
 }

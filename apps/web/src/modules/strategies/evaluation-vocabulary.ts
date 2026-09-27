@@ -2,16 +2,22 @@
 // `EvaluationRecord` the engine ever produced (#133, follow-up from #80):
 // this strategy version's own structure is gone from the catalog, the
 // engine returned an error the caller never asked for, a catch-up range
-// was clamped before it could run in full, or `dataWindow()` asked for a
-// collection `market-data` cannot fill for this strategy at all. Each is a
-// closed code of its own, not a suffix glued onto a shared string, so the
-// evaluation log can render every one of them through a typed formatter
-// instead of `strings.ts`'s old exact-sentence `detailFor` match.
+// was clamped before it could run in full, `dataWindow()` asked for a
+// collection `market-data` cannot fill for this strategy at all, or
+// `loadMarketView` itself threw (a chain too large to load in one call, or
+// no market data at all for the window — the same two conditions
+// `apps/web/src/modules/backtests/strings.ts`'s `webErrors` already names
+// for a backtest run). Each is a closed code of its own, not a suffix
+// glued onto a shared string, so the evaluation log can render every one
+// of them through a typed formatter instead of `strings.ts`'s old
+// exact-sentence `detailFor` match.
 export const webEvaluationReasons = [
   "unknown_structure",
   "engine_error",
   "catchup_clamped",
   "unsatisfiable_collection",
+  "market_view_too_large",
+  "no_market_data",
 ] as const;
 
 export type WebEvaluationReason = (typeof webEvaluationReasons)[number];

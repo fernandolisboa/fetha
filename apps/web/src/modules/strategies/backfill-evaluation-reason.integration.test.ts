@@ -95,6 +95,12 @@ afterEach(async () => {
   }
 });
 
+type SeedRow = {
+  ticker: Ticker;
+  outcome: "insufficient_data" | "conditions_not_met";
+  detail: string;
+};
+
 describe("0020_backfill_evaluation_reason.sql", () => {
   it("rewrites every pre-#80/#133 row shape into the reason/detail split strings.ts now renders", async () => {
     const db = getDb();
@@ -105,73 +111,90 @@ describe("0020_backfill_evaluation_reason.sql", () => {
     const version = strategy.versions[0];
     if (!version) throw new Error("test setup: expected a version");
 
-    const legacySentenceRows: { ticker: Ticker; detail: string; expectedReason: string }[] = [
+    const legacySentenceRows: (SeedRow & { expectedReason: string })[] = [
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "no candles for this instrument and timeframe",
         expectedReason: "no_candles",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "no candles in (since, at] for this instrument and timeframe",
         expectedReason: "no_candles_in_catch_up_window",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "entry condition needs more warm-up data",
         expectedReason: "entry_condition_warmup",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "no listed option series satisfies the strike and expiry selection",
         expectedReason: "no_series_match",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "two distinct strike ranks resolved to the same listed strike",
         expectedReason: "degenerate_strikes",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "no declared capital to size against",
         expectedReason: "no_declared_capital",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "fixed_risk sizing is unsizeable against an unbounded max loss",
         expectedReason: "unbounded_max_loss",
       },
       {
         ticker: randomTicker(),
-        detail: "sizing yields fewer than one unit",
-        expectedReason: "zero_units",
-      },
-      {
-        ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "a unit carries no cost or risk to size against",
         expectedReason: "zero_units",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "the declared capital and fraction cannot afford one unit",
         expectedReason: "unaffordable_budget",
       },
       {
         ticker: randomTicker(),
+        outcome: "insufficient_data",
         detail: "not enough market data to select strikes or price the proposal",
         expectedReason: "insufficient_market_data_for_proposal",
       },
       {
         ticker: randomTicker(),
+        outcome: "conditions_not_met",
         detail: "profit_target cannot fire: the operation's premium base is zero",
         expectedReason: "profit_target_zero_base",
       },
       {
         ticker: randomTicker(),
+        outcome: "conditions_not_met",
         detail: "stop_loss cannot fire: the operation's max-loss base is zero",
         expectedReason: "stop_loss_zero_base",
       },
     ];
+
+    // A zero-base sentence recorded alongside `insufficient_data` instead
+    // of `conditions_not_met` (a shape only a pre-#80 row can carry): #80's
+    // own current logic names that combination `exit_rule_unknown`.
+    const insufficientDataZeroBaseRow: SeedRow & { expectedReason: string } = {
+      ticker: randomTicker(),
+      outcome: "insufficient_data",
+      detail: "stop_loss cannot fire: the operation's max-loss base is zero",
+      expectedReason: "exit_rule_unknown",
+    };
 
     const webCodeRows: {
       ticker: Ticker;
@@ -183,6 +206,18 @@ describe("0020_backfill_evaluation_reason.sql", () => {
         ticker: randomTicker(),
         detail: "unknown_structure",
         expectedReason: "unknown_structure",
+        expectedDetail: null,
+      },
+      {
+        ticker: randomTicker(),
+        detail: "market_view_too_large",
+        expectedReason: "market_view_too_large",
+        expectedDetail: null,
+      },
+      {
+        ticker: randomTicker(),
+        detail: "no_market_data",
+        expectedReason: "no_market_data",
         expectedDetail: null,
       },
       {
@@ -205,47 +240,42 @@ describe("0020_backfill_evaluation_reason.sql", () => {
       },
     ];
 
-    const untouchedRow: { ticker: Ticker; outcome: "insufficient_data"; detail: string } = {
+    // The pre-#59 sentence is deliberately left alone: it covered what is
+    // now two distinct codes (zero_units, unaffordable_budget), so nothing
+    // in the stored row disambiguates which one it was.
+    const untouchedRow: SeedRow = {
       ticker: randomTicker(),
       outcome: "insufficient_data",
-      detail: "no_market_data",
+      detail: "sizing yields fewer than one unit",
     };
 
-    await db.insert(evaluations).values([
-      ...legacySentenceRows.map((row) => ({
-        userId: owner.id,
-        strategyId: strategy.id,
-        strategyVersionId: version.id,
-        ticker: row.ticker,
-        session: "2019-06-17",
-        at: new Date("2019-06-17T21:00:00.000Z"),
-        outcome: "insufficient_data" as const,
-        reason: null,
-        detail: row.detail,
-      })),
-      ...webCodeRows.map((row) => ({
-        userId: owner.id,
-        strategyId: strategy.id,
-        strategyVersionId: version.id,
-        ticker: row.ticker,
-        session: "2019-06-17",
-        at: new Date("2019-06-17T21:00:00.000Z"),
-        outcome: "insufficient_data" as const,
-        reason: null,
-        detail: row.detail,
-      })),
-      {
-        userId: owner.id,
-        strategyId: strategy.id,
-        strategyVersionId: version.id,
-        ticker: untouchedRow.ticker,
-        session: "2019-06-17",
-        at: new Date("2019-06-17T21:00:00.000Z"),
-        outcome: untouchedRow.outcome,
-        reason: null,
-        detail: untouchedRow.detail,
-      },
-    ]);
+    await db.insert(evaluations).values(
+      [...legacySentenceRows, insufficientDataZeroBaseRow, untouchedRow]
+        .map((row) => ({
+          userId: owner.id,
+          strategyId: strategy.id,
+          strategyVersionId: version.id,
+          ticker: row.ticker,
+          session: "2019-06-17",
+          at: new Date("2019-06-17T21:00:00.000Z"),
+          outcome: row.outcome,
+          reason: null,
+          detail: row.detail,
+        }))
+        .concat(
+          webCodeRows.map((row) => ({
+            userId: owner.id,
+            strategyId: strategy.id,
+            strategyVersionId: version.id,
+            ticker: row.ticker,
+            session: "2019-06-17",
+            at: new Date("2019-06-17T21:00:00.000Z"),
+            outcome: "insufficient_data" as const,
+            reason: null,
+            detail: row.detail,
+          })),
+        ),
+    );
 
     for (const statement of migrationStatements) {
       await db.execute(sql.raw(statement));
@@ -266,6 +296,9 @@ describe("0020_backfill_evaluation_reason.sql", () => {
       expect(row?.reason, `reason for ${ticker}`).toBe(expectedReason);
     }
 
+    const zeroBaseRow = byTicker.get(insufficientDataZeroBaseRow.ticker);
+    expect(zeroBaseRow?.reason).toBe(insufficientDataZeroBaseRow.expectedReason);
+
     for (const { ticker, expectedReason, expectedDetail } of webCodeRows) {
       const row = byTicker.get(ticker);
       expect(row?.reason, `reason for ${ticker}`).toBe(expectedReason);
@@ -274,6 +307,6 @@ describe("0020_backfill_evaluation_reason.sql", () => {
 
     const untouched = byTicker.get(untouchedRow.ticker);
     expect(untouched?.reason).toBeNull();
-    expect(untouched?.detail).toBe("no_market_data");
+    expect(untouched?.detail).toBe("sizing yields fewer than one unit");
   });
 });

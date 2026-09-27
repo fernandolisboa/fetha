@@ -108,16 +108,16 @@ function signalToNewSignal(strategyId: string, signal: Signal): NewSignal {
 // One failure/skip row per (ticker, session) in the catch-up range, not
 // only under the newest session (#19 round 2 item 6): a multi-session
 // catch-up that hits an unknown structure or an engine error leaves no
-// silent holes for the sessions in between. `reason` is one of the typed
-// web-authored codes when this failure has one (#133); `market_view_too_large`
-// and `no_market_data` (loadMarketView's own thrown errors) have none yet,
-// so they keep going in bare, with `reason: null`, exactly as before.
+// silent holes for the sessions in between. `reason` is always one of the
+// typed web-authored codes (#133): every failure this function records an
+// evaluation for has one, `market_view_too_large` and `no_market_data`
+// (loadMarketView's own thrown errors) included.
 function failureEvaluations(
   strategyId: string,
   strategyVersionId: string,
   tickers: Ticker[],
   sessions: readonly TradingSession[],
-  reason: WebEvaluationReason | null,
+  reason: WebEvaluationReason,
   detail: string | null,
 ): NewEvaluation[] {
   return sessions.flatMap((session) =>
@@ -456,10 +456,7 @@ export async function evaluateSignalsForSession(
         // repeats deterministically every run (#18 round 5 item 5). Same
         // shape as `unknown_structure` and `unsatisfiable_collection`
         // just above: recorded explicitly per ticker/session, this
-        // strategy skipped, the loop moves on to the next one. Left with no
-        // typed `reason` of its own (#133 gave only the four codes named in
-        // its ticket a vocabulary entry): renders as the bare outcome label,
-        // exactly as it always has.
+        // strategy skipped, the loop moves on to the next one.
         let view;
         try {
           view = await loadMarketView(db, window);
@@ -468,9 +465,9 @@ export async function evaluateSignalsForSession(
             error instanceof MarketViewTooLargeError ||
             error instanceof MarketViewUnavailableError
           ) {
-            const code =
+            const reason: WebEvaluationReason =
               error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
-            errors.push(code);
+            errors.push(reason);
             // Writing this evaluation row advances the strategy's own
             // watermark (`lastEvaluatedSession`) the same as a real
             // evaluation would (#18 round 6 item 6): a `market_view_too_large`
@@ -487,7 +484,7 @@ export async function evaluateSignalsForSession(
             // sessions is ever needed.
             await writeResult(
               [],
-              failureEvaluations(strategyId, version.id, tickers, userSessions, null, code),
+              failureEvaluations(strategyId, version.id, tickers, userSessions, reason, null),
             );
             continue;
           }

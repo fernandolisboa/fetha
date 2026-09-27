@@ -797,7 +797,7 @@ describe("evaluateSignalsForSession", () => {
     // — proving the throw never unwound past it.
     expect(strategiesWithRows).toEqual(new Set([strategyA.id, strategyB.id]));
 
-    const failingLog = log.filter((row) => row.detail === "no_market_data");
+    const failingLog = log.filter((row) => row.reason === "no_market_data");
     expect(failingLog).toHaveLength(1);
 
     const survivingId = [strategyA.id, strategyB.id].find(
