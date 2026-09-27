@@ -8,7 +8,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 import { getAuth } from "./auth";
 import { registerVerifiedUser as registerUser } from "./registration-test-support";
 import { signIn, signInMagicLink } from "./service";
-import { testRequestHeaders } from "./test-support";
+import { storedIdentifier, testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
@@ -33,11 +33,21 @@ async function captureMagicLinkUrl(email: string): Promise<URL> {
   return new URL(link);
 }
 
+// The plugin hashes the token (`storeToken: "hashed"`) and the verification
+// store hashes that again (`storeIdentifier: "hashed"`).
+function magicLinkStoredIdentifier(token: string): string {
+  return storedIdentifier(storedIdentifier(token));
+}
+
 async function expireMagicLinkToken(token: string): Promise<void> {
-  await getDb()
+  const expired = await getDb()
     .update(verification)
     .set({ expiresAt: new Date(Date.now() - 1000) })
-    .where(eq(verification.identifier, token));
+    .where(eq(verification.identifier, magicLinkStoredIdentifier(token)))
+    .returning({ id: verification.id });
+  if (expired.length !== 1) {
+    throw new Error("no stored token row matched the hashed identifier");
+  }
 }
 
 const createdEmails: string[] = [];
@@ -70,6 +80,28 @@ describe("magic link sign-in", () => {
     expect(response.status).toBeLessThan(400);
     expect(response.headers.get("location")).not.toContain("error");
     expect(response.headers.get("set-cookie")).toBeTruthy();
+  });
+
+  it("stores the magic link token only as a hash", async () => {
+    const email = uniqueEmail("hashed");
+    createdEmails.push(email);
+    const headers = testRequestHeaders();
+    await registerVerifiedUser(email, headers);
+
+    await signInMagicLink({ email }, headers);
+    const token = (await captureMagicLinkUrl(email)).searchParams.get("token") ?? "";
+
+    const plain = await getDb()
+      .select()
+      .from(verification)
+      .where(eq(verification.identifier, token));
+    const hashed = await getDb()
+      .select()
+      .from(verification)
+      .where(eq(verification.identifier, magicLinkStoredIdentifier(token)));
+    expect(token).not.toBe("");
+    expect(plain).toHaveLength(0);
+    expect(hashed).toHaveLength(1);
   });
 
   it("rejects a reused magic link token", async () => {

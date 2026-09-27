@@ -35,5 +35,6 @@ supersedes or amends them and says so.
 | 0027 | LGPD: an access log written by read models, a per-module data export, deletion through Better Auth               |
 | 0028 | Email-first registration: the password is chosen after the verification link; unverified accounts purged at 24 h |
 | 0029 | Invites are spent by mailbox proof (verification link, magic link or reset), not by sign-up                      |
+| 0030 | Magic-link and password-reset tokens stored hashed in `verification` (amends 0018)                               |
 
 Open: none.

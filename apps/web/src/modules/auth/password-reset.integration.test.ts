@@ -8,7 +8,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 import { getAuth } from "./auth";
 import { registerVerifiedUser as registerUser } from "./registration-test-support";
 import { requestPasswordReset, resetPassword, signIn } from "./service";
-import { testRequestHeaders } from "./test-support";
+import { storedIdentifier, testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
@@ -49,10 +49,14 @@ async function captureResetToken(email: string): Promise<string> {
 }
 
 async function expireResetToken(token: string): Promise<void> {
-  await getDb()
+  const expired = await getDb()
     .update(verification)
     .set({ expiresAt: new Date(Date.now() - 1000) })
-    .where(eq(verification.identifier, `reset-password:${token}`));
+    .where(eq(verification.identifier, storedIdentifier(`reset-password:${token}`)))
+    .returning({ id: verification.id });
+  if (expired.length !== 1) {
+    throw new Error("no stored token row matched the hashed identifier");
+  }
 }
 
 const createdEmails: string[] = [];
@@ -90,6 +94,27 @@ describe("password reset", () => {
 
     const newPasswordOutcome = await signIn({ email, password: "the-new-password-here" }, headers);
     expect(newPasswordOutcome.status).toBe("ok");
+  });
+
+  it("stores the reset token only as a hash", async () => {
+    const email = uniqueEmail("hashed");
+    createdEmails.push(email);
+    const headers = testRequestHeaders();
+    await registerVerifiedUser(email, headers);
+
+    await requestPasswordReset({ email }, headers);
+    const token = await captureResetToken(email);
+
+    const plain = await getDb()
+      .select()
+      .from(verification)
+      .where(eq(verification.identifier, `reset-password:${token}`));
+    const hashed = await getDb()
+      .select()
+      .from(verification)
+      .where(eq(verification.identifier, storedIdentifier(`reset-password:${token}`)));
+    expect(plain).toHaveLength(0);
+    expect(hashed).toHaveLength(1);
   });
 
   it("rejects reusing an already-consumed reset token", async () => {

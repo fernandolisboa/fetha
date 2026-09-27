@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 // Integration-test helper only: Better Auth's rate limiter keys by client IP
 // (better-auth's getIP falls back to a single shared "127.0.0.1" bucket per
 // path when no `x-forwarded-for` header is present, which is exactly what a
@@ -11,4 +13,10 @@ export function uniqueTestIp(): string {
 
 export function testRequestHeaders(ip: string = uniqueTestIp()): Headers {
   return new Headers({ "x-forwarded-for": ip });
+}
+
+// Better Auth's `defaultKeyHasher`, which `verification.storeIdentifier:
+// "hashed"` applies to every identifier it stores (docs/adr/0030).
+export function storedIdentifier(identifier: string): string {
+  return createHash("sha256").update(identifier).digest("base64url");
 }
