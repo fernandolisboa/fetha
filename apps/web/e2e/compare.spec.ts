@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md. Like
 // backtest.spec.ts, it expects PETR4 candles for the two sessions below to be ingested already,
-// and re-ingests the second one first when CRON_SECRET is set.
+// and re-ingests the second one first, through the owner's own session (#51), when
+// E2E_OWNER_EMAIL is set.
 const e2eSecret = process.env.E2E_SECRET;
-const cronSecret = process.env.CRON_SECRET;
+const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const FROM = "2026-09-08";
 const SESSION = "2026-09-09";
@@ -26,13 +27,14 @@ async function runBacktestOfLatestVersion(page: Page, strategyUrl: string): Prom
   await expect(page.getByText("Janelas de walk-forward")).toBeVisible();
 }
 
-test("compare the backtests of two versions of a strategy", async ({ page, baseURL, request }) => {
-  if (cronSecret) {
-    const triggered = await request.post(`${baseURL ?? ""}/api/cron/ingest`, {
-      headers: { authorization: `Bearer ${cronSecret}` },
-      data: { session: SESSION },
-    });
-    expect(triggered.ok()).toBe(true);
+test("compare the backtests of two versions of a strategy", async ({
+  page,
+  baseURL,
+  request,
+  browser,
+}) => {
+  if (ownerEmail) {
+    await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
   }
 
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");

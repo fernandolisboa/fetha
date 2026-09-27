@@ -5,6 +5,7 @@ import {
   isProductionDeployment,
   readAuthBaseUrl,
   readE2ESecret,
+  readOwnerEmails,
 } from "./env";
 
 describe("readAuthBaseUrl", () => {
@@ -88,5 +89,24 @@ describe("isProductionDatabaseHost", () => {
         DATABASE_PRODUCTION_HOST: customHost,
       }),
     ).toBe(false);
+  });
+});
+
+describe("readOwnerEmails", () => {
+  it("returns an empty set when unset or empty", () => {
+    expect(readOwnerEmails({}).size).toBe(0);
+    expect(readOwnerEmails({ OWNER_EMAILS: "" }).size).toBe(0);
+  });
+
+  it("trims and lower-cases each email", () => {
+    const owners = readOwnerEmails({ OWNER_EMAILS: " Owner@Example.com , other@example.com" });
+    expect(owners.has("owner@example.com")).toBe(true);
+    expect(owners.has("other@example.com")).toBe(true);
+    expect(owners.size).toBe(2);
+  });
+
+  it("drops empty entries from stray commas", () => {
+    const owners = readOwnerEmails({ OWNER_EMAILS: "owner@example.com,,  ," });
+    expect([...owners]).toEqual(["owner@example.com"]);
   });
 });

@@ -3,7 +3,14 @@ import Link from "next/link";
 
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
 import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
-import { DeleteAccountDialog, requireUser, SignOutButton, t as authStrings } from "@/modules/auth";
+import {
+  DeleteAccountDialog,
+  isOwner,
+  requireUser,
+  SignOutButton,
+  t as authStrings,
+} from "@/modules/auth";
+import { NightlyTriggerPanel, t as nightlyStrings } from "@/modules/nightly";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
 import { RiskProfileForm } from "@/modules/portfolio/client";
@@ -11,11 +18,16 @@ import { PageHeader, t } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.destinations.settings}` };
 
+// The owner's manual ingestion trigger below runs the same nightly job the
+// cron route runs (#51), so it needs the same execution budget.
+export const maxDuration = 300;
+
 export default async function SettingsPage() {
   await requireUser();
   const preferences = await getPreferences();
   const riskProfile = await getCurrentRiskProfile();
   const accessLog = await getMyAccessLog();
+  const ownerSession = await isOwner();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
@@ -78,6 +90,16 @@ export default async function SettingsPage() {
           <DeleteAccountDialog />
         </div>
       </section>
+
+      {ownerSession ? (
+        <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+          <div>
+            <h2 className="text-sm font-medium">{nightlyStrings.panel.title}</h2>
+            <p className="text-muted-foreground text-xs">{nightlyStrings.panel.subtitle}</p>
+          </div>
+          <NightlyTriggerPanel />
+        </section>
+      ) : null}
 
       <section>
         <SignOutButton />

@@ -1,27 +1,24 @@
 import { expect, test } from "@playwright/test";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // PETR4 is expected to have a candle for session 2026-09-09 already ingested
-// (the nightly job, #12); when CRON_SECRET is also set this spec triggers a
-// manual re-ingestion of that session first, the same way
-// ingestion-trigger.spec.ts does, so the run below always has real data to
-// simulate against instead of depending on when the preview was last seeded.
+// (the nightly job, #12); when E2E_OWNER_EMAIL is also set this spec triggers
+// a manual re-ingestion of that session first, through the owner's own
+// session (#51) the same way ingestion-trigger.spec.ts does, so the run
+// below always has real data to simulate against instead of depending on
+// when the preview was last seeded.
 const e2eSecret = process.env.E2E_SECRET;
-const cronSecret = process.env.CRON_SECRET;
+const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const SESSION = "2026-09-09";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the backtest run-and-report flow.");
 
-test("run a backtest and open its report", async ({ page, baseURL, request }) => {
-  if (cronSecret) {
-    const triggered = await request.post(`${baseURL ?? ""}/api/cron/ingest`, {
-      headers: { authorization: `Bearer ${cronSecret}` },
-      data: { session: SESSION },
-    });
-    expect(triggered.ok()).toBe(true);
+test("run a backtest and open its report", async ({ page, baseURL, request, browser }) => {
+  if (ownerEmail) {
+    await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
   }
 
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
