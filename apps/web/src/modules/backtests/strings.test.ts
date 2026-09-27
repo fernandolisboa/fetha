@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DISCARDED_RUN_ERROR, MAX_ACTIVE_BACKTEST_RUNS } from "./backtest-run-repository";
+import { MAX_ACTIVE_BACKTEST_RUNS } from "./backtest-run-repository";
+import { DISCARDED_RUN_ERROR } from "./run-status";
 import { backtestsStrings, isResumableRunError, runErrorMessage, t } from "./strings";
 
 describe("isResumableRunError", () => {

@@ -16,11 +16,11 @@ import {
   BacktestRunClaimError,
   BacktestRunNotFoundError,
   BacktestRunRepository,
-  DISCARDED_RUN_ERROR,
   MAX_ACTIVE_BACKTEST_RUNS,
   STALE_LEASE_MS,
 } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL, defaultRiskProfile } from "./default-config";
+import { DISCARDED_RUN_ERROR } from "./run-status";
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;
@@ -749,24 +749,57 @@ describe("BacktestRunRepository discard (#159)", () => {
     return { owner, repository: new BacktestRunRepository(db, owner), input, version };
   }
 
-  it("discarding a pending, paused or running run frees an active-cap slot", async () => {
-    const { repository, input } = await setUp("discard-cap");
+  it.each(["pending", "paused", "running", "stale-running"] as const)(
+    "discarding a %s run frees an active-cap slot",
+    async (variant) => {
+      const db = getDb();
+      const { repository, input } = await setUp(`discard-cap-${variant}`);
 
-    const runs = [];
-    for (let i = 0; i < MAX_ACTIVE_BACKTEST_RUNS; i += 1) {
-      runs.push(await repository.create(input));
-    }
-    await expect(repository.create(input)).rejects.toBeInstanceOf(ActiveBacktestRunLimitError);
+      const runs = [];
+      for (let i = 0; i < MAX_ACTIVE_BACKTEST_RUNS; i += 1) {
+        runs.push(await repository.create(input));
+      }
+      await expect(repository.create(input)).rejects.toBeInstanceOf(ActiveBacktestRunLimitError);
 
-    const [toDiscard] = runs;
-    if (!toDiscard) throw new Error("expected a run");
-    const result = await repository.discard(toDiscard.id);
-    expect(result).toMatchObject({ status: "discarded", run: { status: "failed" } });
-    if (result.status !== "discarded") throw new Error("expected discarded");
-    expect(result.run.error).toBe(DISCARDED_RUN_ERROR);
+      const [toDiscard] = runs;
+      if (!toDiscard) throw new Error("expected a run");
 
-    await expect(repository.create(input)).resolves.toMatchObject({ status: "pending" });
-  });
+      if (variant === "paused") {
+        await repository.claim(toDiscard.id);
+        await repository.saveProgress(toDiscard.id, {
+          status: "paused",
+          checkpoint: {
+            schema: 1,
+            engineVersion: "0.2.0",
+            configDigest: "x",
+            cursor: "2025-01-02",
+            state: null,
+          },
+          configDigest: "x",
+          sessionsDone: 1,
+          sessionsTotal: 5,
+        });
+      } else if (variant === "running") {
+        await repository.claim(toDiscard.id);
+      } else if (variant === "stale-running") {
+        // A "running" row orphaned past its own lease (STALE_LEASE_MS): the
+        // slot it holds must still be freed by a discard, the way the
+        // ticket's own residual (a stuck run held its slot until the lease
+        // expired) motivated this feature in the first place.
+        await db
+          .update(backtestRuns)
+          .set({ status: "running", updatedAt: new Date(Date.now() - STALE_LEASE_MS - 1_000) })
+          .where(eq(backtestRuns.id, toDiscard.id));
+      }
+
+      const result = await repository.discard(toDiscard.id);
+      expect(result).toMatchObject({ status: "discarded", run: { status: "failed" } });
+      if (result.status !== "discarded") throw new Error("expected discarded");
+      expect(result.run.error).toBe(DISCARDED_RUN_ERROR);
+
+      await expect(repository.create(input)).resolves.toMatchObject({ status: "pending" });
+    },
+  );
 
   it("refuses to discard a completed run", async () => {
     const { repository, input, version } = await setUp("discard-complete");
@@ -864,5 +897,48 @@ describe("BacktestRunRepository discard (#159)", () => {
     const still = await repository.findMine(run.id);
     expect(still.status).toBe("failed");
     expect(still.error).toBe(DISCARDED_RUN_ERROR);
+  });
+
+  it("claim() of a discarded run at the cap raises BacktestRunClaimError, not ActiveBacktestRunLimitError", async () => {
+    const { repository, input } = await setUp("discard-claim-cap");
+
+    const first = await repository.create(input);
+    await repository.create(input);
+    await repository.claim(first.id);
+    await repository.discard(first.id);
+    // Re-fills the slot the discard just freed: the user is back at the cap
+    // with `first` sitting discarded among their runs, the exact situation
+    // that made `claim()` reach `enforceActiveCap` before checking whether
+    // the row was discarded at all, answering the wrong error.
+    await repository.create(input);
+
+    await expect(repository.claim(first.id)).rejects.toBeInstanceOf(BacktestRunClaimError);
+  });
+
+  it("a failed row with a null error stays writable and claimable, not mistaken for a discard (NULL-safety)", async () => {
+    const db = getDb();
+    const { repository, input } = await setUp("discard-null-error");
+    const run = await repository.create(input);
+
+    await db
+      .update(backtestRuns)
+      .set({ status: "failed", error: null })
+      .where(eq(backtestRuns.id, run.id));
+
+    const reclaimed = await repository.claim(run.id);
+    expect(reclaimed.status).toBe("running");
+
+    await db
+      .update(backtestRuns)
+      .set({ status: "failed", error: null })
+      .where(eq(backtestRuns.id, run.id));
+
+    // guardedUpdate's own WHERE guard, not claimRow's: `fail()` must still
+    // succeed against a `failed` row whose `error` is NULL, the exact shape
+    // a plain `<>`/`!=` comparison (instead of `IS DISTINCT FROM`) would
+    // silently exclude from the UPDATE and answer BacktestRunClaimError for.
+    const updated = await repository.fail(run.id, "no_market_data");
+    expect(updated.status).toBe("failed");
+    expect(updated.error).toBe("no_market_data");
   });
 });

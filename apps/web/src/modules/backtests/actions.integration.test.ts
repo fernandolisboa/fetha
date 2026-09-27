@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Centavos, DecimalString, StrategyDefinition } from "@fetha/contracts";
+import type { Centavos, DecimalString, StrategyDefinition, Structure } from "@fetha/contracts";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -35,6 +35,11 @@ vi.mock("@/modules/market-data", async () => {
 // The read models these actions call write an access-log row (docs/adr/0027),
 // which reads the request's headers.
 vi.mock("next/headers", () => ({ headers: () => Promise.resolve(new Headers()) }));
+
+// discardBacktestRunAction calls revalidatePath, which needs a real request's
+// static-generation store outside of Next's own runtime (same pattern as
+// strategies/watchlist/portfolio/decisions' own actions.integration.test.ts).
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 vi.mock("@/modules/auth", async () => {
   const actual = await vi.importActual<typeof import("@/modules/auth")>("@/modules/auth");
@@ -797,4 +802,114 @@ describe("createBacktestRunAction", () => {
         ),
       );
   }, 30_000);
+});
+
+describe("discardBacktestRunAction", () => {
+  const STOCK_STRUCTURE: Structure = {
+    id: "stock",
+    name: "Compra de ação",
+    expiry: "shared",
+    legs: [{ role: "stock", side: "buy", ratio: 1 }],
+  };
+
+  // repository.create() directly, not the full createBacktestRunAction flow:
+  // discard needs only an existing row, not a candle-backed, watchlist-
+  // satisfying, risk-profiled setup.
+  async function createBareRun(owner: CurrentUser) {
+    const db = getDb();
+    const { StrategiesRepository } = await import("@/modules/strategies");
+    const { BacktestRunRepository } = await import("./backtest-run-repository");
+    const { DEFAULT_COST_MODEL, defaultRiskProfile } = await import("./default-config");
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+    const repository = new BacktestRunRepository(db, owner);
+    const run = await repository.create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: [TICKER],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn",
+      sizing: version.definition.sizing,
+      walkForward: null,
+      seed: 1,
+    });
+    return { repository, run };
+  }
+
+  it("discards a run the user owns", async () => {
+    vi.resetModules();
+    const { discardBacktestRunAction } = await import("./actions");
+
+    const email = uniqueEmail("discard-ok");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const { repository, run } = await createBareRun(currentUser);
+
+    const result = await discardBacktestRunAction({ runId: run.id });
+    expect(result).toEqual({ status: "ok" });
+
+    const after = await repository.findMine(run.id);
+    expect(after.status).toBe("failed");
+  });
+
+  it("answers not_found for a run the user does not own (isolation)", async () => {
+    vi.resetModules();
+    const { discardBacktestRunAction } = await import("./actions");
+
+    const ownerEmail = uniqueEmail("discard-owner");
+    const otherEmail = uniqueEmail("discard-other");
+    createdEmails.push(ownerEmail, otherEmail);
+    const owner = await insertBareUser(ownerEmail);
+    const { repository, run } = await createBareRun(owner);
+
+    currentUser = await insertBareUser(otherEmail);
+    const result = await discardBacktestRunAction({ runId: run.id });
+    expect(result).toEqual({ status: "error", error: "not_found" });
+
+    const stillOwners = await repository.findMine(run.id);
+    expect(stillOwners.status).toBe("pending");
+  });
+
+  it("answers not_discardable for a run already in a terminal state", async () => {
+    vi.resetModules();
+    const { discardBacktestRunAction } = await import("./actions");
+
+    const email = uniqueEmail("discard-terminal");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const { repository, run } = await createBareRun(currentUser);
+    await repository.claim(run.id);
+    await repository.fail(run.id, "no_market_data");
+
+    const result = await discardBacktestRunAction({ runId: run.id });
+    expect(result).toEqual({ status: "error", error: "not_discardable" });
+  });
+
+  it("rate limits discard after 10 requests in the window, the 11th returns rate_limited", async () => {
+    vi.resetModules();
+    const { discardBacktestRunAction } = await import("./actions");
+
+    const email = uniqueEmail("discard-rate-limit");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const { run } = await createBareRun(currentUser);
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const result = await discardBacktestRunAction({ runId: run.id });
+      // Only the first of the ten actually discards; every one after that
+      // answers not_discardable for the same, now-terminal run, but each
+      // still consumes one unit of the rate-limit budget.
+      const okOrNotDiscardable = result.status === "ok" || result.error === "not_discardable";
+      expect(okOrNotDiscardable).toBe(true);
+    }
+
+    const eleventh = await discardBacktestRunAction({ runId: run.id });
+    expect(eleventh).toEqual({ status: "error", error: "rate_limited" });
+  });
 });

@@ -21,19 +21,36 @@ tem dois backtests em andamento" had to hunt through strategies to find the one 
   `{ status: "not_discardable" }` result rather than throwing; a run not owned by the caller throws
   `BacktestRunNotFoundError` from the same `findMine` isolation check every other per-id method
   uses.
-- Because `COUNTS_AS_ACTIVE.failed === false`, a discarded run stops counting toward the cap the
-  moment it is discarded — no separate bookkeeping.
+- `DISCARDED_RUN_ERROR` and the active-status tuple (`ACTIVE_RUN_STATUSES = ["pending", "running",
+"paused"]`) live in a new, Drizzle-free `modules/backtests/run-status.ts`, imported by both
+  `backtest-run-repository.ts` and `strings.ts`: `strings.ts` is reachable from `client.ts` ("use
+  client" components), which must never pull Drizzle, the schema or `UserScopedRepository` into a
+  client bundle (ARCHITECTURE.md). `isDiscardedRun`/`isActiveRun`, exported from the module index,
+  are what pages check instead of re-deriving `status`/`error` comparisons inline; `DISCARDED_RUN_ERROR`
+  itself stays internal to the module.
+- Because a `failed` row is outside `ACTIVE_RUN_STATUSES`, a discarded run stops counting toward the
+  cap the moment it is discarded — no separate bookkeeping.
 - A discarded run must never come back into the active set:
   - `claim()`'s reclaim-from-`failed` branch now excludes rows whose `error` is
     `DISCARDED_RUN_ERROR`, so a "Continuar"/retry click (or a direct call) cannot resume a run the
     user explicitly discarded, the way it can resume one that failed for a transient reason
-    (round 2 item 12 of #147's own history).
-  - `run-chunk.ts` never re-checks status between claiming a run and persisting a checkpoint,
-    completion or failure for it, so a chunk already in flight when a discard lands would otherwise
-    write a `saveProgress`/`complete` straight past the discard. `guardedUpdate` (the single path
-    `saveCheckpoint`, `saveProgress`, `complete` and `fail` all share) now also refuses a row that
-    has been discarded, both in a pre-check and in the write's own `WHERE` clause, raising the same
-    `BacktestRunClaimError` a lost claim already raises rather than reviving the run.
+    (round 2 item 12 of #147's own history). `claim()` checks this _before_ `enforceActiveCap`, not
+    after: a discarded row no longer counts toward the cap, so checking the cap first could answer
+    `ActiveBacktestRunLimitError` for a claim that was always going to be refused for the real
+    reason, `BacktestRunClaimError`.
+  - `run-chunk.ts` re-reads the run once more, right after `loadMarketView` and before the first
+    `engine.runBacktest` call, and aborts with `BacktestRunClaimError` if it was discarded in that
+    window — the widest gap between the chunk's own claim and its first write (`loadMarketView`
+    alone measured ~23.5s at the universe/session ceiling, round 3 item 4). `guardedUpdate` (the
+    single path `saveCheckpoint`, `saveProgress`, `complete` and `fail` all share) is still the
+    backstop that closes the race for good, both in a pre-check and in the write's own `WHERE`
+    clause, raising the same `BacktestRunClaimError` a lost claim already raises — the re-check in
+    `run-chunk.ts` only means an already-discarded run's engine step is never paid for, not just
+    never persisted.
+  - Both `claimRow`'s and `guardedUpdate`'s `WHERE` clauses compare `error` with `IS DISTINCT FROM`,
+    not `<>`/`!=`: a `failed` row with a `NULL` error (never written today, but not schema-impossible)
+    must stay writable and claimable, and a plain `<>` against `NULL` evaluates to `NULL`, which
+    Postgres excludes from `WHERE` as if the row really were discarded.
 - The report page renders a discarded run distinctly (no "A simulação falhou" framing) and offers
   no retry; `runErrorMessage("discarded")` returns the pt-BR label "Descartado" instead of the raw
   code, the same split every other run error already gets.
@@ -47,6 +64,9 @@ tem dois backtests em andamento" had to hunt through strategies to find the one 
   The per-user `pg_advisory_xact_lock` ADR-0032 introduced exists to make a _count-then-insert_
   atomic across concurrent creates; discarding never counts anything, so there is nothing for the
   lock to protect.
+- The discard action carries its own per-account rate-limit bucket (`"backtests/discard"`, 10 per
+  60 seconds, mirroring `createBacktestRunAction`'s own `CREATE_RATE_LIMIT`): cheap as one
+  conditional `UPDATE` is, an unbounded loop of it is still an unbounded write loop.
 
 ## Consequences
 
@@ -58,3 +78,10 @@ tem dois backtests em andamento" had to hunt through strategies to find the one 
   `running`) is unaffected.
 - Discarding does not clear a run's stored `checkpoint` or `result`; there is still no way to purge
   storage for an old run, discarded or not (ADR-0032's own consequence, unchanged).
+- ADR-0032's "at most two busy functions per user" is approximate for the window between a discard
+  landing on a `running` run and that run's own in-flight `runBacktestChunk` invocation reaching
+  its post-load re-check: the invocation keeps paying for whatever `MarketView` load it already
+  started (or the inner `engine.runBacktest` step it is mid-way through, if the discard lands after
+  the re-check but before that step returns) before it stops. The cap bounds how many runs a user
+  can hold open, not how many chunk invocations can be transiently busy at once; this was already
+  true of a stale-lease reclaim racing a still-alive chunk before this ADR.

@@ -8,11 +8,11 @@ import { getMyStrategies, getMyStrategy } from "@/modules/strategies";
 
 import {
   BacktestRunRepository,
-  type ActiveRunStatus,
   type BacktestRunRecord,
   type BacktestRunSummary,
 } from "./backtest-run-repository";
 import { runLabels, type ComparedRun, type PickerGroup } from "./comparison";
+import type { ActiveRunStatus } from "./run-status";
 
 export const getMyBacktestRun = cache(async (runId: string): Promise<BacktestRunRecord> => {
   const repository = await forCurrentUser(getDb(), BacktestRunRepository);

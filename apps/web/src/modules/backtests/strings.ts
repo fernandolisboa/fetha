@@ -1,6 +1,6 @@
 import type { EngineErrorCode, NoteCode } from "@fetha/engine";
 
-import { DISCARDED_RUN_ERROR } from "./backtest-run-repository";
+import { DISCARDED_RUN_ERROR } from "./run-status";
 
 const en = {
   create: {
@@ -200,11 +200,12 @@ const en = {
     action: "Discard",
     confirmTitle: "Discard this run?",
     confirmDescription:
-      "It is marked as discarded and frees a slot for a new run. This cannot be undone.",
+      "The run is discarded and frees a slot for a new one. This cannot be undone.",
     cancel: "Cancel",
     confirm: "Discard",
     error: "Couldn't discard the run. Try again.",
     reason: "Discarded",
+    stale: "This run is no longer in progress.",
   },
   inProgress: {
     title: "In progress",
@@ -413,11 +414,12 @@ const ptBR = {
     action: "Descartar",
     confirmTitle: "Descartar esta simulação?",
     confirmDescription:
-      "Ela é marcada como descartada e libera uma vaga para uma nova simulação. Essa ação não pode ser desfeita.",
+      "A simulação é descartada e libera uma vaga para uma nova. Não dá para desfazer.",
     cancel: "Cancelar",
     confirm: "Descartar",
     error: "Não foi possível descartar a simulação. Tente novamente.",
     reason: "Descartado",
+    stale: "Esta simulação não está mais em andamento.",
   },
   inProgress: {
     title: "Em andamento",

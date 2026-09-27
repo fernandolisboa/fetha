@@ -7,6 +7,7 @@ import { requireUser } from "@/modules/auth";
 import {
   compareHref,
   getMyBacktestRunsForStrategy,
+  isActiveRun,
   t as backtestsStrings,
 } from "@/modules/backtests";
 import { DiscardRunButton } from "@/modules/backtests/client";
@@ -107,11 +108,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
                   <span className="text-muted-foreground text-xs">
                     ({formatDate(run.createdAt)})
                   </span>
-                  {run.status === "pending" ||
-                  run.status === "running" ||
-                  run.status === "paused" ? (
-                    <DiscardRunButton runId={run.id} />
-                  ) : null}
+                  {isActiveRun(run) ? <DiscardRunButton runId={run.id} /> : null}
                 </li>
               ))}
             </ul>

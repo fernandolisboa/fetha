@@ -27,6 +27,7 @@ export function DiscardRunButton({ runId }: { runId: string }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  const [stale, setStale] = useState(false);
 
   async function discard(): Promise<void> {
     setPending(true);
@@ -36,36 +37,49 @@ export function DiscardRunButton({ runId }: { runId: string }) {
     if (result.status === "ok") {
       setOpen(false);
       router.refresh();
-    } else {
-      setError(true);
+      return;
     }
+    if (result.error === "not_found" || result.error === "not_discardable") {
+      // Someone else finished, failed or already discarded this run since
+      // the list was rendered: closing the dialog and refreshing shows its
+      // current state instead of leaving a "try again" invite that could
+      // only repeat the same answer.
+      setOpen(false);
+      setStale(true);
+      router.refresh();
+      return;
+    }
+    setError(true);
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}>
-        {t.discard.action}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t.discard.confirmTitle}</DialogTitle>
-          <DialogDescription>{t.discard.confirmDescription}</DialogDescription>
-        </DialogHeader>
-        {error ? <p className="text-destructive text-xs">{t.discard.error}</p> : null}
-        <DialogFooter>
-          <DialogClose render={<Button type="button" variant="ghost" />}>
-            {t.discard.cancel}
-          </DialogClose>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={pending}
-            onClick={() => void discard()}
-          >
-            {t.discard.confirm}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col items-end gap-1">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}>
+          {t.discard.action}
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.discard.confirmTitle}</DialogTitle>
+            <DialogDescription>{t.discard.confirmDescription}</DialogDescription>
+          </DialogHeader>
+          {error ? <p className="text-destructive text-xs">{t.discard.error}</p> : null}
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="ghost" />}>
+              {t.discard.cancel}
+            </DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={() => void discard()}
+            >
+              {t.discard.confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {stale ? <p className="text-muted-foreground text-xs">{t.discard.stale}</p> : null}
+    </div>
   );
 }

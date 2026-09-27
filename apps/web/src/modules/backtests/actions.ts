@@ -241,12 +241,19 @@ async function createBacktestRun(
   redirect(`/estrategias/${strategy.id}/backtests/${run.id}`);
 }
 
-export type DiscardBacktestRunResult =
-  { status: "ok" } | { status: "error"; error: "not_found" | "not_discardable" };
+export type DiscardBacktestRunActionResult =
+  { status: "ok" } | { status: "error"; error: "not_found" | "not_discardable" | "rate_limited" };
 
 const discardInputSchema = z.strictObject({ runId: z.string().min(1).max(200) });
 
-export async function discardBacktestRunAction(input: unknown): Promise<DiscardBacktestRunResult> {
+// Mirrors CREATE_RATE_LIMIT's own bucket, keyed separately ("backtests/discard"):
+// discard is cheap compared to a create, but an unbounded loop of it would
+// still be an unbounded write loop against the same table.
+const DISCARD_RATE_LIMIT = { windowSeconds: 60, max: 10 };
+
+export async function discardBacktestRunAction(
+  input: unknown,
+): Promise<DiscardBacktestRunActionResult> {
   const parsed = discardInputSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "error", error: "not_found" };
@@ -255,7 +262,16 @@ export async function discardBacktestRunAction(input: unknown): Promise<DiscardB
   try {
     return await withAuthenticatedAction(async () => {
       const user = await requireUser();
-      const repository = new BacktestRunRepository(getDb(), user);
+      const db = getDb();
+      try {
+        await enforceAccountRateLimit(db, user.email, "backtests/discard", DISCARD_RATE_LIMIT);
+      } catch (error) {
+        if (error instanceof AccountRateLimitExceededError) {
+          return { status: "error", error: "rate_limited" };
+        }
+        throw error;
+      }
+      const repository = new BacktestRunRepository(db, user);
       const result = await repository.discard(parsed.data.runId);
       revalidatePath("/estrategias");
       if (result.status === "not_discardable") {

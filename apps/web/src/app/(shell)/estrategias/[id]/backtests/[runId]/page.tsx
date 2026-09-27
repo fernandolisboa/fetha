@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/auth";
 import {
   BacktestRunNotFoundError,
-  DISCARDED_RUN_ERROR,
   runErrorMessage,
   getMyBacktestRun,
+  isDiscardedRun,
   isResumableRunError,
   ReportPanel,
   t,
@@ -54,7 +54,7 @@ export default async function BacktestReportPage({
 
       {run.status === "complete" && run.result ? (
         <ReportPanel run={run.result} />
-      ) : run.status === "failed" && run.error === DISCARDED_RUN_ERROR ? (
+      ) : isDiscardedRun(run) ? (
         <Panel>
           <p className="text-muted-foreground text-sm">{t.discard.reason}</p>
         </Panel>

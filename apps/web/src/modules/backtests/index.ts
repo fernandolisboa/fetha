@@ -8,8 +8,8 @@ export {
   BacktestRunAlreadyCompleteError,
   BacktestRunClaimError,
   BacktestRunNotFoundError,
-  DISCARDED_RUN_ERROR,
 } from "./backtest-run-repository";
+export { isActiveRun, isDiscardedRun } from "./run-status";
 export { runBacktestChunk } from "./run-chunk";
 export { DEFAULT_COST_MODEL } from "./default-config";
 export {
