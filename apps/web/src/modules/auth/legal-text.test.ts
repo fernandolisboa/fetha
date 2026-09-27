@@ -43,6 +43,14 @@ describe("legal text", () => {
     expect(text).toContain("token de um provedor de dados");
   });
 
+  it("gives a private email as the data-request contact", () => {
+    for (const language of ["en", "ptBR"] as const) {
+      const text = fullText(language);
+      expect(text).toContain("fetha@miolos.app");
+      expect(text).not.toContain("github.com");
+    }
+  });
+
   it("states the retention the code enforces", () => {
     const text = fullText("ptBR");
     expect(text).toContain(`${String(ACCESS_LOG_RETENTION_DAYS)} dias`);
