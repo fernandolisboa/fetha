@@ -19,8 +19,8 @@ import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import {
   buildOperationMarketView,
   calendarUpTo,
-  calendarVersionForWindow,
   loadMarketView,
+  loadMarketViewWithCalendarVersion,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
   tradingSessionForDate,
@@ -1083,7 +1083,7 @@ describe("loadMarketView", () => {
     expect(view.dataVersion).toBe(lastAsOf);
   });
 
-  it("calendarVersionForWindow stamps the freshest as_of over the sessions loaded, separate from dataVersion (#90)", async () => {
+  it("loadMarketViewWithCalendarVersion stamps the freshest as_of over the sessions loaded, separate from dataVersion (#90)", async () => {
     const db = getDb();
     const ticker = uniqueTicker("DCV");
     cleanupTickers.push(ticker);
@@ -1122,10 +1122,7 @@ describe("loadMarketView", () => {
     };
 
     const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
-    const [view, calendarVersion] = await Promise.all([
-      loadMarketView(db, window),
-      calendarVersionForWindow(db, window),
-    ]);
+    const { view, calendarVersion } = await loadMarketViewWithCalendarVersion(db, window);
 
     expect(calendarVersion).toBe(revisedAsOf.toISOString());
     expect(view.dataVersion).not.toBe(calendarVersion);

@@ -84,12 +84,12 @@ export const backtestRuns = pgTable(
     // fails rather than silently mixing two datasets in one immutable
     // result. The calendar is a separate stamp, `calendarVersion` below.
     dataVersion: text("data_version"),
-    // Stamped alongside `dataVersion`, but from `market-data`'s
-    // `calendarVersionForWindow` instead: `max(as_of)` over the calendar
-    // sessions the run's own window loaded (calendar-repository.ts's
-    // `as_of` moves only on a real open/close change). A run created
-    // before this column existed carries `null` and is stamped, not
-    // failed, on its next chunk.
+    // Stamped alongside `dataVersion`, but from the `calendarVersion`
+    // `market-data`'s `loadMarketViewWithCalendarVersion` returns next to
+    // the view: `max(as_of)` over the calendar sessions the run's own
+    // window loaded (calendar-repository.ts's `as_of` moves only on a real
+    // open/close change). A run created before this column existed carries
+    // `null` and is stamped, not failed, on its next chunk.
     calendarVersion: text("calendar_version"),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

@@ -2391,7 +2391,8 @@ engine itself never compares one chunk's `view.calendar` to the previous chunk's
 `TradingSession` gains no `asOf` field to compare it by — the frozen block above is unchanged.
 
 The identity is enforced by the caller. `apps/web`'s `run-chunk.ts` reloads the calendar on every
-chunk (`market-data`'s `calendarVersionForWindow`, a sibling of `loadMarketView`) and compares a
+chunk (`market-data`'s `loadMarketViewWithCalendarVersion`, which returns the same view
+`loadMarketView` would alongside the stamp below) and compares a
 `calendarVersion` stamp — `max(as_of)` over the trading sessions the run's window loaded — against
 the one it persisted on the run's first chunk, failing with `data_version_changed` on a mismatch
 the same way it already does for `MarketView.dataVersion`. `calendarVersion` is deliberately kept

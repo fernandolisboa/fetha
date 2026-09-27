@@ -11,8 +11,7 @@ import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   calendarUpTo,
-  calendarVersionForWindow,
-  loadMarketView,
+  loadMarketViewWithCalendarVersion,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
   tradingSessionForDate,
@@ -123,8 +122,9 @@ export interface RunBacktestChunkOptions {
 // rather than silently mixing two datasets into one immutable result.
 // `runBacktest`'s own "market-data builds it once" is not how the calendar
 // is kept identical across chunks: `dataVersion` never carries a calendar
-// stamp (market-view.ts), so this function reloads the calendar's own
-// `calendarVersionForWindow` on every chunk and compares it separately,
+// stamp (market-view.ts), so this function reloads the window's
+// `calendarVersion` on every chunk, alongside the view itself in the same
+// `loadMarketViewWithCalendarVersion` call, and compares it separately,
 // failing with the same `data_version_changed` when a trading session
 // inside the window (and so a time to expiry) was revised between chunks
 // (#90).
@@ -204,13 +204,14 @@ export async function runBacktestChunk(
       options.optionChainTickerCap !== undefined
         ? { optionChainTickerCap: options.optionChainTickerCap }
         : {};
-    view = await loadMarketView(db, window, caps);
     // Reloaded on every chunk rather than threaded through from the first
     // one: the run's window can only be resolved after the strategy and
     // period are known, and comparing a stamp resolved fresh here is what
     // catches a revision to a session inside it (#90), the same way
     // reloading `view` itself catches a revision to a candle.
-    calendarVersion = await calendarVersionForWindow(db, window, caps);
+    const loaded = await loadMarketViewWithCalendarVersion(db, window, caps);
+    view = loaded.view;
+    calendarVersion = loaded.calendarVersion;
   } catch (error) {
     // Checked before the parent MarketViewUnavailableError: both are
     // thrown for a period this run cannot proceed with, but for opposite

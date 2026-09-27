@@ -245,8 +245,8 @@ calendar.
 session-close instant: the nightly `upsertTradingSessions` re-writes every session it ingests, but
 `as_of` moves only when a session's own `open` or `close` actually changes (its `ON CONFLICT`
 guard is `(open, close) IS DISTINCT FROM (excluded.open, excluded.close)`), so an unrevised
-calendar re-write does not touch it. `market-data`'s `calendarVersionForWindow` reads this column
-so `apps/web`'s backtest runner can detect a real calendar revision inside a run's window between
+calendar re-write does not touch it. `market-data`'s `loadMarketViewWithCalendarVersion` reads
+this column so `apps/web`'s backtest runner can detect a real calendar revision inside a run's window between
 chunks (ADR-0013's #90 addendum); `upsertTradingSessions` never deletes a row, so a date that stops
 being a trading session keeps its old row and its old `as_of` indefinitely, a known gap that
 addendum states rather than fixes.
