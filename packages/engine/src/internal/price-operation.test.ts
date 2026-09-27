@@ -2955,6 +2955,137 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.value.maxLoss).toBeLessThanOrEqual(5_000_00);
   });
 
+  it("sizes a bounded net-debit structure with a short leg to unsizeable(unaffordable_budget) when the corrected divisor no longer fits the budget (#131)", () => {
+    const boundedDebitView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const shortPutLongCallStructure: Structure = {
+      id: "short-put-long-call-unaffordable",
+      name: "Short put, long call",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: boundedDebitView,
+        at,
+        legs: {
+          structure: shortPutLongCallStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(100_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    // The R$2.00/unit premium alone (budget R$10.00 / R$2.00 = 5 units) would have sized
+    // fine before #131; the R$30.00/unit bounded max loss (R$10.00 / R$30.00 < 1) does not
+    // fit the same budget, so the corrected divisor makes this genuinely unsizeable.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unaffordable_budget" });
+  });
+
+  it("sizes a married put (no short leg) on the premium paid, since its bounded max loss stays under the premium (#131)", () => {
+    const marriedPutView: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4P28", "28.00"), right: "put" }],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const marriedPutStructure: Structure = {
+      id: "married-put",
+      name: "Married put",
+      expiry: "shared",
+      legs: [
+        { role: "stock", side: "buy", ratio: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: marriedPutView,
+        at,
+        legs: {
+          structure: marriedPutStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    // Premium paid is R$31.00/unit (stock 30.00 + put 1.00); the protective put caps the
+    // per-unit max loss at R$3.00 (stock falls to 0, put intrinsic 28.00 nets most of it
+    // back), strictly under the premium, so unitsFromPerUnit divides by the premium: floor
+    // (500000 / 3100) = 161 units, unchanged from before #131 (no short leg here).
+    expect(result.value.maxLoss).toBeLessThan(161 * 3100);
+    expect(result.value.legs[0]?.leg.quantity).toBe(161);
+    expect(result.value.legs[1]?.leg.quantity).toBe(161);
+  });
+
   it("sizes a pure long-call debit structure unchanged by the #131 fix (max loss equals the premium paid)", () => {
     const result = priceOperation(
       {
@@ -3165,7 +3296,11 @@ describe("priceOperation (selection: quantity resolution)", () => {
             },
             provenanceBase,
           );
-          if (!result.ok) return true;
+          if (!result.ok) {
+            return (
+              result.error.code === "unsizeable" && result.error.reason === "unaffordable_budget"
+            );
+          }
           if (result.value.maxLoss === "unbounded") return false;
           const budget = new Decimal(capital).mul(fractionPercent).div(100);
           return new Decimal(result.value.maxLoss).lte(budget);

@@ -49,8 +49,8 @@ export const unsupportedExpirySelectionKinds =
 // #15 implemented evaluateStrategy for stock-only strategies; #23 extends it to
 // structures with option legs by delegating strike/expiry selection and pricing to
 // priceOperation's own internals. Both sizing rules apply to any leg mix
-// (fixed_fractional and fixed_risk, the latter unsizeable on any short leg's unbounded
-// max loss), so nothing is left unsupported there.
+// (fixed_fractional and fixed_risk both refuse a structure with an unbounded max loss,
+// #131), so nothing is left unsupported there.
 export const implementedSizingRuleKinds = [
   "fixed_fractional",
   "fixed_risk",

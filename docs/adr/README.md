@@ -43,5 +43,6 @@ supersedes or amends them and says so.
 | 0035 | Documents enforce a nonce script-src from the proxy; the report-only step is skipped (amends 0026)               |
 | 0036 | A signed-in gate asks existing users to re-accept a new terms version (amends 0016, 0028)                        |
 | 0037 | Discarding a stuck backtest run, and listing runs in progress across strategies (amends 0032)                    |
+| 0038 | `fixed_fractional` sizes a net-debit structure on max(premium, bounded max loss) (amends 0013)                   |
 
 Open: none.

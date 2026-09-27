@@ -2004,7 +2004,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
       session: "2024-01-04",
       outcome: "unsizeable",
       reason: "unbounded_max_loss",
-      detail: "fixed_risk sizing is unsizeable against an unbounded max loss",
+      detail: "sizing is unsizeable against an unbounded max loss",
     });
     expect(result.value.signals).toEqual([]);
   });

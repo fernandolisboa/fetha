@@ -33,27 +33,51 @@ the existing `unitsFromPerUnit`, now with `Decimal.max(maxLoss, netPremium.abs()
 argument, and reads `computePayoffProfile`'s `maxLoss` that the branch already computes for the
 risk-limit check just below it.
 
-A pure debit structure (no short leg, e.g. a single long call or a long vertical spread) has max
-loss exactly equal to the premium paid, so `Decimal.max` is a no-op for it: sizing is unchanged,
-proven by a test asserting the same unit count the premium-only divisor gave before this change.
+A structure with no short leg (a single long option, a long vertical, a married put, a long guts
+strangle) has max loss ≤ premium paid, never more: every leg is owned outright, so the worst case
+is every leg expiring worthless, which is exactly the premium paid, or less when one leg's
+intrinsic value offsets another's (a married put's protective put caps the loss well under the
+combined premium). `Decimal.max` therefore always resolves to the premium for these structures,
+leaving their sizing unchanged, proven by tests pinning the same unit count the premium-only
+divisor gave before this change.
 
 ## Consequences
 
-- `fixed_fractional` never sizes a bounded net-debit structure with a short leg past its declared
-  budget: units × per-unit max loss ≤ capital × fraction, proven as a `fast-check` property over
-  randomized strikes, premiums and fractions.
+- `fixed_fractional` never sizes a bounded net-debit structure past its declared budget: units ×
+  per-unit max loss ≤ capital × fraction, proven as a `fast-check` property over randomized
+  strikes, premiums and fractions on a short-put/long-call structure (always bounded by
+  construction). This bound is pre-cost: it sizes off `computePayoffProfile`'s max loss, before
+  the fees, B3 taxes and slippage `runBacktest`/fill pricing apply at the actual fill, the same as
+  every other `fixed_fractional`/`fixed_risk` divisor. It also carries the same sub-centavo
+  rounding slack `fixed_risk` already has: the divisor is `maxLoss`, itself rounded to centavos by
+  `computePayoffProfile`, not the unrounded decimal max loss, so the bound can be off by a
+  fraction of a centavo per unit at the edge, never more.
 - The verified case above now sizes `floor(R$5,000 / R$30.00) = 166` units (max loss R$4,980,
   under the R$5,000 budget), not 2,500 units.
+- A bounded net-debit structure with a short leg that used to size under the premium-only divisor
+  can now be `unsizeable(unaffordable_budget)` when the corrected, larger divisor no longer fits
+  the same budget (e.g. the same short put 28 / long call 32 structure at R$100 capital and 0.1
+  fraction: R$10 budget affords 5 units on the R$2.00 premium but zero units on the R$30.00 bounded
+  max loss). This is the fix working as intended, not a regression: the prior size understated the
+  capital actually at risk.
 - `ENGINE_VERSION` is not bumped. Per the change policy in ADR-0013 ("a bump tracks a checkpoint-
   or persistence-breaking shape change, never additivity by itself"; #54's addendum sets the
   precedent for a value-only fix), this change alters the _value_ `resolveSizingUnits` returns for
   a net-debit structure with a short leg, not the shape of any checkpointed or persisted artifact:
-  `SimulatedOperation`, `BacktestCheckpoint` and every other frozen type are untouched. No fixture
-  in the repo exercises `fixed_fractional` on a net-debit structure with a short leg (the existing
-  golden and property fixtures cover non-debit and pure-debit sizing only), so no golden or
-  checkpoint fixture's numbers change; a backtest resumed from a pre-#131 checkpoint that later
-  sizes such a structure gets the corrected, smaller size going forward, which is the intended
-  fix, not a compatibility break.
-- A strategy backtested before this change with a net-debit structure carrying a short leg under
-  `fixed_fractional` may report a smaller position size, and therefore different P&L, on a re-run:
-  expected, since the prior size understated the capital at risk.
+  `SimulatedOperation`, `BacktestCheckpoint` and every other frozen type are untouched. The
+  `run-backtest-settlement.golden.test.ts` fixtures do include net-debit structures with a short
+  leg under `fixed_fractional` (the covered call, the collar and both bull-call-spread cases all
+  carry a short call), but every one of them has max loss ≤ premium paid already (a covered call's
+  max loss is the stock cost net of the call premium received, a collar's downside is capped by
+  its long put, a debit vertical's max loss is the premium by construction), so `Decimal.max`
+  resolves to the same premium divisor for all four and none of their golden numbers change.
+  Consequence for checkpoint validity: `resume.engineVersion` equal to `ENGINE_VERSION` no longer
+  implies equal sizing for this structure class specifically. A chunked backtest run resumed
+  across a deploy that carries this fix sizes any net-debit-with-a-short-leg entry it opens after
+  the resume on the corrected divisor while entries already opened before the resume keep the size
+  they were filled at — the same mix any other value-only, non-bumped fix already produces for
+  operations opened on either side of the deploy, not a new class of inconsistency this ADR
+  introduces.
+- A strategy backtested before this change with a net-debit structure carrying a short leg whose
+  max loss exceeds its premium may report a smaller position size, and therefore different P&L, on
+  a re-run: expected, since the prior size understated the capital at risk.
