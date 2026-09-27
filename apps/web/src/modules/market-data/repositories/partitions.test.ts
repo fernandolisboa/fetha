@@ -10,7 +10,7 @@ function rejectingDb(error: Error): Database {
 
 function drizzleQueryError(code: string): Error {
   return new Error("Failed query: select create_monthly_partitions(...)", {
-    cause: Object.assign(new Error("relation already exists"), { code }),
+    cause: Object.assign(new Error("relation already exists"), { code, severity: "ERROR" }),
   });
 }
 
@@ -28,10 +28,20 @@ describe("ensureMonthlyPartition", () => {
   });
 
   it("swallows an unwrapped duplicate table error", async () => {
-    const error = Object.assign(new Error("relation already exists"), { code: "42P07" });
+    const error = Object.assign(new Error("relation already exists"), {
+      code: "42P07",
+      severity: "ERROR",
+    });
     await expect(
       ensureMonthlyPartition(rejectingDb(error), "candles", "2031-06-01"),
     ).resolves.toBeUndefined();
+  });
+
+  it("rethrows a JS error that merely carries the same code", async () => {
+    const error = Object.assign(new Error("not postgres"), { code: "42P07" });
+    await expect(ensureMonthlyPartition(rejectingDb(error), "candles", "2031-06-01")).rejects.toBe(
+      error,
+    );
   });
 
   it("rethrows any other error", async () => {

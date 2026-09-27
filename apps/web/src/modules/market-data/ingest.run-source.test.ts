@@ -76,6 +76,49 @@ describe("runSource", () => {
   });
 });
 
+function lockWithFailingMarker(markerError: Error): void {
+  withSourceLock.mockImplementation(
+    async (_db: unknown, _source: unknown, callback: (tx: unknown) => Promise<unknown>) =>
+      callback({ transaction: () => Promise.reject(markerError) }),
+  );
+}
+
+function drizzleQueryError(code: string): Error {
+  return new Error("Failed query: update ingestion_runs ...", {
+    cause: Object.assign(new Error("duplicate key value"), { code, severity: "ERROR" }),
+  });
+}
+
+describe("runSource when another run already wrote the succeeded marker", () => {
+  it("reports skipped and drops its own run row on a drizzle-wrapped unique violation", async () => {
+    lockWithFailingMarker(drizzleQueryError("23505"));
+
+    const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
+      Promise.resolve(3),
+    );
+
+    expect(outcome).toEqual({ source: "cotahist", skipped: true, rowCount: 3 });
+    expect(deleteRun).toHaveBeenCalledWith(db, "run-1");
+    expect(finishRun).not.toHaveBeenCalledWith(db, "run-1", expect.anything());
+  });
+
+  it("still fails the run on any other wrapped Postgres error", async () => {
+    lockWithFailingMarker(drizzleQueryError("57014"));
+
+    const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
+      Promise.resolve(3),
+    );
+
+    expect(outcome.skipped).toBe(false);
+    expect(outcome.error).toContain("Failed query");
+    expect(finishRun).toHaveBeenCalledWith(db, "run-1", {
+      status: "failed",
+      error: expect.stringContaining("Failed query") as unknown,
+    });
+    expect(deleteRun).not.toHaveBeenCalled();
+  });
+});
+
 describe("runSessionBoundSource", () => {
   it("reports a skipped outcome instead of dropping a source with no sessions to process", async () => {
     const result = await runSessionBoundSource(db, "cotahist", [], 300_000, () =>

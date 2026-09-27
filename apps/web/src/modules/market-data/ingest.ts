@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import { postgresErrorOf } from "@/db/pg-error";
 import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
@@ -124,15 +125,8 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
   };
 }
 
-const UNIQUE_VIOLATION = "23505";
-
 function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === UNIQUE_VIOLATION
-  );
+  return postgresErrorOf(error)?.code === "23505";
 }
 
 // Only the initial `running` row is inserted and committed with the plain

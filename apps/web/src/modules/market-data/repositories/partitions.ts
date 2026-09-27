@@ -1,24 +1,16 @@
 import { sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
+import { postgresErrorOf } from "@/db/pg-error";
 
 const DUPLICATE_TABLE = "42P07";
 const UNIQUE_VIOLATION = "23505";
 
-function postgresCode(error: unknown): unknown {
-  return typeof error === "object" && error !== null && "code" in error
-    ? (error as { code?: unknown }).code
-    : undefined;
-}
-
-// Drizzle wraps the driver's error in a "Failed query" error whose `cause` carries the Postgres
-// code. Two sessions racing CREATE TABLE IF NOT EXISTS fail with 42P07, or with 23505 on
-// pg_type's unique index when both pass the existence check.
+// Two sessions racing CREATE TABLE IF NOT EXISTS fail with 42P07, or with 23505 on pg_type's
+// unique index when both pass the existence check.
 function isConcurrentCreateError(error: unknown): boolean {
-  const cause = error instanceof Error ? error.cause : undefined;
-  return [postgresCode(error), postgresCode(cause)].some(
-    (code) => code === DUPLICATE_TABLE || code === UNIQUE_VIOLATION,
-  );
+  const code = postgresErrorOf(error)?.code;
+  return code === DUPLICATE_TABLE || code === UNIQUE_VIOLATION;
 }
 
 // create_monthly_partitions is defined in the market-data migration
