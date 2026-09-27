@@ -22,9 +22,9 @@ removing the enforced one for the trial would drop `frame-ancestors`, `form-acti
 
 ## Decision
 
-1. Every document gets exactly one policy, set by `apps/web/src/proxy.ts` on both the forwarded
+1. Every routed page gets exactly one policy, set by `apps/web/src/proxy.ts` on both the forwarded
    request and the response, with a fresh 128-bit nonce per request
-   (`apps/web/src/lib/script-policy.ts`):
+   (`apps/web/src/lib/document-policy.ts`):
    `script-src 'self' 'nonce-…' 'strict-dynamic'; worker-src 'self'; frame-ancestors 'none';
 base-uri 'self'; form-action 'self'; object-src 'none'`.
    - `'strict-dynamic'` makes browsers ignore `'self'` for scripts, so the service worker
@@ -38,12 +38,20 @@ base-uri 'self'; form-action 'self'; object-src 'none'`.
    browser prefetches or prerenders (`Purpose: prefetch`) get the policy.
 4. Zod runs `jitless` in the browser (`instrumentation-client.ts`): its `new Function` probe is
    caught, but it still counts as a violation.
-5. The report-only trial is replaced by a walk before merge. The whole Playwright suite ran
-   against a local production build of this policy, with a `report-uri` added only for that
-   run and pointed at a local collector. It covered the signed-in flows: charts, the strategy
-   editor, backtests, the B3 import, dialogs and the service worker. The collector received
-   no report. `e2e/security-headers.spec.ts` keeps a check that fails
-   on any `securitypolicyviolation` on the public pages, and it runs against the preview too.
+5. The report-only trial is replaced by walks before merge:
+   - **Local, every flow.** The whole Playwright suite ran against a local production build of
+     this policy, with a `report-uri` added for that run only and pointed at a local collector.
+     It covered the signed-in flows: charts, the strategy editor, backtests, the B3 import,
+     dialogs and the service worker. The collector received no report.
+   - **Preview, public pages.** On the Vercel preview, every script on the eleven public pages
+     carried the header's nonce, also when the request brought a forged policy, and a browser
+     visit raised no `securitypolicyviolation`.
+   - **Signed-in pages were not walked on the preview.** Signing in there from an agent session
+     needs `E2E_SECRET`, a sensitive Vercel value no agent can read. The nonce is stamped by the
+     same proxy and render path on every dynamic route, and that path is what differed between
+     the local build and Vercel.
+     `e2e/security-headers.spec.ts` keeps the nonce and violation checks. No CI job runs
+     Playwright, so they run by hand against a deployment through `PLAYWRIGHT_BASE_URL`.
 
 ## Consequences
 
@@ -56,5 +64,9 @@ base-uri 'self'; form-action 'self'; object-src 'none'`.
   violation check catches that on the pages it visits.
 - Third-party scripts, inline `<script>` tags and `next/script` need the nonce from the request's
   `Content-Security-Policy` header. None exist today.
+- A 404 under an excluded prefix (`/api/nope`) or a case variant of one (`/API/x`, which the
+  case-sensitive matcher misses and `headers()` matches) renders Next's not-found page with the
+  static policy only, or with both. That is what every path had before, and such pages reflect
+  no input.
 - There is no `report-uri` in production. An endpoint would need rate limiting and would store
   page URLs, some of which carry an email in the query.

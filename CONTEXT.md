@@ -119,4 +119,4 @@ deletion (0027), email-first registration and the purge of unverified accounts (
 proof (0029), verification tokens stored hashed (0030), mail sent after the response and a
 failures-only sign-in account bucket (0031), per-user caps on backtest runs in progress and
 strategy versions (0032), expired sessions purged nightly (0033), the change-password and
-verify-password endpoints closed (0034), a nonce script-src enforced on every page (0035).
+verify-password endpoints closed (0034), a nonce script-src enforced on every routed page (0035).

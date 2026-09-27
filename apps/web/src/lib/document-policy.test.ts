@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { documentPolicy, newNonce } from "./script-policy";
+import { documentPolicy, newNonce } from "./document-policy";
 
 describe("documentPolicy", () => {
   it("allows only nonced scripts and what they load, plus same-origin workers", () => {

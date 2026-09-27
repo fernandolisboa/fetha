@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { documentPolicy, newNonce } from "@/lib/script-policy";
+import { documentPolicy, newNonce } from "@/lib/document-policy";
 
 const POLICY_HEADER = "Content-Security-Policy";
 

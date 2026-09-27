@@ -81,7 +81,7 @@ browser bootstrap settings only (Zod `jitless`).
   barrel that re-exports every module's schema for drizzle-kit and the Drizzle client.
 - `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
   `theme/contrast`, `runtime-settings`, `instant`, `today-sao-paulo`, `utils`,
-  `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `script-policy`
+  `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `document-policy`
   (the per-request document policy). No business rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 
