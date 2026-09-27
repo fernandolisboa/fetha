@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 function decimalString(value: string): DecimalString {
@@ -8,10 +8,11 @@ function decimalString(value: string): DecimalString {
 
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
-import { strategyVersions } from "./schema";
+import { strategies, strategyVersions } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import {
+  MAX_STRATEGIES_PER_USER,
   MAX_VERSIONS_PER_STRATEGY,
   StrategiesRepository,
   StrategyLimitReachedError,
@@ -279,7 +280,7 @@ describe("StrategiesRepository sharing and copy", () => {
     await ownerRepository.setVisibility(created.id, "shared");
 
     const copierRepository = new StrategiesRepository(db, copier);
-    const copy = await copierRepository.copyShared(created.id, 200);
+    const copy = await copierRepository.copyShared(created.id);
 
     expect(copy.userId).toBe(copier.id);
     expect(copy.visibility).toBe("private");
@@ -305,7 +306,7 @@ describe("StrategiesRepository sharing and copy", () => {
     );
 
     await expect(
-      new StrategiesRepository(db, copier).copyShared(created.id, 200),
+      new StrategiesRepository(db, copier).copyShared(created.id),
     ).rejects.toBeInstanceOf(StrategyNotFoundError);
   });
 
@@ -319,32 +320,9 @@ describe("StrategiesRepository sharing and copy", () => {
       definition({ name: "Privada" }),
     );
 
-    await expect(
-      new StrategiesRepository(db, owner).copyShared(created.id, 200),
-    ).rejects.toBeInstanceOf(StrategyNotSharedError);
-  });
-
-  it("copying refuses once the copier is at the strategy cap, counted inside the transaction", async () => {
-    const db = getDb();
-    const emailOwner = uniqueEmail("owner-cap");
-    const emailCopier = uniqueEmail("copier-cap");
-    createdEmails.push(emailOwner, emailCopier);
-    const owner = await insertBareUser(emailOwner);
-    const copier = await insertBareUser(emailCopier);
-
-    const ownerRepository = new StrategiesRepository(db, owner);
-    const created = await ownerRepository.createWithVersion(definition({ name: "Original" }));
-    await ownerRepository.setVisibility(created.id, "shared");
-
-    const copierRepository = new StrategiesRepository(db, copier);
-    await copierRepository.createWithVersion(definition({ name: "Já existente" }));
-
-    await expect(copierRepository.copyShared(created.id, 1)).rejects.toBeInstanceOf(
-      StrategyLimitReachedError,
+    await expect(new StrategiesRepository(db, owner).copyShared(created.id)).rejects.toBeInstanceOf(
+      StrategyNotSharedError,
     );
-
-    const copierStrategies = await copierRepository.listMine();
-    expect(copierStrategies).toHaveLength(1);
   });
 
   it("listShared returns strategies from every user, not only the caller's", async () => {
@@ -390,5 +368,132 @@ describe("StrategiesRepository version cap (#147)", () => {
     const after = await repository.findMine(created.id);
     expect(after.versions).toHaveLength(MAX_VERSIONS_PER_STRATEGY);
     expect(after.name).toBe("Cap");
+  });
+});
+
+describe("StrategiesRepository strategy cap (#160)", () => {
+  async function fillToOneBelowCap(db: ReturnType<typeof getDb>, ownerId: string): Promise<void> {
+    await db.insert(strategies).values(
+      Array.from({ length: MAX_STRATEGIES_PER_USER - 1 }, (_, index) => ({
+        userId: ownerId,
+        name: `Bulk ${String(index)}`,
+        visibility: "private" as const,
+      })),
+    );
+  }
+
+  it("refuses create beyond the cap and keeps the user's count unchanged", async () => {
+    const db = getDb();
+    const email = uniqueEmail("strategy-cap-create");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    await fillToOneBelowCap(db, owner.id);
+
+    const repository = new StrategiesRepository(db, owner);
+    await expect(
+      repository.createWithVersion(definition({ name: "Last one" })),
+    ).resolves.toBeDefined();
+    await expect(
+      repository.createWithVersion(definition({ name: "One too many" })),
+    ).rejects.toBeInstanceOf(StrategyLimitReachedError);
+
+    const mine = await repository.listMine();
+    expect(mine).toHaveLength(MAX_STRATEGIES_PER_USER);
+  });
+
+  it("refuses copyShared beyond the cap, counted inside the transaction", async () => {
+    const db = getDb();
+    const emailOwner = uniqueEmail("strategy-cap-owner");
+    const emailCopier = uniqueEmail("strategy-cap-copier");
+    createdEmails.push(emailOwner, emailCopier);
+    const owner = await insertBareUser(emailOwner);
+    const copier = await insertBareUser(emailCopier);
+
+    const ownerRepository = new StrategiesRepository(db, owner);
+    const created = await ownerRepository.createWithVersion(definition({ name: "Original" }));
+    await ownerRepository.setVisibility(created.id, "shared");
+
+    await fillToOneBelowCap(db, copier.id);
+    const copierRepository = new StrategiesRepository(db, copier);
+    await expect(copierRepository.copyShared(created.id)).resolves.toBeDefined();
+    await expect(copierRepository.copyShared(created.id)).rejects.toBeInstanceOf(
+      StrategyLimitReachedError,
+    );
+
+    const copierStrategies = await copierRepository.listMine();
+    expect(copierStrategies).toHaveLength(MAX_STRATEGIES_PER_USER);
+  });
+
+  it("waits for the per-user lock before counting", async () => {
+    const db = getDb();
+    const email = uniqueEmail("strategy-cap-lock");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+
+    let created: Promise<unknown> = Promise.resolve();
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`strategies:${owner.id}`}, 0))`,
+      );
+      created = repository.createWithVersion(definition({ name: "Waits for the lock" }));
+      const outcome = await Promise.race([
+        created.then(() => "created"),
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve("waiting");
+          }, 500);
+        }),
+      ]);
+      expect(outcome).toBe("waiting");
+    });
+    await expect(created).resolves.toBeDefined();
+  });
+
+  it("admits at most the cap when creates race", async () => {
+    const db = getDb();
+    const email = uniqueEmail("strategy-cap-race");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    await fillToOneBelowCap(db, owner.id);
+    const repository = new StrategiesRepository(db, owner);
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 4 }, (_, index) =>
+        repository.createWithVersion(definition({ name: `Race ${String(index)}` })),
+      ),
+    );
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    for (const result of results) {
+      if (result.status === "rejected") {
+        expect(result.reason).toBeInstanceOf(StrategyLimitReachedError);
+      }
+    }
+    const mine = await repository.listMine();
+    expect(mine).toHaveLength(MAX_STRATEGIES_PER_USER);
+  });
+
+  it("user B at cap does not block user A's create (isolation)", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("strategy-cap-a");
+    const emailB = uniqueEmail("strategy-cap-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await fillToOneBelowCap(db, userB.id);
+
+    const repositoryB = new StrategiesRepository(db, userB);
+    await repositoryB.createWithVersion(definition({ name: "B's last one" }));
+    await expect(
+      repositoryB.createWithVersion(definition({ name: "B over cap" })),
+    ).rejects.toBeInstanceOf(StrategyLimitReachedError);
+
+    const repositoryA = new StrategiesRepository(db, userA);
+    await expect(
+      repositoryA.createWithVersion(definition({ name: "A is unaffected" })),
+    ).resolves.toBeDefined();
+    const mineA = await repositoryA.listMine();
+    expect(mineA).toHaveLength(1);
   });
 });

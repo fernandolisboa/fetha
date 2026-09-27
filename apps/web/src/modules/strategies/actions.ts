@@ -29,11 +29,6 @@ export type StrategyActionResult =
       error: "invalid" | "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit";
     };
 
-// A generous ceiling, not a plan limit (CLAUDE.md: no fees, no plans): it
-// exists only to bound an unbounded write loop (a bug or a scripted abuser),
-// not to constrain the owner's real usage.
-const MAX_STRATEGIES_PER_USER = 200;
-
 const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
 
 const addVersionInputSchema = z.strictObject({
@@ -100,10 +95,6 @@ export async function createStrategyAction(input: {
   try {
     const created = await withRepository(async (repository) => {
       await assertDefinitionIsCoherent(parsed.data.definition);
-      const mine = await repository.listMine();
-      if (mine.length >= MAX_STRATEGIES_PER_USER) {
-        throw new StrategyLimitReachedError();
-      }
       return repository.createWithVersion(parsed.data.definition);
     });
     revalidatePath("/estrategias");
@@ -184,7 +175,7 @@ export async function copySharedStrategyAction(input: {
 
   try {
     const copy = await withRepository((repository) =>
-      repository.copyShared(parsed.data.sourceStrategyId, MAX_STRATEGIES_PER_USER),
+      repository.copyShared(parsed.data.sourceStrategyId),
     );
     revalidatePath("/estrategias");
     return { status: "ok", strategyId: copy.id };
