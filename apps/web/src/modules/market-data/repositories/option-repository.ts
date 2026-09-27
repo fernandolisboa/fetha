@@ -404,3 +404,109 @@ export async function latestExpiredTradedSeries(
   }
   return { ticker: row.ticker, session: row.session, expiry: row.expiry, close: row.close };
 }
+
+// `option_series` is keyed by ISIN (ADR-0017): distinct series tickers can
+// exceed universe size by an order of magnitude once every listing cycle
+// with an expiry on or after warmup is counted, and the create-time ceiling
+// (MAX_SESSIONS_TIMES_UNIVERSE, backtests/actions.ts) bounds sessions x
+// underlyings, not sessions x series, so it cannot stand in for this. Well
+// under Postgres's 65,535 bind-parameter limit, which the follow-on
+// `optionDailyPrices` query hits directly via `inArray(..., seriesTickers)`.
+export const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
+
+// Bounds price-row *volume* directly, which DEFAULT_OPTION_CHAIN_TICKER_CAP
+// does not: a chain admitted under that cap can still span the whole
+// warmup-to-period window, so up to cap x sessions day-price rows would
+// otherwise materialise as objects in `loadMarketView`'s call before any
+// checkpoint exists to recover from an out-of-memory death. 200,000 rows of
+// this shape (a handful of decimal strings and two integers each) is
+// comfortably tens of megabytes, not the "millions of row objects" an
+// unbounded query could reach.
+export const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
+
+// A strategy's chain window for `loadMarketView`: every series listed on an underlying in the
+// universe that had not yet expired at `expiryFloor` (the start of warmup), seen on or before
+// `asOfCeiling` (the engine, not this query, decides per-step visibility off each row's own
+// `asOf`, which is why this bounds `asOf` only by the window's end). Returns at most `cap + 1`
+// rows, so a caller can tell a chain over the cap from one exactly at it without the follow-on
+// price query's `inArray` bind list ever reaching Postgres's 65,535-parameter limit.
+export async function optionSeriesInWindow(
+  db: Database,
+  underlyings: readonly string[],
+  window: { expiryFloor: string; asOfCeiling: Date },
+  cap: number,
+): Promise<(typeof optionSeries.$inferSelect)[]> {
+  return db
+    .select()
+    .from(optionSeries)
+    .where(
+      and(
+        inArray(optionSeries.underlying, [...underlyings]),
+        lte(optionSeries.asOf, window.asOfCeiling),
+        gte(optionSeries.expiry, window.expiryFloor),
+      ),
+    )
+    .limit(cap + 1);
+}
+
+// Every day price of `tickers` in `[fromSession, toSession]`, at most `cap + 1` rows so the
+// caller can refuse a price volume over the cap before it materialises in memory.
+export async function optionPricesInSessionRange(
+  db: Database,
+  tickers: readonly string[],
+  range: { fromSession: string; toSession: string },
+  cap: number,
+): Promise<(typeof optionDailyPrices.$inferSelect)[]> {
+  return db
+    .select()
+    .from(optionDailyPrices)
+    .where(
+      and(
+        inArray(optionDailyPrices.ticker, [...tickers]),
+        gte(optionDailyPrices.session, range.fromSession),
+        lte(optionDailyPrices.session, range.toSession),
+      ),
+    )
+    .limit(cap + 1);
+}
+
+// One underlying's chain as `buildOperationMarketView` sees it at `at`, bounded below by the
+// calendar floor so it does not accumulate every ticker the underlying has ever listed.
+export async function optionSeriesForUnderlyingAt(
+  db: Database,
+  underlying: string,
+  at: Date,
+  expiryFloor: string | undefined,
+): Promise<(typeof optionSeries.$inferSelect)[]> {
+  return db
+    .select()
+    .from(optionSeries)
+    .where(
+      and(
+        eq(optionSeries.underlying, underlying),
+        lte(optionSeries.asOf, at),
+        ...(expiryFloor ? [gte(optionSeries.expiry, expiryFloor)] : []),
+      ),
+    );
+}
+
+// The latest day price per ticker visible at `at`, collapsed in SQL and bounded below by the
+// same calendar floor as the chain: an option's price history since inception is not needed.
+export async function latestOptionPricesAt(
+  db: Database,
+  tickers: readonly string[],
+  at: Date,
+  sessionFloor: string | undefined,
+): Promise<(typeof optionDailyPrices.$inferSelect)[]> {
+  return db
+    .selectDistinctOn([optionDailyPrices.ticker])
+    .from(optionDailyPrices)
+    .where(
+      and(
+        inArray(optionDailyPrices.ticker, [...tickers]),
+        lte(optionDailyPrices.asOf, at),
+        ...(sessionFloor ? [gte(optionDailyPrices.session, sessionFloor)] : []),
+      ),
+    )
+    .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session));
+}

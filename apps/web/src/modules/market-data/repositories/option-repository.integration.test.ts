@@ -8,7 +8,9 @@ import { ensureMonthlyPartition } from "./partitions";
 import {
   latestExpiredTradedSeries,
   optionChainForUnderlying,
+  optionPricesInSessionRange,
   optionSeriesForFills,
+  optionSeriesInWindow,
   seriesKey,
 } from "./option-repository";
 
@@ -334,6 +336,130 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toBeNull();
+  });
+});
+
+describe("optionSeriesInWindow", () => {
+  const cleanupTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+  });
+
+  async function seedSeries(underlying: string, label: string, expiry: string, asOf: string) {
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin: `ISIN-${underlying}-${label}`,
+        ticker: `${underlying}${label}`,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry,
+        style: "european",
+        asOf: new Date(asOf),
+      });
+  }
+
+  it("keeps series listed by the ceiling and expiring on or after the floor", async () => {
+    const underlying = uniqueTicker("WIN");
+    cleanupTickers.push(underlying);
+    await seedSeries(underlying, "A", "2099-03-20", "2099-01-02T13:00:00.000Z");
+    await seedSeries(underlying, "B", "2099-01-09", "2099-01-02T13:00:00.000Z");
+    await seedSeries(underlying, "C", "2099-03-20", "2099-02-02T13:00:00.000Z");
+
+    const rows = await optionSeriesInWindow(
+      getDb(),
+      [underlying],
+      { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
+      10,
+    );
+
+    expect(rows.map((row) => row.ticker)).toEqual([`${underlying}A`]);
+  });
+
+  it("returns one row past the cap so the caller can tell a chain over it", async () => {
+    const underlying = uniqueTicker("CAP");
+    cleanupTickers.push(underlying);
+    for (const label of ["A", "B", "C"]) {
+      await seedSeries(underlying, label, "2099-03-20", "2099-01-02T13:00:00.000Z");
+    }
+
+    const rows = await optionSeriesInWindow(
+      getDb(),
+      [underlying],
+      { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
+      1,
+    );
+
+    expect(rows).toHaveLength(2);
+  });
+});
+
+describe("optionPricesInSessionRange", () => {
+  const cleanupTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    const tickers = cleanupTickers.splice(0);
+    if (tickers.length > 0) {
+      await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, tickers));
+    }
+  });
+
+  async function seedPrice(ticker: string, session: string): Promise<void> {
+    const db = getDb();
+    await ensureMonthlyPartition(db, "option_daily_prices", session);
+    await db.insert(optionDailyPrices).values({
+      ticker,
+      session,
+      asOf: new Date(`${session}T20:00:00.000Z`),
+      right: "call",
+      strike: "10.00000000",
+      expiry: "2099-12-17",
+      average: "1.000000",
+      close: "1.000000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+  }
+
+  it("includes a price on each edge of [fromSession, toSession] and excludes one just outside it", async () => {
+    const ticker = uniqueTicker("RNG");
+    cleanupTickers.push(ticker);
+    await seedPrice(ticker, "2099-06-09");
+    await seedPrice(ticker, "2099-06-10");
+    await seedPrice(ticker, "2099-06-15");
+    await seedPrice(ticker, "2099-06-16");
+
+    const rows = await optionPricesInSessionRange(
+      getDb(),
+      [ticker],
+      { fromSession: "2099-06-10", toSession: "2099-06-15" },
+      10,
+    );
+
+    expect(rows.map((row) => row.session).sort()).toEqual(["2099-06-10", "2099-06-15"]);
+  });
+
+  it("returns one row past the cap so the caller can tell a price volume over it", async () => {
+    const ticker = uniqueTicker("CAP");
+    cleanupTickers.push(ticker);
+    await seedPrice(ticker, "2099-07-01");
+    await seedPrice(ticker, "2099-07-02");
+    await seedPrice(ticker, "2099-07-03");
+
+    const rows = await optionPricesInSessionRange(
+      getDb(),
+      [ticker],
+      { fromSession: "2099-07-01", toSession: "2099-07-03" },
+      1,
+    );
+
+    expect(rows).toHaveLength(2);
   });
 });
 
