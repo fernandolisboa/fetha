@@ -93,6 +93,9 @@ export const backtestRuns = pgTable(
   (table) => [
     index("backtest_runs_user_id_idx").on(table.userId),
     index("backtest_runs_strategy_id_idx").on(table.strategyId),
+    // Matches the account export's keyset page (WHERE user_id = ? AND id > ?
+    // ORDER BY id), modules/backtests/data-export.ts.
+    index("backtest_runs_user_id_id_idx").on(table.userId, table.id),
     check(
       "backtest_runs_status_check",
       sql`${table.status} in ('pending', 'running', 'paused', 'complete', 'failed')`,
