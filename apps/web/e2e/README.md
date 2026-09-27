@@ -28,7 +28,8 @@ Environment variables:
   Deployment Protection → Protection Bypass for Automation.
 
 `registration.spec.ts` registers a fresh account, reads the verification link back through the
-E2E-only route `/api/e2e/verification-link`, verifies, signs in, confirms the signed-in home page
+E2E-only route `/api/e2e/verification-link`, opens it and sets the password there (the link
+signs its opener in, docs/adr/0016), signs out and back in with that password, confirms the signed-in home page
 shows the account's email (proof the session cookie reached the browser), signs out and confirms
 the signed-out state.
 

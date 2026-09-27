@@ -11,10 +11,9 @@ vi.mock("next/headers", () => ({
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 
-import { getAuth } from "./auth";
-import { signIn, signUp } from "./service";
+import { registerVerifiedUser } from "./registration-test-support";
+import { signIn } from "./service";
 import { testRequestHeaders } from "./test-support";
-import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
@@ -22,18 +21,6 @@ process.env.REGISTRATION_MODE = "open";
 
 function uniqueEmail(label: string): string {
   return `fetha-auth-cookie-${label}-${crypto.randomUUID()}@example.com`;
-}
-
-async function verifyEmail(email: string): Promise<void> {
-  const link = await findLatestVerificationLink(getDb(), email);
-  if (!link) {
-    throw new Error(`no email was captured for ${email}`);
-  }
-  const token = new URL(link).searchParams.get("token");
-  if (!token) {
-    throw new Error("verification link did not contain a token");
-  }
-  await getAuth().api.verifyEmail({ query: { token } });
 }
 
 const createdEmails: string[] = [];
@@ -51,18 +38,10 @@ describe("session cookie forwarding through the Server Action code path", () => 
     const email = uniqueEmail("sign-in");
     createdEmails.push(email);
 
-    const signUpOutcome = await signUp(
-      {
-        name: "Cookie Forward",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+    await registerVerifiedUser(
+      { name: "Cookie Forward", email, password: "correct-horse-battery" },
       testHeaders,
     );
-    expect(signUpOutcome.status).toBe("ok");
-    await verifyEmail(email);
 
     cookieStore.set.mockClear();
     const outcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);

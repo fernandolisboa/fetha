@@ -1,5 +1,10 @@
 import type { BetterAuthOptions } from "better-auth";
-import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+  sendVerificationEmailFn,
+} from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
@@ -29,6 +34,7 @@ import { evaluateRegistrationMode } from "./registration-policy";
 import { resolveRegistrationMode } from "./registration-mode";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
+import { markEmailVerified, revokeUnprovenAccountAccess } from "./unverified-accounts";
 import { emailField, nameField } from "./validation";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
@@ -63,6 +69,7 @@ const RATE_LIMIT_CUSTOM_RULES: NonNullable<BetterAuthOptions["rateLimit"]>["cust
 // `deleteExpiredRows`).
 const ACCOUNT_RATE_LIMIT_RULES: Record<string, AccountRateLimitRule> = {
   "/sign-in/email": { windowSeconds: 10, max: 3 },
+  "/sign-up/email": { windowSeconds: 60, max: 3 },
   "/sign-in/magic-link": { windowSeconds: 60, max: 3 },
   "/request-password-reset": { windowSeconds: 60, max: 3 },
   "/send-verification-email": { windowSeconds: 60, max: 3 },
@@ -189,14 +196,24 @@ export function buildAuthOptions(
       // this, a stolen session cookie keeps working even after the account
       // owner resets their password to lock an attacker out.
       revokeSessionsOnPasswordReset: true,
+      onPasswordReset: async ({ user: resetUser }) => {
+        await markEmailVerified(db, resetUser.id);
+      },
       sendResetPassword: async ({ user: resetUser, url }) => {
         const email = buildPasswordResetEmail(url);
         await mailer.send({ to: resetUser.email, ...email });
       },
     },
+    // Email first (docs/adr/0028, #144): whatever password came with the
+    // sign-up is unproven, so opening the link drops it and signs the
+    // mailbox owner in to set their own. Better Auth only signs in on the
+    // click that flips `emailVerified`; later clicks just redirect.
     emailVerification: {
       sendOnSignUp: true,
-      autoSignInAfterVerification: false,
+      autoSignInAfterVerification: true,
+      beforeEmailVerification: async (verifyingUser) => {
+        await revokeUnprovenAccountAccess(db, verifyingUser.id);
+      },
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user: verifyingUser, url }) => {
         const email = buildVerificationEmail(url);
@@ -293,6 +310,18 @@ export function buildAuthOptions(
         const decision = evaluateRegistrationMode(mode, pendingInvite);
         if (!decision.allowed) {
           throw new APIError("FORBIDDEN", { message: decision.reason });
+        }
+
+        // A second sign-up for a still-unverified email gets a fresh link, as
+        // the first did; Better Auth then answers with its generic duplicate
+        // response and sends nothing. The pending row is kept, never
+        // replaced, so its id cannot change under a verification in flight
+        // (docs/adr/0028).
+        const pending = email
+          ? await db.query.user.findFirst({ where: eq(user.email, email) })
+          : undefined;
+        if (pending && !pending.emailVerified) {
+          await sendVerificationEmailFn(ctx, pending);
         }
       }),
     },

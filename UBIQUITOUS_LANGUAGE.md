@@ -419,7 +419,15 @@ The user's own, immediate and final removal of their account and every row tied 
 with their password (ADR-0027). There is no grace period and no recovery. pt-BR: "excluir conta".
 _Avoid_: deactivation, closing the account, soft delete
 
+**Unverified account**:
+A registered account whose email has not been confirmed yet. It has no password anyone chose (the
+sign-up form asks for none), cannot sign in and owns no data; opening its verification link signs
+the mailbox owner in to choose the password. Deleted 24 hours after creation if still unverified
+(ADR-0028). pt-BR: "conta não confirmada".
+_Avoid_: pending user, unconfirmed user
+
 **Password reset**:
 The flow that lets a user set a new password after proving control of their email through a
-one-time link, revoking every session that predates the reset (ADR-0018).
+one-time link, revoking every session that predates the reset (ADR-0018). Completing it also marks
+the account's email verified, since the link reached the mailbox (ADR-0028).
 _Avoid_: forgot password, password recovery

@@ -18,7 +18,7 @@ data, the catalog and strategies a user chose to share.
 
 | module        | owns                                                                                                                                                                                                                             | exposes                                                                                |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `auth`        | accounts, sessions, registration mode, terms acceptance, sign-in (password or magic link), password reset, rate limiting                                                                                                         | the current user                                                                       |
+| `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts                                                 | the current user                                                                       |
 | `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                      | the current user's access log; `recordAccess` for read models                          |
 | `account`     | nothing of its own: the user's data export, assembled from every module's own export                                                                                                                                             | the export document                                                                    |
 | `preferences` | per-user workstation settings (theme, rail collapse state)                                                                                                                                                                       | the current user's preferences                                                         |
@@ -115,4 +115,4 @@ are stored, positions and cash derived (0021), decisions on held operations scor
 portfolio's own fills (0022), strategy comparison and walk-forward over persisted runs (0023),
 account rate-limit keys hashed and purged (0024), a PWA that caches build output only (0025),
 HTTP security headers on every response (0026), LGPD: access log, data export and account
-deletion (0027).
+deletion (0027), email-first registration and the purge of unverified accounts (0028).

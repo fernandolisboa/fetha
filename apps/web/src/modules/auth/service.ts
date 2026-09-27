@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto";
+
+import { APIError } from "better-auth/api";
 import { parseSetCookieHeader, toCookieOptions } from "better-auth/cookies";
 import { cookies as readCookies } from "next/headers";
 
@@ -95,7 +98,6 @@ function isRateLimited(response: Response): boolean {
 export interface SignUpInput {
   name: string;
   email: string;
-  password: string;
   termsAccepted: boolean;
   privacyAccepted: boolean;
 }
@@ -107,13 +109,20 @@ export type SignUpOutcome =
   | { status: "rate_limited" }
   | { status: "sign_up_failed" };
 
+// Better Auth's sign-up requires a password, but the one that counts is set
+// after the verification link (docs/adr/0016, #144), which drops this one;
+// it is never stored anywhere else or shown to anyone.
+function unusablePassword(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 export async function signUp(input: SignUpInput, requestHeaders: Headers): Promise<SignUpOutcome> {
   const response = await callAuthHandler(
     "/sign-up/email",
     {
       name: input.name,
       email: input.email,
-      password: input.password,
+      password: unusablePassword(),
       termsAccepted: input.termsAccepted,
       privacyAccepted: input.privacyAccepted,
       callbackURL: "/verificar-email/resultado",
@@ -150,6 +159,28 @@ export async function signUp(input: SignUpInput, requestHeaders: Headers): Promi
     return { status: "sign_up_failed" };
   }
   return { status: "ok", userId: body.user.id };
+}
+
+export type SetInitialPasswordOutcome =
+  { status: "ok" } | { status: "already_set" } | { status: "failed" };
+
+// `/set-password` is a server-only endpoint, so the handler cannot route it
+// and it goes through `auth.api` with the caller's session cookie; the
+// session, minted by the verification link, is what authorizes it.
+export async function setInitialPassword(
+  newPassword: string,
+  requestHeaders: Headers,
+): Promise<SetInitialPasswordOutcome> {
+  try {
+    await getAuth().api.setPassword({ body: { newPassword }, headers: requestHeaders });
+    return { status: "ok" };
+  } catch (error) {
+    if (error instanceof APIError && error.body?.code === "PASSWORD_ALREADY_SET") {
+      return { status: "already_set" };
+    }
+    logAuthHandlerError(error);
+    return { status: "failed" };
+  }
 }
 
 export interface SignInInput {

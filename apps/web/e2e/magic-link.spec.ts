@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { readLatestLink, signUp } from "./support";
+import { confirmEmailAndSetPassword, readLatestLink, signUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -15,15 +15,11 @@ test("magic link sign-in for a verified account", async ({ page, baseURL, reques
   const email = `fetha-e2e-magic-link-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
-  await signUp(page, {
-    name: "Magic Link User",
-    email,
-    password: "correct-horse-battery-staple",
-  });
+  await signUp(page, { name: "Magic Link User", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await page.goto(verificationLink);
-  await expect(page.getByText("E-mail confirmado")).toBeVisible();
+  await confirmEmailAndSetPassword(page, verificationLink, "correct-horse-battery-staple", baseURL);
+  await page.context().clearCookies();
 
   await page.goto("/link-magico");
   await page.getByLabel("E-mail").fill(email);
@@ -45,14 +41,11 @@ test("an expired or reused magic link shows the error screen", async ({
   const email = `fetha-e2e-magic-link-invalid-${String(Date.now())}@example.com`;
   const secret: string = e2eSecret ?? "";
 
-  await signUp(page, {
-    name: "Magic Link Invalid",
-    email,
-    password: "correct-horse-battery-staple",
-  });
+  await signUp(page, { name: "Magic Link Invalid", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await page.goto(verificationLink);
+  await confirmEmailAndSetPassword(page, verificationLink, "correct-horse-battery-staple", baseURL);
+  await page.context().clearCookies();
 
   await page.goto("/link-magico");
   await page.getByLabel("E-mail").fill(email);

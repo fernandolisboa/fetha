@@ -3,13 +3,17 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getDb } from "@/db/client";
+
 import type { ActionState } from "./action-state";
+import { hasPassword } from "./credential";
 import { requireUser, withAuthenticatedAction } from "./session";
 import {
   deleteAccount,
   requestPasswordReset,
   resendVerification,
   resetPassword,
+  setInitialPassword,
   signIn,
   signInMagicLink,
   signOut,
@@ -22,6 +26,7 @@ import {
   requestPasswordResetFormSchema,
   resendVerificationFormSchema,
   resetPasswordFormSchema,
+  setPasswordFormSchema,
   signInFormSchema,
   signUpFormSchema,
 } from "./validation";
@@ -35,7 +40,6 @@ export async function signUpAction(
   const parsed = signUpFormSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
-    password: formData.get("password"),
     termsAccepted: formData.get("termsAccepted") === "on",
     privacyAccepted: formData.get("privacyAccepted") === "on",
   });
@@ -53,7 +57,6 @@ export async function signUpAction(
     {
       name: parsed.data.name,
       email: parsed.data.email,
-      password: parsed.data.password,
       termsAccepted: true,
       privacyAccepted: true,
     },
@@ -210,6 +213,34 @@ export async function resetPasswordAction(
       return { status: "error", message: errors.rateLimited };
     case "failed":
       return { status: "error", message: errors.passwordResetFailed };
+  }
+}
+
+export async function setPasswordAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const parsed = setPasswordFormSchema.safeParse({ newPassword: formData.get("newPassword") });
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidInput };
+  }
+
+  const outcome = await withAuthenticatedAction(async () => {
+    const currentUser = await requireUser();
+    if (await hasPassword(getDb(), currentUser)) {
+      return { status: "already_set" } as const;
+    }
+    return setInitialPassword(parsed.data.newPassword, await headers());
+  });
+
+  switch (outcome.status) {
+    case "ok":
+    case "already_set":
+      redirect("/");
+    case "failed":
+      return { status: "error", message: errors.setPasswordFailed };
   }
 }
 

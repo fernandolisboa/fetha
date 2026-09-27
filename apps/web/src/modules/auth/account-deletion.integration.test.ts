@@ -12,9 +12,9 @@ import { strategies, strategyVersions } from "@/modules/strategies/schema";
 
 import { getAuth } from "./auth";
 import { invites, mailOutbox, user, verification } from "./schema";
-import { deleteAccount, signInMagicLink, signUp } from "./service";
+import { registerVerifiedUser } from "./registration-test-support";
+import { deleteAccount, signInMagicLink } from "./service";
 import { testRequestHeaders } from "./test-support";
-import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
@@ -42,17 +42,7 @@ async function signedInUser(label: string) {
   const email = uniqueEmail(label);
   createdEmails.push(email);
   const ip = testRequestHeaders();
-  const outcome = await signUp(
-    { name: "Delete Me", email, password: PASSWORD, termsAccepted: true, privacyAccepted: true },
-    ip,
-  );
-  expect(outcome.status).toBe("ok");
-  const link = await findLatestVerificationLink(getDb(), email);
-  const token = link ? new URL(link).searchParams.get("token") : null;
-  if (!token) {
-    throw new Error(`no verification link for ${email}`);
-  }
-  await getAuth().api.verifyEmail({ query: { token } });
+  await registerVerifiedUser({ name: "Delete Me", email, password: PASSWORD }, ip);
   const signInResponse = await getAuth().api.signInEmail({
     body: { email, password: PASSWORD },
     asResponse: true,

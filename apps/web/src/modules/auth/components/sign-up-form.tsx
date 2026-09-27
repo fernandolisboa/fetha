@@ -34,18 +34,6 @@ export function SignUpForm() {
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">{t.signUp.passwordLabel}</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-        />
-      </div>
-
       <div className="flex items-center gap-2">
         <Checkbox id="termsAccepted" name="termsAccepted" />
         <Label htmlFor="termsAccepted">

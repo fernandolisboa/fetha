@@ -10,6 +10,7 @@ export {
   requestPasswordResetAction,
   resendVerificationAction,
   resetPasswordAction,
+  setPasswordAction,
   signInAction,
   signInMagicLinkAction,
   signOutAction,
@@ -26,6 +27,7 @@ export { RequestPasswordResetForm } from "./components/request-password-reset-fo
 export { ResendVerificationForm } from "./components/resend-verification-form";
 export { ResetPasswordForm } from "./components/reset-password-form";
 export { SignInForm } from "./components/sign-in-form";
+export { SetPasswordForm } from "./components/set-password-form";
 export { SignOutButton } from "./components/sign-out-button";
 export { SignUpForm } from "./components/sign-up-form";
 export type { CurrentUser } from "./session";
@@ -41,3 +43,5 @@ export { TermsAcceptanceRepository, type TermsAcceptance } from "./terms-accepta
 export { CURRENT_TERMS_VERSION } from "./terms";
 export { parseEmailQueryParam } from "./validation";
 export { AuthDataExport } from "./data-export";
+export { hasPassword } from "./credential";
+export { purgeUnverifiedAccounts } from "./unverified-accounts";

@@ -6,7 +6,8 @@ import { verification } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
-import { requestPasswordReset, resetPassword, signIn, signUp } from "./service";
+import { registerVerifiedUser as registerUser } from "./registration-test-support";
+import { requestPasswordReset, resetPassword, signIn } from "./service";
 import { testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
@@ -17,29 +18,12 @@ function uniqueEmail(label: string): string {
   return `fetha-password-reset-${label}-${crypto.randomUUID()}@example.com`;
 }
 
-async function verifyEmail(email: string): Promise<void> {
-  const link = await findLatestVerificationLink(getDb(), email);
-  if (!link) {
-    throw new Error(`no email was captured for ${email}`);
-  }
-  const token = new URL(link).searchParams.get("token");
-  if (!token) {
-    throw new Error("verification link did not contain a token");
-  }
-  await getAuth().api.verifyEmail({ query: { token } });
-}
-
-async function registerVerifiedUser(
+function registerVerifiedUser(
   email: string,
   headers: Headers,
   password = "correct-horse-battery",
 ): Promise<void> {
-  const outcome = await signUp(
-    { name: "Password Reset User", email, password, termsAccepted: true, privacyAccepted: true },
-    headers,
-  );
-  expect(outcome.status).toBe("ok");
-  await verifyEmail(email);
+  return registerUser({ name: "Password Reset User", email, password }, headers);
 }
 
 async function captureResetToken(email: string): Promise<string> {
