@@ -37,7 +37,7 @@ export const getMyTrackRecordStats = cache(async (): Promise<TrackRecordStats> =
 
 // SignalRow's own "answered" state (brief item 5), batched over the given
 // page of signal ids in one query instead of one per row (and independent
-// of `listMine`'s `JOURNAL_LIMIT`, round 3): a signal with no decision yet
+// of `listMine`'s `JOURNAL_LIMIT`): a signal with no decision yet
 // is simply absent from the map.
 export async function getMyDecisionsBySignalId(
   signalIds: readonly string[],

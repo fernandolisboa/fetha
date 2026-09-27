@@ -23,7 +23,7 @@ import { timingSafeEqualStrings } from "../verification-link/timing-safe-equal-s
 // environment this route is reachable on (never production, guarded
 // below), so a claim scored against them is scored against real market
 // data, not a fixture. `DECIDED_SESSION` is strictly before `HORIZON`
-// (quant: no look-ahead, #29 fix-web item 3) — the decision is recorded as
+// (no look-ahead) — the decision is recorded as
 // if taken during `DECIDED_SESSION`'s own close, and its horizon only
 // arrives on the *next* ingested session.
 const DECIDED_SESSION = "2026-09-08";
@@ -36,7 +36,7 @@ const UNDERLYING = tickerSchema.parse("PETR4");
 // its very next run, without going through the UI form `decisions.spec.ts`
 // already covers. Every write goes through `seedE2EDecision`
 // (`@/modules/decisions`) — no `@/modules/*/schema` import and no direct
-// table write here (#29 fix-web item 3): this route only assembles the
+// table write here: this route only assembles the
 // fixture's own values and reports the module's own typed outcome.
 export async function POST(request: Request): Promise<Response> {
   const configuredSecret = readE2ESecret();

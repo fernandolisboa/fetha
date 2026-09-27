@@ -163,7 +163,7 @@ describe("candleSessionBoundsInRange", () => {
     expect(result).toEqual({ first: "2026-05-12", last: "2026-05-12" });
   });
 
-  it("is undefined when the calendar carries the range but no ticker in the universe has a candle in it (round 3 item 1)", async () => {
+  it("is undefined when the calendar carries the range but no ticker in the universe has a candle in it", async () => {
     const db = getDb();
     await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
       stockRow({ ticker: TICKER_A, session: "2026-05-12" }),

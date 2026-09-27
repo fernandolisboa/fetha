@@ -22,7 +22,7 @@ const dailyCandleTickerOf = (c: MarketView["candles"][number]): string | null =>
 // `kind` selects the day-price rung: `optionPrices` for an option leg (`OptionDayPrice`
 // carries the close/average an option series trades at), the latest visible D1 candle
 // close for a stock leg or a standalone `Position`, which never appear in `optionPrices`
-// (round 1 item 1: on the daily tier a stock's only rung being `optionPrices` left every
+// (on the daily tier a stock's only rung being `optionPrices` left every
 // stock mark `null`, so equity was always just cash).
 export function resolveLegMarketPrice(
   view: MarketView,
@@ -62,9 +62,9 @@ export function resolveLegMarketPrice(
 }
 
 // The underlying's own spot uses the same mid-before-last precedence as a leg's market
-// price (item 18, PR #53 round 1), falling back to the latest visible D1 candle close
+// price, falling back to the latest visible D1 candle close
 // instead of an option series' day price, which the underlying itself never has. Shared
-// by price-operation.ts and the implied-volatility index (PR #53 round 3 item 9).
+// by price-operation.ts and the implied-volatility index.
 export function resolveUnderlyingSpot(
   view: MarketView,
   ticker: Ticker,

@@ -53,7 +53,7 @@ const en = {
       brierLabel: "Brier score",
       counterfactualLabel: "Had you entered",
       unscorable: "Not scorable",
-      // Every reason a real run can insert (round 3 item 10): a code
+      // Every reason a real run can insert: a code
       // missing here — a new engine error, `scoring_failed`, or anything
       // this map falls behind on — falls back to `unscorableReasonGeneric`,
       // never the raw storage code, which is an internal detail, not a

@@ -26,7 +26,7 @@ describe("splitFactorProduct", () => {
     expect(result.value.toNumber()).toBeCloseTo(0.5);
   });
 
-  it("returns invalid_input for a non-positive factor (item 8)", () => {
+  it("returns invalid_input for a non-positive factor", () => {
     const factors = [factor("2024-01-05", "0")];
     const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
     expect(result).toEqual({
@@ -39,7 +39,7 @@ describe("splitFactorProduct", () => {
     });
   });
 
-  it("returns invalid_input for a negative factor (item 8)", () => {
+  it("returns invalid_input for a negative factor", () => {
     const factors = [factor("2024-01-05", "-1.00")];
     const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
     expect(result.ok).toBe(false);

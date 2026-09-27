@@ -500,7 +500,7 @@ describe("I3 Order-invariance", () => {
     );
   });
 
-  it("any permutation of optionSeries, with two tickers sharing one ATM strike, yields a deep-equal impliedVolatilityIndex result (round 5 item 1)", () => {
+  it("any permutation of optionSeries, with two tickers sharing one ATM strike, yields a deep-equal impliedVolatilityIndex result", () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 1_000_000 }), (seed) => {
         const calendar: TradingSession[] = Array.from({ length: 60 }, (_, i) => {

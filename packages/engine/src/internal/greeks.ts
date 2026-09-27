@@ -1,7 +1,7 @@
 import type { Greeks } from "../api";
 import { ZERO_RATIO } from "./decimal";
 
-// Shared by price-operation.ts and mark-to-market.ts (round 1 item 12), both of which
+// Shared by price-operation.ts and mark-to-market.ts, both of which
 // aggregate the same five Greek fields the same way.
 export const GREEK_KEYS = [
   "delta",

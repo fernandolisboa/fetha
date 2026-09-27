@@ -34,8 +34,8 @@ export interface NightlyJobOutcome {
 const MAX_DURATION_SECONDS = 300;
 const SAFETY_MARGIN_MS = 15_000;
 
-// Gated on the cotahist source's own outcome, not the whole run's `ok`
-// (#19 round 2 item 1): cotahist is the only source candles come from, so a
+// Gated on the cotahist source's own outcome, not the whole run's `ok`:
+// cotahist is the only source candles come from, so a
 // night Bacen SGS or the instruments registry fails must not suppress
 // evaluation for every session cotahist actually drained cleanly — that
 // suppression previously compounded silently because `since` was anchored

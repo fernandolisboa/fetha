@@ -53,7 +53,7 @@ function errResult(code: string): Result<Score> {
 
 const FAKE_ENGINE_VERSION = "fake-engine-1";
 
-// Widened past `Pick<Engine, "score">` (round 3 item 9): an unscorable row
+// Widened past `Pick<Engine, "score">`: an unscorable row
 // must take its own `engineVersion` from whichever engine actually ran this
 // scoring pass, so every fixture below carries its own `capabilities()` the
 // same way the real engine does.
@@ -133,7 +133,7 @@ describe("scoreDueDecisions", () => {
     expect(dueDecisionUserIds).not.toHaveBeenCalled();
   });
 
-  it("returns an empty outcome with a setup_failed error, not a throw, when resolveAsOfSession's own read rejects (round 3 item 4)", async () => {
+  it("returns an empty outcome with a setup_failed error, not a throw, when resolveAsOfSession's own read rejects", async () => {
     freshness.mockRejectedValue(new Error("connection reset"));
 
     const outcome = await scoreDueDecisions(
@@ -153,7 +153,7 @@ describe("scoreDueDecisions", () => {
     expect(dueDecisionUserIds).not.toHaveBeenCalled();
   });
 
-  it("returns an empty outcome with a setup_failed error, not a throw, when the structure catalog read rejects (round 3 item 4)", async () => {
+  it("returns an empty outcome with a setup_failed error, not a throw, when the structure catalog read rejects", async () => {
     listAll.mockRejectedValue(new Error("connection reset"));
 
     const outcome = await scoreDueDecisions(
@@ -173,7 +173,7 @@ describe("scoreDueDecisions", () => {
     expect(dueDecisionUserIds).not.toHaveBeenCalled();
   });
 
-  it("returns an empty outcome with a setup_failed error, not a throw, when the due-user list read rejects (round 3 item 4)", async () => {
+  it("returns an empty outcome with a setup_failed error, not a throw, when the due-user list read rejects", async () => {
     dueDecisionUserIds.mockRejectedValue(new Error("connection reset"));
 
     const outcome = await scoreDueDecisions(
@@ -236,7 +236,7 @@ describe("scoreDueDecisions", () => {
     );
   });
 
-  it("takes an unscorable row's engineVersion from the engine actually in use, not the real engine (round 3 item 9)", async () => {
+  it("takes an unscorable row's engineVersion from the engine actually in use, not the real engine", async () => {
     dueDecisionUserIds.mockResolvedValue(["user-a"]);
     dueForUser.mockResolvedValueOnce([dueRow]);
     buildScoreInput.mockResolvedValueOnce({ ok: true, input: builtInput });
@@ -249,7 +249,7 @@ describe("scoreDueDecisions", () => {
     );
   });
 
-  it("memoizes the calendar lookup for insufficient_data exhaustion once per run, not once per decision (round 3 item 9)", async () => {
+  it("memoizes the calendar lookup for insufficient_data exhaustion once per run, not once per decision", async () => {
     dueDecisionUserIds.mockResolvedValue(["user-a"]);
     const otherRow = { id: "decision-2" } as never;
     dueForUser.mockResolvedValueOnce([dueRow, otherRow]);

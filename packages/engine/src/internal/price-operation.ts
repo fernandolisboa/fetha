@@ -69,7 +69,7 @@ export type PricedLeg = {
 };
 
 // `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
-// supplied only when the caller (markToMarket, round 1 item 3) already knows the operation's
+// supplied only when the caller (markToMarket) already knows the operation's
 // listed expiry has passed: the usual time-to-expiry lookup below would reject every option
 // leg with `invalid_input` ("already_expired"), aborting the whole portfolio's valuation on
 // any day after an expiry the user has not yet confirmed a settlement for. `priceOperation`
@@ -183,7 +183,7 @@ function valueOneLeg(
   // A zero given volatility fed bsmPriceRaw directly (option-pricing.ts) and was silently
   // priced at intrinsic value with zeroed greeks, with no note; reject it before pricing so
   // the operation-level iv_not_converged note keeps meaning only non-convergence, never a
-  // caller-supplied invalid input (PR #53 round 4 item 5).
+  // caller-supplied invalid input.
   if (leg.volatility !== undefined && !isPositive(leg.volatility)) {
     return {
       ok: false,
@@ -195,7 +195,7 @@ function valueOneLeg(
   // A stale price whose own session predates a corporate-action ex-date visible on the
   // underlying sits on a pre-action scale the current spot no longer shares: solving implied
   // volatility from it would read the split itself as a phantom volatility move, not a real
-  // market view (round 3 item 9). `resolveLegMarketPrice` already gives the stale row's own
+  // market view. `resolveLegMarketPrice` already gives the stale row's own
   // session; suppress the solve whenever an ex-date falls strictly after it and at or before
   // the mark session.
   const staleSession = marketPrice?.stale?.session ?? null;
@@ -282,7 +282,7 @@ export function computePayoffProfile(
     if (point.value.isZero()) {
       // The payoff is linear between consecutive samples, so a run of zero-valued samples
       // can only be left at its own ends; an identically-zero payoff has no crossing
-      // (#54 follow-up review, quant/correctness item 3, kept by PR #134).
+      // (kept by PR #134).
       const runStart = i;
       let runEnd = i;
       while (runEnd + 1 < n && evaluated[runEnd + 1]?.value.isZero()) runEnd += 1;
@@ -353,7 +353,7 @@ export function computePayoffProfile(
   // The three coarse samples alone hide every kink: a collar's payoff between 0.8x and 1x
   // spot looks like a straight line unless the put and call strikes are sampled explicitly,
   // so the chart (which only ever draws these points, never interpolates them itself) drew a
-  // capped/floored payoff as if it were unprotected (PR #76 round 2 item 1). Emit each leg's
+  // capped/floored payoff as if it were unprotected. Emit each leg's
   // strike and each break-even as additional samples, sorted ascending and de-duplicated by
   // their rounded decimal value; `PayoffPoint[]` itself is unchanged.
   const sampleSpots = [0.8, 1, 1.2].map((factor) =>
@@ -451,18 +451,18 @@ type ValuedLegs = {
   netPremiumCentavos: Decimal;
 };
 
-// The per-leg valuation, its notes and the net premium are what a sizing preview needs
-// (item 19, PR #53 round 1): everything a full `OperationPricing` adds on top of this —
+// The per-leg valuation, its notes and the net premium are what a sizing preview needs:
+// everything a full `OperationPricing` adds on top of this —
 // the payoff profile, aggregate greeks, risk-limit checks and provenance — is either
 // unneeded for sizing or, for provenance, has no real value to report before the leg
 // count is known. Splitting this out means the preview no longer manufactures a fake one.
-// Not exported: markToMarket composes through priceConcreteLegs (round 1 item 12), never
+// Not exported: markToMarket composes through priceConcreteLegs, never
 // this lower-level step directly.
 // `legPathAt` builds the error path for the leg at a given position in `legs`: `priceOperation`
-// never needs anything but the plain `legs[i]` default, but `markToMarket` (round 3 item 8)
+// never needs anything but the plain `legs[i]` default, but `markToMarket`
 // needs `operations[i].legs[j]`, `j` being that leg's own position in the *operation's* legs,
 // which does not generally equal its position in `legs` here once a residue-only or an
-// unpriced-expired leg has been excluded from it (round 3 items 2, 5).
+// unpriced-expired leg has been excluded from it.
 function valueLegs(
   view: MarketView,
   at: string,
@@ -506,7 +506,7 @@ function valueLegs(
       message: "at least one leg has no visible market price",
     });
   }
-  // Aggregated at the operation level next to `no_market_price` above (round 3 item 6): a
+  // Aggregated at the operation level next to `no_market_price` above: a
   // per-leg `settlement_pending` note alone does not surface on `OperationPricing.notes`,
   // where markToMarket's own portfolio-level aggregation (`ov.pricing.notes.some(...)`) and a
   // caller scanning an operation's own notes without walking every leg both look first.
@@ -536,8 +536,8 @@ function valueLegs(
 // by every step that happens to need a rate: the concrete-legs path resolves it once for
 // its single pricing pass, and `priceSelection` resolves it once for strike/expiry
 // selection, sizing and the final pricing, all three of which used to re-resolve
-// (PR #53 round 1 item 19). Not exported: `priceLegsAt`, `priceOperation` and
-// `priceLegsAtSpot` are the pricing surface of this module (round 3 item 10, revised by
+// Not exported: `priceLegsAt`, `priceOperation` and
+// `priceLegsAtSpot` are the pricing surface of this module (revised by
 // the #54 follow-up); `computePayoffProfile` and `PricedLeg` are exported for `score`.
 function resolveOperationRates(
   view: MarketView,
@@ -591,12 +591,12 @@ function priceConcreteLegs(
   // A priced leg (it has a market price) with null greeks means the model could not
   // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
   // exclude it from the sum, but silently dropping it left a covered call's short leg
-  // out of the reported delta with no signal that the aggregate is incomplete
-  // (PR #53 round 3 item 3). A leg whose solve was only suppressed across a corporate
-  // action (`stale_price_across_corporate_action`, round 3 item 9) already carries its own
+  // out of the reported delta with no signal that the aggregate is incomplete.
+  // A leg whose solve was only suppressed across a corporate
+  // action (`stale_price_across_corporate_action`) already carries its own
   // leg-level note explaining why it has no greeks; flagging the operation-level
   // `iv_not_converged` on top of it would misreport a genuine non-convergence that never
-  // happened (round 4 item 2).
+  // happened.
   const unpricedGreeksLegs = priced.filter(
     (leg) => leg.valuation.price !== null && !leg.valuation.greeks,
   );
@@ -702,8 +702,8 @@ export function priceLegsAtSpot(
   );
 }
 
-// Shared by priceOperation's concrete-legs branch and markToMarket's per-operation pricing
-// (round 1 item 12): both resolve the underlying's spot and rates, then price a fixed set of
+// Shared by priceOperation's concrete-legs branch and markToMarket's per-operation pricing:
+// both resolve the underlying's spot and rates, then price a fixed set of
 // legs through priceConcreteLegs, differing only in the error path a non-positive spot
 // reports (an operation-indexed path for markToMarket, a bare "spot" for a fresh proposal).
 export function priceLegsAt(
@@ -743,7 +743,7 @@ export function priceLegsAt(
 // the operation was inferred from, and every option leg must share one listed expiry
 // (a calendar spread is a `LegSelection`'s job, once #23 exists — not a concrete-legs
 // operation). A leg with no listed series is left for `valueOneLeg`'s own
-// `missing_instrument` to report (PR #53 round 1 item 14).
+// `missing_instrument` to report.
 function validateConcreteLegs(
   view: MarketView,
   at: string,

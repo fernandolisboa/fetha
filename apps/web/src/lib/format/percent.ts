@@ -24,8 +24,8 @@ export function formatPercent(fraction: DecimalString): string {
 
 // Seeds an editable percent input from a stored fraction without the
 // two-decimal rounding `formatPercent` applies for display, so re-opening
-// the risk profile form never silently narrows a declared limit (round 1
-// item 16: 0.02345 stored as "2%" would save back as 0.02, not 0.02345).
+// the risk profile form never silently narrows a declared limit
+// (0.02345 stored as "2%" would save back as 0.02, not 0.02345).
 export function fractionToPercentInputValue(fraction: DecimalString): string {
   const percent = new Decimal(fraction).times(100).toFixed(6);
   return trimTrailingZeros(percent).replace(".", ",");

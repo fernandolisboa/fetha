@@ -505,8 +505,8 @@ describe("resolveLegSelection", () => {
     // The structure lists "call" before "put" at rank 1: a straddle's two legs share one
     // strike, so nearest-|delta| selection must pick a single governing right rather than
     // average or best-of-both. That right is the structure's declaration order at the rank
-    // (the first-listed role), not whichever candidate happens to score better (PR #53
-    // round 1 item 13); here the put's own delta would prefer 28.00, but the call's — the
+    // (the first-listed role), not whichever candidate happens to score better; here the
+    // put's own delta would prefer 28.00, but the call's — the
     // one that governs — prefers 32.00.
     const result = resolveLegSelection({
       structure: straddle,
@@ -526,7 +526,7 @@ describe("resolveLegSelection", () => {
     expect(putLeg).toMatchObject({ role: "put", series: { ticker: "PETR4P32" } });
   });
 
-  it("breaks a two-ticker tie at the other right's strike by the lexicographically earlier ticker, regardless of array order (round 4 item 2)", () => {
+  it("breaks a two-ticker tie at the other right's strike by the lexicographically earlier ticker, regardless of array order", () => {
     const straddle: Structure = {
       id: "straddle",
       name: "straddle",

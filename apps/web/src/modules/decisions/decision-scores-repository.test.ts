@@ -14,7 +14,7 @@ function claimRow(confidence: string, held: boolean) {
   };
 }
 
-// #29 fix-web item 7 (quant+correctness BLOCKING): bucketed on the integer
+// Bucketed on the integer
 // percent, not the raw decimal fraction, so a floating-point artifact like
 // `0.59999999999999998` (a real `Number(decimalString)` result) still lands
 // in the "60-80%" bucket its rounded percent belongs to, not "40-60%".

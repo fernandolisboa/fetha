@@ -30,7 +30,7 @@ export interface RecordDecisionInput {
   confidence: Confidence;
   horizon: SessionDate;
   costModel: CostModel;
-  // Overrides the column's own `defaultNow()` (#29 fix-web item 3): every
+  // Overrides the column's own `defaultNow()`: every
   // production caller (`actions.ts`) omits this and gets "now", the same as
   // before. The only caller that ever sets it is `seedE2EDecision`, backing
   // a fixed, already-ingested session so the E2E scoring flow does not
@@ -39,8 +39,8 @@ export interface RecordDecisionInput {
 }
 
 // Display names (strategy name, structure name) live inside `inputs`, not as
-// top-level columns: they are snapshotted at record time (architecture
-// review, round 2) rather than joined from `signals`/`strategies`/
+// top-level columns: they are snapshotted at record time rather than
+// joined from `signals`/`strategies`/
 // `contemplated_operations`, so every query here selects only from
 // `decisions` — no other module's table is a schema-level FK reference
 // away from being read directly, which ADR-0019 reserves for `schema.ts`

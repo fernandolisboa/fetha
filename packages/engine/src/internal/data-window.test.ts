@@ -714,7 +714,7 @@ describe("dataWindow", () => {
     expect(closedDailyCandleCount(calendar, dataWindow(input).from, at)).toBeGreaterThanOrEqual(25);
   });
 
-  describe("pins `from` exactly when at falls exactly on a session's open (correctness review, PR #127 item 1)", () => {
+  describe("pins `from` exactly when at falls exactly on a session's open", () => {
     it("D1: SMA(2) at the 4th session's own open reaches back to the 1st session's close, not further", () => {
       const calendar = dailySessions(5);
       const at = calendar[3]?.open as Instant;

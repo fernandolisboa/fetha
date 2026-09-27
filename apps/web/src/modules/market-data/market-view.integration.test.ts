@@ -31,7 +31,7 @@ import { ensureMonthlyPartition } from "./repositories/partitions";
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "20:00:00.000Z";
 
-// A tiny deterministic PRNG (#19 round 3 item 5), not cryptographic: the
+// A tiny deterministic PRNG, not cryptographic: the
 // same seed always produces the same sequence, so the EMA truncation
 // fixture below is reproducible across runs and machines instead of relying
 // on `Math.random()`.
@@ -253,7 +253,7 @@ describe("buildOperationMarketView", () => {
     expect(pricesForTicker[0]?.close).toBe("3.500000");
   });
 
-  it("resolves an exact (ticker, asOf) tie by the engine's tie-break order (strike, then expiry, then right, then ticker; PR #76 round 2 item 2)", async () => {
+  it("resolves an exact (ticker, asOf) tie by the engine's tie-break order (strike, then expiry, then right, then ticker)", async () => {
     const underlying = uniqueTicker("TIE");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -389,7 +389,7 @@ describe("buildOperationMarketView", () => {
     ]);
   });
 
-  it("excludes a series that expired long before the calendar window instead of accumulating every ticker ever listed (PR #76 round 2 item 5)", async () => {
+  it("excludes a series that expired long before the calendar window instead of accumulating every ticker ever listed", async () => {
     const underlying = uniqueTicker("OLD");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -438,7 +438,7 @@ describe("buildOperationMarketView", () => {
     expect(view.optionSeries.some((series) => series.ticker === currentTicker)).toBe(true);
   });
 
-  it("does not pull an option's only price row from long before the calendar window (PR #76 round 2 item 5)", async () => {
+  it("does not pull an option's only price row from long before the calendar window", async () => {
     const underlying = uniqueTicker("OLP");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -485,7 +485,7 @@ describe("buildOperationMarketView", () => {
     expect(prices).toHaveLength(0);
   });
 
-  it("surfaces the underlying's own candle close, stored under the repository's daily timeframe rather than the engine's own 'D1' label (PR #76 round 3)", async () => {
+  it("surfaces the underlying's own candle close, stored under the repository's daily timeframe rather than the engine's own 'D1' label", async () => {
     const underlying = uniqueTicker("SPT");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -518,7 +518,7 @@ describe("buildOperationMarketView", () => {
     expect(view.candles[0]?.close).toBe("30.000000");
   });
 
-  it("keeps the 30-session warm-up below a decidedAt-widened floor, not swallowed by a wide decidedAt..at span (round 3 item 7)", async () => {
+  it("keeps the 30-session warm-up below a decidedAt-widened floor, not swallowed by a wide decidedAt..at span", async () => {
     const underlying = uniqueTicker("WRM");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -563,7 +563,7 @@ describe("buildOperationMarketView", () => {
     expect(view.candles.some((candle) => candle.session === warmupSession)).toBe(true);
   });
 
-  it("fails typed instead of reaching the engine when a stored option right is out of vocabulary (round 2 item 2)", async () => {
+  it("fails typed instead of reaching the engine when a stored option right is out of vocabulary", async () => {
     const underlying = uniqueTicker("BAD");
     cleanupTickers.push(underlying);
     const db = getDb();
@@ -655,7 +655,7 @@ describe("loadMarketView", () => {
     }
   });
 
-  it("fails typed instead of reaching the engine when a stored macro series is out of vocabulary (round 2 item 2)", async () => {
+  it("fails typed instead of reaching the engine when a stored macro series is out of vocabulary", async () => {
     const db = getDb();
     const sessions = businessDays("2099-12-08", 3);
     const from = sessions[0];
@@ -683,7 +683,7 @@ describe("loadMarketView", () => {
     ).rejects.toThrow(ZodError);
   });
 
-  it("returns at least 450 candles for an ema(150) DataWindow over ~500 sessions, close to the full-history indicator value (round 2 item 5)", async () => {
+  it("returns at least 450 candles for an ema(150) DataWindow over ~500 sessions, close to the full-history indicator value", async () => {
     const db = getDb();
     const ticker = uniqueTicker("EMA");
     cleanupTickers.push(ticker);
@@ -696,7 +696,7 @@ describe("loadMarketView", () => {
       await ensureMonthlyPartition(db, "candles", `${month}-01`);
     }
 
-    // A perfect linear ramp is vacuous here (#19 round 3 item 5): an EMA's
+    // A perfect linear ramp is vacuous here: an EMA's
     // SMA seed lands exactly on a linear series' fixed point, so the
     // truncated and full-history values come out bit-identical for any
     // window >= 150 bars, no matter how the tolerance is set. A deterministic
@@ -818,7 +818,7 @@ describe("loadMarketView", () => {
     }
     const relativeDifference =
       Math.abs(Number(truncatedValue) - Number(fullValue)) / Number(fullValue);
-    // Non-zero (#19 round 3 item 5): the level shift the truncated window
+    // Non-zero: the level shift the truncated window
     // drops makes this assertion actually exercise the tolerance instead of
     // reading zero regardless of how much warm-up the window keeps.
     expect(relativeDifference).toBeGreaterThan(0);
@@ -928,7 +928,7 @@ describe("loadMarketView", () => {
     );
   });
 
-  it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes (round 7 item 1)", async () => {
+  it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes", async () => {
     const db = getDb();
     const ticker = uniqueTicker("MTIE");
     cleanupTickers.push(ticker);
@@ -953,7 +953,7 @@ describe("loadMarketView", () => {
       ]);
     }
 
-    // A real CDI year-end collision (round 7 item 1): two distinct
+    // A real CDI year-end collision: two distinct
     // observation dates both stamped `asOf` the same next session's own
     // open, exactly the mechanism `resolveAsOfInstant`
     // (bacen-sgs/parser.ts) produces for `nextSessionStrictlyAfter`.
@@ -984,7 +984,7 @@ describe("loadMarketView", () => {
     // The engine itself is the actual assertion this test exists for: an
     // uncollapsed view fails here with `invalid_input("view.macro", ...)`
     // before ever pricing anything (evaluate-strategy.ts's own
-    // `sortUnique`), which is the failure round 7 item 1 reported as
+    // `sortUnique`), which is a failure that is
     // reachable, not theoretical.
     const result = await engine.evaluateStrategy({
       view,
@@ -1209,7 +1209,7 @@ describe("loadMarketView", () => {
     expect(calendarVersion).toBe(expectedCalendarVersion?.toISOString());
   });
 
-  it("populates the option chain when the strategy's structure carries an option leg (round 2 item 1)", async () => {
+  it("populates the option chain when the strategy's structure carries an option leg", async () => {
     const db = getDb();
     const ticker = uniqueTicker("OPT");
     cleanupTickers.push(ticker);
@@ -1281,7 +1281,7 @@ describe("loadMarketView", () => {
     expect(prices[0]?.close).toBe("0.750000");
   });
 
-  it("extends the calendar through an option expiry past period.to (round 4 item 2)", async () => {
+  it("extends the calendar through an option expiry past period.to", async () => {
     const db = getDb();
     const ticker = uniqueTicker("EXP");
     cleanupTickers.push(ticker);
@@ -1337,7 +1337,7 @@ describe("loadMarketView", () => {
     expect(view.calendar.some((session) => session.date === expiry)).toBe(true);
   });
 
-  it("excludes a series that expired before the warmup session (round 4 item 2)", async () => {
+  it("excludes a series that expired before the warmup session", async () => {
     const db = getDb();
     const ticker = uniqueTicker("PEX");
     cleanupTickers.push(ticker);
@@ -1430,7 +1430,7 @@ describe("loadMarketView", () => {
     expect(view.optionPrices).toEqual([]);
   });
 
-  it("refuses an option chain past the ticker cap with a typed error instead of an unbounded load (round 3 item 2)", async () => {
+  it("refuses an option chain past the ticker cap with a typed error instead of an unbounded load", async () => {
     const db = getDb();
     const ticker = uniqueTicker("CAP");
     cleanupTickers.push(ticker);
@@ -1484,7 +1484,7 @@ describe("loadMarketView", () => {
     );
   });
 
-  it("refuses an option-price row volume past the price cap even though a single series is under the chain cap (round 4 item 3)", async () => {
+  it("refuses an option-price row volume past the price cap even though a single series is under the chain cap", async () => {
     const db = getDb();
     const ticker = uniqueTicker("PRC");
     cleanupTickers.push(ticker);
@@ -1551,7 +1551,7 @@ describe("loadMarketView", () => {
     );
   });
 
-  it("throws MarketViewUnavailableError instead of a candle-less view when the window has no trading session (round 2 item 9)", async () => {
+  it("throws MarketViewUnavailableError instead of a candle-less view when the window has no trading session", async () => {
     const db = getDb();
 
     await expect(

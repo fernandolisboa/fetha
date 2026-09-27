@@ -106,7 +106,7 @@ afterEach(async () => {
 });
 
 describe("POST /api/backtests/[id]/run", () => {
-  it("rate limits after 6 requests in the window, the 7th POST returns 429 (round 2 item 5)", async () => {
+  it("rate limits after 6 requests in the window, the 7th POST returns 429", async () => {
     vi.resetModules();
     const { POST } = await import("./route");
 
@@ -177,7 +177,7 @@ describe("POST /api/backtests/[id]/run", () => {
     await expect(repository.findMine(failed.id)).resolves.toMatchObject({ status: "failed" });
   });
 
-  it("returns 404 for user A's POST against user B's run, with no status change on B's row (round 5 item 3)", async () => {
+  it("returns 404 for user A's POST against user B's run, with no status change on B's row", async () => {
     vi.resetModules();
     const { POST } = await import("./route");
 

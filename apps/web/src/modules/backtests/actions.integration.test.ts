@@ -289,7 +289,7 @@ describe("createBacktestRunAction", () => {
     expect(runs[0]?.riskProfile).toEqual(declaredProfile);
   });
 
-  it("rate limits creation after 10 requests in the window, the 11th returns rate_limited (round 2 item 5)", async () => {
+  it("rate limits creation after 10 requests in the window, the 11th returns rate_limited", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
 
@@ -321,7 +321,7 @@ describe("createBacktestRunAction", () => {
     expect(eleventh).toEqual({ status: "error", error: "rate_limited" });
   });
 
-  it("persists the create request's own costModel, not the default preset, back on the run (round 2 item 16)", async () => {
+  it("persists the create request's own costModel, not the default preset, back on the run", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
@@ -402,7 +402,7 @@ describe("createBacktestRunAction", () => {
     expect(runs[0]?.walkForward).toEqual({ windowSessions: 126 });
   });
 
-  it("never materialises the whole-period MarketView at creation time, only the narrow candle check (round 3 item 1)", async () => {
+  it("never materialises the whole-period MarketView at creation time, only the narrow candle check", async () => {
     vi.resetModules();
     loadMarketViewSpy.mockClear();
     loadMarketViewWithCalendarVersionSpy.mockClear();
@@ -480,7 +480,7 @@ describe("createBacktestRunAction", () => {
     expect(loadMarketViewWithCalendarVersionSpy).not.toHaveBeenCalled();
   });
 
-  it("refuses a `from` the calendar carries but that has no ingested candle for any ticker in the universe (round 2 item 10)", async () => {
+  it("refuses a `from` the calendar carries but that has no ingested candle for any ticker in the universe", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
@@ -543,7 +543,7 @@ describe("createBacktestRunAction", () => {
       );
   });
 
-  it("clamps period.from AND period.to to the ingested candle session for the universe, and metrics.sessions reflects the real count, not the calendar's own reach (round 5 item 1, round 6 item 1)", async () => {
+  it("clamps period.from AND period.to to the ingested candle session for the universe, and metrics.sessions reflects the real count, not the calendar's own reach", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
@@ -569,16 +569,16 @@ describe("createBacktestRunAction", () => {
     // The calendar carries every session (the ANBIMA calendar is ingested
     // years ahead of any candle history); candles only exist for a middle
     // slice. Requesting `from`/`to` at the calendar's own reach on *both*
-    // ends must persist `period` at the real candle bounds instead — round
-    // 5 only closed this for `to` (round 6 item 1: `from` is the larger
+    // ends must persist `period` at the real candle bounds instead — an
+    // earlier fix only closed this for `to` (`from` is the larger
     // exposure, since candle history starts well after the calendar's own
     // `FIRST_INGESTED_CALENDAR_YEAR`).
     const clampSessions = businessDays(10, 2095, 4, 3);
-    // In `finally`, not inline after the assertions (round 7 item 5): a
+    // In `finally`, not inline after the assertions: a
     // failing `expect` above used to skip both deletes, leaking these rows
     // into the shared preview database for the next run's own `MIN()`/
-    // `MAX()` query to see — precisely the contamination round 6 item 1's
-    // fix had to work around once already.
+    // `MAX()` query to see — precisely the contamination an earlier fix
+    // had to work around once already.
     try {
       await upsertTradingSessions(
         db,
@@ -643,8 +643,8 @@ describe("createBacktestRunAction", () => {
 
       // The persisted period alone does not prove the phantom sessions
       // never entered the simulation — computeBacktestMetrics divides by
-      // equityCurve.length, so this is the assertion the round-5 fix's own
-      // test never made (round 6 item 1).
+      // equityCurve.length, so this is the assertion the earlier fix's own
+      // test never made.
       const outcome = await runBacktestChunk(db, currentUser, run.id, { maxSessions: 999 });
       if (outcome.status !== "complete") {
         throw new Error(`expected the run to complete, got ${outcome.status}`);
@@ -675,7 +675,7 @@ describe("createBacktestRunAction", () => {
     }
   });
 
-  it("refuses an iv_rank strategy at creation instead of completing a green, empty, immutable run (round 5 item 2)", async () => {
+  it("refuses an iv_rank strategy at creation instead of completing a green, empty, immutable run", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
@@ -759,7 +759,7 @@ describe("createBacktestRunAction", () => {
     expect(result).toEqual({ status: "error", error: "unsatisfiable_collection" });
   });
 
-  it("refuses a request whose sessions x universe exceeds what one chunk can hold (round 2 item 17)", async () => {
+  it("refuses a request whose sessions x universe exceeds what one chunk can hold", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
@@ -780,7 +780,7 @@ describe("createBacktestRunAction", () => {
     });
 
     // 2,001 sessions x the 50-ticker universe ceiling = 100,050, just over
-    // the 100,000 cap (round 2 item 17): only the calendar needs seeding
+    // the 100,000 cap: only the calendar needs seeding
     // for this check, since it runs before the strategy, watchlist and
     // candle lookups.
     const hugeRange = businessDays(2001, 2050, 1, 3);

@@ -8,7 +8,7 @@ describe("isResumableRunError", () => {
   // `claim` clears `error` but never `dataVersion`, so retrying a run that
   // failed with `data_version_changed` compares the same stale
   // `dataVersion` against the same current view and is guaranteed to fail
-  // with the identical code again (round 4 item 4).
+  // with the identical code again.
   it("is false for data_version_changed, a retry that is guaranteed to re-fail", () => {
     expect(isResumableRunError("data_version_changed")).toBe(false);
   });

@@ -173,7 +173,7 @@ describe("SignalsRepository isolation", () => {
     expect(logB.every((row) => row.ticker === tickerB)).toBe(true);
     expect(logB[0]?.reason).toBe("conditions_not_met");
 
-    // The watermark read is user-scoped too (#19 round 3 item 8): user A's
+    // The watermark read is user-scoped too (#19): user A's
     // read for user B's own strategy version stays null even though B just
     // wrote an evaluation for it, and B's own read sees it.
     expect(await repoA.lastEvaluatedSession(versionB.id)).toBeNull();
@@ -182,7 +182,7 @@ describe("SignalsRepository isolation", () => {
 
   // Strengthened over a prior version of this case that shared no key axis
   // between the two users and so would have passed even with the tenant
-  // predicate removed from `markRead` (round 5 item 2 advisory): user A's
+  // predicate removed from `markRead`: user A's
   // `markRead` targets user B's own signal id directly, colliding on the
   // write's own predicate (`id`), with only `userId` distinguishing them.
   it("markRead's own predicate, not merely a different key, keeps user A from marking user B's signal read", async () => {

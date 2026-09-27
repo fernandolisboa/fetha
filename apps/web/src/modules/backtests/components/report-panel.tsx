@@ -41,7 +41,7 @@ const riskLimitLabel: Record<RiskLimit, string> = {
 // The run's own declared limits, formatted for display beside the limit
 // breaches panel: an empty breaches table alone reads as "no limits were
 // ever checked", not as "these specific limits were checked and never
-// breached" (round 1 item 30).
+// breached".
 export function declaredLimitValues(limits: RiskProfile["limits"]): Record<RiskLimit, string> {
   return {
     maxLossPerOperation: formatPercent(limits.maxLossPerOperation),
@@ -118,12 +118,12 @@ const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_ses
 // NO_RISK_PROFILE_NOTE); what keeps it out of a backtest report is that
 // backtests/actions.ts refuses to create a run without a declared risk
 // profile, and that profile rides on the run into every pricing call
-// (round 3 item 3, round 4 item 5, correcting round 2 item 15's mistaken
-// instruction to filter it as if it were never emitted). Only the one code
+// (this corrects an earlier, mistaken instruction to filter it as if it
+// were never emitted). Only the one code
 // the run does emit is filtered here, to keep it out of the general notes
 // panel: it renders once at this panel's own head via `<NotesFor
-// codes={operationCodes} />` below, not per operations-table row (round 2
-// item 6). If the report should ever show the per-operation notes, the
+// codes={operationCodes} />` below, not per operations-table row. If the
+// report should ever show the per-operation notes, the
 // engine needs to roll them up onto the run first (see the follow-up issue
 // filed for this).
 const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
@@ -138,7 +138,7 @@ const surfacedCodes: NoteCode[] = [
 // Every note code this panel surfaces beside a specific chart, stat or
 // table: anything a run carries outside this set falls through to the
 // generic notes panel instead (`generalNotesFor`, below). Exported so the
-// operations-table attachment (round 2 item 6) has something other than a
+// operations-table attachment has something other than a
 // rendered DOM to assert against.
 export const surfacedNoteCodes: NoteCode[] = surfacedCodes;
 
@@ -151,8 +151,8 @@ export function generalNotesFor(run: BacktestRun): BacktestRun["notes"] {
 // compounding and folds in period_end marks the engine already excludes
 // from winRate/profitFactor, both of which distort the histogram. The
 // first session's own return (from `initialCapital` into the first equity
-// point) is included, not dropped: it is as real a session as any other
-// (round 2 item 13). A base that is zero *or negative* is skipped rather
+// point) is included, not dropped: it is as real a session as any other.
+// A base that is zero *or negative* is skipped rather
 // than only a base of exactly zero: a run that went insolvent and then
 // recovered (equity −R$10,00 → −R$5,00) is a 50% improvement, not the 50%
 // loss the unsigned ratio of two negatives would otherwise report.

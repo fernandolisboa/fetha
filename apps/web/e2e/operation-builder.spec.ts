@@ -58,7 +58,7 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await page.goto("/carteira/nova-operacao");
 
   // A risk profile is declared above, so the chip must not be visible even
-  // before pricing (PR #76 round 2 item 11): a regression that always shows
+  // before pricing: a regression that always shows
   // it must fail this assertion, not just the inverse one in the other test.
   await expect(page.getByText("sem perfil de risco")).not.toBeVisible();
 
@@ -71,7 +71,7 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
 
   // The picker lists every listed series, traded or not (#22); only a
   // series that actually carries a last price can be priced by the engine,
-  // so the spec must not rely on `.first()` alone (#22 round 2 diagnosis).
+  // so the spec must not rely on `.first()` alone (#22).
   // Within the priceable options, each dropdown is still ordered by
   // ascending strike (LegsTable's stable sort), so the lowest-strike
   // priceable put (an OTM protective put, below spot) paired with the
@@ -98,7 +98,7 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await expect(page.getByText("sem perfil de risco")).not.toBeVisible();
 
   // The breach is re-confirmed against a fresh re-pricing before it is
-  // ever persisted (round 2 item 3), but since the fresh breach set
+  // ever persisted, but since the fresh breach set
   // matches the one the user is already looking at, the click that says
   // "record anyway" both re-prices and saves in one step (defect found in
   // E2E against preview: the two-step confirm must not make a breached

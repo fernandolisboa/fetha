@@ -9,7 +9,7 @@ const seriesTickerOf = (series: OptionSeries): string => series.ticker;
 // Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose row
 // order is not meaningful, so a tie on distance must resolve to the same series regardless of
 // array order: the lower strike, then the lexicographically earlier ticker (shared with
-// resolve-leg-selection.ts and implied-volatility-index.ts; PR #53 round 5 item 1).
+// resolve-leg-selection.ts and implied-volatility-index.ts).
 export function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): boolean {
   const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
   if (strikeCompare !== 0) return strikeCompare < 0;
@@ -19,7 +19,7 @@ export function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): b
 // A true (ticker, asOf) duplicate (a data-integrity issue, not a re-listing: a re-listing
 // always advances asOf) must still resolve to the same row regardless of array order. Break
 // the tie by strike, then expiry, then right, then ticker, all numerically/lexicographically
-// (PR #53 round 4 item 4, extended round 5 item 2; documented in ADR-0013's #21 addendum).
+// (documented in ADR-0013's #21 addendum).
 function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
   const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
   if (strikeCompare !== 0) return strikeCompare < 0;
@@ -32,7 +32,7 @@ function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
 // `optionSeries` row can share a ticker and differ only in `asOf`. Every direct lookup and
 // every candidate list built from `MarketView.optionSeries` must resolve the same
 // latest-visible row per ticker, or a selection can pick a different series than the one
-// priced a moment later from the same view (I3, order invariance; PR #53 round 3 item 1).
+// priced a moment later from the same view (I3, order invariance).
 export function resolveSeries(view: MarketView, ticker: Ticker, at: Instant): OptionSeries | null {
   const rows = rowsWithKey(view.optionSeries, seriesTickerOf, ticker);
   let latest: OptionSeries | null = null;

@@ -800,7 +800,7 @@ describe("runBacktest — errors", () => {
       view,
       config,
       // The engineVersion must actually match (ENGINE_VERSION, not a hardcoded literal
-      // that could drift out of sync with it — round 2 item 9), or this test would pass
+      // that could drift out of sync with it), or this test would pass
       // even with a broken configDigest check, short-circuiting on the version mismatch
       // instead of ever reaching it.
       resume: {
@@ -1794,7 +1794,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     expect(resumed.error.code).toBe("insufficient_data");
   });
 
-  it("returns invalid_input instead of throwing when a resumed chunk's view carries a non-positive corporate-action factor (round 3 item 4)", () => {
+  it("returns invalid_input instead of throwing when a resumed chunk's view carries a non-positive corporate-action factor", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
     const fullView: MarketView = {
@@ -2007,7 +2007,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         },
       }),
     ],
-    // Round 2 item 4: a pendingSettlements entry only ever exists for a residual still
+    // A pendingSettlements entry only ever exists for a residual still
     // awaiting its own close; one with residualQuantity: 0 is corrupt input (never a shape
     // this engine's own writers produce — see the type's own comment), and must be rejected
     // here, before toQuantity(Math.abs(0)) can throw on the next session's own residual-fill
@@ -2029,7 +2029,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         },
       }),
     ],
-    // Round 2 item 5: residualAvgCostCentavos is a DecimalString (full precision), never a
+    // residualAvgCostCentavos is a DecimalString (full precision), never a
     // rounded number.
     [
       "a pendingSettlements entry has a non-string residualAvgCostCentavos",
@@ -2055,7 +2055,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         slippageEntries: [{ session: "2024-01-02", amount: "nope" }],
       }),
     ],
-    // Round 3 item 1: residualAvgCostCentavos passes typeof === "string" but is not a decimal
+    // residualAvgCostCentavos passes typeof === "string" but is not a decimal
     // string a caller hand-edited or truncated a checkpoint field into — new Decimal("nope")
     // must never reach the resumed run as a thrown DecimalError.
     [
@@ -2075,7 +2075,7 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
         },
       }),
     ],
-    // Round 3 item 1: an openOperations leg's entryPrice is the same class of caller-owned
+    // An openOperations leg's entryPrice is the same class of caller-owned
     // DecimalString field; a corrupt one must never reach parseDecimal deep in the resumed run.
     [
       "an openOperations leg has a non-decimal entryPrice string",
@@ -2520,7 +2520,7 @@ describe("runBacktest — option structures (#23)", () => {
     });
   });
 
-  it("slips every option fill by optionSlippageRate and reports a non-zero metrics.slippage, split across walk-forward windows (round 2 item 8)", () => {
+  it("slips every option fill by optionSlippageRate and reports a non-zero metrics.slippage, split across walk-forward windows", () => {
     const days = businessDays(20);
     const expiry = days[15] as string;
     const config = baseConfig({
@@ -2577,13 +2577,13 @@ describe("runBacktest — option structures (#23)", () => {
     // 75 000 = 100 000. Window 2 (2024-01-08..2024-01-10) carries only the re-entry:
     // 47 460. Each window's own slippage excludes the other's fills — the same filter
     // (backtest-metrics.ts's computeWalkForwardWindows) that sums the whole run's slippage
-    // above, restricted to `[from, to]` (round 2 item 9 coverage).
+    // above, restricted to `[from, to]`.
     expect(run.walkForward).toHaveLength(2);
     expect(run.walkForward?.[0]?.metrics.slippage).toBe(centavos(100000));
     expect(run.walkForward?.[1]?.metrics.slippage).toBe(centavos(47460));
   });
 
-  it("notes option_strike_unadjusted_across_corporate_action when a split falls inside an option-legged operation's life (item 18, round 1 — Q51 gap, no series-rollover support yet)", () => {
+  it("notes option_strike_unadjusted_across_corporate_action when a split falls inside an option-legged operation's life (Q51 gap, no series-rollover support yet)", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -2690,7 +2690,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(fillsAfterExpiry).toEqual([]);
   });
 
-  it("cash-settles a fractional residual left by a 3:1 grouping across expiry, instead of rounding it away (round 2 item 10): Σ op.pnl equals final cash minus initial capital", () => {
+  it("cash-settles a fractional residual left by a 3:1 grouping across expiry, instead of rounding it away: Σ op.pnl equals final cash minus initial capital", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const grouping: CorporateActionFactor = {
@@ -2736,7 +2736,7 @@ describe("runBacktest — option structures (#23)", () => {
     // strictly less than the call's assigned 344: the residual (buyQty − sellQty =
     // 114.667 − 344 = −229.333…) is truncated to the integer −229 (matches the next
     // session's own residual-close fill below) with a −0.333…7 (−1/3 share) fraction cash-
-    // settled right at this same expiry session's close (45.00): before round 2 item 10,
+    // settled right at this same expiry session's close (45.00): before this was fixed,
     // `.round()` silently rounded −229.333 to −229 with no cash movement for the dropped
     // third of a share, breaking exactly this invariant.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
@@ -2818,7 +2818,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(residualFill).toMatchObject({ side: "sell", source: "next_session_open" });
   });
 
-  it("taxes a trava de alta's settlement gain the month the residual closes, split into stockGain and optionGain (items 10, 11, round 1)", () => {
+  it("taxes a trava de alta's settlement gain the month the residual closes, split into stockGain and optionGain", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -2889,7 +2889,7 @@ describe("runBacktest — option structures (#23)", () => {
     ]);
   });
 
-  it("carries a pending settlement's residualAvgCostCentavos through a checkpoint resume at full precision, never rounded to a whole centavo (round 2 item 5)", () => {
+  it("carries a pending settlement's residualAvgCostCentavos through a checkpoint resume at full precision, never rounded to a whole centavo", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -2926,8 +2926,8 @@ describe("runBacktest — option structures (#23)", () => {
     // buyCost/buyQty here. Mutated to "1100.5" (half a centavo of cost basis per share,
     // never reachable from a real strike × 100 alone, but exactly the shape a genuine
     // multi-source weighted average — a matched stock leg netting against an exercised one
-    // — can produce) before resuming: rounding it to 1101 before storing it, as round 2
-    // item 5 found, would silently mis-net the residual's own pnl.
+    // — can produce) before resuming: rounding it to 1101 before storing it would
+    // silently mis-net the residual's own pnl.
     const paused = runBacktest({ view, config, maxSessions: 11 });
     expect(paused.ok).toBe(true);
     if (!paused.ok || paused.value.status !== "paused") throw new Error("expected a paused run");
@@ -2958,7 +2958,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(op.pnl).toBe(centavos(-2763));
   });
 
-  it("taxes a worthless long call's premium loss as optionGain, never stockGain (item 11, round 1)", () => {
+  it("taxes a worthless long call's premium loss as optionGain, never stockGain", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -3018,7 +3018,7 @@ describe("runBacktest — option structures (#23)", () => {
     ] as LegTemplate[],
   };
 
-  it("settles a collar at expiry with both option legs worthless: the whole stock leg is the residual, closed at the next session's open (item 9, round 1)", () => {
+  it("settles a collar at expiry with both option legs worthless: the whole stock leg is the residual, closed at the next session's open", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -3083,7 +3083,7 @@ describe("runBacktest — option structures (#23)", () => {
     // 300-share stock leg, closed at the next session's own open (still 15.00, cost 325).
     // Stock leg's own pnl: (15.00 − 15.00) × 300 × 100 − 325(entry) − 325(exit) = −650.
     // Both options expire worthless: −0.70 × 3 × 100 + 0.50 × 3 × 100 = −60 (optionGain,
-    // item 11, round 1). op.pnl = −650 + (−60) = −710.
+    // op.pnl = −650 + (−60) = −710.
     expect(residualFill).toMatchObject({
       side: "sell",
       quantity: stockLegQuantity,
@@ -3094,7 +3094,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(run.taxes[0]?.optionGain).toBe(centavos(-60));
   });
 
-  it("cash-settles a positive fractional residual left by a 3:1 grouping on a collar whose whole stock leg is the residual (round 2 item 10)", () => {
+  it("cash-settles a positive fractional residual left by a 3:1 grouping on a collar whose whole stock leg is the residual", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const grouping: CorporateActionFactor = {
@@ -3146,7 +3146,7 @@ describe("runBacktest — option structures (#23)", () => {
     // 66.666…7 truncates to 66 (matches the residual-close fill below), with a +0.666…7
     // (+2/3 share) fraction cash-settled at this same expiry session's close (20.00): the
     // opposite sign from the covered-call fixture above, exercising the other side of the
-    // fractional-residue cash settlement (round 2 item 10).
+    // fractional-residue cash settlement.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
     expect(residualFill).toMatchObject({ side: "sell", quantity: 66, source: "next_session_open" });
     const finalCash = run.equityCurve.at(-1)?.cash;
@@ -3156,7 +3156,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(op.pnl).toBe(centavos(-267173));
   });
 
-  it("resolves a pending exit rule for an operation that settled with a deferred residual (round 2 item 1): a days_before_expiry rule that never filled on a zero-volume expiry session must not throw on the following session", () => {
+  it("resolves a pending exit rule for an operation that settled with a deferred residual: a days_before_expiry rule that never filled on a zero-volume expiry session must not throw on the following session", () => {
     const days = businessDays(20);
     const expiry = days[5] as string;
     const config = baseConfig({
@@ -3186,7 +3186,7 @@ describe("runBacktest — option structures (#23)", () => {
     // never trades this option (tradedQuantity 0): resolvePendingExitFills leaves the
     // pending exit unfilled and the operation still open through that same session, then
     // resolveExpiringOperations settles it as an exercise on that same session — before
-    // round 2 item 1's fix, the next session's resolvePendingExitFills still found the
+    // this was fixed, the next session's resolvePendingExitFills still found the
     // now-stale pending exit and threw on its own "a currently open operation" invariant.
     const view: MarketView = {
       ...emptyView,
@@ -3289,7 +3289,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(run.metrics.profitFactor).toBeNull();
   });
 
-  // Round 2 item 9 (coverage restoration): resolveOperationExpiry's own missing_instrument
+  // Coverage restoration: resolveOperationExpiry's own missing_instrument
   // path (unreachable from a single, non-resumed view — a series visible at the signal
   // instant is, by resolveSeries's own monotonic asOf, still visible one session later at
   // fill time) is only reachable across a resume whose view has since dropped the series a
@@ -3836,7 +3836,7 @@ describe("runBacktest — option structures (#23)", () => {
     });
   });
 
-  // Round 3 item 6: no_series_match is reachable at fill time, not only at signal time
+  // no_series_match is reachable at fill time, not only at signal time
   // (already covered in evaluate-strategy.test.ts), when the series a signal selected
   // expires between the signal session and the retry that follows a failed fill.
   it("finalizes a missed entry as no_series_match when the signaled series expires before the failed fill can be retried", () => {

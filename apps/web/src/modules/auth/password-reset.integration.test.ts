@@ -155,8 +155,8 @@ describe("password reset", () => {
     expect(outcome.status).toBe("ok");
   });
 
-  // Round-3 review item 3: revokeSessionsOnPasswordReset (options.ts) must
-  // actually revoke a session minted before the reset, not merely be set.
+  // revokeSessionsOnPasswordReset (options.ts) must actually revoke a
+  // session minted before the reset, not merely be set.
   it("unauthenticates a session that was minted before the password reset", async () => {
     const email = uniqueEmail("revoke-on-reset");
     createdEmails.push(email);

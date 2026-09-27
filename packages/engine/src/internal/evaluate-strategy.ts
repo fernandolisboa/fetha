@@ -119,8 +119,8 @@ function validateCoherence(
   return null;
 }
 
-// Delegates the rest of an open operation's coherence to `validateOperationCoherence`
-// (round 2 item 3): a hand-rolled copy here previously skipped `series.underlying`,
+// Delegates the rest of an open operation's coherence to `validateOperationCoherence`:
+// a hand-rolled copy here previously skipped `series.underlying`,
 // `series.right` and `openedAt <= at`, so `evaluateStrategy` accepted an operation
 // `markToMarket` would reject.
 function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation> | null {
@@ -144,8 +144,8 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
   return null;
 }
 
-// Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
-// (round 2 item 13), the same seam markToMarket and proposeSettlement already share:
+// Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity,
+// the same seam markToMarket and proposeSettlement already share:
 // this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
 // never had.
 function validateIntegrity(view: MarketView): Result<Evaluation> | null {
@@ -265,7 +265,7 @@ const exitRuleProvenanceBase: {
 // Both a stock-only and an option operation share one pricing path (priceLegsAt): every leg
 // is priced "given" at its own entryPrice, so the base never drifts as the position moves
 // (ADR-0014 Q50). `priceLegsAt` resolves the underlying's own current spot and rates itself
-// (round 1 item 13: an earlier draft passed the first leg's own entryPrice as the spot, which
+// (an earlier draft passed the first leg's own entryPrice as the spot, which
 // for an option-led leg order priced an underlying against an option premium); called once
 // per instant `c` a caller's evaluation batch visits, not once for the whole batch at `at`
 // (an option leg's time-to-expiry and its rates both move within a since..at catch-up, so a
@@ -300,8 +300,8 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
 }
 
 // The current side of a profit_target/stop_loss comparison prices every leg through the
-// same `priceLegsAt` seam `computeExitRuleBases` already uses for the base side (round 2
-// item 2): one call, one spot (priceLegsAt's own quote-mid/last/close ladder), one rate
+// same `priceLegsAt` seam `computeExitRuleBases` already uses for the base side: one call,
+// one spot (priceLegsAt's own quote-mid/last/close ladder), one rate
 // resolution, per operation per instant — never a second, stale-unaware pricing ladder
 // re-implemented here leg by leg against a different spot (`currentClose`) than the base
 // was computed against. An option leg's own listed series is exchange-adjusted for a
@@ -354,7 +354,7 @@ function evaluateNumericExitRule(
     // never carry `volatility`) — so `fairValue` is provably always null whenever `price`
     // is, making that fallback dead for this caller specifically. Read here anyway, never
     // simplified away, to stay the same shape `price ?? fairValue` reads everywhere else in
-    // the engine (round 2 item 2) and to keep working if valueOneLeg ever gains another way
+    // the engine and to keep working if valueOneLeg ever gains another way
     // to produce a fairValue without a market price.
     const rawPremium = valuation?.price
       ? parseDecimal(valuation.price)
@@ -888,7 +888,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         let zeroBaseReason: EvaluationReason | null = null;
         for (const op of activeOps) {
           // Resolved at this same instant `c`, not once for the whole since..at batch at
-          // `input.at` (round 1 item 13): an option leg's time-to-expiry and rates both move
+          // `input.at`: an option leg's time-to-expiry and rates both move
           // within a catch-up batch, so a base resolved once at the batch's own end would let
           // an earlier instant see a later instant's rates.
           const bases = computeExitRuleBases(op, view, c);

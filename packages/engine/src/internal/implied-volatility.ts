@@ -17,8 +17,7 @@ const MAX_ITERATIONS = 100;
 // endpoints (how much price moved across the whole interval that was searched). Both
 // thresholds were picked from the gap between well-conditioned fixtures (Hull ch.19-style,
 // vega ~5-10, bracket price width ~0.8-1.5) and the near-intrinsic case above (vega
-// <1e-3, bracket price width <1e-4): two orders of magnitude of headroom on each side
-// (PR #53 round 1 item 16).
+// <1e-3, bracket price width <1e-4): two orders of magnitude of headroom on each side.
 const MIN_VEGA_AT_SOLUTION = 1e-3;
 const MIN_BRACKET_PRICE_WIDTH = 1e-4;
 

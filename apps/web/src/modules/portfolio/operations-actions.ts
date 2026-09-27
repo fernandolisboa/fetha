@@ -77,8 +77,8 @@ export async function loadChainAction(underlying: string): Promise<ChainSeries[]
 }
 
 // structureId and the legs' role/side/expiry/strike-rank shape are
-// resolved against the catalog before either action ever calls the engine
-// (round 1 item 10): an unknown structure id or a leg set that does not
+// resolved against the catalog before either action ever calls the engine:
+// an unknown structure id or a leg set that does not
 // match its template (a "collar" with the put strike above the call's, a
 // bull spread priced as a bear spread) is rejected here, not surfaced as a
 // raw foreign-key error or a silently mispriced structure.
@@ -186,7 +186,7 @@ export async function saveOperationAction(input: {
     // (a net premium computed from a zero-premium leg is not one the user
     // ever saw), but the server re-prices independently right before
     // persisting; a client bypass or a stale UI must not slip an
-    // unpriceable operation into the table (PR #76 round 2 item 4).
+    // unpriceable operation into the table.
     if (pricing.notes.some((note) => note.code === "no_market_price")) {
       return { status: "error", error: "no_market_price" };
     }

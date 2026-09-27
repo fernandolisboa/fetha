@@ -83,7 +83,7 @@ describe("resolveLegMarketPrice", () => {
     expect(result).toEqual({ value: decimalString("2.50"), source: "close", stale: null });
   });
 
-  it("reads a stock's D1 candle close when no quote or optionPrices row exists (item 1)", () => {
+  it("reads a stock's D1 candle close when no quote or optionPrices row exists", () => {
     const view: MarketView = {
       ...baseView,
       candles: [

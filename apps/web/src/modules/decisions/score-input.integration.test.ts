@@ -154,7 +154,7 @@ afterEach(async () => {
   }
 });
 
-// buildScoreInput's signal-origin branch (#29 fix-web item 10): a real
+// buildScoreInput's signal-origin branch: a real
 // signal, a real strategy version and a proposal with real per-leg prices
 // (from the engine's own `priceOperation`, the same call the signal's own
 // proposal was built with), asserting the `Operation` this builds carries
@@ -372,7 +372,7 @@ describe("buildScoreInput signal-origin branch", () => {
     expect(result).toEqual({ ok: false, reason: "missing_strategy_version" });
   });
 
-  it("returns invalid_inputs instead of throwing when the stored confidence no longer parses (round 3 item 5)", async () => {
+  it("returns invalid_inputs instead of throwing when the stored confidence no longer parses", async () => {
     const db = getDb();
     await ensureStockStructure();
     const email = uniqueEmail("signal-origin-invalid-confidence");

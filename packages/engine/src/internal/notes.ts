@@ -1,6 +1,6 @@
 import type { Note } from "../api";
 
-// Shared literal `Note` messages now at their third independent copy (round 3 item 10):
+// Shared literal `Note` messages now at their third independent copy:
 // option-pricing.ts, price-operation.ts and mark-to-market.ts each declared their own
 // `stale_price` message, and price-operation.ts, mark-to-market.ts and stock-pricing.ts each
 // declared their own `no_risk_profile` one. `Note` is plain immutable data, so one shared

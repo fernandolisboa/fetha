@@ -37,7 +37,7 @@ export const DEFAULT_SESSION_BUDGET = 250;
 // kills mid-chunk still resumes from real progress instead of repeating the
 // whole chunk from its start.
 //
-// Measured (round 2 item 18) against a realistic view (250 sessions x 50
+// Measured against a realistic view (250 sessions x 50
 // tickers, the DEFAULT_SESSION_BUDGET x the create-run universe ceiling):
 // one full chunk in a single `engine.runBacktest` call (its own setup and
 // O(candles) index builds paid once) took ~23.5s; the same chunk split
@@ -51,7 +51,7 @@ export const DEFAULT_SESSION_BUDGET = 250;
 export const DEFAULT_INNER_STEP_SESSIONS = 50;
 
 // route.ts raises `maxDuration` to 300s. Measured from the chunk's own
-// start (round 3 item 4), not from after the MarketView load, so this 240s
+// start, not from after the MarketView load, so this 240s
 // budget already includes the claim and the load, not just the inner loop:
 // the 60s left over is headroom for the DB round trip around each inner
 // call and the one inner step the loop can still run past its deadline
@@ -136,7 +136,7 @@ export async function runBacktestChunk(
 ): Promise<BacktestChunkOutcome> {
   // Captured before the claim and the MarketView load, not after: the
   // wall-clock budget below is measured from the chunk's real start, so a
-  // load that grows with the universe/session ceiling (round 3 item 4)
+  // load that grows with the universe/session ceiling
   // eats into the same 240s window the inner loop runs under instead of
   // sitting on top of it unaccounted for, which is what let the worst
   // permitted chunk's total exceed route.ts's 300s `maxDuration`.
@@ -186,7 +186,7 @@ export async function runBacktestChunk(
     // warmup for a signal (#19): the calendar up to `toSession`'s own close,
     // handed with `at`/`since` to `engine.dataWindow`, so a signal and a
     // backtest of the same strategy version load an identical window
-    // instead of two independently re-derived ones (#18 round-2 correction).
+    // instead of two independently re-derived ones.
     const fromSession = await tradingSessionForDate(db, run.period.from);
     const toSession = await tradingSessionForDate(db, run.period.to);
     if (!fromSession || !toSession) {
@@ -216,7 +216,7 @@ export async function runBacktestChunk(
     // Checked before the parent MarketViewUnavailableError: both are
     // thrown for a period this run cannot proceed with, but for opposite
     // reasons, and the two errors below must never collapse into the same
-    // message (round 4 item 1).
+    // message.
     if (error instanceof MarketViewTooLargeError) {
       const message = "market_view_too_large";
       await repository.fail(runId, message);
@@ -231,8 +231,8 @@ export async function runBacktestChunk(
   }
 
   // A run that already stamped a dataVersion on an earlier chunk must see
-  // that exact version again, including a view that now has none at all
-  // (round 2 item 8): a degenerate, candle-less view is not "no data to
+  // that exact version again, including a view that now has none at all:
+  // a degenerate, candle-less view is not "no data to
   // compare", it is proof the dataset moved under the run, and running the
   // rest of the budget against zero candles would complete silently instead
   // of failing loudly.
@@ -257,7 +257,7 @@ export async function runBacktestChunk(
   }
   const resolvedCalendarVersion = run.calendarVersion ?? calendarVersion ?? null;
 
-  // `loadMarketView` alone can take seconds (round 3 item 4's own measured
+  // `loadMarketView` alone can take seconds (its own measured
   // ~23.5s at the universe/session ceiling), the widest window between this
   // call's own claim and its first write. A discard landing in that window
   // frees the run's active-cap slot while this invocation is still holding

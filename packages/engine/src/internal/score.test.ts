@@ -1505,7 +1505,7 @@ describe("score — counterfactual settlement at expiry for a signal origin (ADR
   });
 });
 
-describe("score — counterfactual settlement at expiry for a manual origin (ADR-0014 Q41/Q54, round 3 item 1)", () => {
+describe("score — counterfactual settlement at expiry for a manual origin (ADR-0014 Q41/Q54)", () => {
   const callSeries: OptionSeries = {
     ticker: "PETR4C28",
     underlying: "PETR4",
@@ -1605,7 +1605,7 @@ describe("score — counterfactual settlement at expiry for a manual origin (ADR
   });
 });
 
-describe("score — counterfactual settlement at expiry for a signal origin whose exit fires but never fills (ADR-0014 Q41/Q54, round 3 item 2)", () => {
+describe("score — counterfactual settlement at expiry for a signal origin whose exit fires but never fills (ADR-0014 Q41/Q54)", () => {
   it("settles at expiry instead of marking a stale post-signal option trade", () => {
     const callSeries: OptionSeries = {
       ticker: "PETR4C28",
@@ -1698,7 +1698,7 @@ describe("score — counterfactual settlement at expiry for a signal origin whos
   });
 });
 
-describe("score — stale mark note names the ticker and session (ADR-0014 Q42/Q54, round 3 item 3)", () => {
+describe("score — stale mark note names the ticker and session (ADR-0014 Q42/Q54)", () => {
   it("notes a taken-operation mark carried forward from an earlier session", () => {
     const view: MarketView = {
       ...emptyView,

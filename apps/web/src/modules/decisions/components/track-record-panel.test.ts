@@ -11,7 +11,7 @@ describe("isDegenerateChartDomain", () => {
     expect(isDegenerateChartDomain([{ at: new Date("2026-09-08T12:00:00.000Z") }])).toBe(true);
   });
 
-  it("is degenerate when every point shares the same horizon instant (round 3 item 8)", () => {
+  it("is degenerate when every point shares the same horizon instant", () => {
     const at = new Date("2026-09-08T12:00:00.000Z");
     expect(isDegenerateChartDomain([{ at }, { at }, { at }])).toBe(true);
   });

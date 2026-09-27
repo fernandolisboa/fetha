@@ -25,7 +25,7 @@ export type PriceOptionLegInput = {
   // A stale market price whose own session precedes a corporate-action ex-date visible on the
   // underlying sits on a different price scale than the current spot: solving implied
   // volatility from it against today's spot would read a phantom vol from the split itself,
-  // not a real market view (round 3 item 9). The caller (`valueOneLeg`) is the one that knows
+  // not a real market view. The caller (`valueOneLeg`) is the one that knows
   // the underlying's own corporate-actions timeline, so it decides when to suppress this.
   suppressStaleImpliedVolatility?: boolean;
 };

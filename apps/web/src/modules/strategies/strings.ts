@@ -5,8 +5,8 @@ import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vo
 // One rendering function per web-authored reason (#133, follow-up from
 // #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
 // and `no_market_data` carry no user-facing parameter (the collection name
-// is an internal identifier, never surfaced — round 7 item 4's
-// collection-neutral copy carries forward unchanged), `engine_error` and
+// is an internal identifier, never surfaced — the collection-neutral copy
+// carries forward unchanged), `engine_error` and
 // `catchup_clamped` render the `detail` column's own parameter (the engine
 // error code, the dropped session count). Every fragment is spliced as
 // "outcome · reason" in a dense log row, so none carries its own

@@ -78,12 +78,12 @@ type SlippageEntry = { session: SessionDate; amount: Centavos };
 // "residual stock ... is closed at the next session's open"), signed (+long/-short),
 // residualAvgCost its cost basis; both are meaningless when residualQuantity is zero (and
 // never stored: a zero residual always closes the same session, through finalizeSettlement,
-// never through state.pendingSettlements — round 2 item 4).
+// never through state.pendingSettlements).
 // optionGainSoFarCentavos is the slice of pnlSoFar contributed by a worthless-expiring option
-// leg (ADR-0013 "Taxes" optionGain bucket, item 11 round 1): the rest of pnlSoFar — matched
+// leg (ADR-0013 "Taxes" optionGain bucket): the rest of pnlSoFar — matched
 // stock netting and an exercised/assigned leg's own premium — stays in the stock bucket, since
 // that premium folds into the stock trade the exercise or assignment produced.
-// residualAvgCostCentavos is a `DecimalString`, not a rounded `number` (round 2 item 5): it is
+// residualAvgCostCentavos is a `DecimalString`, not a rounded `number`: it is
 // a cost basis *per share*, `buyCost.div(buyQty)` (or the sell-side equivalent), which does
 // not generally land on a whole centavo — rounding it here, before the residual close ever
 // reads it back, silently mis-nets the residual's own pnl by up to half a centavo per share.
@@ -135,7 +135,7 @@ type BacktestState = {
   pendingTaxDeduction: { monthKey: string; tax: number } | null;
   operationSeq: number;
   equityClampEngaged: boolean;
-  // Q51 guard (item 18, round 1): a real corporate action forces a re-listed, exchange-
+  // Q51 guard: a real corporate action forces a re-listed, exchange-
   // adjusted option series with its own new ticker (ADR-0014 Q51's "only a stock leg's own
   // ticker persists unchanged"), which a caller-supplied view has no way to signal today —
   // the engine has no series-rollover concept yet. Set once a settlement sees a non-trivial
@@ -228,8 +228,8 @@ function isValidPendingSettlement(value: unknown): boolean {
     Number.isFinite(value.pnlSoFar) &&
     Number.isFinite(value.optionGainSoFarCentavos) &&
     Number.isSafeInteger(value.residualQuantity) &&
-    // A pending settlement only ever exists for a residual still awaiting its own close
-    // (round 2 item 4): `resolveExpiringOperations` never stores one for
+    // A pending settlement only ever exists for a residual still awaiting its own close:
+    // `resolveExpiringOperations` never stores one for
     // residualQuantity === 0, and `resolvePendingSettlementResidualFills` /
     // `closePeriodEnd` always remove it in the same step that closes the residual, so a
     // resumed checkpoint carrying one with a zero residualQuantity is corrupt input, not a
@@ -540,8 +540,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return invalidInput("config.period", "no calendar session falls inside the requested period");
   }
 
-  // Validated here, upfront, rather than left to `evaluateStrategy`'s own per-session check
-  // (round 3 item 4): a resumed chunk's own fills and marks read `view.corporateActions`
+  // Validated here, upfront, rather than left to `evaluateStrategy`'s own per-session check:
+  // a resumed chunk's own fills and marks read `view.corporateActions`
   // through `corporateActionFactorThrough` for this session's still-open operations before
   // `evaluateStrategy` is ever called for it, so that per-session check alone left this
   // reachable through `splitFactorProduct`'s invariant on a resumed run's very first session.
@@ -664,7 +664,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const result = splitFactorProduct(factors, openedAt, through);
     // runBacktest's own upfront validation above rejects the whole, unfiltered
     // view.corporateActions with invalid_input before the session loop below ever starts
-    // (round 3 item 4: a resumed chunk's first session fills and marks before evaluateStrategy
+    // (a resumed chunk's first session fills and marks before evaluateStrategy
     // is ever called for it, so that per-session check alone left this reachable), so a
     // non-positive factor can never reach this call.
     invariant(
@@ -843,7 +843,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         });
         // Resolved before any cash or fill mutation below: a resumed run whose view is
         // missing an option leg's series at fill time (the same class of gap resolveSeries
-        // already catches at settlement, item 15, round 1 review) must fail before touching
+        // already catches at settlement) must fail before touching
         // state, not leave a half-mutated entry.
         const expiryResult = resolveOperationExpiry(pending.legs, session.close);
         if (!expiryResult.ok) return expiryResult;
@@ -939,7 +939,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.date,
         session.close,
       );
-      // Split by leg role (item 11, round 1): an option leg closed before expiry — never
+      // Split by leg role: an option leg closed before expiry — never
       // exercised or assigned, so never folded into a stock trade — is its own taxable
       // result, ADR-0013's optionGain bucket; a stock leg's own pnl stays in stockGain.
       let stockPnl = new Decimal(0);
@@ -1128,7 +1128,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         .toNumber();
       // The residual close itself (a stock trade) and pending.pnlSoFar's exercised/assigned
       // slice both stay in stockGain; only the worthless-leg slice carried in pnlSoFar,
-      // already isolated at settlement time, is optionGain (item 11, round 1).
+      // already isolated at settlement time, is optionGain.
       state.currentMonthStockGain += residualPnl - pending.optionGainSoFarCentavos;
       state.currentMonthOptionGain += pending.optionGainSoFarCentavos;
       finalizeSettlement(pending, residualPnl, pending.expirySession, "trade");
@@ -1175,7 +1175,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.date,
         session.close,
       );
-      // Q51 guard (item 18, round 1): a factor other than 1 on an operation with an option
+      // Q51 guard: a factor other than 1 on an operation with an option
       // leg means a real corporate action was visible over this leg's life, but the engine
       // has no series-rollover concept to re-list that leg's strike against — it settles the
       // adjusted underlying close against the leg's own unadjusted listed strike as if
@@ -1188,7 +1188,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
       const settlement: LegSettlement[] = [];
       let optionsPnl = new Decimal(0);
-      // The worthless-leg slice of optionsPnl (item 11, round 1): never folded into a stock
+      // The worthless-leg slice of optionsPnl: never folded into a stock
       // trade (nothing is exercised or assigned), so it is the operation's own optionGain,
       // not stockGain — unlike an exercised/assigned leg's premium, which stays in optionsPnl
       // and folds into the stock trade the exercise or assignment produced.
@@ -1293,8 +1293,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // the integer residualQuantity a pending settlement can actually trade next session, and
       // the leftover fraction — never reachable by any real share count — cash-settled right
       // here, at this same expiry session's own close, the same way a stock-leg exit's own
-      // split residue is (resolvePendingExitFills, ADR-0014 Q51), rather than rounded away
-      // (round 2 item 10).
+      // split residue is (resolvePendingExitFills, ADR-0014 Q51), rather than rounded away.
       const rawResidualQuantity = buyQty.sub(sellQty);
       const residualQuantity = rawResidualQuantity
         .toDecimalPlaces(0, Decimal.ROUND_DOWN)
@@ -1318,8 +1317,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // branch below follows — finalizeSettlement already does this for the
       // residualQuantity === 0 branch, but the pendingSettlements branch never ran through
       // finalizeSettlement, so the next session's resolvePendingExitFills found a pending
-      // exit whose invariant("...a currently open operation") this op no longer satisfied
-      // (round 2 item 1).
+      // exit whose invariant("...a currently open operation") this op no longer satisfied.
       Reflect.deleteProperty(state.pendingExits, op.id);
       if (residualQuantity === 0) {
         const pnlSoFarCentavos = pnlSoFar.round().toNumber();
@@ -1346,7 +1344,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           pnlSoFar: pnlSoFar.round().toNumber(),
           optionGainSoFarCentavos,
           residualQuantity,
-          // Full precision (round 2 item 5), never rounded to a whole centavo here: this is
+          // Full precision, never rounded to a whole centavo here: this is
           // a per-share cost basis (`buyCost.div(buyQty)` or its sell-side equivalent), read
           // back by the residual's own close at resolvePendingSettlementResidualFills or
           // closePeriodEnd, both of which already carry full decimal precision through to
@@ -1379,7 +1377,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // Step 4b: the run's very last month is finalized and deducted on that same last session,
   // but only after settlement and the period-end residual sweep (both run earlier this same
   // session) have folded their own gain into state.currentMonthStockGain — else a last-session
-  // settlement's gain escapes tax entirely (item 5, round 1 review).
+  // settlement's gain escapes tax entirely.
   function finalizeFinalMonthTax(monthKey: string): void {
     finalizeMonth(monthKey);
     const finalTax = assertDefined(state.taxesFinalized.at(-1), "run-backtest: finalized above");
@@ -1388,8 +1386,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
   // Step 3a: this session's mark value (cash-independent), computed while state.openOperations
   // and state.pendingSettlements still hold what this same close should value. Split from the
-  // equity recording below (step 3b) so a final session can close and tax first (item 5, round
-  // 1 review) while still recording equity against the mark this same close saw before that
+  // equity recording below (step 3b) so a final session can close and tax first while still
+  // recording equity against the mark this same close saw before that
   // closing cleared the state it was computed from.
   function computeMarkValue(
     session: TradingSession,
@@ -1425,8 +1423,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // A settlement whose residual stock has not yet been closed (traded away at the next
     // session's open, or swept at period_end) still represents a real position: cash was
     // already debited or credited for the exercise/assignment fill, so the residual itself
-    // must be marked here at this same close (I1) or equity silently omits it (item 1, round
-    // 1 review) — the residual is a valuation, not a trade, so no fill or cost is recorded.
+    // must be marked here at this same close (I1) or equity silently omits it — the residual
+    // is a valuation, not a trade, so no fill or cost is recorded.
     let hasPendingSettlementResidual = false;
     for (const pending of Object.values(state.pendingSettlements)) {
       hasPendingSettlementResidual = true;
@@ -1453,7 +1451,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // session but the last, that is the cash before this session's next signals are queued; for
   // the last, closePeriodEnd and finalizeFinalMonthTax have already run, so this is cash after
   // that same session's own tax is deducted, against the mark step 3a took before either ran
-  // (item 5, round 1 review: an equity point recorded before the final tax deduction would
+  // (an equity point recorded before the final tax deduction would
   // silently omit it, since there is no later session to correct it on).
   function recordEquityPoint(
     session: TradingSession,
@@ -1503,8 +1501,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // trades) any pending settlement's residual, and finalizes stranded pending entries. Computes
   // its own marks (rather than reusing markOpenOperations's marksThisSession) precisely so it can
   // run — and fold its gain into state.currentMonthStockGain — before this same final session's
-  // equity is computed and its month's tax is finalized (item 1 and item 5, round 1 review):
-  // running it after equity, as an earlier version did, either misses the residual mark or lets
+  // equity is computed and its month's tax is finalized: running it after equity, as an
+  // earlier version did, either misses the residual mark or lets
   // a last-session settlement's gain escape tax.
   function closePeriodEnd(session: TradingSession, failedEntryTickers: Set<Ticker>): Result<void> {
     for (const op of state.openOperations) {
@@ -1591,7 +1589,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // assignment); the residual's own mark here is a valuation, not a trade, and is not
       // a taxable event (ADR-0013 "Simulated operations", the same rule a period_end
       // close already follows for a stock-only run). Split the same way the deferred
-      // residual-close fold above does (item 11, round 1): the worthless-leg slice is
+      // residual-close fold above does: the worthless-leg slice is
       // optionGain, the rest (matched netting, an exercised/assigned leg's own premium)
       // is stockGain.
       state.currentMonthStockGain += pending.pnlSoFar - pending.optionGainSoFarCentavos;
@@ -1727,10 +1725,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // the mark of the position, not the result of closing it): closePeriodEnd only clears
     // them afterward, which is also when its own settlement gain lands in
     // state.currentMonthStockGain, before this same final session's own month is finalized (or
-    // that gain would escape tax entirely, item 5, round 1 review) — and recordEquityPoint runs
+    // that gain would escape tax entirely) — and recordEquityPoint runs
     // last of all on a final session, against the mark this step took but the cash finalized tax
-    // already deducted, or the equity curve would silently omit that same deduction (item 5's
-    // second half, round 1 fix-forward).
+    // already deducted, or the equity curve would silently omit that same deduction.
     const markResult = computeMarkValue(session);
     if (!markResult.ok) return { ok: false, error: markResult.error };
 

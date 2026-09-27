@@ -38,8 +38,8 @@ function sourceStatus(source: { skipped: boolean; error?: string }): SourceStatu
   return source.skipped ? "skipped" : "ok";
 }
 
-// True for anything a clean, complete run cannot produce (#51 review round
-// 3): a failed retention purge, or work the in-run deadline pushed to the
+// True for anything a clean, complete run cannot produce: a failed retention
+// purge, or work the in-run deadline pushed to the
 // next run (evaluation.strategiesDeferred/usersSkipped,
 // scoring.usersSkipped/decisionsSkipped). None of these flip `outcome.ok`
 // or the summary's error counts, so without this check they would silently

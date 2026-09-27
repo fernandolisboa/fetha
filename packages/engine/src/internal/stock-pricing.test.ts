@@ -461,7 +461,7 @@ describe("priceStockLegs", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C25" });
   });
 
-  it("returns invalid_input, never a silent zero default, when the visible cdi rate is at or below -1 (round 4 item 3)", () => {
+  it("returns invalid_input, never a silent zero default, when the visible cdi rate is at or below -1", () => {
     const view: MarketView = {
       ...emptyView,
       macro: [
@@ -486,7 +486,7 @@ describe("priceStockLegs", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
-  it("returns invalid_input, never a silent zero default, when the visible dividend yield is at or below -1 (round 4 item 3)", () => {
+  it("returns invalid_input, never a silent zero default, when the visible dividend yield is at or below -1", () => {
     const view: MarketView = {
       ...emptyView,
       dividendYields: [

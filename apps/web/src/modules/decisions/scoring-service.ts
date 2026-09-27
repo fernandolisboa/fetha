@@ -25,8 +25,8 @@ export interface ScoreDecisionsOptions {
   // `EvaluateSignalsOptions.deadlineAt`).
   deadlineAt?: number;
   now?: () => number;
-  // A test seam, not a documentation of engine incompleteness (#29 fix-web
-  // item 11): lets the job's own orchestration (due selection, idempotency,
+  // A test seam, not a documentation of engine incompleteness: lets the
+  // job's own orchestration (due selection, idempotency,
   // append-only, isolation, error handling) be unit/integration-tested with
   // a fake engine, independent of whatever `@fetha/engine`'s `score()`
   // itself does. The real engine (`@fetha/engine`) is the default.
@@ -47,7 +47,7 @@ export interface ScoreDecisionsOutcome {
   errors: ScoreErrorEntry[];
 }
 
-// Only `insufficient_data` is worth a next-run retry (#29 fix-web item 8):
+// Only `insufficient_data` is worth a next-run retry:
 // every other engine error code (`invalid_input`, `missing_instrument`,
 // `unsupported`, `no_series_matches`, `degenerate_strikes`, `unsizeable`,
 // `checkpoint_mismatch`) describes a condition tomorrow's run cannot fix on
@@ -56,13 +56,13 @@ export interface ScoreDecisionsOutcome {
 const RETRIABLE_ERROR_CODE = "insufficient_data";
 
 // `insufficient_data` stops being retried once the as-of session has moved
-// this many trading sessions past the decision's own resolved horizon (#29
-// fix-web item 8): data that is still missing this long after the horizon
+// this many trading sessions past the decision's own resolved horizon:
+// data that is still missing this long after the horizon
 // arrived is a permanent gap (a source that stopped publishing, an
 // instrument that was delisted), not a night away from catching up.
 const INSUFFICIENT_DATA_RETRY_SESSIONS = 5;
 
-// Same code `evaluateSignalsForSession` reports for the same situation (round 3 item 4): a
+// Same code `evaluateSignalsForSession` reports for the same situation: a
 // transient failure reading `resolveAsOfSession`/`freshness`, the structure catalog or the
 // due-user list must return an empty outcome with this error entry, not throw the whole cron
 // run's response into a 500 the ingestion and evaluation results already in hand did not earn.
@@ -83,7 +83,7 @@ function newestSession(sessions: readonly string[]): string | undefined {
   return [...sessions].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).at(-1);
 }
 
-// The newest session cotahist actually has data for (#29 fix-web item 11):
+// The newest session cotahist actually has data for:
 // moved here from the cron route so the "what session is a decision due
 // against" rule lives with the rest of the scoring job's own orchestration.
 // Falls back to the newest *succeeded* cotahist ingestion run, never the
@@ -139,7 +139,7 @@ function unscorableNewDecisionScore(
 }
 
 // `calendar` is resolved once per run by the caller, not once per decision
-// (round 3 item 9): `asOfSession` is fixed for the whole run, so every
+// `asOfSession` is fixed for the whole run, so every
 // decision's own exhaustion check reads the same trailing calendar instead
 // of re-querying it on every retriable `insufficient_data` result.
 function insufficientDataExhausted(
@@ -162,7 +162,7 @@ function insufficientDataExhausted(
 // `dueForUser` on the next run, and the unique index on
 // `decision_scores.decision_id` makes a concurrent or re-run insert a
 // no-op even if two runs ever raced. Error isolation is two layers deep
-// (#29 fix-web item 6): one user's failure never aborts the run for the
+// one user's failure never aborts the run for the
 // next user, and one decision's failure never aborts the rest of that
 // user's own due list.
 export async function scoreDueDecisions(
@@ -189,7 +189,7 @@ export async function scoreDueDecisions(
       };
     }
 
-    // Resolved once per run, not once per decision (#29 fix-web item 11): the
+    // Resolved once per run, not once per decision: the
     // structure catalog is shared reference data (ADR-0012) that never
     // changes mid-run.
     structures = await new StructuresRepository(db).listAll();
@@ -210,7 +210,7 @@ export async function scoreDueDecisions(
   // block above has already returned for every path where it stays unset.
   const resolvedAsOfSession: string = asOfSession;
 
-  // Memoized, not fetched per decision (round 3 item 9): `asOfSession` is
+  // Memoized, not fetched per decision: `asOfSession` is
   // fixed for the whole run, so every decision's own `insufficient_data`
   // exhaustion check can share the one calendar read the first check makes.
   let calendarUpToAsOf: readonly TradingSession[] | null = null;

@@ -146,7 +146,7 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
     });
   });
 
-  it("does not note iv_from_average_price when the solve was suppressed for a stale mark across a corporate action (round 4 item 3)", () => {
+  it("does not note iv_from_average_price when the solve was suppressed for a stale mark across a corporate action", () => {
     const marketPrice = bsmPriceRaw({
       s: 42,
       k: 40,

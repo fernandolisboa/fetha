@@ -177,7 +177,7 @@ describe("runNightlyJob", () => {
     expect(outcome.ok).toBe(false);
   });
 
-  it("still evaluates the sessions cotahist drained when a different source failed (round 2 item 1)", async () => {
+  it("still evaluates the sessions cotahist drained when a different source failed", async () => {
     ingestMock.mockResolvedValue({
       session: "2026-09-08",
       okSessions: ["2026-09-08"],
