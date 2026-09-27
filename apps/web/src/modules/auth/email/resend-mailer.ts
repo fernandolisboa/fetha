@@ -17,9 +17,14 @@ export class MissingEmailFromError extends Error {
 }
 
 export class EmailSendError extends Error {
-  constructor(reason: string) {
+  // Resend's error name (e.g. `validation_error`), safe to log: unlike the
+  // message, it never quotes the recipient.
+  readonly code: string;
+
+  constructor(reason: string, code: string) {
     super(`Resend refused to send the email: ${reason}`);
     this.name = "EmailSendError";
+    this.code = code;
   }
 }
 
@@ -44,7 +49,7 @@ export class ResendMailer implements Mailer {
     });
 
     if (error) {
-      throw new EmailSendError(error.message);
+      throw new EmailSendError(error.message, error.name);
     }
   }
 }

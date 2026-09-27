@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AfterResponseMailer } from "./after-response-mailer";
 import { FakeMailer } from "./fake-mailer";
+import { EmailSendError } from "./resend-mailer";
 import type { Mailer } from "./mailer";
 
 const INPUT = { to: "someone@example.com", subject: "s", text: "t", html: "h" };
@@ -47,5 +48,19 @@ describe("AfterResponseMailer", () => {
     await expect(scheduler.tasks[0]?.()).resolves.toBeUndefined();
 
     expect(log).toHaveBeenCalledWith("email send failed", "TypeError");
+  });
+
+  it("logs Resend's error name, never its message", async () => {
+    const refused: Mailer = {
+      send: () =>
+        Promise.reject(new EmailSendError("someone@example.com is invalid", "validation_error")),
+    };
+    const scheduler = collectTasks();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await new AfterResponseMailer(refused, scheduler.run).send(INPUT);
+    await scheduler.tasks[0]?.();
+
+    expect(log).toHaveBeenCalledWith("email send failed", "validation_error");
   });
 });

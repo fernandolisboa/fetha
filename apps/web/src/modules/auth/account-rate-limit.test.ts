@@ -6,6 +6,7 @@ import {
   accountBucketKey,
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
+  refundAccountAttempt,
 } from "./account-rate-limit";
 
 interface FakeRow {
@@ -259,5 +260,22 @@ describe("enforceAccountRateLimit", () => {
     await expect(
       enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
     ).rejects.toBeInstanceOf(AccountRateLimitExceededError);
+  });
+});
+
+describe("refundAccountAttempt", () => {
+  it("logs a failed refund instead of failing the sign-in it follows (#114)", async () => {
+    const failing = {
+      update: () => ({
+        set: () => ({ where: () => Promise.reject(new TypeError("connection reset")) }),
+      }),
+    } as unknown as Database;
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      refundAccountAttempt(failing, "someone@example.com", "/sign-in/email"),
+    ).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith("account rate-limit refund failed", "TypeError");
+    log.mockRestore();
   });
 });

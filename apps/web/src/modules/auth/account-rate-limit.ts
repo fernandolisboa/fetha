@@ -158,15 +158,25 @@ export async function enforceAccountRateLimit(
 
 // Gives back the slot a sign-in reserved once it succeeds, so only failures
 // fill the bucket (#114). Reserving up front keeps concurrent guesses bounded
-// by `enforceAccountRateLimit`'s guarded increment; the refund is a floor-at-
-// zero decrement, at worst returning a slot to a window that has since reset.
+// by `enforceAccountRateLimit`'s guarded increment. The refund is a floor-at-
+// zero decrement on whatever the bucket holds now, so each successful sign-in
+// can hand one extra guess to someone failing on the same account within the
+// window (docs/adr/0031). Like the purge, a failed refund must not fail the
+// sign-in it follows.
 export async function refundAccountAttempt(
   db: Database,
   email: string,
   path: string,
 ): Promise<void> {
-  await db
-    .update(rateLimit)
-    .set({ count: sql`${rateLimit.count} - 1` })
-    .where(and(eq(rateLimit.key, accountBucketKey(email, path)), gt(rateLimit.count, 0)));
+  try {
+    await db
+      .update(rateLimit)
+      .set({ count: sql`${rateLimit.count} - 1` })
+      .where(and(eq(rateLimit.key, accountBucketKey(email, path)), gt(rateLimit.count, 0)));
+  } catch (error) {
+    console.error(
+      "account rate-limit refund failed",
+      error instanceof Error ? error.name : "Unknown",
+    );
+  }
 }

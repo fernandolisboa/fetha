@@ -1,4 +1,5 @@
 import type { Mailer, SendEmailInput } from "./mailer";
+import { EmailSendError } from "./resend-mailer";
 
 export type RunAfterResponse = (task: () => Promise<void>) => void;
 
@@ -18,7 +19,14 @@ export class AfterResponseMailer implements Mailer {
       try {
         await this.inner.send(input);
       } catch (error) {
-        console.error("email send failed", error instanceof Error ? error.name : "Unknown");
+        console.error(
+          "email send failed",
+          error instanceof EmailSendError
+            ? error.code
+            : error instanceof Error
+              ? error.name
+              : "Unknown",
+        );
       }
     });
     return Promise.resolve();
