@@ -20,7 +20,10 @@ for (const path of ["/entrar", "/cadastro"]) {
   test(`${path} stamps its script-policy nonce on every script`, async ({ request }) => {
     await request.get(path);
 
-    const response = await request.get(path, { maxRedirects: 0 });
+    const response = await request.get(path, {
+      maxRedirects: 0,
+      headers: { "content-security-policy": "script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAA=='" },
+    });
     const policy = response.headers()["content-security-policy-report-only"] ?? "";
     const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
     expect(nonce).toBeTruthy();
@@ -31,5 +34,24 @@ for (const path of ["/entrar", "/cadastro"]) {
     for (const script of scripts) {
       expect(script).toContain(`nonce="${nonce ?? ""}"`);
     }
+  });
+}
+
+for (const path of ["/entrar", "/cadastro", "/link-magico", "/redefinir-senha", "/termos"]) {
+  test(`${path} runs without a script-policy violation`, async ({ page }) => {
+    await page.addInitScript(() => {
+      const seen: string[] = [];
+      Object.assign(window, { cspViolations: seen });
+      document.addEventListener("securitypolicyviolation", (event) => {
+        seen.push(`${event.violatedDirective} ${event.blockedURI}`);
+      });
+    });
+
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+
+    expect(
+      await page.evaluate(() => (window as { cspViolations?: string[] }).cspViolations),
+    ).toEqual([]);
   });
 }

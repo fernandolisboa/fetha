@@ -3,11 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { newNonce, scriptPolicy, SCRIPT_POLICY_HEADER } from "@/lib/script-policy";
 
 export function proxy(request: NextRequest): NextResponse {
-  const nonce = newNonce();
-  const policy = scriptPolicy(nonce, process.env.NODE_ENV === "development");
+  const policy = scriptPolicy(newNonce(), process.env.NODE_ENV === "development");
 
+  // Next takes the nonce it stamps from the request's Content-Security-Policy
+  // before the report-only one, so a policy the client sent would choose it.
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.delete("content-security-policy");
   requestHeaders.set(SCRIPT_POLICY_HEADER, policy);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -15,18 +16,16 @@ export function proxy(request: NextRequest): NextResponse {
   return response;
 }
 
-// Pages only: API responses, build assets, the service worker, the offline
-// fallback and icons carry no inline script, and prefetches are never
-// rendered as a document.
+// Documents only: API responses, build assets, the service worker, the offline
+// fallback and icons carry no inline script, and the router's own prefetches
+// fetch RSC payloads, never a document. Excluded names match whole path
+// segments so a page like /api-docs still gets the policy.
 export const config = {
   matcher: [
     {
       source:
-        "/((?!api|_next/static|_next/image|favicon.ico|sw.js|offline.html|icons|manifest.webmanifest).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
+        "/((?!(?:api|_next/static|_next/image|icons)(?:/|$)|(?:favicon\\.ico|sw\\.js|offline\\.html|manifest\\.webmanifest)$).*)",
+      missing: [{ type: "header", key: "next-router-prefetch" }],
     },
   ],
 };

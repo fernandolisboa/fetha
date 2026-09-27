@@ -5,7 +5,7 @@ import { newNonce, scriptPolicy } from "./script-policy";
 describe("scriptPolicy", () => {
   it("allows only nonced scripts and what they load, plus same-origin workers", () => {
     expect(scriptPolicy("abc", false)).toBe(
-      "script-src 'self' 'nonce-abc' 'strict-dynamic'; worker-src 'self'; object-src 'none'; base-uri 'self'",
+      "script-src 'self' 'nonce-abc' 'strict-dynamic'; worker-src 'self'",
     );
   });
 
