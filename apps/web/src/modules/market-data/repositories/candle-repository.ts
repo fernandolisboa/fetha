@@ -235,7 +235,15 @@ export async function searchInstruments(
 // still passes the calendar check and buys hundreds of candle-less equity
 // points with no note, diluting CAGR, Sharpe and exposure on an immutable
 // run. One `MIN()`/`MAX()` aggregate query against the `(ticker, timeframe,
-// session)` index gives existence and both clamps together.
+// session)` index gives existence and both clamps together. Deliberately the
+// union across `universe`, not an intersection per ticker: bounding to the
+// range every ticker already has data for would silently shrink a run's
+// period whenever one watchlist ticker listed later than the rest, with no
+// way for the user to tell a short history from a short request. Any
+// resulting interior gap — a ticker with no candle on a session inside this
+// union range — is the engine's problem now, not this clamp's: ADR-0041
+// excludes a candle-less session from `metrics.sessions` (and notes the
+// count) rather than letting it dilute the run.
 export async function candleSessionBoundsInRange(
   db: Database,
   universe: string[],

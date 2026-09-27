@@ -13,6 +13,12 @@ export type MetricsInput = {
   initialCapital: Centavos;
   rfPerSession: readonly DecimalString[];
   held: readonly boolean[];
+  // A session is observed when it carries at least one universe candle and falls on or after the
+  // strategy's first tradable session (ADR-0041): every ratio below (sessions, cagr, sharpe,
+  // exposure) is computed over this subsequence only, dropping a candle-less or warm-up session's
+  // spurious flat-equity return rather than diluting the run with a session that could never have
+  // traded.
+  observed: readonly boolean[];
   settledOperationPnls: readonly Centavos[];
   operationsCount: number;
   fees: Centavos;
@@ -35,10 +41,34 @@ function sampleStdev(values: readonly Decimal[]): Decimal | null {
   return variance.sqrt();
 }
 
-export function computeBacktestMetrics(input: MetricsInput): {
+export function computeBacktestMetrics(rawInput: MetricsInput): {
   metrics: BacktestMetrics;
   notes: Note[];
 } {
+  const observedIndices = rawInput.equityCurve.reduce<number[]>((acc, _point, i) => {
+    if (assertDefined(rawInput.observed[i], "computeBacktestMetrics: index within bounds")) {
+      acc.push(i);
+    }
+    return acc;
+  }, []);
+  const input: Omit<MetricsInput, "observed"> = {
+    equityCurve: observedIndices.map((i) =>
+      assertDefined(rawInput.equityCurve[i], "computeBacktestMetrics: index within bounds"),
+    ),
+    initialCapital: rawInput.initialCapital,
+    rfPerSession: observedIndices.map((i) =>
+      assertDefined(rawInput.rfPerSession[i], "computeBacktestMetrics: index within bounds"),
+    ),
+    held: observedIndices.map((i) =>
+      assertDefined(rawInput.held[i], "computeBacktestMetrics: index within bounds"),
+    ),
+    settledOperationPnls: rawInput.settledOperationPnls,
+    operationsCount: rawInput.operationsCount,
+    fees: rawInput.fees,
+    taxes: rawInput.taxes,
+    slippage: rawInput.slippage,
+  };
+
   const notes: Note[] = [];
   const sessions = input.equityCurve.length;
 

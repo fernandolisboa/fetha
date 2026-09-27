@@ -175,7 +175,12 @@ async function createBacktestRun(
   // to load: a legal near-ceiling create ran that same load in a Server
   // Action with no raised duration at all, so the platform's own default
   // killed it with no run written after already spending one of ten
-  // creation slots (round 3 item 1).
+  // creation slots (round 3 item 1). The bound is still the union across
+  // `parsed.universe`, not a per-ticker intersection (candle-repository.ts):
+  // a multi-ticker universe can now carry an interior candle-less gap
+  // between this union's own bounds, which #92/ADR-0041 has the engine
+  // exclude from `metrics.sessions` (and note) rather than this clamp
+  // trying to bound it away.
   const candleBounds = await candleSessionBoundsInRange(db, parsed.universe, {
     from: parsed.from,
     to: lastCalendarSession.date,

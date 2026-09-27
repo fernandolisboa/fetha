@@ -37,6 +37,7 @@ function input(
     }),
     rfPerSession: sessions.map(() => decimalString("0")),
     held: sessions.map(() => false),
+    observed: sessions.map(() => true),
     operations: [],
     fills: [],
     taxes: [],

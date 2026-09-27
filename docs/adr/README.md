@@ -46,5 +46,6 @@ supersedes or amends them and says so.
 | 0038 | `fixed_fractional` sizes a net-debit structure on max(premium, bounded max loss) (amends 0013)                   |
 | 0039 | A typed web-authored evaluation vocabulary; `EvaluationRecord.detail` removed (amends 0013)                      |
 | 0040 | B3 fees charged by instrument class: an option-premium rate beside the cash-equity rate (amends 0004, 0013)      |
+| 0041 | Backtest metrics are computed over observed sessions only; the warm-up prefix is excluded (amends 0013)          |
 
 Open: none.

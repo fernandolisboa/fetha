@@ -89,6 +89,16 @@ describe("generalNotesFor", () => {
     expect(surfacedNoteCodes).not.toContain("no_risk_profile");
   });
 
+  it("excludes candle_less_sessions_excluded and warm_up_sessions_excluded, surfaced beside the Sessions stat instead (ADR-0041, #92)", () => {
+    expect(surfacedNoteCodes).toContain("candle_less_sessions_excluded");
+    expect(surfacedNoteCodes).toContain("warm_up_sessions_excluded");
+    const run = runWithNotes([
+      note("candle_less_sessions_excluded"),
+      note("warm_up_sessions_excluded"),
+    ]);
+    expect(generalNotesFor(run)).toEqual([]);
+  });
+
   it("keeps a note whose code no panel already surfaces", () => {
     const run = runWithNotes([note("stale_price")]);
     expect(generalNotesFor(run)).toEqual([note("stale_price")]);

@@ -175,6 +175,9 @@ const en = {
     stale_price_across_corporate_action: "Price carried forward across a corporate action.",
     option_strike_unadjusted_across_corporate_action:
       "The option's strike was not adjusted for a corporate action.",
+    candle_less_sessions_excluded: "Some sessions had no candle and were left out of the metrics.",
+    warm_up_sessions_excluded:
+      "The strategy's warm-up period was left out of the metrics; it never had enough history to trade.",
   } satisfies Record<NoteCode, string>,
   engineErrors: {
     invalid_input: "Invalid input.",
@@ -392,6 +395,10 @@ const ptBR = {
     stale_price_across_corporate_action: "Preço carregado através de um evento societário.",
     option_strike_unadjusted_across_corporate_action:
       "Strike da opção não foi ajustado por um evento societário.",
+    candle_less_sessions_excluded:
+      "Alguns pregões não tinham candle e ficaram de fora das métricas.",
+    warm_up_sessions_excluded:
+      "O período de aquecimento da estratégia ficou de fora das métricas; ela ainda não tinha histórico suficiente para operar.",
   } satisfies Record<NoteCode, string>,
   engineErrors: {
     invalid_input: "Entrada inválida.",
