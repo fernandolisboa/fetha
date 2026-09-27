@@ -8,6 +8,7 @@ import { getMyStrategies, getMyStrategy } from "@/modules/strategies";
 
 import {
   BacktestRunRepository,
+  type ActiveRunStatus,
   type BacktestRunRecord,
   type BacktestRunSummary,
 } from "./backtest-run-repository";
@@ -16,6 +17,37 @@ import { runLabels, type ComparedRun, type PickerGroup } from "./comparison";
 export const getMyBacktestRun = cache(async (runId: string): Promise<BacktestRunRecord> => {
   const repository = await forCurrentUser(getDb(), BacktestRunRepository);
   return repository.findMine(runId);
+});
+
+export interface ActiveBacktestRunItem {
+  id: string;
+  strategyId: string;
+  strategyName: string;
+  status: ActiveRunStatus;
+  period: string;
+  sessionsDone: number | null;
+  sessionsTotal: number | null;
+  createdAt: Date;
+}
+
+// Every run still holding an active-cap slot, across every strategy
+// (ADR-0032's own residual): what the "Em andamento" panel lists, so a user
+// refused at the cap can find and discard one without hunting through
+// strategies one by one.
+export const getMyActiveBacktestRuns = cache(async (): Promise<ActiveBacktestRunItem[]> => {
+  const repository = await forCurrentUser(getDb(), BacktestRunRepository);
+  const [active, strategies] = await Promise.all([repository.listMineActive(), getMyStrategies()]);
+  const names = new Map(strategies.map((strategy) => [strategy.id, strategy.name]));
+  return active.map((run) => ({
+    id: run.id,
+    strategyId: run.strategyId,
+    strategyName: names.get(run.strategyId) ?? "",
+    status: run.status,
+    period: `${formatDate(sessionDateToDisplayDate(run.period.from))} – ${formatDate(sessionDateToDisplayDate(run.period.to))}`,
+    sessionsDone: run.sessionsDone,
+    sessionsTotal: run.sessionsTotal,
+    createdAt: run.createdAt,
+  }));
 });
 
 export const getMyBacktestRunsForStrategy = cache(

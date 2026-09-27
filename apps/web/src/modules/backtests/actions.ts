@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { centavosSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
 import { engine, type StrategyVersion } from "@fetha/engine";
@@ -23,6 +24,7 @@ import { WatchlistRepository } from "@/modules/watchlist";
 
 import {
   ActiveBacktestRunLimitError,
+  BacktestRunNotFoundError,
   BacktestRunRepository,
   type BacktestRunRecord,
 } from "./backtest-run-repository";
@@ -237,4 +239,36 @@ async function createBacktestRun(
   }
 
   redirect(`/estrategias/${strategy.id}/backtests/${run.id}`);
+}
+
+export type DiscardBacktestRunResult =
+  { status: "ok" } | { status: "error"; error: "not_found" | "not_discardable" };
+
+const discardInputSchema = z.strictObject({ runId: z.string().min(1).max(200) });
+
+export async function discardBacktestRunAction(input: unknown): Promise<DiscardBacktestRunResult> {
+  const parsed = discardInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "not_found" };
+  }
+
+  try {
+    return await withAuthenticatedAction(async () => {
+      const user = await requireUser();
+      const repository = new BacktestRunRepository(getDb(), user);
+      const result = await repository.discard(parsed.data.runId);
+      revalidatePath("/estrategias");
+      if (result.status === "not_discardable") {
+        return { status: "error", error: "not_discardable" };
+      }
+      revalidatePath(`/estrategias/${result.run.strategyId}`);
+      revalidatePath(`/estrategias/${result.run.strategyId}/backtests/${result.run.id}`);
+      return { status: "ok" };
+    });
+  } catch (error) {
+    if (error instanceof BacktestRunNotFoundError) {
+      return { status: "error", error: "not_found" };
+    }
+    throw error;
+  }
 }

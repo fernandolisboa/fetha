@@ -120,6 +120,33 @@ export class ActiveBacktestRunLimitError extends Error {
   }
 }
 
+// Stored in the existing `error` column (no migration, ADR-0037): a run a
+// user discards is indistinguishable in shape from one that failed on its
+// own, but this exact string marks it as user-initiated so claim() never
+// offers it back into the active set and the report/list screens render a
+// dedicated "Descartado" label instead of a failure message.
+export const DISCARDED_RUN_ERROR = "discarded";
+
+export type DiscardBacktestRunResult =
+  { status: "discarded"; run: BacktestRunRecord } | { status: "not_discardable" };
+
+// The three statuses ACTIVE_STATUSES actually holds: narrower than
+// BacktestRunStatus so callers (the "Em andamento" panel's status labels)
+// get an exhaustive, closed union instead of one that also, incorrectly,
+// admits "complete" and "failed".
+export type ActiveRunStatus = "pending" | "running" | "paused";
+
+export interface ActiveBacktestRunSummary {
+  id: string;
+  strategyId: string;
+  strategyVersionId: string;
+  status: ActiveRunStatus;
+  period: { from: SessionDate; to: SessionDate };
+  sessionsDone: number | null;
+  sessionsTotal: number | null;
+  createdAt: Date;
+}
+
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const MAX_ACTIVE_BACKTEST_RUNS = 2;
@@ -268,6 +295,37 @@ export class BacktestRunRepository extends UserScopedRepository {
     });
   }
 
+  // A user-initiated release valve for a run stuck in `pending`, `running`
+  // or `paused` (ADR-0032's own residual, closed by ADR-0037): moves it
+  // straight to `failed` with a fixed reason (DISCARDED_RUN_ERROR) through
+  // the same `error` column `fail()` already writes, freeing the active
+  // slot the run held without any schema change. `findMine` first gives
+  // discard the same isolation and not-found behaviour as every other
+  // per-id method (a run not owned by this user throws
+  // BacktestRunNotFoundError); the conditional UPDATE that follows
+  // re-checks status against ACTIVE_STATUSES, so a run a concurrent
+  // complete() or fail() already moved to a terminal state between the two
+  // reads is answered with the typed `not_discardable` result rather than
+  // silently discarding a result the user has not seen.
+  async discard(id: string): Promise<DiscardBacktestRunResult> {
+    await this.findMine(id);
+    const [row] = await this.db
+      .update(backtestRuns)
+      .set({ status: "failed", error: DISCARDED_RUN_ERROR })
+      .where(
+        and(
+          eq(backtestRuns.id, id),
+          eq(backtestRuns.userId, this.userId),
+          inArray(backtestRuns.status, ACTIVE_STATUSES),
+        ),
+      )
+      .returning();
+    if (!row) {
+      return { status: "not_discardable" };
+    }
+    return { status: "discarded", run: toRecord(row) };
+  }
+
   async findMine(id: string): Promise<BacktestRunRecord> {
     const [row] = await this.db
       .select()
@@ -286,6 +344,39 @@ export class BacktestRunRepository extends UserScopedRepository {
       .from(backtestRuns)
       .where(and(eq(backtestRuns.strategyId, strategyId), eq(backtestRuns.userId, this.userId)));
     return rows.map(toRecord).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  // Every run still holding an active-cap slot, across every strategy: what
+  // the "Em andamento" panel lists so a user refused at the cap does not
+  // have to hunt through strategies one by one (ADR-0032's own residual).
+  async listMineActive(): Promise<ActiveBacktestRunSummary[]> {
+    const rows = await this.db
+      .select({
+        id: backtestRuns.id,
+        strategyId: backtestRuns.strategyId,
+        strategyVersionId: backtestRuns.strategyVersionId,
+        periodFrom: backtestRuns.periodFrom,
+        periodTo: backtestRuns.periodTo,
+        status: backtestRuns.status,
+        sessionsDone: backtestRuns.sessionsDone,
+        sessionsTotal: backtestRuns.sessionsTotal,
+        createdAt: backtestRuns.createdAt,
+      })
+      .from(backtestRuns)
+      .where(
+        and(eq(backtestRuns.userId, this.userId), inArray(backtestRuns.status, ACTIVE_STATUSES)),
+      )
+      .orderBy(desc(backtestRuns.createdAt));
+    return rows.map((row) => ({
+      id: row.id,
+      strategyId: row.strategyId,
+      strategyVersionId: row.strategyVersionId,
+      status: row.status as ActiveRunStatus,
+      period: periodSchema.parse({ from: row.periodFrom, to: row.periodTo }),
+      sessionsDone: row.sessionsDone,
+      sessionsTotal: row.sessionsTotal,
+      createdAt: row.createdAt,
+    }));
   }
 
   // Completed runs only, without their (large) result: what a comparison picker lists.
@@ -373,7 +464,13 @@ export class BacktestRunRepository extends UserScopedRepository {
           eq(backtestRuns.id, id),
           eq(backtestRuns.userId, this.userId),
           or(
-            sql`${backtestRuns.status} in ('pending', 'paused', 'failed')`,
+            sql`${backtestRuns.status} in ('pending', 'paused')`,
+            // A discarded run also carries `status = 'failed'`, the same
+            // shape as a run that failed on its own, but it must never come
+            // back into the active set this way: a discard is the user's
+            // own choice, not a transient error round 2 item 12 made
+            // resumable.
+            sql`${backtestRuns.status} = 'failed' and (${backtestRuns.error} is null or ${backtestRuns.error} != ${DISCARDED_RUN_ERROR})`,
             and(eq(backtestRuns.status, "running"), lt(backtestRuns.updatedAt, staleCutoff)),
           ),
         ),
@@ -463,12 +560,29 @@ export class BacktestRunRepository extends UserScopedRepository {
     if (existing.status === "complete") {
       throw new BacktestRunAlreadyCompleteError();
     }
+    // A discard (`error = DISCARDED_RUN_ERROR` on a `failed` row) can land
+    // between a chunk's own claim and this write: `run-chunk.ts` never
+    // re-checks status between claiming a run and persisting a checkpoint,
+    // completion or failure for it, so this is the one place that can. The
+    // WHERE clause below closes the identical race the pre-check here
+    // cannot (the same shape the immutability trigger closes for
+    // "complete"), so a chunk finishing after a discard raises the same
+    // typed error a lost claim already does instead of reviving the run.
+    if (existing.status === "failed" && existing.error === DISCARDED_RUN_ERROR) {
+      throw new BacktestRunClaimError();
+    }
     let row;
     try {
       [row] = await this.db
         .update(backtestRuns)
         .set(values)
-        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+        .where(
+          and(
+            eq(backtestRuns.id, id),
+            eq(backtestRuns.userId, this.userId),
+            sql`not (${backtestRuns.status} = 'failed' and ${backtestRuns.error} = ${DISCARDED_RUN_ERROR})`,
+          ),
+        )
         .returning();
     } catch (error) {
       // The immutability trigger (backtest_runs_no_update_once_complete)
@@ -481,7 +595,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       throw error;
     }
     if (!row) {
-      throw new BacktestRunNotFoundError();
+      throw new BacktestRunClaimError();
     }
     return toRecord(row);
   }
