@@ -145,6 +145,48 @@ describe("backtestRunSchema", () => {
     expect(backtestRunSchema.parse(run)).toEqual(run);
   });
 
+  it("rejects a note code, pricing model or truncation outside the engine's vocabulary", () => {
+    expect(() =>
+      backtestRunSchema.parse({ ...run, notes: [{ code: "made_up", message: "x" }] }),
+    ).toThrow();
+    expect(() =>
+      backtestRunSchema.parse({
+        ...run,
+        provenance: { ...run.provenance, pricingModel: "binomial" },
+      }),
+    ).toThrow();
+    expect(() =>
+      backtestRunSchema.parse({
+        ...run,
+        provenance: {
+          ...run.provenance,
+          truncated: [{ collection: "ticks", ticker: null, dropped: 1, reason: "after_at" }],
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      backtestRunSchema.parse({
+        ...run,
+        provenance: {
+          ...run.provenance,
+          truncated: [{ collection: "candles", ticker: null, dropped: 1, reason: "too_old" }],
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("accepts a known note code and truncation", () => {
+    const withNotes = {
+      ...run,
+      notes: [{ code: "missed_entry", message: "x" }],
+      provenance: {
+        ...run.provenance,
+        truncated: [{ collection: "candles", ticker: null, dropped: 1, reason: "after_at" }],
+      },
+    };
+    expect(backtestRunSchema.parse(withNotes)).toEqual(withNotes);
+  });
+
   it("rejects an operation with an unknown status", () => {
     const broken = {
       ...run,
@@ -153,7 +195,7 @@ describe("backtestRunSchema", () => {
     expect(() => backtestRunSchema.parse(broken)).toThrow();
   });
 
-  // #18 round 5 item 4: a row an older engine wrote must still parse after
+  // A row an older engine wrote must still parse after
   // a later engine version adds a field to `BacktestRun`, `BacktestMetrics`
   // or `WalkForwardWindow` (the concrete near-term case is #30's own
   // walk-forward window) — degrading by dropping the unrecognised key,

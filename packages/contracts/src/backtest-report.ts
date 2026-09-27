@@ -33,20 +33,66 @@ export const backtestCheckpointSchema = z.strictObject({
 });
 export type BacktestCheckpoint = z.infer<typeof backtestCheckpointSchema>;
 
+// Mirror the engine's own NoteCode, PricingModel, MarketViewCollection and
+// TruncationReason by value (contracts cannot import the engine);
+// apps/web/src/modules/market-data/enum-drift.test.ts fails when they drift.
+export const noteCodeSchema = z.enum([
+  "european_pricing",
+  "dividend_yield_defaulted",
+  "no_market_price",
+  "iv_from_average_price",
+  "iv_not_converged",
+  "below_intrinsic",
+  "stale_price",
+  "no_risk_profile",
+  "limit_breach_warned",
+  "missed_entry",
+  "intraday_option_fill_at_fair_value",
+  "short_window_not_annualized",
+  "non_positive_equity",
+  "no_thesis_claim",
+  "no_operation",
+  "unbounded_max_loss",
+  "zero_max_loss",
+  "iv_index_not_bracketed",
+  "risk_free_rate_defaulted",
+  "negative_cash",
+  "settlement_pending",
+  "settlement_costs_not_modeled",
+  "less_than_one_effective_unit",
+  "stale_price_across_corporate_action",
+  "option_strike_unadjusted_across_corporate_action",
+]);
+
+export const pricingModelSchema = z.enum(["bsm_continuous_yield"]);
+
+export const marketViewCollectionSchema = z.enum([
+  "candles",
+  "corporateActions",
+  "optionSeries",
+  "optionPrices",
+  "quotes",
+  "macro",
+  "dividendYields",
+  "impliedVolatilityIndex",
+]);
+
+export const truncationReasonSchema = z.enum(["after_at", "unreferenced_instrument"]);
+
 const noteSchema = z.strictObject({
-  code: z.string().min(1),
+  code: noteCodeSchema,
   message: z.string(),
 });
 
 const provenanceSchema = z.strictObject({
   engineVersion: z.string().min(1),
-  pricingModel: z.string().min(1),
+  pricingModel: pricingModelSchema,
   truncated: z.array(
     z.strictObject({
-      collection: z.string().min(1),
+      collection: marketViewCollectionSchema,
       ticker: tickerSchema.nullable(),
       dropped: z.int().min(0),
-      reason: z.string().min(1),
+      reason: truncationReasonSchema,
     }),
   ),
   dataVersion: z.string().nullable(),
@@ -150,8 +196,8 @@ const equityPointSchema = z.strictObject({
   drawdown: decimalStringSchema,
 });
 
-// `z.object`, not `z.strictObject` (#18 round 5 item 4, ADR-0013 addendum
-// "persisted engine artifacts"): this schema — and `walkForwardWindowSchema`
+// `z.object`, not `z.strictObject` (ADR-0013 addendum "persisted engine
+// artifacts"): this schema — and `walkForwardWindowSchema`
 // which embeds it, and `backtestRunSchema` at the bottom of this file — are
 // the read-path parse of an immutable, already-persisted `jsonb` column, not
 // a fresh input the engine controls the shape of at write time. An engine
