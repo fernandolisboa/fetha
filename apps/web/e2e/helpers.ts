@@ -29,20 +29,21 @@ const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
 const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
 
 // Owner magic-link requests share a per-account rate limit (3 per 60s,
-// auth/options.ts's "/sign-in/magic-link" rule), and every spec that needs a
-// fresh ingestion re-runs `triggerIngestionAsOwner` against the same
-// pre-provisioned owner account. A 429 sends no new email, so
-// `readLatestLink` would otherwise silently hand back the same stale link
-// used by a previous call — which then either fails a step later for an
-// unrelated reason or, worse, replays an already-consumed sign-in token.
-// This memoizes the last link this process actually used per email and
-// polls briefly for a new one, failing with a clear rate-limit message
-// instead of a misleading URL assertion.
+// auth/options.ts's "/sign-in/magic-link" rule), and both this module's
+// `triggerIngestionAsOwner` and ingestion-trigger.spec.ts's own owner sign-in
+// re-authenticate the same pre-provisioned owner account. A 429 sends no new
+// email, so `readLatestLink` would otherwise silently hand back the same
+// stale link used by a previous call — which then either fails a step later
+// for an unrelated reason or, worse, replays an already-consumed sign-in
+// token. This memoizes the last link any caller in this process actually
+// used per email and polls briefly for a new one, failing with a clear
+// rate-limit message instead of a misleading URL assertion. Exported so
+// every owner magic-link read in the suite shares the one memo.
 const lastMagicLinkByEmail = new Map<string, string>();
 const MAGIC_LINK_RETRY_TIMEOUT_MS = 20_000;
 const MAGIC_LINK_RETRY_INTERVAL_MS = 1_000;
 
-async function readNewMagicLink(
+export async function readNewMagicLink(
   request: APIRequestContext,
   baseURL: string | undefined,
   email: string,
