@@ -15,3 +15,21 @@ for (const path of ["/", "/entrar"]) {
     expect(headers["permissions-policy"]).toContain("camera=()");
   });
 }
+
+for (const path of ["/entrar", "/cadastro"]) {
+  test(`${path} stamps its script-policy nonce on every script`, async ({ request }) => {
+    await request.get(path);
+
+    const response = await request.get(path, { maxRedirects: 0 });
+    const policy = response.headers()["content-security-policy-report-only"] ?? "";
+    const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
+    expect(nonce).toBeTruthy();
+    expect(policy).toContain("'strict-dynamic'");
+
+    const scripts = (await response.text()).match(/<script\b[^>]*>/g) ?? [];
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const script of scripts) {
+      expect(script).toContain(`nonce="${nonce ?? ""}"`);
+    }
+  });
+}
