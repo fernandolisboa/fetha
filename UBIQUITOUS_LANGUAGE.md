@@ -393,7 +393,8 @@ _Avoid_: account, tenant (in code), member
 
 **Invite**:
 An email address the owner has cleared to register while `REGISTRATION_MODE=invite`; consumed
-the moment that email completes sign-up. Not scoped to a user: it has none until consumed.
+when someone proves they own that mailbox (verification link, magic link or password reset), not
+at sign-up (ADR-0029). Not scoped to a user: it has none until consumed.
 _Avoid_: invitation code, whitelist entry
 
 **Terms acceptance**:

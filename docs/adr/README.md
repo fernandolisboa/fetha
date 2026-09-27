@@ -34,5 +34,6 @@ supersedes or amends them and says so.
 | 0026 | HTTP security headers on every response; a script-src CSP waits for nonces                                       |
 | 0027 | LGPD: an access log written by read models, a per-module data export, deletion through Better Auth               |
 | 0028 | Email-first registration: the password is chosen after the verification link; unverified accounts purged at 24 h |
+| 0029 | Invites are spent by mailbox proof (verification link, magic link or reset), not by sign-up                      |
 
 Open: none.

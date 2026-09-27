@@ -6,7 +6,7 @@ import { invites, mailOutbox, session, user } from "./schema";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
-import { registerVerifiedUser } from "./registration-test-support";
+import { openVerificationLink, registerVerifiedUser } from "./registration-test-support";
 import { resendVerification, signIn, signOut, signUp } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
 
@@ -103,7 +103,7 @@ describe("registration, verification, login, logout and session expiry", () => {
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-  it("registers in invite mode with a pending invite and consumes it", async () => {
+  it("registers in invite mode with a pending invite, and verification consumes it", async () => {
     const testHeaders = testRequestHeaders();
     process.env.REGISTRATION_MODE = "invite";
     const email = uniqueEmail("invited");
@@ -122,9 +122,12 @@ describe("registration, verification, login, logout and session expiry", () => {
       testHeaders,
     );
     expect(outcome.status).toBe("ok");
+    const [pending] = await getDb().select().from(invites).where(eq(invites.email, email));
+    expect(pending?.consumedAt).toBeNull();
+
+    await openVerificationLink(email);
 
     const [invite] = await getDb().select().from(invites).where(eq(invites.email, email));
-    expect(invite).toBeDefined();
     expect(invite?.consumedAt).not.toBeNull();
   });
   it("refuses registration without accepting the terms", async () => {
