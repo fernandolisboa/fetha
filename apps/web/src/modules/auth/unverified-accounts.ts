@@ -20,11 +20,16 @@ export async function revokeUnprovenAccountAccess(db: Database, userId: string):
 }
 
 // A completed password reset proves the mailbox as much as the verification
-// link does, and the password it sets is the owner's.
+// link does, and the password it sets is the owner's. The consent stamped at
+// sign-up was given before that proof (docs/adr/0028's residual, closed by
+// docs/adr/0036), so it is cleared here in the same UPDATE: the mailbox
+// owner accepts the current terms themselves through /aceitar-termos. The
+// `emailVerified: false` guard keeps this a one-time effect of the
+// unverified->verified flip, never re-running on an already-verified row.
 export async function markEmailVerified(db: Database, userId: string): Promise<void> {
   await db
     .update(user)
-    .set({ emailVerified: true })
+    .set({ emailVerified: true, termsVersion: null, termsAcceptedAt: null })
     .where(and(eq(user.id, userId), eq(user.emailVerified, false)));
 }
 

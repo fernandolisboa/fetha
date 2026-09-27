@@ -1,4 +1,7 @@
-import { legalText } from "./legal-text";
+import { legalText, termsChangeSummaryFor } from "./legal-text";
+import { CURRENT_TERMS_VERSION } from "./terms";
+
+const currentTermsChangeSummary = termsChangeSummaryFor(CURRENT_TERMS_VERSION);
 
 const en = {
   shared: {
@@ -93,11 +96,28 @@ const en = {
     body: "Your account and all of its data were deleted. Thank you for using Fetha.",
     home: "Back to the start",
   },
+  acceptTerms: {
+    confirmDetailsTitle: "Confirm your details",
+    confirmDetailsSubtitle:
+      "One more step before your lab opens: confirm your name and accept the terms of use and the privacy policy.",
+    changedTitle: "The terms changed",
+    changedSubtitle: "Review what changed and accept the current version to keep using Fetha.",
+    whatChanged: "What changed",
+    nameLabel: "Name",
+    termsLabel: "I accept the terms of use",
+    privacyLabel: "I accept the privacy policy",
+    submit: "Accept and continue",
+    secondaryActionsTitle: "Not ready to accept?",
+    secondaryActionsBody:
+      "You can export a copy of your data or delete your account instead, and sign out at any time.",
+  },
   terms: legalText.en.terms,
   privacy: legalText.en.privacy,
+  termsChangeSummary: currentTermsChangeSummary.en,
   errors: {
     invalidInput: "Check the fields highlighted below.",
     termsRequired: "You must accept the terms of use and the privacy policy.",
+    nameRequired: "Enter your name.",
     registrationClosed: "Registration is closed at the moment.",
     signUpFailed: "We couldn't complete your registration. Try again.",
     invalidCredentials: "Incorrect email or password.",
@@ -224,11 +244,28 @@ const ptBR = {
     body: "Sua conta e todos os dados dela foram apagados. Obrigado por usar o Fetha.",
     home: "Voltar ao início",
   },
+  acceptTerms: {
+    confirmDetailsTitle: "Confirme seus dados",
+    confirmDetailsSubtitle:
+      "Falta um passo para abrir o seu laboratório: confirme seu nome e aceite os termos de uso e a política de privacidade.",
+    changedTitle: "Os termos mudaram",
+    changedSubtitle: "Veja o que mudou e aceite a versão atual para continuar usando o Fetha.",
+    whatChanged: "O que mudou",
+    nameLabel: "Nome",
+    termsLabel: "Aceito os termos de uso",
+    privacyLabel: "Aceito a política de privacidade",
+    submit: "Aceitar e continuar",
+    secondaryActionsTitle: "Ainda não quer aceitar?",
+    secondaryActionsBody:
+      "Você pode exportar uma cópia dos seus dados ou excluir sua conta, e sair a qualquer momento.",
+  },
   terms: legalText.ptBR.terms,
   privacy: legalText.ptBR.privacy,
+  termsChangeSummary: currentTermsChangeSummary.ptBR,
   errors: {
     invalidInput: "Confira os campos destacados abaixo.",
     termsRequired: "Você precisa aceitar os termos de uso e a política de privacidade.",
+    nameRequired: "Informe seu nome.",
     registrationClosed: "O cadastro está fechado no momento.",
     signUpFailed: "Não foi possível concluir seu cadastro. Tente novamente.",
     invalidCredentials: "E-mail ou senha incorretos.",

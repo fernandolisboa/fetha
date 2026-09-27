@@ -35,20 +35,27 @@ afterEach(async () => {
 });
 
 describe("registration, verification, login, logout and session expiry", () => {
-  it("refuses a user row with no termsVersion at the database level", async () => {
+  // `termsVersion`/`termsAcceptedAt` are nullable at the database level since
+  // docs/adr/0036 (a verified account whose owner has not accepted the
+  // current terms yet), so the invariant that no live sign-up ever produces
+  // one is enforced by `databaseHooks.user.create.before`
+  // (`buildUserCreateOverrides`, covered by options.test.ts), not by a NOT
+  // NULL column.
+  it("allows a bare user row with no termsVersion, now that only a verified account may carry one", async () => {
     const email = uniqueEmail("no-terms-column");
     createdEmails.push(email);
 
-    await expect(
-      getDb()
-        .insert(user)
-        .values({
-          id: crypto.randomUUID(),
-          name: "No Terms Column",
-          email,
-          emailVerified: true,
-        } as unknown as typeof user.$inferInsert),
-    ).rejects.toThrow();
+    const [row] = await getDb()
+      .insert(user)
+      .values({
+        id: crypto.randomUUID(),
+        name: "No Terms Column",
+        email,
+        emailVerified: true,
+      })
+      .returning({ termsVersion: user.termsVersion });
+
+    expect(row?.termsVersion).toBeNull();
   });
   it("registers, verifies and signs in in open mode", async () => {
     const testHeaders = testRequestHeaders();

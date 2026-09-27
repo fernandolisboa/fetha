@@ -18,7 +18,13 @@ test("magic link sign-in for a verified account", async ({ page, baseURL, reques
   await signUp(page, { name: "Magic Link User", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await confirmEmailAndSetPassword(page, verificationLink, "correct-horse-battery-staple", baseURL);
+  await confirmEmailAndSetPassword(
+    page,
+    verificationLink,
+    "correct-horse-battery-staple",
+    baseURL,
+    "Magic Link User",
+  );
   await page.context().clearCookies();
 
   await page.goto("/link-magico");
@@ -44,7 +50,13 @@ test("an expired or reused magic link shows the error screen", async ({
   await signUp(page, { name: "Magic Link Invalid", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await confirmEmailAndSetPassword(page, verificationLink, "correct-horse-battery-staple", baseURL);
+  await confirmEmailAndSetPassword(
+    page,
+    verificationLink,
+    "correct-horse-battery-staple",
+    baseURL,
+    "Magic Link Invalid",
+  );
   await page.context().clearCookies();
 
   await page.goto("/link-magico");

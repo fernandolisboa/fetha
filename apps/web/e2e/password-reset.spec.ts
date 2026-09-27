@@ -24,7 +24,13 @@ test("password reset lets the user sign in with a new password", async ({
   await signUp(page, { name: "Password Reset User", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await confirmEmailAndSetPassword(page, verificationLink, oldPassword, baseURL);
+  await confirmEmailAndSetPassword(
+    page,
+    verificationLink,
+    oldPassword,
+    baseURL,
+    "Password Reset User",
+  );
   await page.context().clearCookies();
 
   await page.goto("/redefinir-senha");

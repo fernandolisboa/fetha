@@ -247,3 +247,35 @@ const ptBR: typeof en = {
 };
 
 export const legalText = { en, ptBR } as const;
+
+interface TermsChangeSummary {
+  en: string;
+  ptBR: string;
+}
+
+// What changed in each terms version, shown on the re-acceptance gate
+// (/aceitar-termos, docs/adr/0036) next to the links to the full text above.
+// Keyed by version rather than a single "current" constant so a rollback of
+// `CURRENT_TERMS_VERSION` (terms.ts) to an older, already-summarized version
+// finds its entry instead of the gate throwing (see `termsChangeSummaryFor`
+// and docs/adr/0036's rollback consequence). Add an entry here whenever
+// `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
+// itself; this is not itself the legally binding text.
+const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-09-27.3": {
+    en: "This version adds the full text of the terms of use and the privacy policy: what Fetha is and is not, where its market data comes from, who processes your data and in which country, how long each kind of data is kept, your rights under the LGPD and the contact fetha@miolos.app.",
+    ptBR: "Esta versão traz o texto completo dos termos de uso e da política de privacidade: o que é e o que não é o Fetha, de onde vêm os dados de mercado, quem trata os seus dados e em qual país, por quanto tempo cada tipo de dado fica guardado, os seus direitos pela LGPD e o contato fetha@miolos.app.",
+  },
+};
+
+// Throws rather than falling back to a blank summary: a version with no
+// recorded summary is a ticket left undone, not a state the re-acceptance
+// gate should ever render silently wrong (a unit test in legal-text.test.ts
+// fails the same way for CURRENT_TERMS_VERSION specifically).
+export function termsChangeSummaryFor(version: string): TermsChangeSummary {
+  const summary = termsChangeSummaries[version];
+  if (!summary) {
+    throw new Error(`no terms change summary recorded for version ${version}`);
+  }
+  return summary;
+}

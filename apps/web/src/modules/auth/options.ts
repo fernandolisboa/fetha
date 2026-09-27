@@ -5,6 +5,7 @@ import {
   getSessionFromCtx,
   sendVerificationEmailFn,
 } from "better-auth/api";
+import { tryGetCurrentAuthEndpointContext } from "@better-auth/core/context";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
@@ -144,8 +145,10 @@ function readSignUpEmailBody(body: unknown): {
 }
 
 // Terms acceptance is atomic with the user INSERT: this data is merged into
-// the same create statement Better Auth issues, so a user row can never
-// exist with a null termsVersion (docs/adr/0016).
+// the same create statement Better Auth issues, so a user row is never
+// *created* with a null termsVersion (docs/adr/0016). It can still go to
+// NULL later, once that account is verified and nobody has proven they own
+// it yet (docs/adr/0036) — see `clearTermsOnVerifiedFlip` below.
 export function buildUserCreateOverrides(
   user: { email: string },
   termsAcceptedAt: Date = new Date(),
@@ -155,6 +158,28 @@ export function buildUserCreateOverrides(
     termsAcceptedAt,
     email: normalizeEmail(user.email),
   };
+}
+
+// The two Better Auth endpoints that ever prove a previously-unverified
+// mailbox by flipping `emailVerified` through `updateUser`
+// (docs/adr/0036): the verification link and a magic-link sign-in of an
+// unverified account. Read from `node_modules/better-auth/dist` at the
+// pinned 1.7.3: `createAuthEndpoint("/verify-email", …)`
+// (api/routes/email-verification.mjs) and
+// `createAuthEndpoint("/magic-link/verify", …)` (plugins/magic-link/index.mjs).
+const TERMS_CLEARING_PATHS: ReadonlySet<string> = new Set(["/verify-email", "/magic-link/verify"]);
+
+// Pure so it can be unit-tested without Better Auth's endpoint-context
+// machinery: the `databaseHooks.user.update.before` glue below supplies
+// `path` from `tryGetCurrentAuthEndpointContext()`.
+export function clearTermsOnVerifiedFlip(
+  data: Record<string, unknown>,
+  path: string | undefined,
+): Record<string, unknown> {
+  if (data.emailVerified !== true || !path || !TERMS_CLEARING_PATHS.has(path)) {
+    return data;
+  }
+  return { ...data, termsVersion: null, termsAcceptedAt: null };
 }
 
 export function buildAuthOptions(
@@ -189,9 +214,10 @@ export function buildAuthOptions(
       },
       additionalFields: {
         // required: false here means "the client request body does not need
-        // to carry it"; the value is always supplied by
-        // databaseHooks.user.create.before, so the database column itself
-        // stays NOT NULL (docs/adr/0016) regardless of this flag.
+        // to carry it"; the value at create time is always supplied by
+        // databaseHooks.user.create.before instead. The database column is
+        // nullable (docs/adr/0036): NULL from the unverified->verified flip
+        // until the mailbox owner accepts through /aceitar-termos.
         termsVersion: {
           type: "string",
           required: false,
@@ -242,6 +268,47 @@ export function buildAuthOptions(
     },
     databaseHooks: {
       user: {
+        update: {
+          // The verification link and a magic-link sign-in of an unverified
+          // account both flip `emailVerified` through Better Auth's own
+          // `updateUser` (its `revokeUnprovenAccountAccess`, magic-link
+          // plugin), which is the only path that sends `emailVerified: true`
+          // here today: both call sites read the current row first and
+          // return early when it is already verified (confirmed in
+          // better-auth/dist/api/routes/email-verification.mjs and
+          // db/revoke-unproven-account-access.mjs). The consent stamped at
+          // sign-up predates that proof (docs/adr/0028's residual, closed by
+          // docs/adr/0036), so it is cleared in the same update the mailbox
+          // owner's proof triggers. `path` is checked too, not just the
+          // flag, so a future plugin (admin, passkey, OAuth account
+          // linking...) that flips `emailVerified` through `updateUser` on
+          // some other endpoint cannot silently null a verified user's
+          // consent. `/verify-email` also serves Better Auth's own
+          // changeEmail confirmation when `user.changeEmail` is enabled
+          // (not today, `options.ts` sets no such config): that flow would
+          // still clear terms acceptance here, since it is the same
+          // endpoint and the same email-ownership proof, just of a new
+          // address — enabling `changeEmail` later should re-check this
+          // comment stays true. A password reset on an unverified account
+          // goes through `markEmailVerified` instead
+          // (`unverified-accounts.ts`), which clears the same two fields
+          // directly since it never calls `updateUser`.
+          before: (data: Record<string, unknown>) => {
+            const path = tryGetCurrentAuthEndpointContext()?.path;
+            return Promise.resolve({ data: clearTermsOnVerifiedFlip(data, path) });
+          },
+          // An invite is spent only by whoever proves they own its mailbox:
+          // whoever merely registers an invited email first cannot burn it
+          // (docs/adr/0029, #39).
+          after: async (updated) => {
+            // Typed non-null, but Better Auth passes the adapter's result, which is
+            // null when the row was deleted in between (the purge, an account deletion).
+            const updatedUser = updated as typeof updated | null;
+            if (updatedUser?.emailVerified) {
+              await consumePendingInviteSafely(db, updatedUser.email, updatedUser.id);
+            }
+          },
+        },
         create: {
           before: (user: { email: string }) => {
             return Promise.resolve({ data: buildUserCreateOverrides(user) });
@@ -254,19 +321,6 @@ export function buildAuthOptions(
               email: createdUser.email,
               termsAcceptedAt: termsAcceptedAt instanceof Date ? termsAcceptedAt : new Date(),
             });
-          },
-        },
-        update: {
-          // An invite is spent only by whoever proves they own its mailbox:
-          // whoever merely registers an invited email first cannot burn it
-          // (docs/adr/0029, #39).
-          after: async (updated) => {
-            // Typed non-null, but Better Auth passes the adapter's result, which is
-            // null when the row was deleted in between (the purge, an account deletion).
-            const updatedUser = updated as typeof updated | null;
-            if (updatedUser?.emailVerified) {
-              await consumePendingInviteSafely(db, updatedUser.email, updatedUser.id);
-            }
           },
         },
       },

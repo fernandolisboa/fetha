@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ACCESS_LOG_RETENTION_DAYS } from "@/modules/audit";
 
 import { ACCOUNT_BUCKET_RETENTION_SECONDS } from "./account-rate-limit";
-import { legalText } from "./legal-text";
+import { legalText, termsChangeSummaryFor } from "./legal-text";
 import { SESSION_EXPIRES_IN_DAYS } from "./session-lifetime";
 import { CURRENT_TERMS_VERSION } from "./terms";
 import { UNVERIFIED_ACCOUNT_RETENTION_HOURS } from "./unverified-accounts";
@@ -69,5 +69,17 @@ describe("legal text", () => {
     expect(text).toContain(`after ${String(ACCESS_LOG_RETENTION_DAYS)} days`);
     expect(text).toContain(`within ${String(UNVERIFIED_ACCOUNT_RETENTION_HOURS)} hours is deleted`);
     expect(text).toContain(`at most ${String(SESSION_EXPIRES_IN_DAYS)} days without use`);
+  });
+});
+
+describe("termsChangeSummaryFor", () => {
+  it("has a recorded summary for CURRENT_TERMS_VERSION, in both languages", () => {
+    const summary = termsChangeSummaryFor(CURRENT_TERMS_VERSION);
+    expect(summary.en.length).toBeGreaterThan(0);
+    expect(summary.ptBR.length).toBeGreaterThan(0);
+  });
+
+  it("throws for a version with no recorded summary", () => {
+    expect(() => termsChangeSummaryFor("1999-01-01.1")).toThrow(/no terms change summary/);
   });
 });
