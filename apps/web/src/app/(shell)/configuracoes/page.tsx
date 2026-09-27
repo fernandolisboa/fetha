@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
 import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
@@ -49,6 +50,15 @@ export default async function SettingsPage() {
         <div>
           <ExportDataLink />
         </div>
+        <p className="text-muted-foreground text-xs">
+          <Link href="/termos" className="underline underline-offset-4">
+            {authStrings.terms.title}
+          </Link>
+          {" · "}
+          <Link href="/privacidade" className="underline underline-offset-4">
+            {authStrings.privacy.title}
+          </Link>
+        </p>
       </section>
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">

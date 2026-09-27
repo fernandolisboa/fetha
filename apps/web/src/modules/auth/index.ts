@@ -20,6 +20,7 @@ export { AuthShell } from "./components/auth-shell";
 export { readE2EVerificationLink } from "./e2e-verification-link";
 export { isProductionDeployment, readE2ESecret } from "./env";
 export { DeleteAccountDialog } from "./components/delete-account-dialog";
+export { LegalDocumentView } from "./components/legal-document-view";
 export { MagicLinkForm } from "./components/magic-link-form";
 export { RequestPasswordResetForm } from "./components/request-password-reset-form";
 export { ResendVerificationForm } from "./components/resend-verification-form";

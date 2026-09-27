@@ -1,3 +1,5 @@
+import { legalText } from "./legal-text";
+
 const en = {
   shared: {
     signInWithPasswordLink: "Sign in with your password instead",
@@ -85,14 +87,8 @@ const en = {
     body: "Your account and all of its data were deleted. Thank you for using Fetha.",
     home: "Back to the start",
   },
-  terms: {
-    title: "Terms of use",
-    body: "Content in progress.",
-  },
-  privacy: {
-    title: "Privacy policy",
-    body: "Content in progress.",
-  },
+  terms: legalText.en.terms,
+  privacy: legalText.en.privacy,
   errors: {
     invalidInput: "Check the fields highlighted below.",
     termsRequired: "You must accept the terms of use and the privacy policy.",
@@ -215,14 +211,8 @@ const ptBR = {
     body: "Sua conta e todos os dados dela foram apagados. Obrigado por usar o Fetha.",
     home: "Voltar ao início",
   },
-  terms: {
-    title: "Termos de uso",
-    body: "Conteúdo em elaboração.",
-  },
-  privacy: {
-    title: "Política de privacidade",
-    body: "Conteúdo em elaboração.",
-  },
+  terms: legalText.ptBR.terms,
+  privacy: legalText.ptBR.privacy,
   errors: {
     invalidInput: "Confira os campos destacados abaixo.",
     termsRequired: "Você precisa aceitar os termos de uso e a política de privacidade.",

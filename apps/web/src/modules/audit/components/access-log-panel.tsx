@@ -29,24 +29,27 @@ export function AccessLogPanel({ entries }: { entries: AccessLogEntry[] }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>{labels.when}</TableHead>
           <TableHead>{labels.event}</TableHead>
-          <TableHead>{labels.ipAddress}</TableHead>
-          <TableHead>{labels.device}</TableHead>
+          <TableHead>{labels.origin}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {entries.map((entry) => (
           <TableRow key={entry.id}>
-            <TableCell className="font-mono tabular-nums">
-              {formatDateTime(entry.occurredAt)}
+            <TableCell>
+              <div>{labels.events[entry.event]}</div>
+              <div className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                {formatDateTime(entry.occurredAt)}
+              </div>
             </TableCell>
-            <TableCell>{labels.events[entry.event]}</TableCell>
-            <TableCell className="font-mono tabular-nums">
-              {entry.ipAddress ?? <span className="text-muted-foreground">—</span>}
-            </TableCell>
-            <TableCell className="text-muted-foreground" title={entry.userAgent ?? undefined}>
-              {deviceLabel(entry.userAgent)}
+            <TableCell>
+              <div className="font-mono tabular-nums">{entry.ipAddress ?? labels.unknown}</div>
+              <div
+                className="text-muted-foreground text-[11px]"
+                title={entry.userAgent ?? undefined}
+              >
+                {deviceLabel(entry.userAgent)}
+              </div>
             </TableCell>
           </TableRow>
         ))}
