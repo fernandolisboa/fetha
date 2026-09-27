@@ -1,15 +1,14 @@
-// Directives that constrain framing, forms, <base> and plugins only, so they
-// hold without enumerating the inline scripts Next emits. A script-src with
-// nonces is a follow-up (docs/adr/0026).
-const CONTENT_SECURITY_POLICY = [
+// Directives that constrain framing, forms, <base> and plugins. Documents get
+// them from the proxy together with the nonce script-src (docs/adr/0035);
+// every other path gets them here.
+export const BASE_CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-].join("; ");
+];
 
 export const securityHeaders = [
-  { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -18,3 +17,18 @@ export const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   },
 ];
+
+// The complement of the proxy matcher (src/proxy.ts). A document must not
+// also get this header: Next reads the nonce from the request's
+// Content-Security-Policy, and on Vercel a static one reaches the render.
+export const nonDocumentSources = [
+  "/api/:path*",
+  "/_next/:path*",
+  "/icons/:path*",
+  "/:file(favicon\\.ico|sw\\.js|offline\\.html|manifest\\.webmanifest)",
+];
+
+export const staticContentSecurityPolicy = {
+  key: "Content-Security-Policy",
+  value: BASE_CONTENT_SECURITY_POLICY.join("; "),
+};

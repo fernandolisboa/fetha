@@ -24,7 +24,7 @@ for (const path of ["/entrar", "/cadastro"]) {
       maxRedirects: 0,
       headers: { "content-security-policy": "script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAA=='" },
     });
-    const policy = response.headers()["content-security-policy-report-only"] ?? "";
+    const policy = response.headers()["content-security-policy"] ?? "";
     const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
     expect(nonce).toBeTruthy();
     expect(policy).toContain("'strict-dynamic'");

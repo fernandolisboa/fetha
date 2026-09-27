@@ -72,7 +72,7 @@ successful ingest's 200 rather than turning it into one;
 calls the module, maps errors to responses;
 it holds no business rule. `getDb()` is obtained at this edge and passed into the module.
 `src/proxy.ts` is the per-request edge in front of every document: it draws the nonce and sets
-the script policy (ADR-0026). `src/instrumentation-client.ts` runs before hydration and holds
+the document's whole Content-Security-Policy (ADR-0035). `src/instrumentation-client.ts` runs before hydration and holds
 browser bootstrap settings only (Zod `jitless`).
 
 ## Shared kernel
@@ -82,7 +82,7 @@ browser bootstrap settings only (Zod `jitless`).
 - `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
   `theme/contrast`, `runtime-settings`, `instant`, `today-sao-paulo`, `utils`,
   `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `script-policy`
-  (the per-request nonce policy). No business rules, no module imports.
+  (the per-request document policy). No business rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 
 ## Modules

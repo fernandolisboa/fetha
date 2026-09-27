@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { newNonce, scriptPolicy } from "./script-policy";
+import { documentPolicy, newNonce } from "./script-policy";
 
-describe("scriptPolicy", () => {
+describe("documentPolicy", () => {
   it("allows only nonced scripts and what they load, plus same-origin workers", () => {
-    expect(scriptPolicy("abc", false)).toBe(
-      "script-src 'self' 'nonce-abc' 'strict-dynamic'; worker-src 'self'",
+    expect(documentPolicy("abc", false)).toBe(
+      "script-src 'self' 'nonce-abc' 'strict-dynamic'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
     );
   });
 
   it("allows eval only in development", () => {
-    expect(scriptPolicy("abc", true)).toContain("'strict-dynamic' 'unsafe-eval';");
-    expect(scriptPolicy("abc", false)).not.toContain("unsafe-eval");
+    expect(documentPolicy("abc", true)).toContain("'strict-dynamic' 'unsafe-eval';");
+    expect(documentPolicy("abc", false)).not.toContain("unsafe-eval");
   });
 });
 

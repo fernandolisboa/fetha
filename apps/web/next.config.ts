@@ -1,11 +1,18 @@
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
-import { securityHeaders } from "./src/lib/security-headers";
+import {
+  nonDocumentSources,
+  securityHeaders,
+  staticContentSecurityPolicy,
+} from "./src/lib/security-headers";
 
 const nextConfig: NextConfig = {
   headers() {
-    return Promise.resolve([{ source: "/:path*", headers: securityHeaders }]);
+    return Promise.resolve([
+      { source: "/:path*", headers: securityHeaders },
+      ...nonDocumentSources.map((source) => ({ source, headers: [staticContentSecurityPolicy] })),
+    ]);
   },
 };
 

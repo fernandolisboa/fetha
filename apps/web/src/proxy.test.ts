@@ -6,40 +6,34 @@ import nextConfig from "../next.config";
 import { config, proxy } from "./proxy";
 
 describe("proxy", () => {
-  it("sends one nonce in the policy and forwards the same policy to the render", () => {
+  it("sends one nonce policy and forwards the same policy to the render", () => {
     const response = proxy(new NextRequest("http://localhost/entrar"));
 
-    const policy = response.headers.get("content-security-policy-report-only") ?? "";
-    expect(policy).toMatch(/'nonce-[^']+'/);
-    expect(response.headers.get("x-middleware-request-content-security-policy-report-only")).toBe(
-      policy,
-    );
+    const policy = response.headers.get("content-security-policy") ?? "";
+    expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(policy);
   });
 
-  it("drops a policy the client sent, so it cannot choose the nonce Next stamps", () => {
+  it("replaces a policy the client sent, so it cannot choose the nonce Next stamps", () => {
+    const forged = "script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAA=='";
     const response = proxy(
       new NextRequest("http://localhost/entrar", {
-        headers: { "content-security-policy": "script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAA=='" },
+        headers: { "content-security-policy": forged },
       }),
     );
 
-    expect(response.headers.get("x-middleware-override-headers")).toContain(
-      "content-security-policy-report-only",
+    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(
+      response.headers.get("content-security-policy"),
     );
-    expect(
-      response.headers
-        .get("x-middleware-override-headers")
-        ?.split(",")
-        .includes("content-security-policy"),
-    ).toBe(false);
-    expect(response.headers.get("x-middleware-request-content-security-policy")).toBeNull();
+    expect(response.headers.get("content-security-policy")).not.toContain("AAAA");
   });
 
   it("uses a new nonce for every request", () => {
     const first = proxy(new NextRequest("http://localhost/"));
     const second = proxy(new NextRequest("http://localhost/"));
-    expect(first.headers.get("content-security-policy-report-only")).not.toBe(
-      second.headers.get("content-security-policy-report-only"),
+    expect(first.headers.get("content-security-policy")).not.toBe(
+      second.headers.get("content-security-policy"),
     );
   });
 
@@ -53,6 +47,7 @@ describe("proxy", () => {
   it.each([
     "/api/auth/get-session",
     "/_next/static/chunks/main.js",
+    "/_next/image",
     "/sw.js",
     "/offline.html",
     "/icons/icon-192.png",

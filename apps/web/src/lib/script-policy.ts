@@ -1,8 +1,4 @@
-// Report-only until a walk over every flow shows no violation (#125,
-// docs/adr/0026). Next reads the nonce from this request header too and
-// stamps it on its own inline bootstrap and chunk scripts. The other
-// directives stay in the static policy (security-headers.ts).
-export const SCRIPT_POLICY_HEADER = "Content-Security-Policy-Report-Only";
+import { BASE_CONTENT_SECURITY_POLICY } from "./security-headers";
 
 export function newNonce(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
@@ -12,9 +8,10 @@ export function newNonce(): string {
 // browsers ignore 'self' for scripts, which is why the service worker needs
 // its own worker-src. React's development build evaluates strings, hence
 // 'unsafe-eval' in development only.
-export function scriptPolicy(nonce: string, development: boolean): string {
+export function documentPolicy(nonce: string, development: boolean): string {
   return [
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
     "worker-src 'self'",
+    ...BASE_CONTENT_SECURITY_POLICY,
   ].join("; ");
 }
