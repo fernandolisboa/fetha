@@ -97,6 +97,18 @@ const signUpNameSchema = z.object({
     .pipe(nameField),
 });
 
+// Deleting an account by emailed link is closed (docs/adr/0027). No screen
+// changes or checks a password while signed in, and those two endpoints
+// answer "wrong password" to whoever holds the session: a stolen cookie
+// could test guesses from rotating IPs (#145, docs/adr/0034).
+// `/verify-password` is marked server scope, yet Better Auth serves it over
+// HTTP.
+const CLOSED_PATHS: ReadonlySet<string> = new Set([
+  "/delete-user/callback",
+  "/change-password",
+  "/verify-password",
+]);
+
 // Account deletion always takes the password (docs/adr/0027): Better Auth
 // would otherwise also accept a fresh session alone, or an emailed token.
 // Per signed-in account, next to the IP rule above: the endpoint answers
@@ -276,10 +288,7 @@ export function buildAuthOptions(
           }
         }
 
-        // No screen changes a password, and this endpoint answers "wrong
-        // current password" to whoever holds the session: a stolen cookie
-        // could test guesses from rotating IPs (#145, docs/adr/0034). Reset stays the way.
-        if (ctx.path === "/delete-user/callback" || ctx.path === "/change-password") {
+        if (CLOSED_PATHS.has(ctx.path)) {
           throw new APIError("NOT_FOUND");
         }
         if (ctx.path === "/delete-user") {
