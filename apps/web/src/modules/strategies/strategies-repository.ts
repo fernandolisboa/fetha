@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
@@ -11,7 +11,8 @@ import { computeDefinitionDigest } from "./definition-digest";
 export type StrategyVisibility = (typeof strategyVisibilities)[number];
 const strategyVisibilitySchema = z.enum(strategyVisibilities);
 
-type DbOrTx = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type DbOrTx = Database | Transaction;
 
 export interface StrategySummary {
   id: string;
@@ -80,7 +81,30 @@ export class StrategyVersionLimitError extends Error {
 // above real use; a new strategy starts its own count.
 export const MAX_VERSIONS_PER_STRATEGY = 100;
 
+// A generous ceiling, not a plan limit (CLAUDE.md: no fees, no plans): it
+// exists only to bound an unbounded write loop (a bug or a scripted abuser),
+// not to constrain the owner's real usage.
+export const MAX_STRATEGIES_PER_USER = 200;
+
 export class StrategiesRepository extends UserScopedRepository {
+  // Every way into a user's strategy set (create, copy) counts under one
+  // per-user advisory lock, same pattern as
+  // BacktestRunRepository.enforceActiveCap (#147, docs/adr/0032): a
+  // list-then-insert outside a lock lets two concurrent creates at
+  // cap-1 both pass (#160).
+  private async enforceStrategyCap(tx: Transaction): Promise<void> {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`strategies:${this.userId}`}, 0))`,
+    );
+    const [mine] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(strategies)
+      .where(eq(strategies.userId, this.userId));
+    if ((mine?.count ?? 0) >= MAX_STRATEGIES_PER_USER) {
+      throw new StrategyLimitReachedError();
+    }
+  }
+
   async listMine(): Promise<StrategySummary[]> {
     const rows = await this.db
       .select({
@@ -146,6 +170,7 @@ export class StrategiesRepository extends UserScopedRepository {
 
   async createWithVersion(definition: StrategyDefinition): Promise<StrategyWithVersions> {
     return this.db.transaction(async (tx) => {
+      await this.enforceStrategyCap(tx);
       const [row] = await tx
         .insert(strategies)
         .values({ userId: this.userId, name: definition.name, visibility: "private" })
@@ -261,7 +286,7 @@ export class StrategiesRepository extends UserScopedRepository {
     }
   }
 
-  async copyShared(sourceStrategyId: string, maxStrategies: number): Promise<StrategyWithVersions> {
+  async copyShared(sourceStrategyId: string): Promise<StrategyWithVersions> {
     return this.db.transaction(async (tx) => {
       const [source] = await tx
         .select()
@@ -280,13 +305,7 @@ export class StrategiesRepository extends UserScopedRepository {
         throw new StrategyNotFoundError();
       }
 
-      const mine = await tx
-        .select({ id: strategies.id })
-        .from(strategies)
-        .where(eq(strategies.userId, this.userId));
-      if (mine.length >= maxStrategies) {
-        throw new StrategyLimitReachedError();
-      }
+      await this.enforceStrategyCap(tx);
 
       const [copy] = await tx
         .insert(strategies)
