@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { purgeExpiredAccessLog } from "@/modules/audit";
-import { purgeUnverifiedAccounts } from "@/modules/auth";
+import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueDecisions } from "@/modules/decisions";
 import { ingest, type IngestOutcome } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -83,9 +83,11 @@ async function runIngestion(session: string | undefined): Promise<NextResponse> 
   const accessLogPurge = await purgeExpiredAccessLog(db);
   // Unverified-account retention (docs/adr/0016, #39): same shape.
   const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
+  // Expired-session retention (#146): same shape.
+  const sessionPurge = await purgeExpiredSessions(db);
 
   return NextResponse.json(
-    { ...result, evaluation, scoring, accessLogPurge, unverifiedAccountPurge },
+    { ...result, evaluation, scoring, accessLogPurge, unverifiedAccountPurge, sessionPurge },
     { status: result.ok ? 200 : 500 },
   );
 }

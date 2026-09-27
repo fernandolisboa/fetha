@@ -37,10 +37,13 @@ import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
 import { markEmailVerified, revokeUnprovenAccountAccess } from "./unverified-accounts";
 import { emailField, nameField } from "./validation";
+import { SESSION_EXPIRES_IN_DAYS } from "./expired-sessions";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 5;
 const PASSWORD_RESET_EXPIRES_IN_SECONDS = 60 * 60;
+// Better Auth's own default, pinned because the privacy policy states it.
+const SESSION_EXPIRES_IN_SECONDS = SESSION_EXPIRES_IN_DAYS * 24 * 60 * 60;
 
 // Matches the security audit's A-01 remediation (docs/security-audit/2026-09-09.md):
 // the same window/max values Better Auth's own in-memory defaults already
@@ -189,6 +192,7 @@ export function buildAuthOptions(
         },
       },
     },
+    session: { expiresIn: SESSION_EXPIRES_IN_SECONDS },
     // A database leak must not yield live reset or magic-link tokens (#60).
     verification: { storeIdentifier: "hashed" },
     emailAndPassword: {

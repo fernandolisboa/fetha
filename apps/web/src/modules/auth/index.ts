@@ -45,3 +45,4 @@ export { parseEmailQueryParam } from "./validation";
 export { AuthDataExport } from "./data-export";
 export { hasPassword } from "./credential";
 export { purgeUnverifiedAccounts } from "./unverified-accounts";
+export { purgeExpiredSessions } from "./expired-sessions";
