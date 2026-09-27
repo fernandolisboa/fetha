@@ -26,7 +26,9 @@ identifier. A database leak therefore yielded live, single-use links.
 
 ## Consequences
 
-- A row written plain before the switch still resolves, because Better Auth retries the plain
-  identifier when the hashed one finds nothing. Such rows expire within the hour.
+- A reset row written plain before the switch still resolves: Better Auth retries the plain
+  identifier when the hashed one finds nothing. A magic-link row written plain does not, because
+  the plugin looks up the hash of the token and the fallback then tries only that hash. A magic
+  link sent in the five minutes before the deploy fails closed, and its owner asks for another.
 - Code that clears verification rows (account deletion, the unverified-account purge) matches on
   `value`, not `identifier`, so it is unaffected.

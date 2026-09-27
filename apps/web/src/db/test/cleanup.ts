@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { invites, mailOutbox, user, verification } from "@/modules/auth/schema";
@@ -18,7 +18,13 @@ async function deleteQuietly(operation: Promise<unknown>): Promise<void> {
 export async function deleteTestUser(db: Database, email: string): Promise<void> {
   await deleteQuietly(db.delete(user).where(eq(user.email, email)));
   await deleteQuietly(db.delete(mailOutbox).where(eq(mailOutbox.to, email)));
-  await deleteQuietly(db.delete(verification).where(eq(verification.identifier, email)));
+  await deleteQuietly(
+    db
+      .delete(verification)
+      .where(
+        sql`${verification.value} like '{%' and lower(${verification.value}::jsonb ->> 'email') = ${email.toLowerCase()}`,
+      ),
+  );
 }
 
 export async function deleteTestInvite(db: Database, email: string): Promise<void> {
