@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.2.0";
+export const ENGINE_VERSION = "0.3.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -92,7 +92,9 @@ export type NoteCode =
   | "settlement_costs_not_modeled"
   | "less_than_one_effective_unit"
   | "stale_price_across_corporate_action"
-  | "option_strike_unadjusted_across_corporate_action";
+  | "option_strike_unadjusted_across_corporate_action"
+  | "candle_less_sessions_excluded"
+  | "warm_up_sessions_excluded";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -119,6 +121,8 @@ export const noteCodes = [
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
   "option_strike_unadjusted_across_corporate_action",
+  "candle_less_sessions_excluded",
+  "warm_up_sessions_excluded",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };

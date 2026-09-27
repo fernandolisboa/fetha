@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.2.0";
+export const ENGINE_VERSION = "0.3.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -149,7 +149,9 @@ export type NoteCode =
   | "settlement_costs_not_modeled"
   | "less_than_one_effective_unit"
   | "stale_price_across_corporate_action"
-  | "option_strike_unadjusted_across_corporate_action";
+  | "option_strike_unadjusted_across_corporate_action"
+  | "candle_less_sessions_excluded"
+  | "warm_up_sessions_excluded";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -176,6 +178,8 @@ export const noteCodes = [
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
   "option_strike_unadjusted_across_corporate_action",
+  "candle_less_sessions_excluded",
+  "warm_up_sessions_excluded",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -2359,3 +2363,21 @@ when either side changes alone, and `backtest-run-type-pin.test.ts` pins `notes`
 both ways. Only `operations` stays one-directional, for the discriminated-union reason given above.
 A new engine vocabulary member ships with its mirror in the same change, so a stored report never
 meets a parser that does not know its codes.
+
+## Addendum: metrics computed over observed sessions only; `ENGINE_VERSION` bumped to `0.3.0` (2026-09-27, #92, see ADR-0041)
+
+`NoteCode`/`noteCodes` in the frozen block above gain `candle_less_sessions_excluded` and
+`warm_up_sessions_excluded` (mirrored into `packages/contracts`'s `noteCodeSchema` per the #91
+addendum above); `ENGINE_VERSION` moves from `"0.2.0"` to `"0.3.0"`. ADR-0041 records the full
+reasoning: `runBacktest`'s checkpointed `BacktestState` gains `hasCandle: boolean[]` and
+`firstTradableSession: SessionDate | null`, a persistence-breaking shape change under this
+document's own change-policy rule (the same class #23 made for `SimulatedOperation
+.residualSettledBy`). "Equity and metrics" above is amended: `sessions`, `sharpe`, `exposure` and
+the `MIN_ANNUALIZED_SESSIONS` (126) threshold are now computed over the subsequence of period
+sessions that carry a universe candle and fall on or after the strategy's own first tradable
+session; `maxDrawdown` and `totalReturn` are computed over every session from the first tradable
+session onward, gaps included (a gap's carried-forward mark is a real mark, and cash can move on an
+unobserved session, e.g. a month-end tax deduction); `cagr`'s exponent counts that same
+post-warm-up span, gaps included (calendar time passed even where no candle was observed), while
+its base still reads the whole curve's final equity. See ADR-0041 for the full account, including
+why `cagr`'s clock and `sessions`' count deliberately read different denominators.

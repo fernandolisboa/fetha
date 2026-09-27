@@ -13,6 +13,7 @@ import type {
 } from "../api";
 import { ENGINE_VERSION } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
+import { computeBacktestMetrics } from "./backtest-metrics";
 import { runBacktest } from "./run-backtest";
 
 const emptyView: MarketView = {
@@ -1469,6 +1470,152 @@ describe("runBacktest — chunking and determinism", () => {
   });
 });
 
+describe("runBacktest — observed-session metrics filtering (#92, ADR-0041)", () => {
+  const zeroCostModel = {
+    b3FeeRate: decimalString("0"),
+    brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
+    optionSlippageRate: decimalString("0"),
+    incomeTaxRate: decimalString("0"),
+    monthlyStockSalesExemption: centavos(0),
+  };
+
+  it("excludes a mid-period candle-less gap from metrics.sessions, cagr and exposure", () => {
+    const dates = businessDays(150);
+    const gapStart = 65;
+    const gapLen = 20;
+    const isGap = (i: number): boolean => i >= gapStart && i < gapStart + gapLen;
+    const calendar = dates.map(session);
+    let rank = 0;
+    const candles: Candle[] = [];
+    dates.forEach((date, i) => {
+      if (isGap(i)) return;
+      const price = (10 + rank * 0.01).toFixed(2);
+      candles.push(candle("PETR4", date, price, price));
+      rank += 1;
+    });
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({
+          entry: closeAbove9,
+          exit: [],
+          sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+        }),
+      ),
+      universe: ["PETR4"],
+      period: { from: dates[0] ?? "", to: dates[dates.length - 1] ?? "" },
+      initialCapital: centavos(100_000_00),
+      costModel: zeroCostModel,
+    });
+    const view: MarketView = { ...emptyView, calendar, candles };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const observedCount = dates.length - gapLen;
+    expect(run.metrics.sessions).toBe(observedCount);
+    expect(run.notes).toContainEqual({
+      code: "candle_less_sessions_excluded",
+      message: `${String(gapLen)} session(s) excluded from sessions, sharpe and exposure: no universe ticker had a candle that session (still counted in cagr's elapsed clock and in maxDrawdown/totalReturn, ADR-0041)`,
+    });
+    expect(run.notes.some((n) => n.code === "warm_up_sessions_excluded")).toBe(false);
+
+    // Reproduces the pre-#92 behaviour (every period session counted, including the gap) from
+    // the run's own public equityCurve, to show the fix actually moves the numbers rather than
+    // merely relabeling them: held is reconstructed from the strategy's own known shape here (a
+    // single stock leg opened at the first fill, held through every following session, and
+    // closed by the period-end sweep just before that final session's own equity point is
+    // recorded — so held is false at index 0, before the fill, and at the very last index).
+    const fullHeld = dates.map((_date, i) => i >= 1 && i < dates.length - 1);
+    const { metrics: naive } = computeBacktestMetrics({
+      equityCurve: run.equityCurve,
+      initialCapital: config.initialCapital,
+      rfPerSession: dates.map(() => decimalString("0")),
+      held: fullHeld,
+      observed: dates.map(() => true),
+      postWarmup: dates.map(() => true),
+      settledOperationPnls: [],
+      operationsCount: run.operations.length,
+      fees: run.metrics.fees,
+      taxes: run.metrics.taxes,
+      slippage: run.metrics.slippage,
+    });
+    expect(naive.sessions).toBe(dates.length);
+    expect(naive.exposure).toBe(decimalString("0.986667"));
+    expect(naive.cagr).toBe(decimalString("0.224276"));
+
+    expect(run.metrics.exposure).toBe(decimalString("0.984615"));
+    // cagr's exponent counts elapsed post-warm-up sessions, gaps included (ADR-0041): this run
+    // has no warm-up prefix, so its post-warm-up span is the full 150 sessions — the same
+    // exponent the naive comparison above used, hence the same value.
+    expect(run.metrics.cagr).toBe(decimalString("0.224276"));
+  });
+
+  it("excludes the strategy's warm-up prefix from metrics.sessions and records the first tradable session", () => {
+    const dates = businessDays(150);
+    const calendar = dates.map(session);
+    const candles = dates.map((date) => candle("PETR4", date, "10.00", "10.00"));
+    const smaEntry: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "indicator", indicator: { kind: "sma", length: 20 } },
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(definition({ entry: smaEntry, exit: [] })),
+      universe: ["PETR4"],
+      period: { from: dates[0] ?? "", to: dates[dates.length - 1] ?? "" },
+    });
+    const view: MarketView = { ...emptyView, calendar, candles };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const warmupCount = 19;
+    expect(run.metrics.sessions).toBe(dates.length - warmupCount);
+    expect(run.metrics.exposure).toBe(decimalString("0.000000"));
+    expect(run.metrics.cagr).toBe(decimalString("0.000000"));
+    expect(run.notes).toContainEqual({
+      code: "warm_up_sessions_excluded",
+      message: `${String(warmupCount)} leading session(s) excluded from metrics: the strategy lacked enough history to evaluate; first tradable session ${dates[warmupCount] ?? ""}`,
+    });
+    expect(run.notes.some((n) => n.code === "candle_less_sessions_excluded")).toBe(false);
+  });
+
+  it("reports every session as warm-up, with no first tradable session, when the strategy never gets enough history", () => {
+    const dates = businessDays(10);
+    const calendar = dates.map(session);
+    const candles = dates.map((date) => candle("PETR4", date, "10.00", "10.00"));
+    const smaEntry: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "indicator", indicator: { kind: "sma", length: 200 } },
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(definition({ entry: smaEntry, exit: [] })),
+      universe: ["PETR4"],
+      period: { from: dates[0] ?? "", to: dates[dates.length - 1] ?? "" },
+    });
+    const view: MarketView = { ...emptyView, calendar, candles };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    expect(run.metrics.sessions).toBe(0);
+    expect(run.metrics.exposure).toBe(decimalString("0.000000"));
+    expect(run.notes).toContainEqual({
+      code: "warm_up_sessions_excluded",
+      message: `all ${String(dates.length)} session(s) in the run fell inside the warm-up window; the strategy never had enough history to evaluate`,
+    });
+  });
+});
+
 describe("runBacktest — tax deduction timing and month bookkeeping", () => {
   it("deducts a finalized month's tax on the last session of the following month, mid-run", () => {
     const calendar = [
@@ -1770,6 +1917,9 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       state: {
         ...(paused.value.checkpoint.state as Record<string, unknown>),
         equityCurve: [],
+        held: [],
+        rfPerSession: [],
+        hasCandle: [],
       },
     };
     const result = runBacktest({ view, config, resume: corruptedCheckpoint });
@@ -1810,6 +1960,14 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
     [
       "an object whose optionStrikeAcrossCorporateActionNoted is not a boolean",
       (valid: object) => ({ ...valid, optionStrikeAcrossCorporateActionNoted: "nope" }),
+    ],
+    [
+      "an object whose firstTradableSession is neither a string nor null (ADR-0041)",
+      (valid: object) => ({ ...valid, firstTradableSession: 123 }),
+    ],
+    [
+      "an object whose hasCandle is not an array (ADR-0041)",
+      (valid: object) => ({ ...valid, hasCandle: "nope" }),
     ],
     [
       "a pendingTaxDeduction whose tax is not finite",
@@ -1931,6 +2089,27 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
             ],
           },
         ],
+      }),
+    ],
+    // held, rfPerSession and hasCandle are parallel to equityCurve by construction (ADR-0041); a
+    // shorter or longer one than equityCurve must fail here, not throw from assertDefined or
+    // silently zero-pad the resumed run's own metrics.
+    [
+      "held is shorter than equityCurve",
+      (valid: object) => ({ ...valid, held: (valid as { held: unknown[] }).held.slice(0, -1) }),
+    ],
+    [
+      "rfPerSession is longer than equityCurve",
+      (valid: object) => ({
+        ...valid,
+        rfPerSession: [...(valid as { rfPerSession: unknown[] }).rfPerSession, "0"],
+      }),
+    ],
+    [
+      "hasCandle is shorter than equityCurve",
+      (valid: object) => ({
+        ...valid,
+        hasCandle: (valid as { hasCandle: unknown[] }).hasCandle.slice(0, -1),
       }),
     ],
   ])(

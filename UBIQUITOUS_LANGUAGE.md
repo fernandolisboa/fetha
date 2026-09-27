@@ -265,6 +265,24 @@ _Avoid_: fee schedule, commissions
 The daily series of the simulated portfolio value during a backtest run.
 _Avoid_: PnL curve, balance history
 
+**Warm-up**:
+The leading run of period sessions before the strategy's own indicators have enough history to
+evaluate a single instrument in the universe (`insufficient_data` on every instrument). It is
+structurally dead: the strategy could not have traded it no matter what the data said, so it is
+excluded from every backtest metric — from `cagr`'s elapsed clock as well as from the observed
+count, since capital sitting in cash during it is not elapsed track record (ADR-0041).
+_Avoid_: lookback period, burn-in
+
+**Observed session**:
+A period session that carries at least one universe candle and falls on or after the strategy's
+first tradable session (the session warm-up ends). `metrics.sessions`, `sharpe`, `exposure` and
+the annualization threshold are computed over this subsequence only; a session with no candle for
+any universe ticker (an interior gap: a halted ticker, a staggered listing in a multi-ticker
+universe) is excluded the same way warm-up is, since the strategy never saw it either. `cagr`'s
+exponent, `maxDrawdown` and `totalReturn` instead read every post-warm-up session, gaps included,
+since calendar time and cash movement are real even where no candle was observed (ADR-0041).
+_Avoid_: tradable session, active session
+
 **Walk-forward**:
 The per-window view of a backtest run: the period cut into consecutive windows of a fixed number
 of sessions, with the run's metrics reported per window next to the whole-run metrics, so that

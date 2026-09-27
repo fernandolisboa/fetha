@@ -98,10 +98,17 @@ function Stat({ label, value, notes }: { label: string; value: string; notes?: R
 const equityDrawdownCodes: NoteCode[] = ["negative_cash"];
 const annualizedCodes: NoteCode[] = ["short_window_not_annualized", "non_positive_equity"];
 const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
+// ADR-0041: sessions.metrics is computed over observed sessions only (a universe candle present,
+// past the strategy's own warm-up); either exclusion, when it applies, is surfaced beside the
+// Sessions stat rather than the general notes panel, the same treatment annualizedCodes already
+// gives short_window_not_annualized beside cagr/sharpe.
+const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_sessions_excluded"];
 // `run-backtest.ts` (packages/engine) assembles `BacktestRun.notes` from the
-// metrics notes plus exactly four run-level codes: `negative_cash`,
-// `limit_breach_warned`, `non_positive_equity` and
-// `option_strike_unadjusted_across_corporate_action`. `no_operation`,
+// metrics notes plus six run-level codes: `negative_cash`,
+// `limit_breach_warned`, `non_positive_equity`,
+// `option_strike_unadjusted_across_corporate_action`,
+// `warm_up_sessions_excluded` and `candle_less_sessions_excluded` (ADR-0041).
+// `no_operation`,
 // `less_than_one_effective_unit` and `no_risk_profile` are valid `NoteCode`
 // union members but the run never emits them here — the first two are
 // per-operation/per-fill notes `priceOperation` and settlement produce and
@@ -125,6 +132,7 @@ const surfacedCodes: NoteCode[] = [
   ...annualizedCodes,
   ...limitBreachCodes,
   ...operationCodes,
+  ...sessionsCodes,
 ];
 
 // Every note code this panel surfaces beside a specific chart, stat or
@@ -184,7 +192,11 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
 
       <Panel>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Stat label={t.report.metrics.sessions} value={String(metrics.sessions)} />
+          <Stat
+            label={t.report.metrics.sessions}
+            value={String(metrics.sessions)}
+            notes={<NotesFor run={run} codes={sessionsCodes} />}
+          />
           <Stat label={t.report.metrics.operations} value={String(metrics.operations)} />
           <Stat label={t.report.metrics.totalReturn} value={formatPercent(metrics.totalReturn)} />
           <Stat

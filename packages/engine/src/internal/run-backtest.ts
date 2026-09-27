@@ -111,6 +111,15 @@ type BacktestState = {
   // point with the risk-free rate visible at that same session's close, or a chunked run's
   // Sharpe (and walk-forward windows) diverge from an uninterrupted call over the same period.
   rfPerSession: DecimalString[];
+  // ADR-0041: parallel to equityCurve, true when at least one universe ticker has a D1 candle
+  // visible by this session's close. Combined with firstTradableSession at metrics time to
+  // derive the observed subsequence a candle-less gap or a warm-up prefix must not dilute.
+  hasCandle: boolean[];
+  // The first period session at which evaluateStrategy did not return "insufficient_data" for
+  // every instrument in the universe (ADR-0041): null until found, then fixed for the rest of
+  // the run — carried in the checkpoint so a resumed run agrees with an uninterrupted one on
+  // exactly which leading sessions were warm-up.
+  firstTradableSession: SessionDate | null;
   runningPeak: number;
   pendingEntries: Record<string, PendingEntry>;
   retryCount: Record<string, number>;
@@ -148,6 +157,8 @@ function initialState(initialCapital: Centavos): BacktestState {
     held: [],
     slippageEntries: [],
     rfPerSession: [],
+    hasCandle: [],
+    firstTradableSession: null,
     runningPeak: initialCapital,
     pendingEntries: {},
     retryCount: {},
@@ -255,8 +266,23 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     "slippageEntries",
     "rfPerSession",
     "taxesFinalized",
+    "hasCandle",
   ] as const;
   if (arrayFields.some((field) => !Array.isArray(raw[field]))) return false;
+  if (typeof raw.firstTradableSession !== "string" && raw.firstTradableSession !== null) {
+    return false;
+  }
+
+  // held, rfPerSession and hasCandle are parallel to equityCurve by construction (each session's
+  // loop iteration pushes to all four together, ADR-0041) — a resumed checkpoint whose caller
+  // truncated or padded just one of them would otherwise read past the end of a shorter array
+  // (assertDefined throwing partway through computeBacktestMetrics) or silently zero-pad a
+  // longer equityCurve's tail sessions to false/"0" instead of failing checkpoint_mismatch here.
+  const equityCurveLength = (raw.equityCurve as unknown[]).length;
+  const parallelArrayFields = ["held", "rfPerSession", "hasCandle"] as const;
+  if (parallelArrayFields.some((field) => (raw[field] as unknown[]).length !== equityCurveLength)) {
+    return false;
+  }
 
   const recordFields = [
     "pendingEntries",
@@ -1451,7 +1477,26 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     });
     state.held.push(state.openOperations.length > 0 || hasPendingSettlementResidual);
     state.rfPerSession.push(rfAt(session.close));
+    state.hasCandle.push(
+      config.universe.some(
+        (ticker) => candleFor(candlesByTicker, ticker, session.date, session.close) !== null,
+      ),
+    );
     return equity;
+  }
+
+  // ADR-0041: the leading run of period sessions where every universe instrument's own
+  // evaluation was "insufficient_data" is warm-up, not a tradable window; firstTradableSession
+  // fixes the boundary the first time any instrument's evaluation reaches a real outcome, and
+  // stays fixed for the rest of the run (including a resumed chunk, since it is checkpointed).
+  function noteFirstTradableSession(
+    session: TradingSession,
+    evaluations: readonly { outcome: EvaluationOutcome }[],
+  ): void {
+    if (state.firstTradableSession !== null) return;
+    if (evaluations.length === 0) return;
+    if (evaluations.every((e) => e.outcome === "insufficient_data")) return;
+    state.firstTradableSession = session.date;
   }
 
   // Step 4: period end sweep — closes every still-open operation at its own mark, marks (never
@@ -1595,6 +1640,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       },
     });
     if (!evalResult.ok) return { ok: false, error: evalResult.error };
+    noteFirstTradableSession(session, evalResult.value.evaluations);
 
     const seenTickersThisRound = new Set<Ticker>();
     for (const signal of evalResult.value.signals) {
@@ -1692,11 +1738,28 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const closed = closePeriodEnd(session, failedEntryTickers);
       if (!closed.ok) return { ok: false, error: closed.error };
       finalizeFinalMonthTax(monthKey);
-      recordEquityPoint(
+      const finalEquity = recordEquityPoint(
         session,
         markResult.value.markValue,
         markResult.value.hasPendingSettlementResidual,
       );
+      // No signal is ever queued on the final session (there is no next session to fill it),
+      // but a run that never left warm-up before now still needs this session's own evaluation
+      // to learn whether it, at least, was tradable (ADR-0041) — skipped once
+      // firstTradableSession is already known, the common case, so this never doubles the
+      // per-session evaluate() cost of an ordinary run.
+      if (state.firstTradableSession === null) {
+        const finalEval = evaluate({
+          at: session.close,
+          openOperations: state.openOperations,
+          riskProfile: {
+            declaredCapital: toCentavos(Math.max(finalEquity, 1)),
+            limits: config.riskProfile.limits,
+          },
+        });
+        if (!finalEval.ok) return { ok: false, error: finalEval.error };
+        noteFirstTradableSession(session, finalEval.value.evaluations);
+      }
       continue;
     }
 
@@ -1741,10 +1804,26 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     };
   }
 
+  const { observed, postWarmup, warmupCount, candleLessCount } = observedSessions(state);
   const { metrics, notes: metricsNotes } = computeBacktestMetrics(
-    buildMetricsInput(state, config.initialCapital),
+    buildMetricsInput(state, config.initialCapital, observed, postWarmup),
   );
   const notes = [...metricsNotes];
+  if (warmupCount > 0) {
+    notes.push({
+      code: "warm_up_sessions_excluded",
+      message:
+        state.firstTradableSession === null
+          ? `all ${String(warmupCount)} session(s) in the run fell inside the warm-up window; the strategy never had enough history to evaluate`
+          : `${String(warmupCount)} leading session(s) excluded from metrics: the strategy lacked enough history to evaluate; first tradable session ${state.firstTradableSession}`,
+    });
+  }
+  if (candleLessCount > 0) {
+    notes.push({
+      code: "candle_less_sessions_excluded",
+      message: `${String(candleLessCount)} session(s) excluded from sessions, sharpe and exposure: no universe ticker had a candle that session (still counted in cagr's elapsed clock and in maxDrawdown/totalReturn, ADR-0041)`,
+    });
+  }
   if (state.equityCurve.some((p) => p.cash < 0)) {
     notes.push({
       code: "negative_cash",
@@ -1799,6 +1878,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           equityCurve: state.equityCurve,
           rfPerSession: state.rfPerSession,
           held: state.held,
+          observed,
+          postWarmup,
           operations: state.operations,
           fills: state.fills,
           taxes: state.taxesFinalized,
@@ -1828,13 +1909,51 @@ function isLastSessionOfMonth(
   return next === undefined || monthKeyOf(next.date) !== monthKey;
 }
 
-function buildMetricsInput(state: BacktestState, initialCapital: Centavos): MetricsInput {
+// ADR-0041: a session is in the warm-up prefix when it falls strictly before
+// firstTradableSession, or when firstTradableSession never resolved (the strategy could not
+// evaluate for the whole run); it is post-warm-up (and observed, additionally, when it also
+// carries a universe candle) otherwise. `inWarmup` gates both return values below, so the
+// warm-up and candle-less exclusions are mutually exclusive by construction: a warm-up
+// session's own candle-less-ness, if any, is folded into the warm-up count rather than
+// double-counted as a gap, regardless of what the caller's own period bounds guarantee.
+function observedSessions(state: BacktestState): {
+  observed: boolean[];
+  postWarmup: boolean[];
+  warmupCount: number;
+  candleLessCount: number;
+} {
+  const firstTradable = state.firstTradableSession;
+  let warmupCount = 0;
+  let candleLessCount = 0;
+  const postWarmup: boolean[] = [];
+  const observed = state.equityCurve.map((point, i) => {
+    const inWarmup = firstTradable === null || point.session < firstTradable;
+    postWarmup.push(!inWarmup);
+    if (inWarmup) {
+      warmupCount += 1;
+      return false;
+    }
+    const hasCandle = state.hasCandle[i] ?? false;
+    if (!hasCandle) candleLessCount += 1;
+    return hasCandle;
+  });
+  return { observed, postWarmup, warmupCount, candleLessCount };
+}
+
+function buildMetricsInput(
+  state: BacktestState,
+  initialCapital: Centavos,
+  observed: readonly boolean[],
+  postWarmup: readonly boolean[],
+): MetricsInput {
   const settled = state.operations.filter(isSettledOperation);
   return {
     equityCurve: state.equityCurve,
     initialCapital,
     rfPerSession: state.rfPerSession,
     held: state.held,
+    observed,
+    postWarmup,
     settledOperationPnls: settled.map((op) => op.pnl),
     operationsCount: state.operations.length,
     fees: sumCentavos(state.fills.map((f) => f.costs)),
