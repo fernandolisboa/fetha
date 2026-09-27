@@ -31,9 +31,9 @@ sign-up then resends the verification link to that pending account (ADR-0028), a
 spends the invite with the account's id. `hasPendingInvite` and the invite-mode sign-up policy are
 unchanged. `consumePendingInvite` still matches only a pending row, so a spent invite is never
 spent again. An invite spent at sign-up before this change may belong to an account the purge
-later deletes. The foreign key leaves that invite with no owner, and the purge then reopens every
-spent invite without one. It runs this step after the delete, so an account that verifies in
-between keeps its invite.
+later deletes. The purge notes the invites those accounts hold, deletes the accounts (the foreign
+key leaves the invites with no owner), then reopens only those of the noted invites that really
+lost their owner, so an account that verifies in between keeps its invite.
 
 ## Considered options
 

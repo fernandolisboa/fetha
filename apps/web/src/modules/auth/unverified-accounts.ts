@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 
@@ -41,8 +41,9 @@ export async function purgeUnverifiedAccounts(
     // that one deletes the email's invite. An unverified account spends no
     // invite since docs/adr/0029; one spent at sign-up before it is left
     // with no owner by the foreign key and goes back to pending, so the
-    // invitee can still register. Reopening after the delete, never before,
-    // cannot touch an invite whose account verified in between.
+    // invitee can still register. Only the invites these accounts held, and
+    // only once the delete has left them ownerless: an account that verified
+    // in between keeps its invite.
     const stale = await db
       .select({ id: user.id })
       .from(user)
@@ -51,15 +52,29 @@ export async function purgeUnverifiedAccounts(
     if (ids.length === 0) {
       return { ok: true, deleted: 0 };
     }
+    const heldInvites = await db
+      .select({ id: invites.id })
+      .from(invites)
+      .where(inArray(invites.consumedByUserId, ids));
     const deleted = await db
       .delete(user)
       .where(and(inArray(user.id, ids), eq(user.emailVerified, false)))
       .returning({ id: user.id });
-    if (deleted.length > 0) {
+    if (heldInvites.length > 0) {
       await db
         .update(invites)
         .set({ consumedAt: null })
-        .where(and(isNull(invites.consumedByUserId), isNotNull(invites.consumedAt)));
+        .where(
+          and(
+            inArray(
+              invites.id,
+              heldInvites.map((row) => row.id),
+            ),
+            isNull(invites.consumedByUserId),
+          ),
+        );
+    }
+    if (deleted.length > 0) {
       await db.delete(verification).where(
         inArray(
           verification.value,
