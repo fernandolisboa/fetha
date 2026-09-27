@@ -18,7 +18,7 @@ data, the catalog and strategies a user chose to share.
 
 | module        | owns                                                                                                                                                                                                                             | exposes                                                                                |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts                                                 | the current user                                                                       |
+| `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts and expired sessions                            | the current user                                                                       |
 | `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                      | the current user's access log; `recordAccess` for read models                          |
 | `account`     | nothing of its own: the user's data export, assembled from every module's own export                                                                                                                                             | the export document                                                                    |
 | `preferences` | per-user workstation settings (theme, rail collapse state)                                                                                                                                                                       | the current user's preferences                                                         |
@@ -117,4 +117,4 @@ account rate-limit keys hashed and purged (0024), a PWA that caches build output
 HTTP security headers on every response (0026), LGPD: access log, data export and account
 deletion (0027), email-first registration and the purge of unverified accounts (0028), invites spent by mailbox
 proof (0029), verification tokens stored hashed (0030), mail sent after the response and a
-failures-only sign-in account bucket (0031).
+failures-only sign-in account bucket (0031), expired sessions purged nightly (0033).

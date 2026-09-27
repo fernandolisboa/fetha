@@ -10,6 +10,7 @@ import type { Database } from "@/db/client";
 
 import { FakeMailer } from "./email/fake-mailer";
 import { buildAuthOptions, buildUserCreateOverrides } from "./options";
+import { SESSION_EXPIRES_IN_DAYS } from "./session-lifetime";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
 describe("buildUserCreateOverrides", () => {
@@ -32,6 +33,15 @@ describe("buildUserCreateOverrides", () => {
 });
 
 describe("buildAuthOptions", () => {
+  it("ends a session after the lifetime the privacy policy states (#146)", () => {
+    const fakeDb = {} as Database;
+    const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };
+
+    const options = buildAuthOptions(fakeDb, fakeEnv, new FakeMailer());
+
+    expect(options.session.expiresIn).toBe(SESSION_EXPIRES_IN_DAYS * 24 * 60 * 60);
+  });
+
   it("enables the Drizzle adapter's transaction option, so user + account creation is atomic", () => {
     const fakeDb = {} as Database;
     const fakeEnv = { BETTER_AUTH_SECRET: "test-secret", BETTER_AUTH_URL: "http://localhost:3000" };

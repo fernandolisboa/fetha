@@ -5,13 +5,17 @@ const evaluateSignalsMock = vi.hoisted(() => vi.fn());
 const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 const purgeUnverifiedAccountsMock = vi.hoisted(() => vi.fn());
+const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
 vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
-vi.mock("@/modules/auth", () => ({ purgeUnverifiedAccounts: purgeUnverifiedAccountsMock }));
+vi.mock("@/modules/auth", () => ({
+  purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
+  purgeExpiredSessions: purgeExpiredSessionsMock,
+}));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -27,6 +31,7 @@ describe("cron ingest route", () => {
     });
     purgeExpiredAccessLogMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeUnverifiedAccountsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
+    purgeExpiredSessionsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
@@ -184,6 +189,52 @@ describe("cron ingest route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ unverifiedAccountPurge: { ok: false } });
+  });
+
+  it("purges expired sessions on every run and reports it", async () => {
+    purgeExpiredSessionsMock.mockResolvedValue({ ok: true, deleted: 3 });
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(purgeExpiredSessionsMock).toHaveBeenCalledTimes(1);
+    expect(await response.json()).toMatchObject({ sessionPurge: { ok: true, deleted: 3 } });
+  });
+
+  it("stays 200 when the expired-session purge fails", async () => {
+    purgeExpiredSessionsMock.mockResolvedValue({ ok: false });
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/cron/ingest", {
+        headers: { authorization: "Bearer test-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ sessionPurge: { ok: false } });
+  });
+
+  it("runs every retention purge even when ingestion throws (#146)", async () => {
+    ingestMock.mockRejectedValue(new Error("database unreachable"));
+    const { GET } = await import("./route");
+
+    await expect(
+      GET(
+        new Request("http://localhost/api/cron/ingest", {
+          headers: { authorization: "Bearer test-secret" },
+        }),
+      ),
+    ).rejects.toThrow("database unreachable");
+
+    expect(purgeExpiredAccessLogMock).toHaveBeenCalledTimes(1);
+    expect(purgeUnverifiedAccountsMock).toHaveBeenCalledTimes(1);
+    expect(purgeExpiredSessionsMock).toHaveBeenCalledTimes(1);
   });
 
   it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {

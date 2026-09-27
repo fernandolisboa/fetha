@@ -64,7 +64,7 @@ Cycles are not forbidden by lint. One exists today, through `client.ts` on both 
 Pages under `src/app/(shell)/…` and the public auth pages are thin: get the session, call one
 or two module entry points, render. Route handlers under `src/app/api/` are the four adapters
 (`auth/[...all]` delegates to Better Auth; `account/export` streams the signed-in user's data export (ADR-0027); `cron/ingest` authenticates the bearer, runs
-`ingest`, then `evaluateSignalsForSession`, then `scoreDueDecisions`, then `purgeExpiredAccessLog`, one shared `maxDuration`
+`purgeExpiredAccessLog`, `purgeUnverifiedAccounts` and `purgeExpiredSessions` first (ADR-0033), then `ingest`, then `evaluateSignalsForSession`, then `scoreDueDecisions`, one shared `maxDuration`
 budget; a failed ingest still turns the response into a 500 (`ingest`'s own `ok` decides the
 status), but evaluation's and scoring's own failures are reported alongside an otherwise
 successful ingest's 200 rather than turning it into one;

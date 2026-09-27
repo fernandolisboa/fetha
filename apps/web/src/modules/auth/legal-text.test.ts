@@ -4,11 +4,12 @@ import { ACCESS_LOG_RETENTION_DAYS } from "@/modules/audit";
 
 import { ACCOUNT_BUCKET_RETENTION_SECONDS } from "./account-rate-limit";
 import { legalText } from "./legal-text";
+import { SESSION_EXPIRES_IN_DAYS } from "./session-lifetime";
 import { CURRENT_TERMS_VERSION } from "./terms";
 import { UNVERIFIED_ACCOUNT_RETENTION_HOURS } from "./unverified-accounts";
 
 function versionDate(version: string): string {
-  const [year, month, day] = version.split("-");
+  const [year, month, day] = version.slice(0, 10).split("-");
   return `${day ?? ""}/${month ?? ""}/${year ?? ""}`;
 }
 
@@ -52,5 +53,13 @@ describe("legal text", () => {
     expect(text).toContain("Cada e-mail digitado no cadastro");
     expect(ACCOUNT_BUCKET_RETENTION_SECONDS).toBe(60);
     expect(text).toContain("depois de passado um minuto");
+    expect(text).toContain(`no máximo, ${String(SESSION_EXPIRES_IN_DAYS)} dias sem uso`);
+  });
+
+  it("states the same retention numbers in English", () => {
+    const text = fullText("en");
+    expect(text).toContain(`after ${String(ACCESS_LOG_RETENTION_DAYS)} days`);
+    expect(text).toContain(`within ${String(UNVERIFIED_ACCOUNT_RETENTION_HOURS)} hours is deleted`);
+    expect(text).toContain(`at most ${String(SESSION_EXPIRES_IN_DAYS)} days without use`);
   });
 });

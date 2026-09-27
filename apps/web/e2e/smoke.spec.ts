@@ -14,5 +14,5 @@ test("terms of use and privacy policy are public and dated", async ({ page }) =>
   await expect(
     page.getByRole("heading", { level: 1, name: "Política de privacidade" }),
   ).toBeVisible();
-  await expect(page.getByText(/^Versão de \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
+  await expect(page.getByText(/^Versão de \d{2}\/\d{2}\/\d{4}(, revisão \d+)?$/)).toBeVisible();
 });
