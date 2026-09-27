@@ -274,37 +274,30 @@ export function computePayoffProfile(
 
   const evaluated = points.map((p) => ({ point: p, value: payoffAt(legs, p) }));
 
-  const breakEvens: DecimalString[] = [];
+  const rawBreakEvens: DecimalString[] = [];
   const n = evaluated.length;
   let i = 0;
   while (i < n) {
     const point = assertDefined(evaluated[i], "computePayoffProfile: index within bounds");
     if (point.value.isZero()) {
-      // A run of consecutive zero-valued sampled points is one plateau, not one break-even
-      // per point (#135): the leg-sampled points here are only 0 and each leg's strike, so
-      // the payoff is exactly linear between consecutive samples and a run can only leave
-      // zero at its own boundary. Report the boundary(ies) where the payoff is nonzero on
-      // the adjacent side; a run touching neither side (the whole domain payoff is 0, i.e.
-      // slopeAtInfinity is also 0) is a flat, delta-neutral payoff with no distinguished
-      // crossing (#54 follow-up review, quant/correctness item 3, kept by PR #134).
+      // The payoff is linear between consecutive samples, so a run of zero-valued samples
+      // can only be left at its own ends; an identically-zero payoff has no crossing
+      // (#54 follow-up review, quant/correctness item 3, kept by PR #134).
       const runStart = i;
       let runEnd = i;
       while (runEnd + 1 < n && evaluated[runEnd + 1]?.value.isZero()) runEnd += 1;
       const hasLeftNeighbour = runStart > 0;
       const hasRightSample = runEnd + 1 < n;
       const hasRightInfinity = !hasRightSample && slopeAtInfinity !== 0;
-      const entryPoint = hasLeftNeighbour
-        ? assertDefined(evaluated[runStart], "computePayoffProfile: run start within bounds").point
-        : undefined;
-      const exitPoint =
-        hasRightSample || hasRightInfinity
-          ? assertDefined(evaluated[runEnd], "computePayoffProfile: run end within bounds").point
-          : undefined;
-      if (entryPoint && exitPoint && entryPoint.eq(exitPoint)) {
-        breakEvens.push(toDecimalString(entryPoint, PRICE_SCALE));
-      } else {
-        if (entryPoint) breakEvens.push(toDecimalString(entryPoint, PRICE_SCALE));
-        if (exitPoint) breakEvens.push(toDecimalString(exitPoint, PRICE_SCALE));
+      if (hasLeftNeighbour) {
+        rawBreakEvens.push(toDecimalString(point.point, PRICE_SCALE));
+      }
+      if (hasRightSample || hasRightInfinity) {
+        const exitPoint = assertDefined(
+          evaluated[runEnd],
+          "computePayoffProfile: run end within bounds",
+        ).point;
+        rawBreakEvens.push(toDecimalString(exitPoint, PRICE_SCALE));
       }
       i = runEnd + 1;
       continue;
@@ -313,7 +306,7 @@ export function computePayoffProfile(
     if (next && !next.value.isZero() && point.value.isNeg() !== next.value.isNeg()) {
       const ratio = point.value.neg().div(next.value.sub(point.value));
       const crossing = point.point.add(next.point.sub(point.point).mul(ratio));
-      breakEvens.push(toDecimalString(crossing, PRICE_SCALE));
+      rawBreakEvens.push(toDecimalString(crossing, PRICE_SCALE));
     }
     i += 1;
   }
@@ -325,8 +318,12 @@ export function computePayoffProfile(
     last.value.isNeg() !== slopeAtInfinity < 0
   ) {
     const crossing = last.point.sub(last.value.div(slopeAtInfinity));
-    breakEvens.push(toDecimalString(crossing, PRICE_SCALE));
+    rawBreakEvens.push(toDecimalString(crossing, PRICE_SCALE));
   }
+  // Two crossings less than half a cent apart round to the same PRICE_SCALE value (e.g. a
+  // plateau bounded by strikes 39.999 and 40.001, or two interpolated crossings that land on
+  // the same cent): dedup on the emitted string, once, here.
+  const breakEvens = [...new Set(rawBreakEvens)];
 
   const values = evaluated.map((e) => e.value);
   const minValue = Decimal.min(...values);

@@ -1,8 +1,10 @@
+import Decimal from "decimal.js";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { Structure } from "@fetha/contracts";
 import type { MarketView, OptionSeries } from "../api";
 import { centavos, dailyCalendar, decimalString, quantity } from "../test/support";
+import { PRICE_SCALE, toDecimalString } from "./decimal";
 import { priceOperation } from "./price-operation";
 
 const calendar = dailyCalendar(2, 20);
@@ -1814,7 +1816,176 @@ describe("priceOperation (break-evens on zero-valued plateaus, #135)", () => {
     expect(result.value.breakEvens).toEqual([decimalString("30.00"), decimalString("40.00")]);
   });
 
-  it("every reported break-even is a sampled zero point with a nonzero neighbour, and never duplicated (property)", () => {
+  it("dedups two crossings less than half a cent apart to one break-even (put30/39.999 credit spread + call40.001/50 credit spread, all @2.00)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P30", "30.00"), right: "put" },
+        { ...callSeries("PETR4P40A", "39.999"), right: "put" },
+        callSeries("PETR4C40B", "40.001"),
+        callSeries("PETR4C50", "50.00"),
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "put",
+            side: "buy",
+            ticker: "PETR4P30",
+            quantity: quantity(1),
+            price: decimalString("2.00"),
+          },
+          {
+            role: "put",
+            side: "sell",
+            ticker: "PETR4P40A",
+            quantity: quantity(1),
+            price: decimalString("2.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C40B",
+            quantity: quantity(1),
+            price: decimalString("2.00"),
+          },
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C50",
+            quantity: quantity(1),
+            price: decimalString("2.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The plateau's true boundaries are 39.999 and 40.001: half a cent apart, both round to
+    // 40.00 (#135 review item 1). Without the final dedup this reports ["40.00","40.00"].
+    expect(result.value.breakEvens).toEqual([decimalString("40.00")]);
+  });
+
+  it("zero-premium long call (buy call40@0.00): unbounded upside touches zero only at its own strike", () => {
+    const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            price: decimalString("0.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("40.00")]);
+  });
+
+  it("its sell mirror (sell call40@0.00): unbounded downside touches zero only at its own strike", () => {
+    const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            price: decimalString("0.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("40.00")]);
+  });
+
+  it("protective put (buy stock@25.00, buy put30@5.00): break-even is the entry price plus the premium, 30.00", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4P30", "30.00"), right: "put" }],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(1),
+            price: decimalString("25.00"),
+          },
+          {
+            role: "put",
+            side: "buy",
+            ticker: "PETR4P30",
+            quantity: quantity(1),
+            price: decimalString("5.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("30.00")]);
+  });
+
+  it("synthetic long (sell put30@5.00, buy call30@5.00): the single zero touch at the shared strike is reported exactly once", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P30", "30.00"), right: "put" },
+        callSeries("PETR4C30", "30.00"),
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "put",
+            side: "sell",
+            ticker: "PETR4P30",
+            quantity: quantity(1),
+            price: decimalString("5.00"),
+          },
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C30",
+            quantity: quantity(1),
+            price: decimalString("5.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("30.00")]);
+  });
+
+  it("vertical call spreads (premiums matched about half the time to force a zero-valued plateau): break-evens are never duplicated, and every one that lands on a sampled strike or 0 has a nonzero neighbour on at least one side (property)", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 20, max: 80 }),
@@ -1823,10 +1994,20 @@ describe("priceOperation (break-evens on zero-valued plateaus, #135)", () => {
         fc.integer({ min: 1, max: 3000 }),
         fc.constantFrom("buy", "sell"),
         fc.constantFrom("buy", "sell"),
-        (lowerStrike, width, buyPremiumCents, sellPremiumCents, lowerSide, upperSide) => {
+        fc.boolean(),
+        (
+          lowerStrike,
+          width,
+          lowerPremiumCents,
+          upperPremiumCentsRaw,
+          lowerSide,
+          upperSide,
+          matchPremiums,
+        ) => {
           const upperStrike = lowerStrike + width;
-          const buyPremium = (buyPremiumCents / 100).toFixed(2);
-          const sellPremium = (sellPremiumCents / 100).toFixed(2);
+          const upperPremiumCents = matchPremiums ? lowerPremiumCents : upperPremiumCentsRaw;
+          const lowerPremium = (lowerPremiumCents / 100).toFixed(2);
+          const upperPremium = (upperPremiumCents / 100).toFixed(2);
           const view: MarketView = {
             ...baseView,
             optionSeries: [
@@ -1844,14 +2025,14 @@ describe("priceOperation (break-evens on zero-valued plateaus, #135)", () => {
                   side: lowerSide,
                   ticker: "PETR4CL",
                   quantity: quantity(1),
-                  price: decimalString(buyPremium),
+                  price: decimalString(lowerPremium),
                 },
                 {
                   role: "call",
                   side: upperSide,
                   ticker: "PETR4CU",
                   quantity: quantity(1),
-                  price: decimalString(sellPremium),
+                  price: decimalString(upperPremium),
                 },
               ],
             },
@@ -1859,17 +2040,39 @@ describe("priceOperation (break-evens on zero-valued plateaus, #135)", () => {
           );
           if (!result.ok) return false;
           const { breakEvens, payoff } = result.value;
-          const unique = new Set(breakEvens);
-          if (unique.size !== breakEvens.length) return false;
+
+          if (new Set(breakEvens).size !== breakEvens.length) return false;
+
+          const signOf = (side: "buy" | "sell") => (side === "buy" ? 1 : -1);
+          const callIntrinsic = (spot: Decimal, strike: number) => Decimal.max(spot.sub(strike), 0);
+          const valueAt = (spot: Decimal) =>
+            callIntrinsic(spot, lowerStrike)
+              .sub(lowerPremium)
+              .mul(signOf(lowerSide))
+              .add(callIntrinsic(spot, upperStrike).sub(upperPremium).mul(signOf(upperSide)));
+          const slopeAtInfinity = signOf(lowerSide) + signOf(upperSide);
+          const keypoints = [new Decimal(0), new Decimal(lowerStrike), new Decimal(upperStrike)];
+          const values = keypoints.map(valueAt);
+
           for (const be of breakEvens) {
             const point = payoff.find((p) => p.underlying === be);
-            if (!point) continue;
-            if (Math.abs(point.pnl) > 1) return false;
+            if (!point) return false;
+
+            const keypointIndex = keypoints.findIndex(
+              (k) => toDecimalString(k, PRICE_SCALE) === be,
+            );
+            if (keypointIndex === -1) continue;
+            const leftNonzero = keypointIndex > 0 && !values[keypointIndex - 1]?.isZero();
+            const rightNonzero =
+              keypointIndex < keypoints.length - 1
+                ? !values[keypointIndex + 1]?.isZero()
+                : slopeAtInfinity !== 0;
+            if (!leftNonzero && !rightNonzero) return false;
           }
           return true;
         },
       ),
-      { numRuns: 100 },
+      { numRuns: 200 },
     );
   });
 });
