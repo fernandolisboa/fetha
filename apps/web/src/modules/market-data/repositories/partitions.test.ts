@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+
+import type { Database } from "@/db/client";
+
+import { ensureMonthlyPartition } from "./partitions";
+
+function rejectingDb(error: Error): Database {
+  return { execute: () => Promise.reject(error) } as unknown as Database;
+}
+
+function drizzleQueryError(code: string): Error {
+  return new Error("Failed query: select create_monthly_partitions(...)", {
+    cause: Object.assign(new Error("relation already exists"), { code }),
+  });
+}
+
+describe("ensureMonthlyPartition", () => {
+  it("swallows a concurrent caller's duplicate table error wrapped by drizzle", async () => {
+    await expect(
+      ensureMonthlyPartition(rejectingDb(drizzleQueryError("42P07")), "candles", "2031-06-01"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("swallows the pg_type unique violation a concurrent CREATE TABLE can raise instead", async () => {
+    await expect(
+      ensureMonthlyPartition(rejectingDb(drizzleQueryError("23505")), "candles", "2031-06-01"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("swallows an unwrapped duplicate table error", async () => {
+    const error = Object.assign(new Error("relation already exists"), { code: "42P07" });
+    await expect(
+      ensureMonthlyPartition(rejectingDb(error), "candles", "2031-06-01"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rethrows any other error", async () => {
+    await expect(
+      ensureMonthlyPartition(rejectingDb(drizzleQueryError("42501")), "candles", "2031-06-01"),
+    ).rejects.toThrow("Failed query");
+  });
+});

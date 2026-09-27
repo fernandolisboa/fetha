@@ -3,13 +3,21 @@ import { sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 
 const DUPLICATE_TABLE = "42P07";
+const UNIQUE_VIOLATION = "23505";
 
-function isDuplicateTableError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === DUPLICATE_TABLE
+function postgresCode(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+}
+
+// Drizzle wraps the driver's error in a "Failed query" error whose `cause` carries the Postgres
+// code. Two sessions racing CREATE TABLE IF NOT EXISTS fail with 42P07, or with 23505 on
+// pg_type's unique index when both pass the existence check.
+function isConcurrentCreateError(error: unknown): boolean {
+  const cause = error instanceof Error ? error.cause : undefined;
+  return [postgresCode(error), postgresCode(cause)].some(
+    (code) => code === DUPLICATE_TABLE || code === UNIQUE_VIOLATION,
   );
 }
 
@@ -18,8 +26,8 @@ function isDuplicateTableError(error: unknown): boolean {
 // ingestion write is idempotent (CREATE TABLE IF NOT EXISTS internally), so a
 // month that already has a partition is a no-op and a new month never needs
 // its own migration (docs/adr/0017). Two concurrent callers can still race
-// past the IF NOT EXISTS check between Postgres sessions; 42P07 from the
-// loser is swallowed here rather than failing the ingestion run.
+// past the IF NOT EXISTS check between Postgres sessions; the loser's error
+// is swallowed here rather than failing the ingestion run.
 export async function ensureMonthlyPartition(
   db: Database,
   parentTable: "candles" | "option_daily_prices",
@@ -32,7 +40,7 @@ export async function ensureMonthlyPartition(
       sql`select create_monthly_partitions(${parentTable}, ${monthStart}::date, ${monthEnd})`,
     );
   } catch (error) {
-    if (!isDuplicateTableError(error)) {
+    if (!isConcurrentCreateError(error)) {
       throw error;
     }
   }
