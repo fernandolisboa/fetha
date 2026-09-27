@@ -43,8 +43,10 @@ export async function* accountExportChunks(
     for (const [name, rows] of Object.entries(tables)) {
       yield `${firstTable ? "" : ","}${JSON.stringify(name)}:[`;
       firstTable = false;
-      for (const [index, row] of rows.entries()) {
-        yield `${index === 0 ? "" : ","}${JSON.stringify(row)}`;
+      let firstRow = true;
+      for await (const row of rows) {
+        yield `${firstRow ? "" : ","}${JSON.stringify(row)}`;
+        firstRow = false;
       }
       yield "]";
     }
