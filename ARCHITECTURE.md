@@ -120,7 +120,7 @@ is the natural next slice to split out; no other split is planned.
 ## Adding a module
 
 Create `modules/<m>/` with its `schema.ts`, repository, `index.ts` and (if needed) `client.ts`;
-add one line to `src/db/schema.ts`, one lint zone, one row above, and an isolation test for
+add one line to `src/db/schema.ts`, one row above, and an isolation test for
 every user-scoped table (CLAUDE.md principle 5). A module with user-scoped tables also exposes a
 `<Module>DataExport` and joins the `account` export list; the export test fails until it does
 (ADR-0027).
