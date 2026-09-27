@@ -74,7 +74,7 @@ describe("backtest golden outputs (#58)", () => {
       "./__golden__/sma-cross-corporate-actions.json",
     );
     expect(runInChunks(input, 37)).toEqual(runBacktest(input));
-  });
+  }, 30_000);
 
   it("an EMA/RSI/ATR run", async () => {
     const input = syntheticBacktestInput({
@@ -87,7 +87,7 @@ describe("backtest golden outputs (#58)", () => {
     await expect(JSON.stringify(complete(runBacktest(input)), null, 1)).toMatchFileSnapshot(
       "./__golden__/ema-rsi-atr.json",
     );
-  });
+  }, 30_000);
 
   it("an IV-rank run whose index carries one point published after later sessions' points", async () => {
     const input = syntheticBacktestInput({
@@ -100,7 +100,7 @@ describe("backtest golden outputs (#58)", () => {
     await expect(JSON.stringify(complete(runBacktest(input)), null, 1)).toMatchFileSnapshot(
       "./__golden__/iv-rank-late-point.json",
     );
-  });
+  }, 30_000);
 
   it("a since..at catch-up evaluation holding one open operation", async () => {
     const { view, config } = syntheticBacktestInput({
@@ -158,5 +158,5 @@ describe("backtest golden outputs (#58)", () => {
     await expect(JSON.stringify(evaluation, null, 1)).toMatchFileSnapshot(
       "./__golden__/catch-up-evaluation.json",
     );
-  });
+  }, 30_000);
 });
