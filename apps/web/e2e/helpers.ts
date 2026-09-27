@@ -1,5 +1,5 @@
 import type { APIRequestContext, Browser, Page } from "@playwright/test";
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { confirmEmailAndSetPassword, readLatestLink, signUp } from "./support";
 
@@ -22,6 +22,12 @@ export async function registerAndSignIn(
   return email;
 }
 
+// The nightly job's manual trigger runs for up to 300s (the same budget the
+// cron route and /configuracoes's own `maxDuration` share); the default 30s
+// test timeout and 5s expect timeout are both too short for it.
+const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
+const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
+
 // The nightly job's manual trigger moved from a `CRON_SECRET` bearer to the
 // owner's own session (#51, docs/adr/0042): specs that only need a session
 // re-ingested before their own flow (signals, decisions, scoring, backtest,
@@ -40,7 +46,15 @@ export async function triggerIngestionAsOwner(
     throw new Error("E2E_OWNER_EMAIL is not set");
   }
 
-  const context = await browser.newContext();
+  test.setTimeout(TEST_TIMEOUT_MS);
+
+  // `browser.newContext()` does not inherit `use.extraHTTPHeaders` from
+  // playwright.config.ts (only the `page`/`request` fixtures do): every
+  // preview run needs the Vercel Deployment Protection bypass header on
+  // this separate context too, or it hits the SSO challenge page instead of
+  // the app.
+  const extraHTTPHeaders = test.info().project.use.extraHTTPHeaders;
+  const context = await browser.newContext({ baseURL, extraHTTPHeaders });
   const page = await context.newPage();
 
   await page.goto(`${baseURL ?? ""}/link-magico`);
@@ -55,7 +69,7 @@ export async function triggerIngestionAsOwner(
   await page.goto(`${baseURL ?? ""}/configuracoes`);
   await page.getByLabel("Sessão (opcional)").fill(session);
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
-  await expect(page.getByText("Concluída")).toBeVisible();
+  await expect(page.getByText("Concluída")).toBeVisible({ timeout: NIGHTLY_JOB_TIMEOUT_MS });
 
   await context.close();
 }

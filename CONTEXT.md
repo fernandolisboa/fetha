@@ -12,7 +12,9 @@ on screen comes from the engine; the AI only reasons over engine output. The voc
 Multi-user by design, single user in practice. Each user analyzes their own capital with their
 own inputs and sees only their own operations, positions, decisions and analyses. Family and
 friends may register later (`REGISTRATION_MODE`). The only things users share are reference
-data, the catalog and strategies a user chose to share.
+data, the catalog and strategies a user chose to share. The owner (`OWNER_EMAILS`) is an operator
+capability over one system job, not a tenancy role — it changes nothing about the isolation above
+(ADR-0042).
 
 ## Modules
 

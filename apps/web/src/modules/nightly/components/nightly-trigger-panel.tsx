@@ -5,24 +5,70 @@ import { startTransition, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDate } from "@/lib/format/date-time";
+import { sessionDateToDisplayDate } from "@/modules/market-data";
 
 import { triggerNightlyJobAction, type TriggerNightlyJobResult } from "../actions";
 import { t } from "../strings";
 
-function sourceStatusLabel(source: { skipped: boolean; error?: string }): string {
-  if (source.error !== undefined) {
-    return t.panel.sourceFailed;
+type PanelResult = TriggerNightlyJobResult | { status: "client_error" };
+
+function sourceStatusLabel(status: "ok" | "skipped" | "failed"): string {
+  switch (status) {
+    case "ok":
+      return t.panel.sourceOk;
+    case "skipped":
+      return t.panel.sourceSkipped;
+    case "failed":
+      return t.panel.sourceFailed;
   }
-  if (source.skipped) {
-    return t.panel.sourceSkipped;
+}
+
+function ResultBody({ result }: { result: PanelResult }) {
+  switch (result.status) {
+    case "forbidden":
+      return <p>{t.panel.forbidden}</p>;
+    case "invalid_input":
+      return <p>{t.panel.invalidInput}</p>;
+    case "busy":
+      return <p>{t.panel.busy}</p>;
+    case "client_error":
+      return <p>{t.panel.unexpectedError}</p>;
+    case "ok":
+      return (
+        <div className="flex flex-col gap-1">
+          <p>{result.summary.ok ? t.panel.ok : t.panel.failed}</p>
+          <p>
+            {t.panel.session}:{" "}
+            {result.summary.session
+              ? formatDate(sessionDateToDisplayDate(result.summary.session))
+              : "—"}
+          </p>
+          <div>
+            <p className="text-muted-foreground">{t.panel.sources}</p>
+            <ul className="flex flex-col gap-0.5">
+              {result.summary.sources.map((source) => (
+                <li key={source.source}>
+                  {source.source}: {sourceStatusLabel(source.status)}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p>
+            {result.summary.signalsWritten === null
+              ? t.panel.evaluationSkipped
+              : t.panel.signalsWritten(result.summary.signalsWritten)}
+          </p>
+          <p>{t.panel.decisionsScored(result.summary.decisionsScored)}</p>
+        </div>
+      );
   }
-  return t.panel.sourceOk;
 }
 
 export function NightlyTriggerPanel() {
   const [session, setSession] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<TriggerNightlyJobResult | null>(null);
+  const [result, setResult] = useState<PanelResult | null>(null);
 
   function submit() {
     setPending(true);
@@ -34,7 +80,7 @@ export function NightlyTriggerPanel() {
         })
         .catch(() => {
           setPending(false);
-          setResult(null);
+          setResult({ status: "client_error" });
         });
     });
   }
@@ -63,29 +109,7 @@ export function NightlyTriggerPanel() {
       {result ? (
         <div className="border-border bg-muted/30 flex flex-col gap-2 rounded-[var(--radius)] border p-3 text-xs">
           <h3 className="text-sm font-medium">{t.panel.resultTitle}</h3>
-          {result.status === "forbidden" ? <p>{t.panel.forbidden}</p> : null}
-          {result.status === "invalid_input" ? <p>{t.panel.invalidInput}</p> : null}
-          {result.status === "ok" ? (
-            <div className="flex flex-col gap-1">
-              <p>{result.outcome.ok ? t.panel.ok : t.panel.failed}</p>
-              <p>
-                {t.panel.session}: {result.outcome.session ?? "—"}
-              </p>
-              <ul className="flex flex-col gap-0.5">
-                {result.outcome.sources.map((source) => (
-                  <li key={source.source}>
-                    {source.source}: {sourceStatusLabel(source)}
-                  </li>
-                ))}
-              </ul>
-              <p>
-                {result.outcome.evaluation
-                  ? t.panel.signalsWritten(result.outcome.evaluation.signalsWritten)
-                  : t.panel.evaluationSkipped}
-              </p>
-              <p>{t.panel.decisionsScored(result.outcome.scoring.decisionsScored)}</p>
-            </div>
-          ) : null}
+          <ResultBody result={result} />
         </div>
       ) : null}
     </div>

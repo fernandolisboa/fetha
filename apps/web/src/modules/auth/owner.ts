@@ -1,9 +1,7 @@
-import { headers } from "next/headers";
-
 import type { AuthEnv } from "./env";
 
-import { getAuth } from "./auth";
 import { readOwnerEmails } from "./env";
+import { getSession } from "./session";
 
 export interface OwnerCandidate {
   email: string;
@@ -13,7 +11,8 @@ export interface OwnerCandidate {
 // Pure so the allowlist and the verified-email requirement are unit
 // testable without a session; `isOwner` below is the server-only entry that
 // feeds it the signed-in session (#51: never an id or email the client
-// supplies).
+// supplies). Not re-exported from the module's own `index.ts`: nothing
+// outside `auth` needs it, only this file's own test.
 export function isOwnerEmail(
   candidate: OwnerCandidate | null,
   env: AuthEnv = process.env,
@@ -26,16 +25,9 @@ export function isOwnerEmail(
 }
 
 // The one place a manual trigger may check "is this the owner" (#51): reads
-// the session from the server's own request headers, never from a client-
-// supplied id, and requires the account's email to be verified.
+// the per-request-cached session (`getSession`, never an id or email a
+// client supplies) and requires the account's email to be verified.
 export async function isOwner(): Promise<boolean> {
-  const requestHeaders = await headers();
-  const session = await getAuth().api.getSession({ headers: requestHeaders });
-  if (!session) {
-    return false;
-  }
-  return isOwnerEmail({
-    email: session.user.email,
-    emailVerified: session.user.emailVerified,
-  });
+  const user = await getSession();
+  return isOwnerEmail(user);
 }

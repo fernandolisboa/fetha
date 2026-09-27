@@ -25,12 +25,17 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
    AI output at the edges with Zod, but reads its own server env the same untyped way
    `CRON_SECRET`, `E2E_SECRET` and `BETTER_AUTH_URL` already do).
 
-2. **`isOwner()`, the auth module's own public entry, decides.** It reads the session from the
-   server's own request headers (`getAuth().api.getSession`), never an id or email a client
-   supplies, and requires the account's email to be verified before checking it against
-   `OWNER_EMAILS`. The allowlist check and the verified-email requirement live in a pure
-   `isOwnerEmail(candidate, env)`, unit-testable without a session; `isOwner()` is the thin
-   session-reading wrapper around it.
+2. **`isOwner()`, the auth module's own public entry, decides.** It reads the per-request-cached
+   `getSession()` (the same session every page and Server Action already reads; `CurrentUser` grew
+   an `emailVerified` field for this), never an id or email a client supplies, and requires the
+   account's email to be verified before checking it against `OWNER_EMAILS`. The allowlist check
+   and the verified-email requirement live in a pure `isOwnerEmail(candidate, env)` inside
+   `owner.ts`, unit-testable without a session; `isOwner()` is the thin wrapper around it. Neither
+   is re-exported from the module's own `index.ts` — nothing outside `auth` needs them, only
+   `owner.ts`'s own test.
+   This is an operator capability over one system job, not a tenancy or data-access role:
+   `isOwner()` grants no read or write on another user's rows, and ADR-0016's "no roles" stands
+   unchanged (`UBIQUITOUS_LANGUAGE.md`'s "Owner" entry says so explicitly).
 
 3. **The nightly job's body moves out of the route, `apps/web/src/modules/nightly`.**
    `runNightlyJob(db, { session? })` holds the purge → ingest → evaluate → score sequence and the
@@ -55,11 +60,39 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
    default 405, never a code path that reads `CRON_SECRET` from a request a human sent.
 
 6. **E2E signs in as the owner instead of holding `CRON_SECRET`.** A fixed `E2E_OWNER_EMAIL`
-   account (added to the preview's `OWNER_EMAILS`) signs in through the same E2E-only
-   verification-link route every other spec uses, then drives `/configuracoes`'s trigger form; a
-   new `triggerIngestionAsOwner` helper opens that as a separate browser context so specs that need
-   a session of their own (signals, decisions, backtest, compare, scoring) can still register their
-   own throwaway account alongside it.
+   account (added to the preview's `OWNER_EMAILS`) signs in through a magic link — never a password
+   this suite doesn't know — then drives `/configuracoes`'s trigger form; a new
+   `triggerIngestionAsOwner` helper opens that as a separate browser context, with its own
+   `extraHTTPHeaders` (Vercel's Deployment Protection bypass, which a fresh context does not
+   inherit from `playwright.config.ts`) and a budget long enough for the job's own 300s, so specs
+   that need a session of their own (signals, decisions, backtest, compare, scoring) can still
+   register their own throwaway account alongside it. Every spec that signs `E2E_OWNER_EMAIL` in is
+   serialized into its own Playwright project (`owner`, mirroring the existing `auth` project):
+   `readLatestLink` reads back the _latest_ link for that one mailbox, so two of these running at
+   once could each observe the other's magic link.
+
+7. **The action returns a redacted summary, never the full `NightlyJobOutcome`.** Another user's
+   `decisionId` (`scoring.errors`) and a provider's raw error string (`sources[].error`) are for the
+   cron response and its own logs only; `TriggerNightlyJobSummary` carries `ok`, `session`, a
+   per-source `status` (`ok`/`skipped`/`failed`) and the two counts (`signalsWritten`,
+   `decisionsScored`) the panel renders.
+
+8. **An in-process guard rejects a concurrent manual trigger with `{ status: "busy" }`.** A
+   module-level flag in `actions.ts`, set for the duration of `runNightlyJob`, guards only this
+   action; the cron route never goes through it, so `GET` always runs regardless. This is a
+   single-instance guard, not a cross-instance Postgres lock: holding a `pg_advisory_lock` across
+   the whole purge → ingest → evaluate → score span needs one pinned connection for that entire
+   span (`db.transaction`), which would change this repo's own documented contract that each purge
+   and `ingest` report their own outcome independently even when a later step throws
+   (`run-nightly-job.ts`) — wrapping the sequence in one transaction to hold that lock would
+   silently roll that contract back instead of just gating who may start a run. Revisit if the
+   owner ever runs this from more than one device at once in practice.
+
+9. **The manual trigger writes an access-log row, `nightly_triggered`.** A new `AccessEvent`
+   (`apps/web/src/modules/audit/events.ts`, migration `0021_access_log_nightly_triggered.sql` for
+   the table's check constraint) recorded through the audit module's own `recordAccess`, the same
+   way every other read or export of a user's data already is (ADR-0027) — the owner triggering a
+   run is itself an access worth a row in their own log.
 
 ## Consequences
 
@@ -74,3 +107,15 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
   `scoring.spec.ts`, `backtest.spec.ts` and `compare.spec.ts` need beyond `E2E_SECRET`.
 - `CONTEXT.md`'s description of the manual trigger is updated from "the owner's manual trigger:
   same bearer" to the session-authenticated Server Action described here.
+- **`E2E_OWNER_EMAIL` must be re-registered after every CI reset of `fetha-preview`.** CI resets
+  and re-migrates that database on every run (ADR-0016), which drops the account along with every
+  other row; the magic-link plugin runs with `disableSignUp: true` (options.ts), so
+  `triggerIngestionAsOwner` cannot self-provision it by clicking a magic link for an email that has
+  no account yet, the way a fresh throwaway account elsewhere in these specs self-registers. Until
+  a seeding step exists for this, re-running the owner-gated specs against a freshly reset preview
+  needs the owner account signed up and verified by hand first (the same one-time step
+  `scripts/seed-invite.mjs` already documents for `REGISTRATION_MODE=invite`) — this is a
+  known operational gap, not a design decision, and is deliberately left as a follow-up rather than
+  disabling `disableSignUp` (ADR-0018) to work around it.
+- A migration ships with this ADR: `apps/web/drizzle/0021_access_log_nightly_triggered.sql` adds
+  `nightly_triggered` to `access_log`'s event check constraint.

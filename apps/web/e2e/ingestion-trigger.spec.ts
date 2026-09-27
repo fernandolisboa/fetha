@@ -33,6 +33,10 @@ test("the owner's manual ingestion trigger runs for a given session", async ({
   baseURL,
   request,
 }) => {
+  // The nightly job's own budget is 300s; the default 30s test timeout and
+  // 5s expect timeout are both too short for it.
+  test.setTimeout(360_000);
+
   const secret: string = e2eSecret ?? "";
   const email: string = ownerEmail ?? "";
 
@@ -51,6 +55,6 @@ test("the owner's manual ingestion trigger runs for a given session", async ({
   await page.getByLabel("Sessão (opcional)").fill("2026-09-08");
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
 
-  await expect(page.getByText("Concluída")).toBeVisible();
-  await expect(page.getByText(/Sessão: 2026-09-08/)).toBeVisible();
+  await expect(page.getByText("Concluída")).toBeVisible({ timeout: 300_000 });
+  await expect(page.getByText(/Sessão: 08\/09\/2026/)).toBeVisible();
 });

@@ -418,6 +418,13 @@ One registered account and the tenant that scopes every domain table (`user_id`)
 households or shared workspaces (ADR-0016).
 _Avoid_: account, tenant (in code), member
 
+**Owner**:
+An account whose email is listed in `OWNER_EMAILS`, verified. An operator capability over a
+system job (today: the manual re-run of the nightly ingestion, ADR-0042), not a tenancy or
+data-access role — it grants no read or write on another user's rows, and the app otherwise has no
+roles (ADR-0016). Distinct from "user"/"tenant": ordinary multi-user isolation is unaffected.
+_Avoid_: admin, superuser, role
+
 **Invite**:
 An email address the owner has cleared to register while `REGISTRATION_MODE=invite`; consumed
 when someone proves they own that mailbox (verification link, magic link or password reset), not

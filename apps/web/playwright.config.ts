@@ -35,6 +35,22 @@ const authSpecs = [
   "shell.spec.ts",
 ];
 
+// Every one of these signs the same pre-provisioned E2E_OWNER_EMAIL account
+// in through a magic link (helpers.ts's triggerIngestionAsOwner, or
+// ingestion-trigger.spec.ts's own inline flow, #51). readLatestLink reads
+// back the *latest* link for that mailbox, so two of these running at once
+// (the "default" project's fullyParallel) could each read the other's link
+// mid-flight; serializing them the same way authSpecs already are is the
+// smallest fix.
+const ownerSpecs = [
+  "ingestion-trigger.spec.ts",
+  "signals.spec.ts",
+  "decisions.spec.ts",
+  "scoring.spec.ts",
+  "backtest.spec.ts",
+  "compare.spec.ts",
+];
+
 export default defineConfig({
   testDir: "./e2e",
   projects: [
@@ -45,9 +61,15 @@ export default defineConfig({
       workers: 1,
     },
     {
+      name: "owner",
+      testMatch: ownerSpecs,
+      fullyParallel: false,
+      workers: 1,
+    },
+    {
       name: "default",
       testMatch: /.*\.spec\.ts/,
-      testIgnore: authSpecs,
+      testIgnore: [...authSpecs, ...ownerSpecs],
       fullyParallel: true,
     },
   ],
