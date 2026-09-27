@@ -20,7 +20,10 @@ import {
   signUp,
 } from "./service";
 import { t } from "./strings";
+import { acceptTerms } from "./terms-consent";
+import { isCurrentTermsVersion, readTermsVersion } from "./terms-gate";
 import {
+  acceptTermsFormSchema,
   deleteAccountFormSchema,
   magicLinkFormSchema,
   requestPasswordResetFormSchema,
@@ -275,5 +278,51 @@ export async function deleteAccountAction(
       return { status: "error", message: errors.rateLimited };
     case "failed":
       return { status: "error", message: errors.deleteAccountFailed };
+  }
+}
+
+export async function acceptTermsAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const errors = t.errors;
+
+  const rawName = formData.get("name");
+  const parsed = acceptTermsFormSchema.safeParse({
+    name: typeof rawName === "string" && rawName.length > 0 ? rawName : undefined,
+    termsAccepted: formData.get("termsAccepted") === "on",
+    privacyAccepted: formData.get("privacyAccepted") === "on",
+  });
+
+  if (!parsed.success) {
+    return { status: "error", message: errors.invalidInput };
+  }
+
+  if (!parsed.data.termsAccepted || !parsed.data.privacyAccepted) {
+    return { status: "error", message: errors.termsRequired };
+  }
+
+  const outcome = await withAuthenticatedAction(async () => {
+    const currentUser = await requireUser();
+    const db = getDb();
+    const termsVersion = await readTermsVersion(db, currentUser);
+    if (isCurrentTermsVersion(termsVersion)) {
+      return { status: "already_current" } as const;
+    }
+    if (termsVersion === null && !parsed.data.name) {
+      return { status: "name_required" } as const;
+    }
+    await acceptTerms(db, currentUser, {
+      name: termsVersion === null ? parsed.data.name : undefined,
+    });
+    return { status: "ok" } as const;
+  });
+
+  switch (outcome.status) {
+    case "ok":
+    case "already_current":
+      redirect("/");
+    case "name_required":
+      return { status: "error", message: errors.nameRequired };
   }
 }

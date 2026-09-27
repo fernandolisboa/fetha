@@ -53,6 +53,15 @@ export const setPasswordFormSchema = z.object({
   newPassword: newPasswordField,
 });
 
+// `name` is validated with the same schema as sign-up whenever it is sent,
+// but is required only in the NULL-terms-version state; the action decides
+// that against the database, never against a client-supplied flag.
+export const acceptTermsFormSchema = z.object({
+  name: nameField.optional(),
+  termsAccepted: z.boolean(),
+  privacyAccepted: z.boolean(),
+});
+
 // The "check your email" screens read the address back from a query param
 // to echo it in the confirmation copy; that param is attacker-controlled
 // (it never round-trips through the server), so it is validated the same

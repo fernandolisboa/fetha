@@ -6,6 +6,7 @@ export {
   type AccountRateLimitRule,
 } from "./account-rate-limit";
 export {
+  acceptTermsAction,
   deleteAccountAction,
   requestPasswordResetAction,
   resendVerificationAction,
@@ -17,6 +18,7 @@ export {
   signUpAction,
 } from "./actions";
 export { authRouteHandlers } from "./auth";
+export { AcceptTermsForm } from "./components/accept-terms-form";
 export { AuthShell } from "./components/auth-shell";
 export { readE2EVerificationLink } from "./e2e-verification-link";
 export { isProductionDeployment, readE2ESecret } from "./env";
@@ -41,6 +43,7 @@ export {
 export { authStrings, t } from "./strings";
 export { TermsAcceptanceRepository, type TermsAcceptance } from "./terms-acceptance-repository";
 export { CURRENT_TERMS_VERSION } from "./terms";
+export { isCurrentTermsVersion, needsTermsReacceptance, readTermsVersion } from "./terms-gate";
 export { parseEmailQueryParam } from "./validation";
 export { AuthDataExport } from "./data-export";
 export { hasPassword } from "./credential";

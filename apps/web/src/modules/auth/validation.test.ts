@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  acceptTermsFormSchema,
   magicLinkFormSchema,
   parseEmailQueryParam,
   requestPasswordResetFormSchema,
@@ -129,6 +130,40 @@ describe("setPasswordFormSchema", () => {
   it("rejects a password shorter than 8 or longer than 128 characters", () => {
     expect(setPasswordFormSchema.safeParse({ newPassword: "short" }).success).toBe(false);
     expect(setPasswordFormSchema.safeParse({ newPassword: "x".repeat(129) }).success).toBe(false);
+  });
+});
+
+describe("acceptTermsFormSchema", () => {
+  it("accepts both checkboxes with no name", () => {
+    const result = acceptTermsFormSchema.safeParse({
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a name and trims it", () => {
+    const parsed = acceptTermsFormSchema.parse({
+      name: "  Nova User  ",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(parsed.name).toBe("Nova User");
+  });
+
+  it("rejects an invalid name when one is given", () => {
+    const result = acceptTermsFormSchema.safeParse({
+      name: "Nova http://evil.example",
+      termsAccepted: true,
+      privacyAccepted: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("parses unchecked boxes as false rather than failing", () => {
+    const parsed = acceptTermsFormSchema.parse({ termsAccepted: false, privacyAccepted: false });
+    expect(parsed.termsAccepted).toBe(false);
+    expect(parsed.privacyAccepted).toBe(false);
   });
 });
 

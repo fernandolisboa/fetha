@@ -93,7 +93,10 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
 }
 
 // The password is chosen after the verification link, which signs its
-// opener in (docs/adr/0016, #144); this leaves the page signed in on "/".
+// opener in (docs/adr/0016, #144). Verification also clears the sign-up
+// consent (docs/adr/0036), so setting the password lands on /aceitar-termos,
+// not the shell directly: the name field there is prefilled, so only the two
+// checkboxes need checking before this leaves the page signed in on "/".
 export async function confirmEmailAndSetPassword(
   page: Page,
   verificationLink: string,
@@ -104,6 +107,10 @@ export async function confirmEmailAndSetPassword(
   await expect(page).toHaveURL(/\/definir-senha/);
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page).toHaveURL(/\/aceitar-termos/);
+  await page.getByRole("checkbox", { name: /Aceito os termos de uso/ }).check();
+  await page.getByRole("checkbox", { name: /Aceito a política de privacidade/ }).check();
+  await page.getByRole("button", { name: "Aceitar e continuar" }).click();
   await expect(page).toHaveURL(baseURL ?? "/");
 }
 

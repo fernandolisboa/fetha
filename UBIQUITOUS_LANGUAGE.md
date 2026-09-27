@@ -398,9 +398,11 @@ at sign-up (ADR-0029). Not scoped to a user: it has none until consumed.
 _Avoid_: invitation code, whitelist entry
 
 **Terms acceptance**:
-The record that a user accepted the terms of use and privacy policy at registration, with the
-version accepted and the timestamp. Append-only: a later terms version adds a new row, never
-overwrites one.
+The record that a user accepted the terms of use and privacy policy, with the version accepted
+and the timestamp. Append-only: a later terms version adds a new row, never overwrites one. The
+`user` row's own `terms_version`/`terms_accepted_at` is the current consent of record; it is NULL
+on a verified account whose owner has not accepted yet (docs/adr/0036), which the re-acceptance
+gate (`/aceitar-termos`) blocks the shell on.
 _Avoid_: consent, agreement
 
 **Magic link**:

@@ -242,6 +242,42 @@ export function buildAuthOptions(
     },
     databaseHooks: {
       user: {
+        update: {
+          // The verification link and a magic-link sign-in of an unverified
+          // account both flip `emailVerified` through Better Auth's own
+          // `updateUser` (its `revokeUnprovenAccountAccess`, magic-link
+          // plugin), which is the only path that ever sends
+          // `emailVerified: true` here: both call sites read the current row
+          // first and return early when it is already verified (confirmed in
+          // better-auth/dist/api/routes/email-verification.mjs and
+          // db/revoke-unproven-account-access.mjs), so this never re-fires on
+          // an already-verified row. The consent stamped at sign-up predates
+          // that proof (docs/adr/0028's residual, closed by docs/adr/0036),
+          // so it is cleared in the same update the mailbox owner's proof
+          // triggers; a password reset on an unverified account goes through
+          // `markEmailVerified` instead (`unverified-accounts.ts`), which
+          // clears the same two fields directly since it never calls
+          // `updateUser`.
+          before: (data: Record<string, unknown>) => {
+            if (data.emailVerified !== true) {
+              return Promise.resolve({ data });
+            }
+            return Promise.resolve({
+              data: { ...data, termsVersion: null, termsAcceptedAt: null },
+            });
+          },
+          // An invite is spent only by whoever proves they own its mailbox:
+          // whoever merely registers an invited email first cannot burn it
+          // (docs/adr/0029, #39).
+          after: async (updated) => {
+            // Typed non-null, but Better Auth passes the adapter's result, which is
+            // null when the row was deleted in between (the purge, an account deletion).
+            const updatedUser = updated as typeof updated | null;
+            if (updatedUser?.emailVerified) {
+              await consumePendingInviteSafely(db, updatedUser.email, updatedUser.id);
+            }
+          },
+        },
         create: {
           before: (user: { email: string }) => {
             return Promise.resolve({ data: buildUserCreateOverrides(user) });
@@ -254,19 +290,6 @@ export function buildAuthOptions(
               email: createdUser.email,
               termsAcceptedAt: termsAcceptedAt instanceof Date ? termsAcceptedAt : new Date(),
             });
-          },
-        },
-        update: {
-          // An invite is spent only by whoever proves they own its mailbox:
-          // whoever merely registers an invited email first cannot burn it
-          // (docs/adr/0029, #39).
-          after: async (updated) => {
-            // Typed non-null, but Better Auth passes the adapter's result, which is
-            // null when the row was deleted in between (the purge, an account deletion).
-            const updatedUser = updated as typeof updated | null;
-            if (updatedUser?.emailVerified) {
-              await consumePendingInviteSafely(db, updatedUser.email, updatedUser.id);
-            }
           },
         },
       },

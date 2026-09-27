@@ -7,8 +7,13 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
-  termsVersion: text("terms_version").notNull(),
-  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }).notNull(),
+  // Nullable only on a verified account whose owner has not accepted the
+  // current terms yet (docs/adr/0036): cleared at the unverified->verified
+  // flip, stamped again once the owner accepts through /aceitar-termos.
+  // Never null before verification (docs/adr/0016's create hook still stamps
+  // both fields into the very first INSERT).
+  termsVersion: text("terms_version"),
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
