@@ -188,13 +188,23 @@ describe("0020_backfill_evaluation_reason.sql", () => {
 
     // A zero-base sentence recorded alongside `insufficient_data` instead
     // of `conditions_not_met` (a shape only a pre-#80 row can carry): #80's
-    // own current logic names that combination `exit_rule_unknown`.
-    const insufficientDataZeroBaseRow: SeedRow & { expectedReason: string } = {
-      ticker: randomTicker(),
-      outcome: "insufficient_data",
-      detail: "stop_loss cannot fire: the operation's max-loss base is zero",
-      expectedReason: "exit_rule_unknown",
-    };
+    // own current logic names that combination `exit_rule_unknown`. Both
+    // zero-base sentences (stop_loss and profit_target) go through the same
+    // companion statement.
+    const insufficientDataZeroBaseRows: (SeedRow & { expectedReason: string })[] = [
+      {
+        ticker: randomTicker(),
+        outcome: "insufficient_data",
+        detail: "stop_loss cannot fire: the operation's max-loss base is zero",
+        expectedReason: "exit_rule_unknown",
+      },
+      {
+        ticker: randomTicker(),
+        outcome: "insufficient_data",
+        detail: "profit_target cannot fire: the operation's premium base is zero",
+        expectedReason: "exit_rule_unknown",
+      },
+    ];
 
     const webCodeRows: {
       ticker: Ticker;
@@ -249,8 +259,18 @@ describe("0020_backfill_evaluation_reason.sql", () => {
       detail: "sizing yields fewer than one unit",
     };
 
+    // Guards the starts_with fix: this detail is not the `engine_error:`
+    // prefix (an underscore is a single-character LIKE wildcard, so a
+    // pre-fix version of this migration built on LIKE could have matched a
+    // string it should not), so it must stay unbackfilled.
+    const startsWithGuardRow: SeedRow = {
+      ticker: randomTicker(),
+      outcome: "insufficient_data",
+      detail: "engine_errorXcode:foo",
+    };
+
     await db.insert(evaluations).values(
-      [...legacySentenceRows, insufficientDataZeroBaseRow, untouchedRow]
+      [...legacySentenceRows, ...insufficientDataZeroBaseRows, untouchedRow, startsWithGuardRow]
         .map((row) => ({
           userId: owner.id,
           strategyId: strategy.id,
@@ -296,8 +316,10 @@ describe("0020_backfill_evaluation_reason.sql", () => {
       expect(row?.reason, `reason for ${ticker}`).toBe(expectedReason);
     }
 
-    const zeroBaseRow = byTicker.get(insufficientDataZeroBaseRow.ticker);
-    expect(zeroBaseRow?.reason).toBe(insufficientDataZeroBaseRow.expectedReason);
+    for (const { ticker, expectedReason } of insufficientDataZeroBaseRows) {
+      const row = byTicker.get(ticker);
+      expect(row?.reason, `reason for ${ticker}`).toBe(expectedReason);
+    }
 
     for (const { ticker, expectedReason, expectedDetail } of webCodeRows) {
       const row = byTicker.get(ticker);
@@ -308,5 +330,9 @@ describe("0020_backfill_evaluation_reason.sql", () => {
     const untouched = byTicker.get(untouchedRow.ticker);
     expect(untouched?.reason).toBeNull();
     expect(untouched?.detail).toBe("sizing yields fewer than one unit");
+
+    const guarded = byTicker.get(startsWithGuardRow.ticker);
+    expect(guarded?.reason).toBeNull();
+    expect(guarded?.detail).toBe("engine_errorXcode:foo");
   });
 });

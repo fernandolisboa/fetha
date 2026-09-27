@@ -14,7 +14,11 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { candles, tradingSessions } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
+import {
+  loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
+} from "@/modules/market-data";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { RiskProfileRepository } from "@/modules/portfolio";
@@ -805,6 +809,40 @@ describe("evaluateSignalsForSession", () => {
     );
     const survivingLog = log.filter((row) => row.strategyId === survivingId);
     expect(survivingLog.some((row) => row.outcome !== "insufficient_data")).toBe(true);
+  });
+
+  it("records reason market_view_too_large, not no_market_data, when loadMarketView throws MarketViewTooLargeError (#133)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("too-large-view");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    loadMarketViewMock.mockImplementation(() => {
+      throw new MarketViewTooLargeError("option chain crosses the bind-list cap");
+    });
+
+    const outcome = await evaluateSignalsForSession(db, [session]);
+    expect(outcome.errors).toContain("market_view_too_large");
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    expect(log.some((row) => row.reason === "market_view_too_large")).toBe(true);
+    expect(log.some((row) => row.reason === "no_market_data")).toBe(false);
   });
 
   it("checks the deadline inside the strategy loop, not only between users (round 3 item 2)", async () => {

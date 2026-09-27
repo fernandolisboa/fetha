@@ -8,10 +8,12 @@ import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vo
 // is an internal identifier, never surfaced — round 7 item 4's
 // collection-neutral copy carries forward unchanged), `engine_error` and
 // `catchup_clamped` render the `detail` column's own parameter (the engine
-// error code, the dropped session count). `market_view_too_large` and
-// `no_market_data` mirror the wording `backtests/strings.ts`'s `webErrors`
-// already uses for the same two `loadMarketView` failures in a backtest
-// run.
+// error code, the dropped session count). Every fragment is spliced as
+// "outcome · reason" in a dense log row, so none carries its own
+// punctuation or an instruction to act on — the session behind
+// `market_view_too_large`/`no_market_data` sits behind the watermark and is
+// never retried, so telling the reader to narrow the watchlist and try
+// again would be false.
 type WebReasonFormatter = (detail: string | null) => string;
 
 const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
@@ -20,9 +22,8 @@ const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
   catchup_clamped: (detail) => `Catch-up capped: ${detail ?? "0"} older session(s) skipped`,
   unsatisfiable_collection: () =>
     "Requires market data with no source yet for one of this strategy's indicators",
-  market_view_too_large: () =>
-    "This watchlist lists more option series than a single evaluation can load. Narrow the watchlist and try again.",
-  no_market_data: () => "No market data is available for this period; the evaluation was skipped.",
+  market_view_too_large: () => "Watchlist too large to evaluate in one call",
+  no_market_data: () => "No market data for the session",
 };
 
 const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
@@ -32,10 +33,8 @@ const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
     `Atualização limitada: ${detail ?? "0"} sessão(ões) mais antiga(s) ignorada(s)`,
   unsatisfiable_collection: () =>
     "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
-  market_view_too_large: () =>
-    "Essa watchlist lista mais séries de opções do que uma avaliação consegue carregar de uma vez. Reduza a watchlist e tente de novo.",
-  no_market_data: () =>
-    "Não há dados de mercado disponíveis para esse período; a avaliação foi ignorada.",
+  market_view_too_large: () => "Watchlist grande demais para avaliar de uma vez",
+  no_market_data: () => "Sem dados de mercado para a sessão",
 };
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:
@@ -424,9 +423,9 @@ export const t = strategiesStrings.ptBR;
 // code through `reasonText` (`null` for `signal`/`conditions_not_met`,
 // which add nothing beyond their own outcome label), a web-authored code
 // through `webReasonText`, fed the row's own `detail` parameter. A row with
-// no `reason` at all (pre-#80, or a web-authored failure `evaluate-signals.ts`
-// never gave one of the four typed codes) renders the bare outcome label
-// (#133: `detailFor`'s exact-sentence fallback is gone).
+// no `reason` at all (a pre-#80 row the 0020 backfill migration could not
+// place) renders the bare outcome label (#133: `detailFor`'s exact-sentence
+// fallback is gone).
 export function evaluationLabel(row: {
   outcome: EvaluationOutcome;
   reason: EvaluationReason | WebEvaluationReason | null;

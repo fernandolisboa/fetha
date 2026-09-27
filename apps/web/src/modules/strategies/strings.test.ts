@@ -8,20 +8,11 @@ import { evaluationLabel, strategiesStrings, t } from "./strings";
 const reasonsWithNoText = new Set(["signal", "conditions_not_met"]);
 
 describe("evaluationLog.webReasonText (#133)", () => {
-  it("renders distinct text for each of the four web-authored codes", () => {
-    const unknownStructure = t.inbox.evaluationLog.webReasonText.unknown_structure(null);
-    const unsatisfiableCollection =
-      t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("impliedVolatilityIndex");
-    const engineError = t.inbox.evaluationLog.webReasonText.engine_error("bad_input");
-    const catchupClamped = t.inbox.evaluationLog.webReasonText.catchup_clamped("8");
-
-    const rendered = new Set([
-      unknownStructure,
-      unsatisfiableCollection,
-      engineError,
-      catchupClamped,
-    ]);
-    expect(rendered.size).toBe(4);
+  it("renders distinct text for each web-authored code", () => {
+    const rendered = new Set(
+      webEvaluationReasons.map((reason) => t.inbox.evaluationLog.webReasonText[reason]("8")),
+    );
+    expect(rendered.size).toBe(webEvaluationReasons.length);
   });
 
   it("renders the engine error's own code inside the message, so two different codes read differently", () => {
