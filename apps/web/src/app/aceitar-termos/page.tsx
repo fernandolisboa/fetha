@@ -9,14 +9,15 @@ import {
   DeleteAccountDialog,
   getSession,
   hasPassword,
-  isCurrentTermsVersion,
-  readTermsVersion,
+  readTermsGate,
   SignOutButton,
   t,
 } from "@/modules/auth";
 import { getDb } from "@/db/client";
 
-export const metadata: Metadata = { title: `Fetha · ${t.acceptTerms.confirmDetailsTitle}` };
+// State-neutral: this title must read the same whether the gate is asking
+// for a first acceptance or a re-acceptance (docs/adr/0036).
+export const metadata: Metadata = { title: `Fetha · ${t.terms.title}` };
 
 export default async function AcceptTermsPage() {
   const currentUser = await getSession();
@@ -26,12 +27,12 @@ export default async function AcceptTermsPage() {
   if (!(await hasPassword(getDb(), currentUser))) {
     redirect("/definir-senha");
   }
-  const termsVersion = await readTermsVersion(getDb(), currentUser);
-  if (isCurrentTermsVersion(termsVersion)) {
+  const gate = await readTermsGate(getDb(), currentUser);
+  if (gate.state === "current") {
     redirect("/");
   }
 
-  const isFirstAcceptance = termsVersion === null;
+  const isFirstAcceptance = gate.state === "unconfirmed";
   const labels = t.acceptTerms;
 
   return (
@@ -47,7 +48,7 @@ export default async function AcceptTermsPage() {
           </div>
         ) : null}
 
-        <AcceptTermsForm showNameField={isFirstAcceptance} initialName={currentUser.name} />
+        <AcceptTermsForm showNameField={isFirstAcceptance} />
 
         <div className="border-border flex flex-col gap-3 border-t pt-4">
           <div>

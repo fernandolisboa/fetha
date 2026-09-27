@@ -11,7 +11,7 @@ import { requestPasswordReset, resetPassword, signIn, signInMagicLink, signUp } 
 import { testRequestHeaders } from "./test-support";
 import { CURRENT_TERMS_VERSION } from "./terms";
 import { acceptTerms } from "./terms-consent";
-import { isCurrentTermsVersion, needsTermsReacceptance } from "./terms-gate";
+import { readTermsGate } from "./terms-gate";
 import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
@@ -80,32 +80,28 @@ afterEach(async () => {
 });
 
 describe("terms re-acceptance gate (#142)", () => {
-  it("is true for an older accepted version", async () => {
+  it("is stale for an older accepted version", async () => {
     const email = uniqueEmail("older");
     createdEmails.push(email);
     const testUser = await insertUser(email, "2020-01-01.1");
 
-    expect(await needsTermsReacceptance(getDb(), testUser)).toBe(true);
+    expect(await readTermsGate(getDb(), testUser)).toEqual({ state: "stale" });
   });
 
-  it("is true for a NULL accepted version", async () => {
+  it("is unconfirmed for a NULL accepted version", async () => {
     const email = uniqueEmail("null");
     createdEmails.push(email);
     const testUser = await insertUser(email, null);
 
-    expect(await needsTermsReacceptance(getDb(), testUser)).toBe(true);
+    expect(await readTermsGate(getDb(), testUser)).toEqual({ state: "unconfirmed" });
   });
 
-  it("is false for the current accepted version", async () => {
+  it("is current for the current accepted version", async () => {
     const email = uniqueEmail("current");
     createdEmails.push(email);
     const testUser = await insertUser(email, CURRENT_TERMS_VERSION);
 
-    expect(await needsTermsReacceptance(getDb(), testUser)).toBe(false);
-  });
-
-  it("treats a null termsVersion as not current", () => {
-    expect(isCurrentTermsVersion(null)).toBe(false);
+    expect(await readTermsGate(getDb(), testUser)).toEqual({ state: "current" });
   });
 
   it("records the current version and the acceptance time on the user row and a history row", async () => {
@@ -114,9 +110,10 @@ describe("terms re-acceptance gate (#142)", () => {
     const testUser = await insertUser(email, null);
 
     const before = new Date();
-    await acceptTerms(getDb(), testUser, { name: "Confirmed Name" });
+    const outcome = await acceptTerms(getDb(), testUser, { name: "Confirmed Name" });
     const after = new Date();
 
+    expect(outcome).toEqual({ status: "ok" });
     const [row] = await getDb().select().from(user).where(eq(user.id, testUser.id));
     expect(row?.termsVersion).toBe(CURRENT_TERMS_VERSION);
     expect(row?.name).toBe("Confirmed Name");
@@ -131,16 +128,69 @@ describe("terms re-acceptance gate (#142)", () => {
     expect(history[0]?.termsVersion).toBe(CURRENT_TERMS_VERSION);
   });
 
-  it("leaves the name untouched when no name is given (the changed-version state)", async () => {
+  it("leaves the name untouched when no name is given (the stale-version state)", async () => {
     const email = uniqueEmail("no-name");
     createdEmails.push(email);
     const testUser = await insertUser(email, "2020-01-01.1");
 
-    await acceptTerms(getDb(), testUser);
+    const outcome = await acceptTerms(getDb(), testUser);
 
+    expect(outcome).toEqual({ status: "ok" });
     const [row] = await getDb().select().from(user).where(eq(user.id, testUser.id));
     expect(row?.name).toBe("Reacceptance User");
     expect(row?.termsVersion).toBe(CURRENT_TERMS_VERSION);
+  });
+
+  it("requires a name in the unconfirmed state and writes nothing without one", async () => {
+    const email = uniqueEmail("name-required");
+    createdEmails.push(email);
+    const testUser = await insertUser(email, null);
+
+    const outcome = await acceptTerms(getDb(), testUser);
+
+    expect(outcome).toEqual({ status: "name_required" });
+    const [row] = await getDb().select().from(user).where(eq(user.id, testUser.id));
+    expect(row?.termsVersion).toBeNull();
+    const history = await getDb()
+      .select()
+      .from(termsAcceptances)
+      .where(eq(termsAcceptances.userId, testUser.id));
+    expect(history).toHaveLength(0);
+  });
+
+  it("treats a double submit as one accept: the second returns already_current and writes no second history row", async () => {
+    const email = uniqueEmail("double-submit");
+    createdEmails.push(email);
+    const testUser = await insertUser(email, null);
+
+    const first = await acceptTerms(getDb(), testUser, { name: "First Submit" });
+    const second = await acceptTerms(getDb(), testUser, { name: "Second Submit" });
+
+    expect(first).toEqual({ status: "ok" });
+    expect(second).toEqual({ status: "already_current" });
+
+    const [row] = await getDb().select().from(user).where(eq(user.id, testUser.id));
+    expect(row?.name).toBe("First Submit");
+    const history = await getDb()
+      .select()
+      .from(termsAcceptances)
+      .where(eq(termsAcceptances.userId, testUser.id));
+    expect(history).toHaveLength(1);
+  });
+
+  it("reports unauthenticated and writes nothing when the account no longer exists", async () => {
+    const email = uniqueEmail("deleted");
+    const testUser = await insertUser(email, null);
+    await getDb().delete(user).where(eq(user.id, testUser.id));
+
+    const outcome = await acceptTerms(getDb(), testUser, { name: "Ghost" });
+
+    expect(outcome).toEqual({ status: "unauthenticated" });
+    const history = await getDb()
+      .select()
+      .from(termsAcceptances)
+      .where(eq(termsAcceptances.userId, testUser.id));
+    expect(history).toHaveLength(0);
   });
 
   it("accepting as user A writes nothing for user B", async () => {

@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { CURRENT_TERMS_VERSION } from "./terms";
-import { isCurrentTermsVersion } from "./terms-gate";
+import { classifyTermsVersion } from "./terms-gate";
 
-describe("isCurrentTermsVersion", () => {
-  it("is true for the current version", () => {
-    expect(isCurrentTermsVersion(CURRENT_TERMS_VERSION)).toBe(true);
+describe("classifyTermsVersion", () => {
+  it("is current for the current version", () => {
+    expect(classifyTermsVersion(CURRENT_TERMS_VERSION)).toEqual({ state: "current" });
   });
 
-  it("is false for an older version", () => {
-    expect(isCurrentTermsVersion("2020-01-01.1")).toBe(false);
+  it("is stale for an older, non-null version", () => {
+    expect(classifyTermsVersion("2020-01-01.1")).toEqual({ state: "stale" });
   });
 
-  it("is false for a NULL version", () => {
-    expect(isCurrentTermsVersion(null)).toBe(false);
+  it("is unconfirmed for a NULL version", () => {
+    expect(classifyTermsVersion(null)).toEqual({ state: "unconfirmed" });
+  });
+
+  it("does not treat a lexicographically later fake version as current (equality, not recency)", () => {
+    expect(classifyTermsVersion("9999-99-99.9")).toEqual({ state: "stale" });
   });
 });

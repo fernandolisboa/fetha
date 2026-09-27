@@ -43,7 +43,7 @@ export {
 export { authStrings, t } from "./strings";
 export { TermsAcceptanceRepository, type TermsAcceptance } from "./terms-acceptance-repository";
 export { CURRENT_TERMS_VERSION } from "./terms";
-export { isCurrentTermsVersion, needsTermsReacceptance, readTermsVersion } from "./terms-gate";
+export { readTermsGate, type TermsGateState } from "./terms-gate";
 export { parseEmailQueryParam } from "./validation";
 export { AuthDataExport } from "./data-export";
 export { hasPassword } from "./credential";

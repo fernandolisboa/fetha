@@ -13,13 +13,7 @@ import { initialActionState } from "../action-state";
 import { acceptTermsAction } from "../actions";
 import { t } from "../strings";
 
-export function AcceptTermsForm({
-  showNameField,
-  initialName,
-}: {
-  showNameField: boolean;
-  initialName: string;
-}) {
+export function AcceptTermsForm({ showNameField }: { showNameField: boolean }) {
   const [state, formAction, isPending] = useActionState(acceptTermsAction, initialActionState);
   const labels = t.acceptTerms;
 
@@ -34,7 +28,9 @@ export function AcceptTermsForm({
       {showNameField ? (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">{labels.nameLabel}</Label>
-          <Input id="name" name="name" autoComplete="name" defaultValue={initialName} required />
+          {/* Left empty on purpose: the name on file at this state is the
+              unproven registrant's, not the mailbox owner's (docs/adr/0036). */}
+          <Input id="name" name="name" autoComplete="name" required />
         </div>
       ) : null}
 

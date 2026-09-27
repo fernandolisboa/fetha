@@ -9,7 +9,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { Database } from "@/db/client";
 
 import { FakeMailer } from "./email/fake-mailer";
-import { buildAuthOptions, buildUserCreateOverrides } from "./options";
+import { buildAuthOptions, buildUserCreateOverrides, clearTermsOnVerifiedFlip } from "./options";
 import { SESSION_EXPIRES_IN_DAYS } from "./session-lifetime";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
@@ -29,6 +29,32 @@ describe("buildUserCreateOverrides", () => {
     const overrides = buildUserCreateOverrides({ email: "a@example.com" });
     expect(overrides.termsVersion).toBe(CURRENT_TERMS_VERSION);
     expect(overrides.termsAcceptedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("clearTermsOnVerifiedFlip", () => {
+  it("clears terms fields on the verify-email path when emailVerified flips true", () => {
+    const result = clearTermsOnVerifiedFlip({ emailVerified: true }, "/verify-email");
+    expect(result).toEqual({ emailVerified: true, termsVersion: null, termsAcceptedAt: null });
+  });
+
+  it("clears terms fields on the magic-link verify path when emailVerified flips true", () => {
+    const result = clearTermsOnVerifiedFlip({ emailVerified: true }, "/magic-link/verify");
+    expect(result).toEqual({ emailVerified: true, termsVersion: null, termsAcceptedAt: null });
+  });
+
+  it("leaves data untouched when emailVerified is not being set to true", () => {
+    const data = { name: "Nova User" };
+    expect(clearTermsOnVerifiedFlip(data, "/verify-email")).toBe(data);
+    expect(clearTermsOnVerifiedFlip({ emailVerified: false }, "/verify-email")).toEqual({
+      emailVerified: false,
+    });
+  });
+
+  it("leaves data untouched on any path outside the two proof endpoints, even with emailVerified true", () => {
+    const data = { emailVerified: true };
+    expect(clearTermsOnVerifiedFlip(data, "/some-other-endpoint")).toBe(data);
+    expect(clearTermsOnVerifiedFlip(data, undefined)).toBe(data);
   });
 });
 

@@ -1,4 +1,7 @@
-import { legalText, termsChangeSummary } from "./legal-text";
+import { legalText, termsChangeSummaryFor } from "./legal-text";
+import { CURRENT_TERMS_VERSION } from "./terms";
+
+const currentTermsChangeSummary = termsChangeSummaryFor(CURRENT_TERMS_VERSION);
 
 const en = {
   shared: {
@@ -110,7 +113,7 @@ const en = {
   },
   terms: legalText.en.terms,
   privacy: legalText.en.privacy,
-  termsChangeSummary: termsChangeSummary.en,
+  termsChangeSummary: currentTermsChangeSummary.en,
   errors: {
     invalidInput: "Check the fields highlighted below.",
     termsRequired: "You must accept the terms of use and the privacy policy.",
@@ -244,7 +247,7 @@ const ptBR = {
   acceptTerms: {
     confirmDetailsTitle: "Confirme seus dados",
     confirmDetailsSubtitle:
-      "Falta um passo para o seu laboratório abrir: confirme seu nome e aceite os termos de uso e a política de privacidade.",
+      "Falta um passo para abrir o seu laboratório: confirme seu nome e aceite os termos de uso e a política de privacidade.",
     changedTitle: "Os termos mudaram",
     changedSubtitle: "Veja o que mudou e aceite a versão atual para continuar usando o Fetha.",
     whatChanged: "O que mudou",
@@ -258,7 +261,7 @@ const ptBR = {
   },
   terms: legalText.ptBR.terms,
   privacy: legalText.ptBR.privacy,
-  termsChangeSummary: termsChangeSummary.ptBR,
+  termsChangeSummary: currentTermsChangeSummary.ptBR,
   errors: {
     invalidInput: "Confira os campos destacados abaixo.",
     termsRequired: "Você precisa aceitar os termos de uso e a política de privacidade.",

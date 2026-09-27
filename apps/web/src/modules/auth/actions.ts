@@ -21,7 +21,6 @@ import {
 } from "./service";
 import { t } from "./strings";
 import { acceptTerms } from "./terms-consent";
-import { isCurrentTermsVersion, readTermsVersion } from "./terms-gate";
 import {
   acceptTermsFormSchema,
   deleteAccountFormSchema,
@@ -304,18 +303,7 @@ export async function acceptTermsAction(
 
   const outcome = await withAuthenticatedAction(async () => {
     const currentUser = await requireUser();
-    const db = getDb();
-    const termsVersion = await readTermsVersion(db, currentUser);
-    if (isCurrentTermsVersion(termsVersion)) {
-      return { status: "already_current" } as const;
-    }
-    if (termsVersion === null && !parsed.data.name) {
-      return { status: "name_required" } as const;
-    }
-    await acceptTerms(db, currentUser, {
-      name: termsVersion === null ? parsed.data.name : undefined,
-    });
-    return { status: "ok" } as const;
+    return acceptTerms(getDb(), currentUser, { name: parsed.data.name });
   });
 
   switch (outcome.status) {
@@ -324,5 +312,7 @@ export async function acceptTermsAction(
       redirect("/");
     case "name_required":
       return { status: "error", message: errors.nameRequired };
+    case "unauthenticated":
+      redirect("/entrar");
   }
 }
