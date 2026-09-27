@@ -1,4 +1,3 @@
-import { neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 import { MissingDatabaseUrlError } from "./errors";
@@ -19,9 +18,6 @@ export function getDb(): Database {
     throw new MissingDatabaseUrlError();
   }
 
-  neonConfig.fetchEndpoint = (h) => `http://${h}:4444/sql`;
-  neonConfig.useSecureWebSocket = false;
-  neonConfig.wsProxy = (h) => `${h}:4444/v2`;
   cachedDb = drizzle({ connection: url, schema });
   attachPoolErrorLogger(cachedDb.$client);
   return cachedDb;
