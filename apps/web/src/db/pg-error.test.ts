@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { postgresErrorOf } from "./pg-error";
-
-function pgError(code: string): Error & { code: string; severity: string } {
-  return Object.assign(new Error("db failure"), { code, severity: "ERROR" });
-}
-
-function drizzleQueryError(cause: unknown): Error {
-  return new Error("Failed query: ...", { cause });
-}
+import { drizzleQueryError, postgresError as pgError } from "./test/pg-error";
 
 describe("postgresErrorOf", () => {
   it("returns a bare Postgres error", () => {

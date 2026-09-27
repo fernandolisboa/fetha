@@ -8,6 +8,7 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 
+import { postgresErrorOf } from "@/db/pg-error";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import type { LedgerFill } from "./bookkeeping";
@@ -76,19 +77,11 @@ export type WriteResult = { ok: true } | { ok: false; reason: "not_found" | "con
 // operation that no longer exists.
 export type UngroupResult = WriteResult | { ok: false; reason: "has_decisions" };
 
-const FOREIGN_KEY_VIOLATION = "23503";
 const DECISION_OPERATION_FK = "decisions_operation_id_user_id_operations_id_user_id_fk";
 
 function isReferencedByDecision(error: unknown): boolean {
-  const candidate = error instanceof Error && "cause" in error ? error.cause : error;
-  return (
-    typeof candidate === "object" &&
-    candidate !== null &&
-    "code" in candidate &&
-    candidate.code === FOREIGN_KEY_VIOLATION &&
-    "constraint" in candidate &&
-    candidate.constraint === DECISION_OPERATION_FK
-  );
+  const candidate = postgresErrorOf(error);
+  return candidate?.code === "23503" && candidate.constraint === DECISION_OPERATION_FK;
 }
 
 // Explicit rather than `.returning()`: a bare `.returning()` on `fills`

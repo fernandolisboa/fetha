@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { drizzleQueryError, postgresError } from "@/db/test/pg-error";
+
 const reapStaleRunningRuns = vi.fn();
 const findSucceededRun = vi.fn();
 const startRun = vi.fn();
@@ -83,15 +85,9 @@ function lockWithFailingMarker(markerError: Error): void {
   );
 }
 
-function drizzleQueryError(code: string): Error {
-  return new Error("Failed query: update ingestion_runs ...", {
-    cause: Object.assign(new Error("duplicate key value"), { code, severity: "ERROR" }),
-  });
-}
-
 describe("runSource when another run already wrote the succeeded marker", () => {
   it("reports skipped and drops its own run row on a drizzle-wrapped unique violation", async () => {
-    lockWithFailingMarker(drizzleQueryError("23505"));
+    lockWithFailingMarker(drizzleQueryError(postgresError("23505")));
 
     const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
       Promise.resolve(3),
@@ -103,7 +99,7 @@ describe("runSource when another run already wrote the succeeded marker", () => 
   });
 
   it("still fails the run on any other wrapped Postgres error", async () => {
-    lockWithFailingMarker(drizzleQueryError("57014"));
+    lockWithFailingMarker(drizzleQueryError(postgresError("57014")));
 
     const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
       Promise.resolve(3),
