@@ -41,6 +41,67 @@ test("theme switch persists across reload", async ({ page, baseURL, request }) =
   await expect(page.locator("html")).toHaveAttribute("data-theme", "terminal");
 });
 
+// #158: next/font/local replaced next/font/google; each theme's --font-body
+// and --font-mono (globals.css) must still resolve to the vendored family
+// next/font names after the export in src/app/fonts.ts, at the weight the
+// page actually renders, not merely load without a network error.
+const themeFontExpectations = [
+  {
+    theme: "instrumento",
+    label: /Instrumento/,
+    bodyFamily: "ibmplexsans",
+    monoFamily: "ibmplexmono",
+  },
+  {
+    theme: "terminal",
+    label: /Terminal/,
+    bodyFamily: "jetbrainsmono",
+    monoFamily: "jetbrainsmono",
+  },
+  { theme: "amplo", label: /Amplo/, bodyFamily: "sourcesans3", monoFamily: "sourcecodepro" },
+] as const;
+
+test("each theme resolves its own vendored font families", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const tabularNumberElement = page.getByText("sem dados");
+
+  for (const { theme, label, bodyFamily, monoFamily } of themeFontExpectations) {
+    await page.getByRole("button", { name: "Menu da conta" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: "Configurações" }).click();
+    await expect(page).toHaveURL(/\/configuracoes/);
+    await page.getByRole("radio", { name: label }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+    await page.evaluate(() => document.fonts.ready);
+
+    const computedBodyFamily = await page
+      .locator("body")
+      .evaluate((el) => getComputedStyle(el).fontFamily);
+    const computedMonoFamily = await tabularNumberElement.evaluate(
+      (el) => getComputedStyle(el).fontFamily,
+    );
+    const normalize = (value: string) => value.toLowerCase().replace(/[\s"']/g, "");
+
+    expect(normalize(computedBodyFamily)).toContain(bodyFamily);
+    expect(normalize(computedMonoFamily)).toContain(monoFamily);
+
+    const [bodyFirstFamily] = computedBodyFamily.split(",");
+    const [monoFirstFamily] = computedMonoFamily.split(",");
+    const bodyLoaded = await page.evaluate(
+      (family) => document.fonts.check(`400 13px ${family}`),
+      bodyFirstFamily?.trim() ?? "",
+    );
+    const monoLoaded = await page.evaluate(
+      (family) => document.fonts.check(`400 13px ${family}`),
+      monoFirstFamily?.trim() ?? "",
+    );
+
+    expect(bodyLoaded, `${theme}: body font ${bodyFirstFamily ?? ""} did not load`).toBe(true);
+    expect(monoLoaded, `${theme}: mono font ${monoFirstFamily ?? ""} did not load`).toBe(true);
+  }
+});
+
 test("rail collapse persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
