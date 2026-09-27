@@ -10,12 +10,17 @@ test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the workstation shell flo
 test("shell renders after login with the six destinations", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await expect(page.getByRole("link", { name: "Watchlist" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Sinais" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Estratégias" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Carteira" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Diário" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Configurações" })).toBeVisible();
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  for (const name of [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Configurações",
+  ]) {
+    await expect(rail.getByRole("link", { name })).toBeVisible();
+  }
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
@@ -105,16 +110,24 @@ test("each theme resolves its own vendored font families", async ({ page, baseUR
 test("rail collapse persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  // The link keeps its accessible name through its title when collapsed, so
+  // the assertion targets the label text inside the rail's own link.
+  const watchlistLink = rail.getByRole("link", { name: "Watchlist" });
+  const watchlistLabel = watchlistLink.getByText("Watchlist", { exact: true });
+
+  await expect(watchlistLabel).toBeVisible();
+
   await Promise.all([
     page.waitForResponse((res) => res.request().method() === "POST"),
-    page.getByRole("button", { name: "Recolher a navegação" }).click(),
+    rail.getByRole("button", { name: "Recolher a navegação" }).click(),
   ]);
-  await expect(page.getByText("Watchlist", { exact: true })).toBeHidden();
+  await expect(watchlistLabel).toBeHidden();
 
   await page.reload();
 
-  await expect(page.getByText("Watchlist", { exact: true })).toBeHidden();
-  await expect(page.getByRole("link", { name: "Watchlist" })).toBeVisible();
+  await expect(watchlistLabel).toBeHidden();
+  await expect(watchlistLink).toBeVisible();
 });
 
 test("PWA manifest and service worker are served", async ({ request, baseURL }) => {
