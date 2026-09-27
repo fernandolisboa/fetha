@@ -89,7 +89,7 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
    owner ever runs this from more than one device at once in practice.
 
 9. **The manual trigger writes an access-log row, `nightly_triggered`.** A new `AccessEvent`
-   (`apps/web/src/modules/audit/events.ts`, migration `0021_access_log_nightly_triggered.sql` for
+   (`apps/web/src/modules/audit/events.ts`, migration `0023_access_log_nightly_triggered.sql` for
    the table's check constraint) recorded through the audit module's own `recordAccess`, the same
    way every other read or export of a user's data already is (ADR-0027) — the owner triggering a
    run is itself an access worth a row in their own log.
@@ -117,5 +117,5 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
   `scripts/seed-invite.mjs` already documents for `REGISTRATION_MODE=invite`) — this is a
   known operational gap, not a design decision, and is deliberately left as a follow-up rather than
   disabling `disableSignUp` (ADR-0018) to work around it.
-- A migration ships with this ADR: `apps/web/drizzle/0021_access_log_nightly_triggered.sql` adds
+- A migration ships with this ADR: `apps/web/drizzle/0023_access_log_nightly_triggered.sql` adds
   `nightly_triggered` to `access_log`'s event check constraint.
