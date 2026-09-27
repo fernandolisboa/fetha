@@ -198,6 +198,7 @@ const en = {
   },
   discard: {
     action: "Discard",
+    actionAriaLabel: (runLabel: string) => `Discard run: ${runLabel}`,
     confirmTitle: "Discard this run?",
     confirmDescription:
       "The run is discarded and frees a slot for a new one. This cannot be undone.",
@@ -412,6 +413,7 @@ const ptBR = {
   },
   discard: {
     action: "Descartar",
+    actionAriaLabel: (runLabel: string) => `Descartar simulação: ${runLabel}`,
     confirmTitle: "Descartar esta simulação?",
     confirmDescription:
       "A simulação é descartada e libera uma vaga para uma nova. Não dá para desfazer.",

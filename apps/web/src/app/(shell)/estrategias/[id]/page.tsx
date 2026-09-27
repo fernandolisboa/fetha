@@ -58,7 +58,11 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
         actions={
           <div className="flex items-center gap-4">
             <StrategyActiveToggle strategyId={strategy.id} active={strategy.active} />
-            <ShareToggleButton strategyId={strategy.id} visibility={strategy.visibility} />
+            <ShareToggleButton
+              strategyId={strategy.id}
+              strategyName={strategy.name}
+              visibility={strategy.visibility}
+            />
           </div>
         }
       />
@@ -108,7 +112,12 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
                   <span className="text-muted-foreground text-xs">
                     ({formatDate(run.createdAt)})
                   </span>
-                  {isActiveRun(run) ? <DiscardRunButton runId={run.id} /> : null}
+                  {isActiveRun(run) ? (
+                    <DiscardRunButton
+                      runId={run.id}
+                      runLabel={`${run.period.from} — ${run.period.to}`}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ErrorNotice } from "@/components/error-notice";
 
 import { IN_PROGRESS_RUNS_HREF, t } from "../strings";
 
@@ -58,7 +59,7 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
         {pending ? t.report.running : label}
       </Button>
       {error ? (
-        <p className="text-destructive text-xs">
+        <ErrorNotice>
           {error}
           {tooManyActive ? (
             <>
@@ -68,7 +69,7 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
               </Link>
             </>
           ) : null}
-        </p>
+        </ErrorNotice>
       ) : null}
     </div>
   );

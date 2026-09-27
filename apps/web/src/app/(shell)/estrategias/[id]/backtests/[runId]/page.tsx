@@ -12,6 +12,7 @@ import {
   t,
 } from "@/modules/backtests";
 import { DiscardRunButton, RunBacktestButton } from "@/modules/backtests/client";
+import { ErrorNotice } from "@/components/error-notice";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { PageHeader, Panel } from "@/modules/shell";
@@ -60,9 +61,9 @@ export default async function BacktestReportPage({
         </Panel>
       ) : run.status === "failed" ? (
         <Panel>
-          <p className="text-destructive text-sm">
+          <ErrorNotice className="text-sm">
             {t.report.failed.replace("{error}", runErrorMessage(run.error ?? ""))}
-          </p>
+          </ErrorNotice>
           {isResumableRunError(run.error) ? (
             <RunBacktestButton runId={run.id} label={t.report.retry} />
           ) : (
@@ -83,7 +84,10 @@ export default async function BacktestReportPage({
               runId={run.id}
               label={run.status === "paused" ? t.report.resume : t.report.run}
             />
-            <DiscardRunButton runId={run.id} />
+            <DiscardRunButton
+              runId={run.id}
+              runLabel={`${formatDate(sessionDateToDisplayDate(run.period.from))} — ${formatDate(sessionDateToDisplayDate(run.period.to))}`}
+            />
           </div>
         </Panel>
       )}

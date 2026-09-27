@@ -2,6 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { requireUser } from "@/modules/auth";
 import { getMyActiveBacktestRuns, t as backtestsStrings } from "@/modules/backtests";
 import { DiscardRunButton } from "@/modules/backtests/client";
@@ -55,37 +63,38 @@ export default async function StrategiesPage() {
           {active.length === 0 ? (
             <p className="text-muted-foreground text-sm">{backtestsStrings.inProgress.empty}</p>
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                  <th className="py-2 font-normal">
-                    {backtestsStrings.inProgress.columns.strategy}
-                  </th>
-                  <th className="py-2 font-normal">{backtestsStrings.inProgress.columns.period}</th>
-                  <th className="py-2 font-normal">{backtestsStrings.inProgress.columns.status}</th>
-                  <th className="py-2 font-normal" />
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{backtestsStrings.inProgress.columns.strategy}</TableHead>
+                  <TableHead>{backtestsStrings.inProgress.columns.period}</TableHead>
+                  <TableHead>{backtestsStrings.inProgress.columns.status}</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {active.map((run) => (
-                  <tr key={run.id} className="border-line-soft border-b">
-                    <td className="py-2">
+                  <TableRow key={run.id}>
+                    <TableCell>
                       <Link
                         href={`/estrategias/${run.strategyId}/backtests/${run.id}`}
                         className="underline-offset-4 hover:underline"
                       >
                         {run.strategyName}
                       </Link>
-                    </td>
-                    <td className="py-2 font-mono tabular-nums">{run.period}</td>
-                    <td className="py-2">{backtestsStrings.inProgress.statusLabels[run.status]}</td>
-                    <td className="py-2 text-right">
-                      <DiscardRunButton runId={run.id} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="font-mono tabular-nums">{run.period}</TableCell>
+                    <TableCell>{backtestsStrings.inProgress.statusLabels[run.status]}</TableCell>
+                    <TableCell className="text-right">
+                      <DiscardRunButton
+                        runId={run.id}
+                        runLabel={`${run.strategyName} (${run.period})`}
+                      />
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </Panel>
       </div>
@@ -94,37 +103,41 @@ export default async function StrategiesPage() {
         {mine.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.mine.empty}</p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.list.mine.columns.name}</th>
-                <th className="py-2 font-normal">{t.list.mine.columns.visibility}</th>
-                <th className="py-2 text-right font-normal">{t.list.mine.columns.version}</th>
-                <th className="py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.list.mine.columns.name}</TableHead>
+                <TableHead>{t.list.mine.columns.visibility}</TableHead>
+                <TableHead className="text-right">{t.list.mine.columns.version}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {mine.map((strategy) => (
-                <tr key={strategy.id} className="border-line-soft border-b">
-                  <td className="py-2">
+                <TableRow key={strategy.id}>
+                  <TableCell>
                     <Link
                       href={`/estrategias/${strategy.id}`}
                       className="underline-offset-4 hover:underline"
                     >
                       {strategy.name}
                     </Link>
-                  </td>
-                  <td className="py-2">{t.list.visibility[strategy.visibility]}</td>
-                  <td className="py-2 text-right font-mono tabular-nums">
+                  </TableCell>
+                  <TableCell>{t.list.visibility[strategy.visibility]}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
                     v{strategy.latestVersionNumber}
-                  </td>
-                  <td className="py-2 text-right">
-                    <ShareToggleButton strategyId={strategy.id} visibility={strategy.visibility} />
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ShareToggleButton
+                      strategyId={strategy.id}
+                      strategyName={strategy.name}
+                      visibility={strategy.visibility}
+                    />
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </Panel>
 
@@ -132,28 +145,31 @@ export default async function StrategiesPage() {
         {shared.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.shared.empty}</p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.list.mine.columns.name}</th>
-                <th className="py-2 text-right font-normal">{t.list.mine.columns.version}</th>
-                <th className="py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.list.mine.columns.name}</TableHead>
+                <TableHead className="text-right">{t.list.mine.columns.version}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {shared.map((strategy) => (
-                <tr key={strategy.id} className="border-line-soft border-b">
-                  <td className="py-2">{strategy.name}</td>
-                  <td className="py-2 text-right font-mono tabular-nums">
+                <TableRow key={strategy.id}>
+                  <TableCell>{strategy.name}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
                     v{strategy.latestVersionNumber}
-                  </td>
-                  <td className="py-2 text-right">
-                    <CopyStrategyButton sourceStrategyId={strategy.id} />
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <CopyStrategyButton
+                      sourceStrategyId={strategy.id}
+                      strategyName={strategy.name}
+                    />
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </Panel>
     </div>

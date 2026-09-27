@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ErrorNotice } from "@/components/error-notice";
 import {
   Select,
   SelectContent,
@@ -230,7 +231,7 @@ export function CreateRunForm({
       </div>
 
       {error ? (
-        <p className="text-destructive text-xs">
+        <ErrorNotice>
           {error}
           {tooManyActive ? (
             <>
@@ -240,7 +241,7 @@ export function CreateRunForm({
               </Link>
             </>
           ) : null}
-        </p>
+        </ErrorNotice>
       ) : null}
 
       <Button onClick={submit} disabled={pending}>
