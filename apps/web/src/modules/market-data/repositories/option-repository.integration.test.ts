@@ -9,6 +9,7 @@ import {
   latestExpiredTradedSeries,
   optionChainForUnderlying,
   optionSeriesForFills,
+  optionSeriesInWindow,
   seriesKey,
 } from "./option-repository";
 
@@ -334,6 +335,66 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toBeNull();
+  });
+});
+
+describe("optionSeriesInWindow", () => {
+  const cleanupTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+  });
+
+  async function seedSeries(underlying: string, label: string, expiry: string, asOf: string) {
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin: `ISIN-${underlying}-${label}`,
+        ticker: `${underlying}${label}`,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry,
+        style: "european",
+        asOf: new Date(asOf),
+      });
+  }
+
+  it("keeps series listed by the ceiling and expiring on or after the floor", async () => {
+    const underlying = uniqueTicker("WIN");
+    cleanupTickers.push(underlying);
+    await seedSeries(underlying, "A", "2099-03-20", "2099-01-02T13:00:00.000Z");
+    await seedSeries(underlying, "B", "2099-01-09", "2099-01-02T13:00:00.000Z");
+    await seedSeries(underlying, "C", "2099-03-20", "2099-02-02T13:00:00.000Z");
+
+    const rows = await optionSeriesInWindow(
+      getDb(),
+      [underlying],
+      { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
+      10,
+    );
+
+    expect(rows.map((row) => row.ticker)).toEqual([`${underlying}A`]);
+  });
+
+  it("returns one row past the cap so the caller can tell a chain over it", async () => {
+    const underlying = uniqueTicker("CAP");
+    cleanupTickers.push(underlying);
+    for (const label of ["A", "B", "C"]) {
+      await seedSeries(underlying, label, "2099-03-20", "2099-01-02T13:00:00.000Z");
+    }
+
+    const rows = await optionSeriesInWindow(
+      getDb(),
+      [underlying],
+      { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
+      1,
+    );
+
+    expect(rows).toHaveLength(2);
   });
 });
 

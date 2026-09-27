@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
 import {
   decimalStringSchema,
@@ -25,7 +25,7 @@ import {
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
-import { candles, macroPoints, optionDailyPrices, optionSeries } from "./schema";
+import { candles, macroPoints } from "./schema";
 
 import {
   calendarWindowThroughExpiry,
@@ -43,29 +43,17 @@ import {
 } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
 import { macroPointsInRange } from "./repositories/macro-repository";
+import {
+  DEFAULT_OPTION_CHAIN_TICKER_CAP,
+  DEFAULT_OPTION_PRICE_ROW_CAP,
+  latestOptionPricesAt,
+  optionPricesInSessionRange,
+  optionSeriesForUnderlyingAt,
+  optionSeriesInWindow,
+} from "./repositories/option-repository";
 
 const CANDLE_WINDOW_SESSIONS = 30;
 const CALENDAR_WINDOW_SESSIONS = 30;
-
-// `option_series` is keyed by ISIN (ADR-0017): distinct series tickers can
-// exceed universe size by an order of magnitude once every listing cycle
-// with an expiry on or after warmup is counted, and the create-time ceiling
-// (MAX_SESSIONS_TIMES_UNIVERSE, backtests/actions.ts) bounds sessions x
-// underlyings, not sessions x series, so it cannot stand in for this. Well
-// under Postgres's 65,535 bind-parameter limit, which the follow-on
-// `optionDailyPrices` query hits directly via `inArray(..., seriesTickers)`
-// (round 3 item 2).
-const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
-
-// Bounds price-row *volume* directly, which DEFAULT_OPTION_CHAIN_TICKER_CAP
-// does not: a chain admitted under that cap can still span the whole
-// warmup-to-period window, so up to cap x sessions day-price rows would
-// otherwise materialise as objects in this one function call before any
-// checkpoint exists to recover from an out-of-memory death (round 4
-// item 3). 200,000 rows of this shape (a handful of decimal strings and
-// two integers each) is comfortably tens of megabytes, not the "millions
-// of row objects" an unbounded query could reach.
-const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
 
 // Not "collections this loader can never fill" (round 7 item 4 corrected
 // that framing): `dividendYields` and `quotes` are unconditionally empty
@@ -199,10 +187,13 @@ export interface LoadMarketViewCaps {
 // `loadCandleSeries`, this stays nominal candles plus the corporate-action
 // factors: adjustment happens only inside the engine's own
 // `evaluateStrategy`, never here (CLAUDE.md's "no engine internals outside
-// the package"). `buildOperationMarketView` below is a second entry over
-// the same `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers,
-// for the operation builder's different need (one underlying's chain as of
-// `at`, not a strategy's indicator warm-up window).
+// the package"). `buildOperationMarketView` below is a second entry sharing
+// the `toTradingSession`/`toEngineCandle` helpers, for the operation
+// builder's different need (one underlying's chain as of `at`, not a
+// strategy's indicator warm-up window). This one returns an explicit
+// literal rather than spreading `emptyMarketView`, so a new MarketView
+// collection fails to compile here until it is decided. The option chain's
+// bounds and caps live beside its queries in option-repository.ts.
 //
 // `calendarVersion` is derived from the same `extendedSessions` rows this
 // call already loads for `calendar` (`max(as_of)` over them), not a second
@@ -270,28 +261,13 @@ export async function loadMarketViewWithCalendarVersion(
         )
       : Promise.resolve([]),
     wantMacro ? macroPointsInRange(db, fromSession, toSession) : Promise.resolve([]),
-    // A strategy's chain window: every series listed on an underlying in
-    // this universe that had not yet expired at the start of warmup, seen
-    // on or before the window's own `to` (the engine, not this module,
-    // decides per-step visibility off each row's own `asOf`). Bounded below
-    // by `fromSession` (the same floor `buildOperationMarketView` applies
-    // via its own `calendarFloor`, widened here to the whole
-    // warmup-to-period span a range view needs) and above by
-    // `optionChainTickerCap + 1`, so a chain this large is caught by row
-    // count instead of by the driver rejecting the follow-on
-    // `optionDailyPrices` query's `inArray` bind list (round 3 item 2).
     wantOptionSeries || wantOptionPrices
-      ? db
-          .select()
-          .from(optionSeries)
-          .where(
-            and(
-              inArray(optionSeries.underlying, instruments),
-              lte(optionSeries.asOf, toDate),
-              gte(optionSeries.expiry, fromSession),
-            ),
-          )
-          .limit(optionChainTickerCap + 1)
+      ? optionSeriesInWindow(
+          db,
+          instruments,
+          { expiryFloor: fromSession, asOfCeiling: toDate },
+          optionChainTickerCap,
+        )
       : Promise.resolve([]),
   ]);
 
@@ -349,17 +325,13 @@ export async function loadMarketViewWithCalendarVersion(
   const seriesTickers = [...new Set(seriesRows.map((row) => row.ticker))];
   const priceRows =
     wantOptionPrices && seriesTickers.length > 0
-      ? await db
-          .select()
-          .from(optionDailyPrices)
-          .where(
-            and(
-              inArray(optionDailyPrices.ticker, seriesTickers),
-              gte(optionDailyPrices.session, fromSession),
-              lte(optionDailyPrices.session, toSession),
-            ),
-          )
-          .limit(optionPriceRowCap + 1)
+      ? await optionPricesInSessionRange(
+          db,
+          seriesTickers,
+          fromSession,
+          toSession,
+          optionPriceRowCap,
+        )
       : [];
 
   if (wantOptionPrices && priceRows.length > optionPriceRowCap) {
@@ -518,10 +490,7 @@ export interface BuildOperationMarketViewOptions {
 // in the chain, or `resolveTimeToExpiryYears` reports `calendar_gap` for
 // every option leg (round 1 item 1). Watchlists, quotes and dividend yields
 // are the intraday tier, omitted here only costs the engine's own
-// defaulting notes (`dividend_yield_defaulted`), never a wrong price. A
-// second entry point over the same
-// `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers
-// `loadMarketView` (above) shares (round 1 item 12).
+// defaulting notes (`dividend_yield_defaulted`), never a wrong price.
 export async function buildOperationMarketView(
   db: Database,
   underlying: Ticker,
@@ -574,16 +543,7 @@ export async function buildOperationMarketView(
   }
 
   const [seriesRows, candleRows, extraCandleRows, cdiRow, corporateActionRows] = await Promise.all([
-    db
-      .select()
-      .from(optionSeries)
-      .where(
-        and(
-          eq(optionSeries.underlying, underlying),
-          lte(optionSeries.asOf, atDate),
-          ...(calendarFloor ? [gte(optionSeries.expiry, calendarFloor)] : []),
-        ),
-      ),
+    optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
     db
       .select()
       .from(candles)
@@ -664,24 +624,10 @@ export async function buildOperationMarketView(
   }
 
   const optionTickers = [...latestSeriesByTicker.keys()];
-  // Collapsed to one row per ticker in SQL (the latest session on or
-  // before `at`) rather than fetched in full and reduced in JS, and bounded
-  // by the same calendar floor as the series query above: an option's price
-  // history since inception is not this view's concern (round 2 item 5).
   const priceRows =
     optionTickers.length === 0
       ? []
-      : await db
-          .selectDistinctOn([optionDailyPrices.ticker])
-          .from(optionDailyPrices)
-          .where(
-            and(
-              inArray(optionDailyPrices.ticker, optionTickers),
-              lte(optionDailyPrices.asOf, atDate),
-              ...(calendarFloor ? [gte(optionDailyPrices.session, calendarFloor)] : []),
-            ),
-          )
-          .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session));
+      : await latestOptionPricesAt(db, optionTickers, atDate, calendarFloor);
 
   // The latest visible price row per ticker, but only when its own
   // expiry/strike still match that ticker's latest visible series: B3
