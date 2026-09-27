@@ -7,8 +7,10 @@ import { requireUser } from "@/modules/auth";
 import {
   compareHref,
   getMyBacktestRunsForStrategy,
+  isActiveRun,
   t as backtestsStrings,
 } from "@/modules/backtests";
+import { DiscardRunButton } from "@/modules/backtests/client";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
@@ -96,7 +98,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
           {runs.length > 0 ? (
             <ul className="flex flex-col gap-1 text-sm">
               {runs.map((run) => (
-                <li key={run.id}>
+                <li key={run.id} className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/estrategias/${strategy.id}/backtests/${run.id}`}
                     className="underline-offset-4 hover:underline"
@@ -106,6 +108,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
                   <span className="text-muted-foreground text-xs">
                     ({formatDate(run.createdAt)})
                   </span>
+                  {isActiveRun(run) ? <DiscardRunButton runId={run.id} /> : null}
                 </li>
               ))}
             </ul>

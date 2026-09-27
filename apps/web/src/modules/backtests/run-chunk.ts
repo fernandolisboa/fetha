@@ -18,7 +18,12 @@ import {
 } from "@/modules/market-data";
 import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 
-import { BacktestRunRepository, type BacktestRunRecord } from "./backtest-run-repository";
+import {
+  BacktestRunClaimError,
+  BacktestRunRepository,
+  type BacktestRunRecord,
+} from "./backtest-run-repository";
+import { isDiscardedRun } from "./run-status";
 
 // A generous total-session ceiling under a raised `maxDuration`: the route
 // handler leans on this default; the chunk-invariance integration test
@@ -227,6 +232,20 @@ export async function runBacktestChunk(
     return { status: "failed", error: message };
   }
   const dataVersion = run.dataVersion ?? view.dataVersion ?? null;
+
+  // `loadMarketView` alone can take seconds (round 3 item 4's own measured
+  // ~23.5s at the universe/session ceiling), the widest window between this
+  // call's own claim and its first write. A discard landing in that window
+  // frees the run's active-cap slot while this invocation is still holding
+  // it computationally (ADR-0037's own consequence: the cap's "at most two
+  // busy functions" is approximate for it). guardedUpdate's own WHERE guard
+  // closes the race for good, but re-checking here first means an already-
+  // discarded run's engine step is never paid for at all, not just never
+  // persisted.
+  const afterLoad = await repository.statusOf(runId);
+  if (isDiscardedRun(afterLoad)) {
+    throw new BacktestRunClaimError();
+  }
 
   const deadline = chunkStart + (options.wallClockBudgetMs ?? DEFAULT_WALL_CLOCK_BUDGET_MS);
   const innerStep = options.innerStepSessions ?? DEFAULT_INNER_STEP_SESSIONS;

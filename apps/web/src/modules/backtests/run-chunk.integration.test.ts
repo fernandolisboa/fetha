@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type {
   Centavos,
@@ -7,6 +7,7 @@ import type {
   StrategyDefinition,
   Structure,
 } from "@fetha/contracts";
+import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { backtestRuns } from "./schema";
@@ -24,6 +25,30 @@ import {
 } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL } from "./default-config";
 import { runBacktestChunk } from "./run-chunk";
+import { DISCARDED_RUN_ERROR } from "./run-status";
+
+// Lets one specific test land a discard *inside* the window
+// runBacktestChunk's own post-load re-check exists to close: wrapping the
+// real loadMarketView, not replacing it, so every other test in this file
+// (where the ref stays null) sees identical behaviour to the unmocked
+// module.
+let discardOnNextLoad: { repository: BacktestRunRepository; runId: string } | null = null;
+vi.mock("@/modules/market-data", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/modules/market-data")>("@/modules/market-data");
+  return {
+    ...actual,
+    loadMarketView: async (...args: Parameters<typeof actual.loadMarketView>) => {
+      const view = await actual.loadMarketView(...args);
+      if (discardOnNextLoad) {
+        const { repository, runId } = discardOnNextLoad;
+        discardOnNextLoad = null;
+        await repository.discard(runId);
+      }
+      return view;
+    },
+  };
+});
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;
@@ -509,5 +534,41 @@ describe("runBacktestChunk", () => {
 
     const final = await repository.findMine(run.id);
     expect(final.status === "paused" || final.status === "complete").toBe(true);
+  });
+
+  it("aborts before the engine step when a discard lands right after loadMarketView (ADR-0037)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    discardOnNextLoad = { repository, runId: run.id };
+    // Spying on the engine's own call site, not just asserting the outer
+    // rejection: guardedUpdate's WHERE guard would raise the identical
+    // BacktestRunClaimError on its own once the engine step tried to
+    // persist, so without this spy the test would pass even if run-chunk's
+    // post-load re-check were deleted (round-2 review finding). This spy is
+    // the assertion that the engine step itself was never paid for.
+    const runBacktestSpy = vi.spyOn(engine, "runBacktest");
+
+    try {
+      await expect(
+        runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 }),
+      ).rejects.toBeInstanceOf(BacktestRunClaimError);
+
+      expect(runBacktestSpy).not.toHaveBeenCalled();
+
+      const after = await repository.findMine(run.id);
+      expect(after.status).toBe("failed");
+      // Still exactly the discard's own reason, not overwritten by a
+      // subsequent fail()/checkpoint write: had the abort not fired, the
+      // engine step would have gone on to save a checkpoint or complete the
+      // run, either of which guardedUpdate's own backstop guard would refuse
+      // and this assertion would catch by a different error.
+      expect(after.error).toBe(DISCARDED_RUN_ERROR);
+      expect(after.result).toBeNull();
+    } finally {
+      runBacktestSpy.mockRestore();
+    }
   });
 });

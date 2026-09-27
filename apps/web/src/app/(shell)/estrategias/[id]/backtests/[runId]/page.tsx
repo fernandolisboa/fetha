@@ -6,11 +6,12 @@ import {
   BacktestRunNotFoundError,
   runErrorMessage,
   getMyBacktestRun,
+  isDiscardedRun,
   isResumableRunError,
   ReportPanel,
   t,
 } from "@/modules/backtests";
-import { RunBacktestButton } from "@/modules/backtests/client";
+import { DiscardRunButton, RunBacktestButton } from "@/modules/backtests/client";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { PageHeader, Panel } from "@/modules/shell";
@@ -53,6 +54,10 @@ export default async function BacktestReportPage({
 
       {run.status === "complete" && run.result ? (
         <ReportPanel run={run.result} />
+      ) : isDiscardedRun(run) ? (
+        <Panel>
+          <p className="text-muted-foreground text-sm">{t.discard.reason}</p>
+        </Panel>
       ) : run.status === "failed" ? (
         <Panel>
           <p className="text-destructive text-sm">
@@ -73,10 +78,13 @@ export default async function BacktestReportPage({
                   .replace("{sessionsTotal}", String(run.sessionsTotal))
               : t.report.pending}
           </p>
-          <RunBacktestButton
-            runId={run.id}
-            label={run.status === "paused" ? t.report.resume : t.report.run}
-          />
+          <div className="flex flex-wrap gap-2">
+            <RunBacktestButton
+              runId={run.id}
+              label={run.status === "paused" ? t.report.resume : t.report.run}
+            />
+            <DiscardRunButton runId={run.id} />
+          </div>
         </Panel>
       )}
     </div>

@@ -1,5 +1,7 @@
 import type { EngineErrorCode, NoteCode } from "@fetha/engine";
 
+import { DISCARDED_RUN_ERROR } from "./run-status";
+
 const en = {
   create: {
     overline: "New backtest",
@@ -193,6 +195,24 @@ const en = {
     no_market_data: "No market data is available for this period; the run was stopped.",
     market_view_too_large:
       "This universe and period list more option series than a single run can load. Narrow the universe or shorten the period and try again.",
+  },
+  discard: {
+    action: "Discard",
+    confirmTitle: "Discard this run?",
+    confirmDescription:
+      "The run is discarded and frees a slot for a new one. This cannot be undone.",
+    cancel: "Cancel",
+    confirm: "Discard",
+    error: "Couldn't discard the run. Try again.",
+    rateLimited: "Too many attempts in a row. Wait a minute and try again.",
+    reason: "Discarded",
+  },
+  inProgress: {
+    title: "In progress",
+    link: "See runs in progress",
+    empty: "No backtest is in progress.",
+    columns: { strategy: "Strategy", period: "Period", status: "Status" },
+    statusLabels: { pending: "Pending", running: "Running", paused: "Paused" },
   },
   networkError: "Network error. Try again.",
   tooManyActive: "You already have two backtests in progress. Finish one before starting another.",
@@ -390,9 +410,27 @@ const ptBR = {
     market_view_too_large:
       "Esse universo e esse período listam mais séries de opções do que uma simulação consegue carregar de uma vez. Reduza o universo ou encurte o período e tente de novo.",
   },
+  discard: {
+    action: "Descartar",
+    confirmTitle: "Descartar esta simulação?",
+    confirmDescription:
+      "A simulação é descartada e libera uma vaga para uma nova. Não dá para desfazer.",
+    cancel: "Cancelar",
+    confirm: "Descartar",
+    error: "Não foi possível descartar a simulação. Tente novamente.",
+    rateLimited: "Muitas tentativas seguidas. Aguarde um minuto e tente de novo.",
+    reason: "Descartado",
+  },
+  inProgress: {
+    title: "Em andamento",
+    link: "Ver simulações em andamento",
+    empty: "Nenhuma simulação em andamento.",
+    columns: { strategy: "Estratégia", period: "Período", status: "Status" },
+    statusLabels: { pending: "Pendente", running: "Rodando", paused: "Pausado" },
+  },
   networkError: "Erro de rede. Tente novamente.",
   tooManyActive:
-    "Você já tem dois backtests em andamento. Conclua um deles antes de começar outro.",
+    "Você já tem dois backtests em andamento. Conclua ou descarte um deles antes de começar outro.",
 } satisfies typeof en;
 
 export const backtestsStrings = { en, ptBR } as const;
@@ -409,13 +447,18 @@ export function noteMessage(code: NoteCode): string {
 // fail with the identical code again, so the retry control is withheld for
 // it instead of inviting a click that can only churn the row (round 4
 // item 4).
-const NON_RESUMABLE_RUN_ERRORS = new Set<string>(["data_version_changed"]);
+const NON_RESUMABLE_RUN_ERRORS = new Set<string>(["data_version_changed", DISCARDED_RUN_ERROR]);
 
 export function isResumableRunError(code: string | null): boolean {
   return code === null || !NON_RESUMABLE_RUN_ERRORS.has(code);
 }
 
+// Where the "Você já tem dois backtests em andamento" refusal links to, so
+// a user does not have to hunt through strategies to find the slot to free.
+export const IN_PROGRESS_RUNS_HREF = "/estrategias#em-andamento";
+
 export function runErrorMessage(code: string): string {
+  if (code === DISCARDED_RUN_ERROR) return t.discard.reason;
   if (code in t.engineErrors) return t.engineErrors[code as EngineErrorCode];
   if (code in t.webErrors) return t.webErrors[code as keyof typeof t.webErrors];
   return code;

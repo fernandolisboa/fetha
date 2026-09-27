@@ -3,7 +3,8 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/modules/auth";
-import { t as backtestsStrings } from "@/modules/backtests";
+import { getMyActiveBacktestRuns, t as backtestsStrings } from "@/modules/backtests";
+import { DiscardRunButton } from "@/modules/backtests/client";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
   CopyStrategyButton,
@@ -17,7 +18,11 @@ export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations
 
 export default async function StrategiesPage() {
   await requireUser();
-  const [mine, shared] = await Promise.all([getMyStrategies(), getSharedStrategies()]);
+  const [mine, shared, active] = await Promise.all([
+    getMyStrategies(),
+    getSharedStrategies(),
+    getMyActiveBacktestRuns(),
+  ]);
 
   if (mine.length === 0 && shared.length === 0) {
     return (
@@ -44,6 +49,46 @@ export default async function StrategiesPage() {
           </div>
         }
       />
+
+      <div id="em-andamento">
+        <Panel title={backtestsStrings.inProgress.title}>
+          {active.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{backtestsStrings.inProgress.empty}</p>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                  <th className="py-2 font-normal">
+                    {backtestsStrings.inProgress.columns.strategy}
+                  </th>
+                  <th className="py-2 font-normal">{backtestsStrings.inProgress.columns.period}</th>
+                  <th className="py-2 font-normal">{backtestsStrings.inProgress.columns.status}</th>
+                  <th className="py-2 font-normal" />
+                </tr>
+              </thead>
+              <tbody>
+                {active.map((run) => (
+                  <tr key={run.id} className="border-line-soft border-b">
+                    <td className="py-2">
+                      <Link
+                        href={`/estrategias/${run.strategyId}/backtests/${run.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {run.strategyName}
+                      </Link>
+                    </td>
+                    <td className="py-2 font-mono tabular-nums">{run.period}</td>
+                    <td className="py-2">{backtestsStrings.inProgress.statusLabels[run.status]}</td>
+                    <td className="py-2 text-right">
+                      <DiscardRunButton runId={run.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
 
       <Panel title={t.list.mine.title}>
         {mine.length === 0 ? (

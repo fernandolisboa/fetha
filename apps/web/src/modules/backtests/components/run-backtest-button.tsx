@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-import { t } from "../strings";
+import { IN_PROGRESS_RUNS_HREF, t } from "../strings";
 
 async function refusedForActiveCap(response: Response): Promise<boolean> {
   if (response.status !== 409) {
@@ -26,18 +27,21 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tooManyActive, setTooManyActive] = useState(false);
 
   async function run(): Promise<void> {
     setPending(true);
     setError(null);
+    setTooManyActive(false);
     try {
       const response = await fetch(`/api/backtests/${runId}/run`, { method: "POST" });
       if (!response.ok) {
-        setError(
-          (await refusedForActiveCap(response))
-            ? t.tooManyActive
-            : t.report.failed.replace("{error}", String(response.status)),
-        );
+        if (await refusedForActiveCap(response)) {
+          setError(t.tooManyActive);
+          setTooManyActive(true);
+        } else {
+          setError(t.report.failed.replace("{error}", String(response.status)));
+        }
         return;
       }
       router.refresh();
@@ -53,7 +57,19 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
       <Button onClick={() => void run()} disabled={pending}>
         {pending ? t.report.running : label}
       </Button>
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+      {error ? (
+        <p className="text-destructive text-xs">
+          {error}
+          {tooManyActive ? (
+            <>
+              {" "}
+              <Link href={IN_PROGRESS_RUNS_HREF} className="underline-offset-4 hover:underline">
+                {t.inProgress.link}
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </div>
   );
 }

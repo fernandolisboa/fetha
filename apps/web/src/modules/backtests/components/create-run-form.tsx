@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useState } from "react";
 import type { Ticker } from "@fetha/contracts";
 
@@ -25,7 +26,7 @@ import {
   type CostModelPresetId,
   type WalkForwardWindowOption,
 } from "../default-config";
-import { t } from "../strings";
+import { IN_PROGRESS_RUNS_HREF, t } from "../strings";
 
 export function CreateRunForm({
   strategyId,
@@ -46,6 +47,7 @@ export function CreateRunForm({
     DEFAULT_WALK_FORWARD_WINDOW,
   );
   const [error, setError] = useState<string | null>(null);
+  const [tooManyActive, setTooManyActive] = useState(false);
   const [pending, setPending] = useState(false);
 
   function toggleTicker(ticker: Ticker): void {
@@ -58,6 +60,7 @@ export function CreateRunForm({
 
   function submit(): void {
     setError(null);
+    setTooManyActive(false);
     const capitalCentavos = parseCentavosInput(capital);
     if (universe.length === 0 || !from || !to || capitalCentavos === null) {
       setError(capitalCentavos === null ? t.create.invalidCapital : t.create.error);
@@ -86,6 +89,7 @@ export function CreateRunForm({
           setError(t.create.unsatisfiableCollection);
         } else if (result.error === "too_many_active") {
           setError(t.tooManyActive);
+          setTooManyActive(true);
         } else {
           setError(t.create.error);
         }
@@ -225,7 +229,19 @@ export function CreateRunForm({
         </Select>
       </div>
 
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+      {error ? (
+        <p className="text-destructive text-xs">
+          {error}
+          {tooManyActive ? (
+            <>
+              {" "}
+              <Link href={IN_PROGRESS_RUNS_HREF} className="underline-offset-4 hover:underline">
+                {t.inProgress.link}
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       <Button onClick={submit} disabled={pending}>
         {t.create.submit}
