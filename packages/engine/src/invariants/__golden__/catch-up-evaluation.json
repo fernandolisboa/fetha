@@ -2269,1904 +2269,1666 @@
     "at": "2019-03-27T20:00:00.000Z",
     "session": "2019-03-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-03-28T20:00:00.000Z",
     "session": "2019-03-28",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-03-29T20:00:00.000Z",
     "session": "2019-03-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-01T20:00:00.000Z",
     "session": "2019-04-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-02T20:00:00.000Z",
     "session": "2019-04-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-03T20:00:00.000Z",
     "session": "2019-04-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-04T20:00:00.000Z",
     "session": "2019-04-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-05T20:00:00.000Z",
     "session": "2019-04-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-08T20:00:00.000Z",
     "session": "2019-04-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-09T20:00:00.000Z",
     "session": "2019-04-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-10T20:00:00.000Z",
     "session": "2019-04-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-11T20:00:00.000Z",
     "session": "2019-04-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-12T20:00:00.000Z",
     "session": "2019-04-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-15T20:00:00.000Z",
     "session": "2019-04-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-16T20:00:00.000Z",
     "session": "2019-04-16",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-17T20:00:00.000Z",
     "session": "2019-04-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-18T20:00:00.000Z",
     "session": "2019-04-18",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-19T20:00:00.000Z",
     "session": "2019-04-19",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-22T20:00:00.000Z",
     "session": "2019-04-22",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-23T20:00:00.000Z",
     "session": "2019-04-23",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-24T20:00:00.000Z",
     "session": "2019-04-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-25T20:00:00.000Z",
     "session": "2019-04-25",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-26T20:00:00.000Z",
     "session": "2019-04-26",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-29T20:00:00.000Z",
     "session": "2019-04-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-04-30T20:00:00.000Z",
     "session": "2019-04-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-01T20:00:00.000Z",
     "session": "2019-05-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-02T20:00:00.000Z",
     "session": "2019-05-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-03T20:00:00.000Z",
     "session": "2019-05-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-06T20:00:00.000Z",
     "session": "2019-05-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-07T20:00:00.000Z",
     "session": "2019-05-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-08T20:00:00.000Z",
     "session": "2019-05-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-09T20:00:00.000Z",
     "session": "2019-05-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-10T20:00:00.000Z",
     "session": "2019-05-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-13T20:00:00.000Z",
     "session": "2019-05-13",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-14T20:00:00.000Z",
     "session": "2019-05-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-15T20:00:00.000Z",
     "session": "2019-05-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-16T20:00:00.000Z",
     "session": "2019-05-16",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-17T20:00:00.000Z",
     "session": "2019-05-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-20T20:00:00.000Z",
     "session": "2019-05-20",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-21T20:00:00.000Z",
     "session": "2019-05-21",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-22T20:00:00.000Z",
     "session": "2019-05-22",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-23T20:00:00.000Z",
     "session": "2019-05-23",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-24T20:00:00.000Z",
     "session": "2019-05-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-27T20:00:00.000Z",
     "session": "2019-05-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-28T20:00:00.000Z",
     "session": "2019-05-28",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-29T20:00:00.000Z",
     "session": "2019-05-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-30T20:00:00.000Z",
     "session": "2019-05-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-05-31T20:00:00.000Z",
     "session": "2019-05-31",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-03T20:00:00.000Z",
     "session": "2019-06-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-04T20:00:00.000Z",
     "session": "2019-06-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-05T20:00:00.000Z",
     "session": "2019-06-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-06T20:00:00.000Z",
     "session": "2019-06-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-07T20:00:00.000Z",
     "session": "2019-06-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-10T20:00:00.000Z",
     "session": "2019-06-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-11T20:00:00.000Z",
     "session": "2019-06-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-12T20:00:00.000Z",
     "session": "2019-06-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-13T20:00:00.000Z",
     "session": "2019-06-13",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-14T20:00:00.000Z",
     "session": "2019-06-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-17T20:00:00.000Z",
     "session": "2019-06-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK003",
     "at": "2019-06-18T20:00:00.000Z",
     "session": "2019-06-18",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-03-27T20:00:00.000Z",
     "session": "2019-03-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-03-28T20:00:00.000Z",
     "session": "2019-03-28",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK013",
     "at": "2019-03-29T20:00:00.000Z",
     "session": "2019-03-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-01T20:00:00.000Z",
     "session": "2019-04-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-02T20:00:00.000Z",
     "session": "2019-04-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-03T20:00:00.000Z",
     "session": "2019-04-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-04T20:00:00.000Z",
     "session": "2019-04-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-05T20:00:00.000Z",
     "session": "2019-04-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-08T20:00:00.000Z",
     "session": "2019-04-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-09T20:00:00.000Z",
     "session": "2019-04-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-10T20:00:00.000Z",
     "session": "2019-04-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-11T20:00:00.000Z",
     "session": "2019-04-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-12T20:00:00.000Z",
     "session": "2019-04-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-15T20:00:00.000Z",
     "session": "2019-04-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-16T20:00:00.000Z",
     "session": "2019-04-16",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-17T20:00:00.000Z",
     "session": "2019-04-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-18T20:00:00.000Z",
     "session": "2019-04-18",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-19T20:00:00.000Z",
     "session": "2019-04-19",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-22T20:00:00.000Z",
     "session": "2019-04-22",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-24T20:00:00.000Z",
     "session": "2019-04-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-25T20:00:00.000Z",
     "session": "2019-04-25",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-26T20:00:00.000Z",
     "session": "2019-04-26",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-29T20:00:00.000Z",
     "session": "2019-04-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-30T20:00:00.000Z",
     "session": "2019-04-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-01T20:00:00.000Z",
     "session": "2019-05-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-02T20:00:00.000Z",
     "session": "2019-05-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-03T20:00:00.000Z",
     "session": "2019-05-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-06T20:00:00.000Z",
     "session": "2019-05-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-07T20:00:00.000Z",
     "session": "2019-05-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-08T20:00:00.000Z",
     "session": "2019-05-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-09T20:00:00.000Z",
     "session": "2019-05-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-10T20:00:00.000Z",
     "session": "2019-05-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-13T20:00:00.000Z",
     "session": "2019-05-13",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-14T20:00:00.000Z",
     "session": "2019-05-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-15T20:00:00.000Z",
     "session": "2019-05-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-16T20:00:00.000Z",
     "session": "2019-05-16",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-17T20:00:00.000Z",
     "session": "2019-05-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-20T20:00:00.000Z",
     "session": "2019-05-20",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-21T20:00:00.000Z",
     "session": "2019-05-21",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-22T20:00:00.000Z",
     "session": "2019-05-22",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-23T20:00:00.000Z",
     "session": "2019-05-23",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-24T20:00:00.000Z",
     "session": "2019-05-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-27T20:00:00.000Z",
     "session": "2019-05-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-28T20:00:00.000Z",
     "session": "2019-05-28",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-29T20:00:00.000Z",
     "session": "2019-05-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-30T20:00:00.000Z",
     "session": "2019-05-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-05-31T20:00:00.000Z",
     "session": "2019-05-31",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-03T20:00:00.000Z",
     "session": "2019-06-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-04T20:00:00.000Z",
     "session": "2019-06-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-05T20:00:00.000Z",
     "session": "2019-06-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-06T20:00:00.000Z",
     "session": "2019-06-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-07T20:00:00.000Z",
     "session": "2019-06-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-10T20:00:00.000Z",
     "session": "2019-06-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-11T20:00:00.000Z",
     "session": "2019-06-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-12T20:00:00.000Z",
     "session": "2019-06-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-14T20:00:00.000Z",
     "session": "2019-06-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-17T20:00:00.000Z",
     "session": "2019-06-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK013",
     "at": "2019-06-18T20:00:00.000Z",
     "session": "2019-06-18",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK023",
     "at": "2019-03-27T20:00:00.000Z",
     "session": "2019-03-27",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-03-28T20:00:00.000Z",
     "session": "2019-03-28",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-03-29T20:00:00.000Z",
     "session": "2019-03-29",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-01T20:00:00.000Z",
     "session": "2019-04-01",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-02T20:00:00.000Z",
     "session": "2019-04-02",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-03T20:00:00.000Z",
     "session": "2019-04-03",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-04T20:00:00.000Z",
     "session": "2019-04-04",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-05T20:00:00.000Z",
     "session": "2019-04-05",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-08T20:00:00.000Z",
     "session": "2019-04-08",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-09T20:00:00.000Z",
     "session": "2019-04-09",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-10T20:00:00.000Z",
     "session": "2019-04-10",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-11T20:00:00.000Z",
     "session": "2019-04-11",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-12T20:00:00.000Z",
     "session": "2019-04-12",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-15T20:00:00.000Z",
     "session": "2019-04-15",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-16T20:00:00.000Z",
     "session": "2019-04-16",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-17T20:00:00.000Z",
     "session": "2019-04-17",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-18T20:00:00.000Z",
     "session": "2019-04-18",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-19T20:00:00.000Z",
     "session": "2019-04-19",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-22T20:00:00.000Z",
     "session": "2019-04-22",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-23T20:00:00.000Z",
     "session": "2019-04-23",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-24T20:00:00.000Z",
     "session": "2019-04-24",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-25T20:00:00.000Z",
     "session": "2019-04-25",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-26T20:00:00.000Z",
     "session": "2019-04-26",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-29T20:00:00.000Z",
     "session": "2019-04-29",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-04-30T20:00:00.000Z",
     "session": "2019-04-30",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-01T20:00:00.000Z",
     "session": "2019-05-01",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-02T20:00:00.000Z",
     "session": "2019-05-02",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-03T20:00:00.000Z",
     "session": "2019-05-03",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-06T20:00:00.000Z",
     "session": "2019-05-06",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-07T20:00:00.000Z",
     "session": "2019-05-07",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-08T20:00:00.000Z",
     "session": "2019-05-08",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-09T20:00:00.000Z",
     "session": "2019-05-09",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-10T20:00:00.000Z",
     "session": "2019-05-10",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-13T20:00:00.000Z",
     "session": "2019-05-13",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-14T20:00:00.000Z",
     "session": "2019-05-14",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-15T20:00:00.000Z",
     "session": "2019-05-15",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-16T20:00:00.000Z",
     "session": "2019-05-16",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-17T20:00:00.000Z",
     "session": "2019-05-17",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-20T20:00:00.000Z",
     "session": "2019-05-20",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-21T20:00:00.000Z",
     "session": "2019-05-21",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-22T20:00:00.000Z",
     "session": "2019-05-22",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-23T20:00:00.000Z",
     "session": "2019-05-23",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-24T20:00:00.000Z",
     "session": "2019-05-24",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-27T20:00:00.000Z",
     "session": "2019-05-27",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-28T20:00:00.000Z",
     "session": "2019-05-28",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-29T20:00:00.000Z",
     "session": "2019-05-29",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-30T20:00:00.000Z",
     "session": "2019-05-30",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-05-31T20:00:00.000Z",
     "session": "2019-05-31",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-03T20:00:00.000Z",
     "session": "2019-06-03",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-04T20:00:00.000Z",
     "session": "2019-06-04",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-05T20:00:00.000Z",
     "session": "2019-06-05",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-06T20:00:00.000Z",
     "session": "2019-06-06",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-07T20:00:00.000Z",
     "session": "2019-06-07",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-10T20:00:00.000Z",
     "session": "2019-06-10",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-11T20:00:00.000Z",
     "session": "2019-06-11",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-12T20:00:00.000Z",
     "session": "2019-06-12",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-13T20:00:00.000Z",
     "session": "2019-06-13",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-14T20:00:00.000Z",
     "session": "2019-06-14",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-17T20:00:00.000Z",
     "session": "2019-06-17",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK023",
     "at": "2019-06-18T20:00:00.000Z",
     "session": "2019-06-18",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-03-27T20:00:00.000Z",
     "session": "2019-03-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-03-28T20:00:00.000Z",
     "session": "2019-03-28",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-03-29T20:00:00.000Z",
     "session": "2019-03-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-01T20:00:00.000Z",
     "session": "2019-04-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-02T20:00:00.000Z",
     "session": "2019-04-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-03T20:00:00.000Z",
     "session": "2019-04-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-04T20:00:00.000Z",
     "session": "2019-04-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-05T20:00:00.000Z",
     "session": "2019-04-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-08T20:00:00.000Z",
     "session": "2019-04-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-09T20:00:00.000Z",
     "session": "2019-04-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-10T20:00:00.000Z",
     "session": "2019-04-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-11T20:00:00.000Z",
     "session": "2019-04-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-12T20:00:00.000Z",
     "session": "2019-04-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-15T20:00:00.000Z",
     "session": "2019-04-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-16T20:00:00.000Z",
     "session": "2019-04-16",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-17T20:00:00.000Z",
     "session": "2019-04-17",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-18T20:00:00.000Z",
     "session": "2019-04-18",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-19T20:00:00.000Z",
     "session": "2019-04-19",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-22T20:00:00.000Z",
     "session": "2019-04-22",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-23T20:00:00.000Z",
     "session": "2019-04-23",
     "outcome": "signal",
-    "reason": "signal",
-    "detail": null
+    "reason": "signal"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-24T20:00:00.000Z",
     "session": "2019-04-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-25T20:00:00.000Z",
     "session": "2019-04-25",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-26T20:00:00.000Z",
     "session": "2019-04-26",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-29T20:00:00.000Z",
     "session": "2019-04-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-04-30T20:00:00.000Z",
     "session": "2019-04-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-01T20:00:00.000Z",
     "session": "2019-05-01",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-02T20:00:00.000Z",
     "session": "2019-05-02",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-03T20:00:00.000Z",
     "session": "2019-05-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-06T20:00:00.000Z",
     "session": "2019-05-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-07T20:00:00.000Z",
     "session": "2019-05-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-08T20:00:00.000Z",
     "session": "2019-05-08",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-09T20:00:00.000Z",
     "session": "2019-05-09",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-10T20:00:00.000Z",
     "session": "2019-05-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-13T20:00:00.000Z",
     "session": "2019-05-13",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-14T20:00:00.000Z",
     "session": "2019-05-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-15T20:00:00.000Z",
     "session": "2019-05-15",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-16T20:00:00.000Z",
     "session": "2019-05-16",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-17T20:00:00.000Z",
     "session": "2019-05-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-20T20:00:00.000Z",
     "session": "2019-05-20",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-21T20:00:00.000Z",
     "session": "2019-05-21",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-22T20:00:00.000Z",
     "session": "2019-05-22",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-23T20:00:00.000Z",
     "session": "2019-05-23",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-24T20:00:00.000Z",
     "session": "2019-05-24",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-27T20:00:00.000Z",
     "session": "2019-05-27",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-28T20:00:00.000Z",
     "session": "2019-05-28",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-29T20:00:00.000Z",
     "session": "2019-05-29",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-30T20:00:00.000Z",
     "session": "2019-05-30",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-05-31T20:00:00.000Z",
     "session": "2019-05-31",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-03T20:00:00.000Z",
     "session": "2019-06-03",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-04T20:00:00.000Z",
     "session": "2019-06-04",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-05T20:00:00.000Z",
     "session": "2019-06-05",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-06T20:00:00.000Z",
     "session": "2019-06-06",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-07T20:00:00.000Z",
     "session": "2019-06-07",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-10T20:00:00.000Z",
     "session": "2019-06-10",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-11T20:00:00.000Z",
     "session": "2019-06-11",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-12T20:00:00.000Z",
     "session": "2019-06-12",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-13T20:00:00.000Z",
     "session": "2019-06-13",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-14T20:00:00.000Z",
     "session": "2019-06-14",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-17T20:00:00.000Z",
     "session": "2019-06-17",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    },
    {
     "ticker": "TCK033",
     "at": "2019-06-18T20:00:00.000Z",
     "session": "2019-06-18",
     "outcome": "conditions_not_met",
-    "reason": "conditions_not_met",
-    "detail": null
+    "reason": "conditions_not_met"
    }
   ],
   "notes": [],

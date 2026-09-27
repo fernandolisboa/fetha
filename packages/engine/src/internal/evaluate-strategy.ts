@@ -39,17 +39,10 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
 import { toQuantity } from "./scalars";
 import { groupBy, upperBound } from "./search";
-import { sizeStockEntry, type StockSizingReason } from "./sizing";
+import { sizeStockEntry } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
 import { validateViewIntegrity } from "./validate-view-integrity";
-
-const sizingDetail: Record<StockSizingReason, string> = {
-  no_declared_capital: "no declared capital to size against",
-  unbounded_max_loss: "sizing is unsizeable against an unbounded max loss",
-  zero_units: "a unit carries no cost or risk to size against",
-  unaffordable_budget: "the declared capital and fraction cannot afford one unit",
-};
 
 function invalidInput<T = Evaluation>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
@@ -61,9 +54,8 @@ function record(
   session: SessionDate,
   outcome: EvaluationOutcome,
   reason: EvaluationReason,
-  detail: string | null,
 ): EvaluationRecord {
-  return { ticker, at, session, outcome, reason, detail };
+  return { ticker, at, session, outcome, reason };
 }
 
 // Mirrored by `checkStrategyCoherence` in `packages/contracts/src/strategy-coherence.ts`
@@ -412,11 +404,6 @@ function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReaso
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
 }
 
-function zeroBaseMessage(kind: "profit_target" | "stop_loss"): string {
-  const baseName = kind === "profit_target" ? "premium" : "max-loss";
-  return `${kind} cannot fire: the operation's ${baseName} base is zero`;
-}
-
 type EvaluationBase = Pick<EvaluateStrategyInput, "view" | "strategy" | "instruments">;
 export type EvaluationCall = Pick<
   EvaluateStrategyInput,
@@ -657,14 +644,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
 
       if (visible === 0) {
         evaluations.push(
-          record(
-            ticker,
-            call.at,
-            sessionForInstant(call.at),
-            "insufficient_data",
-            "no_candles",
-            "no candles for this instrument and timeframe",
-          ),
+          record(ticker, call.at, sessionForInstant(call.at), "insufficient_data", "no_candles"),
         );
         continue;
       }
@@ -686,7 +666,6 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             sessionForInstant(call.at),
             "insufficient_data",
             "no_candles_in_catch_up_window",
-            "no candles in (since, at] for this instrument and timeframe",
           ),
         );
         continue;
@@ -727,21 +706,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 nominalCandle.session,
                 "insufficient_data",
                 "entry_condition_warmup",
-                "entry condition needs more warm-up data",
               ),
             );
             continue;
           }
           if (entryVerdict === "false") {
             evaluations.push(
-              record(
-                ticker,
-                c,
-                nominalCandle.session,
-                "conditions_not_met",
-                "conditions_not_met",
-                null,
-              ),
+              record(ticker, c, nominalCandle.session, "conditions_not_met", "conditions_not_met"),
             );
             continue;
           }
@@ -791,14 +762,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               switch (entryPricing.error.code) {
                 case "no_series_matches":
                   evaluations.push(
-                    record(
-                      ticker,
-                      c,
-                      nominalCandle.session,
-                      "no_series_match",
-                      "no_series_match",
-                      "no listed option series satisfies the strike and expiry selection",
-                    ),
+                    record(ticker, c, nominalCandle.session, "no_series_match", "no_series_match"),
                   );
                   continue;
                 case "degenerate_strikes":
@@ -809,7 +773,6 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       nominalCandle.session,
                       "degenerate_strikes",
                       "degenerate_strikes",
-                      "two distinct strike ranks resolved to the same listed strike",
                     ),
                   );
                   continue;
@@ -821,7 +784,6 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       nominalCandle.session,
                       "unsizeable",
                       entryPricing.error.reason,
-                      sizingDetail[entryPricing.error.reason],
                     ),
                   );
                   continue;
@@ -833,7 +795,6 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                       nominalCandle.session,
                       "insufficient_data",
                       "insufficient_market_data_for_proposal",
-                      "not enough market data to select strikes or price the proposal",
                     ),
                   );
                   continue;
@@ -852,7 +813,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               indicators,
               proposal: { legs: pricing.legs.map((legValuation) => legValuation.leg), pricing },
             });
-            evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal", null));
+            evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal"));
             continue;
           }
 
@@ -865,14 +826,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
           });
           if (!sizingResult.ok) {
             evaluations.push(
-              record(
-                ticker,
-                c,
-                nominalCandle.session,
-                "unsizeable",
-                sizingResult.detail,
-                sizingDetail[sizingResult.detail],
-              ),
+              record(ticker, c, nominalCandle.session, "unsizeable", sizingResult.detail),
             );
             continue;
           }
@@ -925,13 +879,12 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               pricing,
             },
           });
-          evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal", null));
+          evaluations.push(record(ticker, c, nominalCandle.session, "signal", "signal"));
           continue;
         }
 
         let instantFired = false;
         let instantUnknown = false;
-        let zeroBaseDetail: string | null = null;
         let zeroBaseReason: EvaluationReason | null = null;
         for (const op of activeOps) {
           // Resolved at this same instant `c`, not once for the whole since..at batch at
@@ -962,8 +915,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                   instantUnknown = true;
                   break;
                 }
-                if (outcome.zeroBase && zeroBaseDetail === null) {
-                  zeroBaseDetail = zeroBaseMessage(rule.kind);
+                if (outcome.zeroBase && zeroBaseReason === null) {
                   zeroBaseReason = zeroBaseReasonFor(rule.kind);
                 }
                 if (outcome.fired) {
@@ -1057,7 +1009,6 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               : instantUnknown
                 ? "exit_rule_unknown"
                 : (zeroBaseReason ?? "conditions_not_met"),
-            instantFired || instantUnknown ? null : zeroBaseDetail,
           ),
         );
       }

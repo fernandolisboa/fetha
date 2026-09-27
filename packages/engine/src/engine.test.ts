@@ -307,7 +307,6 @@ describe("engine", () => {
         session: "2024-01-01",
         outcome: "insufficient_data",
         reason: "no_candles",
-        detail: "no candles for this instrument and timeframe",
       },
     ]);
     expect(result.value.signals).toEqual([]);
@@ -347,7 +346,6 @@ describe("engine", () => {
         session: "2024-01-01",
         outcome: "insufficient_data",
         reason: "no_candles",
-        detail: "no candles for this instrument and timeframe",
       },
     ]);
     expect(result.value.signals).toEqual([]);

@@ -15,6 +15,7 @@ import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { activeStrategyUserIds } from "./active-strategy-users";
+import type { WebEvaluationReason } from "./evaluation-vocabulary";
 import { SignalsRepository, type NewEvaluation, type NewSignal } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
@@ -49,17 +50,6 @@ const SETUP_FAILED = "setup_failed";
 // sibling strategy's watermark) and how many backdated entry proposals, all
 // sized against *today's* risk profile, can land in one night's inbox.
 export const CATCH_UP_SESSION_LIMIT = 21;
-
-// A collection `dataWindow` can ask for that `canSatisfyCollection`
-// (market-data) says this strategy cannot be evaluated without (round 2
-// item 8, follow-up in https://github.com/fernandolisboa/fetha/issues/81):
-// a strategy that needs it can never receive a value, so it is logged
-// explicitly instead of retrying `insufficient_data` forever with no clue
-// why. The prefix, not a fixed full code (round 7 item 4): which
-// collection actually failed is appended at the call site, since a fixed
-// `impliedVolatilityIndex` suffix would misname the failure once
-// `UNSATISFIABLE_COLLECTIONS` grows a second member.
-const UNSATISFIABLE_COLLECTION_CODE_PREFIX = "unsatisfiable_collection:";
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -118,13 +108,17 @@ function signalToNewSignal(strategyId: string, signal: Signal): NewSignal {
 // One failure/skip row per (ticker, session) in the catch-up range, not
 // only under the newest session (#19 round 2 item 6): a multi-session
 // catch-up that hits an unknown structure or an engine error leaves no
-// silent holes for the sessions in between.
+// silent holes for the sessions in between. `reason` is always one of the
+// typed web-authored codes (#133): every failure this function records an
+// evaluation for has one, `market_view_too_large` and `no_market_data`
+// (loadMarketView's own thrown errors) included.
 function failureEvaluations(
   strategyId: string,
   strategyVersionId: string,
   tickers: Ticker[],
   sessions: readonly TradingSession[],
-  code: string,
+  reason: WebEvaluationReason,
+  detail: string | null,
 ): NewEvaluation[] {
   return sessions.flatMap((session) =>
     tickers.map((ticker) => ({
@@ -134,10 +128,8 @@ function failureEvaluations(
       session: session.date,
       at: new Date(session.close),
       outcome: "insufficient_data" as const,
-      // Never a `reason`: this is a web-authored code that never had an
-      // `EvaluationRecord` to read one from (#80).
-      reason: null,
-      detail: code,
+      reason,
+      detail,
     })),
   );
 }
@@ -214,8 +206,8 @@ function clampEvaluations(
     session: boundary.date,
     at: new Date(boundary.close),
     outcome: "insufficient_data" as const,
-    reason: null,
-    detail: `catchup_clamped:${String(clamped.length)}`,
+    reason: "catchup_clamped" as const,
+    detail: String(clamped.length),
   }));
 }
 
@@ -396,7 +388,14 @@ export async function evaluateSignalsForSession(
           errors.push("unknown_structure");
           await writeResult(
             [],
-            failureEvaluations(strategyId, version.id, tickers, userSessions, "unknown_structure"),
+            failureEvaluations(
+              strategyId,
+              version.id,
+              tickers,
+              userSessions,
+              "unknown_structure",
+              null,
+            ),
           );
           continue;
         }
@@ -420,12 +419,12 @@ export async function evaluateSignalsForSession(
         // predicate): recorded explicitly per ticker/session and never
         // handed to the engine, instead of retrying `insufficient_data`
         // every night with no clue why. The failing collection's own name
-        // goes into the code (round 7 item 4): a fixed
-        // `impliedVolatilityIndex` suffix here would misname the failure
-        // the moment `UNSATISFIABLE_COLLECTIONS` grows a second member —
-        // `strings.ts`'s own rendering of this code is collection-neutral
-        // regardless, so this is for the evaluation log's own accuracy,
-        // not the copy.
+        // goes into `detail` alone (round 7 item 4, sharpened by #133): a
+        // fixed `impliedVolatilityIndex` suffix here would misname the
+        // failure the moment `UNSATISFIABLE_COLLECTIONS` grows a second
+        // member — `strings.ts`'s own rendering of this reason is
+        // collection-neutral regardless, so this is for the evaluation
+        // log's own accuracy, not the copy.
         const unsatisfiableCollection = window.collections.find(
           (collection) => !canSatisfyCollection(collection),
         );
@@ -437,7 +436,8 @@ export async function evaluateSignalsForSession(
               version.id,
               tickers,
               userSessions,
-              `${UNSATISFIABLE_COLLECTION_CODE_PREFIX}${unsatisfiableCollection}`,
+              "unsatisfiable_collection",
+              unsatisfiableCollection,
             ),
           );
           continue;
@@ -454,7 +454,7 @@ export async function evaluateSignalsForSession(
         // every remaining active strategy's evaluation for the night, with
         // nothing but a generic `evaluation_failed` to explain it, and
         // repeats deterministically every run (#18 round 5 item 5). Same
-        // shape as `unknown_structure` and `UNSATISFIABLE_COLLECTION_CODE_PREFIX`
+        // shape as `unknown_structure` and `unsatisfiable_collection`
         // just above: recorded explicitly per ticker/session, this
         // strategy skipped, the loop moves on to the next one.
         let view;
@@ -465,9 +465,9 @@ export async function evaluateSignalsForSession(
             error instanceof MarketViewTooLargeError ||
             error instanceof MarketViewUnavailableError
           ) {
-            const code =
+            const reason: WebEvaluationReason =
               error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
-            errors.push(code);
+            errors.push(reason);
             // Writing this evaluation row advances the strategy's own
             // watermark (`lastEvaluatedSession`) the same as a real
             // evaluation would (#18 round 6 item 6): a `market_view_too_large`
@@ -484,7 +484,7 @@ export async function evaluateSignalsForSession(
             // sessions is ever needed.
             await writeResult(
               [],
-              failureEvaluations(strategyId, version.id, tickers, userSessions, code),
+              failureEvaluations(strategyId, version.id, tickers, userSessions, reason, null),
             );
             continue;
           }
@@ -509,7 +509,8 @@ export async function evaluateSignalsForSession(
               version.id,
               tickers,
               userSessions,
-              `engine_error:${result.error.code}`,
+              "engine_error",
+              result.error.code,
             ),
           );
           continue;
@@ -518,6 +519,11 @@ export async function evaluateSignalsForSession(
         const newSignals: NewSignal[] = result.value.signals.map((signal) =>
           signalToNewSignal(strategyId, signal),
         );
+        // `detail` is always null for a row built straight from the
+        // engine's own `EvaluationRecord` (#133 removed the engine's own
+        // `detail` field: it was a pure function of `reason`, ADR-0039):
+        // the log's own detail column is used only by the web-authored
+        // failures above, which carry their own parameter there.
         const newEvaluations: NewEvaluation[] = result.value.evaluations.map((record) => ({
           strategyId,
           strategyVersionId: version.id,
@@ -526,7 +532,7 @@ export async function evaluateSignalsForSession(
           at: new Date(record.at),
           outcome: record.outcome,
           reason: record.reason,
-          detail: record.detail,
+          detail: null,
         }));
 
         await writeResult(newSignals, newEvaluations);

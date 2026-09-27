@@ -14,7 +14,11 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { candles, tradingSessions } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { loadMarketView, MarketViewUnavailableError } from "@/modules/market-data";
+import {
+  loadMarketView,
+  MarketViewTooLargeError,
+  MarketViewUnavailableError,
+} from "@/modules/market-data";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { RiskProfileRepository } from "@/modules/portfolio";
@@ -513,7 +517,8 @@ describe("evaluateSignalsForSession", () => {
     const log = await repository.listEvaluationLog();
     expect(log).toHaveLength(3);
     expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
-    expect(log.every((row) => row.detail === "unknown_structure")).toBe(true);
+    expect(log.every((row) => row.reason === "unknown_structure")).toBe(true);
+    expect(log.every((row) => row.detail === null)).toBe(true);
   });
 
   it("resolves a genuinely missing anchor (no watermark, no session before the drained range) to a single explicit evaluation, never a crash or a silent no-op (round 2 item 7)", async () => {
@@ -673,7 +678,8 @@ describe("evaluateSignalsForSession", () => {
     expect(await repository.listInbox()).toHaveLength(0);
     const log = await repository.listEvaluationLog();
     expect(log).toHaveLength(1);
-    expect(log[0]?.detail).toBe("unsatisfiable_collection:impliedVolatilityIndex");
+    expect(log[0]?.reason).toBe("unsatisfiable_collection");
+    expect(log[0]?.detail).toBe("impliedVolatilityIndex");
     expect(log[0]?.ticker).toBe(ticker);
   });
 
@@ -795,7 +801,7 @@ describe("evaluateSignalsForSession", () => {
     // — proving the throw never unwound past it.
     expect(strategiesWithRows).toEqual(new Set([strategyA.id, strategyB.id]));
 
-    const failingLog = log.filter((row) => row.detail === "no_market_data");
+    const failingLog = log.filter((row) => row.reason === "no_market_data");
     expect(failingLog).toHaveLength(1);
 
     const survivingId = [strategyA.id, strategyB.id].find(
@@ -803,6 +809,40 @@ describe("evaluateSignalsForSession", () => {
     );
     const survivingLog = log.filter((row) => row.strategyId === survivingId);
     expect(survivingLog.some((row) => row.outcome !== "insufficient_data")).toBe(true);
+  });
+
+  it("records reason market_view_too_large, not no_market_data, when loadMarketView throws MarketViewTooLargeError (#133)", async () => {
+    const db = getDb();
+    const session = randomSession();
+    createdSessions.push(session);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("too-large-view");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    await insertSession(session);
+    await insertCandle(ticker, session);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    loadMarketViewMock.mockImplementation(() => {
+      throw new MarketViewTooLargeError("option chain crosses the bind-list cap");
+    });
+
+    const outcome = await evaluateSignalsForSession(db, [session]);
+    expect(outcome.errors).toContain("market_view_too_large");
+
+    const repository = new SignalsRepository(db, owner);
+    const log = await repository.listEvaluationLog();
+    expect(log.some((row) => row.reason === "market_view_too_large")).toBe(true);
+    expect(log.some((row) => row.reason === "no_market_data")).toBe(false);
   });
 
   it("checks the deadline inside the strategy loop, not only between users (round 3 item 2)", async () => {
@@ -914,8 +954,8 @@ describe("evaluateSignalsForSession", () => {
     expect(log).toHaveLength(CATCH_UP_SESSION_LIMIT + 2);
 
     const clampedCount = sessionCount - 1 - CATCH_UP_SESSION_LIMIT;
-    const clampRow = log.find((row) => row.detail?.startsWith("catchup_clamped:"));
-    expect(clampRow?.detail).toBe(`catchup_clamped:${String(clampedCount)}`);
+    const clampRow = log.find((row) => row.reason === "catchup_clamped");
+    expect(clampRow?.detail).toBe(String(clampedCount));
 
     const evaluatedSessions = new Set(
       log.filter((row) => row.detail === null).map((row) => row.session),

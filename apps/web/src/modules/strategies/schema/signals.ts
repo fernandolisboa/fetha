@@ -93,17 +93,23 @@ export const evaluations = pgTable(
     session: text("session").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull(),
     outcome: text("outcome").notNull(),
-    // The engine's stable `EvaluationReason` code (#80), null for a row this
-    // module wrote itself before this column existed, or for one of the
-    // web-authored failure codes (`unknown_structure`, `engine_error:...`,
-    // `catchup_clamped:...`, `unsatisfiable_collection:...`) that
-    // `evaluate-signals.ts` puts straight into `detail` without ever holding
-    // an `EvaluationRecord` to read a `reason` from. `detail` stays the
-    // engine's English sentence (or one of those codes) for logs, never
-    // translated from `reason` here. Plain `text`, no CHECK, same as the
-    // sibling `outcome` column: Zod (`evaluationReasonSchema` in
-    // `signals-repository.ts`) validates it on read, so the engine's closed
-    // vocabulary does not need a copy inside a migration too.
+    // The engine's stable `EvaluationReason` code (#80) for a row built
+    // straight from an `EvaluationRecord`, or one of the web-authored
+    // `WebEvaluationReason` codes (#133: `unknown_structure`, `engine_error`,
+    // `catchup_clamped`, `unsatisfiable_collection`, `market_view_too_large`,
+    // `no_market_data`) for an outcome `evaluate-signals.ts` records itself,
+    // outside any `EvaluationRecord`. Null only for a row written before
+    // either vocabulary existed. `detail` is a plain log field: null for a
+    // row built from an `EvaluationRecord`
+    // (the engine's own `detail` was removed, ADR-0039, since it was a pure
+    // function of `reason`); the one parameter a web-authored reason carries
+    // (the engine error code, the dropped-session count, the collection
+    // name), unprefixed, for a web-authored row; or the pre-#80 English
+    // sentence a row already on disk carries from before either column
+    // existed. Plain `text`, no CHECK, same as the sibling `outcome` column:
+    // Zod (`evaluationReasonSchema` in `signals-repository.ts`) validates it
+    // on read, so the closed vocabulary does not need a copy inside a
+    // migration too.
     reason: text("reason"),
     detail: text("detail"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

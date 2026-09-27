@@ -1,131 +1,45 @@
 import type { EvaluationOutcome, EvaluationReason } from "@fetha/engine";
 
-// Fallback for a row with no `reason` (#80). Two classes of row land here:
-// one written before `EvaluationRecord.reason` existed, carrying the
-// engine's own English `detail` prose from that time; and, going forward,
-// every row `evaluate-signals.ts` writes itself (`unknown_structure`,
-// `engine_error:`, `catchup_clamped:`, `unsatisfiable_collection:`) — those
-// are web-authored codes with no `EvaluationRecord` to read a `reason`
-// from, not prose the engine emits, so this fallback keeps serving them
-// rather than being a one-time migration shim. Matched here by exact
-// string, or by prefix for the variable-suffix codes. Never used for a row
-// that already has a `reason`; see `reasonTextEn`/`reasonTextPtBR` below
-// for that path. An unrecognized string is dropped rather than shown
-// untranslated (CLAUDE.md i18n: user-facing strings ship in pt-BR).
-const evaluationDetailEn: Record<string, string> = {
-  "no candles for this instrument and timeframe": "No candles for this instrument and timeframe",
-  "no candles in (since, at] for this instrument and timeframe":
-    "No candles in the evaluated window for this instrument and timeframe",
-  "entry condition needs more warm-up data": "Entry condition needs more warm-up data",
-  "no listed option series satisfies the strike and expiry selection":
-    "No listed option series satisfies the strike and expiry selection",
-  "two distinct strike ranks resolved to the same listed strike":
-    "Two distinct strike ranks resolved to the same listed strike",
-  "no declared capital to size against": "No declared capital to size against",
-  "fixed_risk sizing is unsizeable against an unbounded max loss":
-    "Fixed-risk sizing is unsizeable against an unbounded max loss",
-  // Engine wording before #59, still carried by evaluation records already stored.
-  "sizing yields fewer than one unit": "Sizing yields fewer than one unit",
-  "a unit carries no cost or risk to size against":
-    "A unit carries no cost or risk to size against",
-  "the declared capital and fraction cannot afford one unit":
-    "The declared capital and fraction cannot afford one unit",
-  "not enough market data to select strikes or price the proposal":
-    "Not enough market data to select strikes or price the proposal",
-  "profit_target cannot fire: the operation's premium base is zero":
-    "Profit target cannot fire: the operation's premium base is zero",
-  "stop_loss cannot fire: the operation's max-loss base is zero":
-    "Stop loss cannot fire: the operation's max-loss base is zero",
-  // Codes evaluate-signals.ts writes itself, not engine prose (#19 round 3
-  // item 7): distinct so the owner can tell a deleted structure from an
-  // unfillable collection from a real engine failure, instead of all three
-  // collapsing into the bare "Insufficient data" outcome label.
-  unknown_structure: "The strategy's structure no longer exists in the catalog",
+import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vocabulary";
+
+// One rendering function per web-authored reason (#133, follow-up from
+// #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
+// and `no_market_data` carry no user-facing parameter (the collection name
+// is an internal identifier, never surfaced — round 7 item 4's
+// collection-neutral copy carries forward unchanged), `engine_error` and
+// `catchup_clamped` render the `detail` column's own parameter (the engine
+// error code, the dropped session count). Every fragment is spliced as
+// "outcome · reason" in a dense log row, so none carries its own
+// punctuation or an instruction to act on — the session behind
+// `market_view_too_large`/`no_market_data` sits behind the watermark and is
+// never retried, so telling the reader to narrow the watchlist and try
+// again would be false.
+type WebReasonFormatter = (detail: string | null) => string;
+
+const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
+  unknown_structure: () => "The strategy's structure no longer exists in the catalog",
+  engine_error: (detail) => `Engine error (${detail ?? ""})`,
+  catchup_clamped: (detail) => `Catch-up capped: ${detail ?? "0"} older session(s) skipped`,
+  unsatisfiable_collection: () =>
+    "Requires market data with no source yet for one of this strategy's indicators",
+  market_view_too_large: () => "Watchlist too large to evaluate in one call",
+  no_market_data: () => "No market data for the session",
 };
 
-// `engine_error:<code>` and `catchup_clamped:<count>` carry a variable
-// suffix (#19 round 3 items 2, 7), so they cannot be exact keys in the maps
-// above: matched by prefix instead, in order, before falling back to
-// undefined (rendered as nothing extra beyond the bare outcome label).
-// The suffix names the actual `MarketViewCollection` that failed
-// (`canSatisfyCollection`, market-data), but that identifier
-// (`impliedVolatilityIndex`, and whatever else joins it later) is an
-// internal name, not a user-facing one — the copy stays collection-neutral
-// rather than naming a specific indicator, so a second member added to
-// `UNSATISFIABLE_COLLECTIONS` is described correctly without a strings
-// change (round 7 item 4: the old exact-key entry for
-// `impliedVolatilityIndex` alone would have kept naming implied volatility
-// even for a strategy that failed on an unrelated collection).
-const evaluationDetailPrefixesEn: readonly (readonly [string, (suffix: string) => string])[] = [
-  ["engine_error:", (code) => `Engine error (${code})`],
-  ["catchup_clamped:", (count) => `Catch-up capped: ${count} older session(s) skipped`],
-  [
-    "unsatisfiable_collection:",
-    () => "Requires market data with no source yet for one of this strategy's indicators",
-  ],
-];
-
-const evaluationDetailPrefixesPtBR: readonly (readonly [string, (suffix: string) => string])[] = [
-  ["engine_error:", (code) => `Erro do motor (${code})`],
-  [
-    "catchup_clamped:",
-    (count) => `Atualização limitada: ${count} sessão(ões) mais antiga(s) ignorada(s)`,
-  ],
-  [
-    "unsatisfiable_collection:",
-    () => "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
-  ],
-];
-
-function detailLookup(
-  exact: Record<string, string>,
-  prefixes: readonly (readonly [string, (suffix: string) => string])[],
-): (detail: string) => string | undefined {
-  return (detail: string): string | undefined => {
-    if (detail in exact) {
-      return exact[detail];
-    }
-    for (const [prefix, render] of prefixes) {
-      if (detail.startsWith(prefix)) {
-        return render(detail.slice(prefix.length));
-      }
-    }
-    return undefined;
-  };
-}
-
-const evaluationDetailPtBR: Record<string, string> = {
-  "no candles for this instrument and timeframe":
-    "Sem candles para este ativo nessa escala de tempo",
-  "no candles in (since, at] for this instrument and timeframe":
-    "Sem candles no intervalo avaliado para este ativo nessa escala de tempo",
-  "entry condition needs more warm-up data":
-    "A condição de entrada precisa de mais histórico de aquecimento",
-  "no listed option series satisfies the strike and expiry selection":
-    "Nenhuma série de opção listada atende à seleção de strike e vencimento",
-  "two distinct strike ranks resolved to the same listed strike":
-    "Dois ranks de strike distintos resolveram para o mesmo strike listado",
-  "no declared capital to size against": "Sem capital declarado para dimensionar",
-  "fixed_risk sizing is unsizeable against an unbounded max loss":
-    "Dimensionamento por risco fixo não é possível com perda máxima ilimitada",
-  // Engine wording before #59, still carried by evaluation records already stored.
-  "sizing yields fewer than one unit": "O dimensionamento resulta em menos de uma unidade",
-  "a unit carries no cost or risk to size against":
-    "Não há custo nem risco por unidade para dimensionar",
-  "the declared capital and fraction cannot afford one unit":
-    "O capital declarado, com essa fração, não cobre nem uma unidade",
-  "not enough market data to select strikes or price the proposal":
-    "Dados de mercado insuficientes para selecionar strikes ou precificar a proposta",
-  "profit_target cannot fire: the operation's premium base is zero":
-    "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
-  "stop_loss cannot fire: the operation's max-loss base is zero":
-    "O stop não pode disparar: a base de perda máxima da operação é zero",
-  unknown_structure: "A estrutura da estratégia não existe mais no catálogo",
+const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
+  unknown_structure: () => "A estrutura da estratégia não existe mais no catálogo",
+  engine_error: (detail) => `Erro do motor (${detail ?? ""})`,
+  catchup_clamped: (detail) =>
+    `Atualização limitada: ${detail ?? "0"} sessão(ões) mais antiga(s) ignorada(s)`,
+  unsatisfiable_collection: () =>
+    "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
+  market_view_too_large: () => "Watchlist grande demais para avaliar de uma vez",
+  no_market_data: () => "Sem dados de mercado para a sessão",
 };
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:
 // a code the engine adds without a matching entry here fails to typecheck,
-// unlike the legacy `evaluationDetailEn`/`PtBR` string match above. `signal`
+// unlike the pre-#80 exact-sentence string match this replaced. `signal`
 // and `conditions_not_met` map to `null`: both reasons add nothing beyond
 // their own outcome label (`t.inbox.outcomes.signal` /
 // `t.inbox.outcomes.conditions_not_met` already say the same thing), so a
@@ -316,9 +230,8 @@ const en = {
     evaluationLog: {
       title: "Evaluation log",
       empty: "No evaluation recorded yet.",
-      detail: evaluationDetailEn,
-      detailFor: detailLookup(evaluationDetailEn, evaluationDetailPrefixesEn),
       reasonText: reasonTextEn,
+      webReasonText: webReasonTextEn,
     },
     outcomes: {
       signal: "Signal",
@@ -487,9 +400,8 @@ const ptBR = {
     evaluationLog: {
       title: "Log de avaliações",
       empty: "Nenhuma avaliação registrada ainda.",
-      detail: evaluationDetailPtBR,
-      detailFor: detailLookup(evaluationDetailPtBR, evaluationDetailPrefixesPtBR),
       reasonText: reasonTextPtBR,
+      webReasonText: webReasonTextPtBR,
     },
     outcomes: {
       signal: "Sinal",
@@ -507,20 +419,24 @@ export const strategiesStrings = { en, ptBR } as const;
 export const t = strategiesStrings.ptBR;
 
 // Composes one evaluation log row's label: the outcome label alone, or the
-// outcome label followed by whatever extra a `reason` or (absent that) a
-// legacy `detail` string adds — never a suffix that only repeats the
-// outcome (`reasonText.signal`/`reasonText.conditions_not_met` are `null`
-// for exactly that reason).
+// outcome label followed by whatever extra its `reason` adds — an engine
+// code through `reasonText` (`null` for `signal`/`conditions_not_met`,
+// which add nothing beyond their own outcome label), a web-authored code
+// through `webReasonText`, fed the row's own `detail` parameter. A row with
+// no `reason` at all (a pre-#80 row the 0020 backfill migration could not
+// place) renders the bare outcome label (#133: `detailFor`'s exact-sentence
+// fallback is gone).
 export function evaluationLabel(row: {
   outcome: EvaluationOutcome;
-  reason: EvaluationReason | null;
+  reason: EvaluationReason | WebEvaluationReason | null;
   detail: string | null;
 }): string {
   const outcomeLabel = t.inbox.outcomes[row.outcome];
-  const suffix = row.reason
-    ? t.inbox.evaluationLog.reasonText[row.reason]
-    : row.detail
-      ? t.inbox.evaluationLog.detailFor(row.detail)
-      : undefined;
+  const suffix =
+    row.reason === null
+      ? undefined
+      : isWebEvaluationReason(row.reason)
+        ? t.inbox.evaluationLog.webReasonText[row.reason](row.detail)
+        : (t.inbox.evaluationLog.reasonText[row.reason] ?? undefined);
   return suffix ? `${outcomeLabel} · ${suffix}` : outcomeLabel;
 }
