@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 27/09/2026, revision 2",
+    updated: "Version of 27/09/2026, revision 3",
     sections: [
       {
         heading: "What Fetha is",
@@ -66,12 +66,12 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 27/09/2026, revision 2",
+    updated: "Version of 27/09/2026, revision 3",
     sections: [
       {
         heading: "Who handles your data",
         paragraphs: [
-          "Fetha is a personal project kept by its developer, who is the controller of the personal data described here under the LGPD (Law 13,709/2018). Requests about your data can be made through the project's repository at github.com/fernandolisboa/fetha; most of them you can also carry out yourself under Configurações.",
+          "Fetha is a personal project kept by its developer, who is the controller of the personal data described here under the LGPD (Law 13,709/2018). Requests about your data can be sent to fetha@miolos.app; most of them you can also carry out yourself under Configurações.",
         ],
       },
       {
@@ -132,7 +132,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 27/09/2026, revisão 2",
+    updated: "Versão de 27/09/2026, revisão 3",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -183,12 +183,12 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 27/09/2026, revisão 2",
+    updated: "Versão de 27/09/2026, revisão 3",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
         paragraphs: [
-          "O Fetha é um projeto pessoal mantido pelo seu desenvolvedor, que é o controlador dos dados pessoais descritos aqui nos termos da LGPD (Lei 13.709/2018). Pedidos sobre seus dados podem ser feitos pelo repositório do projeto em github.com/fernandolisboa/fetha; a maioria deles você também resolve sozinho em Configurações.",
+          "O Fetha é um projeto pessoal mantido pelo seu desenvolvedor, que é o controlador dos dados pessoais descritos aqui nos termos da LGPD (Lei 13.709/2018). Pedidos sobre seus dados podem ser enviados para fetha@miolos.app; a maioria deles você também resolve sozinho em Configurações.",
         ],
       },
       {
