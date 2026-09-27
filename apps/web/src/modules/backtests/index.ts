@@ -4,6 +4,7 @@
 // client" boundary never pulls the repository (and its `next/headers`
 // chain) into a client bundle.
 export {
+  ActiveBacktestRunLimitError,
   BacktestRunAlreadyCompleteError,
   BacktestRunClaimError,
   BacktestRunNotFoundError,

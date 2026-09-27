@@ -22,6 +22,7 @@ import type { BacktestCheckpoint, BacktestRun, LimitMode } from "@fetha/engine";
 import { z } from "zod";
 
 import { backtestRuns, type backtestRunStatuses } from "./schema";
+import type { Database } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 // The engine's own SimulatedOperation/LegSettlement discriminated unions
@@ -112,6 +113,27 @@ export class BacktestRunAlreadyCompleteError extends Error {
 // can stay bricked in "running" with no path back to "pending" or "paused".
 export const STALE_LEASE_MS = 360_000;
 
+export class ActiveBacktestRunLimitError extends Error {
+  constructor() {
+    super("Too many backtest runs in progress");
+    this.name = "ActiveBacktestRunLimitError";
+  }
+}
+
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+export const MAX_ACTIVE_BACKTEST_RUNS = 2;
+const COUNTS_AS_ACTIVE: Record<BacktestRunStatus, boolean> = {
+  pending: true,
+  running: true,
+  paused: true,
+  complete: false,
+  failed: false,
+};
+const ACTIVE_STATUSES = Object.entries(COUNTS_AS_ACTIVE)
+  .filter(([, active]) => active)
+  .map(([status]) => status as BacktestRunStatus);
+
 export class BacktestRunClaimError extends Error {
   constructor() {
     super("Backtest run could not be claimed: another call may already be running it");
@@ -196,32 +218,54 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
 // enforced by a database trigger, not only by this class's own defensive
 // checks.
 export class BacktestRunRepository extends UserScopedRepository {
-  async create(input: BacktestRunConfigInput): Promise<BacktestRunRecord> {
-    const [row] = await this.db
-      .insert(backtestRuns)
-      .values({
-        userId: this.userId,
-        strategyId: input.strategyId,
-        strategyVersionId: input.strategyVersionId,
-        structure: input.structure,
-        universe: input.universe,
-        periodFrom: input.period.from,
-        periodTo: input.period.to,
-        initialCapital: input.initialCapital,
-        costModel: input.costModel,
-        riskProfile: input.riskProfile,
-        limits: input.limits,
-        sizing: input.sizing,
-        walkForwardWindowSessions: input.walkForward?.windowSessions ?? null,
-        seed: input.seed,
-        configDigest: "",
-        status: "pending",
-      })
-      .returning();
-    if (!row) {
-      throw new Error("failed to create backtest run");
+  // Open registration lets anyone hold runs that each keep a 300 s function
+  // busy per chunk (#147, docs/adr/0032). Every way into the active set
+  // (create, and claim from "failed") counts under one per-user advisory
+  // lock, so concurrent calls cannot both pass the cap.
+  private async enforceActiveCap(tx: Transaction): Promise<void> {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${this.userId}`}, 0))`,
+    );
+    const [active] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(backtestRuns)
+      .where(
+        and(eq(backtestRuns.userId, this.userId), inArray(backtestRuns.status, ACTIVE_STATUSES)),
+      );
+    if ((active?.count ?? 0) >= MAX_ACTIVE_BACKTEST_RUNS) {
+      throw new ActiveBacktestRunLimitError();
     }
-    return toRecord(row);
+  }
+
+  async create(input: BacktestRunConfigInput): Promise<BacktestRunRecord> {
+    return this.db.transaction(async (tx) => {
+      await this.enforceActiveCap(tx);
+      const [row] = await tx
+        .insert(backtestRuns)
+        .values({
+          userId: this.userId,
+          strategyId: input.strategyId,
+          strategyVersionId: input.strategyVersionId,
+          structure: input.structure,
+          universe: input.universe,
+          periodFrom: input.period.from,
+          periodTo: input.period.to,
+          initialCapital: input.initialCapital,
+          costModel: input.costModel,
+          riskProfile: input.riskProfile,
+          limits: input.limits,
+          sizing: input.sizing,
+          walkForwardWindowSessions: input.walkForward?.windowSessions ?? null,
+          seed: input.seed,
+          configDigest: "",
+          status: "pending",
+        })
+        .returning();
+      if (!row) {
+        throw new Error("failed to create backtest run");
+      }
+      return toRecord(row);
+    });
   }
 
   async findMine(id: string): Promise<BacktestRunRecord> {
@@ -299,8 +343,25 @@ export class BacktestRunRepository extends UserScopedRepository {
   // though its checkpoint is still whatever the last successful inner call
   // left behind.
   async claim(id: string, now: Date = new Date()): Promise<BacktestRunRecord> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ status: backtestRuns.status })
+        .from(backtestRuns)
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+        .limit(1);
+      if (!current) {
+        throw new BacktestRunNotFoundError();
+      }
+      if (current.status === "failed") {
+        await this.enforceActiveCap(tx);
+      }
+      return this.claimRow(tx, id, now);
+    });
+  }
+
+  private async claimRow(tx: Transaction, id: string, now: Date): Promise<BacktestRunRecord> {
     const staleCutoff = new Date(now.getTime() - STALE_LEASE_MS);
-    const [row] = await this.db
+    const [row] = await tx
       .update(backtestRuns)
       // `error` is cleared, not just overwritten on the next `fail()`: a run
       // reclaimed from "failed" that goes on to complete must not carry its
@@ -319,14 +380,6 @@ export class BacktestRunRepository extends UserScopedRepository {
       )
       .returning();
     if (!row) {
-      const existing = await this.db
-        .select({ id: backtestRuns.id })
-        .from(backtestRuns)
-        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
-        .limit(1);
-      if (existing.length === 0) {
-        throw new BacktestRunNotFoundError();
-      }
       throw new BacktestRunClaimError();
     }
     return toRecord(row);

@@ -195,6 +195,7 @@ const en = {
       "This universe and period list more option series than a single run can load. Narrow the universe or shorten the period and try again.",
   },
   networkError: "Network error. Try again.",
+  tooManyActive: "You already have two backtests in progress. Finish one before starting another.",
 };
 
 const ptBR = {
@@ -390,6 +391,8 @@ const ptBR = {
       "Esse universo e esse período listam mais séries de opções do que uma simulação consegue carregar de uma vez. Reduza o universo ou encurte o período e tente de novo.",
   },
   networkError: "Erro de rede. Tente novamente.",
+  tooManyActive:
+    "Você já tem dois backtests em andamento. Conclua um deles antes de começar outro.",
 } satisfies typeof en;
 
 export const backtestsStrings = { en, ptBR } as const;

@@ -11,10 +11,12 @@ import { loadMigrationStatements } from "@/db/test/migration-sql";
 import { StrategiesRepository } from "@/modules/strategies";
 
 import {
+  ActiveBacktestRunLimitError,
   BacktestRunAlreadyCompleteError,
   BacktestRunClaimError,
   BacktestRunNotFoundError,
   BacktestRunRepository,
+  MAX_ACTIVE_BACKTEST_RUNS,
   STALE_LEASE_MS,
 } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL, defaultRiskProfile } from "./default-config";
@@ -603,5 +605,119 @@ describe("backtest_runs #73 optionPerContract -> optionPerOrder migration (0016_
       (raw as { result: { config: { costModel: { brokerage: object } } } }).result.config.costModel
         .brokerage,
     ).not.toHaveProperty("optionPerContract");
+  });
+});
+
+describe("BacktestRunRepository active-run cap (#147)", () => {
+  async function setUp(label: string) {
+    const db = getDb();
+    const email = uniqueEmail(label);
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+    const input = {
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure: STOCK_STRUCTURE,
+      universe: ["ZQIS3"],
+      period: { from: "2025-01-02", to: "2025-01-10" },
+      initialCapital: centavos(1_000_000),
+      costModel: DEFAULT_COST_MODEL,
+      riskProfile: defaultRiskProfile(centavos(1_000_000)),
+      limits: "warn" as const,
+      sizing: version.definition.sizing,
+      walkForward: { windowSessions: 63 },
+      seed: 1,
+    };
+    return { owner, repository: new BacktestRunRepository(db, owner), input, version };
+  }
+
+  it("refuses a run beyond the cap until one of the user's runs completes", async () => {
+    const mine = await setUp("cap");
+    const other = await setUp("cap-other");
+
+    const runs = [];
+    for (let i = 0; i < MAX_ACTIVE_BACKTEST_RUNS; i += 1) {
+      runs.push(await mine.repository.create(mine.input));
+    }
+    await expect(mine.repository.create(mine.input)).rejects.toBeInstanceOf(
+      ActiveBacktestRunLimitError,
+    );
+    await expect(other.repository.create(other.input)).resolves.toMatchObject({
+      status: "pending",
+    });
+
+    const [first] = runs;
+    if (!first) throw new Error("expected a run");
+    await mine.repository.complete(first.id, {
+      result: completedResult(mine.version),
+      configDigest: "x",
+      sessionsDone: 0,
+    });
+    await expect(mine.repository.create(mine.input)).resolves.toMatchObject({
+      status: "pending",
+    });
+  });
+
+  it("resumes a failed run only while the user is under the cap", async () => {
+    const { repository, input, version } = await setUp("claim-failed");
+
+    const failed = await repository.create(input);
+    await repository.claim(failed.id);
+    await repository.fail(failed.id, "no_market_data");
+    const first = await repository.create(input);
+    await repository.create(input);
+
+    await expect(repository.claim(failed.id)).rejects.toBeInstanceOf(ActiveBacktestRunLimitError);
+    await expect(repository.claim(first.id)).resolves.toMatchObject({ status: "running" });
+
+    await repository.complete(first.id, {
+      result: completedResult(version),
+      configDigest: "x",
+      sessionsDone: 0,
+    });
+    await expect(repository.claim(failed.id)).resolves.toMatchObject({ status: "running" });
+  });
+
+  it("waits for the per-user lock before counting", async () => {
+    const db = getDb();
+    const { owner, repository, input } = await setUp("lock");
+
+    let created: Promise<unknown> = Promise.resolve();
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${owner.id}`}, 0))`,
+      );
+      created = repository.create(input);
+      const outcome = await Promise.race([
+        created.then(() => "created"),
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve("waiting");
+          }, 500);
+        }),
+      ]);
+      expect(outcome).toBe("waiting");
+    });
+    await expect(created).resolves.toMatchObject({ status: "pending" });
+  });
+
+  it("admits at most the cap when creates race", async () => {
+    const { repository, input } = await setUp("race");
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 6 }, () => repository.create(input)),
+    );
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(
+      MAX_ACTIVE_BACKTEST_RUNS,
+    );
+    for (const result of results) {
+      if (result.status === "rejected") {
+        expect(result.reason).toBeInstanceOf(ActiveBacktestRunLimitError);
+      }
+    }
   });
 });
