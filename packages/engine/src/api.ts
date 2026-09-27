@@ -462,7 +462,6 @@ export type EvaluationRecord = {
   session: SessionDate;
   outcome: EvaluationOutcome;
   reason: EvaluationReason;
-  detail: string | null;
 };
 
 export type Evaluation = {

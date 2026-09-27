@@ -1,71 +1,57 @@
 import { describe, expect, it } from "vitest";
 import { evaluationReasons } from "@fetha/engine";
 
+import { webEvaluationReasons } from "./evaluation-vocabulary";
 import { MAX_VERSIONS_PER_STRATEGY } from "./strategies-repository";
 import { evaluationLabel, strategiesStrings, t } from "./strings";
 
 const reasonsWithNoText = new Set(["signal", "conditions_not_met"]);
 
-describe("evaluationLog.detailFor", () => {
-  it("renders distinct text for each of the three failure codes introduced in evaluate-signals.ts (#19 round 3 item 7)", () => {
-    const unknownStructure = t.inbox.evaluationLog.detailFor("unknown_structure");
-    const unsatisfiableCollection = t.inbox.evaluationLog.detailFor(
-      "unsatisfiable_collection:impliedVolatilityIndex",
-    );
-    const engineError = t.inbox.evaluationLog.detailFor("engine_error:bad_input");
+describe("evaluationLog.webReasonText (#133)", () => {
+  it("renders distinct text for each of the four web-authored codes", () => {
+    const unknownStructure = t.inbox.evaluationLog.webReasonText.unknown_structure(null);
+    const unsatisfiableCollection =
+      t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("impliedVolatilityIndex");
+    const engineError = t.inbox.evaluationLog.webReasonText.engine_error("bad_input");
+    const catchupClamped = t.inbox.evaluationLog.webReasonText.catchup_clamped("8");
 
-    expect(unknownStructure).toBeDefined();
-    expect(unsatisfiableCollection).toBeDefined();
-    expect(engineError).toBeDefined();
-
-    const rendered = new Set([unknownStructure, unsatisfiableCollection, engineError]);
-    expect(rendered.size).toBe(3);
+    const rendered = new Set([
+      unknownStructure,
+      unsatisfiableCollection,
+      engineError,
+      catchupClamped,
+    ]);
+    expect(rendered.size).toBe(4);
   });
 
   it("renders the engine error's own code inside the message, so two different codes read differently", () => {
-    const first = t.inbox.evaluationLog.detailFor("engine_error:invalid_window");
-    const second = t.inbox.evaluationLog.detailFor("engine_error:no_calendar");
+    const first = t.inbox.evaluationLog.webReasonText.engine_error("invalid_window");
+    const second = t.inbox.evaluationLog.webReasonText.engine_error("no_calendar");
 
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
     expect(first).not.toBe(second);
   });
 
   it("renders the catch-up clamp's dropped-session count inside the message (#19 round 3 item 2)", () => {
-    const clamped = t.inbox.evaluationLog.detailFor("catchup_clamped:8");
+    const clamped = t.inbox.evaluationLog.webReasonText.catchup_clamped("8");
     expect(clamped).toContain("8");
   });
 
-  it("falls back to undefined for a detail string outside the known vocabulary", () => {
-    expect(t.inbox.evaluationLog.detailFor("something_unrecognized")).toBeUndefined();
-  });
-
-  it("renders the unaffordable-budget sizing detail distinctly from the zero-units one (#59)", () => {
-    const zeroUnits = t.inbox.evaluationLog.detailFor(
-      "a unit carries no cost or risk to size against",
-    );
-    const unaffordableBudget = t.inbox.evaluationLog.detailFor(
-      "the declared capital and fraction cannot afford one unit",
-    );
-
-    expect(zeroUnits).toBeDefined();
-    expect(unaffordableBudget).toBeDefined();
-    expect(unaffordableBudget).not.toBe(zeroUnits);
-  });
-
-  it("keeps the pre-#59 sizing detail defined for evaluation records stored before the split", () => {
-    expect(t.inbox.evaluationLog.detailFor("sizing yields fewer than one unit")).toBeDefined();
-  });
-
   it("renders the same collection-neutral message regardless of which collection failed (#18 round 7 item 4)", () => {
-    const ivRank = t.inbox.evaluationLog.detailFor(
-      "unsatisfiable_collection:impliedVolatilityIndex",
-    );
-    const somethingElse = t.inbox.evaluationLog.detailFor("unsatisfiable_collection:quotes");
+    const ivRank =
+      t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("impliedVolatilityIndex");
+    const somethingElse = t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("quotes");
 
-    expect(ivRank).toBeDefined();
     expect(ivRank).toBe(somethingElse);
-    expect(ivRank?.toLowerCase()).not.toContain("implied volatility");
+    expect(ivRank.toLowerCase()).not.toContain("implied volatility");
+  });
+
+  it("declares every web-authored reason for both locales", () => {
+    for (const reason of webEvaluationReasons) {
+      expect(strategiesStrings.en.inbox.evaluationLog.webReasonText[reason]).toBeTypeOf("function");
+      expect(strategiesStrings.ptBR.inbox.evaluationLog.webReasonText[reason]).toBeTypeOf(
+        "function",
+      );
+    }
   });
 });
 
@@ -115,36 +101,46 @@ describe("evaluationLabel", () => {
     ).toBe(t.inbox.outcomes.conditions_not_met);
   });
 
-  it("renders the outcome label followed by the reason text for a reason that adds information", () => {
+  it("renders the outcome label followed by the reason text for an engine reason that adds information", () => {
     const reasonText = t.inbox.evaluationLog.reasonText.unaffordable_budget;
     expect(reasonText).toBeTruthy();
     expect(
       evaluationLabel({
         outcome: "unsizeable",
         reason: "unaffordable_budget",
-        detail: "the declared capital and fraction cannot afford one unit",
+        detail: null,
       }),
     ).toBe(`${t.inbox.outcomes.unsizeable} · ${reasonText ?? ""}`);
   });
 
-  it("falls back to the legacy detail string when reason is null and the detail is recognized", () => {
-    const legacyText = t.inbox.evaluationLog.detail["no declared capital to size against"];
-    expect(legacyText).toBeTruthy();
+  it("renders the outcome label followed by the web reason text, fed the row's own detail parameter", () => {
+    const expected = t.inbox.evaluationLog.webReasonText.engine_error("unsizeable");
     expect(
       evaluationLabel({
-        outcome: "unsizeable",
-        reason: null,
-        detail: "no declared capital to size against",
+        outcome: "insufficient_data",
+        reason: "engine_error",
+        detail: "unsizeable",
       }),
-    ).toBe(`${t.inbox.outcomes.unsizeable} · ${legacyText ?? ""}`);
+    ).toBe(`${t.inbox.outcomes.insufficient_data} · ${expected}`);
   });
 
-  it("renders just the outcome label when reason is null and the detail is unrecognized", () => {
+  it("renders the outcome label followed by the web reason text for a code with no parameter", () => {
+    const expected = t.inbox.evaluationLog.webReasonText.unknown_structure(null);
+    expect(
+      evaluationLabel({
+        outcome: "insufficient_data",
+        reason: "unknown_structure",
+        detail: null,
+      }),
+    ).toBe(`${t.inbox.outcomes.insufficient_data} · ${expected}`);
+  });
+
+  it("renders just the outcome label when reason is null (pre-#80 row, no legacy fallback anymore)", () => {
     expect(
       evaluationLabel({
         outcome: "insufficient_data",
         reason: null,
-        detail: "something_unrecognized",
+        detail: "no declared capital to size against",
       }),
     ).toBe(t.inbox.outcomes.insufficient_data);
   });

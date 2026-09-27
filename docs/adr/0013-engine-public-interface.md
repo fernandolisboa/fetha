@@ -519,7 +519,6 @@ export type EvaluationRecord = {
   session: SessionDate;
   outcome: EvaluationOutcome;
   reason: EvaluationReason;
-  detail: string | null;
 };
 
 export type Evaluation = {
@@ -2332,3 +2331,11 @@ The `evaluations.reason` column is plain `text`, validated by Zod (`evaluationRe
 read, with no CHECK constraint against `evaluationReasons`: its sibling `outcome` column already
 follows that pattern, and a CHECK duplicating the engine's vocabulary into Postgres would force a
 migration for every new reason with nothing in CI catching one left out.
+
+## Addendum: `EvaluationRecord.detail` removed (2026-09-27, #133, see ADR-0039)
+
+`EvaluationRecord.detail` is removed from the frozen block above; `ENGINE_VERSION` is not bumped.
+ADR-0039 records the full reasoning (the field had been a pure function of `reason` since the
+addendum just above, `apps/web` gained its own typed vocabulary for the outcomes it authors itself,
+and the change-policy rule stated earlier in this document applies: `EvaluationRecord` is never
+checkpointed or persisted as a JSON blob, so this is not a persistence-breaking shape change).

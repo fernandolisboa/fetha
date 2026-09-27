@@ -120,4 +120,7 @@ proof (0029), verification tokens stored hashed (0030), mail sent after the resp
 failures-only sign-in account bucket (0031), per-user caps on backtest runs in progress and
 strategy versions (0032), expired sessions purged nightly (0033), the change-password and
 verify-password endpoints closed (0034), a nonce script-src enforced on every routed page (0035),
-a signed-in gate that asks existing users to re-accept a new terms version (0036).
+a signed-in gate that asks existing users to re-accept a new terms version (0036), discarding a
+stuck backtest run and listing runs in progress across strategies (0037), `fixed_fractional`
+sizing a net-debit structure on its bounded max loss (0038), a typed web-authored evaluation
+vocabulary with `EvaluationRecord.detail` removed from the engine (0039).

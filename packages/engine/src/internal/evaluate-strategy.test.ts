@@ -165,7 +165,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-04",
         outcome: "signal",
         reason: "signal",
-        detail: null,
       },
     ]);
     expect(result.value.signals).toHaveLength(1);
@@ -281,7 +280,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-04",
         outcome: "conditions_not_met",
         reason: "conditions_not_met",
-        detail: null,
       },
     ]);
     expect(result.value.signals).toEqual([]);
@@ -694,7 +692,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-04",
         outcome: "insufficient_data",
         reason: "no_candles",
-        detail: "no candles for this instrument and timeframe",
       },
     ]);
     expect(result.value.signals).toEqual([]);
@@ -756,7 +753,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-01",
         outcome: "insufficient_data",
         reason: "no_candles_in_catch_up_window",
-        detail: "no candles in (since, at] for this instrument and timeframe",
       },
     ]);
     expect(result.value.signals).toEqual([]);
@@ -1666,16 +1662,14 @@ describe("evaluateStrategy — stock-only strategies", () => {
     {
       rule: { kind: "profit_target", fractionOfPremium: decimalString("0.5") },
       reason: "profit_target_zero_base",
-      detail: "profit_target cannot fire: the operation's premium base is zero",
     },
     {
       rule: { kind: "stop_loss", multipleOfMaxLoss: decimalString("0.5") },
       reason: "stop_loss_zero_base",
-      detail: "stop_loss cannot fire: the operation's max-loss base is zero",
     },
   ] as const)(
     "does not fire a $rule.kind exit rule whose base is zero, and records why",
-    ({ rule, reason, detail }) => {
+    ({ rule, reason }) => {
       const closes = ["10.00", "10.00", "10.00", "10.50"];
       const view: MarketView = {
         ...emptyView,
@@ -1727,7 +1721,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
         session: "2024-01-04",
         outcome: "conditions_not_met",
         reason,
-        detail,
       });
     },
   );
@@ -1801,7 +1794,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
       session: "2024-01-04",
       outcome: "insufficient_data",
       reason: "exit_rule_unknown",
-      detail: null,
     });
   });
 
@@ -2004,7 +1996,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
       session: "2024-01-04",
       outcome: "unsizeable",
       reason: "unbounded_max_loss",
-      detail: "sizing is unsizeable against an unbounded max loss",
     });
     expect(result.value.signals).toEqual([]);
   });
@@ -2030,7 +2021,6 @@ describe("evaluateStrategy — stock-only strategies", () => {
       session: "2024-01-04",
       outcome: "unsizeable",
       reason: "no_declared_capital",
-      detail: "no declared capital to size against",
     });
     expect(result.value.signals).toEqual([]);
   });
@@ -2152,7 +2142,6 @@ describe("evaluateStrategy — option structures (#23)", () => {
       session: "2024-01-01",
       outcome: "unsizeable",
       reason: "unaffordable_budget",
-      detail: "the declared capital and fraction cannot afford one unit",
     });
     expect(result.value.signals).toEqual([]);
   });
@@ -2198,7 +2187,6 @@ describe("evaluateStrategy — option structures (#23)", () => {
       session: "2024-01-01",
       outcome: "unsizeable",
       reason: "zero_units",
-      detail: "a unit carries no cost or risk to size against",
     });
     expect(result.value.signals).toEqual([]);
   });
@@ -2772,8 +2760,8 @@ describe("createStrategyEvaluator (#58)", () => {
       { at: `${sessionAt(2)}T21:00:00.000Z`, since: "not an instant" },
     ]) {
       const result = evaluate({ ...call, riskProfile });
-      expect(result.ok && result.value.evaluations.map((e) => e.detail)).toEqual([
-        "no candles in (since, at] for this instrument and timeframe",
+      expect(result.ok && result.value.evaluations.map((e) => e.reason)).toEqual([
+        "no_candles_in_catch_up_window",
       ]);
     }
   });

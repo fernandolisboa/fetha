@@ -513,7 +513,8 @@ describe("evaluateSignalsForSession", () => {
     const log = await repository.listEvaluationLog();
     expect(log).toHaveLength(3);
     expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
-    expect(log.every((row) => row.detail === "unknown_structure")).toBe(true);
+    expect(log.every((row) => row.reason === "unknown_structure")).toBe(true);
+    expect(log.every((row) => row.detail === null)).toBe(true);
   });
 
   it("resolves a genuinely missing anchor (no watermark, no session before the drained range) to a single explicit evaluation, never a crash or a silent no-op (round 2 item 7)", async () => {
@@ -673,7 +674,8 @@ describe("evaluateSignalsForSession", () => {
     expect(await repository.listInbox()).toHaveLength(0);
     const log = await repository.listEvaluationLog();
     expect(log).toHaveLength(1);
-    expect(log[0]?.detail).toBe("unsatisfiable_collection:impliedVolatilityIndex");
+    expect(log[0]?.reason).toBe("unsatisfiable_collection");
+    expect(log[0]?.detail).toBe("impliedVolatilityIndex");
     expect(log[0]?.ticker).toBe(ticker);
   });
 
@@ -914,8 +916,8 @@ describe("evaluateSignalsForSession", () => {
     expect(log).toHaveLength(CATCH_UP_SESSION_LIMIT + 2);
 
     const clampedCount = sessionCount - 1 - CATCH_UP_SESSION_LIMIT;
-    const clampRow = log.find((row) => row.detail?.startsWith("catchup_clamped:"));
-    expect(clampRow?.detail).toBe(`catchup_clamped:${String(clampedCount)}`);
+    const clampRow = log.find((row) => row.reason === "catchup_clamped");
+    expect(clampRow?.detail).toBe(String(clampedCount));
 
     const evaluatedSessions = new Set(
       log.filter((row) => row.detail === null).map((row) => row.session),

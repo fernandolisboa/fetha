@@ -149,8 +149,12 @@ _Avoid_: quote, order, ticket
 **Evaluation record**:
 The outcome of one evaluation of one strategy version on one instrument at one evaluation time:
 a signal, conditions not met, no series match, degenerate strikes, insufficient data or
-unsizeable; with a detail. Visible in the evaluation log, never in the inbox.
-_Avoid_: signal (reserved for the actionable outcomes), evaluation log entry
+unsizeable; with a reason, a stable code identifying why (ADR-0013's #80 addendum). A row the
+engine never got to evaluate at all (its structure was deleted from the catalog, an engine error,
+a clamped catch-up, an unfillable market-data collection) carries one of `apps/web`'s own
+web-authored reason codes instead (ADR-0039). Visible in the evaluation log, never in the inbox.
+_Avoid_: signal (reserved for the actionable outcomes), evaluation log entry, detail (removed from
+the engine's own `EvaluationRecord`, ADR-0039; `detail` survives only as a plain log column)
 
 **Evaluation time**:
 The moment a strategy's conditions are computed against the data available then: the close of a

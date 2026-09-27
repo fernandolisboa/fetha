@@ -19,7 +19,14 @@ import {
 } from "@fetha/engine";
 
 import { evaluations, signals, strategies, NO_OPERATION_ID } from "./schema";
+import { webEvaluationReasons, type WebEvaluationReason } from "./evaluation-vocabulary";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
+
+// Every code `evaluations.reason` can hold (#133): the engine's own closed
+// `EvaluationReason` vocabulary for a row built straight from an
+// `EvaluationRecord`, plus the web-authored codes `evaluate-signals.ts`
+// writes itself for an outcome the engine never got to evaluate at all.
+export type StoredEvaluationReason = EvaluationReason | WebEvaluationReason;
 
 export interface NewSignal {
   strategyId: string;
@@ -42,12 +49,10 @@ export interface NewEvaluation {
   session: string;
   at: Date;
   outcome: EvaluationOutcome;
-  // Null for a row `evaluate-signals.ts` writes itself, outside any
-  // `EvaluationRecord` (`unknown_structure`, `engine_error:...`,
-  // `catchup_clamped:...`, `unsatisfiable_collection:...`, already stable
-  // codes in `detail`): only a row built straight from the engine's own
-  // `EvaluationRecord` carries its `reason` (#80).
-  reason: EvaluationReason | null;
+  // Null only for a row written before either vocabulary existed (pre-#80);
+  // every row `evaluate-signals.ts` writes today carries one, engine or
+  // web (#133).
+  reason: StoredEvaluationReason | null;
   detail: string | null;
 }
 
@@ -76,7 +81,7 @@ export interface EvaluationLogItem {
   session: string;
   at: Date;
   outcome: EvaluationOutcome;
-  reason: EvaluationReason | null;
+  reason: StoredEvaluationReason | null;
   detail: string | null;
 }
 
@@ -92,7 +97,7 @@ const EVALUATION_LOG_LIMIT = 200;
 
 const signalKindSchema = z.enum(signalKinds);
 const evaluationOutcomeSchema = z.enum(evaluationOutcomes);
-const evaluationReasonSchema = z.enum(evaluationReasons).nullable();
+const evaluationReasonSchema = z.enum([...evaluationReasons, ...webEvaluationReasons]).nullable();
 const signalRuleSchema = z.union([exitRuleSchema, adjustmentRuleSchema]).nullable();
 
 function toStoredOperationId(operationId: string | null): string {

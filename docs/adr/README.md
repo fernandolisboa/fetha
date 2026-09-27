@@ -44,5 +44,6 @@ supersedes or amends them and says so.
 | 0036 | A signed-in gate asks existing users to re-accept a new terms version (amends 0016, 0028)                        |
 | 0037 | Discarding a stuck backtest run, and listing runs in progress across strategies (amends 0032)                    |
 | 0038 | `fixed_fractional` sizes a net-debit structure on max(premium, bounded max loss) (amends 0013)                   |
+| 0039 | A typed web-authored evaluation vocabulary; `EvaluationRecord.detail` removed (amends 0013)                      |
 
 Open: none.

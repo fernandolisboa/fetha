@@ -141,6 +141,13 @@
       "when": 1790530806602,
       "tag": "0019_backtest_runs_user_id_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0020_backfill_evaluation_reason",
+      "breakpoints": true
     }
   ]
 }
