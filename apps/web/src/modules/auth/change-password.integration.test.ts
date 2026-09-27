@@ -27,12 +27,12 @@ describe("/change-password (#145)", () => {
     const email = `fetha-change-password-${crypto.randomUUID()}@example.com`;
     createdEmails.push(email);
     await registerVerifiedUser({ name: "Holder", email, password: PASSWORD }, testRequestHeaders());
-    const signIn = await getAuth().api.signInEmail({
+    const signInResponse = await getAuth().api.signInEmail({
       body: { email, password: PASSWORD },
       asResponse: true,
     });
     const headers = testRequestHeaders();
-    headers.set("cookie", signIn.headers.get("set-cookie") ?? "");
+    headers.set("cookie", signInResponse.headers.get("set-cookie") ?? "");
     headers.set("origin", "http://localhost:3000");
     headers.set("content-type", "application/json");
 

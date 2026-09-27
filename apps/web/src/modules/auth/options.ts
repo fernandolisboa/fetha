@@ -278,7 +278,7 @@ export function buildAuthOptions(
 
         // No screen changes a password, and this endpoint answers "wrong
         // current password" to whoever holds the session: a stolen cookie
-        // could test guesses from rotating IPs (#145). Reset stays the way.
+        // could test guesses from rotating IPs (#145, docs/adr/0034). Reset stays the way.
         if (ctx.path === "/delete-user/callback" || ctx.path === "/change-password") {
           throw new APIError("NOT_FOUND");
         }
