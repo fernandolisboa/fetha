@@ -25,9 +25,9 @@ export async function consumePendingInvite(
     .where(and(eq(invites.email, normalizeEmail(email)), isNull(invites.consumedAt)));
 }
 
-// The user row already exists by the time this runs (databaseHooks.user.create.after):
-// a transient failure to mark the invite consumed must never undo or fail a registration
-// that already succeeded (docs/adr/0016, mirrors recordTermsAcceptanceHistory).
+// Runs after the mailbox proof has been committed (databaseHooks.user.update.after,
+// onPasswordReset; docs/adr/0029): a transient failure to mark the invite consumed must
+// never fail that verification or reset, and only leaves the invite pending.
 export async function consumePendingInviteSafely(
   db: Database,
   email: string,

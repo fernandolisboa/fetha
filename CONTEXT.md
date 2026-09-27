@@ -115,4 +115,5 @@ are stored, positions and cash derived (0021), decisions on held operations scor
 portfolio's own fills (0022), strategy comparison and walk-forward over persisted runs (0023),
 account rate-limit keys hashed and purged (0024), a PWA that caches build output only (0025),
 HTTP security headers on every response (0026), LGPD: access log, data export and account
-deletion (0027), email-first registration and the purge of unverified accounts (0028).
+deletion (0027), email-first registration and the purge of unverified accounts (0028), invites spent by mailbox
+proof (0029).

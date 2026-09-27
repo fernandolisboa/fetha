@@ -24,7 +24,8 @@ section below reflects the final shape; superseded choices are called out inline
 Magic link, password reset and database-backed rate limiting, called out below as out of scope for
 ticket #10, were built by that ticket. See ADR-0018, which amends this one with those decisions
 rather than editing the sections below in place. ADR-0028 amends the registration flow (the
-password is chosen after the verification link) and adds the purge of unverified accounts.
+password is chosen after the verification link) and adds the purge of unverified accounts. ADR-0029 moves invite consumption from user creation to
+mailbox proof.
 
 ## Decision
 
@@ -330,5 +331,6 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   repository pattern established here.
 - Follow-ups filed as issues by the orchestrator, deliberately not in this ticket: token-based
   invites (today's invite is keyed by email only, with no secret token in the link — acceptable at
-  single-digit-user scale but not a pattern to grow); purging unverified users (an account that
+  single-digit-user scale but not a pattern to grow; ADR-0029 stops a stranger from burning it
+  instead); purging unverified users (an account that
   never verifies its email is never deleted today; done in ADR-0028).

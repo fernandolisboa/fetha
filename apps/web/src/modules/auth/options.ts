@@ -198,6 +198,7 @@ export function buildAuthOptions(
       revokeSessionsOnPasswordReset: true,
       onPasswordReset: async ({ user: resetUser }) => {
         await markEmailVerified(db, resetUser.id);
+        await consumePendingInviteSafely(db, resetUser.email, resetUser.id);
       },
       sendResetPassword: async ({ user: resetUser, url }) => {
         const email = buildPasswordResetEmail(url);
@@ -234,7 +235,19 @@ export function buildAuthOptions(
               email: createdUser.email,
               termsAcceptedAt: termsAcceptedAt instanceof Date ? termsAcceptedAt : new Date(),
             });
-            await consumePendingInviteSafely(db, createdUser.email, createdUser.id);
+          },
+        },
+        update: {
+          // An invite is spent only by whoever proves they own its mailbox:
+          // whoever merely registers an invited email first cannot burn it
+          // (docs/adr/0029, #39).
+          after: async (updated) => {
+            // Typed non-null, but Better Auth passes the adapter's result, which is
+            // null when the row was deleted in between (the purge, an account deletion).
+            const updatedUser = updated as typeof updated | null;
+            if (updatedUser?.emailVerified) {
+              await consumePendingInviteSafely(db, updatedUser.email, updatedUser.id);
+            }
           },
         },
       },
