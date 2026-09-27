@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { drizzleQueryError, postgresError } from "@/db/test/pg-error";
+
 const reapStaleRunningRuns = vi.fn();
 const findSucceededRun = vi.fn();
 const startRun = vi.fn();
@@ -73,6 +75,43 @@ describe("runSource", () => {
       status: "failed",
       error: "fetch failed",
     });
+  });
+});
+
+function lockWithFailingMarker(markerError: Error): void {
+  withSourceLock.mockImplementation(
+    async (_db: unknown, _source: unknown, callback: (tx: unknown) => Promise<unknown>) =>
+      callback({ transaction: () => Promise.reject(markerError) }),
+  );
+}
+
+describe("runSource when another run already wrote the succeeded marker", () => {
+  it("reports skipped and drops its own run row on a drizzle-wrapped unique violation", async () => {
+    lockWithFailingMarker(drizzleQueryError(postgresError("23505")));
+
+    const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
+      Promise.resolve(3),
+    );
+
+    expect(outcome).toEqual({ source: "cotahist", skipped: true, rowCount: 3 });
+    expect(deleteRun).toHaveBeenCalledWith(db, "run-1");
+    expect(finishRun).not.toHaveBeenCalledWith(db, "run-1", expect.anything());
+  });
+
+  it("still fails the run on any other wrapped Postgres error", async () => {
+    lockWithFailingMarker(drizzleQueryError(postgresError("57014")));
+
+    const outcome = await runSource(db, "cotahist", "2026-06-15", 300_000, () =>
+      Promise.resolve(3),
+    );
+
+    expect(outcome.skipped).toBe(false);
+    expect(outcome.error).toContain("Failed query");
+    expect(finishRun).toHaveBeenCalledWith(db, "run-1", {
+      status: "failed",
+      error: expect.stringContaining("Failed query") as unknown,
+    });
+    expect(deleteRun).not.toHaveBeenCalled();
   });
 });
 
