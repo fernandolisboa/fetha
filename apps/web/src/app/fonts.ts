@@ -3,9 +3,9 @@ import localFont from "next/font/local";
 // Every theme font loads once here (CLAUDE.md, stack) so switching
 // `data-theme` never triggers a network request; the CSS variables they
 // expose are wired to the design tokens in globals.css. Vendored as static
-// woff2 files (SIL OFL 1.1, see the OFL.txt next to each family) instead of
-// `next/font/google` because `next build` fetching Google Fonts is flaky in
-// CI (issue #158).
+// woff2 files instead of `next/font/google` because `next build` fetching
+// Google Fonts is flaky in CI (issue #158): each family's files and OFL.txt
+// are byte-identical to the matching @fontsource/<family>@5.3.0 npm tarball.
 export const ibmPlexSans = localFont({
   variable: "--font-ibm-plex-sans",
   src: [
