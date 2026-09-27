@@ -35,6 +35,8 @@ async function signedInHolder(): Promise<{ email: string; headers: Headers }> {
   headers.set("cookie", signInResponse.headers.get("set-cookie") ?? "");
   headers.set("origin", "http://localhost:3000");
   headers.set("content-type", "application/json");
+  const session = await getAuth().api.getSession({ headers });
+  expect(session?.user.email).toBe(email);
   return { email, headers };
 }
 
@@ -70,15 +72,23 @@ describe("password oracles for a session holder (#145)", () => {
     expect(await stillSignsIn(email)).toBe(200);
   });
 
-  it("is not served through the server API either", async () => {
+  it.each([
+    [
+      "changePassword",
+      (headers: Headers) =>
+        getAuth().api.changePassword({
+          body: { currentPassword: PASSWORD, newPassword: "another-horse-battery" },
+          headers,
+        }),
+    ],
+    [
+      "verifyPassword",
+      (headers: Headers) => getAuth().api.verifyPassword({ body: { password: PASSWORD }, headers }),
+    ],
+  ])("auth.api.%s is not served either", async (_name, call) => {
     const { email, headers } = await signedInHolder();
 
-    const call = getAuth().api.changePassword({
-      body: { currentPassword: PASSWORD, newPassword: "another-horse-battery" },
-      headers,
-    });
-
-    await expect(call).rejects.toSatisfy(
+    await expect(call(headers)).rejects.toSatisfy(
       (error: unknown) => error instanceof APIError && error.statusCode === 404,
     );
     expect(await stillSignsIn(email)).toBe(200);

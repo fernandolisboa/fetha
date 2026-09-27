@@ -25,5 +25,7 @@ is the only way to set a new one.
 ## Consequences
 
 - A signed-in user changes a password through password reset.
+- The 404 is a refusal, not a disguise: its headers differ from an unknown route's, so a prober
+  can still tell the endpoints exist. It closes the oracle, which is what matters.
 - A future screen that changes or checks a password reopens its path and must bring the
   per-account bucket that `/delete-user` has.
