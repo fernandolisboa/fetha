@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ErrorNotice } from "@/components/error-notice";
 import { Panel } from "@/modules/shell/client";
 
 import {
@@ -126,7 +127,7 @@ export function StrategyEditorForm({
   return (
     <FieldValidityProvider onAnyInvalidChange={setAnyFieldInvalid}>
       <div className="flex flex-col gap-6">
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && <ErrorNotice className="text-sm">{error}</ErrorNotice>}
 
         <div className="flex flex-wrap gap-4">
           <div className="flex flex-1 flex-col gap-1.5">

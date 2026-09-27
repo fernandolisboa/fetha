@@ -40,3 +40,14 @@ describe("active-run cap copy", () => {
     expect(backtestsStrings.ptBR.tooManyActive).toContain("dois backtests");
   });
 });
+
+describe("discard.actionAriaLabel", () => {
+  it.each([
+    ["en", backtestsStrings.en],
+    ["ptBR", backtestsStrings.ptBR],
+  ] as const)("names the run and starts with the visible verb (%s)", (_locale, strings) => {
+    const label = strings.discard.actionAriaLabel("17/10/2026 a 18/10/2026");
+    expect(label.startsWith(strings.discard.action)).toBe(true);
+    expect(label).toContain("17/10/2026 a 18/10/2026");
+  });
+});

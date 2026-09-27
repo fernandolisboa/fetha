@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ErrorNotice } from "@/components/error-notice";
 
 import { discardBacktestRunAction } from "../actions";
 import { t } from "../strings";
@@ -22,7 +23,7 @@ import { t } from "../strings";
 // by ADR-0037): confirmed through the same Dialog pattern
 // DeleteAccountDialog already uses for a destructive, unrecoverable action,
 // rather than a bare click that could fire from a stray tap.
-export function DiscardRunButton({ runId }: { runId: string }) {
+export function DiscardRunButton({ runId, runLabel }: { runId: string; runLabel: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -58,7 +59,16 @@ export function DiscardRunButton({ runId }: { runId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}>
+      <DialogTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={t.discard.actionAriaLabel(runLabel)}
+          />
+        }
+      >
         {t.discard.action}
       </DialogTrigger>
       <DialogContent>
@@ -67,9 +77,9 @@ export function DiscardRunButton({ runId }: { runId: string }) {
           <DialogDescription>{t.discard.confirmDescription}</DialogDescription>
         </DialogHeader>
         {error ? (
-          <p className="text-destructive text-xs">
+          <ErrorNotice>
             {error === "rate_limited" ? t.discard.rateLimited : t.discard.error}
-          </p>
+          </ErrorNotice>
         ) : null}
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="ghost" />}>

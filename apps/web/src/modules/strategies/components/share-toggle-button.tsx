@@ -3,6 +3,7 @@
 import { startTransition, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ErrorNotice } from "@/components/error-notice";
 import { setStrategyVisibilityAction } from "../actions";
 
 import { t } from "../strings";
@@ -10,9 +11,11 @@ import type { StrategyVisibility } from "../strategies-repository";
 
 export function ShareToggleButton({
   strategyId,
+  strategyName,
   visibility,
 }: {
   strategyId: string;
+  strategyName: string;
   visibility: StrategyVisibility;
 }) {
   const [current, setCurrent] = useState(visibility);
@@ -44,10 +47,21 @@ export function ShareToggleButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button type="button" variant="outline" size="sm" onClick={toggle} disabled={pending}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={toggle}
+        disabled={pending}
+        aria-label={
+          current === "shared"
+            ? t.list.mine.unshareAriaLabel(strategyName)
+            : t.list.mine.shareAriaLabel(strategyName)
+        }
+      >
         {current === "shared" ? t.list.mine.unshare : t.list.mine.share}
       </Button>
-      {error && <p className="text-destructive text-xs">{t.list.mine.shareError}</p>}
+      {error && <ErrorNotice>{t.list.mine.shareError}</ErrorNotice>}
     </div>
   );
 }

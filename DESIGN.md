@@ -123,7 +123,7 @@ rounded to whole px), which is how the three artboards differ. Numbers always
 
 4px base: 4, 6, 8, 10, 12, 14, 16, 20, 24, 32. Page padding 16px 20px. Panel gap 14px. Content
 grid `minmax(0,1fr) 320px`; charts fill their panel width and keep a 800×340 aspect for payoff,
-equity and drawdown. Hit targets ≥ 32px desktop (Terminal 28px on table row actions), ≥ 44px on
+equity and drawdown. Hit targets ≥ 32px desktop in every theme, table row actions included, ≥ 44px on
 touch.
 
 ### Motion

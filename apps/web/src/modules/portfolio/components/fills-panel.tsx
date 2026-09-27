@@ -205,7 +205,7 @@ export function FillsPanel({
                 <TableCell className="font-mono text-[12px] uppercase">
                   {fill.operationLabel ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="py-0 text-right">
                   {assignable && (
                     <Button
                       type="button"

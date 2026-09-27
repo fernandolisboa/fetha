@@ -144,3 +144,21 @@ describe("editor.errors.version_limit", () => {
     expect(strategiesStrings.ptBR.editor.errors.version_limit).toContain(cap);
   });
 });
+
+describe("row-action aria-labels", () => {
+  it.each([
+    ["en", strategiesStrings.en],
+    ["ptBR", strategiesStrings.ptBR],
+  ] as const)("name the strategy and start with the visible verb (%s)", (_locale, strings) => {
+    const name = "Trava de alta PETR4";
+    const cases = [
+      [strings.list.mine.shareAriaLabel(name), strings.list.mine.share],
+      [strings.list.mine.unshareAriaLabel(name), strings.list.mine.unshare],
+      [strings.list.shared.copyAriaLabel(name), strings.list.shared.copy],
+    ] as const;
+    for (const [label, visible] of cases) {
+      expect(label.startsWith(visible)).toBe(true);
+      expect(label).toContain(name);
+    }
+  });
+});

@@ -4,6 +4,7 @@ import { startTransition, useState } from "react";
 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ErrorNotice } from "@/components/error-notice";
 
 import { setStrategyActiveAction } from "../actions";
 import { t } from "../strings";
@@ -57,7 +58,7 @@ export function StrategyActiveToggle({
         />
       </div>
       <p className="text-faint text-xs">{t.active.hint}</p>
-      {error && <p className="text-destructive text-xs">{t.active.error}</p>}
+      {error && <ErrorNotice>{t.active.error}</ErrorNotice>}
     </div>
   );
 }

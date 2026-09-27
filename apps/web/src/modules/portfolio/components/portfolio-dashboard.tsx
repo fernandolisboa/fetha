@@ -261,7 +261,7 @@ function OperationsTable({
             >
               {signedMoney(valuation?.unrealizedPnl ?? null)}
             </TableCell>
-            <TableCell className="text-right">
+            <TableCell className="py-0 text-right">
               {operation.status === "open" && !pendingSettlement && (
                 <span className="inline-flex items-start justify-end gap-2">
                   {decisionSlot?.(operation.id)}
