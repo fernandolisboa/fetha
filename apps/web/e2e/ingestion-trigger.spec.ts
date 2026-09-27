@@ -55,6 +55,12 @@ test("the owner's manual ingestion trigger runs for a given session", async ({
   await page.getByLabel("Sessão (opcional)").fill("2026-09-08");
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
 
-  await expect(page.getByText("Concluída")).toBeVisible({ timeout: 300_000 });
+  // Waits on the result panel itself, not the "Concluída" text: that text
+  // only ever renders on the ok status, so a failed/busy/forbidden run would
+  // otherwise burn the full 300s budget before failing.
+  await expect(page.getByRole("heading", { name: "Última execução" })).toBeVisible({
+    timeout: 300_000,
+  });
+  await expect(page.getByText("Concluída")).toBeVisible();
   await expect(page.getByText(/Sessão: 08\/09\/2026/)).toBeVisible();
 });

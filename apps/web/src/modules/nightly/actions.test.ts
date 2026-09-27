@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const isOwnerMock = vi.hoisted(() => vi.fn());
 const recordAccessMock = vi.hoisted(() => vi.fn());
@@ -10,16 +11,19 @@ vi.mock("@/modules/audit", () => ({ recordAccess: recordAccessMock }));
 vi.mock("./run-nightly-job", () => ({ runNightlyJob: runNightlyJobMock }));
 
 describe("triggerNightlyJobAction", () => {
+  let consoleErrorSpy: MockInstance;
+
   beforeEach(() => {
     isOwnerMock.mockReset();
     recordAccessMock.mockReset().mockResolvedValue(undefined);
     runNightlyJobMock.mockReset();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     runNightlyJobMock.mockResolvedValue({
       ok: true,
       session: "2026-09-08",
       okSessions: ["2026-09-08"],
       sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
-      evaluation: { signalsWritten: 3 },
+      evaluation: { signalsWritten: 3, errors: [] },
       scoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -32,6 +36,10 @@ describe("triggerNightlyJobAction", () => {
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
     });
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   it("is forbidden for a signed-out caller and never invokes the job", async () => {
@@ -91,6 +99,8 @@ describe("triggerNightlyJobAction", () => {
         sources: [{ source: "cotahist", status: "ok" }],
         signalsWritten: 3,
         decisionsScored: 2,
+        evaluationErrorCount: 0,
+        scoringErrorCount: 1,
       },
     });
   });
@@ -141,8 +151,78 @@ describe("triggerNightlyJobAction", () => {
           { source: "sgs", status: "skipped" },
         ],
         signalsWritten: null,
+        evaluationErrorCount: 0,
+        scoringErrorCount: 0,
       },
     });
+  });
+
+  it("logs the full outcome server-side when the run is not ok, without ever returning it", async () => {
+    runNightlyJobMock.mockResolvedValue({
+      ok: false,
+      session: "2026-09-08",
+      okSessions: [],
+      sources: [{ source: "cotahist", skipped: false, rowCount: 0, error: "boom" }],
+      evaluation: null,
+      scoring: {
+        asOfSession: "",
+        usersScored: 0,
+        usersSkipped: 0,
+        decisionsScored: 0,
+        decisionsSkipped: 0,
+        errors: [],
+      },
+      accessLogPurge: { ok: true, deleted: 0 },
+      unverifiedAccountPurge: { ok: true, deleted: 0 },
+      sessionPurge: { ok: true, deleted: 0 },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    const [, loggedOutcome] = consoleErrorSpy.mock.calls[0] as [string, { sources: unknown[] }];
+    expect(loggedOutcome.sources).toEqual([
+      { source: "cotahist", skipped: false, rowCount: 0, error: "boom" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("boom");
+  });
+
+  it("logs the full outcome server-side when evaluation or scoring reports errors on an otherwise ok run", async () => {
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("never logs when the run is ok and evaluation and scoring report no errors", async () => {
+    runNightlyJobMock.mockResolvedValue({
+      ok: true,
+      session: "2026-09-08",
+      okSessions: ["2026-09-08"],
+      sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
+      evaluation: { signalsWritten: 3, errors: [] },
+      scoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        decisionsScored: 2,
+        decisionsSkipped: 0,
+        errors: [],
+      },
+      accessLogPurge: { ok: true, deleted: 0 },
+      unverifiedAccountPurge: { ok: true, deleted: 0 },
+      sessionPurge: { ok: true, deleted: 0 },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it("rejects a second call while a run is already in progress", async () => {
@@ -188,5 +268,16 @@ describe("triggerNightlyJobAction", () => {
 
     const thirdResult = await triggerNightlyJobAction({});
     expect(thirdResult.status).toBe("ok");
+  });
+
+  it("releases the busy flag when the job rejects, so the next call is not stuck busy", async () => {
+    isOwnerMock.mockResolvedValue(true);
+    runNightlyJobMock.mockRejectedValueOnce(new Error("boom"));
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await expect(triggerNightlyJobAction({})).rejects.toThrow("boom");
+
+    const secondResult = await triggerNightlyJobAction({});
+    expect(secondResult.status).not.toBe("busy");
   });
 });

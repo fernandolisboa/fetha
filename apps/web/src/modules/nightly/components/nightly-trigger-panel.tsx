@@ -60,6 +60,16 @@ function ResultBody({ result }: { result: PanelResult }) {
               : t.panel.signalsWritten(result.summary.signalsWritten)}
           </p>
           <p>{t.panel.decisionsScored(result.summary.decisionsScored)}</p>
+          {result.summary.evaluationErrorCount > 0 ? (
+            <p role="alert" style={{ color: "var(--danger)" }}>
+              {t.panel.evaluationErrors(result.summary.evaluationErrorCount)}
+            </p>
+          ) : null}
+          {result.summary.scoringErrorCount > 0 ? (
+            <p role="alert" style={{ color: "var(--danger)" }}>
+              {t.panel.scoringErrors(result.summary.scoringErrorCount)}
+            </p>
+          ) : null}
         </div>
       );
   }

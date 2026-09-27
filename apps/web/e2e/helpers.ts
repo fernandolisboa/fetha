@@ -28,6 +28,42 @@ export async function registerAndSignIn(
 const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
 const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
 
+// Owner magic-link requests share a per-account rate limit (3 per 60s,
+// auth/options.ts's "/sign-in/magic-link" rule), and every spec that needs a
+// fresh ingestion re-runs `triggerIngestionAsOwner` against the same
+// pre-provisioned owner account. A 429 sends no new email, so
+// `readLatestLink` would otherwise silently hand back the same stale link
+// used by a previous call — which then either fails a step later for an
+// unrelated reason or, worse, replays an already-consumed sign-in token.
+// This memoizes the last link this process actually used per email and
+// polls briefly for a new one, failing with a clear rate-limit message
+// instead of a misleading URL assertion.
+const lastMagicLinkByEmail = new Map<string, string>();
+const MAGIC_LINK_RETRY_TIMEOUT_MS = 20_000;
+const MAGIC_LINK_RETRY_INTERVAL_MS = 1_000;
+
+async function readNewMagicLink(
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  email: string,
+  secret: string,
+): Promise<string> {
+  const previous = lastMagicLinkByEmail.get(email);
+  const deadline = Date.now() + MAGIC_LINK_RETRY_TIMEOUT_MS;
+  let link = await readLatestLink(request, baseURL, email, secret);
+  while (link === previous && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, MAGIC_LINK_RETRY_INTERVAL_MS));
+    link = await readLatestLink(request, baseURL, email, secret);
+  }
+  if (link === previous) {
+    throw new Error(
+      `magic link for ${email} did not change; likely rate-limited (3 requests per 60s per account)`,
+    );
+  }
+  lastMagicLinkByEmail.set(email, link);
+  return link;
+}
+
 // The nightly job's manual trigger moved from a `CRON_SECRET` bearer to the
 // owner's own session (#51, docs/adr/0042): specs that only need a session
 // re-ingested before their own flow (signals, decisions, scoring, backtest,
@@ -62,14 +98,20 @@ export async function triggerIngestionAsOwner(
   await page.getByRole("button", { name: "Enviar link mágico" }).click();
   await expect(page).toHaveURL(/\/link-magico\/verifique\?email=/);
 
-  const magicLink = await readLatestLink(context.request, baseURL, ownerEmail, e2eSecret);
+  const magicLink = await readNewMagicLink(context.request, baseURL, ownerEmail, e2eSecret);
   await page.goto(magicLink);
   await expect(page).toHaveURL(baseURL ?? "/");
 
   await page.goto(`${baseURL ?? ""}/configuracoes`);
   await page.getByLabel("Sessão (opcional)").fill(session);
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
-  await expect(page.getByText("Concluída")).toBeVisible({ timeout: NIGHTLY_JOB_TIMEOUT_MS });
+  // Waits on the result panel itself, not the "Concluída" text: that text
+  // only ever renders on the ok status, so a failed/busy/forbidden run would
+  // otherwise burn the full 300s budget before failing.
+  await expect(page.getByRole("heading", { name: "Última execução" })).toBeVisible({
+    timeout: NIGHTLY_JOB_TIMEOUT_MS,
+  });
+  await expect(page.getByText("Concluída")).toBeVisible();
 
   await context.close();
 }

@@ -1,3 +1,6 @@
+const countFormatterEn = new Intl.NumberFormat("en-US");
+const countFormatterPtBR = new Intl.NumberFormat("pt-BR");
+
 const en = {
   panel: {
     title: "Manual ingestion trigger",
@@ -21,6 +24,8 @@ const en = {
     evaluationSkipped: "not run",
     signalsWritten: (count: number) => `${String(count)} signals written`,
     decisionsScored: (count: number) => `${String(count)} decisions scored`,
+    evaluationErrors: (count: number) => `${countFormatterEn.format(count)} evaluation errors`,
+    scoringErrors: (count: number) => `${countFormatterEn.format(count)} scoring errors`,
   },
 };
 
@@ -47,6 +52,8 @@ const ptBR = {
     evaluationSkipped: "não rodou",
     signalsWritten: (count: number) => `${String(count)} sinais gerados`,
     decisionsScored: (count: number) => `${String(count)} decisões pontuadas`,
+    evaluationErrors: (count: number) => `${countFormatterPtBR.format(count)} erros na avaliação`,
+    scoringErrors: (count: number) => `${countFormatterPtBR.format(count)} erros na pontuação`,
   },
 } satisfies typeof en;
 

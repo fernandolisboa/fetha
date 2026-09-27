@@ -21,6 +21,8 @@ export interface TriggerNightlyJobSummary {
   sources: SourceStatusSummary[];
   signalsWritten: number | null;
   decisionsScored: number;
+  evaluationErrorCount: number;
+  scoringErrorCount: number;
 }
 
 export type TriggerNightlyJobResult =
@@ -46,6 +48,8 @@ function summarize(outcome: Awaited<ReturnType<typeof runNightlyJob>>): TriggerN
     })),
     signalsWritten: outcome.evaluation ? outcome.evaluation.signalsWritten : null,
     decisionsScored: outcome.scoring.decisionsScored,
+    evaluationErrorCount: outcome.evaluation ? outcome.evaluation.errors.length : 0,
+    scoringErrorCount: outcome.scoring.errors.length,
   };
 }
 
@@ -84,7 +88,14 @@ export async function triggerNightlyJobAction(input: unknown): Promise<TriggerNi
   try {
     await recordAccess("nightly_triggered");
     const outcome = await runNightlyJob(getDb(), { session: parsed.data.session });
-    return { status: "ok", summary: summarize(outcome) };
+    const summary = summarize(outcome);
+    if (!outcome.ok || summary.evaluationErrorCount > 0 || summary.scoringErrorCount > 0) {
+      // The redacted summary above is client-safe but not diagnosable; the
+      // full outcome (raw provider/engine error strings, other users'
+      // decisionId values) is logged server-side only, never returned.
+      console.error("nightly job triggered manually with failures", outcome);
+    }
+    return { status: "ok", summary };
   } finally {
     nightlyJobInFlight = false;
   }
