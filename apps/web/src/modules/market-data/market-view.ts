@@ -328,8 +328,7 @@ export async function loadMarketViewWithCalendarVersion(
       ? await optionPricesInSessionRange(
           db,
           seriesTickers,
-          fromSession,
-          toSession,
+          { fromSession, toSession },
           optionPriceRowCap,
         )
       : [];
