@@ -1,3 +1,6 @@
+import { after } from "next/server";
+
+import { AfterResponseMailer } from "./after-response-mailer";
 import { CaptureMailer } from "./capture-mailer";
 import type { Mailer } from "./mailer";
 import { ResendMailer } from "./resend-mailer";
@@ -29,5 +32,5 @@ export function getMailer(env: AuthEnv = process.env): Mailer {
     return new CaptureMailer();
   }
 
-  return new ResendMailer();
+  return new AfterResponseMailer(new ResendMailer(), after);
 }

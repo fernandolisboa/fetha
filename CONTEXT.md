@@ -116,4 +116,5 @@ portfolio's own fills (0022), strategy comparison and walk-forward over persiste
 account rate-limit keys hashed and purged (0024), a PWA that caches build output only (0025),
 HTTP security headers on every response (0026), LGPD: access log, data export and account
 deletion (0027), email-first registration and the purge of unverified accounts (0028), invites spent by mailbox
-proof (0029), verification tokens stored hashed (0030).
+proof (0029), verification tokens stored hashed (0030), mail sent after the response and a
+failures-only sign-in account bucket (0031).

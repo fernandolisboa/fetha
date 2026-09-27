@@ -7,6 +7,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 
 import { accountBucketKey } from "./account-rate-limit";
 import { getAuth } from "./auth";
+import { registerVerifiedUser } from "./registration-test-support";
 import { requestPasswordReset, signIn, signInMagicLink } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
 
@@ -111,6 +112,41 @@ describe("database-backed rate limiting on auth endpoints", () => {
 
     const limited = await attemptSignIn(email, testRequestHeaders(secondIp));
     expect(limited.status).toBe("rate_limited");
+  });
+
+  it("counts only failed sign-ins against the account (#114)", async () => {
+    process.env.REGISTRATION_MODE = "open";
+    const email = uniqueEmail("success-free");
+    createdEmails.push(email);
+    const password = "correct-horse-battery";
+    await registerVerifiedUser({ name: "Rate Limit User", email, password }, testRequestHeaders());
+    const bucket = accountBucketKey(email, "/sign-in/email");
+    createdRateLimitKeys.push(bucket);
+
+    for (let i = 0; i < 5; i += 1) {
+      const ip = uniqueTestIp();
+      createdRateLimitKeys.push(`${ip}|/sign-in/email`);
+      const outcome = await signIn({ email, password }, testRequestHeaders(ip));
+      expect(outcome.status).toBe("ok");
+    }
+    const [afterSuccesses] = await getDb()
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, bucket));
+    expect(afterSuccesses?.count ?? 0).toBe(0);
+
+    const outcomes = [];
+    for (let i = 0; i < 4; i += 1) {
+      const ip = uniqueTestIp();
+      createdRateLimitKeys.push(`${ip}|/sign-in/email`);
+      outcomes.push(await attemptSignIn(email, testRequestHeaders(ip)));
+    }
+    expect(outcomes.slice(0, 3).map((outcome) => outcome.status)).toEqual([
+      "invalid_credentials",
+      "invalid_credentials",
+      "invalid_credentials",
+    ]);
+    expect(outcomes[3]?.status).toBe("rate_limited");
   });
 
   it("stores no email in clear, even for an address with no account (#64)", async () => {
