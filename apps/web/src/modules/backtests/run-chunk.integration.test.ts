@@ -7,6 +7,7 @@ import type {
   StrategyDefinition,
   Structure,
 } from "@fetha/contracts";
+import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { backtestRuns } from "./schema";
@@ -542,19 +543,32 @@ describe("runBacktestChunk", () => {
     const run = await repository.create(runConfig(setup));
 
     discardOnNextLoad = { repository, runId: run.id };
+    // Spying on the engine's own call site, not just asserting the outer
+    // rejection: guardedUpdate's WHERE guard would raise the identical
+    // BacktestRunClaimError on its own once the engine step tried to
+    // persist, so without this spy the test would pass even if run-chunk's
+    // post-load re-check were deleted (round-2 review finding). This spy is
+    // the assertion that the engine step itself was never paid for.
+    const runBacktestSpy = vi.spyOn(engine, "runBacktest");
 
-    await expect(
-      runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 }),
-    ).rejects.toBeInstanceOf(BacktestRunClaimError);
+    try {
+      await expect(
+        runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 }),
+      ).rejects.toBeInstanceOf(BacktestRunClaimError);
 
-    const after = await repository.findMine(run.id);
-    expect(after.status).toBe("failed");
-    // Still exactly the discard's own reason, not overwritten by a
-    // subsequent fail()/checkpoint write: had the abort not fired, the
-    // engine step would have gone on to save a checkpoint or complete the
-    // run, either of which guardedUpdate's own backstop guard would refuse
-    // and this assertion would catch by a different error.
-    expect(after.error).toBe(DISCARDED_RUN_ERROR);
-    expect(after.result).toBeNull();
+      expect(runBacktestSpy).not.toHaveBeenCalled();
+
+      const after = await repository.findMine(run.id);
+      expect(after.status).toBe("failed");
+      // Still exactly the discard's own reason, not overwritten by a
+      // subsequent fail()/checkpoint write: had the abort not fired, the
+      // engine step would have gone on to save a checkpoint or complete the
+      // run, either of which guardedUpdate's own backstop guard would refuse
+      // and this assertion would catch by a different error.
+      expect(after.error).toBe(DISCARDED_RUN_ERROR);
+      expect(after.result).toBeNull();
+    } finally {
+      runBacktestSpy.mockRestore();
+    }
   });
 });

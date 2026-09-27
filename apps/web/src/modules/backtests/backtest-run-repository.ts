@@ -325,6 +325,22 @@ export class BacktestRunRepository extends UserScopedRepository {
     return toRecord(row);
   }
 
+  // A narrow, unparsed read of just the two columns a discard re-check
+  // needs (run-chunk.ts's post-load re-check): findMine's full toRecord
+  // re-parses every column (checkpoint, result, structure, universe...)
+  // through Zod, work this hot-path check has no use for.
+  async statusOf(id: string): Promise<{ status: BacktestRunStatus; error: string | null }> {
+    const [row] = await this.db
+      .select({ status: backtestRuns.status, error: backtestRuns.error })
+      .from(backtestRuns)
+      .where(and(eq(backtestRuns.id, id), eq(backtestRuns.userId, this.userId)))
+      .limit(1);
+    if (!row) {
+      throw new BacktestRunNotFoundError();
+    }
+    return row;
+  }
+
   async listMineForStrategy(strategyId: string): Promise<BacktestRunRecord[]> {
     const rows = await this.db
       .select()
@@ -442,10 +458,10 @@ export class BacktestRunRepository extends UserScopedRepository {
       }
       if (current.status === "failed") {
         // Checked before enforceActiveCap, not after: a discarded run no
-        // longer counts toward the cap (COUNTS_AS_ACTIVE excludes
-        // "failed"), so a user at the cap with a discarded run among their
-        // other runs would otherwise have that cap check fail with
-        // ActiveBacktestRunLimitError — the wrong reason. The real reason a
+        // longer counts toward the cap ("failed" is not in
+        // ACTIVE_RUN_STATUSES), so a user at the cap with a discarded run
+        // among their other runs would otherwise have that cap check fail
+        // with ActiveBacktestRunLimitError — the wrong reason. The real reason a
         // discarded run can never be claimed is that a discard is the
         // user's own choice, not a transient failure round 2 item 12 made
         // resumable, which is exactly what BacktestRunClaimError already

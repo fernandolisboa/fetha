@@ -204,8 +204,8 @@ const en = {
     cancel: "Cancel",
     confirm: "Discard",
     error: "Couldn't discard the run. Try again.",
+    rateLimited: "Too many attempts in a row. Wait a minute and try again.",
     reason: "Discarded",
-    stale: "This run is no longer in progress.",
   },
   inProgress: {
     title: "In progress",
@@ -418,8 +418,8 @@ const ptBR = {
     cancel: "Cancelar",
     confirm: "Descartar",
     error: "Não foi possível descartar a simulação. Tente novamente.",
+    rateLimited: "Muitas tentativas seguidas. Aguarde um minuto e tente de novo.",
     reason: "Descartado",
-    stale: "Esta simulação não está mais em andamento.",
   },
   inProgress: {
     title: "Em andamento",

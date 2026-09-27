@@ -242,7 +242,7 @@ export async function runBacktestChunk(
   // closes the race for good, but re-checking here first means an already-
   // discarded run's engine step is never paid for at all, not just never
   // persisted.
-  const afterLoad = await repository.findMine(runId);
+  const afterLoad = await repository.statusOf(runId);
   if (isDiscardedRun(afterLoad)) {
     throw new BacktestRunClaimError();
   }

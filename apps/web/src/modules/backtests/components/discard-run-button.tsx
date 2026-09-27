@@ -26,60 +26,65 @@ export function DiscardRunButton({ runId }: { runId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
-  const [stale, setStale] = useState(false);
+  const [error, setError] = useState<"generic" | "rate_limited" | null>(null);
 
   async function discard(): Promise<void> {
     setPending(true);
-    setError(false);
-    const result = await discardBacktestRunAction({ runId });
-    setPending(false);
-    if (result.status === "ok") {
-      setOpen(false);
-      router.refresh();
-      return;
+    setError(null);
+    try {
+      const result = await discardBacktestRunAction({ runId });
+      if (result.status === "ok") {
+        setOpen(false);
+        router.refresh();
+        return;
+      }
+      if (result.error === "not_found" || result.error === "not_discardable") {
+        // Someone else finished, failed or already discarded this run since
+        // the list was rendered: closing the dialog and refreshing shows its
+        // current state, the same dialog the "ok" branch above leaves —
+        // there is nothing stale left to say once the refreshed page
+        // already reflects it.
+        setOpen(false);
+        router.refresh();
+        return;
+      }
+      setError("rate_limited");
+    } catch {
+      setError("generic");
+    } finally {
+      setPending(false);
     }
-    if (result.error === "not_found" || result.error === "not_discardable") {
-      // Someone else finished, failed or already discarded this run since
-      // the list was rendered: closing the dialog and refreshing shows its
-      // current state instead of leaving a "try again" invite that could
-      // only repeat the same answer.
-      setOpen(false);
-      setStale(true);
-      router.refresh();
-      return;
-    }
-    setError(true);
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}>
-          {t.discard.action}
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t.discard.confirmTitle}</DialogTitle>
-            <DialogDescription>{t.discard.confirmDescription}</DialogDescription>
-          </DialogHeader>
-          {error ? <p className="text-destructive text-xs">{t.discard.error}</p> : null}
-          <DialogFooter>
-            <DialogClose render={<Button type="button" variant="ghost" />}>
-              {t.discard.cancel}
-            </DialogClose>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={pending}
-              onClick={() => void discard()}
-            >
-              {t.discard.confirm}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {stale ? <p className="text-muted-foreground text-xs">{t.discard.stale}</p> : null}
-    </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}>
+        {t.discard.action}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t.discard.confirmTitle}</DialogTitle>
+          <DialogDescription>{t.discard.confirmDescription}</DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p className="text-destructive text-xs">
+            {error === "rate_limited" ? t.discard.rateLimited : t.discard.error}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="ghost" />}>
+            {t.discard.cancel}
+          </DialogClose>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={pending}
+            onClick={() => void discard()}
+          >
+            {t.discard.confirm}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

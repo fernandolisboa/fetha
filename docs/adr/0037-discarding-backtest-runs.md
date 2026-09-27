@@ -41,7 +41,10 @@ tem dois backtests em andamento" had to hunt through strategies to find the one 
   - `run-chunk.ts` re-reads the run once more, right after `loadMarketView` and before the first
     `engine.runBacktest` call, and aborts with `BacktestRunClaimError` if it was discarded in that
     window — the widest gap between the chunk's own claim and its first write (`loadMarketView`
-    alone measured ~23.5s at the universe/session ceiling, round 3 item 4). `guardedUpdate` (the
+    alone measured ~23.5s at the universe/session ceiling, round 3 item 4). This re-check calls a
+    new `statusOf(id)`, not `findMine`: the hot-path check only needs `status` and `error`, not
+    every column `findMine`'s own `toRecord` re-parses through Zod (checkpoint, result, structure,
+    universe...). `guardedUpdate` (the
     single path `saveCheckpoint`, `saveProgress`, `complete` and `fail` all share) is still the
     backstop that closes the race for good, both in a pre-check and in the write's own `WHERE`
     clause, raising the same `BacktestRunClaimError` a lost claim already raises — the re-check in
