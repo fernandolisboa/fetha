@@ -122,6 +122,7 @@ function config(periodTo: string) {
     initialCapital: centavos(10_000_00),
     costModel: {
       b3FeeRate: decimalString("0.0005"),
+      b3OptionFeeRate: decimalString("0.00134"),
       brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
       optionSlippageRate: decimalString("0"),
       incomeTaxRate: decimalString("0.15"),

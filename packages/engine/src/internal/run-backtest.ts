@@ -976,7 +976,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         let costs = toCentavos(0);
         if (effectiveShares > 0) {
           const q = toQuantity(effectiveShares);
-          costs = fillCosts(config.costModel, legFill.price, q);
+          costs = fillCosts(config.costModel, legFill.price, q, "stock");
           const gross = grossCentavos(legFill.price, q).round().toNumber();
           state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
           state.fills.push({
@@ -1076,7 +1076,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       if (!candle || candle.tradedQuantity <= 0) continue;
       const side: "buy" | "sell" = pending.residualQuantity > 0 ? "sell" : "buy";
       const q = toQuantity(Math.abs(pending.residualQuantity));
-      const costs = fillCosts(config.costModel, candle.open, q);
+      const costs = fillCosts(config.costModel, candle.open, q, "stock");
       const gross = grossCentavos(candle.open, q).round().toNumber();
       state.cash += (side === "sell" ? 1 : -1) * gross - costs;
       if (side === "sell") state.currentMonthStockSales += gross;
@@ -1231,7 +1231,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           settled.value.fills[0],
           "run-backtest: settleLeg reports a non-worthless outcome with no fill",
         );
-        const costs = fillCosts(config.costModel, bareFill.price, leg.quantity);
+        const costs = fillCosts(config.costModel, bareFill.price, leg.quantity, "stock");
         const fill: Fill = { ...bareFill, costs };
         settlement.push({ ...settled.value, fills: [fill] });
         state.fills.push({ ...fill, operationId: op.id, source: "settlement" });

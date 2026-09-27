@@ -42,6 +42,13 @@ fees by the same factor.
   config digest unchanged (`JSON.stringify` drops it), so an in-flight run resumes.
 - The web presets carry `b3FeeRate: 0.0003` and `b3OptionFeeRate: 0.00134`, with the rows above
   cited beside them. Day-trade tables, the lower ADTV tiers and custódia are not modeled.
+- Every row is charged per trade, on an opening and a closing fill alike: the option page states
+  its rates "sobre o prêmio da opção, de cada investidor (comprador e vendedor)", per trade, with
+  no registration-only exception for Registro.
+- The share rate is the continuous-session row even though ADR-0013 fills a stock leg at the
+  session open, which is the opening auction, whose Negociação is 0,007% instead of 0,005% (a
+  total of 0,0320%). The difference is 0,002% of the traded value, R$ 0,20 per R$ 10.000, and one
+  number per instrument class keeps the preset simple.
 - No `ENGINE_VERSION` bump: ADR-0013's change policy ties a bump to checkpoint-breaking shape
   changes, and an optional field that an old checkpoint's config never carries breaks none.
 

@@ -16,7 +16,7 @@ export function fillCosts(
   costModel: CostModel,
   price: DecimalString,
   quantity: number,
-  kind: "stock" | "option" = "stock",
+  kind: "stock" | "option",
 ): Centavos {
   const gross = grossCentavos(price, quantity);
   const feeRate =
