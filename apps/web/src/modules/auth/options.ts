@@ -188,6 +188,8 @@ export function buildAuthOptions(
         },
       },
     },
+    // A database leak must not yield live reset or magic-link tokens (#60).
+    verification: { storeIdentifier: "hashed" },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -347,17 +349,7 @@ export function buildAuthOptions(
         disableSignUp: true,
         expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
         rateLimit: { window: 60, max: 3 },
-        // `storeToken: "hashed"` (and the top-level `verification.storeIdentifier:
-        // "hashed"`) are still off: the reuse/expiry integration tests manipulate
-        // the `verification` row directly by its plain identifier
-        // (magic-link.integration.test.ts, password-reset.integration.test.ts),
-        // and turning hashing on without updating them would break both. Deferred
-        // to issue #60, not because it is infeasible: Better Auth's own
-        // `defaultKeyHasher` is plain SHA-256 over the identifier, base64url-
-        // encoded, reproducible with `node:crypto` (docs/adr/0018). The token is
-        // still a cryptographically random, single-use, short-lived, unguessable
-        // value either way; this only concerns what a database compromise
-        // recovers.
+        storeToken: "hashed",
         sendMagicLink: async ({ email, url }) => {
           // No enumeration in the response body: a magic-link request for an
           // email with no account gets the same 200 response as a real one
