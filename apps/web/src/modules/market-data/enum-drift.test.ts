@@ -20,12 +20,12 @@ import {
 
 // `packages/contracts` cannot import from `packages/engine` (the engine
 // depends on contracts, never the other way, scalars.ts's own comment),
-// so its option/exerciseStyle/macroSeriesKind schemas mirror the engine's
-// own `optionRights`/`exerciseStyles`/`macroSeriesKinds` arrays by value.
-// `apps/web` is the one place that already depends on both, so this is
-// where a future engine change that adds, removes or renames a member
-// without updating the mirrored schema fails loudly instead of parsing
-// silently wrong at the market-data edge.
+// so its market-data and backtest-report vocabulary schemas mirror the
+// engine's own `as const` arrays by value. `apps/web` is the one place that
+// already depends on both, so this is where a future engine change that
+// adds, removes or renames a member without updating the mirrored schema
+// fails loudly instead of parsing silently wrong at the market-data edge or
+// rejecting a stored backtest report.
 describe("contracts enum schemas mirror the engine's own vocabularies", () => {
   it("optionRightSchema matches engine.optionRights", () => {
     expect([...optionRightSchema.options].sort()).toEqual([...optionRights].sort());

@@ -3,7 +3,7 @@ import type { z } from "zod";
 import type { backtestRunSchema } from "@fetha/contracts";
 import type { BacktestRun as EngineBacktestRun } from "@fetha/engine";
 
-// ADR-0013 addendum "persisted engine artifacts" (#18 round 5 item 4):
+// ADR-0013 addendum "persisted engine artifacts":
 // `packages/contracts` owns a second, parsing definition of the engine's
 // own frozen `BacktestRun` (`backtestRunSchema`, mirrored by value because
 // contracts cannot import from the engine — ADR-0013's ownership rule runs
@@ -18,7 +18,7 @@ import type { BacktestRun as EngineBacktestRun } from "@fetha/engine";
 // `getMyBacktestRunsForStrategy` — 500ing a whole strategy page — the first
 // time a historical row reaches the drifted parser after a deploy.
 //
-// `config` is pinned here too (#18 round 6 item 2): it is mutually
+// `config` is pinned here too: it is mutually
 // assignable between the two packages today and compiles clean both
 // directions, so excluding it would have dropped the largest subtree of
 // the artifact — `strategy`, `costModel`, `riskProfile`, `sizing`,

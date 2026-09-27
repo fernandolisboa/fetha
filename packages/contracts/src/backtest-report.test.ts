@@ -195,7 +195,7 @@ describe("backtestRunSchema", () => {
     expect(() => backtestRunSchema.parse(broken)).toThrow();
   });
 
-  // #18 round 5 item 4: a row an older engine wrote must still parse after
+  // A row an older engine wrote must still parse after
   // a later engine version adds a field to `BacktestRun`, `BacktestMetrics`
   // or `WalkForwardWindow` (the concrete near-term case is #30's own
   // walk-forward window) — degrading by dropping the unrecognised key,

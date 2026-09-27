@@ -196,8 +196,8 @@ const equityPointSchema = z.strictObject({
   drawdown: decimalStringSchema,
 });
 
-// `z.object`, not `z.strictObject` (#18 round 5 item 4, ADR-0013 addendum
-// "persisted engine artifacts"): this schema — and `walkForwardWindowSchema`
+// `z.object`, not `z.strictObject` (ADR-0013 addendum "persisted engine
+// artifacts"): this schema — and `walkForwardWindowSchema`
 // which embeds it, and `backtestRunSchema` at the bottom of this file — are
 // the read-path parse of an immutable, already-persisted `jsonb` column, not
 // a fresh input the engine controls the shape of at write time. An engine

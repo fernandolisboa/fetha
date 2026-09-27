@@ -2348,3 +2348,14 @@ cost model carries it; `b3FeeRate` stays the fee on every stock fill, including 
 at expiry or exercise. A cost model stored before ADR-0040 has no `b3OptionFeeRate` and keeps the
 single-rate behavior, and its config digest is unchanged, so `ENGINE_VERSION` is not bumped under
 the change policy stated earlier in this document.
+
+## Addendum: report vocabularies mirrored in contracts (2026-09-27, #91)
+
+The "persisted engine artifacts" addendum above left `notes` and `provenance` out of the two-way
+compile-time pin because `noteSchema.code` and `provenanceSchema.pricingModel` were `z.string()`.
+`packages/contracts` now mirrors `noteCodes`, `pricingModels`, `marketViewCollections` and
+`truncationReasons` by value, `apps/web/src/modules/market-data/enum-drift.test.ts` fails the build
+when either side changes alone, and `backtest-run-type-pin.test.ts` pins `notes` and `provenance`
+both ways. Only `operations` stays one-directional, for the discriminated-union reason given above.
+A new engine vocabulary member ships with its mirror in the same change, so a stored report never
+meets a parser that does not know its codes.
