@@ -178,26 +178,26 @@ export function computeBacktestMetrics(rawInput: MetricsInput): {
     });
   } else {
     // cagr's own domain (post-warm-up, gaps included) only cares about its two endpoints, so an
-    // interior non-positive point — possible in either domain — never affects it, independent of
-    // sharpe below: only a non-positive *final* equity nulls cagr.
+    // interior non-positive point — possible in either domain — never affects it: only a
+    // non-positive *final* equity nulls cagr. sharpe's own domain (observed only) is a path
+    // statistic, so any non-positive point anywhere in it nulls sharpe. One note names both when
+    // both apply, since the report renders notes by code.
+    const undefinedMetrics: string[] = [];
     if (equityLast.lte(0)) {
-      notes.push({
-        code: "non_positive_equity",
-        message: "final equity is non-positive; cagr has no real value",
-      });
+      undefinedMetrics.push("cagr");
     } else {
       cagr = computeCagr(equityLast, rawInput.initialCapital, elapsedSessions);
     }
-
-    // sharpe's own domain (observed only): a path statistic, so any non-positive point anywhere
-    // in it corrupts it, independent of cagr's endpoints-only check above.
     if (anyNonPositiveEquityObs) {
-      notes.push({
-        code: "non_positive_equity",
-        message: "an equity point inside the window is non-positive; sharpe is undefined",
-      });
+      undefinedMetrics.push("sharpe");
     } else {
       sharpeFinal = sharpe;
+    }
+    if (undefinedMetrics.length > 0) {
+      notes.push({
+        code: "non_positive_equity",
+        message: `equity is non-positive inside the window; ${undefinedMetrics.join(" and ")} undefined`,
+      });
     }
   }
 

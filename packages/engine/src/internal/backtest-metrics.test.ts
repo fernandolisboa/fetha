@@ -126,16 +126,12 @@ describe("computeBacktestMetrics", () => {
     });
     expect(negativeMetrics.cagr).toBeNull();
     expect(negativeMetrics.sharpe).toBeNull();
-    // Two independent notes, not one: the final point is both the post-warm-up curve's own
-    // endpoint (nulls cagr) and an observed point (nulls sharpe, a path statistic).
+    // The final point is both the post-warm-up curve's own endpoint (nulls cagr) and an observed
+    // point (nulls sharpe, a path statistic): one note names both.
     expect(negativeNotes).toEqual([
       {
         code: "non_positive_equity",
-        message: "final equity is non-positive; cagr has no real value",
-      },
-      {
-        code: "non_positive_equity",
-        message: "an equity point inside the window is non-positive; sharpe is undefined",
+        message: "equity is non-positive inside the window; cagr and sharpe undefined",
       },
     ]);
   });
@@ -167,7 +163,7 @@ describe("computeBacktestMetrics", () => {
     expect(notes).toEqual([
       {
         code: "non_positive_equity",
-        message: "an equity point inside the window is non-positive; sharpe is undefined",
+        message: "equity is non-positive inside the window; sharpe undefined",
       },
     ]);
   });
