@@ -274,29 +274,48 @@ export function computePayoffProfile(
 
   const evaluated = points.map((p) => ({ point: p, value: payoffAt(legs, p) }));
 
-  // A flat, delta-neutral payoff (every sampled point pnl 0, no slope at infinity either
-  // way) has no distinguished crossing: any underlying is equally "correct", which is why
-  // reporting the one sampled point (always 0) as a break-even misled a payoff chart into
-  // drawing a crossing that never happens (#54 follow-up review, quant/correctness item 3).
-  const isIdenticallyZero = slopeAtInfinity === 0 && evaluated.every((e) => e.value.isZero());
-
   const breakEvens: DecimalString[] = [];
-  const first = evaluated[0];
-  if (first && first.value.isZero() && !isIdenticallyZero) {
-    breakEvens.push(toDecimalString(first.point, PRICE_SCALE));
-  }
-  for (let i = 1; i < evaluated.length; i += 1) {
-    const prev = evaluated[i - 1];
-    const curr = evaluated[i];
-    if (!prev || !curr) continue;
-    if (prev.value.isZero()) continue;
-    if (prev.value.isNeg() !== curr.value.isNeg() && !curr.value.isZero()) {
-      const ratio = prev.value.neg().div(curr.value.sub(prev.value));
-      const crossing = prev.point.add(curr.point.sub(prev.point).mul(ratio));
-      breakEvens.push(toDecimalString(crossing, PRICE_SCALE));
-    } else if (curr.value.isZero()) {
-      breakEvens.push(toDecimalString(curr.point, PRICE_SCALE));
+  const n = evaluated.length;
+  let i = 0;
+  while (i < n) {
+    const point = assertDefined(evaluated[i], "computePayoffProfile: index within bounds");
+    if (point.value.isZero()) {
+      // A run of consecutive zero-valued sampled points is one plateau, not one break-even
+      // per point (#135): the leg-sampled points here are only 0 and each leg's strike, so
+      // the payoff is exactly linear between consecutive samples and a run can only leave
+      // zero at its own boundary. Report the boundary(ies) where the payoff is nonzero on
+      // the adjacent side; a run touching neither side (the whole domain payoff is 0, i.e.
+      // slopeAtInfinity is also 0) is a flat, delta-neutral payoff with no distinguished
+      // crossing (#54 follow-up review, quant/correctness item 3, kept by PR #134).
+      const runStart = i;
+      let runEnd = i;
+      while (runEnd + 1 < n && evaluated[runEnd + 1]?.value.isZero()) runEnd += 1;
+      const hasLeftNeighbour = runStart > 0;
+      const hasRightSample = runEnd + 1 < n;
+      const hasRightInfinity = !hasRightSample && slopeAtInfinity !== 0;
+      const entryPoint = hasLeftNeighbour
+        ? assertDefined(evaluated[runStart], "computePayoffProfile: run start within bounds").point
+        : undefined;
+      const exitPoint =
+        hasRightSample || hasRightInfinity
+          ? assertDefined(evaluated[runEnd], "computePayoffProfile: run end within bounds").point
+          : undefined;
+      if (entryPoint && exitPoint && entryPoint.eq(exitPoint)) {
+        breakEvens.push(toDecimalString(entryPoint, PRICE_SCALE));
+      } else {
+        if (entryPoint) breakEvens.push(toDecimalString(entryPoint, PRICE_SCALE));
+        if (exitPoint) breakEvens.push(toDecimalString(exitPoint, PRICE_SCALE));
+      }
+      i = runEnd + 1;
+      continue;
     }
+    const next = evaluated[i + 1];
+    if (next && !next.value.isZero() && point.value.isNeg() !== next.value.isNeg()) {
+      const ratio = point.value.neg().div(next.value.sub(point.value));
+      const crossing = point.point.add(next.point.sub(point.point).mul(ratio));
+      breakEvens.push(toDecimalString(crossing, PRICE_SCALE));
+    }
+    i += 1;
   }
   const last = evaluated.at(-1);
   if (
