@@ -46,7 +46,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         heading: "Your account",
         paragraphs: [
           "One account per person. Keep your password to yourself: you answer for what is done with your account. Do not use Fetha for anything unlawful, do not try to reach other people's data and do not overload the service.",
-          "A strategy you mark as shared becomes visible, read-only, to every other user, together with the metrics you choose to publish, and they can copy it into their own space. Nothing else you record is ever shared.",
+          "A strategy you mark as shared becomes visible, read-only, to every other user, with its name and every version of its definition, but without your name or your backtests, and they can copy it into their own space. Nothing else you record is ever shared.",
         ],
       },
       {
@@ -79,7 +79,8 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         paragraphs: [
           "Registration: your name, your email and your password, stored only as a one-way hash, plus which version of these terms you accepted and when.",
           "Sessions: when you signed in, the IP address and the browser.",
-          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, and your theme preferences.",
+          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, and your theme and layout preferences.",
+          "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted.",
           "What Fetha computes for you: signals, strategy evaluations and decision scores.",
           "Access log: each read or export of your portfolio and decision data, with the date, the IP address and the browser.",
         ],
@@ -100,8 +101,8 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
       {
         heading: "How long it is kept",
         paragraphs: [
-          "Your data is kept while your account exists. Access log entries are deleted after 180 days. Each email typed into sign-in, magic link, password reset or verification resend is kept only as a SHA-256 hash, for about a minute after the last attempt, to limit repeated tries. Verification, magic link and password reset links expire within five minutes to one hour.",
-          "When you delete your account, everything tied to it is deleted at once. The database provider's backups expire on their own within its retention window, and emails already sent remain in your inbox and in Resend's delivery records.",
+          "Your data is kept while your account exists. Access log entries are deleted after 180 days. Each email typed into sign-in, magic link, password reset or verification resend, and your account's email when you export your data or delete your account, is kept only as a SHA-256 hash, to limit repeated tries. That hash is erased by the first attempt anyone makes on Fetha once a minute has passed since the last one. Verification, magic link and password reset links expire within five minutes to one hour.",
+          "When you delete your account, everything tied to it is deleted at once. The database provider's backups expire on their own within its retention window, and emails already sent remain in your inbox and in Resend's delivery records. Copies other users made of a strategy you shared stay with them, with no link to your account.",
         ],
       },
       {
@@ -162,7 +163,7 @@ const ptBR: typeof en = {
         heading: "Sua conta",
         paragraphs: [
           "Uma conta por pessoa. Não compartilhe sua senha: você responde pelo que for feito com a sua conta. Não use o Fetha para nada ilícito, não tente acessar dados de outras pessoas e não sobrecarregue o serviço.",
-          "Uma estratégia que você marcar como compartilhada fica visível, só para leitura, a todos os outros usuários, junto com as métricas que você escolher publicar, e eles podem copiá-la para o próprio espaço. Nenhum outro dado que você registra é compartilhado.",
+          "Uma estratégia que você marcar como compartilhada fica visível, só para leitura, a todos os outros usuários, com o nome e todas as versões da definição, mas sem o seu nome nem os seus backtests, e eles podem copiá-la para o próprio espaço. Nenhum outro dado que você registra é compartilhado.",
         ],
       },
       {
@@ -195,7 +196,8 @@ const ptBR: typeof en = {
         paragraphs: [
           "Cadastro: seu nome, seu e-mail e sua senha, guardada apenas como hash irreversível, além de qual versão destes termos você aceitou e quando.",
           "Sessões: quando você entrou, o endereço IP e o navegador.",
-          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses e suas preferências de tema.",
+          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses e suas preferências de tema e de layout.",
+          "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída.",
           "O que o Fetha calcula para você: sinais, avaliações de estratégias e pontuações de decisões.",
           "Registro de acesso: cada leitura ou exportação dos dados da sua carteira e das suas decisões, com data, endereço IP e navegador.",
         ],
@@ -216,8 +218,8 @@ const ptBR: typeof en = {
       {
         heading: "Por quanto tempo",
         paragraphs: [
-          "Seus dados ficam guardados enquanto sua conta existir. Os registros de acesso são apagados depois de 180 dias. Cada e-mail digitado no login, no link mágico, na redefinição de senha ou no reenvio da verificação é guardado só como hash SHA-256, por cerca de um minuto após a última tentativa, para limitar tentativas repetidas. Os links de verificação, os links mágicos e os de redefinição de senha expiram entre cinco minutos e uma hora.",
-          "Quando você exclui sua conta, tudo o que está ligado a ela é apagado na hora. As cópias de segurança do provedor do banco de dados expiram sozinhas dentro do prazo de retenção dele, e os e-mails já enviados continuam na sua caixa de entrada e nos registros de entrega do Resend.",
+          "Seus dados ficam guardados enquanto sua conta existir. Os registros de acesso são apagados depois de 180 dias. Cada e-mail digitado no login, no link mágico, na redefinição de senha ou no reenvio da verificação, e o e-mail da sua conta quando você exporta seus dados ou exclui a conta, é guardado só como hash SHA-256, para limitar tentativas repetidas. Esse hash é apagado na primeira tentativa feita no Fetha, por qualquer pessoa, depois de passado um minuto da última. Os links de verificação, os links mágicos e os de redefinição de senha expiram entre cinco minutos e uma hora.",
+          "Quando você exclui sua conta, tudo o que está ligado a ela é apagado na hora. As cópias de segurança do provedor do banco de dados expiram sozinhas dentro do prazo de retenção dele, e os e-mails já enviados continuam na sua caixa de entrada e nos registros de entrega do Resend. Cópias que outros usuários fizeram de uma estratégia sua compartilhada continuam com eles, sem ligação com a sua conta.",
         ],
       },
       {

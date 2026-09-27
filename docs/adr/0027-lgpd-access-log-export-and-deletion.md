@@ -59,7 +59,11 @@ no operator path rewrites decision data today.
    that another user's rows (including a copy of the deleted user's shared strategy) survive.
 4. **Terms and privacy.** The text lives in `auth/legal-text.ts` and describes what the code does,
    including the retention of `rate_limits` (ADR-0024) and `access_log`. `CURRENT_TERMS_VERSION`
-   changes with the text, so each new acceptance records which text was accepted.
+   changes with the text, so each new acceptance records which text was accepted. The processor
+   regions it states were read from Vercel on 2026-09-27: functions in `iad1` and both Neon
+   databases (production and `fetha-preview`) in `iad1`, all in the United States, and Resend's
+   shared onboarding sender, also in the US. Verifying a Resend domain lets its region be chosen,
+   and the text changes with that choice.
 
 ## Considered options
 

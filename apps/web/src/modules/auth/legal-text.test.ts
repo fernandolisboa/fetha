@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { ACCESS_LOG_RETENTION_DAYS } from "@/modules/audit";
+
+import { ACCOUNT_BUCKET_RETENTION_SECONDS } from "./account-rate-limit";
 import { legalText } from "./legal-text";
 import { CURRENT_TERMS_VERSION } from "./terms";
 
@@ -40,8 +43,9 @@ describe("legal text", () => {
 
   it("states the retention the code enforces", () => {
     const text = fullText("ptBR");
-    expect(text).toContain("180 dias");
+    expect(text).toContain(`${String(ACCESS_LOG_RETENTION_DAYS)} dias`);
     expect(text).toContain("SHA-256");
-    expect(text).toContain("cerca de um minuto");
+    expect(ACCOUNT_BUCKET_RETENTION_SECONDS).toBe(60);
+    expect(text).toContain("depois de passado um minuto");
   });
 });
