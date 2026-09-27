@@ -382,6 +382,14 @@ describe("StrategiesRepository strategy cap (#160)", () => {
     );
   }
 
+  async function countMine(db: ReturnType<typeof getDb>, ownerId: string): Promise<number> {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(strategies)
+      .where(eq(strategies.userId, ownerId));
+    return row?.count ?? 0;
+  }
+
   it("refuses create beyond the cap and keeps the user's count unchanged", async () => {
     const db = getDb();
     const email = uniqueEmail("strategy-cap-create");
@@ -397,8 +405,7 @@ describe("StrategiesRepository strategy cap (#160)", () => {
       repository.createWithVersion(definition({ name: "One too many" })),
     ).rejects.toBeInstanceOf(StrategyLimitReachedError);
 
-    const mine = await repository.listMine();
-    expect(mine).toHaveLength(MAX_STRATEGIES_PER_USER);
+    await expect(countMine(db, owner.id)).resolves.toBe(MAX_STRATEGIES_PER_USER);
   });
 
   it("refuses copyShared beyond the cap, counted inside the transaction", async () => {
@@ -420,8 +427,7 @@ describe("StrategiesRepository strategy cap (#160)", () => {
       StrategyLimitReachedError,
     );
 
-    const copierStrategies = await copierRepository.listMine();
-    expect(copierStrategies).toHaveLength(MAX_STRATEGIES_PER_USER);
+    await expect(countMine(db, copier.id)).resolves.toBe(MAX_STRATEGIES_PER_USER);
   });
 
   it("waits for the per-user lock before counting", async () => {
@@ -429,6 +435,7 @@ describe("StrategiesRepository strategy cap (#160)", () => {
     const email = uniqueEmail("strategy-cap-lock");
     createdEmails.push(email);
     const owner = await insertBareUser(email);
+    await fillToOneBelowCap(db, owner.id);
     const repository = new StrategiesRepository(db, owner);
 
     let created: Promise<unknown> = Promise.resolve();
@@ -446,8 +453,18 @@ describe("StrategiesRepository strategy cap (#160)", () => {
         }),
       ]);
       expect(outcome).toBe("waiting");
+
+      // Reaches the cap from inside the lock-holding transaction, before
+      // releasing it: the waiter's own count (taken only once it acquires
+      // the lock after this commits) must see this row, not the state as of
+      // when it started waiting.
+      await tx
+        .insert(strategies)
+        .values({ userId: owner.id, name: "Reaches the cap", visibility: "private" });
     });
-    await expect(created).resolves.toBeDefined();
+
+    await expect(created).rejects.toBeInstanceOf(StrategyLimitReachedError);
+    await expect(countMine(db, owner.id)).resolves.toBe(MAX_STRATEGIES_PER_USER);
   });
 
   it("admits at most the cap when creates race", async () => {
@@ -470,8 +487,7 @@ describe("StrategiesRepository strategy cap (#160)", () => {
         expect(result.reason).toBeInstanceOf(StrategyLimitReachedError);
       }
     }
-    const mine = await repository.listMine();
-    expect(mine).toHaveLength(MAX_STRATEGIES_PER_USER);
+    await expect(countMine(db, owner.id)).resolves.toBe(MAX_STRATEGIES_PER_USER);
   });
 
   it("user B at cap does not block user A's create (isolation)", async () => {
