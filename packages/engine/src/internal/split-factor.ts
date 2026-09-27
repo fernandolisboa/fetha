@@ -14,7 +14,7 @@ export type SplitFactorResult = { ok: true; value: Decimal } | { ok: false; erro
 // responsible for having already filtered `factors` down to what is visible at the instant in
 // question — this function does not read `asOf`. A non-positive factor (a data-integrity issue
 // in ingested corporate-action data, not a caller mistake) would silently zero or invert every
-// price it touches, so it is rejected here once for every caller (round 1 item 8) rather than
+// price it touches, so it is rejected here once for every caller rather than
 // validated twice.
 export function splitFactorProduct(
   factors: readonly CorporateActionFactor[],

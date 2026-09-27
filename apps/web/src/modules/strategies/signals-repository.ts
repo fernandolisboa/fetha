@@ -271,7 +271,7 @@ export class SignalsRepository extends UserScopedRepository {
   }
 
   // This user's own watermark for the nightly evaluation, scoped to one
-  // strategy version (#19 round 3 item 1): the newest session this user has
+  // strategy version (#19): the newest session this user has
   // ever actually been evaluated for *under this strategy version*, not
   // across every strategy. The unit of work is (strategy version, session),
   // so a watermark shared across a user's strategies let a partial

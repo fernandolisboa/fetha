@@ -268,7 +268,7 @@ describe("BacktestRunRepository isolation", () => {
     );
   });
 
-  it("user A cannot claim (read, write or trigger a job for) user B's backtest run (round 5 item 3)", async () => {
+  it("user A cannot claim (read, write or trigger a job for) user B's backtest run", async () => {
     const db = getDb();
     const emailA = uniqueEmail("a3");
     const emailB = uniqueEmail("b3");
@@ -343,7 +343,7 @@ describe("BacktestRunRepository isolation", () => {
     );
   });
 
-  it("claims a stale running run but rejects a fresh one still within its lease (round 2 item 2)", async () => {
+  it("claims a stale running run but rejects a fresh one still within its lease", async () => {
     const db = getDb();
     const email = uniqueEmail("stale-lease");
     createdEmails.push(email);
@@ -401,7 +401,7 @@ describe("BacktestRunRepository isolation", () => {
     await expect(repository.claim(freshRun.id)).rejects.toBeInstanceOf(BacktestRunClaimError);
   });
 
-  it("reclaims a failed run so a retry has a path back in (round 2 item 12)", async () => {
+  it("reclaims a failed run so a retry has a path back in", async () => {
     const db = getDb();
     const email = uniqueEmail("reclaim-failed");
     createdEmails.push(email);
@@ -445,11 +445,11 @@ describe("BacktestRunRepository isolation", () => {
     expect(reclaimed.status).toBe("running");
     expect(reclaimed.checkpoint).toEqual(checkpoint);
     // The previous failure's message must not survive into a row that goes
-    // on to assert `status: "complete"` alongside it (round 3 item 6).
+    // on to assert `status: "complete"` alongside it.
     expect(reclaimed.error).toBeNull();
   });
 
-  it("lets exactly one of two racing completions through, the loser rejecting from the trigger itself, not a pre-check that got lucky (round 2 item 3, round 3 item 8)", async () => {
+  it("lets exactly one of two racing completions through, the loser rejecting from the trigger itself, not a pre-check that got lucky", async () => {
     const db = getDb();
     const email = uniqueEmail("race-complete");
     createdEmails.push(email);
@@ -481,7 +481,7 @@ describe("BacktestRunRepository isolation", () => {
     // pooled connection can serialise such that the loser's own read
     // already sees "complete" and rejects from the pre-check — the same
     // observable outcome as the trigger firing, but never exercising the
-    // catch block round 2 item 3 added (round 3 item 8). An explicit
+    // catch block the claim query added. An explicit
     // transaction on a second connection forces the real ordering instead:
     // held open past the loser's read (so its pre-check sees the row still
     // running) and past its UPDATE being sent (so that UPDATE blocks on the

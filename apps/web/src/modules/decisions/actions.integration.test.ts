@@ -351,7 +351,7 @@ describe("recordDecisionAction", () => {
     expect(await repository.listMine()).toEqual([]);
   });
 
-  it("rejects a horizon of today once today's own session has already closed (#29 fix-web item 12)", async () => {
+  it("rejects a horizon of today once today's own session has already closed", async () => {
     await ensureStockStructure();
     const email = uniqueEmail("horizon-today-closed");
     createdEmails.push(email);

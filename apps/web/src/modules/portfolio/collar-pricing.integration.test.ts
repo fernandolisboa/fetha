@@ -49,7 +49,7 @@ function uniqueTicker(label: string): string {
   return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`;
 }
 
-describe("a manually built collar prices from the priceable chain (PR #76 round 3)", () => {
+describe("a manually built collar prices from the priceable chain", () => {
   const cleanupUnderlyings: string[] = [];
   const cleanupTickers: string[] = [];
   const seededSessionDates: string[] = [];

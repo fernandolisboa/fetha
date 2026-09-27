@@ -115,7 +115,7 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
-  it("rejects a non-positive given volatility as invalid_input (round 4 item 5)", () => {
+  it("rejects a non-positive given volatility as invalid_input", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
     const result = priceOperation(
       {
@@ -534,7 +534,7 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.value.maxGain).toBe(centavos((32 - 30) * 100));
   });
 
-  it("emits a payoff point at every leg strike, equal to maxLoss/maxGain, sorted ascending and de-duplicated (PR #76 round 2 item 1)", () => {
+  it("emits a payoff point at every leg strike, equal to maxLoss/maxGain, sorted ascending and de-duplicated", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [
@@ -811,7 +811,7 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
-  it("suppresses the implied-volatility solve for a stale option mark whose session precedes a visible ex-date on the underlying (round 3 item 9)", () => {
+  it("suppresses the implied-volatility solve for a stale option mark whose session precedes a visible ex-date on the underlying", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -858,7 +858,7 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
-  it("does not flag the operation-level iv_not_converged note for a leg whose solve was only suppressed across a corporate action (round 4 item 2)", () => {
+  it("does not flag the operation-level iv_not_converged note for a leg whose solve was only suppressed across a corporate action", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -900,7 +900,7 @@ describe("priceOperation (concrete legs)", () => {
     );
   });
 
-  it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at` (round 4 item 1)", () => {
+  it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at`", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [callSeries("PETR4C28", "28.00")],
@@ -1170,8 +1170,7 @@ describe("priceOperation (concrete legs)", () => {
     if (!result.ok) return;
     // 33.32 * 0.8 = 26.656, which rounds to 26.66 (not truncates to 26.65): the payoff
     // point's own reported `underlying` must be the value pnl was evaluated at, so
-    // 100 * (26.66 - 33.32) = -666.00, not 100 * (26.656 - 33.32) = -666.40 (PR #53
-    // round 1 item 15).
+    // 100 * (26.66 - 33.32) = -666.00, not 100 * (26.656 - 33.32) = -666.40.
     const point = result.value.payoff.find((p) => p.underlying === decimalString("26.66"));
     expect(point).toBeDefined();
     expect(point?.pnl).toBe(centavos(-666_00));
@@ -1866,7 +1865,7 @@ describe("priceOperation (break-evens on zero-valued plateaus, #135)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // The plateau's true boundaries are 39.999 and 40.001: half a cent apart, both round to
-    // 40.00 (#135 review item 1). Without the final dedup this reports ["40.00","40.00"].
+    // 40.00. Without the final dedup this reports ["40.00","40.00"].
     expect(result.value.breakEvens).toEqual([decimalString("40.00")]);
   });
 

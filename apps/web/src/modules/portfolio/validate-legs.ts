@@ -10,13 +10,13 @@ export type LegValidationFailure =
   | "leg_ratio";
 
 // Checks a builder's concrete legs against the structure template they
-// claim to instantiate before pricing or saving them (round 1 item 10):
+// claim to instantiate before pricing or saving them:
 // same role/side in the same order as the template, every option leg
 // resolved against the closing chain, one shared expiry across all option
-// legs, strikes strictly increasing with `strikeRank` (round 2 item 6: a
+// legs, strikes strictly increasing with `strikeRank` (a
 // distinct rank never shares a strike with another rank, or a "trava"
 // saves with net premium 0) and every leg's quantity scaled from the
-// template's `ratio` by the same positive factor (round 2 item 6: a 1x5
+// template's `ratio` by the same positive factor (a 1x5
 // ratio spread must not save labelled `bull-call-spread`).
 export function validateLegsAgainstStructure(
   structure: Structure,

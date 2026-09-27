@@ -87,7 +87,7 @@ export async function recordDecisionAction(
   }
   const { originKind, targetId, kind, rationale, claim, confidence, horizon } = parsed.data;
 
-  // Checked before touching the database (round 2, correctness finding 2):
+  // Checked before touching the database:
   // a horizon that was valid when the form loaded but has since crossed
   // into yesterday (or a client that skips its own validation) gets a
   // typed, friendly result here rather than an unhandled 23514 from the
@@ -98,7 +98,7 @@ export async function recordDecisionAction(
     return { status: "error", error: "horizon_in_past" };
   }
   // A horizon of "today" is only ever valid while today's own session is
-  // still open (#29 fix-web item 12, quant BLOCKING): once it closes (or
+  // still open: once it closes (or
   // today is not a trading session at all — a weekend, a holiday), scoring
   // a claim on "today's close" against a close that already happened before
   // the decision was even recorded would score the past, not the future.
@@ -132,7 +132,7 @@ export async function recordDecisionAction(
       const recorded = await repository.record(recordInput);
 
       if (markSignalIdWhenAnswered) {
-        // Not the same transaction as the insert above (round 2 item 8):
+        // Not the same transaction as the insert above:
         // `markSignalReadAction` only reaches `SignalsRepository` through
         // strategies' own entry point, which takes no transaction handle,
         // and widening the shared `UserScopedRepository`'s `db` parameter

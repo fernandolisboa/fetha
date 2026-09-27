@@ -19,7 +19,7 @@ type PlotPoint = { underlying: number; pnl: number };
 
 // `computePayoffProfile` (packages/engine/src/internal/price-operation.ts) already samples
 // each leg's strike and each break-even alongside 0.8/1/1.2 of spot, sorted ascending and
-// de-duplicated (PR #76 round 2 item 1): every kink the line needs to be honest is a real
+// de-duplicated: every kink the line needs to be honest is a real
 // engine point, so the chart draws them as given and never fabricates a value between them.
 function plotPoints(points: PayoffPoint[]): PlotPoint[] {
   return points.map((point) => ({ underlying: Number(point.underlying), pnl: point.pnl }));

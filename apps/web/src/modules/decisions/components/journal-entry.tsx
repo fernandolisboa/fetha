@@ -39,8 +39,8 @@ function origin(decision: DecisionListItem): string {
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 
-// A reason this run's own map has no translation for (round 3 item 10,
-// security: the raw storage code is an internal detail, never shown as if
+// A reason this run's own map has no translation for (the raw storage
+// code is an internal detail, never shown as if
 // it were a pt-BR sentence) falls back to a generic one instead of leaking
 // the code itself.
 export function unscorableReasonLabel(reason: string): string {
@@ -51,7 +51,7 @@ export function unscorableReasonLabel(reason: string): string {
 // thesis claim's outcome in one of three states, Brier and — only for a
 // `do_not_enter` decision, the one kind a counterfactual makes sense for —
 // what the P&L would have been had the user entered anyway. A terminal
-// unscorable row (#29 fix-web item 8) shows the short reason instead of any
+// unscorable row shows the short reason instead of any
 // of that — there is no score to show components for.
 function ScoreDetails({
   decision,

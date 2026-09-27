@@ -454,7 +454,7 @@ describe("proposeSettlement", () => {
     });
   });
 
-  it("returns a midnight-UTC insufficient_data window when the calendar does not cover the expiry session at all (item 10)", () => {
+  it("returns a midnight-UTC insufficient_data window when the calendar does not cover the expiry session at all", () => {
     const op = operation({
       expiry: "2099-01-01",
       legs: [
@@ -482,7 +482,7 @@ describe("proposeSettlement", () => {
     });
   });
 
-  it("notes that a settlement proposal's fills carry no costs (item 10)", () => {
+  it("notes that a settlement proposal's fills carry no costs", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
@@ -549,8 +549,7 @@ describe("proposeSettlement", () => {
       optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
     });
     // MarketView.candles order is not meaningful (I3): a same-session candle revision must
-    // resolve the same way whether the revision or the stale row comes first in the array
-    // (round 1 item 5).
+    // resolve the same way whether the revision or the stale row comes first in the array.
     const forward = proposeSettlement(
       { view: viewWith([revisedCandle, staleCandle]), operation: op },
       provenanceBase,
@@ -583,7 +582,7 @@ describe("proposeSettlement", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C28" });
   });
 
-  it("returns invalid_input when a listed strike is not positive (item 7)", () => {
+  it("returns invalid_input when a listed strike is not positive", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [
@@ -611,7 +610,7 @@ describe("proposeSettlement", () => {
     });
   });
 
-  it("indexes a non-positive strike error by the leg's own position, not its ticker (round 3 item 8)", () => {
+  it("indexes a non-positive strike error by the leg's own position, not its ticker", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [
@@ -713,7 +712,7 @@ describe("proposeSettlement", () => {
     });
   });
 
-  it("returns invalid_input for a duplicate calendar date (item 11)", () => {
+  it("returns invalid_input for a duplicate calendar date", () => {
     const view: MarketView = {
       ...baseView,
       calendar: [...calendar, calendar[0] as TradingSession],
@@ -736,7 +735,7 @@ describe("proposeSettlement", () => {
     expect(result.error.code === "invalid_input" && result.error.path).toBe("view.calendar");
   });
 
-  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle (item 11)", () => {
+  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle", () => {
     const dupCandle = { ...underlyingCandle("30.00") };
     const view: MarketView = {
       ...baseView,

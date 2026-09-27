@@ -28,7 +28,7 @@ import { CATCH_UP_SESSION_LIMIT, evaluateSignalsForSession } from "./evaluate-si
 import { SignalsRepository } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 
-// Wraps the real implementation by default (round 3 item 1): every test
+// Wraps the real implementation by default: every test
 // keeps using genuine `loadMarketView` behaviour against the shared preview
 // database except the one that overrides a single call with
 // `mockImplementationOnce` to simulate a strategy's own loader throwing
@@ -133,7 +133,7 @@ async function insertSession(session: string): Promise<void> {
     .onConflictDoNothing();
 }
 
-// `high`/`low`/`open`/`average` all derived from `close` (round 4 item 9):
+// `high`/`low`/`open`/`average` all derived from `close`:
 // hardcoded values produced impossible bars once a test started passing a
 // `close` outside their fixed 9-11 band (e.g. 22.50), harmless while only
 // `close` is read but a trap for the first test that adds a range-based
@@ -180,7 +180,7 @@ const createdTickers: Ticker[] = [];
 const createdSessions: string[] = [];
 
 afterEach(async () => {
-  // Restores the pass-through default (round 3 item 1's `loadMarketView`
+  // Restores the pass-through default (the `loadMarketView`
   // wrapper) even if a test overrode it, so a failure it throws never leaks
   // into an unrelated test after it.
   loadMarketViewMock.mockImplementation(realLoadMarketView);
@@ -304,7 +304,7 @@ describe("evaluateSignalsForSession", () => {
     await insertSession(session);
     await insertCandle(ticker, session);
     // Deliberately no declareRiskProfile(owner) call: PLACEHOLDER_RISK_PROFILE
-    // no longer fabricates one (round-1 review item 1).
+    // no longer fabricates one.
     await new WatchlistRepository(db, owner).add(ticker);
 
     const strategy = await new StrategiesRepository(db, owner).createWithVersion(
@@ -324,7 +324,7 @@ describe("evaluateSignalsForSession", () => {
     expect(log[0]?.ticker).toBe(ticker);
   });
 
-  it("evaluates a three-session catch-up as one row per session per ticker and three signals, each signal priced at its own session's close, and a second call writes nothing new (round 2 item 5, round 3 item 6)", async () => {
+  it("evaluates a three-session catch-up as one row per session per ticker and three signals, each signal priced at its own session's close, and a second call writes nothing new", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -336,7 +336,7 @@ describe("evaluateSignalsForSession", () => {
     createdEmails.push(email);
     const owner = await insertBareUser(email);
 
-    // A distinct close per session (round 3 item 6): every session getting
+    // A distinct close per session: every session getting
     // the same candle would still pass a cardinality-only assertion even if
     // a regression priced every signal off the newest candle instead of its
     // own session's.
@@ -388,7 +388,7 @@ describe("evaluateSignalsForSession", () => {
     expect(await repository.listInbox()).toHaveLength(3);
   });
 
-  it("evaluates a user skipped by the deadline on session S for S on the next run (round 2 item 1)", async () => {
+  it("evaluates a user skipped by the deadline on session S for S on the next run", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -442,7 +442,7 @@ describe("evaluateSignalsForSession", () => {
     expect(await repository.listInbox()).toHaveLength(3);
   });
 
-  it("picks up later a night's evaluation suppressed entirely (e.g. by an SGS failure gating the whole run), instead of losing it (round 2 item 1)", async () => {
+  it("picks up later a night's evaluation suppressed entirely (e.g. by an SGS failure gating the whole run), instead of losing it", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -470,8 +470,8 @@ describe("evaluateSignalsForSession", () => {
     const night1 = await evaluateSignalsForSession(db, [s1]);
     expect(night1.errors).toEqual([]);
 
-    // Night 2 is never called at all (the cron's own gate — item 1's
-    // route.ts fix — skipped it entirely; s2 candles still ingested
+    // Night 2 is never called at all (the cron's own gate in
+    // route.ts skipped it entirely; s2 candles still ingested
     // cleanly). Night 3 only drains s3.
     const night3 = await evaluateSignalsForSession(db, [s3]);
     expect(night3.errors).toEqual([]);
@@ -482,7 +482,7 @@ describe("evaluateSignalsForSession", () => {
     expect(new Set(log.map((row) => row.session))).toEqual(new Set([s1, s2, s3]));
   });
 
-  it("writes one failure row per session in a multi-session catch-up, not only under the newest (round 2 item 6)", async () => {
+  it("writes one failure row per session in a multi-session catch-up, not only under the newest", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -521,7 +521,7 @@ describe("evaluateSignalsForSession", () => {
     expect(log.every((row) => row.detail === null)).toBe(true);
   });
 
-  it("resolves a genuinely missing anchor (no watermark, no session before the drained range) to a single explicit evaluation, never a crash or a silent no-op (round 2 item 7)", async () => {
+  it("resolves a genuinely missing anchor (no watermark, no session before the drained range) to a single explicit evaluation, never a crash or a silent no-op", async () => {
     const db = getDb();
     // A session with nothing registered before it in the calendar at all —
     // this user's very first-ever evaluation, the only case `since` is
@@ -558,10 +558,10 @@ describe("evaluateSignalsForSession", () => {
     expect(log[0]?.ticker).toBe(ticker);
   });
 
-  it("excludes a stale, unregistered-session candle from a genuinely widened window (round 2 item 7, round 3 item 4)", async () => {
+  it("excludes a stale, unregistered-session candle from a genuinely widened window", async () => {
     const db = getDb();
     // Five real sessions so an sma(3) definition's window has to reach back
-    // more than one session (round 3 item 4): the previous version of this
+    // more than one session: the previous version of this
     // case re-ran the same already-covered session, which short-circuited
     // on the watermark before ever widening the window, so it never
     // actually exercised the calendar-bounded exclusion below.
@@ -627,7 +627,7 @@ describe("evaluateSignalsForSession", () => {
     expect(log.map((row) => row.session)).not.toContain(staleSession);
 
     // The session set alone is fixed by `since`/`at` and would pass even if
-    // the window never actually widened past s4 (round 4 item 8): only the
+    // the window never actually widened past s4: only the
     // newest row's `outcome` depends on the sma(3) warm-up genuinely
     // reaching back through s2 and s3's real candles rather than the stale
     // one — too narrow a window computes no sma value at s4 and records
@@ -637,7 +637,7 @@ describe("evaluateSignalsForSession", () => {
     expect(newestRow?.detail).toBeNull();
   });
 
-  it("records an explicit unsatisfiable-collection outcome for an iv_rank strategy instead of looping insufficient_data forever (round 2 item 8)", async () => {
+  it("records an explicit unsatisfiable-collection outcome for an iv_rank strategy instead of looping insufficient_data forever", async () => {
     const db = getDb();
     const session = randomSession();
     createdSessions.push(session);
@@ -683,7 +683,7 @@ describe("evaluateSignalsForSession", () => {
     expect(log[0]?.ticker).toBe(ticker);
   });
 
-  it("keeps a sibling strategy's watermark independent when its own loader throws mid-loop, so the next run still catches it up on the sessions it missed (round 3 item 1)", async () => {
+  it("keeps a sibling strategy's watermark independent when its own loader throws mid-loop, so the next run still catches it up on the sessions it missed", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -714,7 +714,7 @@ describe("evaluateSignalsForSession", () => {
 
     // Whichever strategy `listActiveDaily` processes first gets a real
     // `loadMarketView` call and commits; the second throws before it can
-    // write anything (#19 round 3 item 1).
+    // write anything (#19).
     let loadMarketViewCalls = 0;
     loadMarketViewMock.mockImplementation(async (...args) => {
       loadMarketViewCalls += 1;
@@ -730,9 +730,9 @@ describe("evaluateSignalsForSession", () => {
     const repository = new SignalsRepository(db, owner);
     const logAfterFirst = await repository.listEvaluationLog();
     const strategiesWithRowsAfterFirst = new Set(logAfterFirst.map((row) => row.strategyId));
-    // Exactly one of the two strategies committed anything: the per-user
-    // watermark this round-3 fix removes would have let the surviving
-    // strategy's write advance a shared watermark past the failing one.
+    // Exactly one of the two strategies committed anything: a per-user
+    // watermark would have let the surviving strategy's write advance a
+    // shared watermark past the failing one.
     expect(strategiesWithRowsAfterFirst.size).toBe(1);
 
     const second = await evaluateSignalsForSession(db, [s1, s2, s3]);
@@ -752,7 +752,7 @@ describe("evaluateSignalsForSession", () => {
     );
   });
 
-  it("evaluates a sibling strategy in the same run when loadMarketView throws MarketViewUnavailableError, instead of losing the whole user's night (round 5 item 5)", async () => {
+  it("evaluates a sibling strategy in the same run when loadMarketView throws MarketViewUnavailableError, instead of losing the whole user's night", async () => {
     const db = getDb();
     const session = randomSession();
     createdSessions.push(session);
@@ -779,7 +779,7 @@ describe("evaluateSignalsForSession", () => {
 
     // Whichever strategy `listActiveDaily` processes first throws the
     // typed error the merged `loadMarketView` now raises instead of
-    // returning a candle-less view (round 2/3 of #18); the second gets a
+    // returning a candle-less view (#18); the second gets a
     // real call and must still commit in this same run.
     let loadMarketViewCalls = 0;
     loadMarketViewMock.mockImplementation(async (...args) => {
@@ -845,7 +845,7 @@ describe("evaluateSignalsForSession", () => {
     expect(log.some((row) => row.reason === "no_market_data")).toBe(false);
   });
 
-  it("checks the deadline inside the strategy loop, not only between users (round 3 item 2)", async () => {
+  it("checks the deadline inside the strategy loop, not only between users", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
     if (!before || !s1 || !s2 || !s3) throw new Error("fixture setup failed");
@@ -908,7 +908,7 @@ describe("evaluateSignalsForSession", () => {
     expect(countFor(strategyB.id)).toBe(3);
   });
 
-  it("clamps a catch-up beyond the session limit and records the dropped span explicitly, instead of running it in full (round 3 item 2)", async () => {
+  it("clamps a catch-up beyond the session limit and records the dropped span explicitly, instead of running it in full", async () => {
     const db = getDb();
     const sessionCount = CATCH_UP_SESSION_LIMIT + 9;
     const sessions = randomSessionSequence(sessionCount);
@@ -969,7 +969,7 @@ describe("evaluateSignalsForSession", () => {
     // real 21-signal catch-up run past the default 20s test timeout.
   }, 60_000);
 
-  it("counts a user whose active strategies are already caught up separately from one actually evaluated (round 3 item 3)", async () => {
+  it("counts a user whose active strategies are already caught up separately from one actually evaluated", async () => {
     const db = getDb();
     const session = randomSession();
     createdSessions.push(session);

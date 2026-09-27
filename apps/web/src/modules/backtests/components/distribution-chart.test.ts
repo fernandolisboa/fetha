@@ -23,7 +23,7 @@ describe("buildBins", () => {
     expect(occupied.length).toBeGreaterThan(1);
   });
 
-  it("scales label precision with a sub-1% bin width so neighbouring bins get distinct labels (round 2 item 14)", () => {
+  it("scales label precision with a sub-1% bin width so neighbouring bins get distinct labels", () => {
     const returns = [
       0.0001, 0.0002, -0.0001, 0.00015, -0.00005, 0.00009, -0.00012, 0.00003, 0.00007, -0.00002,
     ];
@@ -32,7 +32,7 @@ describe("buildBins", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  it("never renders a signed zero label, even for a bin whose lower edge rounds to zero (round 2 item 14)", () => {
+  it("never renders a signed zero label, even for a bin whose lower edge rounds to zero", () => {
     const returns = [
       0.0001, 0.0002, -0.0001, 0.00015, -0.00005, 0.00009, -0.00012, 0.00003, 0.00007, -0.00002,
     ];
@@ -43,7 +43,7 @@ describe("buildBins", () => {
     }
   });
 
-  it("uses the pt-BR comma decimal separator, matching the rest of the report, not toFixed's dot (round 3 item 12)", () => {
+  it("uses the pt-BR comma decimal separator, matching the rest of the report, not toFixed's dot", () => {
     const returns = [0.01, 0.02, -0.01, 0.015, -0.005, 0.009, -0.012, 0.003, 0.007, -0.002];
     const bins = buildBins(returns);
     for (const bin of bins) {
@@ -55,10 +55,10 @@ describe("buildBins", () => {
   // A strategy that never fires has a flat equity curve: every session
   // return is exactly 0, so `min`/`max` (each already widened to include an
   // explicit 0) collapse to the same value and the span is genuinely zero,
-  // not merely small (round 4 item 6). Returning bins built off a
+  // not merely small. Returning bins built off a
   // fabricated span would render nine bin bounds — a 0%-100% axis in the
   // worst case — that no data in the run supports.
-  it("returns no bins for a flat curve instead of fabricating a span no data supports (round 4 item 6)", () => {
+  it("returns no bins for a flat curve instead of fabricating a span no data supports", () => {
     const returns = [0, 0, 0, 0, 0];
     const bins = buildBins(returns);
     expect(bins).toEqual([]);

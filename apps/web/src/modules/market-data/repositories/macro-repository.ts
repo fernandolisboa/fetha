@@ -37,9 +37,8 @@ export async function latestMacroPointDate(
 }
 
 // Every macro point (any series) with date in [fromDate, toDate], ordered —
-// and the direction of that order is load-bearing, not cosmetic (#18 round
-// 6 item 5, corrected in round 7 item 1). The premise round 6 stated here
-// was wrong: an exact `(series, asOf)` collision is never tie-broken by
+// and the direction of that order is load-bearing, not cosmetic. An earlier
+// assumption here was wrong: an exact `(series, asOf)` collision is never tie-broken by
 // `resolveRiskFreeRate`'s `latestVisible` at all — `evaluateStrategy`
 // (packages/engine/src/internal/evaluate-strategy.ts) runs
 // `sortUnique(view.macro, ...)` and returns `invalid_input` on any such
@@ -55,7 +54,7 @@ export async function latestMacroPointDate(
 // `date DESC` here is what makes "first seen" mean "the fresher
 // observation wins" rather than an arbitrary one. Ordering the query
 // itself also keeps that array order deterministic across two chunks of
-// the same immutable run (round 5 item 7); an unordered result set has no
+// the same immutable run; an unordered result set has no
 // such guarantee even for an identical query re-run against unchanged
 // data.
 export async function macroPointsInRange(

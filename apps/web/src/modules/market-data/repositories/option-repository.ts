@@ -179,7 +179,7 @@ export interface ChainSeries {
 // `currentSession` itself drops out of the picker once that session's own
 // close has passed (an inner join on its trading session), rather than
 // staying selectable into the evening and pricing at t = 0 with null
-// greeks (PR #76 round 2 item 8). Ordered by expiry then strike so a
+// greeks. Ordered by expiry then strike so a
 // call/put ladder reads the way a chain does on paper.
 //
 // `lastPrice` is the same latest-visible-session row `resolveLegMarketPrice`
@@ -187,8 +187,7 @@ export interface ChainSeries {
 // calendar-window floor as `buildOperationMarketView`: a series can be
 // listed and still never have traded, or its only trade can sit outside the
 // window, in which case this is `null` and the picker can tell the user the
-// series is unpriceable before they pick it (round 2 diagnosis, PETR4 chain
-// vs `option_daily_prices`).
+// series is unpriceable before they pick it (PETR4 chain vs `option_daily_prices`).
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,

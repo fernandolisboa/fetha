@@ -76,7 +76,7 @@ function matchEntryPrice(
 type ResolveExpiryResult = { ok: true; expiry: string | null } | { ok: false };
 
 // ADR-0014 Q43: every option leg of a structure shares one expiry. Asserted
-// here, not assumed (#29 fix-web item 11): a chain rollover or a data gap
+// here, not assumed: a chain rollover or a data gap
 // that leaves two of an operation's own legs pointing at different expiries
 // is a build failure (`mismatched_expiry`), not a silent pick of "the first
 // leg's expiry" the way `deriveDefaultHorizon` (horizon.ts) gets away with
@@ -212,9 +212,9 @@ export async function buildScoreInput(
   db: Database,
   scopedUser: ScopedUser,
   row: DueDecisionRow,
-  // Resolved once per scoring run and passed in, not re-fetched per decision
-  // (#29 fix-web item 11, architecture advisory): the structure catalog is
-  // shared reference data (ADR-0012) that never changes mid-run, so every
+  // Resolved once per scoring run and passed in, not re-fetched per
+  // decision: the structure catalog is shared reference data (ADR-0012)
+  // that never changes mid-run, so every
   // decision in a run reuses the same in-memory list `scoreDueDecisions`
   // loaded once instead of a `StructuresRepository.listAll()` query each.
   structures: readonly Structure[],
@@ -224,7 +224,7 @@ export async function buildScoreInput(
   }
   // A decision row whose stored `inputs`/`decidedAt` no longer parse (a shape an older app
   // version wrote, corrupted or hand-edited data) can never be fixed by retrying tomorrow night
-  // (round 3 item 5): returned as a build failure like every other gap here, not thrown, so the
+  // returned as a build failure like every other gap here, not thrown, so the
   // caller's generic per-decision catch (which never marks a row unscorable, to keep retrying
   // a transient failure) does not retry an error no future data will resolve.
   let inputs: DecisionInputs;
@@ -241,7 +241,7 @@ export async function buildScoreInput(
   let origin: ScoreInput["origin"] = { kind: "manual" };
   let settlementPending = false;
   // Resolved to the first trading session on or after the stored horizon
-  // (#29 fix-web item 5): a horizon a user typed in can land on a weekend or
+  // a horizon a user typed in can land on a weekend or
   // a holiday, and the claim/operation can only ever be evaluated against
   // the next session that actually trades.
   const horizonTradingSession = await tradingSessionOnOrAfter(db, row.horizon);
@@ -323,7 +323,7 @@ export async function buildScoreInput(
     row.claim && row.claim.kind !== "operation_pnl_positive" ? row.claim.instrument : undefined;
 
   const view = await buildOperationMarketView(db, underlying, horizonTradingSession.close, {
-    // Widened to cover `decidedAt` (#29 fix-web item 4): the default
+    // Widened to cover `decidedAt`: the default
     // 30-session trailing floor otherwise drops it for any horizon more
     // than 30 sessions out.
     from: decidedAt,

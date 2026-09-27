@@ -3,7 +3,7 @@ import { confidenceSchema, type Confidence } from "@fetha/contracts";
 
 // Digits only, at most one decimal separator (comma or dot): rejects
 // anything `Number()` would silently accept but a pt-BR percent field never
-// means, e.g. "0x40" (hex) or "1e1" (exponent notation) — round 2 finding 7.
+// means, e.g. "0x40" (hex) or "1e1" (exponent notation).
 const PT_BR_DECIMAL = /^\d+([.,]\d+)?$/;
 
 // The DecisionBar shows confidence as a 0-100 percent input (DESIGN.md

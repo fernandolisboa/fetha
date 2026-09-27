@@ -24,14 +24,14 @@ export interface EvaluateSignalsOutcome {
   sessions: string[];
   usersEvaluated: number;
   usersSkipped: number;
-  // Distinct from `usersEvaluated` (#19 round 3 item 3): a user whose every
+  // Distinct from `usersEvaluated` (#19): a user whose every
   // active strategy's watermark already covers `at` did no engine work this
   // run, so counting them as "evaluated" hides that the manual re-run the
   // cron POST handler documents was a silent no-op.
   usersAlreadyCaughtUp: number;
-  // Strategies left unprocessed when the in-loop deadline (round 3 item 2)
-  // broke the per-strategy loop early, across every user this run touched
-  // (round 4 item 7): a user counted as `usersEvaluated` because at least
+  // Strategies left unprocessed when the in-loop deadline broke the
+  // per-strategy loop early, across every user this run touched: a user
+  // counted as `usersEvaluated` because at least
   // one of their strategies ran can otherwise hide that N siblings were
   // silently deferred to the next run with no visible trace.
   strategiesDeferred: number;
@@ -42,11 +42,11 @@ export interface EvaluateSignalsOutcome {
 
 const SETUP_FAILED = "setup_failed";
 
-// A month of B3 trading sessions (~21/month), the round-3 item 2 ceiling: a
+// A month of B3 trading sessions (~21/month), the catch-up ceiling: a
 // catch-up wider than this is clamped rather than run in full. Bounds both
 // the engine work a single run can be asked to do (so a long-dormant
 // watchlist or strategy can never alone blow past `maxDuration`, which used
-// to kill the loop mid-user and — before the round-3 item 1 fix — corrupt a
+// to kill the loop mid-user and corrupt a
 // sibling strategy's watermark) and how many backdated entry proposals, all
 // sized against *today's* risk profile, can land in one night's inbox.
 export const CATCH_UP_SESSION_LIMIT = 21;
@@ -106,7 +106,7 @@ function signalToNewSignal(strategyId: string, signal: Signal): NewSignal {
 }
 
 // One failure/skip row per (ticker, session) in the catch-up range, not
-// only under the newest session (#19 round 2 item 6): a multi-session
+// only under the newest session (#19): a multi-session
 // catch-up that hits an unknown structure or an engine error leaves no
 // silent holes for the sessions in between. `reason` is always one of the
 // typed web-authored codes (#133): every failure this function records an
@@ -135,7 +135,7 @@ function failureEvaluations(
 }
 
 // The trading sessions a user's catch-up run actually covers, engine-shaped
-// (#19 round 2 items 1, 6, 7): with a defined `since`, every session whose
+// (#19): with a defined `since`, every session whose
 // close falls in `(since, at]`; with no `since` (this user's genuine first
 // evaluation ever, no watermark and no session before the drained range),
 // explicitly just the single session closing at `at` — never every session
@@ -155,8 +155,8 @@ function sessionsInCatchUpRange(
   return calendar.filter((session) => session.close > since && session.close <= at);
 }
 
-// Bounds a catch-up range to `CATCH_UP_SESSION_LIMIT` sessions (#19 round 3
-// item 2): given the full set of sessions a watermark implies, keep only
+// Bounds a catch-up range to `CATCH_UP_SESSION_LIMIT` sessions (#19): given
+// the full set of sessions a watermark implies, keep only
 // the newest `CATCH_UP_SESSION_LIMIT` and report the older, dropped ones
 // separately so the caller can log the gap instead of silently widening
 // `since`. A range already within the limit is returned unchanged with no
@@ -182,11 +182,11 @@ function clampCatchUpRange(
 }
 
 // One explicit record per ticker for the span a catch-up just clamped away
-// (#19 round 3 item 2), instead of the gap staying invisible: `detail`
+// (#19), instead of the gap staying invisible: `detail`
 // carries the count of dropped sessions so the evaluation log reads as "N
 // older sessions were never evaluated" rather than "insufficient data" with
 // no further clue. Anchored at the oldest dropped session, not the newest
-// (round 4 item 10): the span then reads forward naturally from where the
+// the span then reads forward naturally from where the
 // gap starts to where the retained range picks back up, instead of landing
 // on the boundary right next to it.
 function clampEvaluations(
@@ -233,7 +233,7 @@ export async function evaluateSignalsForSession(
   let at: Instant;
   // The `since` this run's *drained ingestion range* implies, used as the
   // fallback anchor for a user with no evaluation-log watermark of their
-  // own (round 2 item 1) — never the anchor for a user who already has one.
+  // own — never the anchor for a user who already has one.
   let drainedRangeSince: Instant | undefined;
   let structures: Structure[];
   let userIds: string[];
@@ -249,7 +249,7 @@ export async function evaluateSignalsForSession(
 
     structures = await new StructuresRepository(db).listAll();
     userIds = await activeStrategyUserIds(db, newest);
-    // Moved inside this try/catch (round 2 item 2): a transient error here
+    // Moved inside this try/catch: a transient error here
     // must return `setup_failed` with HTTP 200 like every other setup read,
     // not turn an ingestion that already succeeded into a 500 the cron
     // retries for no reason.
@@ -303,12 +303,12 @@ export async function evaluateSignalsForSession(
       let strategiesAlreadyCaughtUp = 0;
       let deadlineHitBeforeAnyWork = false;
 
-      // Per (strategy version, session), not per user (#19 round 3 item 1):
+      // Per (strategy version, session), not per user (#19):
       // each strategy reads and advances its own watermark inside this
       // loop, so a sibling strategy's failure, an unknown structure or a
       // deadline that stops this loop early never advances a strategy that
       // was never actually evaluated. The deadline is also checked here,
-      // not only between users (round 3 item 2): a user with many active
+      // not only between users: a user with many active
       // daily strategies can otherwise alone run past the safety margin.
       for (const [index, { strategyId, version }] of activeDaily.entries()) {
         if (options.deadlineAt !== undefined && now() >= options.deadlineAt) {
@@ -316,13 +316,13 @@ export async function evaluateSignalsForSession(
             deadlineHitBeforeAnyWork = true;
           }
           // Every strategy from here on, this one included, never ran this
-          // pass (round 4 item 7): surfaced on the outcome instead of
+          // pass: surfaced on the outcome instead of
           // staying invisible behind a user merely counted as evaluated.
           strategiesDeferred += activeDaily.length - index;
           break;
         }
 
-        // This strategy version's own watermark (round 3 item 1): the max
+        // This strategy version's own watermark: the max
         // session it was ever actually evaluated for, oldest fallback only
         // when it has none yet (its first-ever run, or just activated). A
         // strategy skipped for ten nights by a setup failure, a deadline or
@@ -333,7 +333,7 @@ export async function evaluateSignalsForSession(
         let watermarkSince: Instant | undefined;
         if (watermark !== null) {
           const watermarkTrading = await tradingSessionForDate(db, watermark);
-          // Explicit (round 2 item 7): a watermark session that no longer
+          // Explicit: a watermark session that no longer
           // resolves (should not happen — the calendar is append-only)
           // falls back to the drained-range anchor rather than silently
           // losing the lower bound.
@@ -415,11 +415,11 @@ export async function evaluateSignalsForSession(
 
         // `canSatisfyCollection` is market-data's own fact about what its
         // loader can fill, not re-stated here as a hardcoded literal
-        // (round 6 item 9 — `backtests/actions.ts` asks the same
+        // (`backtests/actions.ts` asks the same
         // predicate): recorded explicitly per ticker/session and never
         // handed to the engine, instead of retrying `insufficient_data`
         // every night with no clue why. The failing collection's own name
-        // goes into `detail` alone (round 7 item 4, sharpened by #133): a
+        // goes into `detail` alone (sharpened by #133): a
         // fixed `impliedVolatilityIndex` suffix here would misname the
         // failure the moment `UNSATISFIABLE_COLLECTIONS` grows a second
         // member — `strings.ts`'s own rendering of this reason is
@@ -445,7 +445,7 @@ export async function evaluateSignalsForSession(
 
         // `loadMarketView` throws instead of returning a candle-less view
         // for a window it cannot resolve or a chain too large to load in
-        // one call (#18 round 2/round 3, market-view.ts). Uncaught here,
+        // one call (#18, market-view.ts). Uncaught here,
         // that throw unwinds past `strategiesProcessed += 1` above and out
         // of the whole per-strategy loop — into the outer per-**user**
         // catch (`:476`) — so one option strategy that crosses the chain
@@ -453,7 +453,7 @@ export async function evaluateSignalsForSession(
         // `at`/`since` are both derived from `calendar`) costs this user
         // every remaining active strategy's evaluation for the night, with
         // nothing but a generic `evaluation_failed` to explain it, and
-        // repeats deterministically every run (#18 round 5 item 5). Same
+        // repeats deterministically every run (#18). Same
         // shape as `unknown_structure` and `unsatisfiable_collection`
         // just above: recorded explicitly per ticker/session, this
         // strategy skipped, the loop moves on to the next one.
@@ -470,7 +470,7 @@ export async function evaluateSignalsForSession(
             errors.push(reason);
             // Writing this evaluation row advances the strategy's own
             // watermark (`lastEvaluatedSession`) the same as a real
-            // evaluation would (#18 round 6 item 6): a `market_view_too_large`
+            // evaluation would (#18): a `market_view_too_large`
             // night is never automatically re-tried, even after an operator
             // raises `DEFAULT_OPTION_CHAIN_TICKER_CAP`/`_PRICE_ROW_CAP`,
             // because the sessions it failed on are now behind the
@@ -538,7 +538,7 @@ export async function evaluateSignalsForSession(
         await writeResult(newSignals, newEvaluations);
       }
 
-      // A separate counter from `usersEvaluated` (#19 round 3 item 3): every
+      // A separate counter from `usersEvaluated` (#19): every
       // active strategy already covered by its own watermark did no engine
       // work this run, so this is "nothing to do", never "evaluated".
       if (strategiesProcessed > 0) {

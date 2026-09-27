@@ -244,15 +244,15 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     if (!signalWindow)
       throw new Error("expected evaluate-signals.ts to have called loadMarketView");
 
-    // Whole-window equality, not just `from`/`to` (round 5 item 8): `to`
+    // Whole-window equality, not just `from`/`to`: `to`
     // alone is trivially equal in a single-session fixture regardless of
-    // any real divergence, and `collections` is exactly the axis round 5
-    // item 2 (the missing `impliedVolatilityIndex` refusal) diverged on —
+    // any real divergence, and `collections` is exactly the axis the
+    // missing `impliedVolatilityIndex` refusal diverged on —
     // a narrower assertion here would not have caught that class of bug.
     expect(signalWindow).toEqual(backtestWindow);
   }, 40_000);
 
-  it("loads the same warm-up window for a recursive indicator and an option structure, across a longer span (round 5 item 8)", async () => {
+  it("loads the same warm-up window for a recursive indicator and an option structure, across a longer span", async () => {
     const db = getDb();
     const email = `fetha-data-window-parity-ema-${crypto.randomUUID()}@example.com`;
     createdEmails.push(email);
@@ -264,7 +264,7 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     // BOTH callers clamp to `earliestIndex = 0` regardless of which anchor
     // boundary (session-open vs. preceding-session-close) each resolves —
     // the assertion below could not have told a correct implementation from
-    // a broken one (round 6 item 4; the round-5 anchor at index 29 of a
+    // a broken one (an earlier anchor at index 29 of a
     // 30-session calendar was exactly this vacuous case). Anchoring at
     // index 40 of 45 leaves 40 prior sessions, well past the 31 needed for
     // the computed `earliestIndex` to differ from 0 on either side, so a

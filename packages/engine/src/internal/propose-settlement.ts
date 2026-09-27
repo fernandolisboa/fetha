@@ -29,8 +29,8 @@ function err(error: EngineError): Result<SettlementProposal> {
 }
 
 // The calendar-gap case (no `TradingSession` at all for the expiry date) is `resolveExpiryClose`
-// (round 3 item 10, shared with markToMarket). Distinct from `insufficientCandlesForSession`
-// below, whose calendar coverage gives a real open/close window (round 1 item 10) instead of
+// (shared with markToMarket). Distinct from `insufficientCandlesForSession`
+// below, whose calendar coverage gives a real open/close window instead of
 // the midnight-UTC placeholder a calendar gap has to fall back on.
 function insufficientCandlesForSession(underlying: Ticker, session: TradingSession): EngineError {
   return {
@@ -202,7 +202,7 @@ export function proposeSettlement(
   // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
   // non-worthless leg implies carries zero costs, since no B3 fee or brokerage applies until
   // the user confirms it. Note that plainly whenever at least one leg actually proposes a
-  // fill (round 1 item 10), so the zero is never read as "this trade is free."
+  // fill, so the zero is never read as "this trade is free."
   const notes: Note[] = legs.some((l) => l.fills.length > 0)
     ? [
         {

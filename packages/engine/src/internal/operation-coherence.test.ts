@@ -119,7 +119,7 @@ describe("validateOperationCoherence", () => {
     });
   });
 
-  it("rejects an option leg whose listed underlying does not match the operation's underlying (item 7)", () => {
+  it("rejects an option leg whose listed underlying does not match the operation's underlying", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [callSeries({ underlying: "VALE3" })],
@@ -131,7 +131,7 @@ describe("validateOperationCoherence", () => {
     });
   });
 
-  it("rejects an option leg whose role does not match its listed series' right (item 7)", () => {
+  it("rejects an option leg whose role does not match its listed series' right", () => {
     const view: MarketView = {
       ...baseView,
       optionSeries: [callSeries({ right: "put" })],
@@ -143,7 +143,7 @@ describe("validateOperationCoherence", () => {
     });
   });
 
-  it("rejects an operation opened after the instant it is valued at (item 7)", () => {
+  it("rejects an operation opened after the instant it is valued at", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries()] };
     const op = operation({ openedAt: "2024-01-15" });
     expect(validateOperationCoherence(view, op, at, "op")).toEqual({

@@ -38,8 +38,8 @@ export type SeedE2EDecisionResult =
   | { ok: false; reason: "missing_stock_structure" }
   | { ok: false; reason: "e2e_not_available" };
 
-// Backs the E2E-only `/api/e2e/seed-decision` route (#29 fix-web item 3),
-// and only that route: seeds a decision the nightly scoring job can pick up
+// Backs the E2E-only `/api/e2e/seed-decision` route, and only that route:
+// seeds a decision the nightly scoring job can pick up
 // on its very next run, with a `decidedAt` the route controls directly
 // (`DecisionsRepository.record`'s own optional override) rather than
 // `defaultNow()`, so the E2E flow scores against a fixed, already-ingested
@@ -54,7 +54,7 @@ export async function seedE2EDecision(
   input: SeedE2EDecisionInput,
 ): Promise<SeedE2EDecisionResult> {
   // The same production/E2E_SECRET-configured check the route already runs
-  // before ever calling in here (round 3 item 10, security): defense in
+  // before ever calling in here: defense in
   // depth, so this module refuses on its own — before any write — even if
   // ever reached by a caller other than that one route.
   if (isProductionDeployment() || !readE2ESecret()) {

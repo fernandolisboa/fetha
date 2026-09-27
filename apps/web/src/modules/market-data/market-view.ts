@@ -55,8 +55,8 @@ import {
 const CANDLE_WINDOW_SESSIONS = 30;
 const CALENDAR_WINDOW_SESSIONS = 30;
 
-// Not "collections this loader can never fill" (round 7 item 4 corrected
-// that framing): `dividendYields` and `quotes` are unconditionally empty
+// Not "collections this loader can never fill": `dividendYields` and `quotes`
+// are unconditionally empty
 // too (no ingestion pipeline for either), and `dividendYields` is in every
 // window regardless of strategy, so a maintainer applying "never fills"
 // literally would refuse every strategy in the product the moment they
@@ -64,14 +64,14 @@ const CALENDAR_WINDOW_SESSIONS = 30;
 // strategy with no way to evaluate at all, as opposed to one that degrades
 // gracefully with an explicit note — a missing dividend yield defaults to
 // `q = 0` and records `dividend_yield_defaulted`, never blocking
-// evaluation, while a missing `impliedVolatilityIndex` (round 2 item 8,
-// follow-up #81) leaves an `iv_rank` condition permanently
+// evaluation, while a missing `impliedVolatilityIndex` (follow-up #81)
+// leaves an `iv_rank` condition permanently
 // `insufficient_data` with nothing to size or compare against.
 // `market-data` is the module that knows which collections it can fill —
 // it owns the loader — so this is the one place that fact lives, not a
 // hardcoded literal re-stated in every caller that needs to refuse a
-// strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; round 6
-// item 9 closed the duplication between them).
+// strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; this
+// closed the duplication between them).
 const UNSATISFIABLE_COLLECTIONS: readonly MarketViewCollection[] = ["impliedVolatilityIndex"];
 
 export function canSatisfyCollection(collection: MarketViewCollection): boolean {
@@ -92,12 +92,12 @@ export function toTradingSession(row: { date: string; open: Date; close: Date })
 
 // Thrown instead of an empty-but-typed-as-valid MarketView whenever the
 // requested range cannot be resolved into one: no session at all overlaps
-// the window (round 2 item 9), or (its own subclass, MarketViewTooLargeError
+// the window, or (its own subclass, MarketViewTooLargeError
 // below) the option chain for the universe and period is too large to load
 // in one call. A degenerate MarketView the caller cannot distinguish from "a
-// strategy that legitimately needs zero of some collection" is exactly the
-// shape round-1 item 2 and round-2 item 10 both had to work around from the
-// outside; every caller must now handle this explicitly instead.
+// strategy that legitimately needs zero of some collection" had to be worked
+// around from the outside; every caller must now handle this explicitly
+// instead.
 export class MarketViewUnavailableError extends Error {
   constructor(reason: string) {
     super(`Market view unavailable: ${reason}`);
@@ -110,8 +110,7 @@ export class MarketViewUnavailableError extends Error {
 // without change, while `instanceof MarketViewTooLargeError` stays
 // available to a caller that wants to tell "no data" from "too much data"
 // apart. Thrown instead of letting the chain query's own `inArray` bind
-// list grow past what the driver accepts and throw a raw, uncaught error
-// (round 3 item 2).
+// list grow past what the driver accepts and throw a raw, uncaught error.
 export class MarketViewTooLargeError extends MarketViewUnavailableError {
   constructor(reason: string) {
     super(reason);
@@ -136,7 +135,7 @@ export function emptyMarketView(): MarketView {
 // The one place a `CandleRow` (repository shape) becomes the engine's own
 // `Candle`: both the DataWindow-driven loader and the point-in-time
 // operation builder share it so a candle's shape can never drift between
-// them (round 1 item 12).
+// them.
 export function toEngineCandle(row: CandleRow): Candle {
   return {
     ticker: row.ticker,
@@ -174,7 +173,7 @@ export interface LoadMarketViewCaps {
   // Overridable only for tests that need a tractable number of seeded rows
   // to cross it; every production caller gets DEFAULT_OPTION_CHAIN_TICKER_CAP.
   optionChainTickerCap?: number;
-  // Same test-only shape, for DEFAULT_OPTION_PRICE_ROW_CAP (round 4 item 3).
+  // Same test-only shape, for DEFAULT_OPTION_PRICE_ROW_CAP.
   optionPriceRowCap?: number;
 }
 
@@ -183,7 +182,7 @@ export interface LoadMarketViewCaps {
 // (`engine.dataWindow`): the caller decides how far back to look and which
 // collections a strategy actually needs, this only loads exactly that
 // slice, so the window loaded and the window evaluated can never drift
-// (#19; #18 round-2 correction, superseding round-2 item 7). Like
+// (#19). Like
 // `loadCandleSeries`, this stays nominal candles plus the corporate-action
 // factors: adjustment happens only inside the engine's own
 // `evaluateStrategy`, never here (CLAUDE.md's "no engine internals outside
@@ -199,7 +198,7 @@ export interface LoadMarketViewCaps {
 // call already loads for `calendar` (`max(as_of)` over them), not a second
 // query: a separate round-trip re-deriving "the sessions this window
 // extends to" independently of the view it stamps could resolve a
-// different session set than the one actually returned (round 8 item 3), and
+// different session set than the one actually returned, and
 // a calendar revision landing between two such calls would let a caller
 // persist a stamp for a calendar the view was never built against. Callers
 // that need both `dataVersion` and `calendarVersion` — `run-chunk.ts` — use
@@ -236,8 +235,8 @@ export async function loadMarketViewWithCalendarVersion(
   const fromSession = sessions[0]?.date;
   const toSession = sessions.at(-1)?.date;
 
-  // A period whose window overlaps no ingested session at all (round 2 item
-  // 9): a candle-less-but-typed-as-valid MarketView here would let the
+  // A period whose window overlaps no ingested session at all: a
+  // candle-less-but-typed-as-valid MarketView here would let the
   // engine record `insufficient_data` for the whole run and still reach
   // `complete` with 0 operations. The caller must see this refusal
   // explicitly instead.
@@ -295,7 +294,7 @@ export async function loadMarketViewWithCalendarVersion(
   // before the view ever reaches the engine: `macroRows` arrives ordered
   // `date DESC`, so keeping only the first row seen per `(series, asOf)`
   // key keeps the fresher observation and drops the staler one silently
-  // colliding with it (#18 round 7 item 1).
+  // colliding with it.
   const seenMacroKeys = new Set<string>();
   const dedupedMacroRows = macroRows.filter((row) => {
     const key = `${row.series}|${row.asOf.toISOString()}`;
@@ -410,8 +409,8 @@ export async function tradingSessionForDate(
   return row ? toTradingSession(row) : undefined;
 }
 
-// The first trading session on or after `date`, engine-shaped (#29 fix-web
-// item 5): `decisions/score-input.ts`'s own resolution of a stored horizon
+// The first trading session on or after `date`, engine-shaped:
+// `decisions/score-input.ts`'s own resolution of a stored horizon
 // that may not itself be a trading session.
 export async function tradingSessionOnOrAfter(
   db: Database,
@@ -446,7 +445,7 @@ type SeriesRow = { strike: string; expiry: string; right: string; ticker: string
 // A true (ticker, asOf) duplicate must resolve to the same row regardless of query order.
 // Mirrors the engine's own tie-break (packages/engine/src/internal/resolve-series.ts,
 // `isEarlierOnExactTie`, ADR-0013's #21 addendum) so the collapsed chain the market view
-// exposes and the series `priceOperation` actually prices agree (PR #76 round 2 item 2).
+// exposes and the series `priceOperation` actually prices agree.
 function isEarlierOnExactTie(a: SeriesRow, b: SeriesRow): boolean {
   const strikeCompare = new Decimal(a.strike).cmp(new Decimal(b.strike));
   if (strikeCompare !== 0) return strikeCompare < 0;
@@ -463,16 +462,16 @@ function furthestExpiry(seriesExpiries: readonly string[]): string | null {
 }
 
 export interface BuildOperationMarketViewOptions {
-  // Widens the calendar floor below (#29 fix-web item 4, correctness
-  // BLOCKING): the scoring job's own view must cover `decidedAt` through the
+  // Widens the calendar floor below: the scoring job's own view must cover
+  // `decidedAt` through the
   // horizon's close, and the default `CALENDAR_WINDOW_SESSIONS`-session
   // trailing floor drops `decidedAt` for any horizon more than 30 sessions
   // out. `from` only ever widens the floor already computed from `at`; it
   // can never narrow it.
   from?: Instant;
   // Extra underlyings whose own recent closes this view should carry
-  // alongside the primary `underlying` (#29 fix-web item 4): the scoring
-  // job's thesis claim can name an instrument other than the operation's own
+  // alongside the primary `underlying`: the scoring job's thesis claim
+  // can name an instrument other than the operation's own
   // underlying (e.g. an index claim on an operation over a stock), and
   // without this a caller had to build two separate views and splice their
   // `candles` together by hand (score-input.ts's old `buildScoreMarketView`).
@@ -487,7 +486,7 @@ export interface BuildOperationMarketViewOptions {
 // covers both the trailing window (indicator-style lookback, widened by
 // `options.from` when given) and every session through the furthest expiry
 // in the chain, or `resolveTimeToExpiryYears` reports `calendar_gap` for
-// every option leg (round 1 item 1). Watchlists, quotes and dividend yields
+// every option leg. Watchlists, quotes and dividend yields
 // are the intraday tier, omitted here only costs the engine's own
 // defaulting notes (`dividend_yield_defaulted`), never a wrong price.
 export async function buildOperationMarketView(
@@ -503,7 +502,7 @@ export async function buildOperationMarketView(
   // option series and price queries below can bound themselves by it: with
   // no floor, `optionSeries` accumulates every ticker this underlying has
   // ever listed and `optionDailyPrices` scans every session it was ever
-  // priced on (PR #76 round 2 item 5). A structure's furthest expiry can
+  // priced on. A structure's furthest expiry can
   // still extend the calendar forward past this floor (below); it can never
   // move the floor itself, which only depends on `at` (and, for a caller
   // that passes `options.from`, on that earlier instant too).
@@ -531,8 +530,8 @@ export async function buildOperationMarketView(
         new Date(`${fromSession.date}T00:00:00.000Z`),
         atDate,
       );
-      // The 30-session indicator warm-up stays *below* the widened floor
-      // (round 3 item 7), not replaced by it: an indicator anchored on
+      // The 30-session indicator warm-up stays *below* the widened floor,
+      // not replaced by it: an indicator anchored on
       // `fromSession` still needs its own trailing lookback, the same way it
       // would with the unwidened floor. `Math.max` here would let a wide
       // `decidedAt`..`at` span swallow that warm-up whenever it alone
@@ -631,7 +630,7 @@ export async function buildOperationMarketView(
   // The latest visible price row per ticker, but only when its own
   // expiry/strike still match that ticker's latest visible series: B3
   // reuses option tickers across listing cycles (ADR-0017), so a price row
-  // from a previous cycle can outlive the cycle it priced (round 1 item 2).
+  // from a previous cycle can outlive the cycle it priced.
   const optionPricesByTicker = new Map<string, (typeof priceRows)[number]>();
   for (const row of priceRows) {
     const series = latestSeriesByTicker.get(row.ticker);

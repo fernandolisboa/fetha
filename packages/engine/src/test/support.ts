@@ -28,7 +28,7 @@ export function confidence(value: string): Confidence {
 }
 
 // Shared by every test that needs a run of consecutive 2024-01-DD trading sessions with a
-// 13:00-21:00 UTC session (round 1 item 12): mark-to-market, propose-settlement,
+// 13:00-21:00 UTC session: mark-to-market, propose-settlement,
 // operation-coherence, resolve-leg-selection and price-operation each declared their own copy.
 export function dailyCalendar(fromDay: number, count: number): TradingSession[] {
   return Array.from({ length: count }, (_, i) => {

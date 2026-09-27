@@ -170,7 +170,7 @@ describe("optionChainForUnderlying", () => {
     expect(matches[0]?.strike).toBe("20.00000000");
   });
 
-  it("excludes a series expiring today once today's session has closed (PR #76 round 2 item 8)", async () => {
+  it("excludes a series expiring today once today's session has closed", async () => {
     const underlying = uniqueTicker("TOD");
     cleanupTickers.push(underlying);
     const db = getDb();

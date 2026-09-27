@@ -18,7 +18,7 @@ const HOUR = 3_600_000;
 
 // Session lengths as short as 15 minutes are drawn on purpose: a session shorter than one bar of
 // the 60m (or even 30m) timeframe is exactly the shape that exposes an off-by-one in the session
-// walk-back (item 1's reviewer counterexample uses a 30-minute session against a 60m timeframe).
+// walk-back (a 30-minute session against a 60m timeframe is exactly such a counterexample).
 function calendarOf(sessionMinutes: readonly number[]): TradingSession[] {
   return sessionMinutes.map((minutes, i) => {
     const date = new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10);
@@ -124,7 +124,7 @@ function strategyReading(specs: readonly IndicatorSpec[], timeframe: Timeframe):
 
 // Sessions closer to 20 than to 40 keep runtime down while still exceeding the largest lookback
 // the specs below can draw (12 * 3 = 36 candles, or 8 IV sessions), so the escape hatch
-// (coversWholeCalendar) is reached in only a minority of runs (item 2).
+// (coversWholeCalendar) is reached in only a minority of runs.
 const caseArbitrary = fc
   .record({
     sessionMinutes: fc.array(fc.integer({ min: 15, max: 420 }), { minLength: 20, maxLength: 40 }),
@@ -253,7 +253,7 @@ describe("dataWindow sufficiency (#40)", () => {
         );
         expect(ivPoints >= ivNeeded || coversWholeCalendar).toBe(true);
 
-        // Tightness (item 1): `from` must be the reference oracle's tightest boundary, not any
+        // Tightness: `from` must be the reference oracle's tightest boundary, not any
         // wider one. A widening bug (e.g. an off-by-one in the session walk-back) still passes
         // the two assertions above, since it only ever adds candles/IV points, but fails this one.
         expect(window.from).toBe(referenceFrom(calendar, anchor, timeframe, needed, ivNeeded));

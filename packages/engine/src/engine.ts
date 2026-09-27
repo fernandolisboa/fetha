@@ -38,7 +38,7 @@ import { score as computeScore } from "./internal/score";
 const pricingModelKind = pricingModels[0];
 
 // Every method that computes an artifact stamps it with the same four fields, read off the
-// view it was handed (round 1 item 12): one place instead of five copies of the same object
+// view it was handed: one place instead of five copies of the same object
 // literal.
 function provenanceBaseFor(
   view: MarketView,

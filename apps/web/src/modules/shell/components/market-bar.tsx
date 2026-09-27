@@ -12,7 +12,7 @@ const FRESHNESS_REFRESH_MS = 60_000;
 
 // An installed PWA can sit open across midnight: recomputing `now` on an
 // interval and on refocus keeps "fechamento de hoje" from freezing into a
-// stale label instead of turning into "fechamento de ontem" (#13 round 1).
+// stale label instead of turning into "fechamento de ontem" (#13).
 function useNow(intervalMs: number): Date {
   const [now, setNow] = useState(() => new Date());
 

@@ -33,7 +33,7 @@ function roleLabel(role: BuilderLeg["template"]["role"]): string {
 // The expiry of the first option leg the user has picked, locking every
 // other option leg's picker to the same cycle: a structure's legs share
 // one expiry, and the chain alone allows a call from one cycle next to a
-// put from another (round 1 item 3).
+// put from another.
 function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
   for (const builderLeg of legs) {
     if (builderLeg.template.role === "stock" || !builderLeg.leg) continue;

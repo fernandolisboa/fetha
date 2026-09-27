@@ -64,8 +64,8 @@ const createdEmails: string[] = [];
 const originalE2ESecret = process.env.E2E_SECRET;
 const originalVercelEnv = process.env.VERCEL_ENV;
 
-// `seedE2EDecision` now refuses on its own outside a real E2E environment
-// (round 3 item 10), the same production/E2E_SECRET-configured check the
+// `seedE2EDecision` now refuses on its own outside a real E2E environment,
+// the same production/E2E_SECRET-configured check the
 // route already runs: every test but the one exercising that refusal needs
 // a configured secret and a non-production deployment, the same env shape
 // CI's own E2E run gives the real route.
@@ -91,11 +91,11 @@ afterEach(async () => {
   }
 });
 
-// #29 fix-web item 3: `seedE2EDecision` never inserts into `structures`
+// `seedE2EDecision` never inserts into `structures`
 // itself — a missing "stock" structure in the shared catalog is reported,
 // not papered over.
 describe("seedE2EDecision", () => {
-  it("refuses before any write when no E2E secret is configured (round 3 item 10)", async () => {
+  it("refuses before any write when no E2E secret is configured", async () => {
     delete process.env.E2E_SECRET;
     const email = uniqueEmail("no-secret");
     createdEmails.push(email);
@@ -108,7 +108,7 @@ describe("seedE2EDecision", () => {
     expect(await decisionsRepository.listMine()).toEqual([]);
   });
 
-  it("refuses before any write on a production deployment even with a secret configured (round 3 item 10)", async () => {
+  it("refuses before any write on a production deployment even with a secret configured", async () => {
     process.env.VERCEL_ENV = "production";
     const email = uniqueEmail("production");
     createdEmails.push(email);

@@ -399,7 +399,7 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.value.seriesUsed).toEqual(["PETR4C48"]);
   });
 
-  it("ignores a superseded strike row and matches the fresh-only view (round 4 item 1)", () => {
+  it("ignores a superseded strike row and matches the fresh-only view", () => {
     const expiryLower = sessionAt(20).date;
     const expiryUpper = sessionAt(40).date;
     const sigmaLower = 0.2;
@@ -496,7 +496,7 @@ describe("computeImpliedVolatilityIndex", () => {
     );
   });
 
-  it("ignores a superseded expiry row so one ticker never backs both brackets (round 4 item 1)", () => {
+  it("ignores a superseded expiry row so one ticker never backs both brackets", () => {
     const expiryLower = sessionAt(20).date;
     const staleExpiry = sessionAt(25).date;
     const expiryUpper = sessionAt(40).date;
@@ -589,7 +589,7 @@ describe("computeImpliedVolatilityIndex", () => {
     );
   });
 
-  it("breaks a nearest-strike ATM tie by the numeric strike, not a lexicographic string compare (round 5 item 1)", () => {
+  it("breaks a nearest-strike ATM tie by the numeric strike, not a lexicographic string compare", () => {
     const expiry = sessionAt(30).date;
     const price = bsmPriceRaw({
       s: 10,
@@ -634,7 +634,7 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.value.seriesUsed).toEqual(["PETR4C9"]);
   });
 
-  it("breaks a two-ticker tie at one ATM strike by the lexicographically earlier ticker, regardless of array order (round 5 item 1)", () => {
+  it("breaks a two-ticker tie at one ATM strike by the lexicographically earlier ticker, regardless of array order", () => {
     const expiry = sessionAt(30).date;
     const price = bsmPriceRaw({
       s: 50,

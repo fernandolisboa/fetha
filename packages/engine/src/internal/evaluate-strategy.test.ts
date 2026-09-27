@@ -943,7 +943,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     });
   });
 
-  // Round 2 item 3: `validateOpenOperations` used to be a hand-rolled copy of
+  // `validateOpenOperations` used to be a hand-rolled copy of
   // `validateOperationCoherence` that skipped `series.underlying`, `series.right` and
   // `openedAt <= at`, so `evaluateStrategy` accepted an operation `markToMarket` would
   // reject. It now delegates to `validateOperationCoherence` and rejects the same three
@@ -1319,7 +1319,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     expect(result.error).toMatchObject({ path: "view.corporateActions" });
   });
 
-  // Round 2 item 13: validateBatchInvariants now delegates to validateViewIntegrity, which
+  // validateBatchInvariants now delegates to validateViewIntegrity, which
   // it never called before — this is a genuinely new check, not a message-only rename.
   it("rejects a duplicate (ticker, asOf) pair in optionPrices as invalid_input", () => {
     const dayPrice = {
@@ -2325,7 +2325,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.operationId).toBe("op-1");
   });
 
-  // Round 2 item 2 coverage: computeExitRuleBases's own legs price at `leg.entryPrice`
+  // Coverage: computeExitRuleBases's own legs price at `leg.entryPrice`
   // ("given"), so it succeeds with no optionPrices data at all — evaluateNumericExitRule's
   // own priceLegsAt call resolves a real market price instead, and with none visible for
   // this leg, neither `price` nor `fairValue` (never solved without one) exists, so the

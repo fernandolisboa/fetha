@@ -9,7 +9,7 @@ import { buildScoreInput } from "./score-input";
 // version's shape, corrupted or hand-edited data) must be reported as a
 // build failure the caller can mark unscorable once, not thrown out of
 // `buildScoreInput` to be retried forever by the generic per-decision catch
-// (round 3 item 5, ADR-0014's scoring job section).
+// (ADR-0014's scoring job section).
 function invalidInputsRow(overrides: Partial<DueDecisionRow> = {}): DueDecisionRow {
   return {
     id: "decision-1",
@@ -26,7 +26,7 @@ function invalidInputsRow(overrides: Partial<DueDecisionRow> = {}): DueDecisionR
   } as unknown as DueDecisionRow;
 }
 
-describe("buildScoreInput — invalid stored inputs (round 3 item 5)", () => {
+describe("buildScoreInput — invalid stored inputs", () => {
   const db = {} as Database;
 
   it("returns invalid_inputs instead of throwing when the stored inputs no longer parse", async () => {

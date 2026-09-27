@@ -45,8 +45,8 @@ type ExpiredIntrinsicBasis =
   | { kind: "missing_candle" }
   | { kind: "error"; error: EngineError };
 
-// A operation whose listed expiry has passed by the mark session still has to be marked
-// (round 1 item 3): the usual pricing seam would reject every option leg with `invalid_input`
+// A operation whose listed expiry has passed by the mark session still has to be marked:
+// the usual pricing seam would reject every option leg with `invalid_input`
 // ("already_expired"), aborting the whole portfolio's valuation. Resolving the underlying's
 // own close at the expiry session — the same instant `proposeSettlement` prices intrinsic
 // value from — gives `valueOneLeg` a basis to value those legs at intrinsic instead. A calendar
@@ -54,7 +54,7 @@ type ExpiredIntrinsicBasis =
 // candle (there is no session close to even name a truncation instant from) and still fails
 // the whole call; a missing candle on an otherwise-known session is reported as its own `kind`
 // so the caller can keep valuing the rest of the operation and the rest of the portfolio
-// instead of aborting (round 3 item 5).
+// instead of aborting.
 function resolveExpiredIntrinsicBasis(
   view: MarketView,
   operation: Operation,
@@ -110,12 +110,12 @@ function priceExistingOperation(
   // count (`quantity / F`) and effective entry price (`entryPrice × F`) are computed here, on
   // the ticker's own visible split/reverse-split factors between `openedAt` and the mark
   // session — never just the stock leg's, since an unrebased quantity fed into pricing reads
-  // exposure, greeks and max loss off by F (round 1 item 2). An option leg's own ticker never
+  // exposure, greeks and max loss off by F. An option leg's own ticker never
   // carries a corporate-action factor (a split forces a series rollover, ADR-0013 #25
   // addendum), so this naturally leaves option legs untouched (F = 1). `rawEffectiveQuantity`
   // is kept unrounded throughout: the effective count is never rounded mid-run (Q51), so every
   // leg's own unrealized P&L below is computed on it directly, matching `runBacktest`'s own
-  // mark and P&L (round 3 item 2) rather than the integer count `toQuantity` needs for pricing.
+  // mark and P&L rather than the integer count `toQuantity` needs for pricing.
   const rebasedLegs: {
     leg: (typeof operation.legs)[number];
     legIndex: number;
@@ -134,14 +134,14 @@ function priceExistingOperation(
 
   // `toQuantity` throws for a floored effective count of zero (an odd lot dissolved below one
   // unit by a grouping — `F >= leg.quantity`) and for one a near-zero `F` blows past a safe
-  // integer; neither is a caller mistake `toQuantity`'s own invariant should catch (round 3
-  // item 2, mirroring `runBacktest`'s identical guard). The former excludes the leg from
+  // integer; neither is a caller mistake `toQuantity`'s own invariant should catch
+  // (mirroring `runBacktest`'s identical guard). The former excludes the leg from
   // `legInputs` — there is no positive `Quantity` below one to give it, so it cannot appear in
   // `pricing.legs` or the aggregate greeks/payoff `priceConcreteLegs` computes from that array
   // — the latter is `invalid_input`, indexed at this leg. An expired operation whose expiry
   // candle is missing (`missingExpiryCandle`) excludes its own option legs the same way — there
   // is no basis to value them at intrinsic and no time-to-expiry left to price them any other
-  // way — rather than aborting the whole call (round 3 item 5); a stock leg is never affected,
+  // way — rather than aborting the whole call; a stock leg is never affected,
   // since `valueOneLeg` never consults `expiredIntrinsicBasis` for one.
   const legInputs: LegInput[] = [];
   const legInputIndexByLegIndex = new Map<number, number>();
@@ -159,7 +159,7 @@ function priceExistingOperation(
       // leg's factor is always 1, a split forces a series rollover instead); a corporate-action
       // row keyed by an option leg's own ticker with a factor large enough to dissolve it is
       // type-valid but domain-invalid input, not the impossible branch the invariant below
-      // still guards (round 4 item 4).
+      // still guards.
       if (leg.role !== "stock") {
         return {
           ok: false,
@@ -193,7 +193,7 @@ function priceExistingOperation(
 
   // A leg-level error surfacing from `priceLegsAt` (a non-positive listed strike, say) is
   // indexed against the leg's own position in `operation.legs`, not its position in the
-  // (possibly shorter) `legInputs` array built above (round 3 item 8).
+  // (possibly shorter) `legInputs` array built above.
   const legPathAt = (legInputIndex: number): string => {
     const legIndex = assertDefined(
       legIndexByLegInputIndex[legInputIndex],
@@ -238,7 +238,7 @@ function priceExistingOperation(
       mark = resolved?.value ?? null;
     } else if (unpricedExpiredLegIndexes.has(legIndex)) {
       // No expiry candle exists to resolve intrinsic value from and no time-to-expiry is left
-      // to price this leg any other way (round 3 item 5); `null` folds through the same zero
+      // to price this leg any other way; `null` folds through the same zero
       // unrealized-P&L path a `no_market_price` leg already takes below.
       mark = null;
     } else {
@@ -319,8 +319,8 @@ export function markToMarket(
 
   // A calendar that does not cover `at` cannot tell a split from a stale mark from a fresh
   // one: `resolveLegMarketPrice`'s stale flag and every leg's split-factor rebasing both need
-  // the mark session, and silently treating it as "no session" understated both (round 1
-  // item 8). Fail loudly instead of degrading.
+  // the mark session, and silently treating it as "no session" understated both.
+  // Fail loudly instead of degrading.
   const markSession = sessionAtOrBefore(input.view.calendar, input.at)?.date ?? null;
   if (markSession === null) {
     return err({
@@ -367,7 +367,7 @@ export function markToMarket(
   }
 
   // A generic "at least one leg/position has no visible market price" note does not say
-  // which one; the portfolio level is the one place that can name it (round 1 item 9).
+  // which one; the portfolio level is the one place that can name it.
   for (const ov of operationValuations) {
     if (ov.pricing.notes.some((n) => n.code === "no_market_price")) {
       notes.push({
@@ -451,7 +451,7 @@ export function markToMarket(
   // *option*-leg greeks only: an operation's own stock leg's delta is excluded from this sum,
   // since a stock leg opened through a tracked `Operation` is expected to also appear in
   // `positions` (the same reasoning `unrealizedPnl` above already follows) and summing both
-  // would double count those shares (round 3 item 3, superseding round 1 item 9's "adds every
+  // would double count those shares (superseding an earlier "adds every
   // operation's own aggregate delta"). The other four greeks have no stock-leg contribution to
   // begin with (`valueOneLeg`'s stock branch only ever sets `delta`), so restricting them to
   // option legs changes nothing for them; they stay operations-only, the only artifact with
@@ -492,8 +492,8 @@ export function markToMarket(
   // `maxOpenOperations` is a portfolio-wide count, not a per-operation one: every operation's
   // own pricing call checks it against the same `operations.length` (ADR-0013 "totals ...
   // openOperationCount"), so a breach shows up identically on every operation's own
-  // `pricing.limitBreaches` and flattening them naively reported N identical breaches
-  // (round 1 item 4). Report it at most once here, at the portfolio level, and flatten only
+  // `pricing.limitBreaches` and flattening them naively reported N identical breaches.
+  // Report it at most once here, at the portfolio level, and flatten only
   // the genuinely per-operation limits from each operation's own pricing.
   const perOperationBreaches = operationValuations.flatMap((ov) =>
     ov.pricing.limitBreaches.filter((b) => b.limit !== "maxOpenOperations"),

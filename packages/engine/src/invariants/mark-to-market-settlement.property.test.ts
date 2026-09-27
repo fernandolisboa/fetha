@@ -181,7 +181,7 @@ describe("I1 Future-blind — markToMarket", () => {
     );
   });
 
-  it("appending a corporate-action factor after the mark instant never changes a stale option mark's valuation (round 4 item 1)", () => {
+  it("appending a corporate-action factor after the mark instant never changes a stale option mark's valuation", () => {
     fc.assert(
       fc.property(candlePriceArbitrary, (price) => {
         const staleSession = "2024-01-01";
@@ -294,7 +294,7 @@ describe("I1 Future-blind — markToMarket", () => {
   });
 });
 
-describe("I1 Future-blind — markToMarket at an operation's own expiry session (round 3 item 1)", () => {
+describe("I1 Future-blind — markToMarket at an operation's own expiry session", () => {
   it("an expiry-session candle with asOf > at never changes the valuation before the session's close", () => {
     fc.assert(
       fc.property(candlePriceArbitrary, candlePriceArbitrary, (spot, futureClose) => {
@@ -388,7 +388,7 @@ describe("I1 Future-blind — proposeSettlement", () => {
         // A stock-only operation has no expiry to settle (`validateOperationCoherence`
         // rejects one that has, before `proposeSettlement` ever reaches `latestVisible`),
         // which made this property vacuous — both sides collapsed to the same coherence
-        // error regardless of the candle revision (round 1 item 5). An option leg with a
+        // error regardless of the candle revision. An option leg with a
         // visible series exercises the real in-the-money branch instead.
         const view = (extra: Candle[]): MarketView => ({
           ...emptyView,

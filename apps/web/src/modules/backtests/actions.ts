@@ -57,11 +57,11 @@ const createInputSchema = z.strictObject({
 const CREATE_RATE_LIMIT = { windowSeconds: 60, max: 10 };
 // `10_000 * 50` (a full ~40-year B3 calendar x the universe ceiling) is
 // above anything the calendar has ever actually been ingested to, so it
-// never fires (round 2 item 17). Every chunk re-materialises the *whole*
+// never fires. Every chunk re-materialises the *whole*
 // MarketView on every call regardless of how many sessions it then
 // simulates (run-chunk.ts), so the real constraint is what one such call
-// can load and index before its own wall-clock budget: measured (round 2
-// item 18) at ~23.5s for 250 sessions x 50 tickers (12,500 candles) against
+// can load and index before its own wall-clock budget: measured at
+// ~23.5s for 250 sessions x 50 tickers (12,500 candles) against
 // a 240s per-chunk budget, i.e. roughly 8-10x headroom before that budget
 // itself would be the failure mode. 100,000 stays comfortably under that
 // measured capacity with margin, while still being small enough that a
@@ -161,9 +161,9 @@ async function createBacktestRun(
   }
 
   // Bounding a `from` the calendar carries but that has no ingested candle
-  // for this universe closed round-2 item 10 for `to` only (round 5 item
-  // 1); `from` had the identical exposure and was the larger one (round 6
-  // item 1): `FIRST_INGESTED_CALENDAR_YEAR` seeds the ANBIMA calendar far
+  // for this universe closed this for `to` only; `from` had the identical
+  // exposure and was the larger one: `FIRST_INGESTED_CALENDAR_YEAR` seeds
+  // the ANBIMA calendar far
   // earlier than COTAHIST candle history actually starts (candle ingestion
   // began whenever this app first ran it, then back-fills only
   // `RECENT_SESSION_WINDOW` sessions on top of that), so a `from` before
@@ -193,12 +193,12 @@ async function createBacktestRun(
   // Mirrors the nightly evaluator's own refusal (`evaluate-signals.ts`):
   // an `iv_rank` strategy's every session reads `insufficient_data`, no
   // signal ever fires, and the run completes green, immutable and empty —
-  // the same shape round-1 item 2 and round-2 item 1 were blocked for.
+  // the same shape a strategy with no fireable signal was blocked for.
   // Refused here, before the immutable row exists, rather than left to
   // complete silently. `canSatisfyCollection` is market-data's own fact
   // about what its loader can fill, asked here and by evaluate-signals.ts
   // rather than each hardcoding `"impliedVolatilityIndex"` independently
-  // (round 6 item 9): when #81 lands, one place changes, not two.
+  // when #81 lands, one place changes, not two.
   const strategyVersion: StrategyVersion = {
     id: version.id,
     definition: version.definition,

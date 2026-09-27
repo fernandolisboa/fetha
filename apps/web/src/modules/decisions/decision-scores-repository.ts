@@ -8,7 +8,7 @@ import { UserScopedRepository } from "@/lib/user-scoped-repository";
 import { decisions, decisionScores } from "./schema";
 
 // A scored row and an unscorable one are mutually exclusive (`score`/
-// `unscorableReason`, schema.ts's own check constraint, #29 fix-web item 8):
+// `unscorableReason`, schema.ts's own check constraint):
 // this union is the repository's own reflection of that constraint, so a
 // caller can never construct a `NewDecisionScore` the database would reject.
 export type NewDecisionScore =
@@ -104,7 +104,7 @@ export class DecisionScoresRepository extends UserScopedRepository {
   // composite foreign key on `(decision_id, user_id)` (schema.ts) rejects
   // the write outright if `input.decisionId` belongs to a different user
   // than `this.userId` — the isolation guarantee this method's own
-  // `userId: this.userId` alone could not make (#29 fix-web item 1).
+  // `userId: this.userId` alone could not make.
   async insertIfAbsent(input: NewDecisionScore): Promise<{ inserted: boolean }> {
     const rows = await this.db
       .insert(decisionScores)
@@ -191,7 +191,7 @@ export class DecisionScoresRepository extends UserScopedRepository {
   // user, rather than in the page component, so the isolation guarantee
   // covers the aggregation the same way it covers every read. Scoped twice
   // over the same user id — once on `decision_scores` itself, once on the
-  // `decisions` side of the join (#29 fix-web item 1) — so a future join
+  // `decisions` side of the join — so a future join
   // rewrite that drops the first `WHERE` cannot silently widen this past one
   // tenant.
   async trackRecordStats(): Promise<TrackRecordStats> {
@@ -229,8 +229,8 @@ interface TrackRecordSourceRow {
 
 const CONFIDENCE_BUCKET_WIDTH = 20;
 
-// Bucketed on the integer percent (#29 fix-web item 7, quant+correctness
-// BLOCKING): `confidence` is a decimal fraction in [0, 1] stored as a string
+// Bucketed on the integer percent: `confidence` is a decimal fraction in
+// [0, 1] stored as a string
 // (Confidence, @fetha/contracts), and bucketing the raw fraction with
 // floating-point division/floor mis-buckets values like `0.59999999999999998`
 // (a real `Number(decimalString)` artifact) into the bucket below the one its
@@ -252,7 +252,7 @@ const DO_NOT_ENTER_KIND: DecisionKind = "do_not_enter";
 
 export function computeTrackRecordStats(rows: TrackRecordSourceRow[]): TrackRecordStats {
   // Unscorable rows are a terminal non-outcome, not a claim miss or a P&L of
-  // zero (#29 fix-web item 8): the track record only ever summarizes
+  // zero: the track record only ever summarizes
   // decisions the engine actually scored.
   const scorable = rows.filter((row) => row.unscorableReason === null);
 
@@ -284,8 +284,8 @@ export function computeTrackRecordStats(rows: TrackRecordSourceRow[]): TrackReco
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([bucket, stats]) => ({ bucket, count: stats.count, heldCount: stats.heldCount }));
 
-  // Plotted by the decision's own resolved horizon, not `scoredAt` (#29
-  // fix-web item 9): the scoring job can run days after a horizon actually
+  // Plotted by the decision's own resolved horizon, not `scoredAt`: the
+  // scoring job can run days after a horizon actually
   // arrives (a missed cron night, a retried `insufficient_data` decision),
   // so `scoredAt` would misplace a point on the timeline relative to when
   // its outcome was actually due. `do_not_enter` decisions are excluded:

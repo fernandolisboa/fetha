@@ -101,8 +101,8 @@ export function OperationBuilderForm({
   const pricingRequestId = useRef(0);
   const chainRequestId = useRef(0);
 
-  // Any edit invalidates whatever pricing request is still in flight (round
-  // 2 item 3): without this, a slow response from a leg set the user has
+  // Any edit invalidates whatever pricing request is still in flight:
+  // without this, a slow response from a leg set the user has
   // since changed can still land and repaint StatBlocks/Greeks for legs no
   // longer on screen, because `price()` alone only ever compares against
   // the request it itself started.
@@ -128,7 +128,7 @@ export function OperationBuilderForm({
     resetPricingState();
     if (!structure) return;
     setLegs(legsForStructure(structure, nextUnderlying));
-    // Sequenced against `chainRequestId` (round 2 item 3): blurring PETR4
+    // Sequenced against `chainRequestId`: blurring PETR4
     // then VALE3 must not let a slow PETR4 chain response land after
     // VALE3's own, faster one, and repaint the picker for the wrong
     // underlying.
@@ -234,7 +234,7 @@ export function OperationBuilderForm({
   }
 
   // A second click on an already-saved operation must not write a
-  // duplicate row (round 2 item 3): once `savedId` is set the button is
+  // duplicate row: once `savedId` is set the button is
   // disabled below, and this guard covers the click that can still land
   // before that re-render does.
   //

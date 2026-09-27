@@ -2,7 +2,7 @@ import type { EngineError, MarketView, Operation, TradingSession } from "../api"
 import { sessionByDate } from "./calendar";
 import { invariant } from "./invariant";
 
-// Shared by markToMarket and proposeSettlement (round 3 item 10): both resolve the exact
+// Shared by markToMarket and proposeSettlement: both resolve the exact
 // `TradingSession` for an operation's own listed expiry, and both report the same
 // `insufficient_data` shape — a midnight-UTC instant on that date, purely informational, since
 // resolving a real open/close instant is exactly what a calendar gap is missing — when the

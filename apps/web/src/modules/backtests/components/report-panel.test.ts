@@ -20,7 +20,7 @@ describe("sessionReturns", () => {
     expect(sessionReturns(100_000_00 as never, equityCurve)).toEqual([0, 0.01]);
   });
 
-  it("includes the first session's own return, from initialCapital into the first equity point (round 2 item 13)", () => {
+  it("includes the first session's own return, from initialCapital into the first equity point", () => {
     const equityCurve = [point("2024-01-02", 110_000_00)];
     expect(sessionReturns(100_000_00 as never, equityCurve)).toEqual([0.1]);
   });
@@ -30,7 +30,7 @@ describe("sessionReturns", () => {
     expect(sessionReturns(0 as never, equityCurve)).toEqual([]);
   });
 
-  it("skips every session whose predecessor's equity is negative rather than sign-flipping the return (round 2 item 13)", () => {
+  it("skips every session whose predecessor's equity is negative rather than sign-flipping the return", () => {
     // A recovery from −R$10,00 to −R$5,00 is a 50% improvement, not the
     // 50% loss the unsigned ratio of two negatives (500 / −1000) would
     // otherwise report; both negative-base sessions are skipped, and only
@@ -77,13 +77,13 @@ function runWithNotes(notes: Note[]): BacktestRun {
 }
 
 describe("generalNotesFor", () => {
-  it("excludes the option-strike-across-corporate-action note, which the operations table surfaces instead (round 2 item 6)", () => {
+  it("excludes the option-strike-across-corporate-action note, which the operations table surfaces instead", () => {
     expect(surfacedNoteCodes).toContain("option_strike_unadjusted_across_corporate_action");
     const run = runWithNotes([note("option_strike_unadjusted_across_corporate_action")]);
     expect(generalNotesFor(run)).toEqual([]);
   });
 
-  it("never filters no_operation, less_than_one_effective_unit or no_risk_profile, which the run never emits (round 3 item 3)", () => {
+  it("never filters no_operation, less_than_one_effective_unit or no_risk_profile, which the run never emits", () => {
     expect(surfacedNoteCodes).not.toContain("no_operation");
     expect(surfacedNoteCodes).not.toContain("less_than_one_effective_unit");
     expect(surfacedNoteCodes).not.toContain("no_risk_profile");

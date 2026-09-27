@@ -65,7 +65,7 @@ function legKind(leg: OperationLeg): "stock" | "option" {
 }
 
 // A leg with no visible price is never silently marked at its own entry price (that would
-// report a fabricated zero P&L as if it were real, PR #29 round 1 item 3): both the
+// report a fabricated zero P&L as if it were real): both the
 // taken-operation mark and the counterfactual mark refuse instead, naming the ticker and the
 // collection (`candles` for a stock leg, `optionPrices` for an option leg) the nightly job's
 // retry needs.
@@ -110,7 +110,7 @@ const MISSED_ENTRY_NOTE: Note = {
 
 // A leg marked at a session earlier than the one it is being marked to (`resolveLegMarketPrice`'s
 // own `stale` flag, ADR-0014 Q42) is still a valid mark, but the score should say so rather than
-// let a carried-forward price pass as a fresh one (round 3 item 3): reuses the `stale_price`
+// let a carried-forward price pass as a fresh one: reuses the `stale_price`
 // `NoteCode` markToMarket already uses for the same situation, with the ticker and session named
 // since a score can mark several legs across several calls.
 function staleMarkNote(ticker: Ticker, session: SessionDate): Note {
@@ -235,7 +235,7 @@ function computeOperationMaxLoss(
 type LegClosure = { legIndex: number; closed: number };
 type FillMatch = { closures: LegClosure[]; legIndexByFillIndex: number[] };
 
-// A fill is matched to the leg it closes by ticker AND side (PR #29 round 1 item 7): matching
+// A fill is matched to the leg it closes by ticker AND side: matching
 // by ticker alone cannot tell two legs on the same ticker but opposite sides apart (a covered
 // combination), and two legs that share both ticker and side make the match ambiguous — the
 // fill could be closing either one, so it is refused rather than guessed.
@@ -378,7 +378,7 @@ function settlementPnl(
       // the expiry close, which is at or before the horizon close) to get this far, so this
       // ladder — visible at a later-or-equal instant on the identical ticker — can never come
       // back empty; the guard only documents the invariant markLegsToHorizon enforces for real
-      // for every other caller (round 1 item 3).
+      // for every other caller.
       /* v8 ignore start */
       if (!resolved?.value) {
         return { ok: false, error: noMarketPriceError(leg.ticker, "stock", horizonSession) };
@@ -494,7 +494,7 @@ function computeOperationPnl(
   }
 
   // ADR-0014 Q54: the taken-operation pnl subtracts entry costs on the same fill-cost model
-  // the counterfactual applies to its own entry (`fillCosts`, PR #29 round 1 item 4) — the
+  // the counterfactual applies to its own entry (`fillCosts`) — the
   // full nominal quantity of every leg, at its entry price, regardless of how much of it a
   // realized fill later closes. Realized fills keep their own recorded `costs`; a mark to the
   // horizon (or a settlement) carries no exit cost on either path.
@@ -591,8 +591,8 @@ function markLegsToHorizon(
 }
 
 // The counterfactual's own close-out at the horizon (ADR-0014 Q41), shared by the manual-origin
-// path and every signal-origin fallback that reaches the horizon without an exit fill (round 3
-// item 1/2): an operation whose expiry is at or before the horizon session settles rather than
+// path and every signal-origin fallback that reaches the horizon without an exit fill: an
+// operation whose expiry is at or before the horizon session settles rather than
 // marks, on the same rule `computeOperationPnl` applies to the taken operation — a counterfactual
 // is not exempt from Q41 just because nothing was actually held.
 function settleOrMarkCounterfactualToHorizon(
@@ -849,8 +849,8 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
     return err(invalidInput("horizon", "the horizon must not be before the session of decidedAt"));
   }
   // A claim judged on a close already public at decision time is look-ahead, not a forward
-  // score: the horizon session's own close must fall strictly after decidedAt (PR #29 round 1
-  // item 1), not merely on the same or a later calendar date.
+  // score: the horizon session's own close must fall strictly after decidedAt, not merely
+  // on the same or a later calendar date.
   if (!isAfter(horizonSession.close, input.decidedAt)) {
     return err(
       invalidInput(

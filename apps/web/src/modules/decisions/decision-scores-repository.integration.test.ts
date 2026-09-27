@@ -321,7 +321,7 @@ describe("DecisionScoresRepository", () => {
     expect(await repoB.listMine()).toHaveLength(1);
   });
 
-  it("isolation: repoA.insertIfAbsent(score for decisionB) is rejected by the composite FK, and repoB.dueForUser still lists decisionB (#29 fix-web item 1)", async () => {
+  it("isolation: repoA.insertIfAbsent(score for decisionB) is rejected by the composite FK, and repoB.dueForUser still lists decisionB", async () => {
     const db = getDb();
     await ensureStockStructure();
     const emailA = uniqueEmail("composite-fk-a");

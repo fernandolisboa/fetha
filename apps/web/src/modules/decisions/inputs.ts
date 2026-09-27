@@ -20,7 +20,7 @@ import { signalKinds, type IndicatorReading, type Proposal } from "@fetha/engine
 // schema the engine does not own.
 export const signalDecisionInputsSchema = z.strictObject({
   originKind: z.literal("signal"),
-  // Snapshotted at decision time (architecture review, round 2): the
+  // Snapshotted at decision time: the
   // repository itself only ever selects from `decisions` (no cross-module
   // joins), so the journal's display name is whatever it was when the
   // decision was recorded, never rewritten if the strategy is renamed

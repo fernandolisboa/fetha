@@ -34,7 +34,7 @@ export type Confidence = z.infer<typeof confidenceSchema>;
 export const centavosSchema = z.int().brand<"Centavos">();
 export type Centavos = z.infer<typeof centavosSchema>;
 
-// Bounded well below Number.MAX_SAFE_INTEGER (PR #76 round 2 item 9): a
+// Bounded well below Number.MAX_SAFE_INTEGER: a
 // quantity that large would let the engine's own centavos math
 // (quantity * price, then rounded) overflow past a safe integer and throw
 // inside `toCentavos` deep in a server action instead of failing here,
@@ -64,7 +64,7 @@ export type Instant = z.infer<typeof instantSchema>;
 // (packages/engine/src/api.ts) by value, not by import: the engine depends
 // on `@fetha/contracts`, so the dependency cannot run the other way. Any
 // value the database can hold for these columns must parse here rather than
-// be cast at the read site (round 2 item 4).
+// be cast at the read site.
 export const optionRightSchema = z.enum(["call", "put"]);
 export type OptionRight = z.infer<typeof optionRightSchema>;
 

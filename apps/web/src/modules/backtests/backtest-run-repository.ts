@@ -117,7 +117,7 @@ export class BacktestRunAlreadyCompleteError extends Error {
 // gives one invocation room to finish its own checkpoint write before a
 // second caller could ever see it as stale, while still bounding how long a
 // run a `maxDuration` kill or a Neon blip between the claim and the first
-// checkpoint (round 1's own per-inner-call checkpointing exists to survive)
+// checkpoint (the per-inner-call checkpointing exists to survive)
 // can stay bricked in "running" with no path back to "pending" or "paused".
 export const STALE_LEASE_MS = 360_000;
 
@@ -169,17 +169,17 @@ function hasP0001Code(error: unknown): boolean {
 // `error.code` alone matched only when the immutability check above this
 // call's own pre-check (`guardedUpdate`'s `existing.status === "complete"`)
 // happened to observe the row as already complete and short-circuited
-// before ever reaching this UPDATE — round 3 item 8's own "not a pre-check
+// before ever reaching this UPDATE — a "not a pre-check
 // that got lucky" concern, from the other end: CI's network latency to
 // Neon made the trigger itself fire far more often than local runs did,
 // and every one of those came back as this raw, unmapped `DrizzleQueryError`
-// instead of `BacktestRunAlreadyCompleteError` (round 5 item 6). Bounded to
+// instead of `BacktestRunAlreadyCompleteError`. Bounded to
 // two levels — the wrapper and its immediate cause — because that is the
 // one shape this driver actually produces; walking an unbounded `.cause`
 // chain would risk matching a `code: "P0001"` from somewhere the trigger
 // never touched.
 // Exported only for its own colocated unit test (backtest-run-repository.test.ts):
-// the wrapped-cause detection this pins (round 5 item 6) is a pure function
+// the wrapped-cause detection this pins is a pure function
 // deterministically testable without racing two real database connections,
 // unlike the trigger firing itself.
 export function isImmutabilityTriggerError(error: unknown): boolean {
@@ -439,10 +439,10 @@ export class BacktestRunRepository extends UserScopedRepository {
   // zero rows and fails with BacktestRunClaimError (mapped to 409 by the
   // route), rather than both calls racing a full engine chunk. A "running"
   // row is also claimable once its own `updatedAt` is older than the stale
-  // lease (round 2 item 2): nothing else ever moves a run out of "running"
+  // lease: nothing else ever moves a run out of "running"
   // except the invocation that set it, so without this a kill mid-chunk
   // would brick the run in "running" forever with a valid checkpoint and no
-  // way back to it. "failed" is claimable too (round 2 item 12): fail() only
+  // way back to it. "failed" is claimable too: fail() only
   // records the terminal state itself and never revokes it, so without this
   // a run that failed on a transient error (a Neon blip, a stale data
   // version between chunks) would have no way back into the loop even
@@ -465,7 +465,7 @@ export class BacktestRunRepository extends UserScopedRepository {
         // among their other runs would otherwise have that cap check fail
         // with ActiveBacktestRunLimitError — the wrong reason. The real reason a
         // discarded run can never be claimed is that a discard is the
-        // user's own choice, not a transient failure round 2 item 12 made
+        // user's own choice, not a transient failure fail() made
         // resumable, which is exactly what BacktestRunClaimError already
         // means for every other lost-claim race in this file.
         if (isDiscardedRun(current)) {
@@ -484,7 +484,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       // `error` is cleared, not just overwritten on the next `fail()`: a run
       // reclaimed from "failed" that goes on to complete must not carry its
       // previous failure message into a row that also asserts `status:
-      // "complete"` (round 3 item 6).
+      // "complete"`.
       .set({ status: "running", error: null })
       .where(
         and(
@@ -495,7 +495,7 @@ export class BacktestRunRepository extends UserScopedRepository {
             // A discarded run also carries `status = 'failed'`, the same
             // shape as a run that failed on its own, but it must never come
             // back into the active set this way: a discard is the user's
-            // own choice, not a transient error round 2 item 12 made
+            // own choice, not a transient error fail() made
             // resumable.
             sql`${backtestRuns.status} = 'failed' and ${backtestRuns.error} is distinct from ${DISCARDED_RUN_ERROR}`,
             and(eq(backtestRuns.status, "running"), lt(backtestRuns.updatedAt, staleCutoff)),

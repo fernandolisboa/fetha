@@ -223,7 +223,7 @@ describe("scoreDueDecisions with the real engine", () => {
     expect(await scoresRepository.listMine()).toHaveLength(1);
   });
 
-  // #29 fix-web item 4: the engine's own `score()` refuses a `ScoreInput`
+  // The engine's own `score()` refuses a `ScoreInput`
   // whose `view.calendar` has no session at or before `decidedAt`
   // (packages/engine/src/internal/score.ts). With a horizon more than 30
   // sessions out, the old, unwidened trailing-30-from-horizon window would
@@ -286,7 +286,7 @@ describe("scoreDueDecisions with the real engine", () => {
     expect(row?.claimHeld).toBe(true);
   });
 
-  // #29 fix-web item 5: a horizon stored on a non-trading date (here, a
+  // A horizon stored on a non-trading date (here, a
   // fabricated calendar gap — no session row at all for `gapDate`) resolves
   // to the first trading session on or after it, and the decision scores
   // against that resolved session, not the raw stored date.

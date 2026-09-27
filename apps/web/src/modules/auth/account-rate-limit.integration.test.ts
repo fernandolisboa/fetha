@@ -66,8 +66,8 @@ describe("enforceAccountRateLimit retention", () => {
 });
 
 describe("enforceAccountRateLimit concurrency", () => {
-  // Round-3 review item 1: both window-transition branches previously failed
-  // open under concurrency (insert-race losers and reset-race losers were
+  // Both window-transition branches previously failed open under
+  // concurrency (insert-race losers and reset-race losers were
   // admitted uncounted). Twenty concurrent calls on a fresh key must never
   // let more than `max` through.
   it("admits at most max concurrent requests on a fresh key", async () => {

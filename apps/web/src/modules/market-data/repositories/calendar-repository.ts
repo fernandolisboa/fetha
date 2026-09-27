@@ -69,7 +69,7 @@ export async function recentSessions(
   return rows.reverse();
 }
 
-// The first trading session on or after `date` (#29 fix-web item 5): a
+// The first trading session on or after `date`: a
 // stored horizon can land on a weekend or a holiday (nothing stops a user
 // from typing one in), and the decision is due once trading actually
 // reaches it, not on the calendar date itself — the same "closes above a

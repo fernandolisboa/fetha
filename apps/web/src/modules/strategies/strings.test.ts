@@ -22,12 +22,12 @@ describe("evaluationLog.webReasonText (#133)", () => {
     expect(first).not.toBe(second);
   });
 
-  it("renders the catch-up clamp's dropped-session count inside the message (#19 round 3 item 2)", () => {
+  it("renders the catch-up clamp's dropped-session count inside the message (#19)", () => {
     const clamped = t.inbox.evaluationLog.webReasonText.catchup_clamped("8");
     expect(clamped).toContain("8");
   });
 
-  it("renders the same collection-neutral message regardless of which collection failed (#18 round 7 item 4)", () => {
+  it("renders the same collection-neutral message regardless of which collection failed (#18)", () => {
     const ivRank =
       t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("impliedVolatilityIndex");
     const somethingElse = t.inbox.evaluationLog.webReasonText.unsatisfiable_collection("quotes");

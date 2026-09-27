@@ -178,7 +178,7 @@ describe("markToMarket", () => {
     expect(result.value.totals.greeks.delta).toBe(decimalString("0.000000"));
   });
 
-  it("aggregates a hand-computed, non-zero totals.greeks.delta from standalone positions, not stock-only operations (round 3 item 3)", () => {
+  it("aggregates a hand-computed, non-zero totals.greeks.delta from standalone positions, not stock-only operations", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [
@@ -221,7 +221,7 @@ describe("markToMarket", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // A stock-only operation's own leg is excluded from totals.greeks (round 3 item 3): a
+    // A stock-only operation's own leg is excluded from totals.greeks: a
     // priced position's own signed quantity is delta 1 per share, a long 100-share position
     // contributes +100, a short 40-share position contributes -40: 100 - 40 = 60. The two
     // operations above are the same shares' attribution view and contribute nothing further.
@@ -234,7 +234,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("does not double count a ticker held both as a standalone position and inside an operation (item 6)", () => {
+  it("does not double count a ticker held both as a standalone position and inside an operation", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -269,7 +269,7 @@ describe("markToMarket", () => {
     expect(result.value.totals.unrealizedPnl).toBe(centavos(100_00));
   });
 
-  it("does not double count a covered call's own stock leg delta against the same shares tracked as a position (round 3 item 3)", () => {
+  it("does not double count a covered call's own stock leg delta against the same shares tracked as a position", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
@@ -321,12 +321,12 @@ describe("markToMarket", () => {
     expect(callLeg?.leg.role).toBe("call");
     expect(callLeg?.greeks?.delta).toBe(decimalString("0.800505"));
     // The position's own 100 shares already give delta 100; the covered call's own stock
-    // leg tracks the same shares (item 6) and must not add its own +100 again, only the
+    // leg tracks the same shares and must not add its own +100 again, only the
     // short call's own delta contribution: 100 + (-1 * 1 * 0.800505) = 99.199495.
     expect(result.value.totals.greeks.delta).toBe(decimalString("99.199495"));
   });
 
-  it("computes openOperationCount as operations.length - 1 for every operation in the same call (item 6)", () => {
+  it("computes openOperationCount as operations.length - 1 for every operation in the same call", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -383,7 +383,7 @@ describe("markToMarket", () => {
     expect(result.value.limitBreaches).toEqual(result.value.operations[0]?.pricing.limitBreaches);
   });
 
-  it("reports maxOpenOperations once on the portfolio even when every operation breaches it (item 4)", () => {
+  it("reports maxOpenOperations once on the portfolio even when every operation breaches it", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -733,7 +733,7 @@ describe("markToMarket", () => {
     expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(0));
   });
 
-  it("names the operation on the portfolio's no_market_price note (item 9)", () => {
+  it("names the operation on the portfolio's no_market_price note", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -764,7 +764,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("adds a priced stock position's signed quantity to totals.greeks.delta (item 9)", () => {
+  it("adds a priced stock position's signed quantity to totals.greeks.delta", () => {
     const view: MarketView = {
       ...baseView,
       candles: [
@@ -894,7 +894,7 @@ describe("markToMarket", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4" });
   });
 
-  it("marks a covered call's expired short leg at intrinsic with settlement_pending instead of aborting (item 3)", () => {
+  it("marks a covered call's expired short leg at intrinsic with settlement_pending instead of aborting", () => {
     const markAt = "2024-01-10T21:00:00.000Z";
     const view: MarketView = {
       ...baseView,
@@ -954,7 +954,7 @@ describe("markToMarket", () => {
     // The stock leg is unaffected and keeps marking normally through `at`.
     const stockLeg = result.value.operations[0]?.pricing.legs[0];
     expect(stockLeg?.price).toBe(decimalString("30.00"));
-    // Aggregated at the operation level next to no_market_price (round 3 item 6): a caller
+    // Aggregated at the operation level next to no_market_price: a caller
     // reading pricing.notes must not have to walk every leg to notice a settlement is pending.
     expect(result.value.operations[0]?.pricing.notes).toContainEqual({
       code: "settlement_pending",
@@ -963,7 +963,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("prices a short call normally, never at intrinsic, before its own expiry session's close (round 3 item 1)", () => {
+  it("prices a short call normally, never at intrinsic, before its own expiry session's close", () => {
     const expirySessionOpen = "2024-01-05T13:00:00.000Z";
     const expirySessionClose = "2024-01-05T21:00:00.000Z";
     const sweep: Record<string, boolean> = {
@@ -1049,7 +1049,7 @@ describe("markToMarket", () => {
     }
   });
 
-  it("values an expired operation's option legs at zero unrealizedPnl with a note, instead of aborting, when its expiry session has no underlying candle (round 3 item 5)", () => {
+  it("values an expired operation's option legs at zero unrealizedPnl with a note, instead of aborting, when its expiry session has no underlying candle", () => {
     const markAt = "2024-01-10T21:00:00.000Z";
     const view: MarketView = {
       ...baseView,
@@ -1085,7 +1085,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("keeps valuing every other operation in the same call when one operation's expiry candle is missing (round 3 item 5)", () => {
+  it("keeps valuing every other operation in the same call when one operation's expiry candle is missing", () => {
     const markAt = "2024-01-10T21:00:00.000Z";
     const view: MarketView = {
       ...baseView,
@@ -1153,7 +1153,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("indexes a leg-level pricing error as operations[i].legs[j], not a bare legs.strike (round 3 item 8)", () => {
+  it("indexes a leg-level pricing error as operations[i].legs[j], not a bare legs.strike", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
@@ -1191,7 +1191,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("returns insufficient_data when the calendar does not cover the mark instant (item 8)", () => {
+  it("returns insufficient_data when the calendar does not cover the mark instant", () => {
     const result = markToMarket(
       {
         view: { ...baseView, calendar: [] },
@@ -1207,7 +1207,7 @@ describe("markToMarket", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
-  it("returns invalid_input for a non-positive corporate-action factor visible to a leg (item 8)", () => {
+  it("returns invalid_input for a non-positive corporate-action factor visible to a leg", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -1239,7 +1239,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("values a stock leg dissolved below one effective unit by a grouping instead of throwing (round 3 item 2)", () => {
+  it("values a stock leg dissolved below one effective unit by a grouping instead of throwing", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("120.00"), bid: null, ask: null }],
@@ -1283,7 +1283,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("returns invalid_input, never throwing, for a corporate-action row keyed by an option leg's own ticker (round 4 item 4)", () => {
+  it("returns invalid_input, never throwing, for a corporate-action row keyed by an option leg's own ticker", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
@@ -1318,7 +1318,7 @@ describe("markToMarket", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
-  it("returns invalid_input, never throwing, when a near-zero corporate-action factor overflows a safe integer effective quantity (round 3 item 2)", () => {
+  it("returns invalid_input, never throwing, when a near-zero corporate-action factor overflows a safe integer effective quantity", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
@@ -1373,7 +1373,7 @@ describe("markToMarket", () => {
     expect(result.error.code).toBe("insufficient_data");
   });
 
-  it("returns invalid_input for a duplicate calendar date (item 11)", () => {
+  it("returns invalid_input for a duplicate calendar date", () => {
     const view: MarketView = {
       ...baseView,
       calendar: [...calendar, calendar[0] as TradingSession],
@@ -1391,7 +1391,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle (item 11)", () => {
+  it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle", () => {
     const candle = {
       ticker: "PETR4",
       timeframe: "D1" as const,

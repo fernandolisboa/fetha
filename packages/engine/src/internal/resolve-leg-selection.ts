@@ -107,7 +107,7 @@ function nearestSeriesByAbsDelta(
 
 // Two tickers can list the same (underlying, expiry, right, strike): a `.find` over
 // candidates flips with array order. Deterministic tie-break on the lexicographically
-// earlier ticker (PR #53 round 4 item 2).
+// earlier ticker.
 function seriesAtStrike(
   candidates: readonly OptionSeries[],
   right: "call" | "put",
@@ -237,7 +237,7 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       // A shared strike rank can list both rights (a straddle): the governing delta is
       // the first right the structure declares at that rank (`rightsAtRank[0]`, insertion
       // order over `structure.legs`), never a best-of-both or an average across rights,
-      // since the two legs must land on one strike (PR #53 round 1 item 13).
+      // since the two legs must land on one strike.
       chosen = nearestSeriesByAbsDelta(
         candidates.filter((series) => series.right === rightsAtRank[0]),
         parseDecimal(rule.target),

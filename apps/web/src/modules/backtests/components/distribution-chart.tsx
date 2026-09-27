@@ -21,15 +21,15 @@ interface Bin {
 
 // One decimal is enough to tell consecutive bins apart when the spread is
 // a few percent wide, but a sub-1% spread (common for per-session, not
-// per-operation, returns — round 2 item 13) rounds every bin to the same
+// per-operation, returns) rounds every bin to the same
 // "0.0%" at one decimal: duplicate axis labels, and a bin straddling zero
 // rounds to a signed "−0.0%" that DESIGN.md forbids. Precision scales with
 // the bin's own width in percentage points so neighbouring bins keep
-// distinct labels regardless of how narrow the spread is (round 2 item 14),
+// distinct labels regardless of how narrow the spread is,
 // down to a bin width of 0.0001 percentage points: below that the 4-decimal
 // cap (chosen so the axis never grows wider than "−0,0001%") reopens the
 // same duplicate-label case this function exists to close, for a spread a
-// real backtest's per-session returns cannot produce (round 3 item 12).
+// real backtest's per-session returns cannot produce.
 function decimalsForBinWidth(widthPercent: number): number {
   if (!Number.isFinite(widthPercent) || widthPercent <= 0) return 1;
   if (widthPercent >= 1) return 1;
@@ -39,8 +39,7 @@ function decimalsForBinWidth(widthPercent: number): number {
 
 // True minus and pt-BR's comma decimal separator (DESIGN.md "Formatting
 // (pt-BR)"), not the hyphen-minus and dot `Number.prototype.toFixed`
-// produces, to match formatBRL/formatPercent and the rest of the report
-// (round 3 item 12).
+// produces, to match formatBRL/formatPercent and the rest of the report.
 // A value that rounds to zero at the chosen precision never carries the
 // minus sign: DESIGN.md never shows a signed zero, and a bin whose true
 // value is a small negative number straddling zero is exactly the case
@@ -65,7 +64,7 @@ export function buildBins(returns: number[]): Bin[] {
   // A flat equity curve (a strategy that never fires) makes every return,
   // and so both widened bounds, exactly 0: a genuinely zero span, not one
   // too small to bin. The old `|| 1` fallback treated it as the latter and
-  // fabricated a 0%-100% axis no data in the run supports (round 4 item 6);
+  // fabricated a 0%-100% axis no data in the run supports;
   // the caller renders this state explicitly instead of a chart.
   if (span === 0) {
     return [];
@@ -148,8 +147,7 @@ export function DistributionChart({ returns }: { returns: number[] }) {
     return null;
   }
   // A flat equity curve renders no bins (buildBins, above): an explicit
-  // message, not a silently empty chart or a fabricated axis (round 4
-  // item 6).
+  // message, not a silently empty chart or a fabricated axis.
   if (buildBins(returns).length === 0) {
     return <p className="text-muted-foreground text-sm">{t.report.distributionFlat}</p>;
   }

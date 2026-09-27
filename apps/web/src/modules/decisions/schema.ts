@@ -86,7 +86,7 @@ export const decisions = pgTable(
     // on its own): Postgres requires a unique constraint on exactly the
     // referenced column set before `decision_scores`' composite foreign key
     // below can target `(id, user_id)`. That composite FK is the security
-    // invariant this index exists for (#29 fix-web item 1): a score row's
+    // invariant this index exists for: a score row's
     // `user_id` is bound to its `decision_id`'s own `user_id` at the
     // database level, so `insertIfAbsent` can never attach one user's score
     // to another user's decision even if a caller passed a foreign
@@ -134,8 +134,8 @@ export const decisions = pgTable(
 // without parsing jsonb in every query. Money stays integer centavos
 // (CLAUDE.md); `maxLossUnbounded` carries the `"unbounded"` arm of the
 // engine's `PnlScore` union that a nullable bigint column cannot express on
-// its own. `score`/`unscorableReason` are mutually exclusive (#29 fix-web
-// item 8): a decision the engine can never score (a non-retriable engine
+// its own. `score`/`unscorableReason` are mutually exclusive: a decision
+// the engine can never score (a non-retriable engine
 // error, a build failure that cannot heal, or `insufficient_data` that has
 // outlived its retry window) still gets exactly one terminal row, with
 // `score` null and `unscorableReason` naming why, so `dueForUser`'s
@@ -167,7 +167,7 @@ export const decisionScores = pgTable(
     uniqueIndex("decision_scores_decision_id_idx").on(table.decisionId),
     index("decision_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
     // Composite FK, not the plain `decisionId -> decisions.id` this replaces
-    // (#29 fix-web item 1, security BLOCKING): binds this row's own
+    // binds this row's own
     // `user_id` to the `user_id` of the decision it scores, at the database
     // level, over `decisions_id_user_id_idx` above. A write that names a
     // real `decisionId` but the wrong `userId` (an isolation break, not a

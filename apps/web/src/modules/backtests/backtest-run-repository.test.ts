@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isImmutabilityTriggerError } from "./backtest-run-repository";
 
-// #18 round 5 item 6: CI's own network latency to Neon made the
+// CI's own network latency to Neon made the
 // `backtest_runs_immutable_once_complete` trigger fire far more often than
 // local runs did, exposing that `drizzle-orm/neon-serverless` never throws
 // the driver's raw `pg`-shaped error — every failed query is wrapped in its

@@ -326,7 +326,7 @@ describe("runBacktestChunk", () => {
     ).rejects.toThrow();
   });
 
-  it("measures the wall-clock budget from the chunk's own start, so time already spent claiming and loading counts against it (round 3 item 4)", async () => {
+  it("measures the wall-clock budget from the chunk's own start, so time already spent claiming and loading counts against it", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -360,7 +360,7 @@ describe("runBacktestChunk", () => {
     expect(outcome.sessionsTotal).toBe(SESSION_COUNT);
   });
 
-  it("persists a checkpoint after each inner call and pauses at the wall-clock deadline even though the session budget allows more (round 1 item 19)", async () => {
+  it("persists a checkpoint after each inner call and pauses at the wall-clock deadline even though the session budget allows more", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -403,7 +403,7 @@ describe("runBacktestChunk", () => {
     expect(status).toBe("complete");
   });
 
-  it("fails the run with no_market_data instead of throwing when loadMarketView reports the period unavailable (round 3 item 7)", async () => {
+  it("fails the run with no_market_data instead of throwing when loadMarketView reports the period unavailable", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -427,7 +427,7 @@ describe("runBacktestChunk", () => {
     expect(failed.error).toBe("no_market_data");
   });
 
-  it("fails the run with market_view_too_large, not no_market_data, when the option chain crosses the cap (round 4 item 1)", async () => {
+  it("fails the run with market_view_too_large, not no_market_data, when the option chain crosses the cap", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -469,7 +469,7 @@ describe("runBacktestChunk", () => {
     expect(failed.error).toBe("market_view_too_large");
   });
 
-  it("fails the run rather than mix datasets when the market data changes between chunks (round 1 item 21)", async () => {
+  it("fails the run rather than mix datasets when the market data changes between chunks", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -584,7 +584,7 @@ describe("runBacktestChunk", () => {
     expect(completed.calendarVersion).not.toBeNull();
   });
 
-  it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError (round 2 item 3)", async () => {
+  it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError", async () => {
     const db = getDb();
     const setup = await setUp();
     const repository = new BacktestRunRepository(db, setup.testUser);
@@ -618,7 +618,7 @@ describe("runBacktestChunk", () => {
     // rejection: guardedUpdate's WHERE guard would raise the identical
     // BacktestRunClaimError on its own once the engine step tried to
     // persist, so without this spy the test would pass even if run-chunk's
-    // post-load re-check were deleted (round-2 review finding). This spy is
+    // post-load re-check were deleted. This spy is
     // the assertion that the engine step itself was never paid for.
     const runBacktestSpy = vi.spyOn(engine, "runBacktest");
 

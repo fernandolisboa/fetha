@@ -22,7 +22,7 @@ describe("validateViewIntegrity", () => {
     expect(validateViewIntegrity(baseView)).toBeNull();
   });
 
-  it("rejects a calendar with a duplicate date (item 11)", () => {
+  it("rejects a calendar with a duplicate date", () => {
     const view: MarketView = {
       ...baseView,
       calendar: [
@@ -37,7 +37,7 @@ describe("validateViewIntegrity", () => {
     });
   });
 
-  it("rejects candles with a duplicate (ticker, timeframe, asOf) (item 11)", () => {
+  it("rejects candles with a duplicate (ticker, timeframe, asOf)", () => {
     const candle = {
       ticker: "PETR4",
       timeframe: "D1" as const,
@@ -76,7 +76,7 @@ describe("validateViewIntegrity", () => {
     expect(validateViewIntegrity({ ...baseView, candles: [candle, later] })).toBeNull();
   });
 
-  it("rejects optionPrices with a duplicate (ticker, asOf) (round 3 item 7)", () => {
+  it("rejects optionPrices with a duplicate (ticker, asOf)", () => {
     const dayPrice = {
       ticker: "PETR4C28",
       session: "2024-01-02",

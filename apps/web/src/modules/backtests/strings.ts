@@ -34,7 +34,7 @@ const en = {
     invalidCapital: "Enter the initial capital as a valid amount, e.g. 10.000,00.",
     noRiskProfile:
       "Declare a risk profile in Settings before running a backtest, so its limits can be enforced.",
-    // Collection-neutral by design (#18 round 7 item 4): actions.ts asks
+    // Collection-neutral by design: actions.ts asks
     // market-data's canSatisfyCollection for any collection in
     // UNSATISFIABLE_COLLECTIONS, not implied volatility specifically, so
     // this copy must not name one indicator that could be wrong the moment
@@ -454,8 +454,7 @@ export function noteMessage(code: NoteCode): string {
 // retrying a run that failed on `data_version_changed` compares the same
 // stale `dataVersion` against the same current view and is guaranteed to
 // fail with the identical code again, so the retry control is withheld for
-// it instead of inviting a click that can only churn the row (round 4
-// item 4).
+// it instead of inviting a click that can only churn the row.
 const NON_RESUMABLE_RUN_ERRORS = new Set<string>(["data_version_changed", DISCARDED_RUN_ERROR]);
 
 export function isResumableRunError(code: string | null): boolean {

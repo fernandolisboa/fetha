@@ -49,7 +49,7 @@ export function sortedCalendar(calendar: readonly TradingSession[]): readonly Tr
 
 // Shared by every module that needs "the session `at` falls in" from an unsorted
 // calendar: resolve-leg-selection.ts, price-operation.ts, implied-volatility-index.ts and
-// time-to-expiry.ts all had their own copy (PR #53 round 3 item 9).
+// time-to-expiry.ts all had their own copy.
 export function sessionAtOrBefore(
   calendar: readonly TradingSession[],
   at: Instant,

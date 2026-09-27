@@ -6,7 +6,7 @@ import { strategies } from "./schema";
 // A pure hash of `rotateKey` folded into `[0, length)`, deterministic for a
 // given (key, length) pair: the same session always rotates the same
 // ascending user-id list to the same starting point, but a different
-// session rotates it to a different one (#19 round 2 item 1). Not
+// session rotates it to a different one (#19). Not
 // cryptographic, only needs to spread evenly across a short user list.
 export function rotationOffset(rotateKey: string, length: number): number {
   if (length <= 0) {
@@ -31,7 +31,7 @@ export function rotationOffset(rotateKey: string, length: number): number {
 //
 // The base order is userId ascending — deterministic and stable across runs
 // with the same active-strategy set — then rotated by `rotateKey` (the
-// newest session this run is evaluating, round 2 item 1): a deadline that
+// newest session this run is evaluating): a deadline that
 // only reaches part of the list stops at a different point each night
 // instead of always exhausting the budget on the same users sorted last.
 export async function activeStrategyUserIds(db: Database, rotateKey?: string): Promise<string[]> {

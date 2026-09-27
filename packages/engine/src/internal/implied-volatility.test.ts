@@ -53,7 +53,7 @@ describe("solveImpliedVolatilityRaw", () => {
   it("fails to converge on a deep-in-the-money, near-expiry call whose price is near-flat in sigma", () => {
     // Deep ITM with days to expiry: vega is negligible everywhere in the sigma domain, so
     // the bisection can satisfy the price tolerance at almost any point in a wide bracket
-    // (PR #53 round 1 item 16) — the "solution" is not actually pinned by the price.
+    // the "solution" is not actually pinned by the price.
     const params = { s: 100, k: 50, t: 0.02, r: 0.1, q: 0, right: "call" as const };
     const price = bsmPriceRaw({ ...params, sigma: 1 });
     const solved = solveImpliedVolatilityRaw({ ...params, price });

@@ -39,8 +39,7 @@ type AtmSolution = { volatility: number; seriesUsed: Ticker[] };
 
 // Order-invariance (I3): `candidates` comes from filtering MarketView.optionSeries, whose row
 // order is not meaningful. Reuses the shared strike-then-ticker tie-break so two tickers at
-// one strike, or two equidistant strikes, resolve the same series regardless of array order
-// (PR #53 round 5 item 1).
+// one strike, or two equidistant strikes, resolve the same series regardless of array order.
 function nearestByStrike(
   candidates: readonly OptionSeries[],
   forward: number,
@@ -197,7 +196,7 @@ export function computeImpliedVolatilityIndex(
   if (!targetSession) return notBracketed(underlying, atSession.date, provenanceBase);
   // t30 must share the exact-tenor basis with every bracket below (resolveTimeToExpiryYears,
   // which includes the intraday (1 - f) term): a whole-session count here bracketed the same
-  // view differently at the session's open than at its close (PR #53 round 3 item 2).
+  // view differently at the session's open than at its close.
   const t30Resolution = resolveTimeToExpiryYears(view.calendar, at, targetSession.date);
   if (!t30Resolution.ok) return notBracketed(underlying, atSession.date, provenanceBase);
   const t30 = t30Resolution.years;

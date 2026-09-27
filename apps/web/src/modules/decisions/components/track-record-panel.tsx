@@ -44,10 +44,10 @@ function formatSessionTick(session: string): string {
 }
 
 // `scaleTime` cannot usefully interpolate a `LinePath` across a domain whose
-// start and end are the same instant (#29 fix-web item 9): a single scored
+// start and end are the same instant: a single scored
 // decision is the obvious case, but several decisions sharing one horizon
 // date collapse the domain the same way, not just a `plot.length === 1`
-// check (round 3 item 8).
+// check.
 export function isDegenerateChartDomain(points: readonly { at: Date }[]): boolean {
   if (points.length <= 1) return true;
   const first = points[0]?.at.getTime();
@@ -76,8 +76,8 @@ function PnlOverTimeChart({
   // A single scored decision, or several sharing one horizon date, has no
   // time span to plot a line over — the domain start and end collapse to the
   // same instant, which `scaleTime` cannot usefully interpolate a `LinePath`
-  // across (#29 fix-web item 9, widened by round 3 item 8 beyond just
-  // `plot.length === 1`). Every point that shares that instant is drawn as
+  // across, beyond just `plot.length === 1`. Every point that shares that
+  // instant is drawn as
   // its own dot at mid-width instead of a zero-length line.
   if (isDegenerateChartDomain(plot)) {
     return (
