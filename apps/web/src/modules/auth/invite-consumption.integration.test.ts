@@ -66,6 +66,17 @@ async function openLatestLink(email: string): Promise<Response> {
   return getAuth().handler(new Request(link));
 }
 
+async function resetThroughEmailedLink(email: string, newPassword: string): Promise<string> {
+  await requestPasswordReset({ email }, testRequestHeaders());
+  const callback = await openLatestLink(email);
+  const location = callback.headers.get("location");
+  const token = location ? new URL(location, "http://localhost").searchParams.get("token") : null;
+  if (!token) {
+    throw new Error("reset-password callback did not carry a token");
+  }
+  return (await resetPassword({ token, newPassword }, testRequestHeaders())).status;
+}
+
 describe("invite consumption (#39)", () => {
   it("keeps the invite pending when someone registers the invited email without proving the mailbox", async () => {
     const email = await invite("stranger-first");
@@ -109,16 +120,7 @@ describe("invite consumption (#39)", () => {
     await register(email, "Invitee");
     await clearOutbox(email);
 
-    await requestPasswordReset({ email }, testRequestHeaders());
-    const callback = await openLatestLink(email);
-    const location = callback.headers.get("location");
-    const token = location ? new URL(location, "http://localhost").searchParams.get("token") : null;
-    expect(token).toBeTruthy();
-    const reset = await resetPassword(
-      { token: token ?? "", newPassword: "the-invitees-password" },
-      testRequestHeaders(),
-    );
-    expect(reset.status).toBe("ok");
+    expect(await resetThroughEmailedLink(email, "the-invitees-password")).toBe("ok");
 
     const row = await readInvite(email);
     expect(row?.consumedByUserId).toBe(await userId(email));
@@ -131,7 +133,8 @@ describe("invite consumption (#39)", () => {
     const first = await readInvite(email);
 
     expect(await hasPendingInvite(getDb(), email)).toBe(false);
-    expect((await register(email, "Someone Else")).status).toBe("ok");
+    await clearOutbox(email);
+    expect(await resetThroughEmailedLink(email, "another-proof-of-mailbox")).toBe("ok");
     const second = await readInvite(email);
     expect(second?.consumedAt).toEqual(first?.consumedAt);
     expect(second?.consumedByUserId).toBe(first?.consumedByUserId);

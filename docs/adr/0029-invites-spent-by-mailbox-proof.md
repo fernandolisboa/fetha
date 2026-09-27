@@ -30,8 +30,10 @@ A stranger who registers an invited email first leaves the invite pending. The i
 sign-up then resends the verification link to that pending account (ADR-0028), and opening it
 spends the invite with the account's id. `hasPendingInvite` and the invite-mode sign-up policy are
 unchanged. `consumePendingInvite` still matches only a pending row, so a spent invite is never
-spent again. The purge still reopens an invite consumed by an account it deletes: only rows
-written before this change can be in that state.
+spent again. An invite spent at sign-up before this change may belong to an account the purge
+later deletes. The foreign key leaves that invite with no owner, and the purge then reopens every
+spent invite without one. It runs this step after the delete, so an account that verifies in
+between keeps its invite.
 
 ## Considered options
 
@@ -44,7 +46,7 @@ written before this change can be in that state.
 
 ## Consequences
 
-- An invite no longer expires. Nothing needed expiry once the attacker could not burn the invite,
-  and the owner deletes a row to revoke one.
+- Invites still do not expire; #39's expiring tokens are not adopted. Nothing needed expiry once a
+  stranger could not burn the invite, and the owner deletes a row to revoke one.
 - Every update Better Auth makes to a verified user runs one `UPDATE` on `invites`, which matches
   nothing once the invite is spent.
