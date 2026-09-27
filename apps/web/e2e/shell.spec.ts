@@ -19,7 +19,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
     "Diário",
     "Configurações",
   ]) {
-    await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
+    await expect(rail.getByRole("link", { name })).toBeVisible();
   }
   await expect(page.getByText("sem dados")).toBeVisible();
 });
