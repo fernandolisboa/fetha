@@ -71,6 +71,9 @@ successful ingest's 200 rather than turning it into one;
 `backtests/[id]/run` runs one chunk) plus E2E-only helpers. A handler parses, authenticates,
 calls the module, maps errors to responses;
 it holds no business rule. `getDb()` is obtained at this edge and passed into the module.
+`src/proxy.ts` is the per-request edge in front of every document: it draws the nonce and sets
+the document's whole Content-Security-Policy (ADR-0035). `src/instrumentation-client.ts` runs before hydration and holds
+browser bootstrap settings only (Zod `jitless`).
 
 ## Shared kernel
 
@@ -78,7 +81,8 @@ it holds no business rule. `getDb()` is obtained at this edge and passed into th
   barrel that re-exports every module's schema for drizzle-kit and the Drizzle client.
 - `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
   `theme/contrast`, `runtime-settings`, `instant`, `today-sao-paulo`, `utils`,
-  `user-scoped-repository`, `security-headers`. No business rules, no module imports.
+  `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `document-policy`
+  (the per-request document policy). No business rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 
 ## Modules
