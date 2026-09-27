@@ -82,6 +82,7 @@ export const tradingSessions = pgTable("trading_sessions", {
   date: date("date", { mode: "string" }).primaryKey(),
   open: timestamp("open", { withTimezone: true }).notNull(),
   close: timestamp("close", { withTimezone: true }).notNull(),
+  asOf: timestamp("as_of", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const corporateActionFactors = pgTable(

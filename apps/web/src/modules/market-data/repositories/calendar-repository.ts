@@ -27,7 +27,11 @@ export async function upsertTradingSessions(
       set: {
         open: sql`excluded.open`,
         close: sql`excluded.close`,
+        asOf: sql`now()`,
       },
+      // The nightly ingestion re-writes the whole calendar: only a real revision may move
+      // `as_of`, since it feeds a backtest's dataVersion and a moved one fails the run.
+      setWhere: sql`(${tradingSessions.open}, ${tradingSessions.close}) is distinct from (excluded.open, excluded.close)`,
     });
 
   return rows.length;
@@ -119,7 +123,7 @@ export async function sessionsInRange(
   db: Database,
   from: Date,
   to: Date,
-): Promise<Array<{ date: string; open: Date; close: Date }>> {
+): Promise<Array<{ date: string; open: Date; close: Date; asOf: Date }>> {
   return db
     .select()
     .from(tradingSessions)
@@ -168,7 +172,7 @@ export async function calendarWindowThroughExpiry(
   at: Date,
   pastWindow: number,
   throughExpiry: string | null,
-): Promise<Array<{ date: string; open: Date; close: Date }>> {
+): Promise<Array<{ date: string; open: Date; close: Date; asOf: Date }>> {
   const pastRows = await db
     .select()
     .from(tradingSessions)

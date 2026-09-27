@@ -513,6 +513,49 @@ describe("runBacktestChunk", () => {
     expect(failed.error).toBe("data_version_changed");
   });
 
+  it("fails the run rather than mix calendars when a session inside the window is revised between chunks (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+
+    const revised = SESSIONS[8] ?? "";
+    try {
+      await upsertTradingSessions(db, [
+        { date: revised, open: `${revised}T13:00:00.000Z`, close: `${revised}T17:00:00.000Z` },
+      ]);
+
+      const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+      expect(secondChunk).toEqual({ status: "failed", error: "data_version_changed" });
+    } finally {
+      await upsertTradingSessions(db, [
+        { date: revised, open: `${revised}T13:00:00.000Z`, close: `${revised}T20:00:00.000Z` },
+      ]);
+    }
+  });
+
+  it("resumes when the nightly calendar ingestion re-writes identical sessions between chunks (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+
+    await seedMarketData();
+
+    const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+    expect(secondChunk.status).toBe("complete");
+  });
+
   it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError (round 2 item 3)", async () => {
     const db = getDb();
     const setup = await setUp();

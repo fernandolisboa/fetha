@@ -148,6 +148,13 @@
       "when": 1790533601890,
       "tag": "0020_backfill_evaluation_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790539212361,
+      "tag": "0021_trading_sessions_as_of",
+      "breakpoints": true
     }
   ]
 }

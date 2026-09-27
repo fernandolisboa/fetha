@@ -164,13 +164,13 @@ export function toEngineCandle(row: CandleRow): Candle {
 }
 
 // `dataVersion` stamps the freshest row this view actually loaded, `max(asOf)`
-// across every populated collection (candles, corporate actions, macro,
-// option series and prices — never the calendar itself: `trading_sessions`
-// carries no `asOf`, so a calendar revision between chunks contributes
-// nothing to this stamp and is not caught by it, round 5 item 9): a
-// backtest run compares this chunk to chunk so a revision to one of those
-// stamped collections cannot silently mix two datasets into one immutable
-// run.
+// across every populated collection and the calendar sessions it loaded: a
+// backtest run compares this chunk to chunk so a revision to candles,
+// corporate actions, macro, the option chain or a trading session (which
+// moves time to expiry) cannot silently mix two datasets into one immutable
+// run. `trading_sessions.as_of` moves only when a session's open or close
+// actually changes (calendar-repository.ts), so the nightly re-write of an
+// unchanged calendar does not fail every run in progress.
 function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
   let max: Instant | undefined;
   for (const instant of instants) {
@@ -366,6 +366,7 @@ export async function loadMarketView(
   // window can ask for `impliedVolatilityIndex`, but there is nothing to
   // populate it with, so it stays empty regardless.
   const dataVersion = maxAsOf([
+    ...extendedSessions.map((row) => instantSchema.parse(row.asOf.toISOString())),
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
@@ -686,6 +687,7 @@ export async function buildOperationMarketView(
   }));
 
   const dataVersion = maxAsOf([
+    ...calendarRows.map((row) => instantSchema.parse(row.asOf.toISOString())),
     ...candleView.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),

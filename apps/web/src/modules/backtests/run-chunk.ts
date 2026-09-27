@@ -118,12 +118,10 @@ export interface RunBacktestChunkOptions {
 // instead of dying with nothing saved and repeating forever on retry
 // (round 1 item 19). The MarketView's own `dataVersion` is stamped on the
 // run at its first chunk and compared on every resume, so a revision to
-// candles, corporate actions, macro points or the option chain between
-// chunks fails the run rather than silently mixing two datasets into one
-// immutable result. Not the calendar: `trading_sessions` carries no `asOf`,
-// so a calendar revision (e.g. a corrected session) between chunks is not
-// caught by this stamp and can resolve time-to-expiry against a different
-// calendar with an identical one — a known gap, round 5 item 9.
+// candles, corporate actions, macro points, the option chain or a trading
+// session inside the window between chunks fails the run rather than
+// silently mixing two datasets (or two calendars, and so two times to
+// expiry) into one immutable result.
 export async function runBacktestChunk(
   db: Database,
   user: ScopedUser,
