@@ -166,8 +166,8 @@ export const decisionScores = pgTable(
   (table) => [
     uniqueIndex("decision_scores_decision_id_idx").on(table.decisionId),
     index("decision_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
-    // Composite FK, not the plain `decisionId -> decisions.id` this replaces
-    // binds this row's own
+    // Composite FK, not the plain `decisionId -> decisions.id` this replaces:
+    // it binds this row's own
     // `user_id` to the `user_id` of the decision it scores, at the database
     // level, over `decisions_id_user_id_idx` above. A write that names a
     // real `decisionId` but the wrong `userId` (an isolation break, not a

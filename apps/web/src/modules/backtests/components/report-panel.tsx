@@ -118,8 +118,8 @@ const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_ses
 // NO_RISK_PROFILE_NOTE); what keeps it out of a backtest report is that
 // backtests/actions.ts refuses to create a run without a declared risk
 // profile, and that profile rides on the run into every pricing call
-// correcting an earlier, mistaken instruction to filter it as if it were
-// never emitted). Only the one code
+// (this corrects an earlier, mistaken instruction to filter it as if it
+// were never emitted). Only the one code
 // the run does emit is filtered here, to keep it out of the general notes
 // panel: it renders once at this panel's own head via `<NotesFor
 // codes={operationCodes} />` below, not per operations-table row. If the

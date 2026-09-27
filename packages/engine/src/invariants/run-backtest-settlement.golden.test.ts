@@ -287,7 +287,7 @@ describe("runBacktest settlement golden fixtures (#72)", () => {
   });
 });
 
-// #72 review finding 1: settleLeg must not round a strike with more than two decimal places
+// settleLeg must not round a strike with more than two decimal places
 // down to centavos in the recorded Fill.price it hands runBacktest, or every downstream money
 // figure computed from that fill (the recorded price, fillCosts, grossCentavos and the
 // buy/sell cost accumulators, which all reparse it) changes with it. These three cases pin the
@@ -295,7 +295,7 @@ describe("runBacktest settlement golden fixtures (#72)", () => {
 // value as "11.00") and the two close 3dp strikes "11.00500000" and "11.00499000" (whose
 // 0.00001 difference rounds away in centavos, so both share the same pnl and stockSales), while
 // the recorded price string keeps only the strike's own significant decimals.
-describe("settleLeg strike precision (#72 review finding 1)", () => {
+describe("settleLeg strike precision", () => {
   const coveredCall: Structure = {
     id: "covered_call",
     name: "Covered call",

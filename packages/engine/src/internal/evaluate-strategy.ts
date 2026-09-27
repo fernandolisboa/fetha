@@ -119,7 +119,7 @@ function validateCoherence(
   return null;
 }
 
-// Delegates the rest of an open operation's coherence to `validateOperationCoherence`
+// Delegates the rest of an open operation's coherence to `validateOperationCoherence`:
 // a hand-rolled copy here previously skipped `series.underlying`,
 // `series.right` and `openedAt <= at`, so `evaluateStrategy` accepted an operation
 // `markToMarket` would reject.
@@ -144,7 +144,7 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
   return null;
 }
 
-// Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity
+// Delegates the calendar/candle/optionPrices duplicate checks to validateViewIntegrity,
 // the same seam markToMarket and proposeSettlement already share:
 // this dropped its own candle-dupe copy and gained the optionPrices duplicate check it
 // never had.

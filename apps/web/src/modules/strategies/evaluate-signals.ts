@@ -185,7 +185,7 @@ function clampCatchUpRange(
 // (#19), instead of the gap staying invisible: `detail`
 // carries the count of dropped sessions so the evaluation log reads as "N
 // older sessions were never evaluated" rather than "insufficient data" with
-// no further clue. Anchored at the oldest dropped session, not the newest
+// no further clue. Anchored at the oldest dropped session, not the newest:
 // the span then reads forward naturally from where the
 // gap starts to where the retained range picks back up, instead of landing
 // on the boundary right next to it.

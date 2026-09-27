@@ -161,7 +161,7 @@ async function createBacktestRun(
   }
 
   // Bounding a `from` the calendar carries but that has no ingested candle
-  // for this universe closed this for `to` only; `from` had the identical
+  // for this universe: an earlier fix closed this for `to` only; `from` had the identical
   // exposure and was the larger one: `FIRST_INGESTED_CALENDAR_YEAR` seeds
   // the ANBIMA calendar far
   // earlier than COTAHIST candle history actually starts (candle ingestion

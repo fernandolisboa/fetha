@@ -77,7 +77,7 @@ export async function loadChainAction(underlying: string): Promise<ChainSeries[]
 }
 
 // structureId and the legs' role/side/expiry/strike-rank shape are
-// resolved against the catalog before either action ever calls the engine
+// resolved against the catalog before either action ever calls the engine:
 // an unknown structure id or a leg set that does not
 // match its template (a "collar" with the put strike above the call's, a
 // bull spread priced as a bear spread) is rejected here, not surfaced as a
