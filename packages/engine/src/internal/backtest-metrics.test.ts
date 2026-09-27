@@ -26,6 +26,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [decimalString("0"), decimalString("0"), decimalString("0")],
       held: [true, true, false],
       observed: [true, true, true],
+      postWarmup: [true, true, true],
       settledOperationPnls: [centavos(1_000_00), centavos(-500_00)],
       operationsCount: 2,
       fees: centavos(300),
@@ -58,6 +59,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [decimalString("0")],
       held: [false],
       observed: [true],
+      postWarmup: [true],
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -73,6 +75,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [decimalString("0")],
       held: [false],
       observed: [true],
+      postWarmup: [true],
       settledOperationPnls: [centavos(500_00)],
       operationsCount: 1,
       fees: centavos(0),
@@ -94,6 +97,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: rf,
       held: equityCurve.map(() => true),
       observed: equityCurve.map(() => true),
+      postWarmup: equityCurve.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -113,6 +117,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: rf,
       held: equityCurve.map(() => true),
       observed: equityCurve.map(() => true),
+      postWarmup: equityCurve.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -121,10 +126,16 @@ describe("computeBacktestMetrics", () => {
     });
     expect(negativeMetrics.cagr).toBeNull();
     expect(negativeMetrics.sharpe).toBeNull();
+    // Two independent notes, not one: the final point is both the post-warm-up curve's own
+    // endpoint (nulls cagr) and an observed point (nulls sharpe, a path statistic).
     expect(negativeNotes).toEqual([
       {
         code: "non_positive_equity",
         message: "final equity is non-positive; cagr has no real value",
+      },
+      {
+        code: "non_positive_equity",
+        message: "an equity point inside the window is non-positive; sharpe is undefined",
       },
     ]);
   });
@@ -144,6 +155,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: rf,
       held: equityCurve.map(() => true),
       observed: equityCurve.map(() => true),
+      postWarmup: equityCurve.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -172,6 +184,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: rf,
       held: equityCurve.map(() => true),
       observed: equityCurve.map(() => true),
+      postWarmup: equityCurve.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -219,6 +232,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: equityCents.map(() => decimalString("0.0001")),
       held: equityCents.map(() => true),
       observed: equityCents.map(() => true),
+      postWarmup: equityCents.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -241,6 +255,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [decimalString("0"), decimalString("0")],
       held: [false, false],
       observed: [true, true],
+      postWarmup: [true, true],
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -257,6 +272,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [],
       held: [],
       observed: [],
+      postWarmup: [],
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -268,12 +284,12 @@ describe("computeBacktestMetrics", () => {
     expect(metrics.totalReturn).toBe(decimalString("0.000000"));
   });
 
-  it("excludes unobserved sessions from sessions, exposure, maxDrawdown and the return series (ADR-0041)", () => {
+  it("excludes unobserved (gap) sessions from sessions and exposure, no warm-up in play (ADR-0041)", () => {
     // Ten sessions at a flat +1% daily return; sessions 3 and 4 (index 2 and 3) are a
     // candle-less gap the equity curve carries flat (no mark could move), then the run
-    // resumes its climb. observed=false on the gap must make computeBacktestMetrics read
-    // this exactly as an eight-session run, not a ten-session one diluted by two zero
-    // returns.
+    // resumes its climb. observed=false on the gap must make sessions/exposure read this
+    // as an eight-session run; postWarmup stays true throughout (there is no warm-up
+    // prefix here), so totalReturn (whole post-warm-up curve) is unaffected by the gap.
     const equityCents = [
       101_000_00, 102_010_00, 102_010_00, 102_010_00, 103_030_10, 104_060_40, 105_101_01,
       106_152_02, 107_213_54, 108_285_67,
@@ -286,6 +302,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: equityCents.map(() => decimalString("0")),
       held: equityCents.map((_, i) => i !== 2 && i !== 3),
       observed,
+      postWarmup: equityCents.map(() => true),
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),
@@ -303,6 +320,44 @@ describe("computeBacktestMetrics", () => {
     ]);
   });
 
+  it("folds a gap's own risk-free rate forward into the next observed session's rf, so sharpe compares like spans (ADR-0041)", () => {
+    // 127 sessions, flat equity throughout (no trades, no mark ever moves): every observed
+    // session's own return is exactly 0. rf is 0 everywhere except the one candle-less gap
+    // (session index 63, unobserved), where it is 1%. If the gap's rf were simply dropped
+    // (compared against nothing, or folded into nothing), every excess return would be 0 and
+    // sharpe would be null (zero variance) — the pre-#92 bug this guards against. Compounding
+    // the gap's rf forward into the next observed session's own rf (here, unobserved-session
+    // compounding is trivial, one dropped session at 1%) makes that one observed session's
+    // excess return -1%, the sole outlier among 126 observed sessions, giving a real,
+    // hand-computable sharpe of -sqrt(2) instead.
+    const total = 127;
+    const gapIndex = 63;
+    const equityCurve = Array.from({ length: total }, (_, i) =>
+      point(`s${String(i)}`, 100_000_00, "0"),
+    );
+    const rfPerSession = Array.from({ length: total }, (_, i) =>
+      decimalString(i === gapIndex ? "0.01" : "0"),
+    );
+    const observed = Array.from({ length: total }, (_, i) => i !== gapIndex);
+    const { metrics } = computeBacktestMetrics({
+      equityCurve,
+      initialCapital: centavos(100_000_00),
+      rfPerSession,
+      held: Array.from({ length: total }, () => false),
+      observed,
+      postWarmup: Array.from({ length: total }, () => true),
+      settledOperationPnls: [],
+      operationsCount: 0,
+      fees: centavos(0),
+      taxes: centavos(0),
+      slippage: centavos(0),
+    });
+    // Independently reproduced with a fresh decimal.js script: 126 observed sessions, one
+    // excess return of -0.01 (all others 0), sample stdev and mean by the same ADR-0013
+    // formula computeBacktestMetrics itself uses.
+    expect(metrics.sharpe).toBe(decimalString("-1.414214"));
+  });
+
   it("guards every ratio against a zero initial capital instead of dividing by zero", () => {
     const { metrics } = computeBacktestMetrics({
       equityCurve: [point("2024-01-02", 0, "0"), point("2024-01-03", 0, "0")],
@@ -310,6 +365,7 @@ describe("computeBacktestMetrics", () => {
       rfPerSession: [decimalString("0"), decimalString("0")],
       held: [false, false],
       observed: [true, true],
+      postWarmup: [true, true],
       settledOperationPnls: [],
       operationsCount: 0,
       fees: centavos(0),

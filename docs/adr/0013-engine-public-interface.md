@@ -2372,12 +2372,12 @@ addendum above); `ENGINE_VERSION` moves from `"0.2.0"` to `"0.3.0"`. ADR-0041 re
 reasoning: `runBacktest`'s checkpointed `BacktestState` gains `hasCandle: boolean[]` and
 `firstTradableSession: SessionDate | null`, a persistence-breaking shape change under this
 document's own change-policy rule (the same class #23 made for `SimulatedOperation
-.residualSettledBy`). "Equity and metrics" above is amended: `sessions`, `sharpe` and `exposure`
-are now computed over the subsequence of period sessions that carry a universe candle and fall on
-or after the strategy's own first tradable session; `maxDrawdown` and `totalReturn` are computed
-over every session from the first tradable session onward, gaps included (a gap's carried-forward
-mark is a real mark, and cash can move on an unobserved session, e.g. a month-end tax deduction);
-`cagr`'s exponent counts that same post-warm-up span, gaps included (calendar time passed even
-where no candle was observed), while its base still reads the whole curve's final equity. See
-ADR-0041 for the full account, including why `cagr`'s clock and `sessions`' count deliberately read
-different denominators.
+.residualSettledBy`). "Equity and metrics" above is amended: `sessions`, `sharpe`, `exposure` and
+the `MIN_ANNUALIZED_SESSIONS` (126) threshold are now computed over the subsequence of period
+sessions that carry a universe candle and fall on or after the strategy's own first tradable
+session; `maxDrawdown` and `totalReturn` are computed over every session from the first tradable
+session onward, gaps included (a gap's carried-forward mark is a real mark, and cash can move on an
+unobserved session, e.g. a month-end tax deduction); `cagr`'s exponent counts that same
+post-warm-up span, gaps included (calendar time passed even where no candle was observed), while
+its base still reads the whole curve's final equity. See ADR-0041 for the full account, including
+why `cagr`'s clock and `sessions`' count deliberately read different denominators.

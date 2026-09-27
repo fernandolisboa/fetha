@@ -1517,7 +1517,7 @@ describe("runBacktest — observed-session metrics filtering (#92, ADR-0041)", (
     expect(run.metrics.sessions).toBe(observedCount);
     expect(run.notes).toContainEqual({
       code: "candle_less_sessions_excluded",
-      message: `${String(gapLen)} session(s) excluded from metrics: no universe ticker had a candle that session`,
+      message: `${String(gapLen)} session(s) excluded from sessions, sharpe and exposure: no universe ticker had a candle that session (still counted in cagr's elapsed clock and in maxDrawdown/totalReturn, ADR-0041)`,
     });
     expect(run.notes.some((n) => n.code === "warm_up_sessions_excluded")).toBe(false);
 
@@ -1534,6 +1534,7 @@ describe("runBacktest — observed-session metrics filtering (#92, ADR-0041)", (
       rfPerSession: dates.map(() => decimalString("0")),
       held: fullHeld,
       observed: dates.map(() => true),
+      postWarmup: dates.map(() => true),
       settledOperationPnls: [],
       operationsCount: run.operations.length,
       fees: run.metrics.fees,
@@ -1545,7 +1546,10 @@ describe("runBacktest — observed-session metrics filtering (#92, ADR-0041)", (
     expect(naive.cagr).toBe(decimalString("0.224276"));
 
     expect(run.metrics.exposure).toBe(decimalString("0.984615"));
-    expect(run.metrics.cagr).toBe(decimalString("0.262988"));
+    // cagr's exponent counts elapsed post-warm-up sessions, gaps included (ADR-0041): this run
+    // has no warm-up prefix, so its post-warm-up span is the full 150 sessions — the same
+    // exponent the naive comparison above used, hence the same value.
+    expect(run.metrics.cagr).toBe(decimalString("0.224276"));
   });
 
   it("excludes the strategy's warm-up prefix from metrics.sessions and records the first tradable session", () => {
@@ -1913,6 +1917,9 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       state: {
         ...(paused.value.checkpoint.state as Record<string, unknown>),
         equityCurve: [],
+        held: [],
+        rfPerSession: [],
+        hasCandle: [],
       },
     };
     const result = runBacktest({ view, config, resume: corruptedCheckpoint });
@@ -2082,6 +2089,27 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
             ],
           },
         ],
+      }),
+    ],
+    // held, rfPerSession and hasCandle are parallel to equityCurve by construction (ADR-0041); a
+    // shorter or longer one than equityCurve must fail here, not throw from assertDefined or
+    // silently zero-pad the resumed run's own metrics.
+    [
+      "held is shorter than equityCurve",
+      (valid: object) => ({ ...valid, held: (valid as { held: unknown[] }).held.slice(0, -1) }),
+    ],
+    [
+      "rfPerSession is longer than equityCurve",
+      (valid: object) => ({
+        ...valid,
+        rfPerSession: [...(valid as { rfPerSession: unknown[] }).rfPerSession, "0"],
+      }),
+    ],
+    [
+      "hasCandle is shorter than equityCurve",
+      (valid: object) => ({
+        ...valid,
+        hasCandle: (valid as { hasCandle: unknown[] }).hasCandle.slice(0, -1),
       }),
     ],
   ])(

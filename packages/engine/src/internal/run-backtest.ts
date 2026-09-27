@@ -273,6 +273,17 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     return false;
   }
 
+  // held, rfPerSession and hasCandle are parallel to equityCurve by construction (each session's
+  // loop iteration pushes to all four together, ADR-0041) — a resumed checkpoint whose caller
+  // truncated or padded just one of them would otherwise read past the end of a shorter array
+  // (assertDefined throwing partway through computeBacktestMetrics) or silently zero-pad a
+  // longer equityCurve's tail sessions to false/"0" instead of failing checkpoint_mismatch here.
+  const equityCurveLength = (raw.equityCurve as unknown[]).length;
+  const parallelArrayFields = ["held", "rfPerSession", "hasCandle"] as const;
+  if (parallelArrayFields.some((field) => (raw[field] as unknown[]).length !== equityCurveLength)) {
+    return false;
+  }
+
   const recordFields = [
     "pendingEntries",
     "retryCount",
@@ -1793,9 +1804,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     };
   }
 
-  const { observed, warmupCount, candleLessCount } = observedSessions(state);
+  const { observed, postWarmup, warmupCount, candleLessCount } = observedSessions(state);
   const { metrics, notes: metricsNotes } = computeBacktestMetrics(
-    buildMetricsInput(state, config.initialCapital, observed),
+    buildMetricsInput(state, config.initialCapital, observed, postWarmup),
   );
   const notes = [...metricsNotes];
   if (warmupCount > 0) {
@@ -1810,7 +1821,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   if (candleLessCount > 0) {
     notes.push({
       code: "candle_less_sessions_excluded",
-      message: `${String(candleLessCount)} session(s) excluded from metrics: no universe ticker had a candle that session`,
+      message: `${String(candleLessCount)} session(s) excluded from sessions, sharpe and exposure: no universe ticker had a candle that session (still counted in cagr's elapsed clock and in maxDrawdown/totalReturn, ADR-0041)`,
     });
   }
   if (state.equityCurve.some((p) => p.cash < 0)) {
@@ -1868,6 +1879,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           rfPerSession: state.rfPerSession,
           held: state.held,
           observed,
+          postWarmup,
           operations: state.operations,
           fills: state.fills,
           taxes: state.taxesFinalized,
@@ -1899,21 +1911,24 @@ function isLastSessionOfMonth(
 
 // ADR-0041: a session is in the warm-up prefix when it falls strictly before
 // firstTradableSession, or when firstTradableSession never resolved (the strategy could not
-// evaluate for the whole run); it is observed when it carries a universe candle and is not in
-// that prefix. The two exclusions are counted separately and are mutually exclusive by
-// construction: the union-bounded period (actions.ts) always gives its own first session a
-// universe candle, so a warm-up session's own candle-less-ness, if any, is folded into the
-// warm-up count rather than double-counted as a gap.
+// evaluate for the whole run); it is post-warm-up (and observed, additionally, when it also
+// carries a universe candle) otherwise. `inWarmup` gates both return values below, so the
+// warm-up and candle-less exclusions are mutually exclusive by construction: a warm-up
+// session's own candle-less-ness, if any, is folded into the warm-up count rather than
+// double-counted as a gap, regardless of what the caller's own period bounds guarantee.
 function observedSessions(state: BacktestState): {
   observed: boolean[];
+  postWarmup: boolean[];
   warmupCount: number;
   candleLessCount: number;
 } {
   const firstTradable = state.firstTradableSession;
   let warmupCount = 0;
   let candleLessCount = 0;
+  const postWarmup: boolean[] = [];
   const observed = state.equityCurve.map((point, i) => {
     const inWarmup = firstTradable === null || point.session < firstTradable;
+    postWarmup.push(!inWarmup);
     if (inWarmup) {
       warmupCount += 1;
       return false;
@@ -1922,13 +1937,14 @@ function observedSessions(state: BacktestState): {
     if (!hasCandle) candleLessCount += 1;
     return hasCandle;
   });
-  return { observed, warmupCount, candleLessCount };
+  return { observed, postWarmup, warmupCount, candleLessCount };
 }
 
 function buildMetricsInput(
   state: BacktestState,
   initialCapital: Centavos,
   observed: readonly boolean[],
+  postWarmup: readonly boolean[],
 ): MetricsInput {
   const settled = state.operations.filter(isSettledOperation);
   return {
@@ -1937,6 +1953,7 @@ function buildMetricsInput(
     rfPerSession: state.rfPerSession,
     held: state.held,
     observed,
+    postWarmup,
     settledOperationPnls: settled.map((op) => op.pnl),
     operationsCount: state.operations.length,
     fees: sumCentavos(state.fills.map((f) => f.costs)),

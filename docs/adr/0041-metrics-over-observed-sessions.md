@@ -15,11 +15,15 @@ have traded, diluting every ratio ADR-0013 "Equity and metrics" derives from it:
    `apps/web`'s `candleSessionBoundsInRange`). A session inside that range with no candle for any
    universe ticker still gets an `EquityPoint` — flat at the last known mark, since a stock leg's
    mark carries forward through `lastKnownClose` — and that flat point still counts toward
-   `sessions`, with no note distinguishing it from a session the strategy actually saw. A
-   500-session run at +30% total return with a 60-session interior hole (a ticker halted, a
-   staggered-listing gap in a multi-ticker universe) reports `cagr = (1.3)^(252/500) - 1 ≈ 12.53%`
-   instead of the `≈ 14.14%` a 440-observed-session run of the same growth would report, and
-   `exposure` is understated the same way whenever the gap falls inside a held period.
+   `sessions`, with no note distinguishing it from a session the strategy actually saw, understating
+   `exposure` whenever the gap falls inside a held period. `cagr`'s own clock must _not_ be fixed
+   the same way, though: calendar time — and cash movement, e.g. a month-end tax deduction — is real
+   across a candle-less gap even though the strategy could not observe it, so dropping the gap from
+   `cagr`'s exponent would overstate the annualized return. A position held through a 60-session
+   interior gap over what is otherwise a 500-session post-warm-up span, ending at +30% total return,
+   must read `cagr = 1.3^(252/500) − 1 ≈ 14.14%`, using every post-warm-up session including the
+   gap; using only the 440 sessions that actually carried a candle would overstate it to `1.3^(252
+/440) − 1 ≈ 16.21%`.
 2. The leading run of period sessions before a strategy's own indicators have enough history (`length`
    candles for `sma`, `3 × length` for the recursive `ema`/`rsi`/`atr` warm-up multiplier,
    `data-window.ts`'s `RECURSIVE_WARMUP_MULTIPLIER`) evaluates `insufficient_data` on every
@@ -34,17 +38,36 @@ wrong".
 
 ## Decision
 
-**A session is observed when it carries at least one universe candle and is not in the strategy's
-own leading warm-up prefix.** `computeBacktestMetrics` (`packages/engine/src/internal/
-backtest-metrics.ts`) gains a required `observed: readonly boolean[]` field on `MetricsInput`,
-parallel to `equityCurve`, `rfPerSession` and `held`; it filters all four arrays down to the
-observed subsequence before computing anything, so `sessions`, `totalReturn`, `cagr`, `sharpe`,
-`maxDrawdown`, `exposure`, `winRate` and `profitFactor` all read the same denominator. Equity is
-flat across an unobserved session by construction (no mark could have moved it), so dropping it
-from the return series loses nothing but the spurious zero-minus-`rf` term it would otherwise
-contribute to `sharpe`. `MIN_ANNUALIZED_SESSIONS` (126) compares against the observed count, so a
-run whose observed history is short is still correctly flagged
-`short_window_not_annualized` even when its raw period is long.
+**Two domains, not one.** A session is _observed_ when it carries at least one universe candle and
+is not in the strategy's own leading warm-up prefix; it is _post-warm-up_ when it is simply not in
+that prefix, gaps included. `computeBacktestMetrics` (`packages/engine/src/internal/
+backtest-metrics.ts`) gains two required, equal-length fields on `MetricsInput`, both parallel to
+`equityCurve`: `observed: readonly boolean[]` and `postWarmup: readonly boolean[]` (`postWarmup` is
+true wherever `observed` is true, plus every candle-less gap; both are false only inside warm-up).
+Each metric reads whichever domain matches what it measures:
+
+- **`sessions`, `sharpe`, `exposure`, and the `MIN_ANNUALIZED_SESSIONS` (126) threshold read the
+  observed subsequence.** These ask "how many sessions did the strategy actually get a chance to
+  act on", so a candle-less gap and the warm-up prefix are both excluded the same way: a run whose
+  observed history is short is correctly flagged `short_window_not_annualized` even when its raw
+  period is long, and `exposure`'s denominator never counts a session the strategy could not have
+  held through in the first place.
+- **`cagr`'s exponent, `maxDrawdown` and `totalReturn` read the post-warm-up subsequence, gaps
+  included.** These ask "how much calendar time and real cash movement elapsed since the strategy
+  could first trade": a gap's carried-forward mark is a real mark (nothing moved, but nothing was
+  supposed to), and cash can move on an unobserved session (a month-end tax deduction settles on its
+  own calendar date regardless of whether a candle exists), so both must see the whole post-warm-up
+  curve. `cagr`'s base (`equityLast`) is always the post-warm-up curve's own final point, which is
+  also the run's true final equity — warm-up is only ever a leading exclusion, so post-warm-up's
+  last point never differs from the whole curve's.
+- **Sharpe's own excess-return series stays observed-only** (a path statistic over what the
+  strategy actually saw), but the risk-free comparison for an observed session's return must cover
+  the same span the return itself does: a return computed against the previous _observed_ equity
+  point implicitly spans every unobserved session in between, so the per-session rf of those dropped
+  sessions is compounded forward into the next observed session's own rf, rather than compared only
+  against that one session's single-day rate. A gap with a non-trivial rf but a flat (unmoved)
+  equity mark now correctly reads as a negative excess return over the observed session that follows
+  it, instead of a spurious zero-minus-rf term disappearing along with the dropped session.
 
 `runBacktest` derives the two exclusions independently and combines them into `observed`:
 
@@ -71,7 +94,9 @@ most two new notes on the completed run, mirroring the four existing run-level c
   session's date (or, if the whole run stayed inside warm-up, that no session ever became
   tradable).
 - `candle_less_sessions_excluded`, carrying the count of interior gap sessions (sessions _after_
-  the warm-up prefix that still lack a universe candle).
+  the warm-up prefix that still lack a universe candle) and naming which metrics they are dropped
+  from (`sessions`, `sharpe`, `exposure`) versus which still count them (`cagr`'s elapsed clock,
+  `maxDrawdown`, `totalReturn`), since the two domains disagree about a gap by design.
 
 **Union bound, not intersection, stays the web-side clamp's choice (`candleSessionBoundsInRange`,
 `apps/web/src/modules/market-data/repositories/candle-repository.ts`).** Bounding a run's period to
@@ -83,9 +108,10 @@ is now the engine's problem to exclude and note (this ADR), not the web clamp's 
 away.
 
 **Walk-forward windows apply the same filter.** `computeWalkForward`'s `WalkForwardInput` gains the
-matching `observed: readonly boolean[]`, sliced per window exactly like `held` and `rfPerSession`
-already are; a window whose own slice is mostly warm-up or gap reports its own honestly small
-`sessions`, not the window's raw session count.
+matching `observed: readonly boolean[]` and `postWarmup: readonly boolean[]`, each sliced per window
+exactly like `held` and `rfPerSession` already are; a window whose own slice is mostly warm-up or
+gap reports its own honestly small `sessions`, not the window's raw session count, and its own
+`cagr` reads its own post-warm-up span within that window.
 
 **`ENGINE_VERSION` bumps from `"0.2.0"` to `"0.3.0"`.** `BacktestState` (the checkpointed shape)
 gains two fields, `hasCandle: boolean[]` and `firstTradableSession: SessionDate | null`: a
@@ -109,9 +135,16 @@ not by itself justify a bump.
 - `apps/web/src/modules/backtests/strings.ts` gains an `en`/`pt-BR` pair for both codes;
   `report-panel.tsx` surfaces them beside the Sessions stat (`sessionsCodes`), the same treatment
   `short_window_not_annualized` already gets beside `cagr`/`sharpe`.
-- `packages/contracts` has no `noteCodeSchema` mirror yet (`notes.code` is `z.string()`,
-  `backtest-run-type-pin.test.ts`), so nothing there needs updating; if one is added later it must
-  include both new codes or `enum-drift.test.ts`'s pattern (once extended to `noteCodes`) will
-  catch the gap.
-- Coverage: `packages/engine` stays at or above the 95% line/branch gate (measured at 96.16%
-  branches after this change, up from the pre-change baseline).
+- `packages/contracts`'s `noteCodeSchema` (`backtest-report.ts`, #91) gains both new codes, guarded
+  by `apps/web/src/modules/market-data/enum-drift.test.ts` the same way every other `NoteCode`
+  already is.
+- Coverage: `packages/engine` stays at or above the 95% line/branch gate.
+- **A run already stored under engine `0.2.0` keeps its own numbers; nothing is recomputed.**
+  `metrics.sessions`, `cagr`, `exposure`, `maxDrawdown` and `totalReturn` on a persisted
+  `BacktestRun` mean whatever they meant when that run's own `provenance.engineVersion` was
+  current — a `0.2.0` run's `sessions` still counts every calendar session in its period, gaps and
+  warm-up included, and its `cagr`'s exponent read that same raw count. A run comparison (any
+  screen or export that places two runs' metrics side by side) can therefore show a `0.2.0` run and
+  a `0.3.0` run with `sessions` meaning two different things; `provenance.engineVersion` is the only
+  signal that distinguishes them, and nothing in this ticket teaches a comparison view to read it.
+  A migration or a versioned-metrics badge on such a view is a follow-up, not addressed here.

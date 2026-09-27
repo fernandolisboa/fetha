@@ -19,6 +19,7 @@ export type WalkForwardInput = {
   rfPerSession: readonly DecimalString[];
   held: readonly boolean[];
   observed: readonly boolean[];
+  postWarmup: readonly boolean[];
   operations: readonly SimulatedOperation[];
   fills: readonly SimulatedFill[];
   taxes: readonly MonthlyTax[];
@@ -77,6 +78,7 @@ export function computeWalkForward(input: WalkForwardInput): WalkForwardWindow[]
       rfPerSession: input.rfPerSession.slice(start, end),
       held: input.held.slice(start, end),
       observed: input.observed.slice(start, end),
+      postWarmup: input.postWarmup.slice(start, end),
       settledOperationPnls: opsInWindow.filter(isSettledOperation).map((op) => op.pnl),
       operationsCount: opsInWindow.length,
       fees: sumCentavos(input.fills.filter((f) => inWindow(f.session)).map((f) => f.costs)),
