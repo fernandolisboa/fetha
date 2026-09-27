@@ -860,7 +860,12 @@ function resolveSizingUnits(
     if (maxLoss === "unbounded") return unboundedMaxLoss;
     return unitsFromPerUnit(new Decimal(maxLoss));
   }
-  return unitsFromPerUnit(new Decimal(netPremium).abs());
+  // A net-debit structure with a short leg can still lose more than the premium paid
+  // (issue #131, e.g. a short put under a long call). A structure with no short leg has
+  // max loss <= premium paid (e.g. a married put or a long guts strangle), so the
+  // premium wins the max below and sizing is unchanged for it.
+  if (maxLoss === "unbounded") return unboundedMaxLoss;
+  return unitsFromPerUnit(Decimal.max(new Decimal(maxLoss), new Decimal(netPremium).abs()));
 }
 
 function priceSelection(

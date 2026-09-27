@@ -140,7 +140,7 @@ const reasonTextEn: Record<EvaluationReason, string | null> = {
   no_series_match: "No listed option series satisfies the strike and expiry selection",
   degenerate_strikes: "Two distinct strike ranks resolved to the same listed strike",
   no_declared_capital: "No declared capital to size against",
-  unbounded_max_loss: "Fixed-risk sizing is unsizeable against an unbounded max loss",
+  unbounded_max_loss: "Cannot size: the max loss is unbounded",
   zero_units: "A unit carries no cost or risk to size against",
   unaffordable_budget: "The declared capital and fraction cannot afford one unit",
   insufficient_market_data_for_proposal:
@@ -160,7 +160,7 @@ const reasonTextPtBR: Record<EvaluationReason, string | null> = {
   no_series_match: "Nenhuma série de opção listada atende à seleção de strike e vencimento",
   degenerate_strikes: "Dois ranks de strike distintos resolveram para o mesmo strike listado",
   no_declared_capital: "Sem capital declarado para dimensionar",
-  unbounded_max_loss: "Dimensionamento por risco fixo não é possível com perda máxima ilimitada",
+  unbounded_max_loss: "Não dá para dimensionar: a perda máxima é ilimitada",
   zero_units: "Não há custo nem risco por unidade para dimensionar",
   unaffordable_budget: "O capital declarado, com essa fração, não cobre nem uma unidade",
   insufficient_market_data_for_proposal:

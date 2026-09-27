@@ -2879,6 +2879,312 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(units).toBe(Math.floor(budget / perUnitMaxLoss));
   });
 
+  it("sizes a fixed_fractional net-debit structure with a short leg on its bounded max loss, not the premium paid (#131)", () => {
+    const boundedDebitView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const shortPutLongCallStructure: Structure = {
+      id: "short-put-long-call",
+      name: "Short put, long call",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: boundedDebitView,
+        at,
+        legs: {
+          structure: shortPutLongCallStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Net premium is -R$2.00/unit (buy call 3.00 - sell put 1.00) but the short put's
+    // assignment at S = 0 makes the per-unit max loss R$30.00 (strike 28 + the R$2.00
+    // debit), not the R$2.00 premium: fixed_fractional must size on the larger figure.
+    expect(result.value.netPremium).toBeLessThan(0);
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    expect(result.value.maxLoss).toBe(166 * 3000);
+    expect(result.value.legs[0]?.leg.quantity).toBe(166);
+    expect(result.value.legs[1]?.leg.quantity).toBe(166);
+    expect(result.value.maxLoss).toBeLessThanOrEqual(5_000_00);
+  });
+
+  it("sizes a bounded net-debit structure with a short leg to unsizeable(unaffordable_budget) when the corrected divisor no longer fits the budget (#131)", () => {
+    const boundedDebitView: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...callSeries("PETR4P28", "28.00"), right: "put" },
+        callSeries("PETR4C32", "32.00"),
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const shortPutLongCallStructure: Structure = {
+      id: "short-put-long-call-unaffordable",
+      name: "Short put, long call",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: boundedDebitView,
+        at,
+        legs: {
+          structure: shortPutLongCallStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(100_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    // The R$2.00/unit premium alone (budget R$10.00 / R$2.00 = 5 units) would have sized
+    // fine before #131; the R$30.00/unit bounded max loss (R$10.00 / R$30.00 < 1) does not
+    // fit the same budget, so the corrected divisor makes this genuinely unsizeable.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unaffordable_budget" });
+  });
+
+  it("sizes a married put (no short leg) on the premium paid, since its bounded max loss stays under the premium (#131)", () => {
+    const marriedPutView: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4P28", "28.00"), right: "put" }],
+      optionPrices: [
+        {
+          ticker: "PETR4P28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const marriedPutStructure: Structure = {
+      id: "married-put",
+      name: "Married put",
+      expiry: "shared",
+      legs: [
+        { role: "stock", side: "buy", ratio: 1 },
+        { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: marriedPutView,
+        at,
+        legs: {
+          structure: marriedPutStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    // Premium paid is R$31.00/unit (stock 30.00 + put 1.00); the protective put caps the
+    // per-unit max loss at R$3.00 (stock falls to 0, put intrinsic 28.00 nets most of it
+    // back), strictly under the premium, so unitsFromPerUnit divides by the premium: floor
+    // (500000 / 3100) = 161 units, unchanged from before #131 (no short leg here).
+    expect(result.value.maxLoss).toBeLessThan(161 * 3100);
+    expect(result.value.legs[0]?.leg.quantity).toBe(161);
+    expect(result.value.legs[1]?.leg.quantity).toBe(161);
+  });
+
+  it("sizes a pure long-call debit structure unchanged by the #131 fix (max loss equals the premium paid)", () => {
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: {
+          structure: oneLegStructure,
+          underlying: "PETR4",
+          strikes: [{ kind: "nearest", price: decimalString("28.00") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    if (result.value.maxLoss === "unbounded") throw new Error("maxLoss must be bounded here");
+    // Premium is R$3.00/unit; budget is R$5,000: floor(500000 / 300) = 1666 units, the same
+    // figure fixed_fractional gave before #131 (a single long call has no short leg, so its
+    // max loss equals the premium paid).
+    expect(result.value.legs[0]?.leg.quantity).toBe(1666);
+    expect(result.value.maxLoss).toBe(1666 * 300);
+  });
+
+  it("returns unsizeable(unbounded_max_loss) for a fixed_fractional net-debit ratio spread with unbounded max loss (#131)", () => {
+    const unboundedDebitView: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("5.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "PETR4C32",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("1.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const ratioSpreadStructure: Structure = {
+      id: "long-call-short-two-calls",
+      name: "Long call, short two calls",
+      expiry: "shared",
+      legs: [
+        { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "sell", ratio: 2, strikeRank: 2 },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view: unboundedDebitView,
+        at,
+        legs: {
+          structure: ratioSpreadStructure,
+          underlying: "PETR4",
+          strikes: [
+            { kind: "nearest", price: decimalString("28.00") },
+            { kind: "nearest", price: decimalString("32.00") },
+          ],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          quantity: { kind: "fixed_fractional", fraction: decimalString("0.5") },
+        },
+        riskProfile: {
+          declaredCapital: centavos(10_000_00),
+          limits: {
+            maxLossPerOperation: decimalString("1"),
+            maxExposurePerOperation: decimalString("1"),
+            maxOpenOperations: 5,
+            maxPremiumBought: decimalString("1"),
+          },
+        },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "unsizeable", reason: "unbounded_max_loss" });
+  });
+
   it("returns unsizeable(unbounded_max_loss) for a fixed_fractional net-credit naked short call", () => {
     const shortCallStructure: Structure = {
       id: "naked-short-call-fractional",
@@ -2912,5 +3218,95 @@ describe("priceOperation (selection: quantity resolution)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toEqual({ code: "unsizeable", reason: "unbounded_max_loss" });
+  });
+
+  it("fixed_fractional never sizes a bounded structure past its declared budget: units × per-unit max loss ≤ capital × fraction (#131)", () => {
+    const shortPutLongCallStructure: Structure = {
+      id: "short-put-long-call-property",
+      name: "Short put, long call",
+      expiry: "shared",
+      legs: [
+        { role: "put", side: "sell", ratio: 1, strikeRank: 1 },
+        { role: "call", side: "buy", ratio: 1, strikeRank: 2 },
+      ],
+    };
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 20, max: 80 }),
+        fc.integer({ min: 1, max: 40 }),
+        fc.integer({ min: 1, max: 2000 }),
+        fc.integer({ min: 1, max: 2000 }),
+        fc.integer({ min: 1, max: 99 }),
+        (putStrike, width, putPremiumCents, callPremiumCents, fractionPercent) => {
+          const callStrike = putStrike + width;
+          const capital = 10_000_00;
+          const propertyView: MarketView = {
+            ...baseView,
+            optionSeries: [
+              { ...callSeries("PETR4PP", String(putStrike)), right: "put" },
+              callSeries("PETR4CP", String(callStrike)),
+            ],
+            optionPrices: [
+              {
+                ticker: "PETR4PP",
+                session: "2024-01-02",
+                asOf: at,
+                average: null,
+                close: decimalString((putPremiumCents / 100).toFixed(2)),
+                trades: 1,
+                tradedQuantity: 1,
+              },
+              {
+                ticker: "PETR4CP",
+                session: "2024-01-02",
+                asOf: at,
+                average: null,
+                close: decimalString((callPremiumCents / 100).toFixed(2)),
+                trades: 1,
+                tradedQuantity: 1,
+              },
+            ],
+          };
+          const result = priceOperation(
+            {
+              view: propertyView,
+              at,
+              legs: {
+                structure: shortPutLongCallStructure,
+                underlying: "PETR4",
+                strikes: [
+                  { kind: "nearest", price: decimalString(String(putStrike)) },
+                  { kind: "nearest", price: decimalString(String(callStrike)) },
+                ],
+                expiry: { kind: "business_days", min: 1, max: 30 },
+                quantity: {
+                  kind: "fixed_fractional",
+                  fraction: decimalString((fractionPercent / 100).toFixed(2)),
+                },
+              },
+              riskProfile: {
+                declaredCapital: centavos(capital),
+                limits: {
+                  maxLossPerOperation: decimalString("1"),
+                  maxExposurePerOperation: decimalString("1"),
+                  maxOpenOperations: 5,
+                  maxPremiumBought: decimalString("1"),
+                },
+              },
+            },
+            provenanceBase,
+          );
+          if (!result.ok) {
+            return (
+              result.error.code === "unsizeable" && result.error.reason === "unaffordable_budget"
+            );
+          }
+          if (result.value.maxLoss === "unbounded") return false;
+          const budget = new Decimal(capital).mul(fractionPercent).div(100);
+          return new Decimal(result.value.maxLoss).lte(budget);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });
