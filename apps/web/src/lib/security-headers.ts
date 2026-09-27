@@ -18,9 +18,10 @@ export const securityHeaders = [
   },
 ];
 
-// The complement of the proxy matcher (src/proxy.ts). A document must not
-// also get this header: Next reads the nonce from the request's
+// The paths the proxy matcher (src/proxy.ts) excludes by name. A document
+// must not also get this header: Next reads the nonce from the request's
 // Content-Security-Policy, and on Vercel a static one reaches the render.
+// Router prefetches, which the proxy also skips, get neither policy.
 export const nonDocumentSources = [
   "/api/:path*",
   "/_next/:path*",

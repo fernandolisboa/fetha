@@ -68,5 +68,7 @@ base-uri 'self'; form-action 'self'; object-src 'none'`.
   case-sensitive matcher misses and `headers()` matches) renders Next's not-found page with the
   static policy only, or with both. That is what every path had before, and such pages reflect
   no input.
+- Router prefetches (RSC payloads) and the trailing-slash redirects of excluded paths carry no
+  CSP. Neither is a document, and `X-Frame-Options: DENY` stays on both.
 - There is no `report-uri` in production. An endpoint would need rate limiting and would store
   page URLs, some of which carry an email in the query.

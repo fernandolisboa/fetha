@@ -35,15 +35,30 @@ describe("security headers", () => {
     expect(headers.get("Permissions-Policy")).toContain("camera=()");
   });
 
-  it.each(nonDocuments)("carry the static policy on %s, which the proxy skips", async (path) => {
-    expect((await headersFor(path)).get("Content-Security-Policy")).toBe(
-      "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
-    );
-    expect(unstable_doesMiddlewareMatch({ config, nextConfig, url: path })).toBe(false);
-  });
+  it.each(nonDocuments)(
+    "carry the static policy on %s, which the proxy excludes by name",
+    async (path) => {
+      expect((await headersFor(path)).get("Content-Security-Policy")).toBe(
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      );
+      expect(unstable_doesMiddlewareMatch({ config, nextConfig, url: path })).toBe(false);
+    },
+  );
 
   it.each(documents)("leave the policy of %s to the proxy alone", async (path) => {
     expect((await headersFor(path)).has("Content-Security-Policy")).toBe(false);
     expect(unstable_doesMiddlewareMatch({ config, nextConfig, url: path })).toBe(true);
+  });
+
+  it("leave a router prefetch, which is never a document, with neither policy", async () => {
+    expect((await headersFor("/carteira")).has("Content-Security-Policy")).toBe(false);
+    expect(
+      unstable_doesMiddlewareMatch({
+        config,
+        nextConfig,
+        url: "/carteira",
+        headers: { "next-router-prefetch": "1" },
+      }),
+    ).toBe(false);
   });
 });

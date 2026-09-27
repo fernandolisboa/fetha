@@ -17,7 +17,7 @@ for (const path of ["/", "/entrar"]) {
 }
 
 for (const path of ["/entrar", "/cadastro"]) {
-  test(`${path} stamps its script-policy nonce on every script`, async ({ request }) => {
+  test(`${path} stamps the policy's nonce on every script`, async ({ request }) => {
     await request.get(path);
 
     const response = await request.get(path, {
@@ -38,7 +38,7 @@ for (const path of ["/entrar", "/cadastro"]) {
 }
 
 for (const path of ["/entrar", "/cadastro", "/link-magico", "/redefinir-senha", "/termos"]) {
-  test(`${path} runs without a script-policy violation`, async ({ page }) => {
+  test(`${path} runs without a policy violation`, async ({ page }) => {
     await page.addInitScript(() => {
       const seen: string[] = [];
       Object.assign(window, { cspViolations: seen });
