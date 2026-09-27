@@ -1,0 +1,1 @@
+CREATE INDEX "backtest_runs_user_id_id_idx" ON "backtest_runs" USING btree ("user_id","id");
