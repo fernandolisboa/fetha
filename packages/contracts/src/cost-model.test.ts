@@ -25,6 +25,18 @@ describe("costModelSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a separate option fee rate, and a model without one", () => {
+    const withOptionRate = { ...costModel, b3OptionFeeRate: "0.00134" };
+    expect(costModelSchema.parse(withOptionRate)).toEqual(withOptionRate);
+    expect(costModelSchema.parse(costModel)).not.toHaveProperty("b3OptionFeeRate");
+  });
+
+  it("rejects a negative option fee rate", () => {
+    expect(costModelSchema.safeParse({ ...costModel, b3OptionFeeRate: "-0.001" }).success).toBe(
+      false,
+    );
+  });
+
   it("rejects negative fee and slippage rates", () => {
     expect(costModelSchema.safeParse({ ...costModel, b3FeeRate: "-0.0003" }).success).toBe(false);
     expect(costModelSchema.safeParse({ ...costModel, optionSlippageRate: "-0.01" }).success).toBe(

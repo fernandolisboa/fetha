@@ -2339,3 +2339,12 @@ ADR-0039 records the full reasoning (the field had been a pure function of `reas
 addendum just above, `apps/web` gained its own typed vocabulary for the outcomes it authors itself,
 and the change-policy rule stated earlier in this document applies: `EvaluationRecord` is never
 checkpointed or persisted as a JSON blob, so this is not a persistence-breaking shape change).
+
+## Addendum: an option-premium B3 fee beside `b3FeeRate` (2026-09-27, #89, see ADR-0040)
+
+The "Fills" rule that a single `b3FeeRate` covers every fill is superseded for option fills.
+`CostModel` gains an optional `b3OptionFeeRate`, charged on an option fill's gross premium when the
+cost model carries it; `b3FeeRate` stays the fee on every stock fill, including the stock delivered
+at expiry or exercise. A cost model stored before ADR-0040 has no `b3OptionFeeRate` and keeps the
+single-rate behavior, and its config digest is unchanged, so `ENGINE_VERSION` is not bumped under
+the change policy stated earlier in this document.

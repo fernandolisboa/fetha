@@ -548,7 +548,14 @@ describe("decisions #73 optionPerContract -> optionPerOrder migration (0016_opti
 
     const mine = await repository.listMine();
     const migrated = mine.find((entry) => entry.id === recorded.id);
-    expect(migrated?.costModel).toEqual(DEFAULT_COST_MODEL);
+    const preAdr0040CostModel = {
+      b3FeeRate: DEFAULT_COST_MODEL.b3FeeRate,
+      brokerage: DEFAULT_COST_MODEL.brokerage,
+      optionSlippageRate: DEFAULT_COST_MODEL.optionSlippageRate,
+      incomeTaxRate: DEFAULT_COST_MODEL.incomeTaxRate,
+      monthlyStockSalesExemption: DEFAULT_COST_MODEL.monthlyStockSalesExemption,
+    };
+    expect(migrated?.costModel).toEqual(preAdr0040CostModel);
 
     const { rows } = await db.execute(
       sql`select cost_model from decisions where id = ${recorded.id}`,

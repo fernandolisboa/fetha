@@ -370,12 +370,12 @@ describe("scoreDueDecisions with the real engine", () => {
   // something to re-price the snapshotted stock leg against at `decidedAt`:
   // entryPrice R$ 40,00. A candle at `horizonSession` marks it to R$ 45,00.
   // Gross pnl = (45 - 40) * 100 (centavos/real) * 100 (quantity) =
-  // 50 000 centavos, less the B3 fee on the R$ 4 000,00 entry (0.05% =>
-  // 200 centavos) = 49 800 centavos (the taken-operation pnl subtracts its
+  // 50 000 centavos, less the B3 fee on the R$ 4 000,00 entry (0.03% =>
+  // 120 centavos) = 49 880 centavos (the taken-operation pnl subtracts its
   // own entry costs under the cost model, the same rule the counterfactual
   // below already followed). maxLoss (long stock, unbounded upside) =
   // entryPrice * quantity * 100 = 400 000 centavos. normalizedPnl =
-  // 49 800 / 400 000 = 0.1245.
+  // 49 880 / 400 000 = 0.1247.
   it("scores an enter decision's operation_pnl_positive claim with pnl, maxLoss and normalizedPnl", async () => {
     const db = getDb();
     await ensureStockStructure();
@@ -427,11 +427,11 @@ describe("scoreDueDecisions with the real engine", () => {
     const scores = await scoresRepository.findForDecisions([decision.id]);
     const row = scores.get(decision.id);
     expect(row).toBeDefined();
-    expect(row?.pnlCentavos).toBe(49800);
+    expect(row?.pnlCentavos).toBe(49880);
     expect(row?.maxLossCentavos).toBe(400000);
     expect(row?.maxLossUnbounded).toBe(false);
     expect(row?.normalizedPnl ? new Decimal(row.normalizedPnl).toString() : null).toEqual(
-      new Decimal("0.1245").toString(),
+      new Decimal("0.1247").toString(),
     );
     expect(row?.claimHeld).toBe(true);
   });
@@ -440,8 +440,8 @@ describe("scoreDueDecisions with the real engine", () => {
   // the counterfactual buys the leg the first session after `decidedSession`
   // (session open R$ 40,00, same as the entry candle) and marks it to
   // `horizonSession`'s R$ 45,00 close. Gross pnl 50 000 centavos, less the
-  // B3 fee on the R$ 4 000,00 entry (0.05% => 200 centavos) =
-  // 49 800 centavos.
+  // B3 fee on the R$ 4 000,00 entry (0.03% => 120 centavos) =
+  // 49 880 centavos.
   it("scores a do_not_enter decision's operation_pnl_positive claim with a counterfactualPnl", async () => {
     const db = getDb();
     await ensureStockStructure();
@@ -498,7 +498,7 @@ describe("scoreDueDecisions with the real engine", () => {
     expect(row).toBeDefined();
     expect(row?.pnlCentavos).toBe(0);
     expect(row?.maxLossCentavos).toBe(400000);
-    expect(row?.counterfactualPnlCentavos).toBe(49800);
+    expect(row?.counterfactualPnlCentavos).toBe(49880);
     expect(row?.claimHeld).toBe(true);
   });
 });
@@ -513,8 +513,8 @@ describe("scoreDueDecisions on a held operation", () => {
   const PARTIAL_EXIT = "2024-07-03";
   const HORIZON = "2024-07-08";
   const SESSIONS = [OPENED, DECIDED, PARTIAL_EXIT, "2024-07-04", "2024-07-05", HORIZON];
-  // DEFAULT_COST_MODEL's entry cost of 100 shares at R$ 30,00: 0,05% of R$ 3.000,00.
-  const ENTRY_COSTS = 150;
+  // DEFAULT_COST_MODEL's entry cost of 100 shares at R$ 30,00: 0,03% of R$ 3.000,00.
+  const ENTRY_COSTS = 90;
 
   async function heldDecision(kind: "hold" | "exit") {
     const db = getDb();
@@ -619,10 +619,10 @@ describe("scoreDueDecisions on a held operation with an expired option", () => {
     EXPIRY,
   ];
   const AFTER_EXPIRY = ["2024-08-12", "2024-08-13", "2024-08-14", "2024-08-15", "2024-08-16"];
-  // DEFAULT_COST_MODEL's entry costs: 0,05% of R$ 100,00 plus R$ 0,99
-  // brokerage on the put, 0,05% of R$ 3.000,00 on the delivered stock.
-  const PUT_ENTRY_COSTS = 5 + 99;
-  const STOCK_ENTRY_COSTS = 150;
+  // DEFAULT_COST_MODEL's entry costs: 0,134% of a R$ 100,00 premium plus R$ 0,99
+  // brokerage on the put, 0,03% of R$ 3.000,00 on the delivered stock.
+  const PUT_ENTRY_COSTS = 13 + 99;
+  const STOCK_ENTRY_COSTS = 90;
   const removals: (() => Promise<void>)[] = [];
 
   afterEach(async () => {

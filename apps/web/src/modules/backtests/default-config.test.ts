@@ -16,4 +16,11 @@ describe("DEFAULT_COST_MODEL", () => {
     const realisticMonthlySales = 100_000_00;
     expect(DEFAULT_COST_MODEL.monthlyStockSalesExemption).toBeLessThan(realisticMonthlySales);
   });
+
+  // B3's published per-side rates for a retail investor, non-day-trade (ADR-0040): shares in the
+  // lowest ADTV tier pay 0,0300% of the traded value, option premiums 0,1340%.
+  it("charges B3's published cash-equity and option-premium rates", () => {
+    expect(DEFAULT_COST_MODEL.b3FeeRate).toBe("0.0003");
+    expect(DEFAULT_COST_MODEL.b3OptionFeeRate).toBe("0.00134");
+  });
 });

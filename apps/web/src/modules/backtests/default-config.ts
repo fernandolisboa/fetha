@@ -8,16 +8,21 @@ function centavos(value: number): Centavos {
   return value as Centavos;
 }
 
-// The B3 defaults ADR-0004 names: emolument on the gross traded value (B3's
-// published Tarifa de Negociação), zero stock brokerage, a flat per-order
-// option brokerage, a small option slippage, the simplified 15% monthly
-// income tax and the R$ 20.000 monthly stock-sales exemption (ADR-0004,
-// income-tax law 11.033/2004 art. 3 II). A run's cost model input (the
-// ticket's "cost model" acceptance criterion) starts from a preset the
-// create-run form lets the owner pick between (see COST_MODEL_PRESETS);
-// nothing in v1 lets the owner edit a preset's individual fields further.
+// The B3 defaults ADR-0004 names, with B3's fees as ADR-0040 reads them from B3's published
+// tariff pages for a retail investor, non-day-trade, per side, read 2026-09-27:
+// - shares ("Ações à vista", ADTV up to R$ 3 milhões): Negociação 0,00500% + CCP 0,02240%
+//   + TTA 0,0026% = 0,0300% of the traded value;
+// - option premiums ("Opções de Ações", "Pessoas físicas e demais investidores"): Negociação
+//   0,0370% + Liquidação 0,0275% + Registro 0,0695% = 0,1340% of the premium; an exercise is
+//   charged as shares.
+// Custódia is a monthly charge on the held balance, not a per-trade rate, so it is not modeled.
+// Also zero stock brokerage, a flat per-order option brokerage, a small option slippage, the
+// simplified 15% monthly income tax and the R$ 20.000 monthly stock-sales exemption (income-tax
+// law 11.033/2004 art. 3 II). A run starts from a preset the create-run form lets the owner pick
+// (see COST_MODEL_PRESETS); nothing in v1 lets the owner edit a preset's individual fields.
 export const DEFAULT_COST_MODEL: CostModel = {
-  b3FeeRate: decimalString("0.0005"),
+  b3FeeRate: decimalString("0.0003"),
+  b3OptionFeeRate: decimalString("0.00134"),
   brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(99) },
   optionSlippageRate: decimalString("0.001"),
   incomeTaxRate: decimalString("0.15"),

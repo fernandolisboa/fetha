@@ -45,13 +45,26 @@ describe("grossCentavos", () => {
 describe("fillCosts", () => {
   it("charges the stock brokerage for a stock fill", () => {
     // gross = 10.00 * 100 * 100(centavos) = 100_000; b3Fee = 100_000 * 0.0003 = 30
-    expect(fillCosts(costModel, decimalString("10.00"), 100)).toBe(centavos(130));
+    expect(fillCosts(costModel, decimalString("10.00"), 100, "stock")).toBe(centavos(130));
   });
 
   it("charges the option brokerage for an option fill", () => {
     expect(fillCosts(costModel, decimalString("2.00"), 10, "option")).toBe(
       centavos(Math.round(2.0 * 10 * 100 * 0.0003) + 50),
     );
+  });
+
+  it("charges b3OptionFeeRate on an option fill's premium when the model carries one", () => {
+    const withOptionRate: CostModel = { ...costModel, b3OptionFeeRate: decimalString("0.00134") };
+    // gross = 2.00 * 1_000 * 100(centavos) = 200_000; b3Fee = 200_000 * 0.00134 = 268
+    expect(fillCosts(withOptionRate, decimalString("2.00"), 1_000, "option")).toBe(
+      centavos(268 + 50),
+    );
+  });
+
+  it("keeps b3FeeRate on a stock fill when the model carries an option rate", () => {
+    const withOptionRate: CostModel = { ...costModel, b3OptionFeeRate: decimalString("0.00134") };
+    expect(fillCosts(withOptionRate, decimalString("10.00"), 100, "stock")).toBe(centavos(130));
   });
 });
 

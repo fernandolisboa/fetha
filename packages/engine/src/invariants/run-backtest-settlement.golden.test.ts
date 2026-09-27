@@ -345,3 +345,51 @@ describe("settleLeg strike precision (#72 review finding 1)", () => {
     expect(op.settlement[1]?.fills[0]?.price).toBe("11.00499");
   });
 });
+
+// ADR-0040: an option fill pays b3OptionFeeRate on its premium, while the stock delivered at
+// expiry is charged as shares (b3FeeRate), as B3 charges an exercise at the cash-equity rates.
+describe("B3 fee by instrument class (ADR-0040)", () => {
+  const coveredCall: Structure = {
+    id: "covered_call",
+    name: "Covered call",
+    expiry: "shared",
+    legs: [
+      { role: "stock", side: "buy", ratio: 1 },
+      { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+    ] as LegTemplate[],
+  };
+
+  it("charges the option rate on the option fill and the share rate on the delivered stock", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "15.00", "15.00")),
+      optionSeries: [callOrPutSeries("PETR4C11", "call", "11.00")],
+      optionPrices: days.slice(0, 12).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    const base = config("covered_call", coveredCall, ["11.00"]);
+    const input = {
+      view,
+      config: {
+        ...base,
+        costModel: { ...base.costModel, b3OptionFeeRate: decimalString("0.00134") },
+      },
+    };
+    const result = runBacktest(input);
+    if (!result.ok || result.value.status !== "complete") {
+      throw new Error("expected a complete run for the fee fixture");
+    }
+    const { fills } = result.value.run;
+    const feeOn = (price: string, quantity: number, rate: string) =>
+      new Decimal(price).mul(100).mul(quantity).mul(rate).round().toNumber();
+
+    const optionFill = fills.find((f) => f.ticker === "PETR4C11");
+    const deliveredStock = fills.find((f) => f.source === "settlement");
+    if (!optionFill || !deliveredStock) throw new Error("expected an option fill and a delivery");
+
+    expect(optionFill.costs).toBe(feeOn(optionFill.price, optionFill.quantity, "0.00134"));
+    expect(deliveredStock.costs).toBe(
+      feeOn(deliveredStock.price, deliveredStock.quantity, "0.0005") + 100,
+    );
+  });
+});
