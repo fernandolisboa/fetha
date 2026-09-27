@@ -19,7 +19,9 @@ export function fillCosts(
   kind: "stock" | "option" = "stock",
 ): Centavos {
   const gross = grossCentavos(price, quantity);
-  const b3Fee = gross.mul(parseDecimal(costModel.b3FeeRate)).round().toNumber();
+  const feeRate =
+    kind === "option" ? (costModel.b3OptionFeeRate ?? costModel.b3FeeRate) : costModel.b3FeeRate;
+  const b3Fee = gross.mul(parseDecimal(feeRate)).round().toNumber();
   const brokerage =
     kind === "option" ? costModel.brokerage.optionPerOrder : costModel.brokerage.stockPerOrder;
   return toCentavos(b3Fee + brokerage);

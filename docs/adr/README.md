@@ -45,5 +45,6 @@ supersedes or amends them and says so.
 | 0037 | Discarding a stuck backtest run, and listing runs in progress across strategies (amends 0032)                    |
 | 0038 | `fixed_fractional` sizes a net-debit structure on max(premium, bounded max loss) (amends 0013)                   |
 | 0039 | A typed web-authored evaluation vocabulary; `EvaluationRecord.detail` removed (amends 0013)                      |
+| 0040 | B3 fees charged by instrument class: an option-premium rate beside the cash-equity rate (amends 0004, 0013)      |
 
 Open: none.

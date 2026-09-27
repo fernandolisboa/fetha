@@ -591,8 +591,15 @@ describe("backtest_runs #73 optionPerContract -> optionPerOrder migration (0016_
     });
 
     const migrated = await repository.findMine(run.id);
-    expect(migrated.costModel).toEqual(DEFAULT_COST_MODEL);
-    expect(migrated.result?.config.costModel).toEqual(DEFAULT_COST_MODEL);
+    const preAdr0040CostModel = {
+      b3FeeRate: DEFAULT_COST_MODEL.b3FeeRate,
+      brokerage: DEFAULT_COST_MODEL.brokerage,
+      optionSlippageRate: DEFAULT_COST_MODEL.optionSlippageRate,
+      incomeTaxRate: DEFAULT_COST_MODEL.incomeTaxRate,
+      monthlyStockSalesExemption: DEFAULT_COST_MODEL.monthlyStockSalesExemption,
+    };
+    expect(migrated.costModel).toEqual(preAdr0040CostModel);
+    expect(migrated.result?.config.costModel).toEqual(preAdr0040CostModel);
 
     const { rows } = await db.execute(
       sql`select cost_model, result from backtest_runs where id = ${run.id}`,
