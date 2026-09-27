@@ -9,7 +9,6 @@ const en = {
     subtitle: "Register to start studying and backtesting your own strategies.",
     nameLabel: "Name",
     emailLabel: "Email",
-    passwordLabel: "Password",
     termsLabel: "I accept the terms of use",
     privacyLabel: "I accept the privacy policy",
     submit: "Register",
@@ -29,17 +28,24 @@ const en = {
   },
   verifyEmail: {
     title: "Confirm your registration",
-    body: "We sent a confirmation link to {email}. Click the link to confirm your registration.",
+    body: "We sent a confirmation link to {email}. Open it to confirm your email and choose your password.",
     resend: "Resend email",
     resent: "We sent the email again.",
   },
   verificationResult: {
     successTitle: "Email confirmed",
-    successBody: "Your email is confirmed. You can sign in now.",
+    successBody:
+      "Your email is confirmed. Sign in with your password or, if you haven't chosen one yet, with a magic link.",
     errorTitle: "We couldn't confirm your email",
     errorBody: "This confirmation link is invalid or has expired. Request a new one below.",
     signInLink: "Go to sign-in",
     resendLink: "Request a new confirmation link",
+  },
+  setPassword: {
+    title: "Choose your password",
+    subtitle: "Your email is confirmed. Choose the password you'll use to sign in.",
+    newPasswordLabel: "Password",
+    submit: "Save password",
   },
   magicLink: {
     title: "Sign in with a magic link",
@@ -105,11 +111,12 @@ const en = {
     invalidResetToken: "This link is invalid or has expired.",
     invalidPassword: "Incorrect password.",
     deleteAccountFailed: "We couldn't delete your account. Try again.",
+    setPasswordFailed: "We couldn't save your password. Try again.",
   },
   verificationEmail: {
     subject: "Confirm your email at Fetha",
-    text: "Hello. Confirm your email to start using Fetha: {url}\n\nIf you didn't create this account, ignore this email.",
-    html: '<p>Hello.</p><p>Confirm your email to start using Fetha:</p><p><a href="{url}">{url}</a></p><p>If you didn\'t create this account, ignore this email.</p>',
+    text: "Hello. Confirm your email and choose your password to start using Fetha: {url}\n\nIf you didn't create this account, ignore this email.",
+    html: '<p>Hello.</p><p>Confirm your email and choose your password to start using Fetha:</p><p><a href="{url}">{url}</a></p><p>If you didn\'t create this account, ignore this email.</p>',
   },
   magicLinkEmail: {
     subject: "Your Fetha magic link",
@@ -133,7 +140,6 @@ const ptBR = {
     subtitle: "Cadastre-se para estudar e testar suas próprias estratégias.",
     nameLabel: "Nome",
     emailLabel: "E-mail",
-    passwordLabel: "Senha",
     termsLabel: "Aceito os termos de uso",
     privacyLabel: "Aceito a política de privacidade",
     submit: "Criar conta",
@@ -153,17 +159,24 @@ const ptBR = {
   },
   verifyEmail: {
     title: "Confirme seu cadastro",
-    body: "Enviamos um link de confirmação para {email}. Clique no link para confirmar seu cadastro.",
+    body: "Enviamos um link de confirmação para {email}. Abra o link para confirmar seu e-mail e criar sua senha.",
     resend: "Reenviar e-mail",
     resent: "Enviamos o e-mail novamente.",
   },
   verificationResult: {
     successTitle: "E-mail confirmado",
-    successBody: "Seu e-mail foi confirmado. Você já pode entrar.",
+    successBody:
+      "Seu e-mail está confirmado. Entre com sua senha ou, se ainda não criou uma, com um link mágico.",
     errorTitle: "Não foi possível confirmar seu e-mail",
     errorBody: "Esse link de confirmação é inválido ou expirou. Peça um novo abaixo.",
     signInLink: "Ir para a tela de entrada",
     resendLink: "Pedir um novo link de confirmação",
+  },
+  setPassword: {
+    title: "Crie sua senha",
+    subtitle: "Seu e-mail está confirmado. Escolha a senha que você vai usar para entrar.",
+    newPasswordLabel: "Senha",
+    submit: "Salvar senha",
   },
   magicLink: {
     title: "Entrar com link mágico",
@@ -229,11 +242,12 @@ const ptBR = {
     invalidResetToken: "Esse link é inválido ou expirou.",
     invalidPassword: "Senha incorreta.",
     deleteAccountFailed: "Não foi possível excluir sua conta. Tente novamente.",
+    setPasswordFailed: "Não foi possível salvar sua senha. Tente novamente.",
   },
   verificationEmail: {
     subject: "Confirme seu e-mail no Fetha",
-    text: "Olá! Confirme seu e-mail para começar a usar o Fetha: {url}\n\nSe você não criou esta conta, ignore este e-mail.",
-    html: '<p>Olá!</p><p>Confirme seu e-mail para começar a usar o Fetha:</p><p><a href="{url}">{url}</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>',
+    text: "Olá! Confirme seu e-mail e crie sua senha para começar a usar o Fetha: {url}\n\nSe você não criou esta conta, ignore este e-mail.",
+    html: '<p>Olá!</p><p>Confirme seu e-mail e crie sua senha para começar a usar o Fetha:</p><p><a href="{url}">{url}</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>',
   },
   magicLinkEmail: {
     subject: "Seu link mágico do Fetha",

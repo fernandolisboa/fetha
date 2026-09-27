@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { purgeExpiredAccessLog } from "@/modules/audit";
+import { purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueDecisions } from "@/modules/decisions";
 import { ingest, type IngestOutcome } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -80,9 +81,11 @@ async function runIngestion(session: string | undefined): Promise<NextResponse> 
 
   // Access-log retention (docs/adr/0027): reported alongside, never a 500.
   const accessLogPurge = await purgeExpiredAccessLog(db);
+  // Unverified-account retention (docs/adr/0016, #39): same shape.
+  const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
 
   return NextResponse.json(
-    { ...result, evaluation, scoring, accessLogPurge },
+    { ...result, evaluation, scoring, accessLogPurge, unverifiedAccountPurge },
     { status: result.ok ? 200 : 500 },
   );
 }

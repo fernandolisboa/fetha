@@ -18,7 +18,6 @@ export const nameField = z
 export const signUpFormSchema = z.object({
   name: nameField,
   email: emailField,
-  password: z.string().min(8).max(128),
   termsAccepted: z.boolean(),
   privacyAccepted: z.boolean(),
 });
@@ -43,9 +42,15 @@ export const deleteAccountFormSchema = z.object({
   password: z.string().min(1),
 });
 
+const newPasswordField = z.string().min(8).max(128);
+
 export const resetPasswordFormSchema = z.object({
   token: z.string().min(1),
-  newPassword: z.string().min(8).max(128),
+  newPassword: newPasswordField,
+});
+
+export const setPasswordFormSchema = z.object({
+  newPassword: newPasswordField,
 });
 
 // The "check your email" screens read the address back from a query param

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { readLatestLink, signUp } from "./support";
+import { confirmEmailAndSetPassword, readLatestLink, signUp } from "./support";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app pnpm --filter @fetha/web test:e2e
@@ -21,15 +21,11 @@ test("password reset lets the user sign in with a new password", async ({
   const oldPassword = "correct-horse-battery-staple";
   const newPassword = "another-correct-horse-battery";
 
-  await signUp(page, {
-    name: "Password Reset User",
-    email,
-    password: oldPassword,
-  });
+  await signUp(page, { name: "Password Reset User", email });
 
   const verificationLink = await readLatestLink(request, baseURL, email, secret);
-  await page.goto(verificationLink);
-  await expect(page.getByText("E-mail confirmado")).toBeVisible();
+  await confirmEmailAndSetPassword(page, verificationLink, oldPassword, baseURL);
+  await page.context().clearCookies();
 
   await page.goto("/redefinir-senha");
   await page.getByLabel("E-mail").fill(email);

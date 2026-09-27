@@ -34,7 +34,6 @@ async function throttleSignUp(): Promise<void> {
 export interface SignUpFields {
   name: string;
   email: string;
-  password: string;
 }
 
 // The module-level throttle state above only holds across sign-ups within a
@@ -52,7 +51,6 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
 
   const nameInput = page.getByLabel("Nome");
   const emailInput = page.getByLabel("E-mail");
-  const passwordInput = page.getByLabel("Senha");
   const termsCheckbox = page.getByRole("checkbox", { name: /Aceito os termos de uso/ });
   const privacyCheckbox = page.getByRole("checkbox", {
     name: /Aceito a política de privacidade/,
@@ -68,7 +66,6 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
     await page.goto("/cadastro");
     await nameInput.fill(fields.name);
     await emailInput.fill(fields.email);
-    await passwordInput.fill(fields.password);
     await termsCheckbox.check();
     await privacyCheckbox.check();
   };
@@ -93,6 +90,21 @@ export async function signUp(page: Page, fields: SignUpFields): Promise<void> {
   }
 
   await expect(page).toHaveURL(/\/verificar-email\?email=/);
+}
+
+// The password is chosen after the verification link, which signs its
+// opener in (docs/adr/0016, #144); this leaves the page signed in on "/".
+export async function confirmEmailAndSetPassword(
+  page: Page,
+  verificationLink: string,
+  password: string,
+  baseURL: string | undefined,
+): Promise<void> {
+  await page.goto(verificationLink);
+  await expect(page).toHaveURL(/\/definir-senha/);
+  await page.getByLabel("Senha").fill(password);
+  await page.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page).toHaveURL(baseURL ?? "/");
 }
 
 // The one place that reads a captured link back from the E2E-only route

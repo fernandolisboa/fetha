@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { AuthShell, t } from "@/modules/auth";
+import { getDb } from "@/db/client";
+import { AuthShell, getSession, hasPassword, t } from "@/modules/auth";
 
 export const metadata: Metadata = { title: `Fetha · ${t.verificationResult.successTitle}` };
 
@@ -12,6 +14,13 @@ export default async function VerificationResultPage({
 }) {
   const { error } = await searchParams;
   const copy = t.verificationResult;
+
+  if (!error) {
+    const currentUser = await getSession();
+    if (currentUser && !(await hasPassword(getDb(), currentUser))) {
+      redirect("/definir-senha");
+    }
+  }
 
   return (
     <AuthShell title={error ? copy.errorTitle : copy.successTitle}>

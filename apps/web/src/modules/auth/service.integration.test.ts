@@ -6,32 +6,15 @@ import { invites, mailOutbox, session, user } from "./schema";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
+import { registerVerifiedUser } from "./registration-test-support";
 import { resendVerification, signIn, signOut, signUp } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
-import { findLatestVerificationLink } from "./verification-link";
 
 process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 
 function uniqueEmail(label: string): string {
   return `fetha-auth-${label}-${crypto.randomUUID()}@example.com`;
-}
-
-async function extractVerificationToken(email: string): Promise<string> {
-  const link = await findLatestVerificationLink(getDb(), email);
-  if (!link) {
-    throw new Error(`no email was captured for ${email}`);
-  }
-  const token = new URL(link).searchParams.get("token");
-  if (!token) {
-    throw new Error("verification link did not contain a token");
-  }
-  return token;
-}
-
-async function verifyEmail(email: string): Promise<void> {
-  const token = await extractVerificationToken(email);
-  await getAuth().api.verifyEmail({ query: { token } });
 }
 
 const createdEmails: string[] = [];
@@ -72,19 +55,10 @@ describe("registration, verification, login, logout and session expiry", () => {
     const email = uniqueEmail("open");
     createdEmails.push(email);
 
-    const outcome = await signUp(
-      {
-        name: "Nova User",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+    await registerVerifiedUser(
+      { name: "Nova User", email, password: "correct-horse-battery" },
       testHeaders,
     );
-    expect(outcome.status).toBe("ok");
-
-    await verifyEmail(email);
 
     const signInOutcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);
     expect(signInOutcome.status).toBe("ok");
@@ -99,7 +73,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "Closed Mode",
         email,
-        password: "correct-horse-battery",
         termsAccepted: true,
         privacyAccepted: true,
       },
@@ -120,7 +93,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "No Invite",
         email,
-        password: "correct-horse-battery",
         termsAccepted: true,
         privacyAccepted: true,
       },
@@ -144,7 +116,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "Invited User",
         email,
-        password: "correct-horse-battery",
         termsAccepted: true,
         privacyAccepted: true,
       },
@@ -165,7 +136,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "No Terms",
         email,
-        password: "correct-horse-battery",
         termsAccepted: false,
         privacyAccepted: true,
       },
@@ -182,7 +152,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "No Privacy",
         email,
-        password: "correct-horse-battery",
         termsAccepted: true,
         privacyAccepted: false,
       },
@@ -217,33 +186,20 @@ describe("registration, verification, login, logout and session expiry", () => {
     const rows = await getDb().select().from(user).where(eq(user.email, email));
     expect(rows).toHaveLength(0);
   });
-  it("returns the same generic outcome on a duplicate email, creating exactly one user row", async () => {
+  it("returns the same generic outcome on a verified email, keeping its one user row", async () => {
     const testHeaders = testRequestHeaders();
     const email = uniqueEmail("duplicate");
     createdEmails.push(email);
 
-    const first = await signUp(
-      {
-        name: "First",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+    await registerVerifiedUser(
+      { name: "First", email, password: "correct-horse-battery" },
       testHeaders,
     );
     const second = await signUp(
-      {
-        name: "Second",
-        email,
-        password: "another-password-here",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+      { name: "Second", email, termsAccepted: true, privacyAccepted: true },
       testHeaders,
     );
 
-    expect(first.status).toBe("ok");
     expect(second.status).toBe("ok");
 
     const rows = await getDb().select().from(user).where(eq(user.email, email));
@@ -251,7 +207,7 @@ describe("registration, verification, login, logout and session expiry", () => {
     expect(rows[0]?.name).toBe("First");
 
     const mail = await getDb().select().from(mailOutbox).where(eq(mailOutbox.to, email));
-    expect(mail).toHaveLength(1);
+    expect(mail).toHaveLength(0);
   });
   it.each([
     [
@@ -291,15 +247,20 @@ describe("registration, verification, login, logout and session expiry", () => {
     const email = uniqueEmail("unverified");
     createdEmails.push(email);
 
-    await signUp(
-      {
-        name: "Unverified",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
-      testHeaders,
+    // Only a direct POST knows the password of an unverified account: the
+    // form sends none (docs/adr/0016, #144).
+    await getAuth().handler(
+      new Request(new URL("/api/auth/sign-up/email", process.env.BETTER_AUTH_URL), {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": uniqueTestIp() },
+        body: JSON.stringify({
+          name: "Unverified",
+          email,
+          password: "correct-horse-battery",
+          termsAccepted: true,
+          privacyAccepted: true,
+        }),
+      }),
     );
 
     const outcome = await signIn({ email, password: "correct-horse-battery" }, testHeaders);
@@ -314,7 +275,6 @@ describe("registration, verification, login, logout and session expiry", () => {
       {
         name: "Resend",
         email,
-        password: "correct-horse-battery",
         termsAccepted: true,
         privacyAccepted: true,
       },
@@ -329,17 +289,10 @@ describe("registration, verification, login, logout and session expiry", () => {
     const email = uniqueEmail("logout");
     createdEmails.push(email);
 
-    await signUp(
-      {
-        name: "Logout",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+    await registerVerifiedUser(
+      { name: "Logout", email, password: "correct-horse-battery" },
       testHeaders,
     );
-    await verifyEmail(email);
 
     const signInResponse = await getAuth().api.signInEmail({
       body: { email, password: "correct-horse-battery" },
@@ -352,31 +305,25 @@ describe("registration, verification, login, logout and session expiry", () => {
     const sessionBefore = await getAuth().api.getSession({ headers });
     expect(sessionBefore).not.toBeNull();
 
+    const [dbUser] = await getDb().select().from(user).where(eq(user.email, email));
+    if (!dbUser) throw new Error("user row missing after sign-up");
+    const rowsBefore = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
+
     await signOut(headers);
 
-    const [dbUser] = await getDb().select().from(user).where(eq(user.email, email));
-    expect(dbUser).toBeDefined();
-    if (!dbUser) throw new Error("user row missing after sign-up");
-
-    const rows = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
-    expect(rows).toHaveLength(0);
+    expect(await getAuth().api.getSession({ headers })).toBeNull();
+    const rowsAfter = await getDb().select().from(session).where(eq(session.userId, dbUser.id));
+    expect(rowsAfter).toHaveLength(rowsBefore.length - 1);
   });
   it("treats an expired session as unauthenticated", async () => {
     const testHeaders = testRequestHeaders();
     const email = uniqueEmail("expiry");
     createdEmails.push(email);
 
-    await signUp(
-      {
-        name: "Expiry",
-        email,
-        password: "correct-horse-battery",
-        termsAccepted: true,
-        privacyAccepted: true,
-      },
+    await registerVerifiedUser(
+      { name: "Expiry", email, password: "correct-horse-battery" },
       testHeaders,
     );
-    await verifyEmail(email);
 
     const signInResponse = await getAuth().api.signInEmail({
       body: { email, password: "correct-horse-battery" },

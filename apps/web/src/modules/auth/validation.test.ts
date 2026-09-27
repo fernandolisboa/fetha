@@ -6,6 +6,7 @@ import {
   requestPasswordResetFormSchema,
   resendVerificationFormSchema,
   resetPasswordFormSchema,
+  setPasswordFormSchema,
   signInFormSchema,
   signUpFormSchema,
 } from "./validation";
@@ -15,23 +16,11 @@ describe("signUpFormSchema", () => {
     const parsed = signUpFormSchema.parse({
       name: "  Nova User  ",
       email: "  Nova@Example.com ",
-      password: "correct-horse-battery",
       termsAccepted: true,
       privacyAccepted: true,
     });
     expect(parsed.email).toBe("nova@example.com");
     expect(parsed.name).toBe("Nova User");
-  });
-
-  it("rejects a password shorter than 8 characters", () => {
-    const result = signUpFormSchema.safeParse({
-      name: "Nova User",
-      email: "nova@example.com",
-      password: "short",
-      termsAccepted: true,
-      privacyAccepted: true,
-    });
-    expect(result.success).toBe(false);
   });
 
   it.each([
@@ -48,7 +37,6 @@ describe("signUpFormSchema", () => {
     const result = signUpFormSchema.safeParse({
       name,
       email: "nova@example.com",
-      password: "correct-horse-battery",
       termsAccepted: true,
       privacyAccepted: true,
     });
@@ -59,7 +47,6 @@ describe("signUpFormSchema", () => {
     const result = signUpFormSchema.safeParse({
       name: "João D'Ávila-Souza",
       email: "nova@example.com",
-      password: "correct-horse-battery",
       termsAccepted: true,
       privacyAccepted: true,
     });
@@ -70,7 +57,6 @@ describe("signUpFormSchema", () => {
     const result = signUpFormSchema.safeParse({
       name: "Nova User",
       email: "not-an-email",
-      password: "correct-horse-battery",
       termsAccepted: true,
       privacyAccepted: true,
     });
@@ -131,6 +117,18 @@ describe("resetPasswordFormSchema", () => {
       newPassword: "correct-horse-battery",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("setPasswordFormSchema", () => {
+  it("accepts a password of 8 to 128 characters", () => {
+    expect(setPasswordFormSchema.safeParse({ newPassword: "12345678" }).success).toBe(true);
+    expect(setPasswordFormSchema.safeParse({ newPassword: "x".repeat(128) }).success).toBe(true);
+  });
+
+  it("rejects a password shorter than 8 or longer than 128 characters", () => {
+    expect(setPasswordFormSchema.safeParse({ newPassword: "short" }).success).toBe(false);
+    expect(setPasswordFormSchema.safeParse({ newPassword: "x".repeat(129) }).success).toBe(false);
   });
 });
 

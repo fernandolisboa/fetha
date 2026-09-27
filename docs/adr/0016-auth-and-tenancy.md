@@ -330,4 +330,44 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
 - Follow-ups filed as issues by the orchestrator, deliberately not in this ticket: token-based
   invites (today's invite is keyed by email only, with no secret token in the link — acceptable at
   single-digit-user scale but not a pattern to grow); purging unverified users (an account that
-  never verifies its email is never deleted today).
+  never verifies its email is never deleted today; done, see the 2026-09-27 amendment).
+
+## Amendment (2026-09-27): email-first registration and purge of unverified accounts
+
+Security audit 2026-09-27, C-01 (#144): with registration `open`, anyone could sign up someone
+else's email with a password of their choosing. Verification only flipped `email_verified`, so
+when the mailbox owner later clicked the link the registrant's password kept working, and a
+magic-link sign-in (Better Auth's `revokeUnprovenAccountAccess` runs only while the account is
+still unverified) did not remove it either. The rule now is: **a password on a verified account
+was set by someone who proved they own the mailbox.**
+
+- **Email first.** The sign-up form asks for name, email and the two acceptances, no password.
+  `signUp` sends Better Auth a random 32-byte password that is never stored or shown, since
+  `/sign-up/email` requires one.
+- **The verification link revokes unproven access.** `emailVerification.beforeEmailVerification`
+  deletes every `account` and `session` row of the user being verified (the same cleanup Better
+  Auth's magic link does), so a password posted straight to `/api/auth/sign-up/email` dies at
+  verification. `autoSignInAfterVerification` is now on: Better Auth mints a session only on the
+  click that flips `email_verified`, so the link signs its opener in exactly once.
+- **The opener chooses the password.** `/verificar-email/resultado` sends a signed-in user with no
+  credential password to `/definir-senha`, which calls Better Auth's server-only `setPassword`
+  with that session (`setInitialPassword`); it refuses a second password (`PASSWORD_ALREADY_SET`).
+  If the session is lost before that (another device, a link scanner opening the link first),
+  the account is verified with no password and the owner signs in by magic link or sets one
+  through password reset, which creates the credential when none exists.
+- **Password reset verifies.** `onPasswordReset` marks the account verified: the reset token was
+  delivered to the mailbox, and the password it sets replaces any other.
+- **The latest sign-up replaces a pending one.** When `/sign-up/email` is allowed for an email
+  whose account is still unverified, that account is deleted first, so the latest submitter's
+  name and consent are the ones kept and the verification email goes out. A verified account
+  still gets Better Auth's generic duplicate response and no email.
+- **Purge (#39).** The nightly cron deletes accounts still unverified 24 hours after creation
+  (`purgeUnverifiedAccounts`, reported as `unverifiedAccountPurge`, never failing the run), and
+  their pending reset tokens. 24 hours rather than the one-hour link lifetime keeps a resent link
+  usable through the day; the hijack no longer depends on the purge. An unverified account never
+  had a session, so it owns no domain data. The privacy policy states the rule.
+
+Considered and rejected: keeping the password at sign-up and asking for it again at the link
+(twice the typing and the verified password would still not be proven), and asking for the
+sign-up password on the link page (the owner who never chose it is locked out of their own
+email's account).

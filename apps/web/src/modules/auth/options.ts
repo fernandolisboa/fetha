@@ -29,6 +29,11 @@ import { evaluateRegistrationMode } from "./registration-policy";
 import { resolveRegistrationMode } from "./registration-mode";
 import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
+import {
+  discardUnverifiedAccount,
+  markEmailVerified,
+  revokeUnprovenAccess,
+} from "./unverified-accounts";
 import { emailField, nameField } from "./validation";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
@@ -189,14 +194,24 @@ export function buildAuthOptions(
       // this, a stolen session cookie keeps working even after the account
       // owner resets their password to lock an attacker out.
       revokeSessionsOnPasswordReset: true,
+      onPasswordReset: async ({ user: resetUser }) => {
+        await markEmailVerified(db, resetUser.id);
+      },
       sendResetPassword: async ({ user: resetUser, url }) => {
         const email = buildPasswordResetEmail(url);
         await mailer.send({ to: resetUser.email, ...email });
       },
     },
+    // Email first (docs/adr/0016, #144): whatever password came with the
+    // sign-up is unproven, so opening the link drops it and signs the
+    // mailbox owner in to set their own. Better Auth only signs in on the
+    // click that flips `emailVerified`; later clicks just redirect.
     emailVerification: {
       sendOnSignUp: true,
-      autoSignInAfterVerification: false,
+      autoSignInAfterVerification: true,
+      beforeEmailVerification: async (verifyingUser) => {
+        await revokeUnprovenAccess(db, verifyingUser.id);
+      },
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user: verifyingUser, url }) => {
         const email = buildVerificationEmail(url);
@@ -293,6 +308,9 @@ export function buildAuthOptions(
         const decision = evaluateRegistrationMode(mode, pendingInvite);
         if (!decision.allowed) {
           throw new APIError("FORBIDDEN", { message: decision.reason });
+        }
+        if (email) {
+          await discardUnverifiedAccount(db, email);
         }
       }),
     },

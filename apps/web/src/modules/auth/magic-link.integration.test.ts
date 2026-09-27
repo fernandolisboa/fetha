@@ -6,7 +6,8 @@ import { user, verification } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { getAuth } from "./auth";
-import { signIn, signInMagicLink, signUp } from "./service";
+import { registerVerifiedUser as registerUser } from "./registration-test-support";
+import { signIn, signInMagicLink } from "./service";
 import { testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
@@ -17,31 +18,11 @@ function uniqueEmail(label: string): string {
   return `fetha-magic-link-${label}-${crypto.randomUUID()}@example.com`;
 }
 
-async function verifyEmail(email: string): Promise<void> {
-  const link = await findLatestVerificationLink(getDb(), email);
-  if (!link) {
-    throw new Error(`no email was captured for ${email}`);
-  }
-  const token = new URL(link).searchParams.get("token");
-  if (!token) {
-    throw new Error("verification link did not contain a token");
-  }
-  await getAuth().api.verifyEmail({ query: { token } });
-}
-
-async function registerVerifiedUser(email: string, headers: Headers): Promise<void> {
-  const outcome = await signUp(
-    {
-      name: "Magic Link User",
-      email,
-      password: "correct-horse-battery",
-      termsAccepted: true,
-      privacyAccepted: true,
-    },
+function registerVerifiedUser(email: string, headers: Headers): Promise<void> {
+  return registerUser(
+    { name: "Magic Link User", email, password: "correct-horse-battery" },
     headers,
   );
-  expect(outcome.status).toBe("ok");
-  await verifyEmail(email);
 }
 
 async function captureMagicLinkUrl(email: string): Promise<URL> {

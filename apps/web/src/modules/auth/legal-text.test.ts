@@ -5,6 +5,7 @@ import { ACCESS_LOG_RETENTION_DAYS } from "@/modules/audit";
 import { ACCOUNT_BUCKET_RETENTION_SECONDS } from "./account-rate-limit";
 import { legalText } from "./legal-text";
 import { CURRENT_TERMS_VERSION } from "./terms";
+import { UNVERIFIED_ACCOUNT_RETENTION_HOURS } from "./unverified-accounts";
 
 function versionDate(version: string): string {
   const [year, month, day] = version.split("-");
@@ -44,6 +45,9 @@ describe("legal text", () => {
   it("states the retention the code enforces", () => {
     const text = fullText("ptBR");
     expect(text).toContain(`${String(ACCESS_LOG_RETENTION_DAYS)} dias`);
+    expect(text).toContain(
+      `não for confirmado em ${String(UNVERIFIED_ACCOUNT_RETENTION_HOURS)} horas é apagada`,
+    );
     expect(text).toContain("SHA-256");
     expect(ACCOUNT_BUCKET_RETENTION_SECONDS).toBe(60);
     expect(text).toContain("depois de passado um minuto");

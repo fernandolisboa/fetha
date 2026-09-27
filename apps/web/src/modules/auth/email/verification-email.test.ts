@@ -19,7 +19,7 @@ describe("buildVerificationEmail", () => {
     expect(email.text).not.toContain("{name}");
     expect(email.html).not.toContain("{name}");
     expect(email.text.split("\n")[0]).toBe(
-      "Olá! Confirme seu e-mail para começar a usar o Fetha: https://fetha.app/verify?token=abc",
+      "Olá! Confirme seu e-mail e crie sua senha para começar a usar o Fetha: https://fetha.app/verify?token=abc",
     );
   });
 
