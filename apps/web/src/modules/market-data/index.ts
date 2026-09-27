@@ -10,9 +10,11 @@ export {
   calendarUpTo,
   canSatisfyCollection,
   loadMarketView,
+  loadMarketViewWithCalendarVersion,
   previousTradingSession,
   tradingSessionForDate,
   tradingSessionOnOrAfter,
+  type MarketViewWithCalendarVersion,
 } from "./market-view";
 // Market data is read-only to user-facing code (CLAUDE.md principle 5):
 // upsertDailyCandles/upsertTradingSessions stay module-private, written

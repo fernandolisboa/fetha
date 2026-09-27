@@ -248,8 +248,11 @@ The paused state of a backtest run that has not yet reached `period.to`: a `conf
 it to the exact config that produced it, a cursor session and everything the run needs to resume
 from there. Depends only on rows visible by the cursor session's close (ADR-0013's I7), so a
 chunked run and one uninterrupted call over the same period agree (I2). Valid only for the
-`configDigest`, `engineVersion` and checkpoint schema that produced it, and only when resumed
-with the same calendar the run started with; anything else is `checkpoint_mismatch`.
+`configDigest`, `engineVersion` and checkpoint schema that produced it; any of those mismatching
+is `checkpoint_mismatch`. Calendar identity across chunks is a separate concern the engine does
+not check: the caller (`run-chunk.ts`) reloads the calendar on every chunk and compares its own
+`calendarVersion` stamp, failing with `data_version_changed`, not `checkpoint_mismatch`, on a
+revision (ADR-0013's #90 addendum).
 _Avoid_: snapshot, save state, resume token
 
 **Universe**:

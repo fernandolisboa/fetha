@@ -2381,3 +2381,31 @@ unobserved session, e.g. a month-end tax deduction); `cagr`'s exponent counts th
 post-warm-up span, gaps included (calendar time passed even where no candle was observed), while
 its base still reads the whole curve's final equity. See ADR-0041 for the full account, including
 why `cagr`'s clock and `sessions`' count deliberately read different denominators.
+
+## Addendum: a resumed chunk's calendar is kept identical outside the engine, not by `runBacktest` itself (2026-09-27, #90)
+
+The `runBacktest` entry above states that "a resumed call's `view.calendar` must be the same
+calendar the run started with (`market-data` builds it once from the shared reference data and
+hands it to every chunk)". That sentence describes an intent, not an enforcement mechanism: the
+engine itself never compares one chunk's `view.calendar` to the previous chunk's, and
+`TradingSession` gains no `asOf` field to compare it by — the frozen block above is unchanged.
+
+The identity is enforced by the caller. `apps/web`'s `run-chunk.ts` reloads the calendar on every
+chunk (`market-data`'s `loadMarketViewWithCalendarVersion`, which returns the same view
+`loadMarketView` would alongside the stamp below) and compares a
+`calendarVersion` stamp — `max(as_of)` over the trading sessions the run's window loaded — against
+the one it persisted on the run's first chunk, failing with `data_version_changed` on a mismatch
+the same way it already does for `MarketView.dataVersion`. `calendarVersion` is deliberately kept
+out of `dataVersion` itself: `trading_sessions.as_of` is a wall-clock stamp (moved only by a real
+open/close revision, ADR-0017), not a session-close instant, and folding it into `dataVersion`'s
+`max(asOf)` over market-data collections would let it dominate that max and mask a real revision to
+a candle, corporate action, macro point or the option chain — the defect this addendum's own fix
+corrected. `run-chunk.ts` persists `calendarVersion` in a column next to `dataVersion`
+(`backtest_runs.calendar_version`, migration 0022); a run stamped before that column existed
+carries `null` and is stamped, not failed, on its next chunk, mirroring `dataVersion`'s own
+null-on-first-chunk behavior.
+
+**Known limitation, not fixed here**: `upsertTradingSessions` never deletes a row. A date that
+stops being a trading session (a corrected holiday, say) keeps its old row and its old `as_of`
+forever; nothing in this addendum's mechanism, or in ADR-0017's ingestion, detects that a date
+should no longer be in the calendar at all.

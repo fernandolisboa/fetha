@@ -14,7 +14,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { candles } from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { loadMarketView } from "@/modules/market-data";
+import { loadMarketView, loadMarketViewWithCalendarVersion } from "@/modules/market-data";
 import { upsertTradingSessions } from "@/modules/market-data/repositories/calendar-repository";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { RiskProfileRepository } from "@/modules/portfolio";
@@ -25,15 +25,24 @@ import { BacktestRunRepository } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL } from "./default-config";
 import { runBacktestChunk } from "./run-chunk";
 
-// Wraps the real implementation (the same pattern
+// Wraps the real implementations (the same pattern
 // evaluate-signals.integration.test.ts and actions.integration.test.ts
-// already use): every call still hits the genuine `loadMarketView`, this
-// only records the `DataWindow` each caller built.
+// already use): every call still hits the genuine loader, this only records
+// the `DataWindow` each caller built. evaluate-signals.ts calls
+// `loadMarketView` directly; run-chunk.ts calls
+// `loadMarketViewWithCalendarVersion` instead (it also needs the calendar
+// stamp), so both are wrapped and each test reads from whichever call site
+// it is pinning.
 vi.mock("@/modules/market-data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/market-data")>();
-  return { ...actual, loadMarketView: vi.fn(actual.loadMarketView) };
+  return {
+    ...actual,
+    loadMarketView: vi.fn(actual.loadMarketView),
+    loadMarketViewWithCalendarVersion: vi.fn(actual.loadMarketViewWithCalendarVersion),
+  };
 });
 const loadMarketViewMock = vi.mocked(loadMarketView);
+const loadMarketViewWithCalendarVersionMock = vi.mocked(loadMarketViewWithCalendarVersion);
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;
@@ -136,6 +145,7 @@ const createdEmails: string[] = [];
 
 afterEach(async () => {
   loadMarketViewMock.mockClear();
+  loadMarketViewWithCalendarVersionMock.mockClear();
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
@@ -208,11 +218,13 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     if (backtestOutcome.status === "failed") {
       throw new Error(`backtest chunk failed: ${backtestOutcome.error}`);
     }
-    const backtestCall = loadMarketViewMock.mock.calls.at(0);
+    const backtestCall = loadMarketViewWithCalendarVersionMock.mock.calls.at(0);
     const backtestWindow = backtestCall?.[1];
-    if (!backtestWindow) throw new Error("expected run-chunk.ts to have called loadMarketView");
+    if (!backtestWindow)
+      throw new Error("expected run-chunk.ts to have called loadMarketViewWithCalendarVersion");
 
     loadMarketViewMock.mockClear();
+    loadMarketViewWithCalendarVersionMock.mockClear();
 
     // The signal side: this strategy version has no evaluation-log
     // watermark yet, so evaluate-signals.ts anchors `since` on
@@ -354,12 +366,14 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     if (backtestOutcome.status === "failed") {
       throw new Error(`backtest chunk failed: ${backtestOutcome.error}`);
     }
-    const backtestWindow = loadMarketViewMock.mock.calls.at(0)?.[1];
-    if (!backtestWindow) throw new Error("expected run-chunk.ts to have called loadMarketView");
+    const backtestWindow = loadMarketViewWithCalendarVersionMock.mock.calls.at(0)?.[1];
+    if (!backtestWindow)
+      throw new Error("expected run-chunk.ts to have called loadMarketViewWithCalendarVersion");
     expect(backtestWindow.collections).toContain("optionSeries");
     expect(backtestWindow.collections).toContain("optionPrices");
 
     loadMarketViewMock.mockClear();
+    loadMarketViewWithCalendarVersionMock.mockClear();
 
     await new WatchlistRepository(db, testUser).add(TICKER);
     await new RiskProfileRepository(db, testUser).declare(fixtureRiskProfile());

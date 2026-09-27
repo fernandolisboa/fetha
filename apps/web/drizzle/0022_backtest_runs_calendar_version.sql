@@ -1,0 +1,1 @@
+ALTER TABLE "backtest_runs" ADD COLUMN "calendar_version" text;

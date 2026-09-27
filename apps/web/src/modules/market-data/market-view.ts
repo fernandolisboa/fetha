@@ -164,13 +164,16 @@ export function toEngineCandle(row: CandleRow): Candle {
 }
 
 // `dataVersion` stamps the freshest row this view actually loaded, `max(asOf)`
-// across every populated collection (candles, corporate actions, macro,
-// option series and prices — never the calendar itself: `trading_sessions`
-// carries no `asOf`, so a calendar revision between chunks contributes
-// nothing to this stamp and is not caught by it, round 5 item 9): a
-// backtest run compares this chunk to chunk so a revision to one of those
-// stamped collections cannot silently mix two datasets into one immutable
-// run.
+// across every populated market-data collection (candles, corporate
+// actions, macro, the option chain) — never the calendar: `trading_sessions`
+// carries a wall-clock `as_of` (calendar-repository.ts), not a
+// session-close instant, and folding it into this max would let a
+// migration backfill or an unrevised nightly calendar re-write dominate the
+// stamp and mask a real revision to one of the collections above. A
+// calendar revision inside a backtest's window is caught separately, by the
+// `calendarVersion` `loadMarketViewWithCalendarVersion` below returns
+// alongside the view, which `run-chunk.ts` compares on its own against a
+// stamp it persists next to `dataVersion`.
 function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
   let max: Instant | undefined;
   for (const instant of instants) {
@@ -200,11 +203,37 @@ export interface LoadMarketViewCaps {
 // the same `emptyMarketView`/`toTradingSession`/`toEngineCandle` helpers,
 // for the operation builder's different need (one underlying's chain as of
 // `at`, not a strategy's indicator warm-up window).
+//
+// `calendarVersion` is derived from the same `extendedSessions` rows this
+// call already loads for `calendar` (`max(as_of)` over them), not a second
+// query: a separate round-trip re-deriving "the sessions this window
+// extends to" independently of the view it stamps could resolve a
+// different session set than the one actually returned (round 8 item 3), and
+// a calendar revision landing between two such calls would let a caller
+// persist a stamp for a calendar the view was never built against. Callers
+// that need both `dataVersion` and `calendarVersion` — `run-chunk.ts` — use
+// `loadMarketViewWithCalendarVersion` below; `loadMarketView` is a thin
+// convenience over the same load for every other caller that only needs
+// `dataVersion`.
 export async function loadMarketView(
   db: Database,
   window: DataWindow,
   caps: LoadMarketViewCaps = {},
 ): Promise<MarketView> {
+  const { view } = await loadMarketViewWithCalendarVersion(db, window, caps);
+  return view;
+}
+
+export interface MarketViewWithCalendarVersion {
+  view: MarketView;
+  calendarVersion: Instant | undefined;
+}
+
+export async function loadMarketViewWithCalendarVersion(
+  db: Database,
+  window: DataWindow,
+  caps: LoadMarketViewCaps = {},
+): Promise<MarketViewWithCalendarVersion> {
   const { instruments, from, to, collections } = window;
   const optionChainTickerCap = caps.optionChainTickerCap ?? DEFAULT_OPTION_CHAIN_TICKER_CAP;
   const optionPriceRowCap = caps.optionPriceRowCap ?? DEFAULT_OPTION_PRICE_ROW_CAP;
@@ -361,6 +390,14 @@ export async function loadMarketView(
       : sessions;
   const calendarView = extendedSessions.map(toTradingSession);
 
+  // `run-chunk.ts`'s own calendar-revision stamp, separate from
+  // `dataVersion`: `max(as_of)` over the same `extendedSessions` rows
+  // `calendarView` above was just built from, so it can never cover a
+  // different session set than the view it is returned alongside.
+  const calendarVersion = maxAsOf(
+    extendedSessions.map((row) => instantSchema.parse(row.asOf.toISOString())),
+  );
+
   // No implied-volatility-index ingestion pipeline exists yet (same gap
   // buildOperationMarketView already documents for dividendYields): the
   // window can ask for `impliedVolatilityIndex`, but there is nothing to
@@ -374,16 +411,19 @@ export async function loadMarketView(
   ]);
 
   return {
-    calendar: calendarView,
-    candles: candleView,
-    corporateActions,
-    optionSeries: optionSeriesView,
-    optionPrices,
-    quotes: [],
-    macro,
-    dividendYields: [],
-    impliedVolatilityIndex: [],
-    ...(dataVersion ? { dataVersion } : {}),
+    view: {
+      calendar: calendarView,
+      candles: candleView,
+      corporateActions,
+      optionSeries: optionSeriesView,
+      optionPrices,
+      quotes: [],
+      macro,
+      dividendYields: [],
+      impliedVolatilityIndex: [],
+      ...(dataVersion ? { dataVersion } : {}),
+    },
+    calendarVersion,
   };
 }
 

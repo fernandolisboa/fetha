@@ -16,10 +16,13 @@ import { WatchlistRepository } from "@/modules/watchlist";
 
 let currentUser: CurrentUser | null = null;
 const loadMarketViewSpy = vi.fn();
+const loadMarketViewWithCalendarVersionSpy = vi.fn();
 
-// Wraps the real loadMarketView rather than replacing it: run-chunk.ts still
-// needs it at run time, so the spy only proves *when* it is called, never
-// changes what it returns (round 3 item 1).
+// Wraps the real exports rather than replacing them: run-chunk.ts calls
+// loadMarketViewWithCalendarVersion, not loadMarketView, at run time, so both
+// need a spy or a whole-period load through the other entry point would slip
+// past unnoticed. The spies only prove *when* each is called, never change
+// what either returns.
 vi.mock("@/modules/market-data", async () => {
   const actual =
     await vi.importActual<typeof import("@/modules/market-data")>("@/modules/market-data");
@@ -28,6 +31,12 @@ vi.mock("@/modules/market-data", async () => {
     loadMarketView: (...args: Parameters<typeof actual.loadMarketView>) => {
       loadMarketViewSpy(...args);
       return actual.loadMarketView(...args);
+    },
+    loadMarketViewWithCalendarVersion: (
+      ...args: Parameters<typeof actual.loadMarketViewWithCalendarVersion>
+    ) => {
+      loadMarketViewWithCalendarVersionSpy(...args);
+      return actual.loadMarketViewWithCalendarVersion(...args);
     },
   };
 });
@@ -391,6 +400,7 @@ describe("createBacktestRunAction", () => {
   it("never materialises the whole-period MarketView at creation time, only the narrow candle check (round 3 item 1)", async () => {
     vi.resetModules();
     loadMarketViewSpy.mockClear();
+    loadMarketViewWithCalendarVersionSpy.mockClear();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
     const { StrategiesRepository } = await import("@/modules/strategies");
@@ -462,6 +472,7 @@ describe("createBacktestRunAction", () => {
     }
     expect(redirected).toBe(true);
     expect(loadMarketViewSpy).not.toHaveBeenCalled();
+    expect(loadMarketViewWithCalendarVersionSpy).not.toHaveBeenCalled();
   });
 
   it("refuses a `from` the calendar carries but that has no ingested candle for any ticker in the universe (round 2 item 10)", async () => {

@@ -29,23 +29,25 @@ import { DISCARDED_RUN_ERROR } from "./run-status";
 
 // Lets one specific test land a discard *inside* the window
 // runBacktestChunk's own post-load re-check exists to close: wrapping the
-// real loadMarketView, not replacing it, so every other test in this file
-// (where the ref stays null) sees identical behaviour to the unmocked
-// module.
+// real loadMarketViewWithCalendarVersion (run-chunk.ts's own load call), not
+// replacing it, so every other test in this file (where the ref stays null)
+// sees identical behaviour to the unmocked module.
 let discardOnNextLoad: { repository: BacktestRunRepository; runId: string } | null = null;
 vi.mock("@/modules/market-data", async () => {
   const actual =
     await vi.importActual<typeof import("@/modules/market-data")>("@/modules/market-data");
   return {
     ...actual,
-    loadMarketView: async (...args: Parameters<typeof actual.loadMarketView>) => {
-      const view = await actual.loadMarketView(...args);
+    loadMarketViewWithCalendarVersion: async (
+      ...args: Parameters<typeof actual.loadMarketViewWithCalendarVersion>
+    ) => {
+      const loaded = await actual.loadMarketViewWithCalendarVersion(...args);
       if (discardOnNextLoad) {
         const { repository, runId } = discardOnNextLoad;
         discardOnNextLoad = null;
         await repository.discard(runId);
       }
-      return view;
+      return loaded;
     },
   };
 });
@@ -511,6 +513,75 @@ describe("runBacktestChunk", () => {
     const failed = await repository.findMine(run.id);
     expect(failed.status).toBe("failed");
     expect(failed.error).toBe("data_version_changed");
+  });
+
+  it("fails the run rather than mix calendars when a session inside the window is revised between chunks (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+
+    const revised = SESSIONS[8] ?? "";
+    try {
+      await upsertTradingSessions(db, [
+        { date: revised, open: `${revised}T13:00:00.000Z`, close: `${revised}T17:00:00.000Z` },
+      ]);
+
+      const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+      expect(secondChunk).toEqual({ status: "failed", error: "data_version_changed" });
+    } finally {
+      await upsertTradingSessions(db, [
+        { date: revised, open: `${revised}T13:00:00.000Z`, close: `${revised}T20:00:00.000Z` },
+      ]);
+    }
+  });
+
+  it("resumes when the nightly calendar ingestion re-writes identical sessions between chunks (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+
+    await seedMarketData();
+
+    const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+    expect(secondChunk.status).toBe("complete");
+  });
+
+  it("stamps calendarVersion on a run that paused before this column existed instead of failing it (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+    const stamped = await repository.findMine(run.id);
+    expect(stamped.calendarVersion).not.toBeNull();
+
+    // Simulates a run that stamped `dataVersion` before `calendar_version`
+    // existed: the column is null even though the run already made
+    // progress, and this chunk must stamp it rather than treat the null as
+    // a revision.
+    await db.update(backtestRuns).set({ calendarVersion: null }).where(eq(backtestRuns.id, run.id));
+
+    const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+    expect(secondChunk.status).toBe("complete");
+
+    const completed = await repository.findMine(run.id);
+    expect(completed.calendarVersion).not.toBeNull();
   });
 
   it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError (round 2 item 3)", async () => {

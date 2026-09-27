@@ -78,10 +78,19 @@ export const backtestRuns = pgTable(
     sessionsDone: integer("sessions_done"),
     sessionsTotal: integer("sessions_total"),
     // Stamped at the run's first chunk as `max(asOf)` over the loaded
-    // MarketView, then compared on every resume: a candle or calendar
-    // revision between chunks changes it, and the run fails rather than
-    // silently mixing two datasets in one immutable result.
+    // MarketView's market-data collections only (candles, corporate
+    // actions, macro, the option chain), then compared on every resume: a
+    // revision to one of those between chunks changes it, and the run
+    // fails rather than silently mixing two datasets in one immutable
+    // result. The calendar is a separate stamp, `calendarVersion` below.
     dataVersion: text("data_version"),
+    // Stamped alongside `dataVersion`, but from the `calendarVersion`
+    // `market-data`'s `loadMarketViewWithCalendarVersion` returns next to
+    // the view: `max(as_of)` over the calendar sessions the run's own
+    // window loaded (calendar-repository.ts's `as_of` moves only on a real
+    // open/close change). A run created before this column existed carries
+    // `null` and is stamped, not failed, on its next chunk.
+    calendarVersion: text("calendar_version"),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
