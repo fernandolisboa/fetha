@@ -8,6 +8,7 @@ export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } fr
 export { loadCandleSeries } from "./candle-series";
 export {
   calendarUpTo,
+  calendarVersionForWindow,
   canSatisfyCollection,
   loadMarketView,
   previousTradingSession,

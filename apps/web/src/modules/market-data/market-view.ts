@@ -164,13 +164,15 @@ export function toEngineCandle(row: CandleRow): Candle {
 }
 
 // `dataVersion` stamps the freshest row this view actually loaded, `max(asOf)`
-// across every populated collection and the calendar sessions it loaded: a
-// backtest run compares this chunk to chunk so a revision to candles,
-// corporate actions, macro, the option chain or a trading session (which
-// moves time to expiry) cannot silently mix two datasets into one immutable
-// run. `trading_sessions.as_of` moves only when a session's open or close
-// actually changes (calendar-repository.ts), so the nightly re-write of an
-// unchanged calendar does not fail every run in progress.
+// across every populated market-data collection (candles, corporate
+// actions, macro, the option chain) — never the calendar: `trading_sessions`
+// carries a wall-clock `as_of` (calendar-repository.ts), not a
+// session-close instant, and folding it into this max would let a
+// migration backfill or an unrevised nightly calendar re-write dominate the
+// stamp and mask a real revision to one of the collections above. A
+// calendar revision inside a backtest's window is caught separately, by
+// `calendarVersionForWindow` below, which `run-chunk.ts` compares on its
+// own against a stamp it persists next to `dataVersion`.
 function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
   let max: Instant | undefined;
   for (const instant of instants) {
@@ -366,7 +368,6 @@ export async function loadMarketView(
   // window can ask for `impliedVolatilityIndex`, but there is nothing to
   // populate it with, so it stays empty regardless.
   const dataVersion = maxAsOf([
-    ...extendedSessions.map((row) => instantSchema.parse(row.asOf.toISOString())),
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
@@ -386,6 +387,66 @@ export async function loadMarketView(
     impliedVolatilityIndex: [],
     ...(dataVersion ? { dataVersion } : {}),
   };
+}
+
+// The calendar sessions `loadMarketView` would extend `window` to (its own
+// forward extension to the furthest option expiry, above), queried again
+// rather than threaded back out of that call: a sibling entry point, not a
+// second field on the engine's `MarketView`, so a backtest can compare a
+// calendar revision (run-chunk.ts) without the engine ever seeing a
+// web-only key on the object it consumes.
+async function resolveExtendedSessions(
+  db: Database,
+  window: DataWindow,
+  optionChainTickerCap: number,
+): Promise<Array<{ date: string; open: Date; close: Date; asOf: Date }>> {
+  const { instruments, from, to, collections } = window;
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+
+  const sessions = await sessionsInRange(db, fromDate, toDate);
+  const fromSession = sessions[0]?.date;
+  const toSession = sessions.at(-1)?.date;
+  if (!fromSession || !toSession) {
+    throw new MarketViewUnavailableError("window has no trading session in the calendar");
+  }
+
+  const wantOptionSeries = collections.includes("optionSeries");
+  const wantOptionPrices = collections.includes("optionPrices");
+  const seriesExpiries =
+    wantOptionSeries || wantOptionPrices
+      ? await db
+          .select({ expiry: optionSeries.expiry })
+          .from(optionSeries)
+          .where(
+            and(
+              inArray(optionSeries.underlying, instruments),
+              lte(optionSeries.asOf, toDate),
+              gte(optionSeries.expiry, fromSession),
+            ),
+          )
+          .limit(optionChainTickerCap + 1)
+      : [];
+
+  const furthestOptionExpiry = furthestExpiry(seriesExpiries.map((row) => row.expiry));
+  return furthestOptionExpiry && furthestOptionExpiry > toSession
+    ? await sessionsInRange(db, fromDate, new Date(`${furthestOptionExpiry}T23:59:59.999Z`))
+    : sessions;
+}
+
+// `run-chunk.ts`'s own calendar-revision stamp, separate from
+// `dataVersion`: `max(as_of)` over the trading sessions the run's window
+// actually loaded, so a resumed chunk can refuse a revised calendar
+// (`calendar-repository.ts`'s `as_of`) the same way it already refuses a
+// revised candle, corporate action, macro point or option chain.
+export async function calendarVersionForWindow(
+  db: Database,
+  window: DataWindow,
+  caps: LoadMarketViewCaps = {},
+): Promise<Instant | undefined> {
+  const optionChainTickerCap = caps.optionChainTickerCap ?? DEFAULT_OPTION_CHAIN_TICKER_CAP;
+  const extendedSessions = await resolveExtendedSessions(db, window, optionChainTickerCap);
+  return maxAsOf(extendedSessions.map((row) => instantSchema.parse(row.asOf.toISOString())));
 }
 
 // The engine-shaped session for one calendar date, the only cross-module
@@ -687,7 +748,6 @@ export async function buildOperationMarketView(
   }));
 
   const dataVersion = maxAsOf([
-    ...calendarRows.map((row) => instantSchema.parse(row.asOf.toISOString())),
     ...candleView.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),

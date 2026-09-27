@@ -155,6 +155,13 @@
       "when": 1790539212361,
       "tag": "0021_trading_sessions_as_of",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790542800427,
+      "tag": "0022_backtest_runs_calendar_version",
+      "breakpoints": true
     }
   ]
 }

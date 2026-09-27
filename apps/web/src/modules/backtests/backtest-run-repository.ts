@@ -85,6 +85,7 @@ export interface BacktestRunRecord {
   sessionsDone: number | null;
   sessionsTotal: number | null;
   dataVersion: string | null;
+  calendarVersion: string | null;
   error: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -218,6 +219,7 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
     sessionsDone: row.sessionsDone,
     sessionsTotal: row.sessionsTotal,
     dataVersion: row.dataVersion,
+    calendarVersion: row.calendarVersion,
     error: row.error,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
@@ -520,6 +522,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       sessionsDone: number;
       sessionsTotal: number;
       dataVersion?: string | null;
+      calendarVersion?: string | null;
     },
   ): Promise<BacktestRunRecord> {
     return this.guardedUpdate(id, {
@@ -528,6 +531,9 @@ export class BacktestRunRepository extends UserScopedRepository {
       sessionsDone: progress.sessionsDone,
       sessionsTotal: progress.sessionsTotal,
       ...(progress.dataVersion !== undefined ? { dataVersion: progress.dataVersion } : {}),
+      ...(progress.calendarVersion !== undefined
+        ? { calendarVersion: progress.calendarVersion }
+        : {}),
     });
   }
 
@@ -540,6 +546,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       sessionsDone: number;
       sessionsTotal: number;
       dataVersion?: string | null;
+      calendarVersion?: string | null;
     },
   ): Promise<BacktestRunRecord> {
     return this.guardedUpdate(id, {
@@ -549,6 +556,9 @@ export class BacktestRunRepository extends UserScopedRepository {
       sessionsDone: progress.sessionsDone,
       sessionsTotal: progress.sessionsTotal,
       ...(progress.dataVersion !== undefined ? { dataVersion: progress.dataVersion } : {}),
+      ...(progress.calendarVersion !== undefined
+        ? { calendarVersion: progress.calendarVersion }
+        : {}),
     });
   }
 
@@ -559,6 +569,7 @@ export class BacktestRunRepository extends UserScopedRepository {
       configDigest: string;
       sessionsDone: number;
       dataVersion?: string | null;
+      calendarVersion?: string | null;
     },
   ): Promise<BacktestRunRecord> {
     return this.guardedUpdate(id, {
@@ -569,6 +580,9 @@ export class BacktestRunRepository extends UserScopedRepository {
       sessionsDone: outcome.sessionsDone,
       sessionsTotal: outcome.sessionsDone,
       ...(outcome.dataVersion !== undefined ? { dataVersion: outcome.dataVersion } : {}),
+      ...(outcome.calendarVersion !== undefined
+        ? { calendarVersion: outcome.calendarVersion }
+        : {}),
       completedAt: new Date(),
     });
   }

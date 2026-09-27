@@ -19,6 +19,7 @@ import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import {
   buildOperationMarketView,
   calendarUpTo,
+  calendarVersionForWindow,
   loadMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
@@ -1031,6 +1032,103 @@ describe("loadMarketView", () => {
     const view = await loadMarketView(db, window);
 
     expect(view.dataVersion).toBe(lastAsOf);
+  });
+
+  it("never lets a trading session's own as_of move dataVersion, even when it is the freshest stamp in the window (#90 follow-up)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("DVC");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-07-07", 5);
+    await seedSessions(sessions);
+    const lastSession = sessions.at(-1) ?? "";
+    const lastAsOf = `${lastSession}T20:00:00.000Z`;
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    // A wall-clock as_of far past every market-data asOf in this window
+    // (calendar-repository.ts's `as_of`, unrelated to a session's own
+    // close): if `dataVersion` folded it in, this alone would move the
+    // stamp forward with no candle, corporate action, macro or option
+    // chain revision to justify it.
+    await db
+      .update(tradingSessions)
+      .set({ asOf: new Date("2098-01-01T00:00:00.000Z") })
+      .where(inArray(tradingSessions.date, sessions));
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    expect(view.dataVersion).toBe(lastAsOf);
+  });
+
+  it("calendarVersionForWindow stamps the freshest as_of over the sessions loaded, separate from dataVersion (#90)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("DCV");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-08-04", 5);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const revisedAsOf = new Date("2098-02-02T00:00:00.000Z");
+    const lastSession = sessions.at(-1) ?? "";
+    await db
+      .update(tradingSessions)
+      .set({ asOf: revisedAsOf })
+      .where(eq(tradingSessions.date, lastSession));
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    const [view, calendarVersion] = await Promise.all([
+      loadMarketView(db, window),
+      calendarVersionForWindow(db, window),
+    ]);
+
+    expect(calendarVersion).toBe(revisedAsOf.toISOString());
+    expect(view.dataVersion).not.toBe(calendarVersion);
   });
 
   it("populates the option chain when the strategy's structure carries an option leg (round 2 item 1)", async () => {

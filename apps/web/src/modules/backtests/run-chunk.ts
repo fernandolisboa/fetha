@@ -11,6 +11,7 @@ import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   calendarUpTo,
+  calendarVersionForWindow,
   loadMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
@@ -115,13 +116,18 @@ export interface RunBacktestChunkOptions {
 // `engine.runBacktest` calls under a wall-clock deadline (not just a
 // session count) and persisting a checkpoint after each one: a chunk large
 // enough to threaten the platform's `maxDuration` still makes progress
-// instead of dying with nothing saved and repeating forever on retry
-// (round 1 item 19). The MarketView's own `dataVersion` is stamped on the
-// run at its first chunk and compared on every resume, so a revision to
-// candles, corporate actions, macro points, the option chain or a trading
-// session inside the window between chunks fails the run rather than
-// silently mixing two datasets (or two calendars, and so two times to
-// expiry) into one immutable result.
+// instead of dying with nothing saved and repeating forever on retry. The
+// MarketView's own `dataVersion` is stamped on the run at its first chunk
+// and compared on every resume, so a revision to candles, corporate
+// actions, macro points or the option chain between chunks fails the run
+// rather than silently mixing two datasets into one immutable result.
+// `runBacktest`'s own "market-data builds it once" is not how the calendar
+// is kept identical across chunks: `dataVersion` never carries a calendar
+// stamp (market-view.ts), so this function reloads the calendar's own
+// `calendarVersionForWindow` on every chunk and compares it separately,
+// failing with the same `data_version_changed` when a trading session
+// inside the window (and so a time to expiry) was revised between chunks
+// (#90).
 export async function runBacktestChunk(
   db: Database,
   user: ScopedUser,
@@ -174,6 +180,7 @@ export async function runBacktestChunk(
   };
 
   let view;
+  let calendarVersion: string | undefined;
   try {
     // Resolved the same way `evaluate-signals.ts` resolves a strategy's
     // warmup for a signal (#19): the calendar up to `toSession`'s own close,
@@ -193,13 +200,17 @@ export async function runBacktestChunk(
       at: toSession.close,
       since: fromSession.open,
     });
-    view = await loadMarketView(
-      db,
-      window,
+    const caps =
       options.optionChainTickerCap !== undefined
         ? { optionChainTickerCap: options.optionChainTickerCap }
-        : {},
-    );
+        : {};
+    view = await loadMarketView(db, window, caps);
+    // Reloaded on every chunk rather than threaded through from the first
+    // one: the run's window can only be resolved after the strategy and
+    // period are known, and comparing a stamp resolved fresh here is what
+    // catches a revision to a session inside it (#90), the same way
+    // reloading `view` itself catches a revision to a candle.
+    calendarVersion = await calendarVersionForWindow(db, window, caps);
   } catch (error) {
     // Checked before the parent MarketViewUnavailableError: both are
     // thrown for a period this run cannot proceed with, but for opposite
@@ -230,6 +241,20 @@ export async function runBacktestChunk(
     return { status: "failed", error: message };
   }
   const dataVersion = run.dataVersion ?? view.dataVersion ?? null;
+
+  // Same rule as `dataVersion` just above, on a separate stamp: a calendar
+  // revision inside the window moves `calendarVersion` without necessarily
+  // moving `dataVersion` (a session's own open/close is not part of any
+  // market-data collection's `asOf`), so it needs its own comparison rather
+  // than folding into the one above. A run stamped before this column
+  // existed carries `null` here and is stamped on this chunk instead of
+  // failed.
+  if (run.calendarVersion && run.calendarVersion !== calendarVersion) {
+    const message = "data_version_changed";
+    await repository.fail(runId, message);
+    return { status: "failed", error: message };
+  }
+  const resolvedCalendarVersion = run.calendarVersion ?? calendarVersion ?? null;
 
   // `loadMarketView` alone can take seconds (round 3 item 4's own measured
   // ~23.5s at the universe/session ceiling), the widest window between this
@@ -275,7 +300,13 @@ export async function runBacktestChunk(
           maxSessions: sessionBudget - sessionsUsed,
         });
         if (restarted.ok) {
-          return persistProgress(repository, runId, restarted.value, dataVersion);
+          return persistProgress(
+            repository,
+            runId,
+            restarted.value,
+            dataVersion,
+            resolvedCalendarVersion,
+          );
         }
         const message = describeEngineError(restarted.error);
         await repository.fail(runId, message);
@@ -287,7 +318,7 @@ export async function runBacktestChunk(
     }
 
     if (result.value.status === "complete") {
-      return persistProgress(repository, runId, result.value, dataVersion);
+      return persistProgress(repository, runId, result.value, dataVersion, resolvedCalendarVersion);
     }
 
     // Persisted immediately, status left "running": a process the platform
@@ -298,6 +329,7 @@ export async function runBacktestChunk(
       sessionsDone: result.value.sessionsDone,
       sessionsTotal: result.value.sessionsTotal,
       dataVersion,
+      calendarVersion: resolvedCalendarVersion,
     });
     checkpoint = result.value.checkpoint;
     lastPaused = result.value;
@@ -317,6 +349,7 @@ export async function runBacktestChunk(
     sessionsDone: lastPaused.sessionsDone,
     sessionsTotal: lastPaused.sessionsTotal,
     dataVersion,
+    calendarVersion: resolvedCalendarVersion,
   });
   return {
     status: "paused",
@@ -331,6 +364,7 @@ async function persistProgress(
   runId: string,
   value: BacktestProgress,
   dataVersion: string | null,
+  calendarVersion: string | null,
 ): Promise<BacktestChunkOutcome> {
   if (value.status === "paused") {
     const saved = await repository.saveProgress(runId, {
@@ -340,6 +374,7 @@ async function persistProgress(
       sessionsDone: value.sessionsDone,
       sessionsTotal: value.sessionsTotal,
       dataVersion,
+      calendarVersion,
     });
     return {
       status: "paused",
@@ -354,6 +389,7 @@ async function persistProgress(
     configDigest: value.run.configDigest,
     sessionsDone: value.run.metrics.sessions,
     dataVersion,
+    calendarVersion,
   });
   return { status: "complete", run: saved };
 }

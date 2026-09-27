@@ -556,6 +556,32 @@ describe("runBacktestChunk", () => {
     expect(secondChunk.status).toBe("complete");
   });
 
+  it("stamps calendarVersion on a run that paused before this column existed instead of failing it (#90)", async () => {
+    const db = getDb();
+    const setup = await setUp();
+    const repository = new BacktestRunRepository(db, setup.testUser);
+    const run = await repository.create(runConfig(setup));
+
+    const firstChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 5 });
+    if (firstChunk.status !== "paused") {
+      throw new Error(`expected "paused", got "${firstChunk.status}"`);
+    }
+    const stamped = await repository.findMine(run.id);
+    expect(stamped.calendarVersion).not.toBeNull();
+
+    // Simulates a run that stamped `dataVersion` before `calendar_version`
+    // existed: the column is null even though the run already made
+    // progress, and this chunk must stamp it rather than treat the null as
+    // a revision.
+    await db.update(backtestRuns).set({ calendarVersion: null }).where(eq(backtestRuns.id, run.id));
+
+    const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
+    expect(secondChunk.status).toBe("complete");
+
+    const completed = await repository.findMine(run.id);
+    expect(completed.calendarVersion).not.toBeNull();
+  });
+
   it("lets exactly one of two overlapping calls for the same run claim it, the other throws BacktestRunClaimError (round 2 item 3)", async () => {
     const db = getDb();
     const setup = await setUp();
