@@ -61,7 +61,7 @@ export default async function BacktestReportPage({
         </Panel>
       ) : run.status === "failed" ? (
         <Panel>
-          <ErrorNotice className="text-sm">
+          <ErrorNotice className="text-sm" live={false}>
             {t.report.failed.replace("{error}", runErrorMessage(run.error ?? ""))}
           </ErrorNotice>
           {isResumableRunError(run.error) ? (
