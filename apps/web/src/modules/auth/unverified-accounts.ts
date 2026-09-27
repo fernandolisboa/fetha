@@ -56,7 +56,14 @@ export async function purgeUnverifiedAccounts(
       .delete(user)
       .where(and(inArray(user.id, ids), eq(user.emailVerified, false)))
       .returning({ id: user.id });
-    await db.delete(verification).where(inArray(verification.value, ids));
+    if (deleted.length > 0) {
+      await db.delete(verification).where(
+        inArray(
+          verification.value,
+          deleted.map((row) => row.id),
+        ),
+      );
+    }
     return { ok: true, deleted: deleted.length };
   } catch (error) {
     console.error(

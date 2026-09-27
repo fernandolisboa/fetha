@@ -77,10 +77,10 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
       {
         heading: "What is collected",
         paragraphs: [
-          "Registration: your name, your email and your password, stored only as a one-way hash, plus which version of these terms you accepted and when.",
+          "Registration: your name, your email and the password you create after confirming your email, stored only as a one-way hash, plus which version of these terms you accepted and when.",
           "Sessions: when you signed in, the IP address and the browser. Sign-in attempt limits: the IP address of each call to sign-in, sign-up and the other account actions.",
           "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, and your theme and layout preferences.",
-          "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted.",
+          "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted. If that account is deleted because its email was never confirmed, the invitation stays open for a new registration.",
           "What Fetha computes for you: signals, strategy evaluations and decision scores.",
           "Access log: each opening of a portfolio or decisions page and each data export, with the date, the IP address and the browser.",
         ],
@@ -101,7 +101,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
       {
         heading: "How long it is kept",
         paragraphs: [
-          "Your data is kept while your account exists. An account whose email is not confirmed within 24 hours is deleted, along with the name and email given at registration. Access log entries are deleted after 180 days. Each email typed into sign-in, magic link, password reset or verification resend, and your account's email in every action with an attempt limit (such as exporting your data, deleting your account or recording operations, decisions and backtests), is kept only as a SHA-256 hash, to limit repeated tries. The IP addresses kept for the same purpose are stored without a hash. Both are erased by the first attempt anyone makes on Fetha once a minute has passed since the last one. Verification, magic link and password reset links expire within five minutes to one hour.",
+          "Your data is kept while your account exists. An account whose email is not confirmed within 24 hours is deleted, along with the name and email given at registration. Access log entries are deleted after 180 days. Each email typed into sign-up, sign-in, magic link, password reset or verification resend, and your account's email in every action with an attempt limit (such as exporting your data, deleting your account or recording operations, decisions and backtests), is kept only as a SHA-256 hash, to limit repeated tries. The IP addresses kept for the same purpose are stored without a hash. Both are erased by the first attempt anyone makes on Fetha once a minute has passed since the last one. Verification, magic link and password reset links expire within five minutes to one hour.",
           "When you delete your account, everything tied to it is deleted at once. The database provider's backups expire on their own within its retention window, and emails already sent remain in your inbox and in Resend's delivery records. Copies other users made of a strategy you shared stay with them, with no link to your account.",
         ],
       },
@@ -194,10 +194,10 @@ const ptBR: typeof en = {
       {
         heading: "O que é coletado",
         paragraphs: [
-          "Cadastro: seu nome, seu e-mail e sua senha, guardada apenas como hash irreversível, além de qual versão destes termos você aceitou e quando.",
+          "Cadastro: seu nome, seu e-mail e a senha que você cria depois de confirmar o e-mail, guardada apenas como hash irreversível, além de qual versão destes termos você aceitou e quando.",
           "Sessões: quando você entrou, o endereço IP e o navegador. Limite de tentativas: o endereço IP de cada chamada de login, cadastro e demais ações da conta.",
           "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses e suas preferências de tema e de layout.",
-          "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída.",
+          "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída. Se essa conta for apagada por nunca ter confirmado o e-mail, o convite continua valendo para um novo cadastro.",
           "O que o Fetha calcula para você: sinais, avaliações de estratégias e pontuações de decisões.",
           "Registro de acesso: cada abertura de uma tela da sua carteira ou das suas decisões e cada exportação de dados, com data, endereço IP e navegador.",
         ],
@@ -218,7 +218,7 @@ const ptBR: typeof en = {
       {
         heading: "Por quanto tempo",
         paragraphs: [
-          "Seus dados ficam guardados enquanto sua conta existir. Uma conta cujo e-mail não for confirmado em 24 horas é apagada, junto com o nome e o e-mail informados no cadastro. Os registros de acesso são apagados depois de 180 dias. Cada e-mail digitado no login, no link mágico, na redefinição de senha ou no reenvio da verificação, e o e-mail da sua conta em toda ação com limite de tentativas (como exportar seus dados, excluir a conta ou registrar operações, decisões e backtests), é guardado só como hash SHA-256, para limitar tentativas repetidas. Os endereços IP usados com o mesmo fim são guardados sem hash. Os dois são apagados na primeira tentativa feita no Fetha, por qualquer pessoa, depois de passado um minuto da última. Os links de verificação, os links mágicos e os de redefinição de senha expiram entre cinco minutos e uma hora.",
+          "Seus dados ficam guardados enquanto sua conta existir. Uma conta cujo e-mail não for confirmado em 24 horas é apagada, junto com o nome e o e-mail informados no cadastro. Os registros de acesso são apagados depois de 180 dias. Cada e-mail digitado no cadastro, no login, no link mágico, na redefinição de senha ou no reenvio da verificação, e o e-mail da sua conta em toda ação com limite de tentativas (como exportar seus dados, excluir a conta ou registrar operações, decisões e backtests), é guardado só como hash SHA-256, para limitar tentativas repetidas. Os endereços IP usados com o mesmo fim são guardados sem hash. Os dois são apagados na primeira tentativa feita no Fetha, por qualquer pessoa, depois de passado um minuto da última. Os links de verificação, os links mágicos e os de redefinição de senha expiram entre cinco minutos e uma hora.",
           "Quando você exclui sua conta, tudo o que está ligado a ela é apagado na hora. As cópias de segurança do provedor do banco de dados expiram sozinhas dentro do prazo de retenção dele, e os e-mails já enviados continuam na sua caixa de entrada e nos registros de entrega do Resend. Cópias que outros usuários fizeram de uma estratégia sua compartilhada continuam com eles, sem ligação com a sua conta.",
         ],
       },

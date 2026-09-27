@@ -49,6 +49,7 @@ describe("legal text", () => {
       `não for confirmado em ${String(UNVERIFIED_ACCOUNT_RETENTION_HOURS)} horas é apagada`,
     );
     expect(text).toContain("SHA-256");
+    expect(text).toContain("Cada e-mail digitado no cadastro");
     expect(ACCOUNT_BUCKET_RETENTION_SECONDS).toBe(60);
     expect(text).toContain("depois de passado um minuto");
   });
