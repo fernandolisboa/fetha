@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // PETR4 is expected to already be ingested for session 2026-09-09 in the
@@ -8,23 +8,24 @@ import { registerAndSignIn } from "./helpers";
 // declares a risk profile (a signal without one only reaches the
 // evaluation log as `unsizeable`, never the inbox), creates a strategy
 // whose entry condition ("close > 0") always holds once a candle exists,
-// activates it, triggers the nightly cron's manual POST trigger for that
-// session (#48, #19), and confirms the resulting signal shows up in the
+// activates it, triggers the owner's manual ingestion trigger for that
+// session (#48, #19, #51), and confirms the resulting signal shows up in the
 // inbox as a SignalRow.
 const e2eSecret = process.env.E2E_SECRET;
-const cronSecret = process.env.CRON_SECRET;
+const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const SESSION = "2026-09-09";
 
 test.skip(
-  !e2eSecret || !cronSecret,
-  "E2E_SECRET or CRON_SECRET is not set; skipping the signal inbox flow.",
+  !e2eSecret || !ownerEmail,
+  "E2E_SECRET or E2E_OWNER_EMAIL is not set; skipping the signal inbox flow.",
 );
 
 test("a signal appears in the inbox after a triggered evaluation", async ({
   page,
   baseURL,
   request,
+  browser,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
@@ -65,11 +66,7 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  const triggered = await request.post(`${baseURL ?? ""}/api/cron/ingest`, {
-    headers: { authorization: `Bearer ${cronSecret ?? ""}` },
-    data: { session: SESSION },
-  });
-  expect(triggered.ok()).toBe(true);
+  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

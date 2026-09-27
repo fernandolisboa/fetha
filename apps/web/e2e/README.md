@@ -19,6 +19,12 @@ Environment variables:
 - `E2E_SECRET`: shared secret for the E2E-only route `/api/e2e/verification-link` (404 in
   production or when unset). Set on the Vercel project as `E2E_SECRET`; the spec skips entirely
   when this is not set.
+- `E2E_OWNER_EMAIL`: a pre-provisioned, verified account on the preview's own `OWNER_EMAILS`
+  allowlist (docs/adr/0042). Specs that need the nightly job re-run for a session
+  (`ingestion-trigger.spec.ts`, `signals.spec.ts`, `decisions.spec.ts`, `scoring.spec.ts`,
+  optionally `backtest.spec.ts` and `compare.spec.ts`) sign this account in through a magic link
+  and drive `/configuracoes`'s manual trigger form instead of holding `CRON_SECRET`; no spec needs
+  `CRON_SECRET` anymore, since the manual trigger moved off it (#51).
 - `VERCEL_PROTECTION_BYPASS`: Vercel Deployment Protection (SSO) sits in front of every preview
   deployment, so every Playwright request needs the bypass header or it hits the SSO challenge
   page instead of the app. When set, `playwright.config.ts` sends
@@ -42,15 +48,15 @@ the reset link back through the same E2E-only route, sets a new password, and co
 password no longer works while the new one signs in.
 
 `signals.spec.ts` declares a risk profile, creates and activates a stock-only "always fires"
-strategy, triggers the nightly cron's manual POST trigger for a fixed session, and confirms the
-resulting signal shows up in the `/sinais` inbox. It also needs `CRON_SECRET` (the same bearer
-secret `api/cron/ingest` checks) alongside `E2E_SECRET`, and assumes PETR4 is already ingested for
-session `2026-09-09` in the preview database.
+strategy, triggers the owner's manual ingestion trigger for a fixed session through
+`triggerIngestionAsOwner` (#51), and confirms the resulting signal shows up in the `/sinais`
+inbox. It also needs `E2E_OWNER_EMAIL` alongside `E2E_SECRET`, and assumes PETR4 is already
+ingested for session `2026-09-09` in the preview database.
 
 `decisions.spec.ts` extends that same flow one step further: on the resulting signal's row it
 opens the DecisionBar dialog, records "Não entrar" with a rationale, confirms the row now shows the
 recorded decision instead of the dialog trigger, then opens `/diario` and confirms the journal
-entry with the same kind and rationale. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as
+entry with the same kind and rationale. Needs the same `E2E_SECRET`/`E2E_OWNER_EMAIL` pair as
 `signals.spec.ts`.
 
 `scoring.spec.ts` seeds a thesis-only decision through the E2E-only route
@@ -58,10 +64,10 @@ entry with the same kind and rationale. Needs the same `E2E_SECRET`/`CRON_SECRET
 `/api/e2e/verification-link`; the write itself goes through `seedE2EDecision`,
 `@/modules/decisions` — the route imports no `@/modules/*/schema` and writes no table directly),
 backdated to `decided_at` on the already-ingested session `2026-09-08` with `horizon` the _next_
-ingested session `2026-09-09` (no look-ahead, #29 fix-web item 3), then triggers the nightly
-cron's manual POST trigger and confirms `/diario` shows the decision already scored — "Tese
+ingested session `2026-09-09` (no look-ahead, #29 fix-web item 3), then triggers the owner's
+manual ingestion trigger and confirms `/diario` shows the decision already scored — "Tese
 confirmada" and a Brier score, not "sem pontuação ainda" — proving the scoring job (#29) ran in
-the same cron run. Needs the same `E2E_SECRET`/`CRON_SECRET` pair as `signals.spec.ts`, and the
+the same run. Needs the same `E2E_SECRET`/`E2E_OWNER_EMAIL` pair as `signals.spec.ts`, and the
 same PETR4/`2026-09-08`+`2026-09-09` ingestion precondition.
 
 `portfolio.spec.ts` covers the real portfolio (#26): it imports the synthetic B3 "Negociação"

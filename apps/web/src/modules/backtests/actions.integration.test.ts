@@ -104,7 +104,12 @@ async function insertBareUser(email: string): Promise<CurrentUser> {
       termsVersion: "2026-09-09",
       termsAcceptedAt: new Date(),
     })
-    .returning({ id: user.id, name: user.name, email: user.email });
+    .returning({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+    });
   if (!row) {
     throw new Error("failed to insert test user");
   }

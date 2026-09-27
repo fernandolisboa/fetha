@@ -63,11 +63,13 @@ Cycles are not forbidden by lint. One exists today, through `client.ts` on both 
 
 Pages under `src/app/(shell)/…` and the public auth pages are thin: get the session, call one
 or two module entry points, render. Route handlers under `src/app/api/` are the four adapters
-(`auth/[...all]` delegates to Better Auth; `account/export` streams the signed-in user's data export (ADR-0027); `cron/ingest` authenticates the bearer, runs
-`purgeExpiredAccessLog`, `purgeUnverifiedAccounts` and `purgeExpiredSessions` first (ADR-0033), then `ingest`, then `evaluateSignalsForSession`, then `scoreDueDecisions`, one shared `maxDuration`
-budget; a failed ingest still turns the response into a 500 (`ingest`'s own `ok` decides the
-status), but evaluation's and scoring's own failures are reported alongside an otherwise
-successful ingest's 200 rather than turning it into one;
+(`auth/[...all]` delegates to Better Auth; `account/export` streams the signed-in user's data export (ADR-0027); `cron/ingest` authenticates the bearer (Vercel Cron's `CRON_SECRET`, its only
+trigger now) and calls `nightly`'s `runNightlyJob` (purges, `ingest`, `evaluateSignalsForSession`,
+`scoreDueDecisions`, one shared `maxDuration` budget; a failed ingest still turns the response
+into a 500 (`ingest`'s own `ok` decides the status), but evaluation's and scoring's own failures
+are reported alongside an otherwise successful ingest's 200 rather than turning it into one) — the
+owner's manual re-run is `nightly`'s own `triggerNightlyJobAction` Server Action instead, gated on
+`isOwner()` (ADR-0042), never this route;
 `backtests/[id]/run` runs one chunk) plus E2E-only helpers. A handler parses, authenticates,
 calls the module, maps errors to responses;
 it holds no business rule. `getDb()` is obtained at this edge and passed into the module.
@@ -105,6 +107,7 @@ browser bootstrap settings only (Zod `jitless`).
 | `shell`       | none                                                                                                                                | `AppShell`, `Panel`, `EmptyState`, `PageHeader`, `usePublishMarketBarInstrument` / client: `Panel`, `EmptyState`, `usePublishMarketBarInstrument`                                                                                                                                                                                                                                                                                             | `auth`, `preferences`, `market-data` (client)                                                    |
 | `decisions`   | `decisions`, `decision_scores`                                                                                                      | `allowedDecisionKinds`, `getMyDecisions`, `getMyDecisionsBySignalId`, `getMyDecisionsByOperationId`, `getMyDecisionsByHeldOperationId`, `getMyDecisionScores`, `getMyTrackRecordStats`, `defaultHorizonsForSignals`, `defaultHorizonsForOperations`, `defaultHorizonForHeldOperation`, `scoreDueDecisions`, `DecisionsRepository`, `DecisionScoresRepository`, `DecisionListItem`, `JournalEntry`, `TrackRecordPanel` / client: `DecisionBar` | `auth`, `audit`, `market-data`, `strategies`, `portfolio`, `backtests`, `shell` (client)         |
 | `account`     | none                                                                                                                                | `accountExportStream`, `exportFileName`, `ExportDataLink`                                                                                                                                                                                                                                                                                                                                                                                     | `auth`, `audit`, `preferences`, `watchlist`, `strategies`, `portfolio`, `backtests`, `decisions` |
+| `nightly`     | none                                                                                                                                | `runNightlyJob`, `triggerNightlyJobAction`, `NightlyTriggerPanel`                                                                                                                                                                                                                                                                                                                                                                             | `auth`, `audit`, `market-data`, `strategies`, `decisions`                                        |
 
 `engine` is not a slice: it is `packages/engine`, consumed through its frozen interface by
 `strategies`, `portfolio`, `backtests`, `market-data` and `decisions`.
@@ -117,7 +120,7 @@ is the natural next slice to split out; no other split is planned.
 ## Adding a module
 
 Create `modules/<m>/` with its `schema.ts`, repository, `index.ts` and (if needed) `client.ts`;
-add one line to `src/db/schema.ts`, one lint zone, one row above, and an isolation test for
+add one line to `src/db/schema.ts`, one row above, and an isolation test for
 every user-scoped table (CLAUDE.md principle 5). A module with user-scoped tables also exposes a
 `<Module>DataExport` and joins the `account` export list; the export test fails until it does
 (ADR-0027).

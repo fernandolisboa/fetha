@@ -1,27 +1,28 @@
 import { expect, test } from "@playwright/test";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // Extends signals.spec.ts's own flow (declares a risk profile, creates and
-// activates a stock-only "always fires" strategy, triggers the nightly
-// cron's manual POST trigger) one step further: records "Não entrar" on the
-// resulting signal and confirms the journal shows it.
+// activates a stock-only "always fires" strategy, triggers the owner's
+// manual ingestion trigger, #51) one step further: records "Não entrar" on
+// the resulting signal and confirms the journal shows it.
 const e2eSecret = process.env.E2E_SECRET;
-const cronSecret = process.env.CRON_SECRET;
+const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const SESSION = "2026-09-09";
 const RATIONALE = "Sem margem de segurança suficiente para entrar agora.";
 
 test.skip(
-  !e2eSecret || !cronSecret,
-  "E2E_SECRET or CRON_SECRET is not set; skipping the decision journal flow.",
+  !e2eSecret || !ownerEmail,
+  "E2E_SECRET or E2E_OWNER_EMAIL is not set; skipping the decision journal flow.",
 );
 
 test('recording "não entrar" on a signal shows it in the journal', async ({
   page,
   baseURL,
   request,
+  browser,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
@@ -58,11 +59,7 @@ test('recording "não entrar" on a signal shows it in the journal', async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  const triggered = await request.post(`${baseURL ?? ""}/api/cron/ingest`, {
-    headers: { authorization: `Bearer ${cronSecret ?? ""}` },
-    data: { session: SESSION },
-  });
-  expect(triggered.ok()).toBe(true);
+  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

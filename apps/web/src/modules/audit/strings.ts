@@ -13,6 +13,7 @@ const en = {
       portfolio_read: "Portfolio read",
       decisions_read: "Decisions read",
       data_export: "Data exported",
+      nightly_triggered: "Manual ingestion triggered",
     } satisfies Record<AccessEvent, string>,
   },
 };
@@ -30,6 +31,7 @@ const ptBR = {
       portfolio_read: "Leitura da carteira",
       decisions_read: "Leitura das decisões",
       data_export: "Exportação dos dados",
+      nightly_triggered: "Disparo manual da ingestão",
     },
   },
 } satisfies typeof en;

@@ -11,6 +11,7 @@ export interface CurrentUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
 }
 
 export class UnauthenticatedError extends Error {
@@ -26,7 +27,12 @@ async function loadSession(): Promise<CurrentUser | null> {
   if (!session) {
     return null;
   }
-  return { id: session.user.id, name: session.user.name, email: session.user.email };
+  return {
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    emailVerified: session.user.emailVerified,
+  };
 }
 
 // Cached per request (React.cache): the shell layout, the root layout and a

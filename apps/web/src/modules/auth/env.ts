@@ -6,6 +6,7 @@ export interface AuthEnv {
   MAILER?: string;
   DATABASE_URL?: string;
   DATABASE_PRODUCTION_HOST?: string;
+  OWNER_EMAILS?: string;
   [key: string]: string | undefined;
 }
 
@@ -47,6 +48,23 @@ export function isProductionDeployment(env: AuthEnv = process.env): boolean {
 
 export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
+}
+
+// The manual ingestion trigger's allowlist (#51): comma-separated, trimmed
+// and lower-cased so "Owner@Example.com, other@example.com" and
+// "owner@example.com,other@example.com" mean the same thing. Unset or empty
+// means nobody is the owner, never "everybody".
+export function readOwnerEmails(env: AuthEnv = process.env): ReadonlySet<string> {
+  const raw = readOptionalEnvValue(env, "OWNER_EMAILS");
+  if (!raw) {
+    return new Set();
+  }
+  return new Set(
+    raw
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email.length > 0),
+  );
 }
 
 // Postgres URLs keep the host's case and a trailing dot, and Neon serves one

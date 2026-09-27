@@ -24,7 +24,7 @@ function uniqueEmail(label: string): string {
 async function insertUser(
   email: string,
   termsVersion: string | null,
-): Promise<{ id: string; name: string; email: string }> {
+): Promise<{ id: string; name: string; email: string; emailVerified: boolean }> {
   const [row] = await getDb()
     .insert(user)
     .values({
@@ -35,7 +35,12 @@ async function insertUser(
       termsVersion,
       termsAcceptedAt: termsVersion ? new Date() : null,
     })
-    .returning({ id: user.id, name: user.name, email: user.email });
+    .returning({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+    });
   if (!row) {
     throw new Error("failed to insert test user");
   }
