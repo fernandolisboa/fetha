@@ -34,12 +34,7 @@ insufficient on its own; the "Decision" section below reflects the final, accoun
   top-level option. Turning hashing on was still deferred past this ticket rather than done here
   (issue #60 tracks it with the corrected shape), not because it was infeasible. The token itself
   is still a cryptographically random, single-use, short-lived, unguessable value regardless of
-  hashing; the difference only matters if the database itself is compromised. **Done in #60**: both
-  options are on, so a magic-link row stores SHA-256 of the plugin's own SHA-256 of the token and a
-  reset row stores SHA-256 of `reset-password:<token>`. The tests reproduce it with
-  `storedIdentifier` (`auth/test-support.ts`). A row written plain before the switch still resolves,
-  because Better Auth falls back to the plain identifier when the hashed one finds nothing, and it
-  expires within the hour. Email verification never used this table: its link is a signed JWT.
+  hashing; the difference only matters if the database itself is compromised.
 - `magicLink`'s `sendMagicLink` looks the email up (`db.query.user.findFirst`) before sending: an
   unregistered address gets the exact same 200 response (the plugin always answers
   `{ status: true }` once its own endpoint handler runs, regardless of what this callback does) but
