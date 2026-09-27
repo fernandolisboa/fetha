@@ -37,7 +37,7 @@ import { recordTermsAcceptanceHistory } from "./terms-consent";
 import { CURRENT_TERMS_VERSION } from "./terms";
 import { markEmailVerified, revokeUnprovenAccountAccess } from "./unverified-accounts";
 import { emailField, nameField } from "./validation";
-import { SESSION_EXPIRES_IN_DAYS } from "./expired-sessions";
+import { SESSION_EXPIRES_IN_DAYS } from "./session-lifetime";
 
 const VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60;
 const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 5;

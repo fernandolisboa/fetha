@@ -61,6 +61,12 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
 async function runIngestion(session: string | undefined): Promise<NextResponse> {
   const db = getDb();
   const startedAt = Date.now();
+  // Retention purges run first, so a night ingestion throws cannot skip the
+  // deletions the privacy policy promises (docs/adr/0016, 0027, 0033). Each
+  // reports its own failure alongside, never as a 500.
+  const accessLogPurge = await purgeExpiredAccessLog(db);
+  const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
+  const sessionPurge = await purgeExpiredSessions(db);
   const result = await ingest(db, session ? { session } : {});
   const deadlineAt = startedAt + maxDuration * 1000 - SAFETY_MARGIN_MS;
   const evaluation =
@@ -78,13 +84,6 @@ async function runIngestion(session: string | undefined): Promise<NextResponse> 
     { okSessions: cotahistSucceeded(result) ? result.okSessions : [] },
     { deadlineAt },
   );
-
-  // Access-log retention (docs/adr/0027): reported alongside, never a 500.
-  const accessLogPurge = await purgeExpiredAccessLog(db);
-  // Unverified-account retention (docs/adr/0016, #39): same shape.
-  const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
-  // Expired-session retention (#146): same shape.
-  const sessionPurge = await purgeExpiredSessions(db);
 
   return NextResponse.json(
     { ...result, evaluation, scoring, accessLogPurge, unverifiedAccountPurge, sessionPurge },

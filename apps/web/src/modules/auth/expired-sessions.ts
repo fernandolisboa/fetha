@@ -4,14 +4,12 @@ import type { Database } from "@/db/client";
 
 import { session } from "./schema";
 
-export const SESSION_EXPIRES_IN_DAYS = 7;
-
 export type ExpiredSessionPurgeOutcome = { ok: true; deleted: number } | { ok: false };
 
 // Better Auth deletes an expired session only when its cookie comes back, so
 // one abandoned in another browser would keep its IP address and user agent
 // for as long as the account exists (#146, LGPD art. 6, III). A system job
-// over every user, run by the nightly cron.
+// over every user, run by the nightly cron (docs/adr/0033).
 export async function purgeExpiredSessions(
   db: Database,
   now: Date = new Date(),

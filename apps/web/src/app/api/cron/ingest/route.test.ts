@@ -220,6 +220,23 @@ describe("cron ingest route", () => {
     expect(await response.json()).toMatchObject({ sessionPurge: { ok: false } });
   });
 
+  it("runs every retention purge even when ingestion throws (#146)", async () => {
+    ingestMock.mockRejectedValue(new Error("database unreachable"));
+    const { GET } = await import("./route");
+
+    await expect(
+      GET(
+        new Request("http://localhost/api/cron/ingest", {
+          headers: { authorization: "Bearer test-secret" },
+        }),
+      ),
+    ).rejects.toThrow("database unreachable");
+
+    expect(purgeExpiredAccessLogMock).toHaveBeenCalledTimes(1);
+    expect(purgeUnverifiedAccountsMock).toHaveBeenCalledTimes(1);
+    expect(purgeExpiredSessionsMock).toHaveBeenCalledTimes(1);
+  });
+
   it("never turns a successful ingestion into a 500 when scoring itself errors", async () => {
     scoreDueDecisionsMock.mockResolvedValue({
       asOfSession: "2026-09-08",

@@ -37,5 +37,6 @@ supersedes or amends them and says so.
 | 0029 | Invites are spent by mailbox proof (verification link, magic link or reset), not by sign-up                      |
 | 0030 | Magic-link and password-reset tokens stored hashed in `verification` (amends 0018)                               |
 | 0031 | Mail sent after the response; the sign-in account bucket counts failures only (amends 0016, 0018)                |
+| 0033 | Expired sessions purged nightly; session lifetime pinned at 7 days (amends 0027)                                 |
 
 Open: none.
