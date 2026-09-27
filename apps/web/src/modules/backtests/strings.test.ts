@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { isResumableRunError } from "./strings";
+import { MAX_ACTIVE_BACKTEST_RUNS } from "./backtest-run-repository";
+import { backtestsStrings, isResumableRunError } from "./strings";
 
 describe("isResumableRunError", () => {
   // `claim` clears `error` but never `dataVersion`, so retrying a run that
@@ -17,5 +18,16 @@ describe("isResumableRunError", () => {
 
   it("is true for null, an engine failure with no stored web error code", () => {
     expect(isResumableRunError(null)).toBe(true);
+  });
+});
+
+describe("create strings", () => {
+  it("state the active-run cap the repository enforces", () => {
+    expect(backtestsStrings.en.create.tooManyActive).toContain(
+      `${String(MAX_ACTIVE_BACKTEST_RUNS)} backtests`,
+    );
+    expect(backtestsStrings.ptBR.create.tooManyActive).toContain(
+      `${String(MAX_ACTIVE_BACKTEST_RUNS)} backtests`,
+    );
   });
 });

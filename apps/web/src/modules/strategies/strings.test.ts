@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluationReasons } from "@fetha/engine";
 
+import { MAX_VERSIONS_PER_STRATEGY } from "./strategies-repository";
 import { evaluationLabel, strategiesStrings, t } from "./strings";
 
 const reasonsWithNoText = new Set(["signal", "conditions_not_met"]);
@@ -146,5 +147,13 @@ describe("evaluationLabel", () => {
         detail: "something_unrecognized",
       }),
     ).toBe(t.inbox.outcomes.insufficient_data);
+  });
+});
+
+describe("editor.errors.version_limit", () => {
+  it("states the cap the repository enforces", () => {
+    const cap = `${String(MAX_VERSIONS_PER_STRATEGY)} vers`;
+    expect(strategiesStrings.en.editor.errors.version_limit).toContain(cap);
+    expect(strategiesStrings.ptBR.editor.errors.version_limit).toContain(cap);
   });
 });

@@ -39,6 +39,8 @@ const en = {
     // a second collection joins that set.
     unsatisfiableCollection:
       "This strategy uses market data with no source yet for one of its indicators. Choose a different strategy.",
+    tooManyActive:
+      "You already have 2 backtests in progress. Finish one of them on its strategy's page before starting another.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
   },
   report: {
@@ -231,6 +233,8 @@ const ptBR = {
       "Declare um perfil de risco em Configurações antes de rodar um backtest, para que os limites possam ser aplicados.",
     unsatisfiableCollection:
       "Essa estratégia usa dados de mercado ainda sem fonte para um dos seus indicadores. Escolha outra estratégia.",
+    tooManyActive:
+      "Você já tem 2 backtests em andamento. Conclua um deles na página da estratégia antes de criar outro.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
   },
   report: {

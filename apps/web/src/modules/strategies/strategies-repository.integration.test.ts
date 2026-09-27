@@ -12,10 +12,12 @@ import { strategyVersions } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import {
+  MAX_VERSIONS_PER_STRATEGY,
   StrategiesRepository,
   StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
+  StrategyVersionLimitError,
 } from "./strategies-repository";
 
 function uniqueEmail(label: string): string {
@@ -359,5 +361,34 @@ describe("StrategiesRepository sharing and copy", () => {
 
     const listedByB = await new StrategiesRepository(db, userB).listShared();
     expect(listedByB.map((s) => s.id)).toContain(created.id);
+  });
+});
+
+describe("StrategiesRepository version cap (#147)", () => {
+  it("refuses a version beyond the cap and keeps the strategy unchanged", async () => {
+    const db = getDb();
+    const email = uniqueEmail("version-cap");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Cap" }));
+    const [first] = created.versions;
+    if (!first) throw new Error("expected a version");
+    await db.insert(strategyVersions).values(
+      Array.from({ length: MAX_VERSIONS_PER_STRATEGY - 1 }, (_, index) => ({
+        strategyId: created.id,
+        versionNumber: index + 2,
+        definition: first.definition,
+        definitionDigest: `digest-${String(index + 2)}`,
+      })),
+    );
+
+    await expect(
+      repository.addVersion(created.id, definition({ name: "One too many" })),
+    ).rejects.toBeInstanceOf(StrategyVersionLimitError);
+
+    const after = await repository.findMine(created.id);
+    expect(after.versions).toHaveLength(MAX_VERSIONS_PER_STRATEGY);
+    expect(after.name).toBe("Cap");
   });
 });

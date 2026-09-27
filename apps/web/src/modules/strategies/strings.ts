@@ -275,6 +275,8 @@ const en = {
       not_shared: "This strategy is not shared.",
       conflict: "Someone else just changed this strategy. Reload and try again.",
       unavailable: "Couldn't save right now. Try again in a moment.",
+      version_limit:
+        "This strategy has reached 100 versions. Create a new strategy to keep changing it.",
     },
     versions: { title: "Versions", createdAt: "Created" },
   },
@@ -438,6 +440,8 @@ const ptBR = {
       not_shared: "Essa estratégia não está compartilhada.",
       conflict: "Outra pessoa alterou esta estratégia. Recarregue e tente novamente.",
       unavailable: "Não conseguimos salvar agora. Tente novamente.",
+      version_limit:
+        "Esta estratégia chegou a 100 versões. Crie uma nova estratégia para continuar alterando.",
     },
     versions: { title: "Versões", createdAt: "Criada em" },
   },

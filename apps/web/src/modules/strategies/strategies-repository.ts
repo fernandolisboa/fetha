@@ -69,6 +69,17 @@ export class StrategyLimitReachedError extends Error {
   }
 }
 
+export class StrategyVersionLimitError extends Error {
+  constructor() {
+    super("Strategy version limit reached");
+    this.name = "StrategyVersionLimitError";
+  }
+}
+
+// Bounds an unbounded edit loop on one strategy (#147, docs/adr/0032), well
+// above real use; a new strategy starts its own count.
+export const MAX_VERSIONS_PER_STRATEGY = 100;
+
 export class StrategiesRepository extends UserScopedRepository {
   async listMine(): Promise<StrategySummary[]> {
     const rows = await this.db
@@ -163,6 +174,9 @@ export class StrategiesRepository extends UserScopedRepository {
       }
       const latest = await this.latestVersion(tx, strategyId);
       const nextVersionNumber = (latest?.versionNumber ?? 0) + 1;
+      if (nextVersionNumber > MAX_VERSIONS_PER_STRATEGY) {
+        throw new StrategyVersionLimitError();
+      }
       await this.insertVersion(tx, strategyId, nextVersionNumber, definition);
       await tx
         .update(strategies)

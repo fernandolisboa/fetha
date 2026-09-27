@@ -112,6 +112,16 @@ export class BacktestRunAlreadyCompleteError extends Error {
 // can stay bricked in "running" with no path back to "pending" or "paused".
 export const STALE_LEASE_MS = 360_000;
 
+export class ActiveBacktestRunLimitError extends Error {
+  constructor() {
+    super("Too many backtest runs in progress");
+    this.name = "ActiveBacktestRunLimitError";
+  }
+}
+
+export const MAX_ACTIVE_BACKTEST_RUNS = 2;
+const ACTIVE_STATUSES: BacktestRunStatus[] = ["pending", "running", "paused"];
+
 export class BacktestRunClaimError extends Error {
   constructor() {
     super("Backtest run could not be claimed: another call may already be running it");
@@ -196,32 +206,49 @@ function toRecord(row: typeof backtestRuns.$inferSelect): BacktestRunRecord {
 // enforced by a database trigger, not only by this class's own defensive
 // checks.
 export class BacktestRunRepository extends UserScopedRepository {
+  // Open registration lets anyone hold runs that each keep a 300 s function
+  // busy per chunk (#147, docs/adr/0032). The count and the insert share a
+  // per-user advisory lock, so concurrent creates cannot both pass it.
   async create(input: BacktestRunConfigInput): Promise<BacktestRunRecord> {
-    const [row] = await this.db
-      .insert(backtestRuns)
-      .values({
-        userId: this.userId,
-        strategyId: input.strategyId,
-        strategyVersionId: input.strategyVersionId,
-        structure: input.structure,
-        universe: input.universe,
-        periodFrom: input.period.from,
-        periodTo: input.period.to,
-        initialCapital: input.initialCapital,
-        costModel: input.costModel,
-        riskProfile: input.riskProfile,
-        limits: input.limits,
-        sizing: input.sizing,
-        walkForwardWindowSessions: input.walkForward?.windowSessions ?? null,
-        seed: input.seed,
-        configDigest: "",
-        status: "pending",
-      })
-      .returning();
-    if (!row) {
-      throw new Error("failed to create backtest run");
-    }
-    return toRecord(row);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${this.userId}`}, 0))`,
+      );
+      const [active] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(backtestRuns)
+        .where(
+          and(eq(backtestRuns.userId, this.userId), inArray(backtestRuns.status, ACTIVE_STATUSES)),
+        );
+      if ((active?.count ?? 0) >= MAX_ACTIVE_BACKTEST_RUNS) {
+        throw new ActiveBacktestRunLimitError();
+      }
+      const [row] = await tx
+        .insert(backtestRuns)
+        .values({
+          userId: this.userId,
+          strategyId: input.strategyId,
+          strategyVersionId: input.strategyVersionId,
+          structure: input.structure,
+          universe: input.universe,
+          periodFrom: input.period.from,
+          periodTo: input.period.to,
+          initialCapital: input.initialCapital,
+          costModel: input.costModel,
+          riskProfile: input.riskProfile,
+          limits: input.limits,
+          sizing: input.sizing,
+          walkForwardWindowSessions: input.walkForward?.windowSessions ?? null,
+          seed: input.seed,
+          configDigest: "",
+          status: "pending",
+        })
+        .returning();
+      if (!row) {
+        throw new Error("failed to create backtest run");
+      }
+      return toRecord(row);
+    });
   }
 
   async findMine(id: string): Promise<BacktestRunRecord> {

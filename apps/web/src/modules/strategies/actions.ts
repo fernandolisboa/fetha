@@ -18,6 +18,7 @@ import {
   StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
+  StrategyVersionLimitError,
 } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
 
@@ -25,7 +26,7 @@ export type StrategyActionResult =
   | { status: "ok"; strategyId: string }
   | {
       status: "error";
-      error: "invalid" | "not_found" | "not_shared" | "conflict" | "unavailable";
+      error: "invalid" | "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit";
     };
 
 // A generous ceiling, not a plan limit (CLAUDE.md: no fees, no plans): it
@@ -56,8 +57,9 @@ const markSignalReadInputSchema = z.strictObject({ signalId: z.string().min(1).m
 
 function mapKnownError(
   error: unknown,
-): "not_found" | "not_shared" | "conflict" | "unavailable" | null {
+): "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit" | null {
   if (error instanceof StrategyNotFoundError) return "not_found";
+  if (error instanceof StrategyVersionLimitError) return "version_limit";
   if (error instanceof StrategyNotSharedError) return "not_shared";
   if (error instanceof StrategyLimitReachedError) return "unavailable";
   return classifyPersistenceError(error);

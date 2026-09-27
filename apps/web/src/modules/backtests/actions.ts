@@ -21,13 +21,23 @@ import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
 
-import { BacktestRunRepository } from "./backtest-run-repository";
+import {
+  ActiveBacktestRunLimitError,
+  BacktestRunRepository,
+  type BacktestRunRecord,
+} from "./backtest-run-repository";
 import { COST_MODEL_PRESETS, costModelPresetIds, walkForwardWindowOptions } from "./default-config";
 import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type CreateBacktestRunResult = {
   status: "error";
-  error: "invalid" | "not_found" | "rate_limited" | "no_risk_profile" | "unsatisfiable_collection";
+  error:
+    | "invalid"
+    | "not_found"
+    | "rate_limited"
+    | "no_risk_profile"
+    | "unsatisfiable_collection"
+    | "too_many_active";
 };
 
 const createInputSchema = z.strictObject({
@@ -203,20 +213,28 @@ async function createBacktestRun(
     return { status: "error", error: "unsatisfiable_collection" };
   }
 
-  const run = await new BacktestRunRepository(db, user).create({
-    strategyId: strategy.id,
-    strategyVersionId: version.id,
-    structure,
-    universe: parsed.universe,
-    period,
-    initialCapital: parsed.initialCapital,
-    costModel: COST_MODEL_PRESETS[parsed.costModel as keyof typeof COST_MODEL_PRESETS],
-    riskProfile,
-    limits: parsed.limits,
-    sizing: version.definition.sizing,
-    walkForward: { windowSessions: parsed.walkForwardWindowSessions },
-    seed: randomSeed(),
-  });
+  let run: BacktestRunRecord;
+  try {
+    run = await new BacktestRunRepository(db, user).create({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      structure,
+      universe: parsed.universe,
+      period,
+      initialCapital: parsed.initialCapital,
+      costModel: COST_MODEL_PRESETS[parsed.costModel as keyof typeof COST_MODEL_PRESETS],
+      riskProfile,
+      limits: parsed.limits,
+      sizing: version.definition.sizing,
+      walkForward: { windowSessions: parsed.walkForwardWindowSessions },
+      seed: randomSeed(),
+    });
+  } catch (error) {
+    if (error instanceof ActiveBacktestRunLimitError) {
+      return { status: "error", error: "too_many_active" };
+    }
+    throw error;
+  }
 
   redirect(`/estrategias/${strategy.id}/backtests/${run.id}`);
 }
