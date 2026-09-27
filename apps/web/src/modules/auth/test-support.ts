@@ -16,7 +16,7 @@ export function testRequestHeaders(ip: string = uniqueTestIp()): Headers {
 }
 
 // Better Auth's `defaultKeyHasher`, which `verification.storeIdentifier:
-// "hashed"` applies to every identifier it stores (docs/adr/0018, #60).
+// "hashed"` applies to every identifier it stores (docs/adr/0030).
 export function storedIdentifier(identifier: string): string {
   return createHash("sha256").update(identifier).digest("base64url");
 }
