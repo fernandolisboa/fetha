@@ -56,35 +56,53 @@ async function seedStrategy(
   return { strategyId: strategy.id, strategyVersionId: version.id };
 }
 
+function runValues(userId: string, strategyId: string, strategyVersionId: string) {
+  return {
+    userId,
+    strategyId,
+    strategyVersionId,
+    structure: {} as never,
+    universe: ["PETR4"],
+    periodFrom: "2026-01-02",
+    periodTo: "2026-09-25",
+    initialCapital: 10_000_000,
+    costModel: {} as never,
+    riskProfile: {} as never,
+    limits: "enforce" as const,
+    seed: 1,
+    configDigest: crypto.randomUUID(),
+  };
+}
+
 async function insertRun(
   userId: string,
   strategyId: string,
   strategyVersionId: string,
-  createdAt: Date,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(backtestRuns)
-    .values({
-      userId,
-      strategyId,
-      strategyVersionId,
-      structure: {} as never,
-      universe: ["PETR4"],
-      periodFrom: "2026-01-02",
-      periodTo: "2026-09-25",
-      initialCapital: 10_000_000,
-      costModel: {} as never,
-      riskProfile: {} as never,
-      limits: "enforce",
-      seed: 1,
-      configDigest: crypto.randomUUID(),
-      createdAt,
-    })
+    .values(runValues(userId, strategyId, strategyVersionId))
     .returning({ id: backtestRuns.id });
   if (!row) {
     throw new Error("failed to insert test backtest run");
   }
   return row.id;
+}
+
+// One INSERT statement evaluates `now()` once, so every row it produces
+// shares the same microsecond-precision `created_at`: the case a
+// `created_at` cursor cannot resolve.
+async function insertRunsSharingTimestamp(
+  userId: string,
+  strategyId: string,
+  strategyVersionId: string,
+  count: number,
+): Promise<string[]> {
+  const rows = await getDb()
+    .insert(backtestRuns)
+    .values(Array.from({ length: count }, () => runValues(userId, strategyId, strategyVersionId)))
+    .returning({ id: backtestRuns.id });
+  return rows.map((row) => row.id);
 }
 
 async function collect(tables: AsyncIterable<object> | readonly object[]): Promise<object[]> {
@@ -105,7 +123,7 @@ afterEach(async () => {
 });
 
 describe("BacktestsDataExport", () => {
-  it("pages through more runs than one page, in (created_at, id) order, each once, without user B's runs", async () => {
+  it("pages through more runs than one page, each once, ascending by id, without user B's runs", async () => {
     const emailA = uniqueEmail("a");
     const emailB = uniqueEmail("b");
     createdEmails.push(emailA, emailB);
@@ -114,44 +132,30 @@ describe("BacktestsDataExport", () => {
     const strategyA = await seedStrategy(userA.id);
     const strategyB = await seedStrategy(userB.id);
 
-    const baseline = new Date("2026-09-20T12:00:00Z");
-    const sameCreatedAt = new Date("2026-09-21T09:00:00Z");
     const runIdsA = [
-      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId, baseline),
-      await insertRun(
+      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId),
+      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId),
+      ...(await insertRunsSharingTimestamp(
         userA.id,
         strategyA.strategyId,
         strategyA.strategyVersionId,
-        new Date(baseline.getTime() + 1000),
-      ),
-      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId, sameCreatedAt),
-      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId, sameCreatedAt),
-      await insertRun(
-        userA.id,
-        strategyA.strategyId,
-        strategyA.strategyVersionId,
-        new Date(sameCreatedAt.getTime() + 60_000),
-      ),
+        4,
+      )),
+      await insertRun(userA.id, strategyA.strategyId, strategyA.strategyVersionId),
     ];
-    await insertRun(userB.id, strategyB.strategyId, strategyB.strategyVersionId, baseline);
-    await insertRun(userB.id, strategyB.strategyId, strategyB.strategyVersionId, baseline);
+    expect(runIdsA.length).toBeGreaterThanOrEqual(7);
+    await insertRun(userB.id, strategyB.strategyId, strategyB.strategyVersionId);
+    await insertRun(userB.id, strategyB.strategyId, strategyB.strategyVersionId);
 
     const exportRepo = new BacktestsDataExport(getDb(), userA, 2);
     const { backtest_runs: rows } = await exportRepo.tables();
-    const runs = (await collect(rows as AsyncIterable<{ id: string; createdAt: Date }>)) as {
-      id: string;
-      createdAt: Date;
-    }[];
+    const runs = (await collect(rows as AsyncIterable<{ id: string }>)) as { id: string }[];
 
-    expect(runs).toHaveLength(5);
+    expect(runs).toHaveLength(runIdsA.length);
     expect(new Set(runs.map((run) => run.id))).toEqual(new Set(runIdsA));
     for (let i = 1; i < runs.length; i++) {
-      const previous = runs[i - 1]!;
-      const current = runs[i]!;
-      const orderedByTime = previous.createdAt.getTime() < current.createdAt.getTime();
-      const orderedById =
-        previous.createdAt.getTime() === current.createdAt.getTime() && previous.id < current.id;
-      expect(orderedByTime || orderedById).toBe(true);
+      const [previous, current] = [runs[i - 1], runs[i]];
+      expect(previous && current && previous.id < current.id).toBe(true);
     }
   });
 
@@ -162,8 +166,19 @@ describe("BacktestsDataExport", () => {
 
     const exportRepo = new BacktestsDataExport(getDb(), userA, 2);
     const { backtest_runs: rows } = await exportRepo.tables();
-    const runs = await collect(rows!);
+    const runs = await collect(rows ?? []);
 
     expect(runs).toHaveLength(0);
+  });
+
+  it("refuses a non-positive or non-integer page size", async () => {
+    const emailA = uniqueEmail("pagesize-guard");
+    createdEmails.push(emailA);
+    const userA = await insertBareUser(emailA);
+    const db = getDb();
+
+    expect(() => new BacktestsDataExport(db, userA, 0)).toThrow(RangeError);
+    expect(() => new BacktestsDataExport(db, userA, -1)).toThrow(RangeError);
+    expect(() => new BacktestsDataExport(db, userA, 1.5)).toThrow(RangeError);
   });
 });
