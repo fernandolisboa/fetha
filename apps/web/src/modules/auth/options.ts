@@ -19,6 +19,7 @@ import { createRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-setti
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
+  refundAccountAttempt,
   type AccountRateLimitRule,
 } from "./account-rate-limit";
 import { buildMagicLinkEmail } from "./email/magic-link-email";
@@ -339,6 +340,15 @@ export function buildAuthOptions(
           await sendVerificationEmailFn(ctx, pending);
         }
       }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email" || !ctx.context.newSession) {
+          return;
+        }
+        const email = readAccountRateLimitEmail(ctx.body);
+        if (email) {
+          await refundAccountAttempt(db, email, ctx.path);
+        }
+      }),
     },
     plugins: [
       // `disableSignUp: true`: a magic-link click that creates a brand new
@@ -351,15 +361,10 @@ export function buildAuthOptions(
         rateLimit: { window: 60, max: 3 },
         storeToken: "hashed",
         sendMagicLink: async ({ email, url }) => {
-          // No enumeration in the response body: a magic-link request for an
-          // email with no account gets the same 200 response as a real one
-          // (the plugin always returns `{ status: true }` regardless of what
-          // this callback does), and only an existing account actually
-          // receives mail. This does not close the request's own timing:
-          // finding a user still costs one extra `mailer.send` await that
-          // the "no account" branch skips, an observable difference tracked
-          // alongside the same gap on password reset in #45 rather than
-          // fixed here.
+          // Same `{ status: true }` whether or not the email has an account;
+          // only an existing one receives mail. Both branches run the same
+          // lookup, and the production mailer sends after the response
+          // (docs/adr/0031), so the timing does not tell them apart either.
           const existingUser = await db.query.user.findFirst({
             where: eq(user.email, normalizeEmail(email)),
           });
