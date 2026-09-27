@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { readNewMagicLink, registerAndSignIn } from "./helpers";
+import { readNewMagicLink, registerAndSignIn, seedMagicLinkBaseline } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment (see apps/web/e2e/README.md):
 //   E2E_SECRET=... E2E_OWNER_EMAIL=... PLAYWRIGHT_BASE_URL=https://<preview>.vercel.app \
@@ -40,6 +40,7 @@ test("the owner's manual ingestion trigger runs for a given session", async ({
   const email: string = ownerEmail ?? "";
 
   await page.goto("/link-magico");
+  await seedMagicLinkBaseline(request, baseURL, email, secret);
   await page.getByLabel("E-mail").fill(email);
   await page.getByRole("button", { name: "Enviar link mágico" }).click();
   await expect(page).toHaveURL(/\/link-magico\/verifique\?email=/);

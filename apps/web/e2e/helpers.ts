@@ -29,19 +29,51 @@ const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
 const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
 
 // Owner magic-link requests share a per-account rate limit (3 per 60s,
-// auth/options.ts's "/sign-in/magic-link" rule), and both this module's
-// `triggerIngestionAsOwner` and ingestion-trigger.spec.ts's own owner sign-in
-// re-authenticate the same pre-provisioned owner account. A 429 sends no new
-// email, so `readLatestLink` would otherwise silently hand back the same
-// stale link used by a previous call — which then either fails a step later
-// for an unrelated reason or, worse, replays an already-consumed sign-in
-// token. This memoizes the last link any caller in this process actually
-// used per email and polls briefly for a new one, failing with a clear
-// rate-limit message instead of a misleading URL assertion. Exported so
-// every owner magic-link read in the suite shares the one memo.
+// auth/options.ts's "/sign-in/magic-link" rule), but a 429 never reaches this
+// helper: the sign-in form stays on `/link-magico` on a rate-limited submit,
+// so the caller's own `toHaveURL(/\/link-magico\/verifique/)` assertion
+// fails first. What this guards against instead is mail-outbox lag: sending
+// succeeded and a new row is on its way into `mail_outbox`, but reading the
+// "latest" link right after the click can still race that write and return
+// the *previous* email actually delivered — either a stale one this process
+// already consumed, or a leftover one that predates this whole test run.
+// Seeding the memo from the pre-click state (`seedMagicLinkBaseline`, a read
+// only, never another send) and polling until it changes makes the guard
+// correct even on a caller's first-ever read for an email, not just its own
+// second one. Exported so every owner magic-link read in the suite shares
+// the one memo.
 const lastMagicLinkByEmail = new Map<string, string>();
 const MAGIC_LINK_RETRY_TIMEOUT_MS = 20_000;
 const MAGIC_LINK_RETRY_INTERVAL_MS = 1_000;
+
+async function tryReadLatestLink(
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  email: string,
+  secret: string,
+): Promise<string | undefined> {
+  const response = await request.get(
+    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
+    { headers: { "x-e2e-secret": secret } },
+  );
+  if (!response.ok()) {
+    return undefined;
+  }
+  const { link } = (await response.json()) as { link: string };
+  return link;
+}
+
+export async function seedMagicLinkBaseline(
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  email: string,
+  secret: string,
+): Promise<void> {
+  const current = await tryReadLatestLink(request, baseURL, email, secret);
+  if (current !== undefined) {
+    lastMagicLinkByEmail.set(email, current);
+  }
+}
 
 export async function readNewMagicLink(
   request: APIRequestContext,
@@ -57,9 +89,7 @@ export async function readNewMagicLink(
     link = await readLatestLink(request, baseURL, email, secret);
   }
   if (link === previous) {
-    throw new Error(
-      `magic link for ${email} did not change; likely rate-limited (3 requests per 60s per account)`,
-    );
+    throw new Error(`magic link for ${email} did not arrive; mail-outbox lag exceeded 20s`);
   }
   lastMagicLinkByEmail.set(email, link);
   return link;
@@ -95,6 +125,7 @@ export async function triggerIngestionAsOwner(
   const page = await context.newPage();
 
   await page.goto(`${baseURL ?? ""}/link-magico`);
+  await seedMagicLinkBaseline(context.request, baseURL, ownerEmail, e2eSecret);
   await page.getByLabel("E-mail").fill(ownerEmail);
   await page.getByRole("button", { name: "Enviar link mágico" }).click();
   await expect(page).toHaveURL(/\/link-magico\/verifique\?email=/);

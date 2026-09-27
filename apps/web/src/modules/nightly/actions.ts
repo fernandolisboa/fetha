@@ -38,6 +38,29 @@ function sourceStatus(source: { skipped: boolean; error?: string }): SourceStatu
   return source.skipped ? "skipped" : "ok";
 }
 
+// True for anything a clean, complete run cannot produce (#51 review round
+// 3): a failed retention purge, or work the in-run deadline pushed to the
+// next run (evaluation.strategiesDeferred/usersSkipped,
+// scoring.usersSkipped/decisionsSkipped). None of these flip `outcome.ok`
+// or the summary's error counts, so without this check they would silently
+// stop showing up anywhere but the cron's own logs.
+function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJob>>): boolean {
+  if (
+    !outcome.accessLogPurge.ok ||
+    !outcome.unverifiedAccountPurge.ok ||
+    !outcome.sessionPurge.ok
+  ) {
+    return true;
+  }
+  if (
+    outcome.evaluation !== null &&
+    (outcome.evaluation.strategiesDeferred > 0 || outcome.evaluation.usersSkipped > 0)
+  ) {
+    return true;
+  }
+  return outcome.scoring.usersSkipped > 0 || outcome.scoring.decisionsSkipped > 0;
+}
+
 function summarize(outcome: Awaited<ReturnType<typeof runNightlyJob>>): TriggerNightlyJobSummary {
   return {
     ok: outcome.ok,
@@ -89,7 +112,12 @@ export async function triggerNightlyJobAction(input: unknown): Promise<TriggerNi
     await recordAccess("nightly_triggered");
     const outcome = await runNightlyJob(getDb(), { session: parsed.data.session });
     const summary = summarize(outcome);
-    if (!outcome.ok || summary.evaluationErrorCount > 0 || summary.scoringErrorCount > 0) {
+    if (
+      !outcome.ok ||
+      summary.evaluationErrorCount > 0 ||
+      summary.scoringErrorCount > 0 ||
+      hasUnsurfacedTrouble(outcome)
+    ) {
       // The redacted summary above is client-safe but not diagnosable; the
       // full outcome (raw provider/engine error strings, other users'
       // decisionId values) is logged server-side only, never returned.
