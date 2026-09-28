@@ -16,23 +16,26 @@ import { DiscardRunButton } from "@/modules/backtests/client";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
   CopyStrategyButton,
+  getMyArchivedStrategies,
   getMyStrategies,
   getSharedStrategies,
   ShareToggleButton,
   t,
 } from "@/modules/strategies";
+import { ArchiveStrategyButton, UnarchiveStrategyButton } from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.strategies}` };
 
 export default async function StrategiesPage() {
   await requireUser();
-  const [mine, shared, active] = await Promise.all([
+  const [mine, shared, active, archived] = await Promise.all([
     getMyStrategies(),
     getSharedStrategies(),
     getMyActiveBacktestRuns(),
+    getMyArchivedStrategies(),
   ]);
 
-  if (mine.length === 0 && shared.length === 0) {
+  if (mine.length === 0 && shared.length === 0 && archived.length === 0) {
     return (
       <EmptyState
         sentence={shellStrings.emptyStates.strategies.sentence}
@@ -112,6 +115,7 @@ export default async function StrategiesPage() {
                 <TableHead>{t.list.mine.columns.visibility}</TableHead>
                 <TableHead className="text-right">{t.list.mine.columns.version}</TableHead>
                 <TableHead />
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,6 +138,48 @@ export default async function StrategiesPage() {
                       strategyId={strategy.id}
                       strategyName={strategy.name}
                       visibility={strategy.visibility}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ArchiveStrategyButton strategyId={strategy.id} strategyName={strategy.name} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Panel>
+
+      <Panel title={t.list.archived.title}>
+        {archived.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t.list.archived.empty}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.list.mine.columns.name}</TableHead>
+                <TableHead className="text-right">{t.list.mine.columns.version}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {archived.map((strategy) => (
+                <TableRow key={strategy.id}>
+                  <TableCell>
+                    <Link
+                      href={`/estrategias/${strategy.id}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {strategy.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    v{strategy.latestVersionNumber}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <UnarchiveStrategyButton
+                      strategyId={strategy.id}
+                      strategyName={strategy.name}
                     />
                   </TableCell>
                 </TableRow>

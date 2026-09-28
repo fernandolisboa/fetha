@@ -129,4 +129,6 @@ verify-password endpoints closed (0034), a nonce script-src enforced on every ro
 a signed-in gate that asks existing users to re-accept a new terms version (0036), discarding a
 stuck backtest run and listing runs in progress across strategies (0037), `fixed_fractional`
 sizing a net-debit structure on its bounded max loss (0038), a typed web-authored evaluation
-vocabulary with `EvaluationRecord.detail` removed from the engine (0039).
+vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fees by instrument
+class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
+strategies archived, never deleted, and out of the cap (0043).

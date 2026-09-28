@@ -42,6 +42,7 @@ const en = {
     unsatisfiableCollection:
       "This strategy uses market data with no source yet for one of its indicators. Choose a different strategy.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
+    archived: "This strategy is archived. Unarchive it to run a new backtest.",
   },
   report: {
     overline: "Backtest",
@@ -257,6 +258,7 @@ const ptBR = {
     unsatisfiableCollection:
       "Essa estratégia usa dados de mercado ainda sem fonte para um dos seus indicadores. Escolha outra estratégia.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
+    archived: "Esta estratégia está arquivada. Desarquive para rodar um novo backtest.",
   },
   report: {
     overline: "Backtest",

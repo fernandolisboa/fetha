@@ -1,10 +1,12 @@
 export {
   addStrategyVersionAction,
+  archiveStrategyAction,
   copySharedStrategyAction,
   createStrategyAction,
   markSignalReadAction,
   setStrategyActiveAction,
   setStrategyVisibilityAction,
+  unarchiveStrategyAction,
   type MarkSignalReadResult,
   type StrategyActionResult,
 } from "./actions";
@@ -19,6 +21,7 @@ export {
   getMySignal,
   getMySignals,
   getMyStrategies,
+  getMyArchivedStrategies,
   getMyStrategy,
   getMyUnreadSignalCount,
   getSharedStrategies,
@@ -27,6 +30,7 @@ export {
 export { SignalNotFoundError, type SignalListItem } from "./signals-repository";
 export {
   StrategiesRepository,
+  StrategyArchivedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
   type StrategySummary,

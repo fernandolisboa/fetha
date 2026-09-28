@@ -18,6 +18,11 @@ export const getMyStrategies = cache(async (): Promise<StrategySummary[]> => {
   return repository.listMine();
 });
 
+export const getMyArchivedStrategies = cache(async (): Promise<StrategySummary[]> => {
+  const repository = await forCurrentUser(getDb(), StrategiesRepository);
+  return repository.listMineArchived();
+});
+
 export const getSharedStrategies = cache(async (): Promise<StrategySummary[]> => {
   const repository = await forCurrentUser(getDb(), StrategiesRepository);
   return repository.listShared();

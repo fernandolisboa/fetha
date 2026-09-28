@@ -155,6 +155,8 @@ describe("row-action aria-labels", () => {
       [strings.list.mine.shareAriaLabel(name), strings.list.mine.share],
       [strings.list.mine.unshareAriaLabel(name), strings.list.mine.unshare],
       [strings.list.shared.copyAriaLabel(name), strings.list.shared.copy],
+      [strings.list.mine.archiveAriaLabel(name), strings.list.mine.archive],
+      [strings.list.archived.unarchiveAriaLabel(name), strings.list.archived.unarchive],
     ] as const;
     for (const [label, visible] of cases) {
       expect(label.startsWith(visible)).toBe(true);

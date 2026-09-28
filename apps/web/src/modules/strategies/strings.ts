@@ -100,6 +100,9 @@ const en = {
       unshareAriaLabel: (strategyName: string) => `Stop sharing ${strategyName}`,
       shareError: "Couldn't update sharing. Try again.",
       active: "Active",
+      archive: "Archive",
+      archiveAriaLabel: (strategyName: string) => `Archive ${strategyName}`,
+      archiveError: "Couldn't archive the strategy. Try again.",
     },
     shared: {
       title: "Shared by other users",
@@ -108,6 +111,15 @@ const en = {
       copyAriaLabel: (strategyName: string) => `Copy ${strategyName}`,
       copyError: "Couldn't copy the strategy. Try again.",
     },
+    archived: {
+      title: "Archived",
+      empty: "No archived strategy.",
+      unarchive: "Unarchive",
+      unarchiveAriaLabel: (strategyName: string) => `Unarchive ${strategyName}`,
+      unarchiveError: "Couldn't unarchive the strategy. Try again.",
+      unarchiveLimitReached:
+        "Unarchiving this strategy would go over the 200-strategy limit. Archive another one first.",
+    },
     visibility: { private: "Private", shared: "Shared" },
     emptyCatalog:
       "The structure catalog is not seeded yet, so there is nothing to build a strategy from.",
@@ -115,6 +127,8 @@ const en = {
   editor: {
     createOverline: "New strategy",
     editOverline: "Edit strategy",
+    archivedOverline: "Archived strategy",
+    readOnlyTitle: "Read only",
     name: { label: "Name" },
     timeframe: { label: "Timeframe" },
     structure: { label: "Structure" },
@@ -194,8 +208,10 @@ const en = {
       unavailable: "Couldn't save right now. Try again in a moment.",
       version_limit:
         "This strategy has reached 100 versions. Create a new strategy to keep changing it.",
+      archived: "This strategy is archived. Unarchive it to make changes.",
     },
     versions: { title: "Versions", createdAt: "Created" },
+    archivedBadge: "Archived",
   },
   comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
   priceFields: {
@@ -268,6 +284,9 @@ const ptBR = {
       unshareAriaLabel: (strategyName: string) => `Parar de compartilhar ${strategyName}`,
       shareError: "Não foi possível atualizar o compartilhamento. Tente novamente.",
       active: "Ativa",
+      archive: "Arquivar",
+      archiveAriaLabel: (strategyName: string) => `Arquivar ${strategyName}`,
+      archiveError: "Não foi possível arquivar a estratégia. Tente novamente.",
     },
     shared: {
       title: "Compartilhadas",
@@ -276,12 +295,23 @@ const ptBR = {
       copyAriaLabel: (strategyName: string) => `Copiar ${strategyName}`,
       copyError: "Não foi possível copiar a estratégia. Tente novamente.",
     },
+    archived: {
+      title: "Arquivadas",
+      empty: "Nenhuma estratégia arquivada.",
+      unarchive: "Desarquivar",
+      unarchiveAriaLabel: (strategyName: string) => `Desarquivar ${strategyName}`,
+      unarchiveError: "Não foi possível desarquivar a estratégia. Tente novamente.",
+      unarchiveLimitReached:
+        "Desarquivar esta estratégia ultrapassaria o limite de 200. Arquive outra primeiro.",
+    },
     visibility: { private: "Privada", shared: "Compartilhada" },
     emptyCatalog: "O catálogo de estruturas ainda não foi carregado.",
   },
   editor: {
     createOverline: "Nova estratégia",
     editOverline: "Editar estratégia",
+    archivedOverline: "Estratégia arquivada",
+    readOnlyTitle: "Somente leitura",
     name: { label: "Nome" },
     timeframe: { label: "Escala de tempo" },
     structure: { label: "Estrutura" },
@@ -361,8 +391,10 @@ const ptBR = {
       unavailable: "Não conseguimos salvar agora. Tente novamente.",
       version_limit:
         "Esta estratégia chegou a 100 versões. Crie uma nova estratégia para continuar alterando.",
+      archived: "Esta estratégia está arquivada. Desarquive para fazer alterações.",
     },
     versions: { title: "Versões", createdAt: "Criada em" },
+    archivedBadge: "Arquivada",
   },
   comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
   priceFields: {
