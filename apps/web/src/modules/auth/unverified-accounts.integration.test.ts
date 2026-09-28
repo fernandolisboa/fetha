@@ -85,7 +85,7 @@ describe("purgeUnverifiedAccounts", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("leaves an invite untouched when the account holding it is purged", async () => {
+  it("keeps an invite spent when the account holding it is purged", async () => {
     const stale = await insertUser("stale-invite", false, UNVERIFIED_ACCOUNT_RETENTION_HOURS + 1);
     await getDb()
       .insert(invites)

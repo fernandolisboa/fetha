@@ -56,7 +56,8 @@ that.
 those the delete leaves ownerless (#195). Since this ADR, an invite is spent only when the invitee
 proves the mailbox, so an unverified account never holds one to release; the step's only possible
 targets were rows spent at sign-up before PR #150 (merged 2026-09-27 01:53Z), the old behavior this
-ADR replaced. Those accounts crossed the 24-hour retention window at 2026-09-28 01:53Z, and the
-first nightly purge after that, the 03:30Z cron on 2026-09-28, deleted them. Evidence:
-EVIDENCE_PLACEHOLDER. No row the step could act on can exist from here on, so it is dead code, not
-a behavior change.
+ADR replaced. The last account that could still spend an invite at sign-up was created when the
+production deploy that carried the fix went live, a few minutes after the 01:53Z merge. The
+03:30Z purge run on 2026-09-28 computes its cutoff as 2026-09-27 03:30Z, an hour and a half past
+that deploy, so with margin it caught and deleted every such account. Evidence: EVIDENCE_PLACEHOLDER.
+No row the step could act on can exist from here on, so it is dead code, not a behavior change.
