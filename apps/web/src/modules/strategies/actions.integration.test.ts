@@ -319,6 +319,38 @@ describe("archiveStrategyAction / unarchiveStrategyAction (#170, docs/adr/0043)"
     const result = await unarchiveStrategyAction({ strategyId: created.strategyId });
     expect(result).toEqual({ status: "error", error: "limit_reached" });
   });
+
+  it("reports limit_reached, not unavailable, when create or copy hits the cap (#227)", async () => {
+    const sharerEmail = uniqueEmail("cap-sharer");
+    const email = uniqueEmail("cap-create-copy");
+    createdEmails.push(sharerEmail, email);
+
+    currentUser = await insertBareUser(sharerEmail);
+    const shared = await createStrategyAction({ definition: definition() });
+    if (shared.status !== "ok") throw new Error("setup failed");
+    await new StrategiesRepository(getDb(), currentUser).setVisibility(shared.strategyId, "shared");
+
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    await getDb()
+      .insert(strategies)
+      .values(
+        Array.from({ length: MAX_STRATEGIES_PER_USER }, (_, index) => ({
+          userId: owner.id,
+          name: `Bulk ${String(index)}`,
+          visibility: "private" as const,
+        })),
+      );
+
+    expect(await createStrategyAction({ definition: definition() })).toEqual({
+      status: "error",
+      error: "limit_reached",
+    });
+    expect(await copySharedStrategyAction({ sourceStrategyId: shared.strategyId })).toEqual({
+      status: "error",
+      error: "limit_reached",
+    });
+  });
 });
 
 describe("strategy write rate limit (#217, docs/adr/0043)", () => {

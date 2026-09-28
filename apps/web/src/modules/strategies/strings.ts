@@ -110,6 +110,8 @@ const en = {
       copy: "Copy",
       copyAriaLabel: (strategyName: string) => `Copy ${strategyName}`,
       copyError: "Couldn't copy the strategy. Try again.",
+      copyLimitReached:
+        "You've reached the 200-strategy limit. Archive a strategy you no longer use before copying this one.",
     },
     archived: {
       title: "Archived",
@@ -211,6 +213,8 @@ const en = {
         "This strategy has reached 100 versions. Create a new strategy to keep changing it.",
       archived: "This strategy is archived. Unarchive it to make changes.",
       rate_limited: "Too many changes in a row. Wait a minute and try again.",
+      limit_reached:
+        "You've reached the 200-strategy limit. Archive a strategy you no longer use to make room.",
     },
     versions: { title: "Versions", createdAt: "Created" },
     archivedBadge: "Archived",
@@ -296,6 +300,8 @@ const ptBR = {
       copy: "Copiar",
       copyAriaLabel: (strategyName: string) => `Copiar ${strategyName}`,
       copyError: "Não foi possível copiar a estratégia. Tente novamente.",
+      copyLimitReached:
+        "Você chegou ao limite de 200 estratégias. Arquive uma que não usa mais antes de copiar esta.",
     },
     archived: {
       title: "Arquivadas",
@@ -396,6 +402,8 @@ const ptBR = {
         "Esta estratégia chegou a 100 versões. Crie uma nova estratégia para continuar alterando.",
       archived: "Esta estratégia está arquivada. Desarquive para fazer alterações.",
       rate_limited: "Muitas alterações seguidas. Aguarde um minuto e tente de novo.",
+      limit_reached:
+        "Você chegou ao limite de 200 estratégias. Arquive uma que não usa mais para liberar espaço.",
     },
     versions: { title: "Versões", createdAt: "Criada em" },
     archivedBadge: "Arquivada",
