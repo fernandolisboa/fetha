@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ErrorNotice } from "@/components/error-notice";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,11 +19,7 @@ export function AcceptTermsForm({ showNameField }: { showNameField: boolean }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      {state.status === "error" ? (
-        <Alert variant="destructive">
-          <AlertDescription>{state.message}</AlertDescription>
-        </Alert>
-      ) : null}
+      {state.status === "error" ? <ErrorNotice>{state.message}</ErrorNotice> : null}
 
       {showNameField ? (
         <div className="flex flex-col gap-1.5">

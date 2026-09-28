@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ErrorNotice } from "@/components/error-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,11 +16,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      {state.status === "error" ? (
-        <Alert variant="destructive">
-          <AlertDescription>{state.message}</AlertDescription>
-        </Alert>
-      ) : null}
+      {state.status === "error" ? <ErrorNotice>{state.message}</ErrorNotice> : null}
 
       <input type="hidden" name="token" value={token} />
 

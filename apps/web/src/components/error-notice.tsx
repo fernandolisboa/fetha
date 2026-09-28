@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 // live=false drops role="alert": a notice already present at first render
@@ -15,12 +16,18 @@ export function ErrorNotice({
   live?: boolean;
 }) {
   return (
-    <p
+    <Alert
+      variant="destructive"
       role={live ? "alert" : undefined}
-      className={cn("text-destructive flex items-start gap-1.5 text-xs", className)}
+      className={cn(
+        "w-auto gap-0 rounded-none border-0 bg-transparent p-0 text-xs has-[>svg]:gap-x-1.5 *:[svg]:row-span-1",
+        className,
+      )}
     >
-      <CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-      <span>{children}</span>
-    </p>
+      <CircleAlert aria-hidden="true" className="size-3.5" />
+      <AlertDescription className="text-destructive text-xs text-pretty">
+        {children}
+      </AlertDescription>
+    </Alert>
   );
 }

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorNotice } from "@/components/error-notice";
 
 import { recordDecisionAction, type RecordDecisionActionInput } from "../actions";
 import type { JournalOriginKind } from "../allowed-kinds";
@@ -273,7 +274,7 @@ export function DecisionBar({
             </div>
           </div>
 
-          {error && <p className="text-destructive text-xs">{error}</p>}
+          {error && <ErrorNotice>{error}</ErrorNotice>}
         </div>
 
         <DialogFooter>

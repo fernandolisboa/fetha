@@ -85,7 +85,7 @@ export default async function StrategiesPage() {
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">{run.period}</TableCell>
                     <TableCell>{backtestsStrings.inProgress.statusLabels[run.status]}</TableCell>
-                    <TableCell className="py-0 text-right">
+                    <TableCell className="text-right">
                       <DiscardRunButton
                         runId={run.id}
                         runLabel={
@@ -129,7 +129,7 @@ export default async function StrategiesPage() {
                   <TableCell className="text-right font-mono tabular-nums">
                     v{strategy.latestVersionNumber}
                   </TableCell>
-                  <TableCell className="py-0 text-right">
+                  <TableCell className="text-right">
                     <ShareToggleButton
                       strategyId={strategy.id}
                       strategyName={strategy.name}
@@ -162,7 +162,7 @@ export default async function StrategiesPage() {
                   <TableCell className="text-right font-mono tabular-nums">
                     v{strategy.latestVersionNumber}
                   </TableCell>
-                  <TableCell className="py-0 text-right">
+                  <TableCell className="text-right">
                     <CopyStrategyButton
                       sourceStrategyId={strategy.id}
                       strategyName={strategy.name}

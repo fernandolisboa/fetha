@@ -15,6 +15,7 @@ import {
   t,
 } from "@/modules/market-data";
 import { PageHeader, Panel } from "@/modules/shell";
+import { ErrorNotice } from "@/components/error-notice";
 
 export async function generateMetadata({
   params,
@@ -81,7 +82,9 @@ export default async function InstrumentPage({
 
       <Panel>
         {!seriesResult.ok ? (
-          <p className="text-destructive text-sm">{t.instrument.unavailable}</p>
+          <ErrorNotice live={false} className="text-sm">
+            {t.instrument.unavailable}
+          </ErrorNotice>
         ) : seriesResult.value.candles.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.instrument.noData}</p>
         ) : (

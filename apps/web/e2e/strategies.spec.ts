@@ -74,4 +74,13 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   await expect(otherPage.getByText("v1", { exact: false })).toBeVisible();
 
   await otherContext.close();
+
+  // The list's Visibility cell must follow the row's share toggle, not keep
+  // the value the page was rendered with.
+  await page.goto("/estrategias");
+  const ownRow = page.getByRole("row", { name: revisedName });
+  await expect(ownRow.getByRole("cell", { name: "Compartilhada", exact: true })).toBeVisible();
+  await ownRow.getByRole("button", { name: `Parar de compartilhar ${revisedName}` }).click();
+  await expect(ownRow.getByRole("button", { name: `Compartilhar ${revisedName}` })).toBeVisible();
+  await expect(ownRow.getByRole("cell", { name: "Privada", exact: true })).toBeVisible();
 });

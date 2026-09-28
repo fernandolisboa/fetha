@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ErrorNotice } from "@/components/error-notice";
 import { removeFromWatchlistAction } from "../actions";
 import { t } from "../strings";
 
@@ -45,7 +46,7 @@ export function RemoveFromWatchlistButton({ ticker }: { ticker: string }) {
       >
         <X aria-hidden />
       </Button>
-      {error && <p className="text-destructive text-xs">{t.remove.error}</p>}
+      {error && <ErrorNotice>{t.remove.error}</ErrorNotice>}
     </div>
   );
 }

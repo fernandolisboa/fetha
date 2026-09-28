@@ -7,6 +7,7 @@ import { centavosSchema, type RiskProfile } from "@fetha/contracts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ErrorNotice } from "@/components/error-notice";
 import { formatBRL, parseBRLToCentavos } from "@/lib/format/brl";
 import { fractionToPercentInputValue, parsePercentToFraction } from "@/lib/format/percent";
 
@@ -179,7 +180,7 @@ export function RiskProfileForm({ current }: { current: RiskProfile | null }) {
         </div>
       </div>
 
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+      {error ? <ErrorNotice>{error}</ErrorNotice> : null}
       {saved && !error ? (
         <p className="text-muted-foreground text-xs">{t.riskProfileForm.saved}</p>
       ) : null}
