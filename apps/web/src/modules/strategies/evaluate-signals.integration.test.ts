@@ -983,8 +983,10 @@ describe("evaluateSignalsForSession", () => {
   it("logs every session of a catch-up but sends only the last INBOX_ENTRY_SESSION_HORIZON sessions' entries to the inbox (#83)", async () => {
     const db = getDb();
     const sessionCount = INBOX_ENTRY_SESSION_HORIZON + 4;
-    const sessions = randomSessionSequence(sessionCount);
+    const sessions = randomSessionSequence(sessionCount + 1);
     createdSessions.push(...sessions);
+    const nextNight = sessions.pop();
+    if (!nextNight) throw new Error("fixture setup failed");
     const ticker = randomTicker();
     createdTickers.push(ticker);
 
@@ -1036,6 +1038,14 @@ describe("evaluateSignalsForSession", () => {
         expect(row.detail).toBeNull();
       }
     }
+
+    // The watermark covers the kept-out sessions, so a later night never
+    // proposes them again.
+    await insertSession(nextNight);
+    await insertCandle(ticker, nextNight);
+    const night3 = await evaluateSignalsForSession(db, [nextNight], { now: nightAfter(nextNight) });
+    expect(night3.evaluationsWritten).toBe(1);
+    expect(night3.signalsWritten).toBe(1);
   }, 60_000);
 
   it("counts the inbox horizon back from the wall clock, so sessions drained late still age out (#83)", async () => {
