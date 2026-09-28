@@ -16,8 +16,6 @@ import { registerVerifiedUser } from "./registration-test-support";
 import { deleteAccount, signInMagicLink } from "./service";
 import { testRequestHeaders } from "./test-support";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 process.env.REGISTRATION_MODE = "open";
 
 const PASSWORD = "correct-horse-battery";

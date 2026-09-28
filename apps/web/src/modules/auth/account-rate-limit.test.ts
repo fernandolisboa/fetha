@@ -117,14 +117,13 @@ describe("accountBucketKey", () => {
   });
 
   it("derives the same key whether the caller passes env explicitly or relies on the process.env default, so hooks and Server Actions agree (#191)", () => {
-    const original = process.env.BETTER_AUTH_SECRET;
-    process.env.BETTER_AUTH_SECRET = ENV.BETTER_AUTH_SECRET;
+    vi.stubEnv("BETTER_AUTH_SECRET", ENV.BETTER_AUTH_SECRET);
     try {
       expect(accountBucketKey("a@example.com", "/sign-in/email")).toBe(
         accountBucketKey("a@example.com", "/sign-in/email", ENV),
       );
     } finally {
-      process.env.BETTER_AUTH_SECRET = original;
+      vi.unstubAllEnvs();
     }
   });
 });

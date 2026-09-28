@@ -15,8 +15,6 @@ import { registerVerifiedUser } from "./registration-test-support";
 import { signIn } from "./service";
 import { testRequestHeaders } from "./test-support";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 process.env.REGISTRATION_MODE = "open";
 
 function uniqueEmail(label: string): string {

@@ -18,9 +18,6 @@ import {
 import { testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 const ATTACKER_PASSWORD = "attacker-chosen-password";
 
 function uniqueEmail(label: string): string {

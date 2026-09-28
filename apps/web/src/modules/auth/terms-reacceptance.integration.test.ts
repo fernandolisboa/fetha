@@ -14,9 +14,6 @@ import { acceptTerms } from "./terms-consent";
 import { readTermsGate } from "./terms-gate";
 import { findLatestVerificationLink } from "./verification-link";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 function uniqueEmail(label: string): string {
   return `fetha-terms-reacceptance-${label}-${crypto.randomUUID()}@example.com`;
 }

@@ -11,9 +11,6 @@ import { signIn, signInMagicLink } from "./service";
 import { storedIdentifier, testRequestHeaders } from "./test-support";
 import { findLatestVerificationLink } from "./verification-link";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 function uniqueEmail(label: string): string {
   return `fetha-magic-link-${label}-${crypto.randomUUID()}@example.com`;
 }

@@ -11,9 +11,6 @@ import { registerVerifiedUser } from "./registration-test-support";
 import { requestPasswordReset, signIn, signInMagicLink } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 function uniqueEmail(label: string): string {
   return `fetha-rate-limit-${label}-${crypto.randomUUID()}@example.com`;
 }

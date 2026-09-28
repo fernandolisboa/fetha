@@ -10,8 +10,6 @@ import {
   enforceAccountRateLimit,
 } from "./account-rate-limit";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-
 function uniqueKey(label: string): string {
   return `fetha-account-rate-limit-${label}-${crypto.randomUUID()}@example.com`;
 }

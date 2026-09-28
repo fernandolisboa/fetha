@@ -19,9 +19,10 @@ art. 6 III, art. 15), and a dump of the table lists who tried to sign in.
 ## Decision
 
 1. The key is `account:<sha256(email) as base64url>|<path>` (`accountBucketKey` in
-   `apps/web/src/modules/auth/account-rate-limit.ts`). The limiter only needs to recognise the
-   same address again, never to read it back. The `account:` prefix cannot start an IP address,
-   so account and IP buckets still never collide.
+   `apps/web/src/modules/auth/account-rate-limit.ts`) (superseded by the 2026-09-28 addendum:
+   HMAC-SHA256 under BETTER_AUTH_SECRET). The limiter only needs to recognise the same address
+   again, never to read it back. The `account:` prefix cannot start an IP address, so account and
+   IP buckets still never collide.
 2. Whenever an account bucket starts a new window (first insert or window reset), the same call
    deletes every `account:` row whose `last_request` is older than
    `ACCOUNT_BUCKET_RETENTION_SECONDS` (60). IP buckets are left to Better Auth's own prune.
