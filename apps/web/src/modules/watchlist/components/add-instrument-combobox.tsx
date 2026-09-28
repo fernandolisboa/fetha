@@ -13,6 +13,7 @@ import {
   CommandItem,
   CommandList,
   CommandLoading,
+  CommandStatus,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ErrorNotice } from "@/components/error-notice";
@@ -77,6 +78,15 @@ export function AddInstrumentCombobox() {
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.results : [];
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
   const rateLimited = trimmedQuery.length > 0 && currentOutcome?.kind === "rate_limited";
+  const statusText = pending
+    ? t.add.searching
+    : rateLimited
+      ? t.add.rateLimited
+      : searchFailed
+        ? t.add.searchError
+        : trimmedQuery.length > 0 && displayResults.length === 0
+          ? t.add.empty
+          : "";
 
   function select(ticker: string) {
     setAddError(null);
@@ -124,6 +134,7 @@ export function AddInstrumentCombobox() {
         <PopoverContent className="w-64 p-0" align="end">
           <Command shouldFilter={false}>
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
+            <CommandStatus>{statusText}</CommandStatus>
             <CommandList>
               {pending ? (
                 <CommandLoading label={t.add.searching}>{t.add.searching}</CommandLoading>

@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 
-import { CommandDialog, CommandEmpty, CommandInput, CommandList } from "@/components/ui/command";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandInput,
+  CommandList,
+  CommandStatus,
+} from "@/components/ui/command";
 
 import { t } from "../strings";
 
@@ -38,6 +44,7 @@ export function CommandSearch() {
       </button>
       <CommandDialog open={open} onOpenChange={setOpen} title={t.search.placeholder}>
         <CommandInput placeholder={t.search.placeholder} />
+        <CommandStatus>{t.search.empty}</CommandStatus>
         <CommandList>
           <CommandEmpty>{t.search.empty}</CommandEmpty>
         </CommandList>

@@ -19,7 +19,14 @@ test("add an instrument to the watchlist and open its chart", async ({
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
-  await page.getByPlaceholder("Buscar pelo código").fill(TICKER);
+  const searchInput = page.getByPlaceholder("Buscar pelo código");
+  const status = page.getByRole("status");
+
+  await searchInput.fill("ZZZZ9");
+  await expect(status).toHaveText("Nenhum ativo encontrado.");
+
+  await searchInput.fill(TICKER);
+  await expect(status).toHaveText("Buscando…");
   await page.getByRole("option", { name: TICKER, exact: true }).click();
 
   const row = page.getByRole("row", { name: new RegExp(TICKER) });

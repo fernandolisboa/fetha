@@ -119,6 +119,18 @@ function CommandLoading({
   );
 }
 
+function CommandStatus({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="command-status"
+      role="status"
+      aria-live="polite"
+      className={cn("sr-only", className)}
+      {...props}
+    />
+  );
+}
+
 function CommandGroup({
   className,
   ...props
@@ -188,6 +200,7 @@ export {
   CommandList,
   CommandEmpty,
   CommandLoading,
+  CommandStatus,
   CommandGroup,
   CommandItem,
   CommandShortcut,
