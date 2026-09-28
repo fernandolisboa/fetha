@@ -1,5 +1,5 @@
 import { zipSync } from "fflate";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -12,7 +12,7 @@ import {
   tradingSessions,
 } from "./schema";
 
-import { calendarMarkerSession, ingest } from "./ingest";
+import { calendarMarkerSession, ingest, runSource } from "./ingest";
 
 const TEST_SESSION = "2026-06-15";
 const STOCK_TICKER = "ZZT3";
@@ -408,5 +408,39 @@ describe("ingest", () => {
 
     const [candleRow] = await db.select().from(candles).where(eq(candles.ticker, STOCK_TICKER));
     expect(candleRow?.close).toBe("1.080000");
+  });
+});
+
+describe("runSource against a real database failure", () => {
+  const FAILING_SESSION = "2026-06-19";
+
+  afterEach(async () => {
+    const db = getDb();
+    await db
+      .delete(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "cotahist"), eq(ingestionRuns.session, FAILING_SESSION)));
+  });
+
+  it("stores no SQL statement or bound params in ingestion_runs.error for a failing write", async () => {
+    const db = getDb();
+
+    const outcome = await runSource(db, "cotahist", FAILING_SESSION, 300_000, async () => {
+      await db.execute(sql`select 1 / 0`);
+      return 0;
+    });
+
+    expect(outcome.error).toBeDefined();
+    expect(outcome.error).not.toContain("Failed query");
+    expect(outcome.error).not.toContain("params:");
+    expect(outcome.error).not.toContain("select 1 / 0");
+
+    const [failedRun] = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "cotahist"), eq(ingestionRuns.session, FAILING_SESSION)));
+    expect(failedRun?.status).toBe("failed");
+    expect(failedRun?.error).toBe(outcome.error);
+    expect(failedRun?.error).not.toContain("Failed query");
+    expect(failedRun?.error).not.toContain("params:");
   });
 });

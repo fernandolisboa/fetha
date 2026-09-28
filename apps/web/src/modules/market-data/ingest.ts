@@ -130,6 +130,61 @@ function isUniqueViolation(error: unknown): boolean {
   return postgresErrorOf(error)?.code === "23505";
 }
 
+const MAX_INGESTION_ERROR_MESSAGE_LENGTH = 200;
+
+// Drizzle's own `DrizzleQueryError` message is `Failed query: <sql>\nparams:
+// <params>` — the bound statement itself, which for a market-data write can
+// carry a full day's ticker/price rows. That string must never reach
+// `ingestion_runs.error` or the nightly job's outcome/logs, whether it is the
+// caught error's own message (a query that failed for a reason the driver
+// never turned into a Postgres error, e.g. a dropped connection mid-query) or
+// sits one level down as `.cause` on something else that wraps it. A
+// duck-typed check on `.query`/`.params` matches drizzle-orm's real error
+// class without importing it; the message pattern is a second, cheaper check
+// for anything shaped the same way without those own properties.
+function isDrizzleQueryErrorShape(value: unknown): boolean {
+  if (!(value instanceof Error)) {
+    return false;
+  }
+  if ("query" in value && typeof (value as { query: unknown }).query === "string") {
+    return true;
+  }
+  return value.message.startsWith("Failed query:");
+}
+
+function leaksQuery(error: unknown): boolean {
+  if (isDrizzleQueryErrorShape(error)) {
+    return true;
+  }
+  const cause = error instanceof Error ? error.cause : undefined;
+  return isDrizzleQueryErrorShape(cause);
+}
+
+function truncate(message: string, maxLength: number): string {
+  return message.length > maxLength ? `${message.slice(0, maxLength)}…` : message;
+}
+
+// The single place ingest.ts turns a caught error into the short string that
+// lands in `ingestion_runs.error` and the nightly job's outcome/logs: a
+// Postgres error is reduced to its SQLSTATE (plus the violated constraint
+// when the driver reports one), never its own message, since that message is
+// driver-formatted free text that can itself echo back bound values.
+export function ingestionErrorMessage(error: unknown): string {
+  const postgresError = postgresErrorOf(error);
+  if (postgresError) {
+    return postgresError.constraint
+      ? `${postgresError.code} (${postgresError.constraint})`
+      : postgresError.code;
+  }
+  if (leaksQuery(error)) {
+    return "database query failed";
+  }
+  if (error instanceof Error) {
+    return truncate(error.message, MAX_INGESTION_ERROR_MESSAGE_LENGTH);
+  }
+  return "unknown error";
+}
+
 // Only the initial `running` row is inserted and committed with the plain
 // `db` handle before the lock is acquired, so `reapStaleRunningRuns` can see
 // and age it out even while this invocation waits on the lock. The `run()`
@@ -209,7 +264,7 @@ export async function runSource(
         : {}),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
+    const message = ingestionErrorMessage(error);
     if (runId) {
       await finishRun(db, runId, { status: "failed", error: message });
     }
@@ -289,8 +344,7 @@ async function removeUnlistedSessions(
     const removed = await deleteUnlistedTradingSessions(db, year, sessions);
     return { source: "calendar", skipped: removed === 0, rowCount: removed };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    return { source: "calendar", skipped: false, rowCount: 0, error: message };
+    return { source: "calendar", skipped: false, rowCount: 0, error: ingestionErrorMessage(error) };
   }
 }
 
