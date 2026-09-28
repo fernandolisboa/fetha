@@ -20,7 +20,7 @@ import { ErrorNotice } from "@/components/error-notice";
 
 import { addToWatchlistAction, searchInstrumentsAction } from "../actions";
 import { t } from "../strings";
-import { deriveSearchMessage, deriveSearchStatusText } from "./search-status";
+import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
 
 const SEARCH_DEBOUNCE_MS = 200;
 

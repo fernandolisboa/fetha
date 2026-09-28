@@ -1,9 +1,16 @@
 const en = {
   wordmark: "Fetha",
   search: {
-    placeholder: "Search instrument, series or strategy",
+    placeholder: "Search instrument or strategy",
     shortcut: "Ctrl K",
-    empty: "Nothing to search yet.",
+    searching: "Searching…",
+    searchError: "Could not search. Try again.",
+    rateLimited: "Too many searches in a row. Wait a few seconds and try again.",
+    empty: "No instrument or strategy found.",
+    groups: {
+      instruments: "Instruments",
+      strategies: "Strategies",
+    },
   },
   marketBar: {
     noData: "no data yet",
@@ -52,9 +59,16 @@ const en = {
 const ptBR = {
   wordmark: "Fetha",
   search: {
-    placeholder: "Buscar ativo, série ou estratégia",
+    placeholder: "Buscar ativo ou estratégia",
     shortcut: "Ctrl K",
-    empty: "Ainda não há nada para buscar.",
+    searching: "Buscando…",
+    searchError: "Não foi possível buscar. Tente novamente.",
+    rateLimited: "Muitas buscas seguidas. Espere alguns segundos e tente de novo.",
+    empty: "Nenhum ativo ou estratégia encontrado.",
+    groups: {
+      instruments: "Ativos",
+      strategies: "Estratégias",
+    },
   },
   marketBar: {
     noData: "sem dados",

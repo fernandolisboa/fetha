@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
@@ -20,6 +20,11 @@ export interface StrategySummary {
   copiedFromStrategyId: string | null;
   latestVersionNumber: number;
   updatedAt: Date;
+}
+
+export interface StrategySearchResult {
+  id: string;
+  name: string;
 }
 
 export interface StrategyVersionRecord {
@@ -167,6 +172,31 @@ export class StrategiesRepository extends UserScopedRepository {
       .orderBy(desc(strategies.updatedAt));
 
     return this.toSummaries(this.db, rows);
+  }
+
+  // The command palette's strategy source (#233): a case-insensitive
+  // substring match on the caller's own, non-archived strategies. The
+  // query is user input reaching `ILIKE`, so its own `%`, `_` and `\` are
+  // escaped with a leading backslash (Postgres's default `ILIKE` escape
+  // character) before being wrapped in wildcards, the same way the ticker
+  // in the query the caller cannot control is never trusted verbatim
+  // elsewhere in this module.
+  async searchMine(query: string, limit: number): Promise<StrategySearchResult[]> {
+    const escaped = query.replace(/[\\%_]/g, (character) => `\\${character}`);
+    const pattern = `%${escaped}%`;
+    const rows = await this.db
+      .select({ id: strategies.id, name: strategies.name })
+      .from(strategies)
+      .where(
+        and(
+          eq(strategies.userId, this.userId),
+          isNull(strategies.archivedAt),
+          ilike(strategies.name, pattern),
+        ),
+      )
+      .orderBy(desc(strategies.updatedAt))
+      .limit(limit);
+    return rows;
   }
 
   async findMine(strategyId: string): Promise<StrategyWithVersions> {

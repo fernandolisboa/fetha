@@ -22,6 +22,10 @@ const en = {
         title: "Navigation",
         body: "Fetha's six destinations live here. The button at the end collapses the bar to give the content more room.",
       },
+      commandSearch: {
+        title: "Search",
+        body: "Press Ctrl K anywhere to search an instrument or a strategy and jump straight to its page.",
+      },
       addInstrument: {
         title: "Start with the watchlist",
         body: "Click “Adicionar ativo” and search a ticker, such as PETR4. Active strategies are evaluated on the watchlist's instruments.",
@@ -69,6 +73,7 @@ const en = {
     header: {
       title: "Top of the screen",
       steps: [
+        "Press Ctrl K to search an instrument or a strategy and jump straight to its page.",
         "On an instrument's page, the market bar shows its last close and how recent it is, such as “fechamento de ontem”.",
         "The account menu holds this guide, settings and sign out.",
       ],
@@ -155,6 +160,10 @@ const ptBR = {
         title: "Navegação",
         body: "Os seis destinos da Fetha ficam aqui. O botão no fim recolhe a barra para dar mais espaço ao conteúdo.",
       },
+      commandSearch: {
+        title: "Busca",
+        body: "Aperte Ctrl K em qualquer tela para buscar um ativo ou uma estratégia e ir direto para a página dele.",
+      },
       addInstrument: {
         title: "Comece pela watchlist",
         body: "Clique em “Adicionar ativo” e busque um código, como PETR4. As estratégias ativas são avaliadas nos ativos da watchlist.",
@@ -202,6 +211,7 @@ const ptBR = {
     header: {
       title: "No topo da tela",
       steps: [
+        "Aperte Ctrl K para buscar um ativo ou uma estratégia e ir direto para a página dele.",
         "Na página de um ativo, a barra de mercado mostra o último fechamento e de quando ele é, como “fechamento de ontem”.",
         "O menu da conta tem este guia, as configurações e o botão de sair.",
       ],

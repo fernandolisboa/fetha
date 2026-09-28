@@ -26,6 +26,7 @@ import {
   StrategyNotFoundError,
   StrategyNotSharedError,
   StrategyVersionLimitError,
+  type StrategySearchResult,
 } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
 
@@ -65,6 +66,11 @@ const activeInputSchema = z.strictObject({
 });
 
 const markSignalReadInputSchema = z.strictObject({ signalId: z.string().min(1).max(200) });
+
+const searchInputSchema = z.strictObject({ query: z.string().trim().min(1).max(100) });
+
+const SEARCH_RATE_LIMIT = { windowSeconds: 10, max: 30 };
+const MAX_SEARCH_RESULTS = 8;
 
 function mapKnownError(
   error: unknown,
@@ -342,4 +348,32 @@ export async function markSignalReadAction(input: {
   });
   revalidatePath("/sinais");
   return { status: "ok" };
+}
+
+export type SearchMyStrategiesResult =
+  { status: "ok"; results: StrategySearchResult[] } | { status: "error"; error: "rate_limited" };
+
+// The command palette's strategy source (#233). Requires a session, the
+// same way `searchInstrumentsAction` does, but the search is also scoped
+// to the caller's own strategies (`StrategiesRepository.searchMine`), so
+// there is no anonymous-endpoint concern to guard against beyond that.
+export async function searchMyStrategiesAction(input: {
+  query: string;
+}): Promise<SearchMyStrategiesResult> {
+  const parsed = searchInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "ok", results: [] };
+  }
+  const user = await withAuthenticatedAction(() => requireUser());
+  try {
+    await enforceAccountRateLimit(getDb(), user.email, "strategies/search", SEARCH_RATE_LIMIT);
+  } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
+    throw error;
+  }
+  const repository = await forCurrentUser(getDb(), StrategiesRepository);
+  const results = await repository.searchMine(parsed.data.query, MAX_SEARCH_RESULTS);
+  return { status: "ok", results };
 }

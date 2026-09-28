@@ -742,3 +742,75 @@ describe("StrategiesRepository archive/unarchive isolation", () => {
     expect((await repositoryA.listMineArchived()).map((s) => s.id)).not.toContain(created.id);
   });
 });
+
+describe("StrategiesRepository.searchMine (#233)", () => {
+  it("finds the caller's own strategy case-insensitively", async () => {
+    const db = getDb();
+    const email = uniqueEmail("search-case");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    await repository.createWithVersion(definition({ name: "SMA Cruza Acima" }));
+
+    const results = await repository.searchMine("cruza", 8);
+    expect(results.map((r) => r.name)).toEqual(["SMA Cruza Acima"]);
+  });
+
+  it("never returns another user's strategy", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("search-iso-a");
+    const emailB = uniqueEmail("search-iso-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await new StrategiesRepository(db, userB).createWithVersion(
+      definition({ name: "Estratégia da B" }),
+    );
+
+    const results = await new StrategiesRepository(db, userA).searchMine("estratégia", 8);
+    expect(results).toEqual([]);
+  });
+
+  it("excludes archived strategies", async () => {
+    const db = getDb();
+    const email = uniqueEmail("search-archived");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Arquivada" }));
+    await repository.archive(created.id);
+
+    const results = await repository.searchMine("arquivada", 8);
+    expect(results).toEqual([]);
+  });
+
+  it("treats % and _ in the query as literal characters, not wildcards", async () => {
+    const db = getDb();
+    const email = uniqueEmail("search-escape");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    await repository.createWithVersion(definition({ name: "Normal strategy" }));
+    await repository.createWithVersion(definition({ name: "100%_special" }));
+
+    const wildcardResults = await repository.searchMine("%", 8);
+    expect(wildcardResults.map((r) => r.name)).toEqual(["100%_special"]);
+
+    const underscoreResults = await repository.searchMine("%_s", 8);
+    expect(underscoreResults.map((r) => r.name)).toEqual(["100%_special"]);
+  });
+
+  it("respects the limit", async () => {
+    const db = getDb();
+    const email = uniqueEmail("search-limit");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    for (let index = 0; index < 5; index += 1) {
+      await repository.createWithVersion(definition({ name: `Limitada ${String(index)}` }));
+    }
+
+    const results = await repository.searchMine("limitada", 3);
+    expect(results).toHaveLength(3);
+  });
+});
