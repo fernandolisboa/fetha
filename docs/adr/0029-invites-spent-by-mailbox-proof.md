@@ -57,6 +57,6 @@ those the delete leaves ownerless (#195). Since this ADR, an invite is spent onl
 proves the mailbox, so an unverified account never holds one to release; the step's only possible
 targets were rows spent at sign-up before PR #150 (merged 2026-09-27 01:53Z), the old behavior this
 ADR replaced. Those accounts crossed the 24-hour retention window at 2026-09-28 01:53Z, and the
-first nightly purge after that, the 03:30Z cron on 2026-09-28, deleted them: the orchestrator
-confirmed that run before this change merged. No row the step could act on can exist from here on,
-so it is dead code, not a behavior change.
+first nightly purge after that, the 03:30Z cron on 2026-09-28, deleted them. Evidence:
+EVIDENCE_PLACEHOLDER. No row the step could act on can exist from here on, so it is dead code, not
+a behavior change.
