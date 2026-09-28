@@ -15,6 +15,7 @@ import { t } from "../strings";
 
 export function CommandSearch() {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -42,9 +43,18 @@ export function CommandSearch() {
         <span className="truncate">{t.search.placeholder}</span>
         <span className="text-faint ml-auto font-mono text-[11px]">{t.search.shortcut}</span>
       </button>
-      <CommandDialog open={open} onOpenChange={setOpen} title={t.search.placeholder}>
-        <CommandInput placeholder={t.search.placeholder} />
-        <CommandStatus>{t.search.empty}</CommandStatus>
+      <CommandDialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
+            setQuery("");
+          }
+        }}
+        title={t.search.placeholder}
+      >
+        <CommandInput placeholder={t.search.placeholder} value={query} onValueChange={setQuery} />
+        <CommandStatus>{query.trim().length > 0 ? t.search.empty : ""}</CommandStatus>
         <CommandList>
           <CommandEmpty>{t.search.empty}</CommandEmpty>
         </CommandList>

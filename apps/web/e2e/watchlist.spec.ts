@@ -20,13 +20,27 @@ test("add an instrument to the watchlist and open its chart", async ({
 
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
   const searchInput = page.getByPlaceholder("Buscar pelo código");
-  const status = page.getByRole("status");
+  const status = page.getByRole("dialog").getByRole("status");
 
   await searchInput.fill("ZZZZ9");
   await expect(status).toHaveText("Nenhum ativo encontrado.");
 
+  // Server Actions post to the current URL with a `next-action` header
+  // rather than a distinguishing path, so this delays every such POST to
+  // hold the UI in its pending state long enough for the "Buscando…"
+  // assertion below to never race the debounce + response.
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST" && request.headers()["next-action"]) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    await route.continue();
+  });
+
   await searchInput.fill(TICKER);
   await expect(status).toHaveText("Buscando…");
+  await page.unroute("**/*");
+
   await page.getByRole("option", { name: TICKER, exact: true }).click();
 
   const row = page.getByRole("row", { name: new RegExp(TICKER) });
