@@ -1,4 +1,30 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, min, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  like,
+  lt,
+  lte,
+  min,
+  sql,
+} from "drizzle-orm";
+import {
+  decimalStringSchema,
+  exerciseStyleSchema,
+  optionRightSchema,
+  sessionDateSchema,
+  tickerSchema,
+  type DecimalString,
+  type ExerciseStyle,
+  type OptionRight,
+  type SessionDate,
+  type Ticker,
+} from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
@@ -274,6 +300,128 @@ export async function optionChainForUnderlying(
         lastPrice: matchesCurrentCycle && value ? { value, session: priceRow.session } : null,
       };
     });
+}
+
+export interface OptionSeriesSearchResult {
+  ticker: Ticker;
+  underlying: Ticker;
+  right: OptionRight;
+  strike: DecimalString;
+  expiry: SessionDate;
+}
+
+const SERIES_SEARCH_PATTERN = /^[A-Za-z0-9]{1,12}$/;
+
+// Prefix search over the series registry for the Ctrl K palette (#241).
+// Only cycles still alive on `today`, and one row per ticker because B3
+// reuses option tickers across cycles (ADR-0017): the nearest live cycle,
+// the latest registry snapshot winning a tie, which is the same cycle
+// `optionSeriesDetail` opens for that ticker.
+export async function searchOptionSeries(
+  db: Database,
+  query: string,
+  today: SessionDate,
+  limit: number,
+): Promise<OptionSeriesSearchResult[]> {
+  const trimmed = query.trim();
+  if (!SERIES_SEARCH_PATTERN.test(trimmed)) {
+    return [];
+  }
+  const rows = await db
+    .selectDistinctOn([optionSeries.ticker], {
+      ticker: optionSeries.ticker,
+      underlying: optionSeries.underlying,
+      right: optionSeries.right,
+      strike: optionSeries.strike,
+      expiry: optionSeries.expiry,
+    })
+    .from(optionSeries)
+    .where(
+      and(like(optionSeries.ticker, `${trimmed.toUpperCase()}%`), gte(optionSeries.expiry, today)),
+    )
+    .orderBy(asc(optionSeries.ticker), asc(optionSeries.expiry), desc(optionSeries.asOf))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    underlying: tickerSchema.parse(row.underlying),
+    right: optionRightSchema.parse(row.right),
+    strike: decimalStringSchema.parse(row.strike),
+    expiry: sessionDateSchema.parse(row.expiry),
+  }));
+}
+
+export interface OptionSeriesPrice {
+  session: SessionDate;
+  close: DecimalString | null;
+  average: DecimalString | null;
+  trades: number;
+}
+
+export interface OptionSeriesDetail extends OptionSeriesSearchResult {
+  style: ExerciseStyle;
+  expired: boolean;
+  prices: OptionSeriesPrice[];
+}
+
+// The cycle a series page shows for `ticker`: the one `searchOptionSeries`
+// lists while any cycle is alive, else the most recently expired one, so a
+// bookmarked page for a past series still resolves. Prices are that cycle's
+// own rows only (same ticker and expiry), newest first: a reused ticker's
+// earlier cycle must not show up in its history (ADR-0017).
+export async function optionSeriesDetail(
+  db: Database,
+  ticker: Ticker,
+  today: SessionDate,
+  priceLimit: number,
+): Promise<OptionSeriesDetail | null> {
+  const cycles = await db
+    .select({
+      ticker: optionSeries.ticker,
+      underlying: optionSeries.underlying,
+      right: optionSeries.right,
+      strike: optionSeries.strike,
+      expiry: optionSeries.expiry,
+      style: optionSeries.style,
+    })
+    .from(optionSeries)
+    .where(eq(optionSeries.ticker, ticker))
+    .orderBy(asc(optionSeries.expiry), desc(optionSeries.asOf));
+
+  const live = cycles.find((cycle) => cycle.expiry >= today);
+  const latestExpiry = cycles.at(-1)?.expiry;
+  const cycle = live ?? cycles.find((candidate) => candidate.expiry === latestExpiry);
+  if (!cycle) {
+    return null;
+  }
+
+  const priceRows = await db
+    .select({
+      session: optionDailyPrices.session,
+      close: optionDailyPrices.close,
+      average: optionDailyPrices.average,
+      trades: optionDailyPrices.trades,
+    })
+    .from(optionDailyPrices)
+    .where(and(eq(optionDailyPrices.ticker, ticker), eq(optionDailyPrices.expiry, cycle.expiry)))
+    .orderBy(desc(optionDailyPrices.session))
+    .limit(priceLimit);
+
+  return {
+    ticker: tickerSchema.parse(cycle.ticker),
+    underlying: tickerSchema.parse(cycle.underlying),
+    right: optionRightSchema.parse(cycle.right),
+    strike: decimalStringSchema.parse(cycle.strike),
+    expiry: sessionDateSchema.parse(cycle.expiry),
+    style: exerciseStyleSchema.parse(cycle.style),
+    expired: live === undefined,
+    prices: priceRows.map((row) => ({
+      session: sessionDateSchema.parse(row.session),
+      close: row.close === null ? null : decimalStringSchema.parse(row.close),
+      average: row.average === null ? null : decimalStringSchema.parse(row.average),
+      trades: row.trades,
+    })),
+  };
 }
 
 export interface ResolvedOptionSeries {

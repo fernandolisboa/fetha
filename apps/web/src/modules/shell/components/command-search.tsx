@@ -19,10 +19,12 @@ import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status
 import {
   instrumentHref,
   mergeSearchOutcomes,
+  optionSeriesHref,
+  optionSeriesSummary,
   strategyHref,
-  type InstrumentSearchFn,
   type InstrumentSearchHit,
-  type StrategySearchFn,
+  type OptionSeriesSearchHit,
+  type SearchSources,
   type StrategySearchHit,
 } from "../search";
 import { t } from "../strings";
@@ -34,19 +36,19 @@ type SearchOutcome =
       query: string;
       kind: "ok";
       instruments: InstrumentSearchHit[];
+      optionSeries: OptionSeriesSearchHit[];
       strategies: StrategySearchHit[];
       throttled: boolean;
     }
   | { query: string; kind: "rate_limited" }
   | { query: string; kind: "failed" };
 
-export function CommandSearch({
-  searchInstruments,
-  searchStrategies,
-}: {
-  searchInstruments: InstrumentSearchFn;
-  searchStrategies: StrategySearchFn;
-}) {
+export function CommandSearch({ search }: { search: SearchSources }) {
+  const {
+    instruments: searchInstruments,
+    optionSeries: searchOptionSeries,
+    strategies: searchStrategies,
+  } = search;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -62,23 +64,18 @@ export function CommandSearch({
     const timer = setTimeout(() => {
       Promise.all([
         searchInstruments({ query: trimmedQuery }),
+        searchOptionSeries({ query: trimmedQuery }),
         searchStrategies({ query: trimmedQuery }),
       ])
-        .then(([instruments, strategies]) => {
+        .then(([instruments, optionSeries, strategies]) => {
           if (cancelled) {
             return;
           }
-          const merged = mergeSearchOutcomes(instruments, strategies);
+          const merged = mergeSearchOutcomes({ instruments, optionSeries, strategies });
           setOutcome(
             merged.kind === "rate_limited"
               ? { query: trimmedQuery, kind: "rate_limited" }
-              : {
-                  query: trimmedQuery,
-                  kind: "ok",
-                  instruments: merged.instruments,
-                  strategies: merged.strategies,
-                  throttled: merged.throttled,
-                },
+              : { query: trimmedQuery, ...merged },
           );
         })
         .catch(() => {
@@ -91,7 +88,7 @@ export function CommandSearch({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, trimmedQuery, searchInstruments, searchStrategies]);
+  }, [open, trimmedQuery, searchInstruments, searchOptionSeries, searchStrategies]);
 
   const closeAndReset = useCallback(() => {
     setOpen(false);
@@ -124,10 +121,13 @@ export function CommandSearch({
   const pending = trimmedQuery.length > 0 && currentOutcome === null;
   const instrumentResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.instruments : [];
+  const optionSeriesResults =
+    trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.optionSeries : [];
   const strategyResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.strategies : [];
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
-  const hasResults = instrumentResults.length > 0 || strategyResults.length > 0;
+  const hasResults =
+    instrumentResults.length > 0 || optionSeriesResults.length > 0 || strategyResults.length > 0;
   const rateLimited =
     trimmedQuery.length > 0 &&
     (currentOutcome?.kind === "rate_limited" ||
@@ -147,15 +147,12 @@ export function CommandSearch({
     hasResults,
   });
 
-  function selectInstrument(ticker: string) {
-    router.push(instrumentHref(ticker));
+  function navigate(href: string) {
+    router.push(href);
     closeAndReset();
   }
 
-  function selectStrategy(strategyId: string) {
-    router.push(strategyHref(strategyId));
-    closeAndReset();
-  }
+  const showResults = !pending && !searchFailed && !rateLimited;
 
   return (
     <>
@@ -195,14 +192,14 @@ export function CommandSearch({
             ) : (
               <CommandEmpty>{message}</CommandEmpty>
             ))}
-          {!pending && !searchFailed && !rateLimited && instrumentResults.length > 0 && (
+          {showResults && instrumentResults.length > 0 && (
             <CommandGroup heading={t.search.groups.instruments}>
               {instrumentResults.map((result) => (
                 <CommandItem
                   key={result.ticker}
                   value={`instrument:${result.ticker}`}
                   onSelect={() => {
-                    selectInstrument(result.ticker);
+                    navigate(instrumentHref(result.ticker));
                   }}
                 >
                   <span className="font-mono uppercase">{result.ticker}</span>
@@ -210,17 +207,35 @@ export function CommandSearch({
               ))}
             </CommandGroup>
           )}
-          {!pending && !searchFailed && !rateLimited && strategyResults.length > 0 && (
+          {showResults && strategyResults.length > 0 && (
             <CommandGroup heading={t.search.groups.strategies}>
               {strategyResults.map((result) => (
                 <CommandItem
                   key={result.id}
                   value={`strategy:${result.id}`}
                   onSelect={() => {
-                    selectStrategy(result.id);
+                    navigate(strategyHref(result.id));
                   }}
                 >
                   {result.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {showResults && optionSeriesResults.length > 0 && (
+            <CommandGroup heading={t.search.groups.optionSeries}>
+              {optionSeriesResults.map((result) => (
+                <CommandItem
+                  key={result.ticker}
+                  value={`series:${result.ticker}`}
+                  onSelect={() => {
+                    navigate(optionSeriesHref(result.ticker));
+                  }}
+                >
+                  <span className="font-mono uppercase">{result.ticker}</span>
+                  <span className="text-muted-foreground ml-auto truncate font-mono text-[12px] tabular-nums">
+                    {optionSeriesSummary(result)}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>

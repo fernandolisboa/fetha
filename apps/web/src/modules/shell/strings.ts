@@ -1,15 +1,20 @@
 const en = {
   wordmark: "Fetha",
   search: {
-    placeholder: "Search instrument or strategy",
+    placeholder: "Search instrument, option series or strategy",
     shortcut: "Ctrl K",
     searching: "Searching…",
     searchError: "Could not search. Try again.",
     rateLimited: "Too many searches in a row. Wait a few seconds and try again.",
-    empty: "No instrument or strategy found.",
+    empty: "No instrument, option series or strategy found.",
     groups: {
       instruments: "Instruments",
+      optionSeries: "Option series",
       strategies: "Strategies",
+    },
+    optionRight: {
+      call: "Call",
+      put: "Put",
     },
   },
   marketBar: {
@@ -59,15 +64,20 @@ const en = {
 const ptBR = {
   wordmark: "Fetha",
   search: {
-    placeholder: "Buscar ativo ou estratégia",
+    placeholder: "Buscar ativo, série ou estratégia",
     shortcut: "Ctrl K",
     searching: "Buscando…",
     searchError: "Não foi possível buscar. Tente novamente.",
     rateLimited: "Muitas buscas seguidas. Espere alguns segundos e tente de novo.",
-    empty: "Nenhum ativo ou estratégia encontrado.",
+    empty: "Nenhum ativo, série ou estratégia encontrado.",
     groups: {
       instruments: "Ativos",
+      optionSeries: "Séries de opção",
       strategies: "Estratégias",
+    },
+    optionRight: {
+      call: "Call",
+      put: "Put",
     },
   },
   marketBar: {

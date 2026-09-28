@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
+import { searchOptionSeriesAction } from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
@@ -41,8 +42,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
         user={user}
         preferences={preferences}
         unreadSignalCount={unreadSignalCount}
-        searchInstruments={searchInstrumentsAction}
-        searchStrategies={searchMyStrategiesAction}
+        search={{
+          instruments: searchInstrumentsAction,
+          optionSeries: searchOptionSeriesAction,
+          strategies: searchMyStrategiesAction,
+        }}
       >
         {children}
       </AppShell>
