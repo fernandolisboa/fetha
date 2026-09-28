@@ -106,10 +106,11 @@ describe("runSource when another run already wrote the succeeded marker", () => 
     );
 
     expect(outcome.skipped).toBe(false);
-    expect(outcome.error).toContain("Failed query");
+    expect(outcome.error).toBe("57014");
+    expect(outcome.error).not.toContain("Failed query");
     expect(finishRun).toHaveBeenCalledWith(db, "run-1", {
       status: "failed",
-      error: expect.stringContaining("Failed query") as unknown,
+      error: "57014",
     });
     expect(deleteRun).not.toHaveBeenCalled();
   });
