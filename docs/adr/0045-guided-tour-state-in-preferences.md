@@ -16,7 +16,9 @@ tour starts.
 
 - **No tour library.** The step card is the shadcn `Popover` (Base UI), anchored to the step's
   element through the Positioner's `anchor` prop, modal, with `PopoverClose` as "Pular tour" and
-  "Concluir". The dim layer is one fixed element whose `box-shadow` cuts out the target's rect.
+  "Concluir". The dim layer is one fixed element whose `box-shadow` cuts out the target's rect. It is black
+  at 60% in every theme, heavier than the Dialog backdrop, because everything but one element must
+  recede.
   Tour libraries (driver.js, shepherd, react-joyride) inject their own styles and dialog markup:
   the first fights the enforced nonce CSP (ADR-0035), the second the rule that interactive
   primitives come from shadcn.

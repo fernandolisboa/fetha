@@ -39,15 +39,19 @@ const SPOTLIGHT_PADDING = 4;
 // the tour dims it.
 const AUTO_START_DELAY_MS = 600;
 
-// A target counts only when it takes up space: the rail is display:none
-// under 768px, and a step whose element is missing (the watchlist's add
-// button on another page) falls back to a centered card with no spotlight.
+// A target counts only when it takes up space and fits the viewport's width
+// (scrollIntoView handles the vertical axis): the rail is display:none under
+// 768px, the header's account menu can sit past the right edge on a phone,
+// and a step whose element is missing (the watchlist's add button on another
+// page) falls back to a centered card whose buttons stay reachable.
 function findTarget(step: TourStep): HTMLElement | null {
   if (!step.target) return null;
   const element = document.querySelector<HTMLElement>(step.target);
   if (!element) return null;
   const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0 ? element : null;
+  const visible =
+    rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= window.innerWidth;
+  return visible ? element : null;
 }
 
 function viewportCenter() {
@@ -152,16 +156,20 @@ function TourCard({
           anchor={anchored ? target : viewportCenter()}
           side={anchored ? step.side : "bottom"}
           sideOffset={anchored ? 12 : 0}
+          collisionPadding={16}
           initialFocus={nextRef}
           data-tour-card=""
-          className="w-80 gap-3 rounded-[var(--radius)] p-4"
+          className="w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] p-4"
         >
-          <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
+          <p aria-hidden className="text-muted-foreground font-mono text-[11px] tabular-nums">
             {t.tour.progress(index + 1, tourSteps.length)}
           </p>
           <div className="flex flex-col gap-1">
             <PopoverTitle className="text-[15px] font-semibold">{copy.title}</PopoverTitle>
-            <PopoverDescription className="text-[13px]">{copy.body}</PopoverDescription>
+            <PopoverDescription className="text-[13px]">
+              <span className="sr-only">{t.tour.progress(index + 1, tourSteps.length)}. </span>
+              {copy.body}
+            </PopoverDescription>
           </div>
           <div className="flex items-center gap-2 pt-1">
             {isLast ? null : (
