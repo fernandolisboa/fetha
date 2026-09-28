@@ -14,6 +14,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ErrorNotice } from "@/components/error-notice";
 
 import { addToWatchlistAction, searchInstrumentsAction } from "../actions";
 import { t } from "../strings";
@@ -128,7 +129,7 @@ export function AddInstrumentCombobox() {
           </Command>
         </PopoverContent>
       </Popover>
-      {addError && <p className="text-destructive text-xs">{addError}</p>}
+      {addError && <ErrorNotice>{addError}</ErrorNotice>}
     </div>
   );
 }

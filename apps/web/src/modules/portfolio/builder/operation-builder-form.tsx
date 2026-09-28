@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ErrorNotice } from "@/components/error-notice";
 import { Panel } from "@/modules/shell/client";
 
 import { loadChainAction, priceOperationAction, saveOperationAction } from "../operations-actions";
@@ -348,7 +349,7 @@ export function OperationBuilderForm({
         </Button>
       </div>
 
-      {priceError ? <p className="text-destructive text-xs">{priceError}</p> : null}
+      {priceError ? <ErrorNotice>{priceError}</ErrorNotice> : null}
 
       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
         <div className="flex flex-col gap-[14px]">
@@ -414,7 +415,7 @@ export function OperationBuilderForm({
 
             <RiskNotice breaches={pricing.limitBreaches} />
 
-            {saveError ? <p className="text-destructive text-xs">{saveError}</p> : null}
+            {saveError ? <ErrorNotice>{saveError}</ErrorNotice> : null}
             {savedId ? <p className="text-muted-foreground text-xs">{t.builder.saved}</p> : null}
 
             <Button
