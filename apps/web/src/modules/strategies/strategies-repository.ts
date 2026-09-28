@@ -174,13 +174,9 @@ export class StrategiesRepository extends UserScopedRepository {
     return this.toSummaries(this.db, rows);
   }
 
-  // The command palette's strategy source (#233): a case-insensitive
-  // substring match on the caller's own, non-archived strategies. The
-  // query is user input reaching `ILIKE`, so its own `%`, `_` and `\` are
-  // escaped with a leading backslash (Postgres's default `ILIKE` escape
-  // character) before being wrapped in wildcards, the same way the ticker
-  // in the query the caller cannot control is never trusted verbatim
-  // elsewhere in this module.
+  // The query is user input reaching `ILIKE`: its own `%`, `_` and `\` are
+  // escaped with a backslash (Postgres's default escape character) so they
+  // match literally instead of acting as wildcards.
   async searchMine(query: string, limit: number): Promise<StrategySearchResult[]> {
     const escaped = query.replace(/[\\%_]/g, (character) => `\\${character}`);
     const pattern = `%${escaped}%`;

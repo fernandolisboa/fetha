@@ -20,12 +20,6 @@ export type MergedSearchOutcome =
   | { kind: "ok"; instruments: InstrumentSearchHit[]; strategies: StrategySearchHit[] }
   | { kind: "rate_limited" };
 
-// One call combines the two Server Actions the layout injected (Promise.all
-// in the caller); this just folds their independent outcomes into the one
-// shape the palette renders from, so a rate limit on either source reads
-// the same as a rate limit on both (CLAUDE.md principle 7: shell keeps no
-// edge to watchlist or strategies, so it only ever sees these results, not
-// the actions that produced them).
 export function mergeSearchOutcomes(
   instruments: InstrumentSearchOutcome,
   strategies: StrategySearchOutcome,

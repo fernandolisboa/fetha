@@ -353,10 +353,6 @@ export async function markSignalReadAction(input: {
 export type SearchMyStrategiesResult =
   { status: "ok"; results: StrategySearchResult[] } | { status: "error"; error: "rate_limited" };
 
-// The command palette's strategy source (#233). Requires a session, the
-// same way `searchInstrumentsAction` does, but the search is also scoped
-// to the caller's own strategies (`StrategiesRepository.searchMine`), so
-// there is no anonymous-endpoint concern to guard against beyond that.
 export async function searchMyStrategiesAction(input: {
   query: string;
 }): Promise<SearchMyStrategiesResult> {

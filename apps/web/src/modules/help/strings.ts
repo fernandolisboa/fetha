@@ -162,7 +162,7 @@ const ptBR = {
       },
       commandSearch: {
         title: "Busca",
-        body: "Aperte Ctrl K em qualquer tela para buscar um ativo ou uma estratégia e ir direto para a página dele.",
+        body: "Aperte Ctrl K em qualquer tela para buscar um ativo ou uma estratégia e ir direto para a página.",
       },
       addInstrument: {
         title: "Comece pela watchlist",
@@ -211,7 +211,7 @@ const ptBR = {
     header: {
       title: "No topo da tela",
       steps: [
-        "Aperte Ctrl K para buscar um ativo ou uma estratégia e ir direto para a página dele.",
+        "Aperte Ctrl K para buscar um ativo ou uma estratégia e ir direto para a página.",
         "Na página de um ativo, a barra de mercado mostra o último fechamento e de quando ele é, como “fechamento de ontem”.",
         "O menu da conta tem este guia, as configurações e o botão de sair.",
       ],
