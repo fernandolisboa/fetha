@@ -24,7 +24,11 @@ import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-re
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
-import { CATCH_UP_SESSION_LIMIT, evaluateSignalsForSession } from "./evaluate-signals";
+import {
+  CATCH_UP_SESSION_LIMIT,
+  evaluateSignalsForSession,
+  INBOX_ENTRY_SESSION_HORIZON,
+} from "./evaluate-signals";
 import { SignalsRepository } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 
@@ -946,7 +950,7 @@ describe("evaluateSignalsForSession", () => {
     // catch-up of `sessionCount - 1` sessions — past the ceiling.
     const night2 = await evaluateSignalsForSession(db, [newest]);
     expect(night2.errors).toEqual([]);
-    expect(night2.signalsWritten).toBe(CATCH_UP_SESSION_LIMIT);
+    expect(night2.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
     expect(night2.evaluationsWritten).toBe(CATCH_UP_SESSION_LIMIT + 1);
 
     const repository = new SignalsRepository(db, owner);
@@ -958,7 +962,7 @@ describe("evaluateSignalsForSession", () => {
     expect(clampRow?.detail).toBe(String(clampedCount));
 
     const evaluatedSessions = new Set(
-      log.filter((row) => row.detail === null).map((row) => row.session),
+      log.filter((row) => row.outcome === "signal").map((row) => row.session),
     );
     const retainedSessions = sessions.slice(sessions.length - CATCH_UP_SESSION_LIMIT);
     expect(evaluatedSessions).toEqual(new Set([oldest, ...retainedSessions]));
@@ -967,6 +971,64 @@ describe("evaluateSignalsForSession", () => {
     expect(evaluatedSessions.has(sessions[1] as string)).toBe(false);
     // Sequential inserts/evaluations over `sessionCount` sessions and a
     // real 21-signal catch-up run past the default 20s test timeout.
+  }, 60_000);
+
+  it("logs every session of a catch-up but sends only the last INBOX_ENTRY_SESSION_HORIZON sessions' entries to the inbox (#83)", async () => {
+    const db = getDb();
+    const sessionCount = INBOX_ENTRY_SESSION_HORIZON + 4;
+    const sessions = randomSessionSequence(sessionCount);
+    createdSessions.push(...sessions);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("inbox-horizon");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of sessions) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const [first, ...caughtUp] = sessions;
+    const newest = sessions[sessionCount - 1];
+    if (!first || !newest) throw new Error("fixture setup failed");
+
+    // The first night sets the watermark; the second catches up on every
+    // session since, the way a week away from the app does.
+    await evaluateSignalsForSession(db, [first]);
+    const outcome = await evaluateSignalsForSession(db, [newest]);
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.evaluationsWritten).toBe(caughtUp.length);
+    expect(outcome.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
+
+    const repository = new SignalsRepository(db, owner);
+    const recent = sessions.slice(sessionCount - INBOX_ENTRY_SESSION_HORIZON);
+    const stale = caughtUp.slice(0, caughtUp.length - INBOX_ENTRY_SESSION_HORIZON);
+
+    const inbox = await repository.listInbox();
+    expect(new Set(inbox.map((signal) => signal.session))).toEqual(new Set([first, ...recent]));
+
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(sessionCount);
+    expect(stale).toHaveLength(3);
+    for (const row of log) {
+      expect(row.outcome).toBe("signal");
+      if (stale.includes(row.session)) {
+        expect(row.reason).toBe("entry_past_inbox_horizon");
+        expect(row.detail).toBe(String(INBOX_ENTRY_SESSION_HORIZON));
+      } else {
+        expect(row.reason).toBe("signal");
+        expect(row.detail).toBeNull();
+      }
+    }
   }, 60_000);
 
   it("counts a user whose active strategies are already caught up separately from one actually evaluated", async () => {

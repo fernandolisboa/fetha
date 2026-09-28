@@ -6,9 +6,9 @@ import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vo
 // #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
 // and `no_market_data` carry no user-facing parameter (the collection name
 // is an internal identifier, never surfaced — the collection-neutral copy
-// carries forward unchanged), `engine_error` and
-// `catchup_clamped` render the `detail` column's own parameter (the engine
-// error code, the dropped session count). Every fragment is spliced as
+// carries forward unchanged), `engine_error`, `catchup_clamped` and
+// `entry_past_inbox_horizon` render the `detail` column's own parameter (the
+// engine error code, the dropped session count, the inbox horizon). Every fragment is spliced as
 // "outcome · reason" in a dense log row, so none carries its own
 // punctuation or an instruction to act on — the session behind
 // `market_view_too_large`/`no_market_data` sits behind the watermark and is
@@ -24,6 +24,8 @@ const webReasonTextEn: Record<WebEvaluationReason, WebReasonFormatter> = {
     "Requires market data with no source yet for one of this strategy's indicators",
   market_view_too_large: () => "Watchlist too large to evaluate in one call",
   no_market_data: () => "No market data for the session",
+  entry_past_inbox_horizon: (detail) =>
+    `Kept out of the inbox: older than the last ${detail ?? ""} sessions`,
 };
 
 const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
@@ -35,6 +37,8 @@ const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
     "Requer dados de mercado ainda sem fonte para um dos indicadores dessa estratégia",
   market_view_too_large: () => "Watchlist grande demais para avaliar de uma vez",
   no_market_data: () => "Sem dados de mercado para a sessão",
+  entry_past_inbox_horizon: (detail) =>
+    `Fora da caixa de sinais: anterior às últimas ${detail ?? ""} sessões`,
 };
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:

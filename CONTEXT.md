@@ -42,7 +42,8 @@ exposing module's interface, never through its tables.
    (ADR-0010, ADR-0017) ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading
    calendar (corporate-action factor recording is a follow-up, #50; the engine derives adjusted
    series point in time from whatever factors exist, ADR-0013), then evaluates every active daily
-   strategy over each user's watchlist and deposits signals in their inbox. Sizing an entry
+   strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
+   21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044). Sizing an entry
    uses the user's own declared risk profile (#22); a user with none declared still gets a
    full evaluation, just never a sized entry signal (the engine's `unsizeable` outcome, logged,
    never in the inbox). The same run then scores every decision whose horizon has arrived

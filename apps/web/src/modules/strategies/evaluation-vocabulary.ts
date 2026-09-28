@@ -7,7 +7,10 @@
 // `loadMarketView` itself threw (a chain too large to load in one call, or
 // no market data at all for the window — the same two conditions
 // `apps/web/src/modules/backtests/strings.ts`'s `webErrors` already names
-// for a backtest run). Each is a closed code of its own, not a suffix
+// for a backtest run). `entry_past_inbox_horizon` is the one code written
+// over an engine record rather than instead of one: the entry was evaluated,
+// but its session is older than the inbox horizon (docs/adr/0044). Each is a
+// closed code of its own, not a suffix
 // glued onto a shared string, so the evaluation log can render every one
 // of them through a typed formatter instead of `strings.ts`'s old
 // exact-sentence `detailFor` match.
@@ -18,6 +21,7 @@ export const webEvaluationReasons = [
   "unsatisfiable_collection",
   "market_view_too_large",
   "no_market_data",
+  "entry_past_inbox_horizon",
 ] as const;
 
 export type WebEvaluationReason = (typeof webEvaluationReasons)[number];
