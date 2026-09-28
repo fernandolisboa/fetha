@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import Decimal from "decimal.js";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   confidenceSchema,
   decimalStringSchema,
@@ -18,7 +18,7 @@ import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { buildOperationMarketView } from "@/modules/market-data";
-import { tradingSessions } from "@/modules/market-data/schema";
+import { candles, tradingSessions } from "@/modules/market-data/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { SignalsRepository } from "@/modules/strategies/signals-repository";
@@ -40,9 +40,13 @@ function uniqueEmail(label: string): string {
   return `fetha-score-input-${label}-${crypto.randomUUID()}@example.com`;
 }
 
+const createdTickers: Ticker[] = [];
+
 function randomTicker(): Ticker {
   const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase();
-  return tickerSchema.parse(`SI${suffix}`);
+  const ticker = tickerSchema.parse(`SI${suffix}`);
+  createdTickers.push(ticker);
+  return ticker;
 }
 
 function todaySessionDate(): string {
@@ -147,10 +151,16 @@ async function fetchDueDecisionRow(decisionId: string): Promise<DueDecisionRow> 
 
 const createdEmails: string[] = [];
 
+// Candles are shared reference data and these land on dates relative to today, often a weekend
+// the calendar ingestion would drop: left behind, they block that delete for every later test.
 afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+  }
+  const tickers = createdTickers.splice(0);
+  if (tickers.length > 0) {
+    await db.delete(candles).where(inArray(candles.ticker, tickers));
   }
 });
 
