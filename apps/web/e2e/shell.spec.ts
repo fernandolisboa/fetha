@@ -109,9 +109,16 @@ test("the palette navigates to an option series page", async ({ page, baseURL, r
   await expect(page).toHaveURL(new RegExp(`/opcoes/${seriesTicker}$`));
   await expect(page.getByRole("heading", { level: 1, name: seriesTicker })).toBeVisible();
   await expect(page.getByText("Série de opção", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^(Call|Put)$/)).toBeVisible();
+  await expect(page.getByText(/^(Americana|Europeia)$/)).toBeVisible();
+  await expect(page.getByText(/^Strike \d[\d.]*,\d{2}$/)).toBeVisible();
+  await expect(page.getByText(/^Vence em \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
 
-  await page.getByRole("link", { name: "Ver PETR4" }).click();
-  await expect(page).toHaveURL(/\/ativos\/PETR4$/);
+  // PETR3 and PETR4 options share the PETR root, so either can come first.
+  const underlyingLink = page.getByRole("link", { name: /^Ver PETR[34]$/ });
+  const underlying = ((await underlyingLink.textContent()) ?? "").replace("Ver ", "");
+  await underlyingLink.click();
+  await expect(page).toHaveURL(new RegExp(`/ativos/${underlying}$`));
 });
 
 test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {

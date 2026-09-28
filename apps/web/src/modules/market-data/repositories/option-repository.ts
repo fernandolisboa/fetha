@@ -18,6 +18,7 @@ import {
   exerciseStyleSchema,
   optionRightSchema,
   sessionDateSchema,
+  tickerPrefixQuerySchema,
   tickerSchema,
   type DecimalString,
   type ExerciseStyle,
@@ -310,10 +311,8 @@ export interface OptionSeriesSearchResult {
   expiry: SessionDate;
 }
 
-const SERIES_SEARCH_PATTERN = /^[A-Za-z0-9]{1,12}$/;
-
-// Prefix search over the series registry for the Ctrl K palette (#241).
-// Only cycles still alive on `today`, and one row per ticker because B3
+// Prefix search over the series registry for the Ctrl K palette (#241),
+// served by the `option_series (ticker text_pattern_ops)` index. Only cycles still alive on `today`, and one row per ticker because B3
 // reuses option tickers across cycles (ADR-0017): the nearest live cycle,
 // the latest registry snapshot winning a tie, which is the same cycle
 // `optionSeriesDetail` opens for that ticker.
@@ -324,7 +323,7 @@ export async function searchOptionSeries(
   limit: number,
 ): Promise<OptionSeriesSearchResult[]> {
   const trimmed = query.trim();
-  if (!SERIES_SEARCH_PATTERN.test(trimmed)) {
+  if (!tickerPrefixQuerySchema.safeParse(trimmed).success) {
     return [];
   }
   const rows = await db
@@ -361,6 +360,7 @@ export interface OptionSeriesPrice {
 export interface OptionSeriesDetail extends OptionSeriesSearchResult {
   style: ExerciseStyle;
   expired: boolean;
+  lastTrade: { session: SessionDate; close: DecimalString } | null;
   prices: OptionSeriesPrice[];
 }
 
@@ -395,17 +395,29 @@ export async function optionSeriesDetail(
     return null;
   }
 
-  const priceRows = await db
-    .select({
-      session: optionDailyPrices.session,
-      close: optionDailyPrices.close,
-      average: optionDailyPrices.average,
-      trades: optionDailyPrices.trades,
-    })
-    .from(optionDailyPrices)
-    .where(and(eq(optionDailyPrices.ticker, ticker), eq(optionDailyPrices.expiry, cycle.expiry)))
-    .orderBy(desc(optionDailyPrices.session))
-    .limit(priceLimit);
+  const sameCycle = and(
+    eq(optionDailyPrices.ticker, ticker),
+    eq(optionDailyPrices.expiry, cycle.expiry),
+  );
+  const [priceRows, [lastTradeRow]] = await Promise.all([
+    db
+      .select({
+        session: optionDailyPrices.session,
+        close: optionDailyPrices.close,
+        average: optionDailyPrices.average,
+        trades: optionDailyPrices.trades,
+      })
+      .from(optionDailyPrices)
+      .where(sameCycle)
+      .orderBy(desc(optionDailyPrices.session))
+      .limit(priceLimit),
+    db
+      .select({ session: optionDailyPrices.session, close: optionDailyPrices.close })
+      .from(optionDailyPrices)
+      .where(and(sameCycle, isNotNull(optionDailyPrices.close)))
+      .orderBy(desc(optionDailyPrices.session))
+      .limit(1),
+  ]);
 
   return {
     ticker: tickerSchema.parse(cycle.ticker),
@@ -415,6 +427,13 @@ export async function optionSeriesDetail(
     expiry: sessionDateSchema.parse(cycle.expiry),
     style: exerciseStyleSchema.parse(cycle.style),
     expired: live === undefined,
+    lastTrade:
+      lastTradeRow?.close == null
+        ? null
+        : {
+            session: sessionDateSchema.parse(lastTradeRow.session),
+            close: decimalStringSchema.parse(lastTradeRow.close),
+          },
     prices: priceRows.map((row) => ({
       session: sessionDateSchema.parse(row.session),
       close: row.close === null ? null : decimalStringSchema.parse(row.close),

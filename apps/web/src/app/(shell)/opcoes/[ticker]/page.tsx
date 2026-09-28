@@ -8,9 +8,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { getDb } from "@/db/client";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
+import { formatDecimal } from "@/lib/format/decimal";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { requireUser } from "@/modules/auth";
 import {
+  latestCandle,
   OptionSeriesPricesTable,
   optionSeriesDetail,
   sessionDateToDisplayDate,
@@ -43,8 +45,9 @@ export default async function OptionSeriesPage({
     notFound();
   }
 
+  const db = getDb();
   const series = await optionSeriesDetail(
-    getDb(),
+    db,
     parsedTicker.data,
     todaySaoPauloDate(),
     RECENT_SESSIONS,
@@ -52,18 +55,20 @@ export default async function OptionSeriesPage({
   if (!series) {
     notFound();
   }
+  // An index option's underlying (IBOV) has no candle of its own, so there
+  // is no instrument page worth linking to.
+  const underlyingCandle = await latestCandle(db, series.underlying);
 
   const expiry = formatDate(sessionDateToDisplayDate(series.expiry));
-  const lastTraded = series.prices.find((price) => price.close !== null);
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      {lastTraded?.close && (
+      {series.lastTrade && (
         <InstrumentMarketBar
           instrument={{
             ticker: series.ticker,
-            lastClose: formatPriceBRL(lastTraded.close),
-            session: lastTraded.session,
+            lastClose: formatPriceBRL(series.lastTrade.close),
+            session: series.lastTrade.session,
           }}
         />
       )}
@@ -73,12 +78,14 @@ export default async function OptionSeriesPage({
         headline={series.ticker}
         headlineClassName="font-mono uppercase"
         actions={
-          <Link
-            href={`/ativos/${encodeURIComponent(series.underlying)}`}
-            className={buttonVariants({ variant: "outline" })}
-          >
-            {labels.openUnderlying(series.underlying)}
-          </Link>
+          underlyingCandle && (
+            <Link
+              href={`/ativos/${encodeURIComponent(series.underlying)}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {labels.openUnderlying(series.underlying)}
+            </Link>
+          )
         }
       />
 
@@ -91,7 +98,7 @@ export default async function OptionSeriesPage({
         </li>
         <li>
           <Badge variant="secondary" className="font-mono tabular-nums">
-            {labels.strike(formatPriceBRL(series.strike))}
+            {labels.strike(formatDecimal(series.strike))}
           </Badge>
         </li>
         <li>

@@ -77,9 +77,10 @@ it holds no business rule. `getDb()` is obtained at this edge and passed into th
 `src/proxy.ts` is the per-request edge in front of every document: it draws the nonce and sets
 the document's whole Content-Security-Policy (ADR-0035). `src/instrumentation-client.ts` runs before hydration and holds
 browser bootstrap settings only (Zod `jitless`). `app/(shell)/layout.tsx` also wires the header's
-command palette (#233): it passes `watchlist`'s `searchInstrumentsAction` and `strategies`'
-`searchMyStrategiesAction` into `AppShell` as props, so `shell` renders the palette against
-whatever the layout injects without importing `watchlist` or `strategies` itself.
+command palette (#233, #241): it passes `watchlist`'s `searchInstrumentsAction`, `market-data`'s
+`searchOptionSeriesAction` and `strategies`' `searchMyStrategiesAction` into `AppShell` as one
+`search` prop, so `shell` renders the palette against whatever the layout injects without
+importing `watchlist`, `market-data`'s server entry point or `strategies` itself.
 
 ## Shared kernel
 

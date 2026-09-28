@@ -43,7 +43,7 @@ export function OptionSeriesPricesTable({ prices }: { prices: OptionSeriesPrice[
               )}
             </TableCell>
             <TableCell className="text-right font-mono tabular-nums">
-              {price.average === null ? "" : formatPriceBRL(price.average)}
+              {price.average === null ? "—" : formatPriceBRL(price.average)}
             </TableCell>
             <TableCell className="text-right font-mono tabular-nums">{price.trades}</TableCell>
           </TableRow>

@@ -792,11 +792,31 @@ describe("searchOptionSeries and optionSeriesDetail", () => {
       expiry: "2099-07-17",
       style: "european",
       expired: false,
+      lastTrade: { session: "2099-06-12", close: "1.400000" },
       prices: [
         { session: "2099-06-12", close: "1.400000", average: "1.400000", trades: 7 },
         { session: "2099-06-11", close: null, average: null, trades: 0 },
       ],
     });
+  });
+
+  it("finds the last trade even when it is older than the price rows shown", async () => {
+    const prefix = uniqueTicker("DC");
+    const ticker = `${prefix}G40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+    await seedPrice(ticker, "2099-06-08", "2099-07-17", "0.35", 2);
+    await seedPrice(ticker, "2099-06-11", "2099-07-17", null, 0);
+    await seedPrice(ticker, "2099-06-12", "2099-07-17", null, 0);
+
+    const detail = await optionSeriesDetail(getDb(), ticker, TODAY, 2);
+
+    expect(detail?.prices.map((price) => price.close)).toEqual([null, null]);
+    expect(detail?.lastTrade).toEqual({ session: "2099-06-08", close: "0.350000" });
   });
 
   it("falls back to the most recently expired cycle when none is live", async () => {
@@ -821,6 +841,7 @@ describe("searchOptionSeries and optionSeriesDetail", () => {
       expiry: "2098-07-17",
       strike: "38.00000000",
       expired: true,
+      lastTrade: null,
       prices: [],
     });
   });

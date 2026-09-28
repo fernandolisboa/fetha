@@ -1,7 +1,7 @@
 import { sessionDateSchema, type DecimalString, type OptionRight } from "@fetha/contracts";
 
-import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
+import { formatDecimal } from "@/lib/format/decimal";
 import { sessionDateToDisplayDate } from "@/modules/market-data/client";
 
 import { t } from "./strings";
@@ -88,11 +88,9 @@ export function strategyHref(strategyId: string): string {
   return `/estrategias/${encodeURIComponent(strategyId)}`;
 }
 
-// The palette row's second line: enough to tell two series of the same
-// underlying apart without opening them ("PETR4 · Call · R$ 40,00 · 16/10/2026").
 export function optionSeriesSummary(hit: OptionSeriesSearchHit): string {
   const expiry = formatDate(sessionDateToDisplayDate(sessionDateSchema.parse(hit.expiry)));
-  return [hit.underlying, t.search.optionRight[hit.right], formatPriceBRL(hit.strike), expiry].join(
+  return [hit.underlying, t.search.optionRight[hit.right], formatDecimal(hit.strike), expiry].join(
     " · ",
   );
 }

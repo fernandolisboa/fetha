@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
   sessionDateSchema,
+  tickerPrefixQuerySchema,
   tickerSchema,
   type DecimalString,
   type SessionDate,
@@ -219,16 +220,13 @@ export async function latestCandle(db: Database, ticker: string): Promise<Candle
   return row ? toCandleRow(row) : null;
 }
 
-// Reference data only (ADR-0017): no per-user scope. `SEARCH_PATTERN` only
-// accepts a plain alphanumeric prefix so the caller's query can never carry
-// a live `LIKE` wildcard (`%`, `_`, `\`) into the pattern built below.
-// `DISTINCT ON` collapses "match + latest close per ticker" into the one
+// Reference data only (ADR-0017): no per-user scope. `tickerPrefixQuerySchema`
+// keeps live `LIKE` wildcards out of the pattern built below. `DISTINCT ON` collapses "match + latest close per ticker" into the one
 // query a search-as-you-type call (the instrument combobox, #13) needs,
 // instead of a follow-up round trip per match. Tickers are stored uppercase
 // (`tickerSchema`, @fetha/contracts), so the query is uppercased here and
 // matched with a plain `LIKE` prefix, which the `candles (ticker
 // text_pattern_ops)` index (#74) can actually use; `ILIKE` cannot.
-const SEARCH_PATTERN = /^[A-Za-z0-9]{1,12}$/;
 
 export async function searchInstruments(
   db: Database,
@@ -236,7 +234,7 @@ export async function searchInstruments(
   limit: number,
 ): Promise<InstrumentSearchResult[]> {
   const trimmed = query.trim();
-  if (!SEARCH_PATTERN.test(trimmed)) {
+  if (!tickerPrefixQuerySchema.safeParse(trimmed).success) {
     return [];
   }
   const pattern = `${trimmed.toUpperCase()}%`;

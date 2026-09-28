@@ -204,6 +204,13 @@
       "when": 1790629634994,
       "tag": "0028_preferences_tour_dismissed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790636236039,
+      "tag": "0029_option_series_ticker_pattern_idx",
+      "breakpoints": true
     }
   ]
 }

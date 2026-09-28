@@ -233,7 +233,7 @@ export function CommandSearch({ search }: { search: SearchSources }) {
                   }}
                 >
                   <span className="font-mono uppercase">{result.ticker}</span>
-                  <span className="text-muted-foreground ml-auto truncate font-mono text-[12px] tabular-nums">
+                  <span className="text-muted-foreground ml-auto min-w-0 truncate font-mono text-[12px] tabular-nums">
                     {optionSeriesSummary(result)}
                   </span>
                 </CommandItem>

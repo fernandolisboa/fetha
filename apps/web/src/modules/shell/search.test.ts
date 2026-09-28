@@ -138,12 +138,18 @@ describe("strategyHref", () => {
 
 describe("optionSeriesSummary", () => {
   it("names the underlying, right, strike and expiry in pt-BR", () => {
-    expect(optionSeriesSummary(series)).toBe("PETR4 · Call · R$ 40,00 · 16/10/2026");
+    expect(optionSeriesSummary(series)).toBe("PETR4 · Call · 40,00 · 16/10/2026");
   });
 
-  it("labels a put and keeps the strike's centavos", () => {
+  it("shows an index option's strike in points, not reais", () => {
+    expect(
+      optionSeriesSummary({ ...series, underlying: "IBOV", strike: "183000" as DecimalString }),
+    ).toBe("IBOV · Call · 183.000,00 · 16/10/2026");
+  });
+
+  it("labels a put and keeps the strike's decimals", () => {
     expect(optionSeriesSummary({ ...series, right: "put", strike: "38.47" as DecimalString })).toBe(
-      "PETR4 · Put · R$ 38,47 · 16/10/2026",
+      "PETR4 · Put · 38,47 · 16/10/2026",
     );
   });
 });

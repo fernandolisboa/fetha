@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { tickerPrefixQuerySchema } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
@@ -19,9 +20,7 @@ import {
 const MAX_SEARCH_RESULTS = 20;
 const SEARCH_RATE_LIMIT = { windowSeconds: 10, max: 30 };
 
-// Same guard as the instrument search (watchlist/actions.ts): `%`, `_` and
-// `\` are live `LIKE` wildcards, so they never reach the query.
-const searchInputSchema = z.strictObject({ query: z.string().regex(/^[A-Za-z0-9]{1,12}$/) });
+const searchInputSchema = z.strictObject({ query: tickerPrefixQuerySchema });
 
 export type SearchOptionSeriesResult =
   | { status: "ok"; results: OptionSeriesSearchResult[] }
