@@ -219,30 +219,42 @@ describe("deleteUnlistedTradingSessions", () => {
 });
 
 describe("the delete's market-data existence probes", () => {
-  const PROBED = "2031-03-12";
+  const PROBED = ["2031-03-12", "2031-04-15"] as const;
 
-  // Tiny test partitions always favour a sequential scan, so the planner is
-  // told to avoid one: the assertion is that an index leading with `session`
-  // exists to serve the probe, not the cost model's choice at test volume.
+  // The same correlated shape `deleteUnlistedTradingSessions` issues, where
+  // the session is not a plan-time constant. Tiny test partitions always
+  // favour a sequential scan, so the planner is told to avoid one: the
+  // assertion is that an index leading with `session` exists to serve the
+  // probe, not the cost model's choice at test volume.
   async function probePlan(table: "candles" | "option_daily_prices"): Promise<string> {
     return getDb().transaction(async (tx) => {
       await tx.execute(sql`set local enable_seqscan = off`);
       const result = await tx.execute<{ "QUERY PLAN": string }>(
-        sql`explain select exists (select 1 from ${sql.identifier(table)} where session = ${PROBED}::date)`,
+        sql`explain with candidates as materialized (
+            select ${PROBED[0]}::date as date union all select ${PROBED[1]}::date
+          )
+          select date from candidates
+          where exists (select 1 from ${sql.identifier(table)} where session = candidates.date)`,
       );
       return result.rows.map((row) => row["QUERY PLAN"]).join("\n");
     });
   }
 
   it("serves the candles probe from the session index", async () => {
-    await ensureMonthlyPartition(getDb(), "candles", PROBED);
-    expect(await probePlan("candles")).toMatch(/Index Only Scan using candles_\S*session\S*/);
+    for (const date of PROBED) {
+      await ensureMonthlyPartition(getDb(), "candles", date);
+    }
+    expect(await probePlan("candles")).toMatch(
+      /Index (?:Only )?Scan (?:using|on) candles_\S*session_idx/,
+    );
   });
 
   it("serves the option prices probe from the session index", async () => {
-    await ensureMonthlyPartition(getDb(), "option_daily_prices", PROBED);
+    for (const date of PROBED) {
+      await ensureMonthlyPartition(getDb(), "option_daily_prices", date);
+    }
     expect(await probePlan("option_daily_prices")).toMatch(
-      /Index Only Scan using option_daily_prices_\S*session\S*/,
+      /Index (?:Only )?Scan (?:using|on) option_daily_prices_\S*session_idx/,
     );
   });
 });

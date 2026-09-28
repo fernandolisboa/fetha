@@ -455,3 +455,7 @@ string[] }`** instead of a bare count: `dates` names every candidate date that h
   mean walking every series and operation for a match instead of a row lookup on the two tables the
   cotahist write actually populates. Deliberately unguarded, same spirit as the rest of this
   ticket's scope.
+- **The probes are indexed (#210).** `candles_session_idx` and `option_daily_prices_session_idx`
+  lead with `session`, so each existence check is an index-only scan of the candidate's partition
+  (run-time pruning, since the dates come from the `candidates` CTE) instead of a row-by-row scan
+  while the cotahist lock is held. A performance bound only; the lock remains the guarantee.

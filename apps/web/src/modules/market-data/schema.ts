@@ -39,7 +39,8 @@ export const candles = pgTable(
     index("candles_ticker_pattern_idx").using("btree", table.ticker.op("text_pattern_ops")),
     // Backs the calendar delete's `exists (... where session = ...)` probe
     // (#210), which runs under the cotahist lock: the primary key leads with
-    // ticker, so without this the probe reads the whole month's partition.
+    // ticker, so without this the probe scans partitions row by row. Same for
+    // `option_daily_prices_session_idx` below.
     index("candles_session_idx").on(table.session),
   ],
 );
