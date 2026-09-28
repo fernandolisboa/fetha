@@ -21,7 +21,7 @@ vi.mock("./repositories/advisory-lock", () => ({
   withSourceLock,
 }));
 
-const { SourceNotPublishedError, runSource, runSessionBoundSource } = await import("./ingest");
+const { runSource, runSessionBoundSource } = await import("./ingest");
 
 const db = {} as never;
 
@@ -86,12 +86,17 @@ function lockWithFailingMarker(markerError: Error): void {
 }
 
 describe("runSource when the provider has not published the session yet", () => {
-  it("reports the source as pending, drops its run row and never marks it failed", async () => {
-    withSourceLock.mockRejectedValueOnce(new SourceNotPublishedError("cdi"));
+  it("reports the source as pending, drops its run row and never marks it succeeded or failed", async () => {
+    withSourceLock.mockImplementation(
+      async (_db: unknown, _source: unknown, callback: (tx: unknown) => Promise<unknown>) =>
+        callback({ transaction: () => Promise.reject(new Error("no marker expected")) }),
+    );
 
-    const outcome = await runSource(db, "sgs", "2026-09-25", 300_000, () => Promise.resolve(0));
+    const outcome = await runSource(db, "sgs", "2026-09-25", 300_000, () =>
+      Promise.resolve({ rowCount: 2, pending: true as const }),
+    );
 
-    expect(outcome).toEqual({ source: "sgs", skipped: false, rowCount: 0, pending: true });
+    expect(outcome).toEqual({ source: "sgs", skipped: false, rowCount: 2, pending: true });
     expect(deleteRun).toHaveBeenCalledWith(db, "run-1");
     expect(finishRun).not.toHaveBeenCalled();
   });
@@ -179,9 +184,7 @@ describe("runSessionBoundSource", () => {
       },
     );
     const run = vi.fn((session: string) =>
-      session === "2026-09-25"
-        ? Promise.reject(new SourceNotPublishedError("cdi"))
-        : Promise.resolve(1),
+      Promise.resolve(session === "2026-09-25" ? { rowCount: 0, pending: true as const } : 1),
     );
 
     const result = await runSessionBoundSource(

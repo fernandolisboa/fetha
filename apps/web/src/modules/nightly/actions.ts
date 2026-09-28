@@ -3,6 +3,7 @@
 import { getDb } from "@/db/client";
 import { recordAccess } from "@/modules/audit";
 import { isOwner } from "@/modules/auth";
+import type { SourceOutcome } from "@/modules/market-data";
 
 import { runNightlyJob } from "./run-nightly-job";
 import { manualTriggerInputSchema } from "./validation";
@@ -31,11 +32,9 @@ export type TriggerNightlyJobResult =
   | { status: "busy" }
   | { status: "ok"; summary: TriggerNightlyJobSummary };
 
-function sourceStatus(source: {
-  skipped: boolean;
-  pending?: true;
-  error?: string;
-}): SourceStatusSummary["status"] {
+function sourceStatus(
+  source: Pick<SourceOutcome, "skipped" | "pending" | "error">,
+): SourceStatusSummary["status"] {
   if (source.error !== undefined) {
     return "failed";
   }

@@ -473,16 +473,20 @@ and filled the next night; the only cost was a red 500 that hides real failures.
 - `fetchSgsSeries` throws `SgsNotPublishedError` (a `SgsFetchError`) only for a 404 whose body
   matches that SGS shape (Zod, `sgsNotFoundBodySchema`); any other non-2xx stays a plain
   `SgsFetchError`.
-- The `sgs` run still fetches and upserts every other series, then throws
-  `SourceNotPublishedError` naming the unpublished ones. `runSource` answers it with
-  `{ skipped: false, rowCount: 0, pending: true }`, deletes its `running` row (as it does for a
-  skipped run) and writes no `failed` row, so `ingestion_runs` holds no succeeded marker and the
-  next run retries the session.
+- The `sgs` run still fetches and upserts every other series. When the unpublished session is the
+  newest one this run attempts, the run returns `{ rowCount, pending: true }` (a `RunResult` value,
+  not a thrown error); `runSource` then writes no succeeded marker, deletes its `running` row (as it
+  does for a skipped run) and reports `{ skipped: false, pending: true }`, so the next run retries
+  the session.
+- An older session whose value is still missing is a failure, not pending: Bacen publishes a
+  session's CDI the next morning, so a value a session late means a real problem (a retired
+  series, a bad range) and must turn the cron red instead of hiding behind "pending".
 - A pending session is not in `okSessions`; a merged outcome with any pending session carries
   `pending: true`. `pending` has no `error`, so `IngestOutcome.ok` stays true and the cron answers 200. The owner's manual trigger shows the source as "ainda não publicada".
 - Option 2 (treat the 404 as an empty result) was rejected: it records the session as succeeded
   without its point.
 
-**Consequence.** A session whose value never appears (a B3 session that is not a banking day) stays
-pending only until a later session's value exists: the next range from `latest + 1` then returns
-it, and the older session's retry finds `from > session` and succeeds with no rows.
+**Consequence.** A session whose value never appears (a B3 session that is not a banking day, if
+one ever exists) is pending for one night, then fails until a later session's value lands: the next
+range from `latest + 1` returns it, and the older session's retry finds `from > session` and
+succeeds with no rows.

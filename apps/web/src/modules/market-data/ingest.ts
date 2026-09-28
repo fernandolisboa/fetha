@@ -57,19 +57,19 @@ export interface SourceOutcome {
   pending?: true;
 }
 
-export class SourceNotPublishedError extends Error {
-  constructor(what: string) {
-    super(`not published yet: ${what}`);
-    this.name = "SourceNotPublishedError";
-  }
-}
-
 // A run callback normally just reports how many rows it wrote; one that also
 // dropped non-conforming rows (the instruments registry) reports that count
 // too so it survives into the SourceOutcome instead of only a console.warn.
-type RunResult = number | { rowCount: number; skippedRows: number };
+// One whose provider has not published the session yet reports `pending`
+// with the rows it did write, and no succeeded marker is recorded.
+type RunResult =
+  number | { rowCount: number; skippedRows: number } | { rowCount: number; pending: true };
 
-function normalizeRunResult(result: RunResult): { rowCount: number; skippedRows?: number } {
+function normalizeRunResult(result: RunResult): {
+  rowCount: number;
+  skippedRows?: number;
+  pending?: true;
+} {
   return typeof result === "number" ? { rowCount: result } : result;
 }
 
@@ -189,7 +189,10 @@ export async function runSource(
       if (alreadySucceeded) {
         return { rowCount: alreadySucceeded.rowCount ?? 0, skipped: true };
       }
-      const { rowCount, skippedRows } = normalizeRunResult(await run());
+      const { rowCount, skippedRows, pending } = normalizeRunResult(await run());
+      if (pending) {
+        return { rowCount, skipped: false, pending };
+      }
       const committed = await tx
         .transaction(async (savepoint) => {
           // Same nominal-type gap as withSourceLock's own cast: the
@@ -209,7 +212,7 @@ export async function runSource(
         });
       return { rowCount, skipped: !committed, skippedRows };
     });
-    if (result.skipped) {
+    if (result.skipped || "pending" in result) {
       await deleteRun(db, startedRunId);
     }
     return {
@@ -219,14 +222,9 @@ export async function runSource(
       ...("skippedRows" in result && result.skippedRows !== undefined
         ? { skippedRows: result.skippedRows }
         : {}),
+      ...("pending" in result ? { pending: result.pending } : {}),
     };
   } catch (error) {
-    if (error instanceof SourceNotPublishedError) {
-      if (runId) {
-        await deleteRun(db, runId);
-      }
-      return { source, skipped: false, rowCount: 0, pending: true };
-    }
     const message = safeDbErrorMessage(error);
     if (runId) {
       await finishRun(db, runId, { status: "failed", error: message });
@@ -417,10 +415,17 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
           notPublished.push(series);
         }
       }
-      if (notPublished.length > 0) {
-        throw new SourceNotPublishedError(notPublished.join(", "));
+      if (notPublished.length === 0) {
+        return total;
       }
-      return total;
+      // Only the newest session can legitimately be unpublished: Bacen
+      // publishes a session's CDI the next morning, so a value still missing
+      // a session later is a real failure (a retired series, a bad range),
+      // not something to keep reporting as pending (docs/adr/0017, #216).
+      if (session !== sgsSessions.at(-1)) {
+        throw new Error(`SGS has not published ${notPublished.join(", ")} for ${session}`);
+      }
+      return { rowCount: total, pending: true };
     },
   );
 

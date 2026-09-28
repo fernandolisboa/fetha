@@ -361,6 +361,48 @@ describe("ingest", () => {
     expect(cdi).toBeDefined();
   });
 
+  it("keeps only the newest gap pending: an older session whose CDI is still unpublished fails", async () => {
+    const db = getDb();
+    await db
+      .delete(macroPoints)
+      .where(and(eq(macroPoints.series, "cdi"), gte(macroPoints.date, WINDOW_FLOOR)));
+    const anySession = fakeFetchAnySession();
+    const cdiNeverPublished = ((input: string) =>
+      input.includes("bcdata.sgs.12/")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                erro: { statusCode: 404, detail: "SGSNegocioException: Value(s) not found" },
+              }),
+              { status: 404 },
+            ),
+          )
+        : anySession(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: cdiNeverPublished,
+    });
+
+    const sgs = result.sources.find((source) => source.source === "sgs");
+    expect(sgs?.pending).toBe(true);
+    expect(sgs?.error).toContain("SGS has not published cdi");
+    expect(result.ok).toBe(false);
+    const sgsRuns = await db
+      .select({ session: ingestionRuns.session, status: ingestionRuns.status })
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "sgs"),
+          gte(ingestionRuns.session, WINDOW_FLOOR),
+          lte(ingestionRuns.session, TEST_SESSION),
+        ),
+      );
+    expect(sgsRuns.length).toBeGreaterThan(0);
+    expect(sgsRuns.every((run) => run.status === "failed")).toBe(true);
+    expect(sgsRuns.map((run) => run.session)).not.toContain(TEST_SESSION);
+  }, 120_000);
+
   it("is idempotent: re-running the same session changes nothing and skips already-succeeded sources", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);
