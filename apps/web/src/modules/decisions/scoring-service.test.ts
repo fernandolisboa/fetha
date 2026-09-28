@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Capabilities, Engine, Result, Score, ScoreInput } from "@fetha/engine";
 
+import { drizzleQueryError, postgresError } from "@/db/test/pg-error";
+
 const dueDecisionUserIds = vi.fn();
 vi.mock("./due-decision-users", () => ({ dueDecisionUserIds }));
 
@@ -171,6 +173,21 @@ describe("scoreDueDecisions", () => {
       errors: [{ decisionId: null, kind: "setup_failed" }],
     });
     expect(dueDecisionUserIds).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed setup query as its SQLSTATE, never the statement or its bound params", async () => {
+    const failed = drizzleQueryError(postgresError("57014"));
+    failed.message = "Failed query: select * from decisions where user_id = $1\nparams: user-a";
+    dueDecisionUserIds.mockRejectedValue(failed);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await scoreDueDecisions(db, { okSessions: ["2026-09-09"] }, { engine: fakeEngine(vi.fn()) });
+
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).toContain("57014");
+    expect(logged).not.toContain("Failed query");
+    expect(logged).not.toContain("user-a");
+    errorSpy.mockRestore();
   });
 
   it("returns an empty outcome with a setup_failed error, not a throw, when the due-user list read rejects", async () => {

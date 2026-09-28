@@ -2,6 +2,7 @@ import { engine as realEngine, type Engine, type Score, type TradingSession } fr
 import type { Structure } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
+import { safeDbErrorMessage } from "@/db/pg-error";
 import { calendarUpTo, freshness } from "@/modules/market-data";
 import { StructuresRepository } from "@/modules/strategies";
 
@@ -196,10 +197,7 @@ export async function scoreDueDecisions(
 
     userIds = await dueDecisionUserIds(db, asOfSession);
   } catch (error) {
-    console.error(
-      "scoreDueDecisions setup failed",
-      error instanceof Error ? error.message : "unknown error",
-    );
+    console.error("scoreDueDecisions setup failed", safeDbErrorMessage(error));
     return setupFailedOutcome();
   }
 

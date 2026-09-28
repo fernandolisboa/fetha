@@ -2,6 +2,7 @@ import type { Instant, Structure, Ticker } from "@fetha/contracts";
 import { engine, type Signal, type StrategyVersion, type TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
+import { safeDbErrorMessage } from "@/db/pg-error";
 import {
   calendarUpTo,
   canSatisfyCollection,
@@ -255,10 +256,7 @@ export async function evaluateSignalsForSession(
     // retries for no reason.
     calendar = await calendarUpTo(db, new Date(at));
   } catch (error) {
-    console.error(
-      "evaluateSignalsForSession setup failed",
-      error instanceof Error ? error.message : "unknown error",
-    );
+    console.error("evaluateSignalsForSession setup failed", safeDbErrorMessage(error));
     return emptyOutcome(sorted, [SETUP_FAILED]);
   }
   const structureById = new Map(structures.map((structure) => [structure.id, structure]));
