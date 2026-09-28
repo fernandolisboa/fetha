@@ -165,11 +165,14 @@ export function CommandSearch({
         onClick={() => {
           setOpen(true);
         }}
-        className="border-border bg-background text-muted-foreground flex h-8 w-[360px] items-center gap-2 rounded-[var(--radius)] border px-2.5 text-[13px]"
+        aria-label={t.search.placeholder}
+        className="border-border bg-background text-muted-foreground flex size-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius)] border px-0 text-[13px] md:h-8 md:w-[360px] md:min-w-0 md:shrink md:justify-start md:px-2.5"
       >
         <Search className="size-3.5" aria-hidden />
-        <span className="truncate">{t.search.placeholder}</span>
-        <span className="text-faint ml-auto font-mono text-[11px]">{t.search.shortcut}</span>
+        <span className="hidden min-w-0 truncate md:inline">{t.search.placeholder}</span>
+        <span className="text-faint ml-auto hidden font-mono text-[11px] md:inline">
+          {t.search.shortcut}
+        </span>
       </button>
       <CommandDialog
         open={open}

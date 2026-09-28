@@ -24,6 +24,36 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
+test("header fits phone, tablet and desktop widths without overflowing", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/ativos/PETR4");
+  await expect(page.getByRole("banner").getByText("PETR4")).toBeVisible();
+
+  for (const width of [360, 390, 800, 1024]) {
+    await page.setViewportSize({ width, height: 844 });
+    const budget = await page.evaluate(() => document.documentElement.clientWidth);
+
+    const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(pageScrollWidth).toBeLessThanOrEqual(budget);
+    const headerScrollWidth = await page
+      .getByRole("banner")
+      .evaluate((element) => element.scrollWidth);
+    expect(headerScrollWidth).toBeLessThanOrEqual(budget);
+
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect(accountBox).not.toBeNull();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(budget);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
+  await expect(page.getByRole("dialog", { name: "Buscar ativo ou estratégia" })).toBeVisible();
+});
+
 test("Ctrl K palette opens and announces its empty state once typing starts", async ({
   page,
   baseURL,
@@ -59,7 +89,7 @@ test("Ctrl K palette navigates to an instrument result", async ({ page, baseURL,
   await expect(page).toHaveURL(/\/ativos\/PETR4$/);
 });
 
-test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, request }) => {
+test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   const runId = `${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
@@ -74,8 +104,10 @@ test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, re
   await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
   const strategyUrl = page.url();
 
+  // Ctrl K's listener is attached after hydration, so a key press right
+  // after a navigation can be lost; a click on the trigger is replayed (#240).
   await page.goto("/");
-  await page.keyboard.press("Control+k");
+  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
   await page.getByPlaceholder("Buscar ativo ou estratégia").fill(`Ctrl K ${runId}`);
 
   const option = page.getByRole("option", { name: strategyName, exact: true });

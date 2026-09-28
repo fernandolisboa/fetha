@@ -20,7 +20,9 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   collapsed with icons only, state remembered per user; six destinations: Watchlist, Sinais (with
   an unread count), Estratégias, Carteira, Diário, Configurações; declared capital at the rail
   foot. Under 1024px the rail collapses; under 768px it becomes a bottom tab bar (rare: desktop
-  first).
+  first; the tab bar is #243). The header never scrolls sideways: under 1024px the account menu
+  shows only its avatar and the market bar drops the freshness phrase; under 768px the command
+  search becomes a 44px icon button and the account avatar a 44px target.
 - **Page**: overline (context · source) + headline naming the object ("Collar em PETR4"), status
   chips (expiry and sessions left, pricing model), primary and secondary actions on the right.
   Content is a two-column grid `minmax(0,1fr) 320px`: work on the left (tables, charts), results

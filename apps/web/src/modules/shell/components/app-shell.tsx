@@ -25,7 +25,7 @@ export function AppShell({
 }) {
   return (
     <MarketBarProvider>
-      <div className="grid min-h-full grid-rows-[48px_1fr]">
+      <div className="grid min-h-full grid-cols-1 grid-rows-[48px_1fr]">
         <Header
           email={user.email}
           searchInstruments={searchInstruments}
