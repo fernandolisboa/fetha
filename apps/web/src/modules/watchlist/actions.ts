@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { tickerSchema } from "@fetha/contracts";
+import { tickerPrefixQuerySchema, tickerSchema } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import {
@@ -29,12 +29,7 @@ const MAX_SEARCH_RESULTS = 20;
 const WATCHLIST_CAP = 100;
 const SEARCH_RATE_LIMIT = { windowSeconds: 10, max: 30 };
 
-// `%`, `_` and `\` are live `ILIKE` wildcards; a bare regex here (rather
-// than deeper in the pattern-building code) rejects them before the query
-// reaches the database at all, so a scan of every partition or a
-// `PE_R4`-style probe of the instrument registry never has a live pattern
-// to run.
-const searchInputSchema = z.strictObject({ query: z.string().regex(/^[A-Za-z0-9]{1,12}$/) });
+const searchInputSchema = z.strictObject({ query: tickerPrefixQuerySchema });
 
 async function withRepository<T>(run: (repository: WatchlistRepository) => Promise<T>): Promise<T> {
   return withAuthenticatedAction(async () => {

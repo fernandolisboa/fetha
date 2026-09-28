@@ -48,16 +48,25 @@ export const candles = pgTable(
 // isin is the B3 instruments registry's stable key: option tickers are
 // reused across cycles and strikes get adjusted, so ticker alone cannot be
 // the conflict target (ADR-0017).
-export const optionSeries = pgTable("option_series", {
-  isin: text("isin").primaryKey(),
-  ticker: text("ticker").notNull(),
-  underlying: text("underlying").notNull(),
-  right: text("right").notNull(),
-  strike: numeric("strike", { precision: 18, scale: 8 }).notNull(),
-  expiry: date("expiry", { mode: "string" }).notNull(),
-  style: text("style").notNull(),
-  asOf: timestamp("as_of", { withTimezone: true }).notNull(),
-});
+export const optionSeries = pgTable(
+  "option_series",
+  {
+    isin: text("isin").primaryKey(),
+    ticker: text("ticker").notNull(),
+    underlying: text("underlying").notNull(),
+    right: text("right").notNull(),
+    strike: numeric("strike", { precision: 18, scale: 8 }).notNull(),
+    expiry: date("expiry", { mode: "string" }).notNull(),
+    style: text("style").notNull(),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Backs the palette's `LIKE '<PREFIX>%'` series search (#241) the same
+    // way `candles_ticker_pattern_idx` backs the instrument search (#74), and
+    // the series page's ticker lookup.
+    index("option_series_ticker_pattern_idx").using("btree", table.ticker.op("text_pattern_ops")),
+  ],
+);
 
 export const optionDailyPrices = pgTable(
   "option_daily_prices",

@@ -15,6 +15,7 @@ export {
   rightOpenUnitIntervalSchema,
   sessionDateSchema,
   signedQuantitySchema,
+  tickerPrefixQuerySchema,
   tickerSchema,
   type Centavos,
   type Confidence,

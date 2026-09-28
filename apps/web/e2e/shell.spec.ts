@@ -50,8 +50,10 @@ test("header fits phone, tablet and desktop widths without overflowing", async (
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
-  await expect(page.getByRole("dialog", { name: "Buscar ativo ou estratégia" })).toBeVisible();
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" }),
+  ).toBeVisible();
 });
 
 test("Ctrl K palette opens and announces its empty state once typing starts", async ({
@@ -62,15 +64,15 @@ test("Ctrl K palette opens and announces its empty state once typing starts", as
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.keyboard.press("Control+k");
-  const dialog = page.getByRole("dialog", { name: "Buscar ativo ou estratégia" });
+  const dialog = page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" });
   await expect(dialog).toBeVisible();
 
   const status = dialog.getByRole("status");
   await expect(status).toHaveText("");
-  await expect(dialog.getByText("Nenhum ativo ou estratégia encontrado.")).not.toBeVisible();
+  await expect(dialog.getByText("Nenhum ativo, série ou estratégia encontrado.")).not.toBeVisible();
 
-  await page.getByPlaceholder("Buscar ativo ou estratégia").fill("zzzzzzzzzz");
-  await expect(status).toHaveText("Nenhum ativo ou estratégia encontrado.");
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("zzzzzzzzzz");
+  await expect(status).toHaveText("Nenhum ativo, série ou estratégia encontrado.");
 });
 
 // PETR4 is one of B3's most liquid tickers and is expected to be present in
@@ -80,13 +82,43 @@ test("Ctrl K palette navigates to an instrument result", async ({ page, baseURL,
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder("Buscar ativo ou estratégia").fill("PETR");
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("PETR");
 
   const option = page.getByRole("option", { name: "PETR4", exact: true });
   await expect(option).toBeVisible();
   await option.click();
 
   await expect(page).toHaveURL(/\/ativos\/PETR4$/);
+});
+
+// Same reference-data assumption as operation-builder.spec.ts: nightly
+// ingestion keeps at least one live PETR4 series in the registry.
+test("the palette navigates to an option series page", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("PETR");
+
+  const seriesGroup = page.getByRole("group", { name: "Séries de opção" });
+  const firstSeries = seriesGroup.getByRole("option").first();
+  await expect(firstSeries).toBeVisible();
+  const seriesTicker = (await firstSeries.locator("span").first().textContent()) ?? "";
+  expect(seriesTicker).toMatch(/^PETR[A-Z0-9]+$/);
+  await firstSeries.click();
+
+  await expect(page).toHaveURL(new RegExp(`/opcoes/${seriesTicker}$`));
+  await expect(page.getByRole("heading", { level: 1, name: seriesTicker })).toBeVisible();
+  await expect(page.getByText("Série de opção", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^(Call|Put)$/)).toBeVisible();
+  await expect(page.getByText(/^(Americana|Europeia)$/)).toBeVisible();
+  await expect(page.getByText(/^Strike \d[\d.]*,\d{2}$/)).toBeVisible();
+  await expect(page.getByText(/^Vence em \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
+
+  // PETR3 and PETR4 options share the PETR root, so either can come first.
+  const underlyingLink = page.getByRole("link", { name: /^Ver PETR[34]$/ });
+  const underlying = ((await underlyingLink.textContent()) ?? "").replace("Ver ", "");
+  await underlyingLink.click();
+  await expect(page).toHaveURL(new RegExp(`/ativos/${underlying}$`));
 });
 
 test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {
@@ -107,8 +139,8 @@ test("the palette navigates to a strategy result", async ({ page, baseURL, reque
   // Ctrl K's listener is attached after hydration, so a key press right
   // after a navigation can be lost; a click on the trigger is replayed (#240).
   await page.goto("/");
-  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
-  await page.getByPlaceholder("Buscar ativo ou estratégia").fill(`Ctrl K ${runId}`);
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill(`Ctrl K ${runId}`);
 
   const option = page.getByRole("option", { name: strategyName, exact: true });
   await expect(option).toBeVisible();

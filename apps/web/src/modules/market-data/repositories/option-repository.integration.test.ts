@@ -9,8 +9,10 @@ import {
   latestExpiredTradedSeries,
   optionChainForUnderlying,
   optionPricesInSessionRange,
+  optionSeriesDetail,
   optionSeriesForFills,
   optionSeriesInWindow,
+  searchOptionSeries,
   seriesKey,
 } from "./option-repository";
 
@@ -592,5 +594,259 @@ describe("optionSeriesForFills and latestExpiredTradedSeries", () => {
 
   it("returns null when the underlying has no expired traded series", async () => {
     expect(await latestExpiredTradedSeries(getDb(), uniqueTicker("NON"))).toBeNull();
+  });
+});
+
+describe("searchOptionSeries and optionSeriesDetail", () => {
+  const TODAY = "2099-06-15";
+  const seededTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    const tickers = seededTickers.splice(0);
+    if (tickers.length > 0) {
+      await db.delete(optionSeries).where(inArray(optionSeries.ticker, tickers));
+      await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, tickers));
+    }
+  });
+
+  async function seedSeries(
+    ticker: string,
+    cycle: { isin: string; expiry: string; strike: string; asOf: string; right?: string },
+  ): Promise<void> {
+    if (!seededTickers.includes(ticker)) {
+      seededTickers.push(ticker);
+    }
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin: cycle.isin,
+        ticker,
+        underlying: "PETR4",
+        right: cycle.right ?? "call",
+        strike: cycle.strike,
+        expiry: cycle.expiry,
+        style: "european",
+        asOf: new Date(cycle.asOf),
+      });
+  }
+
+  async function seedPrice(
+    ticker: string,
+    session: string,
+    expiry: string,
+    close: string | null,
+    trades: number,
+  ): Promise<void> {
+    await ensureMonthlyPartition(getDb(), "option_daily_prices", session);
+    await getDb()
+      .insert(optionDailyPrices)
+      .values({
+        ticker,
+        session,
+        asOf: new Date(`${session}T21:00:00.000Z`),
+        right: "call",
+        strike: "40",
+        expiry,
+        average: close,
+        close,
+        trades,
+        tradedQuantity: trades * 100,
+      });
+  }
+
+  function isin(): string {
+    return `ZZ${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  }
+
+  it("finds live series by ticker prefix, case-insensitively, and skips expired ones", async () => {
+    const prefix = uniqueTicker("SR");
+    const live = `${prefix}A40`;
+    const expired = `${prefix}B40`;
+    await seedSeries(live, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+    await seedSeries(expired, {
+      isin: isin(),
+      expiry: "2099-06-14",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+
+    const results = await searchOptionSeries(getDb(), prefix.toLowerCase(), TODAY, 20);
+
+    expect(results).toEqual([
+      {
+        ticker: live,
+        underlying: "PETR4",
+        right: "call",
+        strike: "40.00000000",
+        expiry: "2099-07-17",
+      },
+    ]);
+  });
+
+  it("keeps a series expiring today", async () => {
+    const prefix = uniqueTicker("ST");
+    const ticker = `${prefix}C40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: TODAY,
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+
+    const results = await searchOptionSeries(getDb(), prefix, TODAY, 20);
+
+    expect(results.map((row) => row.ticker)).toEqual([ticker]);
+  });
+
+  it("lists a reused ticker once, as its nearest live cycle", async () => {
+    const prefix = uniqueTicker("SU");
+    const ticker = `${prefix}D40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2098-07-17",
+      strike: "38",
+      asOf: "2098-01-02T00:00:00Z",
+    });
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2100-07-16",
+      strike: "44",
+      asOf: "2099-03-02T00:00:00Z",
+    });
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+
+    const results = await searchOptionSeries(getDb(), prefix, TODAY, 20);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ ticker, expiry: "2099-07-17", strike: "40.00000000" });
+  });
+
+  it("caps the result count and orders by ticker", async () => {
+    const prefix = uniqueTicker("SV");
+    const tickers = [`${prefix}C`, `${prefix}A`, `${prefix}B`];
+    for (const ticker of tickers) {
+      await seedSeries(ticker, {
+        isin: isin(),
+        expiry: "2099-07-17",
+        strike: "40",
+        asOf: "2099-01-02T00:00:00Z",
+      });
+    }
+
+    const results = await searchOptionSeries(getDb(), prefix, TODAY, 2);
+
+    expect(results.map((row) => row.ticker)).toEqual([`${prefix}A`, `${prefix}B`]);
+  });
+
+  it("returns nothing for a query carrying a LIKE wildcard", async () => {
+    const prefix = uniqueTicker("SW");
+    await seedSeries(`${prefix}A`, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+
+    expect(await searchOptionSeries(getDb(), "%", TODAY, 20)).toEqual([]);
+    expect(await searchOptionSeries(getDb(), `${prefix.slice(0, 3)}_`, TODAY, 20)).toEqual([]);
+  });
+
+  it("opens the same live cycle the search lists, with only that cycle's prices, newest first", async () => {
+    const prefix = uniqueTicker("DA");
+    const ticker = `${prefix}E40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2098-07-17",
+      strike: "38",
+      asOf: "2098-01-02T00:00:00Z",
+    });
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+    await seedPrice(ticker, "2098-07-10", "2098-07-17", "9.99", 3);
+    await seedPrice(ticker, "2099-06-10", "2099-07-17", "1.25", 12);
+    await seedPrice(ticker, "2099-06-11", "2099-07-17", null, 0);
+    await seedPrice(ticker, "2099-06-12", "2099-07-17", "1.40", 7);
+
+    const detail = await optionSeriesDetail(getDb(), ticker, TODAY, 2);
+
+    expect(detail).toEqual({
+      ticker,
+      underlying: "PETR4",
+      right: "call",
+      strike: "40.00000000",
+      expiry: "2099-07-17",
+      style: "european",
+      expired: false,
+      lastTrade: { session: "2099-06-12", close: "1.400000" },
+      prices: [
+        { session: "2099-06-12", close: "1.400000", average: "1.400000", trades: 7 },
+        { session: "2099-06-11", close: null, average: null, trades: 0 },
+      ],
+    });
+  });
+
+  it("finds the last trade even when it is older than the price rows shown", async () => {
+    const prefix = uniqueTicker("DC");
+    const ticker = `${prefix}G40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+    await seedPrice(ticker, "2099-06-08", "2099-07-17", "0.35", 2);
+    await seedPrice(ticker, "2099-06-11", "2099-07-17", null, 0);
+    await seedPrice(ticker, "2099-06-12", "2099-07-17", null, 0);
+
+    const detail = await optionSeriesDetail(getDb(), ticker, TODAY, 2);
+
+    expect(detail?.prices.map((price) => price.close)).toEqual([null, null]);
+    expect(detail?.lastTrade).toEqual({ session: "2099-06-08", close: "0.350000" });
+  });
+
+  it("falls back to the most recently expired cycle when none is live", async () => {
+    const prefix = uniqueTicker("DB");
+    const ticker = `${prefix}F40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2097-07-17",
+      strike: "36",
+      asOf: "2097-01-02T00:00:00Z",
+    });
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2098-07-17",
+      strike: "38",
+      asOf: "2098-01-02T00:00:00Z",
+    });
+
+    const detail = await optionSeriesDetail(getDb(), ticker, TODAY, 20);
+
+    expect(detail).toMatchObject({
+      expiry: "2098-07-17",
+      strike: "38.00000000",
+      expired: true,
+      lastTrade: null,
+      prices: [],
+    });
+  });
+
+  it("is null for a ticker the registry has never listed", async () => {
+    expect(await optionSeriesDetail(getDb(), uniqueTicker("NO"), TODAY, 20)).toBeNull();
   });
 });
