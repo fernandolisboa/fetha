@@ -85,7 +85,7 @@ describe("purgeUnverifiedAccounts", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("puts back to pending the invite a purged account had consumed", async () => {
+  it("keeps an invite spent when the account holding it is purged", async () => {
     const stale = await insertUser("stale-invite", false, UNVERIFIED_ACCOUNT_RETENTION_HOURS + 1);
     await getDb()
       .insert(invites)
@@ -94,7 +94,7 @@ describe("purgeUnverifiedAccounts", () => {
     await purgeUnverifiedAccounts(getDb(), NOW);
 
     const [invite] = await getDb().select().from(invites).where(eq(invites.email, stale.email));
-    expect(invite?.consumedAt).toBeNull();
+    expect(invite?.consumedAt).toEqual(stale.createdAt);
     expect(invite?.consumedByUserId).toBeNull();
   });
 });
