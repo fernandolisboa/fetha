@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
+  readAccountRateLimitSecret,
   requireUser,
   UnauthenticatedError,
 } from "@/modules/auth";
@@ -39,7 +40,13 @@ export async function POST(
   }
 
   try {
-    await enforceAccountRateLimit(getDb(), user.email, "backtests/run", RUN_RATE_LIMIT);
+    await enforceAccountRateLimit(
+      getDb(),
+      user.email,
+      "backtests/run",
+      RUN_RATE_LIMIT,
+      readAccountRateLimitSecret(),
+    );
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });

@@ -10,6 +10,7 @@ import { getDb } from "@/db/client";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
+  readAccountRateLimitSecret,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
@@ -94,7 +95,13 @@ async function createBacktestRun(
   const user = await requireUser();
 
   try {
-    await enforceAccountRateLimit(getDb(), user.email, "backtests/create", CREATE_RATE_LIMIT);
+    await enforceAccountRateLimit(
+      getDb(),
+      user.email,
+      "backtests/create",
+      CREATE_RATE_LIMIT,
+      readAccountRateLimitSecret(),
+    );
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
       return { status: "error", error: "rate_limited" };
@@ -269,7 +276,13 @@ export async function discardBacktestRunAction(
       const user = await requireUser();
       const db = getDb();
       try {
-        await enforceAccountRateLimit(db, user.email, "backtests/discard", DISCARD_RATE_LIMIT);
+        await enforceAccountRateLimit(
+          db,
+          user.email,
+          "backtests/discard",
+          DISCARD_RATE_LIMIT,
+          readAccountRateLimitSecret(),
+        );
       } catch (error) {
         if (error instanceof AccountRateLimitExceededError) {
           return { status: "error", error: "rate_limited" };

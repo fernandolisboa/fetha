@@ -11,6 +11,7 @@ import { parseCentavosInput } from "@/lib/format/parse-money";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
+  readAccountRateLimitSecret,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
@@ -80,6 +81,7 @@ async function withinRateLimit(
       email,
       path,
       path === "portfolio/import" ? IMPORT_RATE_LIMIT : WRITE_RATE_LIMIT,
+      readAccountRateLimitSecret(),
     );
     return true;
   } catch (error) {

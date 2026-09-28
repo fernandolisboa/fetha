@@ -9,6 +9,7 @@ import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
   forCurrentUser,
+  readAccountRateLimitSecret,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
@@ -93,7 +94,13 @@ export async function searchInstrumentsAction(input: {
   }
   const user = await withAuthenticatedAction(() => requireUser());
   try {
-    await enforceAccountRateLimit(getDb(), user.email, "watchlist/search", SEARCH_RATE_LIMIT);
+    await enforceAccountRateLimit(
+      getDb(),
+      user.email,
+      "watchlist/search",
+      SEARCH_RATE_LIMIT,
+      readAccountRateLimitSecret(),
+    );
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
       return { status: "error", error: "rate_limited" };

@@ -14,6 +14,7 @@ vi.mock("@/modules/auth", () => {
     AccountRateLimitExceededError,
     requireUser: requireUserMock,
     enforceAccountRateLimit: enforceAccountRateLimitMock,
+    readAccountRateLimitSecret: () => "test-secret",
   };
 });
 vi.mock("@/modules/audit", () => ({ recordAccess: recordAccessMock }));
@@ -95,10 +96,13 @@ describe("GET /api/account/export", () => {
 
     expect(response.status).toBe(429);
     expect(await response.text()).toBe("Muitas exportações seguidas.");
-    expect(enforceAccountRateLimitMock).toHaveBeenCalledWith({}, owner.email, "account/export", {
-      windowSeconds: 60,
-      max: 3,
-    });
+    expect(enforceAccountRateLimitMock).toHaveBeenCalledWith(
+      {},
+      owner.email,
+      "account/export",
+      { windowSeconds: 60, max: 3 },
+      "test-secret",
+    );
     expect(accountExportStreamMock).not.toHaveBeenCalled();
   });
 });

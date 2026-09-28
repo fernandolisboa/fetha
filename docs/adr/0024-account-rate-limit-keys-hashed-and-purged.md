@@ -46,3 +46,29 @@ art. 6 III, art. 15), and a dump of the table lists who tried to sign in.
   most 60 seconds plus the time until the next account window starts anywhere.
 - One extra `DELETE` per new account window. The table stays small, so no index is added.
 - The privacy policy (#31) should state this retention.
+
+## Addendum 2026-09-28: switch to HMAC-SHA256 (#191)
+
+The "considered options" above rejected keying on `HMAC(BETTER_AUTH_SECRET, email)` on the
+reasoning that a bucket lives at most about a minute, so a dump exposes only the last minute of
+attempts. That undersold the risk: a plain `sha256(email)` is reversible by anyone who can read the
+table, by dictionary, in that same minute, against the small, guessable universe of email addresses
+that actually matter (the owner's own, and any invited address) — the retention window bounds _how
+long_ the table is exposed, not _whether_ a captured row can be reversed once read.
+
+`accountBucketKey` now computes `HMAC-SHA256(BETTER_AUTH_SECRET, "fetha:account-rate-limit:v1:" +
+email)`: a single HMAC call over a label-prefixed message, rather than a two-step derivation (an
+HMAC of the label to produce a derived key, then a second HMAC of the email under that key). The
+single-step form gives the same guarantee — the digest cannot be reversed without
+`BETTER_AUTH_SECRET` — with one call instead of two; the version label still domain-separates this
+digest from any other value ever computed off the same secret, so rotating the derivation later
+cannot collide with a key already in the table.
+
+No new environment variable: `BETTER_AUTH_SECRET` already exists in every environment (it is
+Better Auth's own signing secret) and this reuses it under a distinct, versioned label rather than
+introducing a second secret to provision and rotate.
+
+No data migration: rows written under the old `sha256(email)` digest simply stop matching any key
+`accountBucketKey` computes going forward, so they are orphaned rather than actively wrong, and age
+out within `ACCOUNT_BUCKET_RETENTION_SECONDS` (60s) the same as any other stale bucket (item 2
+above already purges rows on that schedule; nothing in this change touches it).
