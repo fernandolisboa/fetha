@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { evaluationReasons } from "@fetha/engine";
 
 import { webEvaluationReasons } from "./evaluation-vocabulary";
-import { MAX_VERSIONS_PER_STRATEGY } from "./strategies-repository";
+import { MAX_STRATEGIES_PER_USER, MAX_VERSIONS_PER_STRATEGY } from "./strategies-repository";
 import { evaluationLabel, strategiesStrings, t } from "./strings";
 
 const reasonsWithNoText = new Set(["signal", "conditions_not_met"]);
@@ -142,6 +142,18 @@ describe("editor.errors.version_limit", () => {
     const cap = `${String(MAX_VERSIONS_PER_STRATEGY)} vers`;
     expect(strategiesStrings.en.editor.errors.version_limit).toContain(cap);
     expect(strategiesStrings.ptBR.editor.errors.version_limit).toContain(cap);
+  });
+});
+
+describe("strategy cap messages (#227)", () => {
+  it.each([
+    ["en", strategiesStrings.en],
+    ["ptBR", strategiesStrings.ptBR],
+  ] as const)("state the cap the repository enforces (%s)", (_locale, strings) => {
+    const cap = String(MAX_STRATEGIES_PER_USER);
+    expect(strings.editor.errors.limit_reached).toContain(cap);
+    expect(strings.list.shared.copyLimitReached).toContain(cap);
+    expect(strings.list.archived.unarchiveLimitReached).toContain(cap);
   });
 });
 

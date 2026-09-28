@@ -18,7 +18,7 @@ export function CopyStrategyButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<"rate_limited" | "generic" | null>(null);
+  const [error, setError] = useState<"limit_reached" | "rate_limited" | "generic" | null>(null);
 
   function copy() {
     setError(null);
@@ -30,7 +30,11 @@ export function CopyStrategyButton({
           if (result.status === "ok") {
             router.push(`/estrategias/${result.strategyId}`);
           } else {
-            setError(result.error === "rate_limited" ? "rate_limited" : "generic");
+            setError(
+              result.error === "limit_reached" || result.error === "rate_limited"
+                ? result.error
+                : "generic",
+            );
           }
         })
         .catch(() => {
@@ -54,7 +58,11 @@ export function CopyStrategyButton({
       </Button>
       {error && (
         <ErrorNotice>
-          {error === "rate_limited" ? t.list.rateLimited : t.list.shared.copyError}
+          {error === "limit_reached"
+            ? t.list.shared.copyLimitReached
+            : error === "rate_limited"
+              ? t.list.rateLimited
+              : t.list.shared.copyError}
         </ErrorNotice>
       )}
     </div>
