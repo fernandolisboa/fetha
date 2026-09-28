@@ -179,10 +179,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* viewport-fit=cover (root layout) lets an installed PWA draw under a
+     phone's notch and home indicator; these insets are 0 everywhere else. */
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
     font-size: var(--text-body);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
   }
   html {
     @apply font-sans;
