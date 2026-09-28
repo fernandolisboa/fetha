@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "@/lib/utils";
 
 import {
@@ -51,7 +51,7 @@ function CommandDialog({
         className={cn("top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0", className)}
         showCloseButton={showCloseButton}
       >
-        {children}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   );
@@ -116,6 +116,26 @@ function CommandLoading({
       className={cn("text-muted-foreground py-6 text-center text-sm", className)}
       {...props}
     />
+  );
+}
+
+function CommandStatus({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="command-status"
+      role="status"
+      aria-live="polite"
+      className={cn("sr-only", className)}
+      {...props}
+    />
+  );
+}
+
+function CommandEmptyStatus({ message }: { message: string }) {
+  const searchValue = useCommandState((state) => state.search);
+  const hasNoMatches = useCommandState((state) => state.filtered.count === 0);
+  return (
+    <CommandStatus>{searchValue.trim().length > 0 && hasNoMatches ? message : ""}</CommandStatus>
   );
 }
 
@@ -188,6 +208,8 @@ export {
   CommandList,
   CommandEmpty,
   CommandLoading,
+  CommandStatus,
+  CommandEmptyStatus,
   CommandGroup,
   CommandItem,
   CommandShortcut,

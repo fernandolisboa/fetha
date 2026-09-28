@@ -184,6 +184,9 @@ declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score
 - **Approximation notes**: every note code from the engine (`european_pricing`,
   `intraday_option_fill_at_fair_value`, `short_window_not_annualized`, ...) renders as a
   `--muted` line under the affected number, never hidden.
+- **Screen readers**: a state change that isn't purely visual (searching, no results,
+  rate-limited, error) is also announced once through a polite live region (`CommandStatus` in the
+  shared Command primitive), never per keystroke.
 
 ## Formatting (pt-BR)
 

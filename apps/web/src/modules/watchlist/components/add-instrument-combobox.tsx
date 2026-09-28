@@ -13,12 +13,14 @@ import {
   CommandItem,
   CommandList,
   CommandLoading,
+  CommandStatus,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ErrorNotice } from "@/components/error-notice";
 
 import { addToWatchlistAction, searchInstrumentsAction } from "../actions";
 import { t } from "../strings";
+import { deriveSearchMessage, deriveSearchStatusText } from "./search-status";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -77,6 +79,21 @@ export function AddInstrumentCombobox() {
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.results : [];
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
   const rateLimited = trimmedQuery.length > 0 && currentOutcome?.kind === "rate_limited";
+  const hasResults = displayResults.length > 0;
+
+  const message = deriveSearchMessage(
+    { pending, rateLimited, searchFailed },
+    {
+      searching: t.add.searching,
+      rateLimited: t.add.rateLimited,
+      searchError: t.add.searchError,
+      empty: t.add.empty,
+    },
+  );
+  const statusText = deriveSearchStatusText(message, {
+    trimmedQueryLength: trimmedQuery.length,
+    hasResults,
+  });
 
   function select(ticker: string) {
     setAddError(null);
@@ -124,13 +141,12 @@ export function AddInstrumentCombobox() {
         <PopoverContent className="w-64 p-0" align="end">
           <Command shouldFilter={false}>
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
+            <CommandStatus>{statusText}</CommandStatus>
             <CommandList>
               {pending ? (
-                <CommandLoading label={t.add.searching}>{t.add.searching}</CommandLoading>
+                <CommandLoading label={message}>{message}</CommandLoading>
               ) : (
-                <CommandEmpty>
-                  {rateLimited ? t.add.rateLimited : searchFailed ? t.add.searchError : t.add.empty}
-                </CommandEmpty>
+                <CommandEmpty>{message}</CommandEmpty>
               )}
               {!pending &&
                 !searchFailed &&
