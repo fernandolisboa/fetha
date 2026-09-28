@@ -143,7 +143,8 @@ An evaluation of one strategy version on one instrument at one evaluation time w
 actionable: an entry condition met with a priced proposal, or an exit or adjustment condition
 met on an open operation; with the indicator values that fired. A signal waits in the user's
 inbox until a decision answers it. Every evaluation produces an evaluation record; only these
-outcomes also produce a signal.
+outcomes also produce a signal, and an entry from a session older than the inbox horizon
+(ADR-0044) produces none.
 _Avoid_: alert, trigger, recommendation, setup
 
 **Proposal**:
@@ -160,10 +161,18 @@ unsizeable; with a reason, a stable code identifying why (ADR-0013's #80 addendu
 engine never got to evaluate at all (its structure was deleted from the catalog, an engine error,
 a clamped catch-up, an unfillable market-data collection, or a market view `apps/web` itself
 could not load — too many option series to load in one call, or no market data at all for the
-window) carries one of `apps/web`'s own web-authored reason codes instead (ADR-0039). Visible in
-the evaluation log, never in the inbox.
+window) carries one of `apps/web`'s own web-authored reason codes instead (ADR-0039). An entry the
+engine did evaluate as a signal, but whose session is past the inbox horizon, keeps its `signal`
+outcome and has its reason replaced by the web-authored `entry_past_inbox_horizon` (ADR-0044).
+Visible in the evaluation log, never in the inbox.
 _Avoid_: signal (reserved for the actionable outcomes), evaluation log entry, detail (removed from
 the engine's own `EvaluationRecord`, ADR-0039; `detail` survives only as a plain log column)
+
+**Inbox horizon**:
+How many of the newest trading sessions, counted back from the wall clock, a nightly catch-up may
+send entry signals from: five (ADR-0044). Separate from the catch-up limit (21 sessions), which bounds how far back evaluation
+and the log reach.
+_Avoid_: signal expiry, freshness window
 
 **Evaluation time**:
 The moment a strategy's conditions are computed against the data available then: the close of a
@@ -462,7 +471,7 @@ _Avoid_: audit trail (in copy), activity feed, history
 The redacted, per-run record (`nightly_runs`) of the nightly job's own purge → ingest → evaluate →
 score sequence: one row per run, cron or manual, with counts and closed-vocabulary statuses only —
 never a user id, decision id, email or raw provider/engine error string. Operational, system-written,
-not user-facing; kept 90 days (ADR-0044).
+not user-facing; kept 90 days (ADR-0045).
 _Avoid_: run log, job history (in code; these are not user-visible)
 
 **Account deletion**:

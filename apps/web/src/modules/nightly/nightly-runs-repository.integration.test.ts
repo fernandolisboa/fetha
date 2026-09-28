@@ -49,7 +49,7 @@ async function insertRawRun(startedAt: Date): Promise<string> {
   return row.id;
 }
 
-describe("nightly_runs (docs/adr/0044)", () => {
+describe("nightly_runs (docs/adr/0045)", () => {
   it("records one row per run with the given trigger, ok flag and report", async () => {
     const db = getDb();
     const startedAt = new Date("2026-09-08T02:00:00Z");

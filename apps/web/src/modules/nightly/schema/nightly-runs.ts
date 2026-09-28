@@ -7,7 +7,7 @@ import { nightlyRunTriggerSchema, type NightlyRunTrigger } from "./trigger";
 const triggers = nightlyRunTriggerSchema.options.map((trigger) => `'${trigger}'`).join(", ");
 
 // Operational, system-written, no `user_id` (docs/adr/0016's `invites`/
-// `mail_outbox` class, extended by docs/adr/0044): one row per nightly run,
+// `mail_outbox` class, extended by docs/adr/0045): one row per nightly run,
 // cron or manual, so an agent can answer "did last night's job run and what
 // failed" from the database instead of a Vercel log screenshot. `report` is
 // pre-redacted before it ever reaches this table (see ../report.ts) — no

@@ -44,13 +44,19 @@ export interface EvaluateSignalsOutcome {
 const SETUP_FAILED = "setup_failed";
 
 // A month of B3 trading sessions (~21/month), the catch-up ceiling: a
-// catch-up wider than this is clamped rather than run in full. Bounds both
-// the engine work a single run can be asked to do (so a long-dormant
-// watchlist or strategy can never alone blow past `maxDuration`, which used
-// to kill the loop mid-user and corrupt a
-// sibling strategy's watermark) and how many backdated entry proposals, all
-// sized against *today's* risk profile, can land in one night's inbox.
+// catch-up wider than this is clamped rather than run in full. Bounds the
+// engine work a single run can be asked to do (so a long-dormant watchlist
+// or strategy can never alone blow past `maxDuration`, which used to kill
+// the loop mid-user and corrupt a sibling strategy's watermark) and how far
+// back the evaluation log reaches. What reaches the inbox is bounded by
+// `INBOX_ENTRY_SESSION_HORIZON` instead (docs/adr/0044).
 export const CATCH_UP_SESSION_LIMIT = 21;
+
+// One trading week (docs/adr/0044, #83): an entry proposal from an older
+// session was priced at a spot that is now stale and sized against today's
+// risk profile, so the catch-up still logs its evaluation but keeps it out
+// of the inbox.
+export const INBOX_ENTRY_SESSION_HORIZON = 5;
 
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
@@ -212,6 +218,19 @@ function clampEvaluations(
   }));
 }
 
+// The oldest session whose entry proposals may still reach the inbox: the
+// `INBOX_ENTRY_SESSION_HORIZON`-th newest session closed by the wall clock,
+// not by `at`, so a provider publishing a week late cannot push a week of
+// stale proposals past the horizon. Undefined when the calendar is shorter
+// than the horizon, so nothing is past it.
+function inboxHorizonFloor(closedSessions: readonly TradingSession[]): string | undefined {
+  return closedSessions.at(-INBOX_ENTRY_SESSION_HORIZON)?.date;
+}
+
+function isEntryPastInboxHorizon(signal: Signal, floor: string | undefined): boolean {
+  return signal.kind === "entry" && floor !== undefined && signal.session < floor;
+}
+
 // Chained after ingestion in the cron, per user, per active daily strategy,
 // over that user's watchlist (#19, CONTEXT.md "Nightly ingestion and daily
 // evaluation"). `sessions` are every session `ingest()` just drained, oldest
@@ -239,6 +258,7 @@ export async function evaluateSignalsForSession(
   let structures: Structure[];
   let userIds: string[];
   let calendar: TradingSession[];
+  let horizonFloor: string | undefined;
   try {
     const newestTrading = await tradingSessionForDate(db, newest);
     if (!newestTrading) {
@@ -255,6 +275,7 @@ export async function evaluateSignalsForSession(
     // not turn an ingestion that already succeeded into a 500 the cron
     // retries for no reason.
     calendar = await calendarUpTo(db, new Date(at));
+    horizonFloor = inboxHorizonFloor(await calendarUpTo(db, new Date(now())));
   } catch (error) {
     console.error("evaluateSignalsForSession setup failed", safeDbErrorMessage(error));
     return emptyOutcome(sorted, [SETUP_FAILED]);
@@ -514,24 +535,34 @@ export async function evaluateSignalsForSession(
           continue;
         }
 
-        const newSignals: NewSignal[] = result.value.signals.map((signal) =>
-          signalToNewSignal(strategyId, signal),
-        );
+        const pastHorizon = new Set<string>();
+        const newSignals: NewSignal[] = [];
+        for (const signal of result.value.signals) {
+          if (isEntryPastInboxHorizon(signal, horizonFloor)) {
+            pastHorizon.add(`${signal.ticker}|${signal.session}`);
+          } else {
+            newSignals.push(signalToNewSignal(strategyId, signal));
+          }
+        }
         // `detail` is always null for a row built straight from the
         // engine's own `EvaluationRecord` (#133 removed the engine's own
         // `detail` field: it was a pure function of `reason`, ADR-0039):
         // the log's own detail column is used only by the web-authored
         // failures above, which carry their own parameter there.
-        const newEvaluations: NewEvaluation[] = result.value.evaluations.map((record) => ({
-          strategyId,
-          strategyVersionId: version.id,
-          ticker: record.ticker,
-          session: record.session,
-          at: new Date(record.at),
-          outcome: record.outcome,
-          reason: record.reason,
-          detail: null,
-        }));
+        const newEvaluations: NewEvaluation[] = result.value.evaluations.map((record) => {
+          const keptOutOfInbox =
+            record.reason === "signal" && pastHorizon.has(`${record.ticker}|${record.session}`);
+          return {
+            strategyId,
+            strategyVersionId: version.id,
+            ticker: record.ticker,
+            session: record.session,
+            at: new Date(record.at),
+            outcome: record.outcome,
+            reason: keptOutOfInbox ? ("entry_past_inbox_horizon" as const) : record.reason,
+            detail: keptOutOfInbox ? String(INBOX_ENTRY_SESSION_HORIZON) : null,
+          };
+        });
 
         await writeResult(newSignals, newEvaluations);
       }

@@ -66,7 +66,7 @@ or two module entry points, render. Route handlers under `src/app/api/` are the 
 (`auth/[...all]` delegates to Better Auth; `account/export` streams the signed-in user's data export (ADR-0027); `cron/ingest` authenticates the bearer (Vercel Cron's `CRON_SECRET`, its only
 trigger now) and calls `nightly`'s `runNightlyJobRecorded` (purges, `ingest`,
 `evaluateSignalsForSession`, `scoreDueDecisions`, one shared `maxDuration` budget, then a redacted
-`nightly_runs` row, ADR-0044; a failed ingest still turns the response into a 500 (`ingest`'s own
+`nightly_runs` row, ADR-0045; a failed ingest still turns the response into a 500 (`ingest`'s own
 `ok` decides the status), but evaluation's and scoring's own failures are reported alongside an
 otherwise successful ingest's 200 rather than turning it into one) — the owner's manual re-run is
 `nightly`'s own `triggerNightlyJobAction` Server Action instead, gated on `isOwner()` (ADR-0042),

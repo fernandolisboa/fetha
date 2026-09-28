@@ -20,7 +20,7 @@ export interface NewNightlyRun {
 }
 
 // Never throws: a failed insert must not change the run's own response or
-// status code (docs/adr/0044). The caller already has everything worth
+// status code (docs/adr/0045). The caller already has everything worth
 // knowing (the outcome or the thrown error) logged elsewhere; this only
 // logs the insert's own failure, with no row data beyond the error.
 export async function recordNightlyRun(db: Database, row: NewNightlyRun): Promise<void> {
