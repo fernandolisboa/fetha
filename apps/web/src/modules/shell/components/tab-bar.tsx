@@ -5,11 +5,8 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-import { destinations, isActiveDestination } from "../destinations";
+import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
-
-// A 53px cell at 320px fits two digits; more would spill into the next tab.
-const MAX_SHOWN_UNREAD = 99;
 
 export function TabBar({ unreadSignalCount }: { unreadSignalCount: number }) {
   const pathname = usePathname();
@@ -40,9 +37,7 @@ export function TabBar({ unreadSignalCount }: { unreadSignalCount: number }) {
             <span className="sr-only">{destination.label}</span>
             {unread ? (
               <span className="bg-primary text-primary-foreground absolute top-2 left-1/2 ml-1 min-w-4 rounded-full px-1 text-center font-mono text-[10px] leading-4 tabular-nums">
-                {unreadSignalCount > MAX_SHOWN_UNREAD
-                  ? `${String(MAX_SHOWN_UNREAD)}+`
-                  : unreadSignalCount}
+                {formatUnreadCount(unreadSignalCount)}
               </span>
             ) : null}
           </Link>

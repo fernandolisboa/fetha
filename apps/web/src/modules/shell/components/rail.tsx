@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { setRailCollapsedAction } from "@/modules/preferences/client";
 
-import { destinations, isActiveDestination } from "../destinations";
+import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
 export function Rail({
@@ -74,7 +74,7 @@ export function Rail({
                   collapsed && "hidden",
                 )}
               >
-                {unreadSignalCount}
+                {formatUnreadCount(unreadSignalCount)}
               </Badge>
             ) : null}
           </Link>

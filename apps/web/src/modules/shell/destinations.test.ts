@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isActiveDestination } from "./destinations";
+import { formatUnreadCount, isActiveDestination } from "./destinations";
 
 describe("isActiveDestination", () => {
   it("marks a destination on its own page", () => {
@@ -20,5 +20,13 @@ describe("isActiveDestination", () => {
     expect(isActiveDestination("/", "/")).toBe(true);
     expect(isActiveDestination("/sinais", "/")).toBe(false);
     expect(isActiveDestination("/ativos/PETR4", "/")).toBe(false);
+  });
+});
+
+describe("formatUnreadCount", () => {
+  it("shows up to two digits and caps past them", () => {
+    expect(formatUnreadCount(7)).toBe("7");
+    expect(formatUnreadCount(99)).toBe("99");
+    expect(formatUnreadCount(100)).toBe("99+");
   });
 });

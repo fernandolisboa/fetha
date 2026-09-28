@@ -30,3 +30,11 @@ export function isActiveDestination(pathname: string, href: DestinationHref): bo
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+// A 53px tab-bar cell at 320px fits two digits; the rail shows the same text so
+// the count does not change when the viewport crosses 768px.
+const MAX_SHOWN_UNREAD = 99;
+
+export function formatUnreadCount(count: number): string {
+  return count > MAX_SHOWN_UNREAD ? `${String(MAX_SHOWN_UNREAD)}+` : String(count);
+}
