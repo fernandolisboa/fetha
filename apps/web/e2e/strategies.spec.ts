@@ -89,11 +89,15 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   // Archiving takes it out of "Minhas estratégias" and into "Arquivadas";
   // unarchiving reverses that, with no confirmation dialog either way
   // (docs/adr/0043: archiving is reversible).
-  await ownRow.getByRole("button", { name: `Arquivar ${revisedName}` }).click();
+  await ownRow.getByRole("button", { name: `Arquivar ${revisedName}`, exact: true }).click();
   await expect(page.getByRole("button", { name: `Desarquivar ${revisedName}` })).toBeVisible();
-  await expect(page.getByRole("button", { name: `Arquivar ${revisedName}` })).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `Arquivar ${revisedName}`, exact: true }),
+  ).not.toBeVisible();
 
   await page.getByRole("button", { name: `Desarquivar ${revisedName}` }).click();
-  await expect(page.getByRole("button", { name: `Arquivar ${revisedName}` })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `Arquivar ${revisedName}`, exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: `Desarquivar ${revisedName}` })).not.toBeVisible();
 });
