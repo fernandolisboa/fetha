@@ -15,14 +15,17 @@ import { getMyActiveBacktestRuns, t as backtestsStrings } from "@/modules/backte
 import { DiscardRunButton } from "@/modules/backtests/client";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import {
-  CopyStrategyButton,
   getMyArchivedStrategies,
   getMyStrategies,
   getSharedStrategies,
-  ShareToggleButton,
   t,
 } from "@/modules/strategies";
-import { ArchiveStrategyButton, UnarchiveStrategyButton } from "@/modules/strategies/client";
+import {
+  ArchiveStrategyButton,
+  CopyStrategyButton,
+  ShareToggleButton,
+  UnarchiveStrategyButton,
+} from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.strategies}` };
 

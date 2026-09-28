@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 
 import { requireUser } from "@/modules/auth";
 import { EmptyState, PageHeader, t as shellStrings } from "@/modules/shell";
-import { getStructures, StrategyEditorForm, t } from "@/modules/strategies";
+import { getStructures, t } from "@/modules/strategies";
+import { StrategyEditorForm } from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.strategies}` };
 

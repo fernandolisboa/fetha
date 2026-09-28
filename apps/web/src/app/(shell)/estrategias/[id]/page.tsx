@@ -16,16 +16,13 @@ import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
+import { getMyStrategy, getStructures, StrategyNotFoundError, t } from "@/modules/strategies";
 import {
-  getMyStrategy,
-  getStructures,
   ShareToggleButton,
   StrategyActiveToggle,
   StrategyEditorForm,
-  StrategyNotFoundError,
-  t,
-} from "@/modules/strategies";
-import { UnarchiveStrategyButton } from "@/modules/strategies/client";
+  UnarchiveStrategyButton,
+} from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.strategies}` };
 
