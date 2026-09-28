@@ -79,7 +79,7 @@ function sameEvaluation(current: CurrentEvaluation, next: NewEvaluation): boolea
 }
 
 // Re-runs one strategy on one already-evaluated session for the signed-in
-// user after its market data was corrected (docs/adr/0046, #84). Only an
+// user after its market data was corrected (docs/adr/0047, #84). Only an
 // authoritative engine result may change anything, and then only
 // append-only: a changed evaluation or proposal supersedes the old row and
 // writes a new one; an unchanged proposal keeps its row, read state and

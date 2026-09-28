@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "tour_dismissed_at" timestamp with time zone;

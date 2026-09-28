@@ -297,7 +297,7 @@ describe("0020_backfill_evaluation_reason.sql", () => {
         ),
     );
 
-    // 0020 ran before 0028 made evaluations append-only (docs/adr/0046):
+    // 0020 ran before 0029 made evaluations append-only (docs/adr/0047):
     // replay it the way it ran then, with the trigger off only inside this
     // transaction.
     await db.transaction(async (tx) => {

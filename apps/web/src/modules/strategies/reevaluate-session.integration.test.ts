@@ -259,7 +259,7 @@ async function allRowsOf(owner: { id: string }) {
   };
 }
 
-describe("reevaluateSession (#84, docs/adr/0046)", () => {
+describe("reevaluateSession (#84, docs/adr/0047)", () => {
   it("replaces a signal whose proposal a corrected candle changed, keeping the old row and resetting read state", async () => {
     const db = getDb();
     const fixture = await evaluatedSession("replace", alwaysFiringDefinition());
@@ -486,7 +486,7 @@ describe("reevaluateSession (#84, docs/adr/0046)", () => {
   });
 });
 
-describe("reevaluateSession edge cases (#84, docs/adr/0046)", () => {
+describe("reevaluateSession edge cases (#84, docs/adr/0047)", () => {
   it("rolls back and audits the attempt as a conflict when another run superseded a target first", async () => {
     const db = getDb();
     const fixture = await evaluatedSession("conflict", alwaysFiringDefinition());
@@ -556,7 +556,7 @@ describe("reevaluateSession edge cases (#84, docs/adr/0046)", () => {
   });
 });
 
-describe("append-only signals and evaluations (migration 0028)", () => {
+describe("append-only signals and evaluations (migration 0029)", () => {
   it("refuses to rewrite an evaluation or a signal, and to supersede one twice", async () => {
     const db = getDb();
     const fixture = await evaluatedSession("append-only", alwaysFiringDefinition());

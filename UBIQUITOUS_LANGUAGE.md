@@ -176,7 +176,7 @@ _Avoid_: signal expiry, freshness window
 
 **Re-evaluation**:
 Recomputing one strategy on one session it was already evaluated on, after its market data was
-corrected, triggered by the user from the evaluation log (ADR-0046). Append-only: a changed
+corrected, triggered by the user from the evaluation log (ADR-0047). Append-only: a changed
 evaluation record or proposal is superseded by a new row, a signal the result no longer carries is
 retracted, and an unchanged proposal keeps its row and read state. Only an authoritative result
 changes anything; every attempt, failed or not, is recorded in the audit trail.

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./tour";
 
 for (const path of ["/", "/entrar"]) {
   test(`${path} is sent with the security headers`, async ({ request }) => {

@@ -1,6 +1,6 @@
 import type { EvaluationLogItem } from "./signals-repository";
 
-// The log rows that carry a re-evaluate control (docs/adr/0046): one per
+// The log rows that carry a re-evaluate control (docs/adr/0047): one per
 // (strategy, session), on its first row, since a re-evaluation covers every
 // ticker of that session at once. A clamp row marks sessions never
 // evaluated, and an archived strategy cannot be re-evaluated, so neither

@@ -383,7 +383,7 @@ export async function evaluateSignalsForSession(
           // Writing the failure rows advances this version's watermark the
           // same as a real evaluation (#18): a failed session is never
           // retried by a later night; re-evaluating it is an explicit act
-          // (docs/adr/0046).
+          // (docs/adr/0047).
           if (evaluation.reason === "engine_error") {
             errors.push(`engine_error:${evaluation.detail ?? ""}`);
           } else if (evaluation.reason !== "unsatisfiable_collection") {

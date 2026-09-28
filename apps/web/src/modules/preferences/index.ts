@@ -1,4 +1,9 @@
-export { setRailCollapsedAction, setThemeAction, type PreferencesActionResult } from "./actions";
+export {
+  dismissTourAction,
+  setRailCollapsedAction,
+  setThemeAction,
+  type PreferencesActionResult,
+} from "./actions";
 export { ThemePicker } from "./components/theme-picker";
 export { PreferencesRepository, type Preferences } from "./preferences-repository";
 export { getPreferences } from "./queries";

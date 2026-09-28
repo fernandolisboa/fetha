@@ -25,7 +25,7 @@ export const NO_OPERATION_ID = "";
 
 export const reevaluationStatuses = ["applied", "unchanged", "failed"] as const;
 
-// The audit trail of every session re-evaluation (docs/adr/0046, #84): who
+// The audit trail of every session re-evaluation (docs/adr/0047, #84): who
 // asked (the owning user; nobody else can), for which strategy and session,
 // what came of it and how many rows it touched. A failed recomputation is
 // recorded here and nowhere else: it never touches `signals` or
@@ -102,7 +102,7 @@ export const signals = pgTable(
     // Set when a re-evaluation wrote this row, null for the nightly run.
     reevaluationId: text("reevaluation_id").references(() => signalReevaluations.id),
     // Set, once, when a re-evaluation retracts or replaces this row
-    // (docs/adr/0046): the row stays, it just leaves the inbox. The
+    // (docs/adr/0047): the row stays, it just leaves the inbox. The
     // `signals_append_only` trigger lets no other column change except
     // `read_at`.
     supersededBy: text("superseded_by").references((): AnyPgColumn => signalReevaluations.id),
@@ -168,7 +168,7 @@ export const evaluations = pgTable(
     // migration too.
     reason: text("reason"),
     detail: text("detail"),
-    // Same pair as on `signals` (docs/adr/0046): which re-evaluation wrote
+    // Same pair as on `signals` (docs/adr/0047): which re-evaluation wrote
     // this row, and which one superseded it. `evaluations_append_only`
     // allows no other update.
     reevaluationId: text("reevaluation_id").references(() => signalReevaluations.id),

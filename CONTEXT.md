@@ -23,7 +23,7 @@ capability over one system job, not a tenancy role — it changes nothing about 
 | `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance and re-acceptance on a version change, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts and expired sessions | the current user                                                                       |
 | `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                                 | the current user's access log; `recordAccess` for read models                          |
 | `account`     | nothing of its own: the user's data export, assembled from every module's own export                                                                                                                                                        | the export document                                                                    |
-| `preferences` | per-user workstation settings (theme, rail collapse state)                                                                                                                                                                                  | the current user's preferences                                                         |
+| `preferences` | per-user workstation settings (theme, rail collapse state, guided-tour dismissal)                                                                                                                                                           | the current user's preferences                                                         |
 | `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, trading calendar) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token)            | data views by instrument, timeframe and date range; the `MarketDataProvider` interface |
 | `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring                                                                                                                         | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)               |
 | `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                                    | the structure catalog, strategy versions, signals                                      |
@@ -45,7 +45,7 @@ exposing module's interface, never through its tables.
    strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
    21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044; a user
    can re-evaluate one strategy on one session after a data correction, append-only and audited,
-   ADR-0046). Sizing an entry
+   ADR-0047). Sizing an entry
    uses the user's own declared risk profile (#22); a user with none declared still gets a
    full evaluation, just never a sized entry signal (the engine's `unsizeable` outcome, logged,
    never in the inbox). The same run then scores every decision whose horizon has arrived
@@ -138,5 +138,5 @@ sizing a net-debit structure on its bounded max loss (0038), a typed web-authore
 vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fees by instrument
 class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
 strategies archived, never deleted, and out of the cap (0043), entry proposals older than five
-sessions kept out of the inbox (0044), a redacted nightly run report recorded by every run (0045), and
-append-only, audited re-evaluation of one session (0046).
+sessions kept out of the inbox (0044), a redacted nightly run report recorded by every run (0045),
+the guided tour's dismissal kept as a per-user preference (0046), and append-only, audited re-evaluation of one session (0047).

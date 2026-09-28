@@ -88,7 +88,7 @@ export interface VersionEvaluationInput {
 
 // A result the engine actually produced, or the web-authored reason it never
 // got to: the nightly run records a failure row for the latter, a
-// re-evaluation (docs/adr/0046) refuses to retract anything on it.
+// re-evaluation (docs/adr/0047) refuses to retract anything on it.
 export type VersionEvaluation =
   | { ok: true; signals: NewSignal[]; evaluations: NewEvaluation[] }
   | {
