@@ -60,7 +60,8 @@ ADR replaced. The last account that could still spend an invite at sign-up was c
 production deploy that carried the fix went live, a few minutes after the 01:53Z merge. The
 03:30Z purge run on 2026-09-28 computes its cutoff as 2026-09-27 03:30Z, an hour and a half past
 that deploy, so with margin it caught and deleted every such account, provided that run's purge succeeded. The
-run's HTTP status does not prove it (a failed purge still answers 200), so this change merges only
-after the owner has seen, in the Vercel logs of that run or any later one, a 200 with no
-"unverified account purge failed" line.
+run's HTTP status does not prove it either way: the purges run before ingestion, and a failed purge
+only logs "unverified account purge failed" at error level. The owner's Vercel log of that run shows
+a 500 caused by the Bacen SGS source (a 404, #216) and no error-level line, so the purge did not
+fail; the owner approved merging on that evidence on 2026-09-28.
 No row the step could act on can exist from here on, so it is dead code, not a behavior change.
