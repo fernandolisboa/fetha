@@ -20,3 +20,8 @@ under "mine", so the shared list is strictly other users' work.
 - Per-person sharing (grants): more control, more tables and more isolation tests for a feature
   used by a handful of people.
 - Shared workspaces: rejected by the kickoff; the tenant is the user account.
+
+## Addendum (#170, docs/adr/0043): archived strategies are not offered
+
+An archived strategy drops out of `listShared` and `copyShared` whatever its `visibility`; the
+value is kept, so unarchiving shares it again with no separate step.

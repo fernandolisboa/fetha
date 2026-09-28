@@ -818,6 +818,49 @@ describe("createBacktestRunAction", () => {
         ),
       );
   }, 30_000);
+
+  it("refuses to create a run against an archived strategy (#170, docs/adr/0043)", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+
+    const db = getDb();
+    const email = uniqueEmail("archived-strategy");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+    await new WatchlistRepository(db, currentUser).add(TICKER);
+
+    const repository = new StrategiesRepository(db, currentUser);
+    const strategy = await repository.createWithVersion(definition());
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+    await repository.archive(strategy.id);
+
+    const result = await createBacktestRunAction({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      universe: [TICKER],
+      from: SESSIONS[0] ?? "",
+      to: SESSIONS.at(-1) ?? "",
+      initialCapital: centavos(500_000_00),
+      limits: "warn",
+      costModel: "b3_default",
+      walkForwardWindowSessions: 63,
+    });
+
+    expect(result).toEqual({ status: "error", error: "archived" });
+  });
 });
 
 describe("discardBacktestRunAction", () => {

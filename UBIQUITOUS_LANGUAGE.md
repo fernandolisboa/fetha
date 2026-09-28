@@ -115,6 +115,13 @@ version: flipping it takes effect the next evaluation using whatever version is 
 same way the editor always edits the latest version.
 _Avoid_: enabled strategy, running strategy, live strategy
 
+**Archived strategy**:
+A strategy the owner marked out of active use (docs/adr/0043): read-only, deactivated, excluded
+from the per-user strategy cap and from sharing, and refused as the target of a new backtest run.
+Its versions, runs, signals and decisions stay reachable; unarchiving restores it, re-checked
+against the same cap a new strategy would face. Never deleted.
+_Avoid_: deleted strategy, disabled strategy (that is the unrelated `active` flag)
+
 **Catalog**:
 The shared, read-only library of structures and reference strategies available to every user.
 _Avoid_: library, templates

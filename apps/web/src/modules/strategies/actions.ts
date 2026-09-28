@@ -15,6 +15,7 @@ import { classifyPersistenceError } from "./pg-error";
 import { SignalsRepository } from "./signals-repository";
 import {
   StrategiesRepository,
+  StrategyArchivedError,
   StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
@@ -26,7 +27,14 @@ export type StrategyActionResult =
   | { status: "ok"; strategyId: string }
   | {
       status: "error";
-      error: "invalid" | "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit";
+      error:
+        | "invalid"
+        | "not_found"
+        | "not_shared"
+        | "conflict"
+        | "unavailable"
+        | "version_limit"
+        | "archived";
     };
 
 const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
@@ -52,10 +60,11 @@ const markSignalReadInputSchema = z.strictObject({ signalId: z.string().min(1).m
 
 function mapKnownError(
   error: unknown,
-): "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit" | null {
+): "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit" | "archived" | null {
   if (error instanceof StrategyNotFoundError) return "not_found";
   if (error instanceof StrategyVersionLimitError) return "version_limit";
   if (error instanceof StrategyNotSharedError) return "not_shared";
+  if (error instanceof StrategyArchivedError) return "archived";
   if (error instanceof StrategyLimitReachedError) return "unavailable";
   return classifyPersistenceError(error);
 }
@@ -208,6 +217,66 @@ export async function setStrategyActiveAction(input: {
     const mapped = mapKnownError(error);
     if (mapped) {
       return { status: "error", error: mapped };
+    }
+    throw error;
+  }
+}
+
+const archiveInputSchema = z.strictObject({ strategyId: z.string().min(1).max(200) });
+
+export type ArchiveStrategyResult =
+  { status: "ok" } | { status: "error"; error: "invalid" | "not_found" | "unavailable" };
+
+export async function archiveStrategyAction(input: {
+  strategyId: string;
+}): Promise<ArchiveStrategyResult> {
+  const parsed = archiveInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+
+  try {
+    await withRepository((repository) => repository.archive(parsed.data.strategyId));
+    revalidatePath("/estrategias");
+    revalidatePath(`/estrategias/${parsed.data.strategyId}`);
+    return { status: "ok" };
+  } catch (error) {
+    if (error instanceof StrategyNotFoundError) {
+      return { status: "error", error: "not_found" };
+    }
+    if (classifyPersistenceError(error)) {
+      return { status: "error", error: "unavailable" };
+    }
+    throw error;
+  }
+}
+
+export type UnarchiveStrategyResult =
+  | { status: "ok" }
+  | { status: "error"; error: "invalid" | "not_found" | "limit_reached" | "unavailable" };
+
+export async function unarchiveStrategyAction(input: {
+  strategyId: string;
+}): Promise<UnarchiveStrategyResult> {
+  const parsed = archiveInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+
+  try {
+    await withRepository((repository) => repository.unarchive(parsed.data.strategyId));
+    revalidatePath("/estrategias");
+    revalidatePath(`/estrategias/${parsed.data.strategyId}`);
+    return { status: "ok" };
+  } catch (error) {
+    if (error instanceof StrategyNotFoundError) {
+      return { status: "error", error: "not_found" };
+    }
+    if (error instanceof StrategyLimitReachedError) {
+      return { status: "error", error: "limit_reached" };
+    }
+    if (classifyPersistenceError(error)) {
+      return { status: "error", error: "unavailable" };
     }
     throw error;
   }

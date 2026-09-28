@@ -6,7 +6,7 @@ import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
-import { structures } from "./schema";
+import { strategies, structures } from "./schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 let currentUser: CurrentUser | null = null;
@@ -29,8 +29,13 @@ vi.mock("@/modules/auth", async () => {
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { addStrategyVersionAction, createStrategyAction } = await import("./actions");
-const { StrategiesRepository } = await import("./strategies-repository");
+const {
+  addStrategyVersionAction,
+  archiveStrategyAction,
+  createStrategyAction,
+  unarchiveStrategyAction,
+} = await import("./actions");
+const { MAX_STRATEGIES_PER_USER, StrategiesRepository } = await import("./strategies-repository");
 
 function decimalString(value: string): DecimalString {
   return value as DecimalString;
@@ -225,5 +230,86 @@ describe("addStrategyVersionAction", () => {
     }
 
     expect(isRedirectError(caught)).toBe(true);
+  });
+
+  it("refuses addVersion on an archived strategy", async () => {
+    const email = uniqueEmail("add-version-archived");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+    await archiveStrategyAction({ strategyId: created.strategyId });
+
+    const result = await addStrategyVersionAction({
+      strategyId: created.strategyId,
+      definition: definition({ name: "V2" }),
+    });
+    expect(result).toEqual({ status: "error", error: "archived" });
+  });
+});
+
+describe("archiveStrategyAction / unarchiveStrategyAction (#170, docs/adr/0043)", () => {
+  it("archives a strategy and reports not found for another user's strategy", async () => {
+    const emailOwner = uniqueEmail("archive-action-owner");
+    const emailOther = uniqueEmail("archive-action-other");
+    createdEmails.push(emailOwner, emailOther);
+    const owner = await insertBareUser(emailOwner);
+    currentUser = owner;
+
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+
+    const other = await insertBareUser(emailOther);
+    currentUser = other;
+    const asOther = await archiveStrategyAction({ strategyId: created.strategyId });
+    expect(asOther).toEqual({ status: "error", error: "not_found" });
+
+    currentUser = owner;
+    const result = await archiveStrategyAction({ strategyId: created.strategyId });
+    expect(result).toEqual({ status: "ok" });
+
+    const repository = new StrategiesRepository(getDb(), owner);
+    expect((await repository.listMine()).map((s) => s.id)).not.toContain(created.strategyId);
+  });
+
+  it("unarchives a strategy back into listMine", async () => {
+    const email = uniqueEmail("unarchive-action");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+
+    await archiveStrategyAction({ strategyId: created.strategyId });
+    const result = await unarchiveStrategyAction({ strategyId: created.strategyId });
+    expect(result).toEqual({ status: "ok" });
+
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    expect((await repository.listMine()).map((s) => s.id)).toContain(created.strategyId);
+  });
+
+  it("reports limit_reached when unarchiving would put the user over the cap", async () => {
+    const email = uniqueEmail("unarchive-action-limit");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+    await archiveStrategyAction({ strategyId: created.strategyId });
+
+    await getDb()
+      .insert(strategies)
+      .values(
+        Array.from({ length: MAX_STRATEGIES_PER_USER }, (_, index) => ({
+          userId: owner.id,
+          name: `Bulk ${String(index)}`,
+          visibility: "private" as const,
+        })),
+      );
+
+    const result = await unarchiveStrategyAction({ strategyId: created.strategyId });
+    expect(result).toEqual({ status: "error", error: "limit_reached" });
   });
 });

@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { DecimalString, StrategyDefinition } from "@fetha/contracts";
 
+import { eq } from "drizzle-orm";
+
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 
 import { activeStrategyUserIds } from "./active-strategy-users";
+import { strategies } from "./schema";
 import { StrategiesRepository } from "./strategies-repository";
 
 function decimalString(value: string): DecimalString {
@@ -108,5 +111,35 @@ describe("activeStrategyUserIds", () => {
     expect(rotated.length).toBe(3);
     expect(rotated).not.toEqual(unrotated);
     expect(new Set(rotated)).toEqual(new Set(unrotated));
+  });
+
+  it("excludes an archived strategy's owner (#170, docs/adr/0043)", async () => {
+    const email = uniqueEmail("archived");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(getDb(), owner);
+    const strategy = await repository.createWithVersion(alwaysFiringDefinition());
+    await repository.setActive(strategy.id, true);
+    await repository.archive(strategy.id);
+
+    const ids = await activeStrategyUserIds(getDb());
+    expect(ids).not.toContain(owner.id);
+  });
+
+  it("belt and braces: excludes an archived-but-still-flagged-active row even if the flag were never cleared", async () => {
+    const email = uniqueEmail("archived-flag-not-cleared");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(getDb(), owner);
+    const strategy = await repository.createWithVersion(alwaysFiringDefinition());
+    await repository.setActive(strategy.id, true);
+
+    await getDb()
+      .update(strategies)
+      .set({ archivedAt: new Date() })
+      .where(eq(strategies.id, strategy.id));
+
+    const ids = await activeStrategyUserIds(getDb());
+    expect(ids).not.toContain(owner.id);
   });
 });

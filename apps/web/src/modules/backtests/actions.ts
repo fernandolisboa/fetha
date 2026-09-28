@@ -39,7 +39,8 @@ export type CreateBacktestRunResult = {
     | "rate_limited"
     | "no_risk_profile"
     | "unsatisfiable_collection"
-    | "too_many_active";
+    | "too_many_active"
+    | "archived";
 };
 
 const createInputSchema = z.strictObject({
@@ -148,6 +149,12 @@ async function createBacktestRun(
   const version = strategy?.versions.find((v) => v.id === parsed.strategyVersionId);
   if (!strategy || !version) {
     return { status: "error", error: "not_found" };
+  }
+  // Archived strategies are read-only (docs/adr/0043): the version itself
+  // stays readable so existing runs, signals and decisions remain, but no
+  // new run may start against it.
+  if (strategy.archivedAt) {
+    return { status: "error", error: "archived" };
   }
 
   const structure = await resolveStructure(db, version.definition.structureId).catch(

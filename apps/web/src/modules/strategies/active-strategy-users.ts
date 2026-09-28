@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { strategies } from "./schema";
@@ -35,10 +35,14 @@ export function rotationOffset(rotateKey: string, length: number): number {
 // only reaches part of the list stops at a different point each night
 // instead of always exhausting the budget on the same users sorted last.
 export async function activeStrategyUserIds(db: Database, rotateKey?: string): Promise<string[]> {
+  // `archivedAt is null` is belt and braces: `archive()` already sets
+  // `active = false`, so this filter should never change the result, but a
+  // future write path that flips `active` without going through archive
+  // must not resurrect an archived strategy into the nightly run.
   const rows = await db
     .selectDistinct({ userId: strategies.userId })
     .from(strategies)
-    .where(eq(strategies.active, true))
+    .where(and(eq(strategies.active, true), isNull(strategies.archivedAt)))
     .orderBy(asc(strategies.userId));
   const ids = rows.map((row) => row.userId);
   if (!rotateKey || ids.length === 0) {
