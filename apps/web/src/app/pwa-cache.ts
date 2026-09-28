@@ -13,13 +13,3 @@ export const runtimeCaching: RuntimeCaching[] = [
     handler: new NetworkOnly(),
   },
 ];
-
-// Caches written by @serwist/next's defaultCache before #43, some holding
-// pages and API responses. Serwist's own precache is the only cache kept.
-export function isObsoleteCache(name: string): boolean {
-  return !name.startsWith("serwist-");
-}
-
-// defaultCache's ExpirationPlugin kept the URL and access time of every entry
-// it cached; nothing writes this database anymore.
-export const OBSOLETE_EXPIRATION_DB = "serwist-expiration";

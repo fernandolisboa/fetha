@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NetworkOnly, type RouteMatchCallbackOptions } from "serwist";
 
-import { isObsoleteCache, runtimeCaching } from "./pwa-cache";
+import { runtimeCaching } from "./pwa-cache";
 
 const ORIGIN = "https://fetha.vercel.app";
 
@@ -49,24 +49,5 @@ describe("service worker runtime caching", () => {
 
   it("sends navigations to the network so the offline page can stand in", () => {
     expect(cachingEntryFor(matchOptions("/", "navigate"))?.handler).toBeInstanceOf(NetworkOnly);
-  });
-});
-
-describe("isObsoleteCache", () => {
-  it.each([
-    "apis",
-    "pages",
-    "pages-rsc",
-    "pages-rsc-prefetch",
-    "others",
-    "static-data-assets",
-    "next-static",
-    "next-static-js-assets",
-  ])("deletes the old %s cache", (name) => {
-    expect(isObsoleteCache(name)).toBe(true);
-  });
-
-  it("keeps the precache", () => {
-    expect(isObsoleteCache("serwist-precache-v2-https://fetha.vercel.app/")).toBe(false);
   });
 });

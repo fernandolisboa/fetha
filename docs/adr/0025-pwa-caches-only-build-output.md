@@ -48,3 +48,9 @@ fills and journal, so the exposure grew with each feature.
 - Every page load hits the network; build output still comes from the precache.
 - Any new runtime route must be added to `pwa-cache.ts` and its test, which asserts that no
   route stores `/api/*`, navigations or RSC payloads.
+
+## Addendum (2026-09-28, #194)
+
+Point 4's purge of `defaultCache`'s leftover caches and the `serwist-expiration` IndexedDB is
+removed: it was migration code for the pre-#43 worker (PR #118, merged 2026-09-26), the only
+user's installed PWA runs the new worker from daily use since, and the worker no longer needs it.
