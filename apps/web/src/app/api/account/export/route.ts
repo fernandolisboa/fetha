@@ -6,7 +6,6 @@ import { recordAccess } from "@/modules/audit";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
-  readAccountRateLimitSecret,
   requireUser,
   UnauthenticatedError,
 } from "@/modules/auth";
@@ -39,13 +38,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const db = getDb();
   try {
-    await enforceAccountRateLimit(
-      db,
-      user.email,
-      "account/export",
-      EXPORT_RATE_LIMIT,
-      readAccountRateLimitSecret(),
-    );
+    await enforceAccountRateLimit(db, user.email, "account/export", EXPORT_RATE_LIMIT);
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
       return new Response(t.dataExport.rateLimited, {

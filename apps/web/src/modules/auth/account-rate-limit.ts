@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { and, eq, gt, like, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
+import type { AuthEnv } from "./env";
 import { rateLimit } from "./schema";
 
 // Same table Better Auth's own database-backed rate limiter uses
@@ -34,13 +35,29 @@ export const ACCOUNT_BUCKET_RETENTION_SECONDS = 60;
 // collide with keys already in the table.
 const ACCOUNT_KEY_HMAC_LABEL = "fetha:account-rate-limit:v1";
 
+// BETTER_AUTH_SECRET is Better Auth's own signing secret and is required in
+// every real environment; an unset or empty value here is a deployment
+// misconfiguration, not a state the limiter can key around, so this fails
+// before any bucket is read or written rather than hashing under a weak
+// (empty-string) key.
+function requireAccountRateLimitSecret(env: AuthEnv): string {
+  const secret = env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    throw new Error("BETTER_AUTH_SECRET must be set to key account rate-limit buckets");
+  }
+  return secret;
+}
+
 // The email is HMACed with BETTER_AUTH_SECRET, not merely hashed, so the
 // table never holds addresses in clear, including ones typed at sign-in that
 // never had an account (#64, docs/adr/0018) — and, unlike a plain digest,
 // cannot be reversed by a dictionary attack by anyone who can read the table,
-// since that requires the secret too (#191, docs/adr/0024).
-export function accountBucketKey(email: string, path: string, secret: string | undefined): string {
-  const digest = createHmac("sha256", secret ?? "")
+// since that requires the secret too (#191, docs/adr/0024). `env` defaults to
+// `process.env` (the module's usual pattern, `env.ts`) so hooks that pass
+// their own injected env and Server Actions that call this directly always
+// derive the same key for the same email, path and secret.
+export function accountBucketKey(email: string, path: string, env: AuthEnv = process.env): string {
+  const digest = createHmac("sha256", requireAccountRateLimitSecret(env))
     .update(`${ACCOUNT_KEY_HMAC_LABEL}:${email}`)
     .digest("base64url");
   return `${ACCOUNT_KEY_PREFIX}${digest}|${path}`;
@@ -89,7 +106,7 @@ export async function enforceAccountRateLimit(
   email: string,
   path: string,
   rule: AccountRateLimitRule,
-  secret: string | undefined,
+  env: AuthEnv = process.env,
   attempt = 0,
 ): Promise<void> {
   if (rule.windowSeconds > ACCOUNT_BUCKET_RETENTION_SECONDS) {
@@ -99,7 +116,7 @@ export async function enforceAccountRateLimit(
     throw new AccountRateLimitExceededError();
   }
 
-  const key = accountBucketKey(email, path, secret);
+  const key = accountBucketKey(email, path, env);
   const windowMs = rule.windowSeconds * 1000;
   const now = Date.now();
 
@@ -117,7 +134,7 @@ export async function enforceAccountRateLimit(
       if (!(await readRow(db, key))) {
         throw error;
       }
-      return enforceAccountRateLimit(db, email, path, rule, secret, attempt + 1);
+      return enforceAccountRateLimit(db, email, path, rule, env, attempt + 1);
     }
     await purgeExpiredAccountBuckets(db);
     return;
@@ -136,7 +153,7 @@ export async function enforceAccountRateLimit(
     // Another request already reset (or incremented) this row between our
     // read and this update; re-read and take the in-window path instead of
     // admitting this request uncounted.
-    return enforceAccountRateLimit(db, email, path, rule, secret, attempt + 1);
+    return enforceAccountRateLimit(db, email, path, rule, env, attempt + 1);
   }
 
   const windowStart = now - windowMs;
@@ -161,7 +178,7 @@ export async function enforceAccountRateLimit(
     // The row was reset (or purged as expired) between our read and this
     // update; re-read and retry rather than
     // reject on the stale window we read at the top of this attempt.
-    return enforceAccountRateLimit(db, email, path, rule, secret, attempt + 1);
+    return enforceAccountRateLimit(db, email, path, rule, env, attempt + 1);
   }
 
   throw new AccountRateLimitExceededError();
@@ -178,13 +195,13 @@ export async function refundAccountAttempt(
   db: Database,
   email: string,
   path: string,
-  secret: string | undefined,
+  env: AuthEnv = process.env,
 ): Promise<void> {
   try {
     await db
       .update(rateLimit)
       .set({ count: sql`${rateLimit.count} - 1` })
-      .where(and(eq(rateLimit.key, accountBucketKey(email, path, secret)), gt(rateLimit.count, 0)));
+      .where(and(eq(rateLimit.key, accountBucketKey(email, path, env)), gt(rateLimit.count, 0)));
   } catch (error) {
     console.error(
       "account rate-limit refund failed",

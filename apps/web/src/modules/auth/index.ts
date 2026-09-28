@@ -21,7 +21,7 @@ export { authRouteHandlers } from "./auth";
 export { AcceptTermsForm } from "./components/accept-terms-form";
 export { AuthShell } from "./components/auth-shell";
 export { readE2EVerificationLink } from "./e2e-verification-link";
-export { isProductionDeployment, readAccountRateLimitSecret, readE2ESecret } from "./env";
+export { isProductionDeployment, readE2ESecret } from "./env";
 export { isOwner } from "./owner";
 export { DeleteAccountDialog } from "./components/delete-account-dialog";
 export { LegalDocumentView } from "./components/legal-document-view";

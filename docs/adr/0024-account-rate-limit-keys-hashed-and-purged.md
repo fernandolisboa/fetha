@@ -72,3 +72,18 @@ No data migration: rows written under the old `sha256(email)` digest simply stop
 `accountBucketKey` computes going forward, so they are orphaned rather than actively wrong, and age
 out within `ACCOUNT_BUCKET_RETENTION_SECONDS` (60s) the same as any other stale bucket (item 2
 above already purges rows on that schedule; nothing in this change touches it).
+
+`accountBucketKey`, `enforceAccountRateLimit` and `refundAccountAttempt` read `BETTER_AUTH_SECRET`
+from an `env: AuthEnv = process.env` parameter — the same optional-env-with-`process.env`-default
+shape already used by `isOwner`, `buildAuthOptions` and the other readers in `env.ts` — rather than
+taking the secret as an argument, so `hooks.before`/`hooks.after` (which pass their own injected
+`env`) and the seven Server Action / Route Handler call sites (which rely on the default) always
+derive the identical key for the same email and path, and every consumer's call site is unchanged
+by this addendum.
+
+An unset or empty `BETTER_AUTH_SECRET` now throws before any bucket is read or written, rather than
+hashing under an empty-string key: at first deploy of this change, and again on any future
+`BETTER_AUTH_SECRET` rotation, every bucket already in the table was keyed under the old digest (or
+the old secret) and is abandoned rather than matched, so an account sitting at its limit gets up to
+`rule.max` extra attempts inside the one 60-second window live at that moment — bounded and
+one-time, not a standing weakening of the limit.

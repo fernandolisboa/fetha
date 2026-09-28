@@ -10,7 +10,6 @@ import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
   forCurrentUser,
-  readAccountRateLimitSecret,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
@@ -116,13 +115,7 @@ export async function recordDecisionAction(
   try {
     const decisionId = await withAuthenticatedAction(async () => {
       const user = await requireUser();
-      await enforceAccountRateLimit(
-        getDb(),
-        user.email,
-        "decisions/record",
-        RECORD_RATE_LIMIT,
-        readAccountRateLimitSecret(),
-      );
+      await enforceAccountRateLimit(getDb(), user.email, "decisions/record", RECORD_RATE_LIMIT);
 
       const repository = await forCurrentUser(getDb(), DecisionsRepository);
 

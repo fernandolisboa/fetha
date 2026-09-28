@@ -11,7 +11,6 @@ import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
   forCurrentUser,
-  readAccountRateLimitSecret,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
@@ -113,13 +112,7 @@ export async function priceOperationAction(input: {
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
     try {
-      await enforceAccountRateLimit(
-        getDb(),
-        user.email,
-        "operations/price",
-        PRICE_RATE_LIMIT,
-        readAccountRateLimitSecret(),
-      );
+      await enforceAccountRateLimit(getDb(), user.email, "operations/price", PRICE_RATE_LIMIT);
     } catch (error) {
       if (error instanceof AccountRateLimitExceededError) {
         return { status: "error", error: "rate_limited" };
@@ -157,13 +150,7 @@ export async function saveOperationAction(input: {
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
     try {
-      await enforceAccountRateLimit(
-        getDb(),
-        user.email,
-        "operations/save",
-        SAVE_RATE_LIMIT,
-        readAccountRateLimitSecret(),
-      );
+      await enforceAccountRateLimit(getDb(), user.email, "operations/save", SAVE_RATE_LIMIT);
     } catch (error) {
       if (error instanceof AccountRateLimitExceededError) {
         return { status: "error", error: "rate_limited" };

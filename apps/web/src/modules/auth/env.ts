@@ -1,4 +1,5 @@
 export interface AuthEnv {
+  BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   VERCEL_URL?: string;
   VERCEL_ENV?: string;
@@ -48,14 +49,6 @@ export function isProductionDeployment(env: AuthEnv = process.env): boolean {
 
 export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
-}
-
-// Server Actions call `enforceAccountRateLimit`/`refundAccountAttempt`
-// directly, outside `buildAuthOptions`'s closure over `env`, so they need
-// their own way to read the same secret Better Auth itself is configured
-// with (docs/adr/0024 addendum), rather than reading `process.env` ad hoc.
-export function readAccountRateLimitSecret(env: AuthEnv = process.env): string | undefined {
-  return readOptionalEnvValue(env, "BETTER_AUTH_SECRET");
 }
 
 // The manual ingestion trigger's allowlist (#51): comma-separated, trimmed
