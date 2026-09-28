@@ -12,6 +12,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandLoading,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ErrorNotice } from "@/components/error-notice";
@@ -21,11 +22,10 @@ import { t } from "../strings";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
-interface SearchOutcome {
-  query: string;
-  results: InstrumentSearchResult[];
-  failed: boolean;
-}
+type SearchOutcome =
+  | { query: string; kind: "ok"; results: InstrumentSearchResult[] }
+  | { query: string; kind: "rate_limited" }
+  | { query: string; kind: "failed" };
 
 export function AddInstrumentCombobox() {
   const router = useRouter();
@@ -43,14 +43,19 @@ export function AddInstrumentCombobox() {
     let cancelled = false;
     const timer = setTimeout(() => {
       searchInstrumentsAction({ query: trimmedQuery })
-        .then((found) => {
-          if (!cancelled) {
-            setOutcome({ query: trimmedQuery, results: found, failed: false });
+        .then((result) => {
+          if (cancelled) {
+            return;
           }
+          setOutcome(
+            result.status === "rate_limited"
+              ? { query: trimmedQuery, kind: "rate_limited" }
+              : { query: trimmedQuery, kind: "ok", results: result.results },
+          );
         })
         .catch(() => {
           if (!cancelled) {
-            setOutcome({ query: trimmedQuery, results: [], failed: true });
+            setOutcome({ query: trimmedQuery, kind: "failed" });
           }
         });
     }, SEARCH_DEBOUNCE_MS);
@@ -63,10 +68,15 @@ export function AddInstrumentCombobox() {
   // The outcome is scoped to the query it answers: a query that changed
   // (or was cleared) while a search was in flight never shows a
   // superseded query's results, so a fast Enter cannot select an
-  // instrument the current query never matched.
+  // instrument the current query never matched. Until that outcome
+  // arrives, the query is pending: no "no results found" copy flashes
+  // ahead of an answer that just hasn't come back yet.
   const currentOutcome = open && outcome?.query === trimmedQuery ? outcome : null;
-  const displayResults = trimmedQuery.length > 0 ? (currentOutcome?.results ?? []) : [];
-  const searchFailed = trimmedQuery.length > 0 && currentOutcome?.failed === true;
+  const pending = trimmedQuery.length > 0 && currentOutcome === null;
+  const displayResults =
+    trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.results : [];
+  const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
+  const rateLimited = trimmedQuery.length > 0 && currentOutcome?.kind === "rate_limited";
 
   function select(ticker: string) {
     setAddError(null);
@@ -112,8 +122,16 @@ export function AddInstrumentCombobox() {
           <Command shouldFilter={false}>
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
             <CommandList>
-              <CommandEmpty>{searchFailed ? t.add.searchError : t.add.empty}</CommandEmpty>
-              {!searchFailed &&
+              {pending ? (
+                <CommandLoading>{t.add.searching}</CommandLoading>
+              ) : (
+                <CommandEmpty>
+                  {rateLimited ? t.add.rateLimited : searchFailed ? t.add.searchError : t.add.empty}
+                </CommandEmpty>
+              )}
+              {!pending &&
+                !searchFailed &&
+                !rateLimited &&
                 displayResults.map((result) => (
                   <CommandItem
                     key={result.ticker}

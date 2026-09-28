@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   date,
+  index,
   integer,
   numeric,
   pgTable,
@@ -28,7 +29,15 @@ export const candles = pgTable(
     close: numeric("close", { precision: 18, scale: 6 }).notNull(),
     tradedQuantity: bigint("traded_quantity", { mode: "number" }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.ticker, table.timeframe, table.session] })],
+  (table) => [
+    primaryKey({ columns: [table.ticker, table.timeframe, table.session] }),
+    // Backs `searchInstruments`'s `LIKE '<PREFIX>%'` (#74): `text_pattern_ops`
+    // is the opclass a plain B-tree needs to serve a prefix `LIKE` from an
+    // index at all, `ILIKE` never can. `CREATE INDEX` on a partitioned
+    // parent (docs/adr/0017) propagates to every existing and future
+    // partition, so no per-partition index is needed here.
+    index("candles_ticker_pattern_idx").using("btree", table.ticker.op("text_pattern_ops")),
+  ],
 );
 
 // isin is the B3 instruments registry's stable key: option tickers are

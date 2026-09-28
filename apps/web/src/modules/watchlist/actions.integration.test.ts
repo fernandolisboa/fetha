@@ -187,6 +187,32 @@ describe("addToWatchlistAction", () => {
     expect(await repository.list()).toHaveLength(100);
   }, 30_000);
 
+  it("lets exactly one of two concurrent adds at 99 items through the cap", async () => {
+    const email = uniqueEmail("add-cap-race");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const [tickerOne, tickerTwo, ...restTickers] = CAP_TICKERS;
+    if (!tickerOne || !tickerTwo || restTickers.length !== 99) {
+      throw new Error("test setup: expected 99 tickers at 99 plus two contenders");
+    }
+    await upsertCandles(CAP_TICKERS);
+    await getDb()
+      .insert(watchlistItems)
+      .values(restTickers.map((ticker) => ({ userId: owner.id, ticker })));
+    const repository = new WatchlistRepository(getDb(), owner);
+
+    const [resultOne, resultTwo] = await Promise.all([
+      addToWatchlistAction({ ticker: tickerOne }),
+      addToWatchlistAction({ ticker: tickerTwo }),
+    ]);
+
+    const results = [resultOne, resultTwo];
+    expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
+    expect(results.filter((result) => "error" in result && result.error === "cap")).toHaveLength(1);
+    expect(await repository.list()).toHaveLength(100);
+  }, 30_000);
+
   it("redirects an unauthenticated caller instead of writing anything", async () => {
     currentUser = null;
 
@@ -223,9 +249,13 @@ describe("searchInstrumentsAction", () => {
     currentUser = await insertBareUser(email);
     await upsertCandle(TICKER_A);
 
-    const results = await searchInstrumentsAction({ query: "ACWL" });
+    const result = await searchInstrumentsAction({ query: "ACWL" });
 
-    expect(results.map((result) => result.ticker)).toEqual([TICKER_A]);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") {
+      throw new Error("unreachable");
+    }
+    expect(result.results.map((row) => row.ticker)).toEqual([TICKER_A]);
   });
 
   it("returns nothing for a query carrying a live ILIKE wildcard", async () => {
@@ -234,9 +264,9 @@ describe("searchInstrumentsAction", () => {
     currentUser = await insertBareUser(email);
     await upsertCandle(TICKER_A);
 
-    const results = await searchInstrumentsAction({ query: "%" });
+    const result = await searchInstrumentsAction({ query: "%" });
 
-    expect(results).toEqual([]);
+    expect(result).toEqual({ status: "ok", results: [] });
   });
 
   it("stops answering once the account rate limit is hit", async () => {
@@ -245,13 +275,21 @@ describe("searchInstrumentsAction", () => {
     currentUser = await insertBareUser(email);
     await upsertCandle(TICKER_A);
 
-    type SearchResults = Awaited<ReturnType<typeof searchInstrumentsAction>>;
-    const outcomes: SearchResults[] = [];
-    for (let attempt = 0; attempt < 35; attempt += 1) {
+    type SearchResult = Awaited<ReturnType<typeof searchInstrumentsAction>>;
+    const outcomes: SearchResult[] = [];
+    for (let attempt = 0; attempt < 31; attempt += 1) {
       outcomes.push(await searchInstrumentsAction({ query: "ACWL" }));
     }
 
-    expect(outcomes.some((outcome) => outcome.length === 0)).toBe(true);
+    expect(outcomes).toHaveLength(31);
+    for (const outcome of outcomes.slice(0, 30)) {
+      expect(outcome.status).toBe("ok");
+      if (outcome.status !== "ok") {
+        throw new Error("unreachable");
+      }
+      expect(outcome.results.map((row) => row.ticker)).toEqual([TICKER_A]);
+    }
+    expect(outcomes[30]).toEqual({ status: "rate_limited" });
   });
 
   it("redirects an unauthenticated caller", async () => {

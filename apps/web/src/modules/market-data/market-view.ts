@@ -279,10 +279,10 @@ export async function loadMarketViewWithCalendarVersion(
   const candleView = candleRows.map(toEngineCandle);
 
   const corporateActions: CorporateActionFactor[] = corporateActionRows.map((row) => ({
-    ticker: tickerSchema.parse(row.ticker),
-    exDate: sessionDateSchema.parse(row.exDate),
+    ticker: row.ticker,
+    exDate: row.exDate,
     asOf: instantSchema.parse(row.asOf.toISOString()),
-    factor: toDecimal(row.factor),
+    factor: row.factor,
   }));
 
   // The engine rejects an exact `(series, asOf)` collision outright
@@ -664,9 +664,9 @@ export async function buildOperationMarketView(
 
   const corporateActions: CorporateActionFactor[] = corporateActionRows.map((row) => ({
     ticker: row.ticker,
-    exDate: sessionDateSchema.parse(row.exDate),
+    exDate: row.exDate,
     asOf: instantSchema.parse(row.asOf.toISOString()),
-    factor: toDecimal(row.factor),
+    factor: row.factor,
   }));
 
   const dataVersion = maxAsOf([

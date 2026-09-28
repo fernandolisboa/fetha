@@ -52,17 +52,14 @@ export async function addToWatchlistAction(input: {
   }
 
   return withRepository(async (repository) => {
-    const [existing, watchlistSize] = await Promise.all([
-      latestCandle(getDb(), parsed.data.ticker),
-      repository.count(),
-    ]);
+    const existing = await latestCandle(getDb(), parsed.data.ticker);
     if (!existing) {
       return { status: "error", error: "invalid" };
     }
-    if (watchlistSize >= WATCHLIST_CAP) {
+    const result = await repository.addWithCap(parsed.data.ticker, WATCHLIST_CAP);
+    if (result.status === "cap") {
       return { status: "error", error: "cap" };
     }
-    await repository.add(parsed.data.ticker);
     revalidatePath("/");
     return { status: "ok" };
   });
@@ -81,24 +78,28 @@ export async function removeFromWatchlistAction(input: {
   return { status: "ok" };
 }
 
+export type SearchInstrumentsResult =
+  { status: "ok"; results: InstrumentSearchResult[] } | { status: "rate_limited" };
+
 // Requires a session, not because the search result is user-scoped (it is
 // reference data, ADR-0017), but so the combobox behind it cannot be used
 // as an anonymous query endpoint against the instrument registry.
 export async function searchInstrumentsAction(input: {
   query: string;
-}): Promise<InstrumentSearchResult[]> {
+}): Promise<SearchInstrumentsResult> {
   const parsed = searchInputSchema.safeParse(input);
   if (!parsed.success) {
-    return [];
+    return { status: "ok", results: [] };
   }
   const user = await withAuthenticatedAction(() => requireUser());
   try {
     await enforceAccountRateLimit(getDb(), user.email, "watchlist/search", SEARCH_RATE_LIMIT);
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
-      return [];
+      return { status: "rate_limited" };
     }
     throw error;
   }
-  return searchInstruments(getDb(), parsed.data.query, MAX_SEARCH_RESULTS);
+  const results = await searchInstruments(getDb(), parsed.data.query, MAX_SEARCH_RESULTS);
+  return { status: "ok", results };
 }
