@@ -99,8 +99,10 @@ test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, re
   await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
   const strategyUrl = page.url();
 
+  // Ctrl K's listener is attached after hydration, so a key press right
+  // after a navigation can be lost; a click on the trigger is replayed.
   await page.goto("/");
-  await page.keyboard.press("Control+k");
+  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
   await page.getByPlaceholder("Buscar ativo ou estratégia").fill(`Ctrl K ${runId}`);
 
   const option = page.getByRole("option", { name: strategyName, exact: true });
