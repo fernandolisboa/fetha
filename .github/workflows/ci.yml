@@ -124,11 +124,33 @@ jobs:
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:seed-structures
 
+  ci-images:
+    runs-on: ubuntu-latest
+    outputs:
+      postgres: ${{ steps.images.outputs.postgres }}
+      neon-proxy: ${{ steps.images.outputs.neon-proxy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/ci-images
+          sparse-checkout-cone-mode: false
+
+      # Reads FROM lines from the stub Dockerfile (never built) so the
+      # digests it pins stay the single source of truth Dependabot can bump;
+      # see .github/ci-images/Dockerfile for why.
+      - name: Parse pinned CI image digests
+        id: images
+        run: .github/ci-images/parse-image.sh
+
   integration:
+    needs: ci-images
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17@sha256:f4c66b820c6f974249089d3d16d86a3698eae11e8746eb6644b2271031e91232
+        image: ${{ needs.ci-images.outputs.postgres }}
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: main
@@ -140,7 +162,7 @@ jobs:
           --health-timeout 5s
           --health-retries 15
       neon-proxy:
-        image: ghcr.io/timowilhelm/local-neon-http-proxy:main@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
+        image: ${{ needs.ci-images.outputs.neon-proxy }}
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/main
         ports:

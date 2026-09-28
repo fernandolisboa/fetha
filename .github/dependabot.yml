@@ -12,3 +12,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: docker
+    directory: /.github/ci-images
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
