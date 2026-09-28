@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./tour";
 
 import { ownerEmail, readNewMagicLink, registerAndSignIn, seedMagicLinkBaseline } from "./helpers";
 

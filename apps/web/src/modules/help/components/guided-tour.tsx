@@ -1,0 +1,258 @@
+"use client";
+
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { dismissTourAction } from "@/modules/preferences/client";
+
+import { t } from "../strings";
+import { tourSteps, type TourStep } from "../tour-steps";
+
+interface TourControls {
+  start: () => void;
+}
+
+const TourContext = createContext<TourControls | null>(null);
+
+const SPOTLIGHT_PADDING = 4;
+
+// Lets the first screen after sign-in finish its redirect and paint before
+// the tour dims it.
+const AUTO_START_DELAY_MS = 600;
+
+// A target counts only when it takes up space: the rail is display:none
+// under 768px, and a step whose element is missing (the watchlist's add
+// button on another page) falls back to a centered card with no spotlight.
+function findTarget(step: TourStep): HTMLElement | null {
+  if (!step.target) return null;
+  const element = document.querySelector<HTMLElement>(step.target);
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? element : null;
+}
+
+function viewportCenter() {
+  return {
+    getBoundingClientRect: () =>
+      new DOMRect(window.innerWidth / 2, window.innerHeight / 2 - 120, 0, 0),
+  };
+}
+
+function useTargetRect(target: HTMLElement | null): DOMRect | null {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!target) return;
+    const update = () => {
+      setRect(target.getBoundingClientRect());
+    };
+    const frame = requestAnimationFrame(update);
+    const observer = new ResizeObserver(update);
+    observer.observe(target);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [target]);
+
+  return target ? rect : null;
+}
+
+function Spotlight({ rect }: { rect: DOMRect | null }) {
+  return createPortal(
+    <div aria-hidden className="fixed inset-0 z-40">
+      {rect ? (
+        <div
+          className="absolute rounded-[var(--radius)] shadow-[0_0_0_9999px_rgb(0_0_0/0.6)] ring-1 ring-[var(--accent)] transition-[top,left,width,height] duration-[180ms] ease-in-out motion-reduce:transition-none"
+          style={{
+            top: rect.top - SPOTLIGHT_PADDING,
+            left: rect.left - SPOTLIGHT_PADDING,
+            width: rect.width + SPOTLIGHT_PADDING * 2,
+            height: rect.height + SPOTLIGHT_PADDING * 2,
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black/60" />
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+function TourCard({
+  index,
+  onBack,
+  onNext,
+  onClose,
+}: {
+  index: number;
+  onBack: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const step = tourSteps[index];
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  const rect = useTargetRect(target);
+
+  useEffect(() => {
+    if (!step) return;
+    const frame = requestAnimationFrame(() => {
+      const found = findTarget(step);
+      found?.scrollIntoView({ block: "nearest" });
+      setTarget(found);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [step]);
+
+  if (!step) return null;
+
+  const copy = t.tour.steps[step.id];
+  const isLast = index === tourSteps.length - 1;
+  const anchored = target !== null && rect !== null;
+
+  return (
+    <>
+      <Spotlight rect={anchored ? rect : null} />
+      <Popover
+        open
+        modal
+        onOpenChange={(open, details) => {
+          if (!open && (details.reason === "escape-key" || details.reason === "close-press")) {
+            onClose();
+          }
+        }}
+      >
+        <PopoverContent
+          anchor={anchored ? target : viewportCenter()}
+          side={anchored ? step.side : "bottom"}
+          sideOffset={anchored ? 12 : 0}
+          initialFocus={nextRef}
+          data-tour-card=""
+          className="w-80 gap-3 rounded-[var(--radius)] p-4"
+        >
+          <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
+            {t.tour.progress(index + 1, tourSteps.length)}
+          </p>
+          <div className="flex flex-col gap-1">
+            <PopoverTitle className="text-[15px] font-semibold">{copy.title}</PopoverTitle>
+            <PopoverDescription className="text-[13px]">{copy.body}</PopoverDescription>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            {isLast ? null : (
+              <PopoverClose render={<Button type="button" variant="ghost" size="sm" />}>
+                {t.tour.skip}
+              </PopoverClose>
+            )}
+            <div className="ml-auto flex gap-2">
+              {index > 0 ? (
+                <Button type="button" variant="outline" size="sm" onClick={onBack}>
+                  {t.tour.back}
+                </Button>
+              ) : null}
+              {isLast ? (
+                <PopoverClose render={<Button type="button" size="sm" ref={nextRef} />}>
+                  {t.tour.finish}
+                </PopoverClose>
+              ) : (
+                <Button type="button" size="sm" ref={nextRef} onClick={onNext}>
+                  {t.tour.next}
+                </Button>
+              )}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+}
+
+export function TourProvider({ autoStart, children }: { autoStart: boolean; children: ReactNode }) {
+  const [index, setIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!autoStart) return;
+    const timer = setTimeout(() => {
+      setIndex(0);
+    }, AUTO_START_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [autoStart]);
+
+  const start = useCallback(() => {
+    setIndex(0);
+  }, []);
+
+  const close = useCallback(() => {
+    setIndex(null);
+    void dismissTourAction().catch(() => undefined);
+  }, []);
+
+  const controls = useMemo(() => ({ start }), [start]);
+
+  return (
+    <TourContext value={controls}>
+      {children}
+      {index !== null ? (
+        <TourCard
+          key={index}
+          index={index}
+          onBack={() => {
+            setIndex(Math.max(0, index - 1));
+          }}
+          onNext={() => {
+            setIndex(Math.min(tourSteps.length - 1, index + 1));
+          }}
+          onClose={close}
+        />
+      ) : null}
+    </TourContext>
+  );
+}
+
+export function ReplayTourButton({ className }: { className?: string }) {
+  const controls = use(TourContext);
+  const router = useRouter();
+
+  if (!controls) return null;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(className)}
+      onClick={() => {
+        router.push("/");
+        controls.start();
+      }}
+    >
+      {t.tour.replay}
+    </Button>
+  );
+}

@@ -42,6 +42,7 @@ export function Rail({
   return (
     <nav
       aria-label={t.rail.navigationLabel}
+      data-tour="rail"
       data-collapsed={collapsed}
       className={cn(
         "border-border bg-card flex flex-col gap-0.5 border-r py-3 transition-[width] duration-[180ms] max-md:hidden",

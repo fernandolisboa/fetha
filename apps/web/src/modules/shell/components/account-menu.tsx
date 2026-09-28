@@ -17,6 +17,7 @@ export function AccountMenu({ email }: { email: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={t.accountMenu.open}
+        data-tour="account-menu"
         className="border-border bg-secondary flex h-8 items-center gap-2 rounded-full border px-2 text-xs"
       >
         <span className="bg-accent text-foreground flex size-5 items-center justify-center rounded-full text-[11px] font-medium uppercase">
