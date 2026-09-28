@@ -49,5 +49,6 @@ supersedes or amends them and says so.
 | 0041 | Backtest metrics are computed over observed sessions only; the warm-up prefix is excluded (amends 0013)          |
 | 0042 | The manual ingestion trigger is gated by the owner's session, not `CRON_SECRET` (#51)                            |
 | 0043 | Strategies are archived, never deleted; archived ones leave the cap and sharing (amends 0012, 0032)              |
+| 0044 | `nightly_runs`: a redacted run report recorded by every nightly run, read by a Postgres role (#220)              |
 
 Open: none.
