@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -119,6 +119,9 @@ function TourCard({
 }) {
   const step = tourSteps[index];
   const nextRef = useRef<HTMLButtonElement>(null);
+  // Replay navigates to the watchlist and starts at once; looking again when
+  // the route lands finds targets that only exist there.
+  const pathname = usePathname();
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const rect = useTargetRect(target);
 
@@ -132,7 +135,7 @@ function TourCard({
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [step]);
+  }, [step, pathname]);
 
   if (!step) return null;
 
@@ -208,8 +211,17 @@ export function TourProvider({ autoStart, children }: { autoStart: boolean; chil
     const timer = setTimeout(() => {
       setIndex(0);
     }, AUTO_START_DELAY_MS);
+    // A user already clicking or typing keeps what they started; the modal
+    // card would steal focus and close an open combobox. It shows next load.
+    const cancel = () => {
+      clearTimeout(timer);
+    };
+    window.addEventListener("pointerdown", cancel, { once: true, capture: true });
+    window.addEventListener("keydown", cancel, { once: true, capture: true });
     return () => {
       clearTimeout(timer);
+      window.removeEventListener("pointerdown", cancel, { capture: true });
+      window.removeEventListener("keydown", cancel, { capture: true });
     };
   }, [autoStart]);
 

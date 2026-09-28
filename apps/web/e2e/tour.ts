@@ -10,6 +10,22 @@ function tourCard(page: Page) {
   return page.locator("[data-tour-card]");
 }
 
+// The dismissal is a Server Action, which posts to the page's own URL.
+export function tourDismissalSaved(page: Page): Promise<unknown> {
+  return page.waitForResponse(
+    (res) => res.request().method() === "POST" && res.url() === page.url(),
+  );
+}
+
+// The tour starts 600ms after the shell hydrates; waiting well past that,
+// without touching the page (a click cancels the auto-start), is the only
+// way "it did not come back" can fail when it should.
+export async function expectNoTourAfterLoad(page: Page): Promise<void> {
+  await page.waitForLoadState("load");
+  await page.waitForTimeout(2_000);
+  await expect(tourCard(page)).toHaveCount(0);
+}
+
 export async function skipTourWhenShown(page: Page): Promise<void> {
   if (pagesSkippingTheTour.has(page)) return;
   pagesSkippingTheTour.add(page);
@@ -27,10 +43,7 @@ export async function closeTourOnceShown(page: Page): Promise<void> {
     await page.removeLocatorHandler(card);
   }
   await card.waitFor();
-  await Promise.all([
-    page.waitForResponse((res) => res.request().method() === "POST"),
-    page.keyboard.press("Escape"),
-  ]);
+  await Promise.all([tourDismissalSaved(page), page.keyboard.press("Escape")]);
   await card.waitFor({ state: "detached" });
 }
 

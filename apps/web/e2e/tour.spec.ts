@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { registerAndSignIn } from "./helpers";
+import { expectNoTourAfterLoad, tourDismissalSaved } from "./tour";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // Imports Playwright's own `test`, not ./tour's: this spec is the one place
@@ -26,18 +27,13 @@ test("the tour starts on first sign-in, stays dismissed, and replays from the gu
   await expect(card.getByText("Boas-vindas à Fetha")).toBeVisible();
 
   await Promise.all([
-    page.waitForResponse((res) => res.request().method() === "POST"),
+    tourDismissalSaved(page),
     card.getByRole("button", { name: "Pular tour" }).click(),
   ]);
   await expect(card).toBeHidden();
 
   await page.reload();
-  // Opening the combobox needs a hydrated page, which is also when the tour
-  // would have mounted.
-  await page.getByRole("button", { name: "Adicionar ativo" }).click();
-  await expect(page.getByPlaceholder("Buscar pelo código")).toBeVisible();
-  await expect(card).toBeHidden();
-  await page.keyboard.press("Escape");
+  await expectNoTourAfterLoad(page);
 
   await page.goto("/como-usar");
   await page.getByRole("button", { name: "Refazer o tour" }).click();
@@ -69,14 +65,9 @@ test("Escape skips the tour for good", async ({ page, baseURL, request }) => {
   const card = page.locator("[data-tour-card]");
   await expect(card.getByText("Passo 1 de 8", { exact: true })).toBeVisible();
 
-  await Promise.all([
-    page.waitForResponse((res) => res.request().method() === "POST"),
-    page.keyboard.press("Escape"),
-  ]);
+  await Promise.all([tourDismissalSaved(page), page.keyboard.press("Escape")]);
   await expect(card).toBeHidden();
 
   await page.reload();
-  await page.getByRole("button", { name: "Adicionar ativo" }).click();
-  await expect(page.getByPlaceholder("Buscar pelo código")).toBeVisible();
-  await expect(card).toBeHidden();
+  await expectNoTourAfterLoad(page);
 });
