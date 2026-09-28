@@ -15,7 +15,7 @@ export function TabBar({ unreadSignalCount }: { unreadSignalCount: number }) {
     <nav
       aria-label={t.rail.navigationLabel}
       data-tour="tab-bar"
-      className="border-border bg-card fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t md:hidden"
+      className="border-border bg-card fixed inset-x-0 bottom-0 z-30 grid h-14 grid-cols-6 border-t md:hidden"
     >
       {destinations().map((destination) => {
         const active = isActiveDestination(pathname, destination.href);
@@ -27,7 +27,7 @@ export function TabBar({ unreadSignalCount }: { unreadSignalCount: number }) {
             title={destination.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex h-14 items-center justify-center transition-colors duration-[120ms]",
+              "relative flex h-full items-center justify-center transition-colors duration-[120ms]",
               active
                 ? "text-primary before:bg-primary before:absolute before:inset-x-3 before:top-0 before:h-0.5"
                 : "text-muted-foreground active:bg-secondary",

@@ -20,7 +20,7 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   left rail, 200px with icons and labels, 56px collapsed with icons only, state remembered per
   user; six destinations: Watchlist, Sinais (with an unread count), Estratégias, Carteira, Diário,
   Configurações; declared capital at the rail foot. Under 1024px the rail collapses; under 768px
-  it becomes a bottom tab bar (rare: desktop first): six equal icon-only cells 56px tall, like the
+  it becomes a 56px bottom tab bar (rare: desktop first): six equal icon-only cells, like the
   collapsed rail, the active one in `--accent` with a 2px top line, Sinais' unread count as a
   small accent pill; it is fixed to the viewport bottom and the page keeps a gutter its height.
   The header never scrolls sideways: under 1024px the account menu shows only its avatar and the
