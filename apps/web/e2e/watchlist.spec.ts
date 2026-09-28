@@ -90,16 +90,24 @@ test("add an instrument to the watchlist and open its chart", async ({
   // untouched, account-rate-limit.ts's guarded UPDATE). So this can't rely
   // on tripping "no matter how long the loop takes": if each iteration is
   // slow enough, the window can expire mid-loop and the next query is
-  // accepted instead of throttled. Each wait is only just past the 200ms
-  // search debounce, and the loop stops as soon as the rate-limited text
-  // shows up, both to keep the whole run inside SEARCH_RATE_LIMIT's own
-  // window and to avoid 40 unconditional waits when it trips much earlier.
+  // accepted instead of throttled. Each iteration waits for that query's
+  // own outcome (outcomes are query-scoped, so "Buscando…" only clears
+  // once this query's search actually answers) rather than a fixed delay,
+  // since a fixed one tuned for a fast local response reads the status
+  // while it's still pending against a slower round trip (a preview
+  // deployment); the loop stops as soon as the rate-limited text shows
+  // up, both to keep the whole run inside SEARCH_RATE_LIMIT's own window
+  // and to avoid 40 waits when it trips much earlier.
   const rateLimitedText = "Muitas buscas seguidas. Espere alguns segundos e tente de novo.";
   const RATE_LIMIT_MAX_ATTEMPTS = 40;
   let rateLimited = false;
   for (let i = 0; i < RATE_LIMIT_MAX_ATTEMPTS && !rateLimited; i += 1) {
     await searchInput.fill(`RL${String(i)}Q`);
-    await page.waitForTimeout(220);
+    // The pending state is set synchronously on the query change, before
+    // the debounce timer even starts, so it's always observable here; the
+    // second wait is the one that actually depends on the round trip.
+    await expect(status).toHaveText("Buscando…");
+    await expect(status).not.toHaveText("Buscando…");
     rateLimited = (await status.textContent()) === rateLimitedText;
   }
   expect(rateLimited).toBe(true);
