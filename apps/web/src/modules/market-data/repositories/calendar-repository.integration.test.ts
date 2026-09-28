@@ -1,10 +1,11 @@
-import { and, asc, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { tradingSessions } from "../schema";
+import { candles, optionDailyPrices, tradingSessions } from "../schema";
 
 import { deleteUnlistedTradingSessions, upsertTradingSessions } from "./calendar-repository";
+import { ensureMonthlyPartition } from "./partitions";
 
 const YEAR = 2031;
 
@@ -20,7 +21,46 @@ async function stored(from: string, to: string): Promise<Array<{ date: string; a
     .orderBy(asc(tradingSessions.date));
 }
 
+const CANDLE_TICKER = "ZZDU3";
+const OPTION_TICKER = "ZZDUW999";
+
+async function insertCandle(session: string): Promise<void> {
+  const db = getDb();
+  await ensureMonthlyPartition(db, "candles", session);
+  await db.insert(candles).values({
+    ticker: CANDLE_TICKER,
+    timeframe: "1d",
+    session,
+    asOf: new Date(`${session}T22:00:00.000Z`),
+    open: "10",
+    high: "10",
+    low: "10",
+    close: "10",
+    tradedQuantity: 1,
+  });
+}
+
+async function insertOptionPrice(session: string): Promise<void> {
+  const db = getDb();
+  await ensureMonthlyPartition(db, "option_daily_prices", session);
+  await db.insert(optionDailyPrices).values({
+    ticker: OPTION_TICKER,
+    session,
+    asOf: new Date(`${session}T22:00:00.000Z`),
+    right: "call",
+    strike: "10",
+    expiry: "2031-12-19",
+    average: "1",
+    close: "1",
+    factor: "1",
+    trades: 1,
+    tradedQuantity: 1,
+  });
+}
+
 afterEach(async () => {
+  await getDb().delete(candles).where(eq(candles.ticker, CANDLE_TICKER));
+  await getDb().delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, OPTION_TICKER));
   await getDb()
     .delete(tradingSessions)
     .where(and(gte(tradingSessions.date, "2030-12-01"), lte(tradingSessions.date, "2032-01-31")));
@@ -37,13 +77,13 @@ describe("deleteUnlistedTradingSessions", () => {
     ]);
     const before = await stored("2030-12-01", "2031-12-31");
 
-    const removed = await deleteUnlistedTradingSessions(db, YEAR, [
+    const result = await deleteUnlistedTradingSessions(db, YEAR, [
       session("2031-03-03"),
       session("2031-03-05"),
     ]);
 
     const after = await stored("2030-12-01", "2031-12-31");
-    expect(removed).toBe(1);
+    expect(result).toEqual({ removed: 1 });
     expect(after.map((row) => row.date)).toEqual(["2030-12-30", "2031-03-03", "2031-03-05"]);
     for (const row of after) {
       const previous = before.find((candidate) => candidate.date === row.date);
@@ -56,13 +96,13 @@ describe("deleteUnlistedTradingSessions", () => {
     await upsertTradingSessions(db, [session("2031-03-03"), session("2031-03-04")]);
     const before = await stored("2031-01-01", "2031-12-31");
 
-    const removed = await deleteUnlistedTradingSessions(db, YEAR, [
+    const result = await deleteUnlistedTradingSessions(db, YEAR, [
       session("2031-03-03"),
       session("2031-03-04"),
       session("2031-03-05"),
     ]);
 
-    expect(removed).toBe(0);
+    expect(result).toEqual({ removed: 0 });
     expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
   });
 
@@ -87,9 +127,49 @@ describe("deleteUnlistedTradingSessions", () => {
     const db = getDb();
     await upsertTradingSessions(db, [session("2031-06-02")]);
 
-    expect(await deleteUnlistedTradingSessions(db, YEAR, [])).toBe(0);
+    expect(await deleteUnlistedTradingSessions(db, YEAR, [])).toEqual({ removed: 0 });
     expect((await stored("2031-01-01", "2031-12-31")).map((row) => row.date)).toEqual([
       "2031-06-02",
     ]);
+  });
+
+  it("blocks the whole year's delete when a candle exists on a date the source no longer lists", async () => {
+    const db = getDb();
+    await upsertTradingSessions(db, [session("2031-03-03"), session("2031-03-04")]);
+    await insertCandle("2031-03-04");
+    const before = await stored("2031-01-01", "2031-12-31");
+
+    const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
+
+    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
+  });
+
+  it("blocks the whole year's delete when an option price exists on a date the source no longer lists", async () => {
+    const db = getDb();
+    await upsertTradingSessions(db, [session("2031-03-03"), session("2031-03-04")]);
+    await insertOptionPrice("2031-03-04");
+    const before = await stored("2031-01-01", "2031-12-31");
+
+    const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
+
+    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
+  });
+
+  it("keeps a candidate with no market data too when another candidate of the same year is blocked", async () => {
+    const db = getDb();
+    await upsertTradingSessions(db, [
+      session("2031-03-03"),
+      session("2031-03-04"),
+      session("2031-03-05"),
+    ]);
+    await insertCandle("2031-03-04");
+    const before = await stored("2031-01-01", "2031-12-31");
+
+    const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
+
+    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
   });
 });

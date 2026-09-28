@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
-import { tradingSessions } from "../schema";
+import { candles, optionDailyPrices, tradingSessions } from "../schema";
 
 import type { ParsedTradingSession } from "../adapters/anbima-calendar/schema";
+
+export type DeleteUnlistedTradingSessionsResult = { removed: number } | { blocked: string[] };
 
 export async function upsertTradingSessions(
   db: Database,
@@ -44,23 +46,44 @@ export async function upsertTradingSessions(
 // resuming on a different calendar (ADR-0017). The update must skip the deleted rows: when one
 // statement modifies a row twice, Postgres applies only one of the two, unpredictably, so an
 // unguarded update could win and keep the removed date.
+//
+// A holiday has no COTAHIST file, so a candidate date with rows in `candles` or
+// `option_daily_prices` means the correction, not the market data, is wrong: deleting the
+// session would silently leave a bar indicators and backtests still count while the session
+// count no longer does (#189). The whole year's delete is all-or-nothing: if any candidate is
+// blocked, none of that year's candidates are removed and none are re-stamped, reported back as
+// `{ blocked }` so the caller can name the offending dates instead of guessing which one. The
+// block check, the delete and the re-stamp are one statement so a concurrent ingest cannot insert
+// a candle between a separate check and delete.
 export async function deleteUnlistedTradingSessions(
   db: Database,
   year: number,
   listedSessions: ParsedTradingSession[],
-): Promise<number> {
+): Promise<DeleteUnlistedTradingSessionsResult> {
   if (listedSessions.length === 0) {
-    return 0;
+    return { removed: 0 };
   }
   const listed = sql.join(
     listedSessions.map((session) => sql`${session.date}::date`),
     sql`, `,
   );
-  const result = await db.execute<{ removed: number }>(sql`
-    with removed as (
-      delete from ${tradingSessions}
+  const result = await db.execute<{ removed: number; blocked: string[] | null }>(sql`
+    with candidates as (
+      select ${tradingSessions.date} as date
+      from ${tradingSessions}
       where ${tradingSessions.date} between ${`${String(year)}-01-01`}::date and ${`${String(year)}-12-31`}::date
         and ${tradingSessions.date} not in (${listed})
+    ),
+    blocked as (
+      select candidates.date
+      from candidates
+      where exists (select 1 from ${candles} where ${candles.session} = candidates.date)
+         or exists (select 1 from ${optionDailyPrices} where ${optionDailyPrices.session} = candidates.date)
+    ),
+    removed as (
+      delete from ${tradingSessions}
+      where ${tradingSessions.date} in (select date from candidates)
+        and not exists (select 1 from blocked)
       returning ${tradingSessions.date}
     ),
     restamped as (
@@ -69,9 +92,15 @@ export async function deleteUnlistedTradingSessions(
         and ${tradingSessions.date} not in (select date from removed)
       returning 1
     )
-    select count(*)::int as removed from removed
+    select
+      (select count(*)::int from removed) as removed,
+      (select array_agg(date::text order by date) from blocked) as blocked
   `);
-  return result.rows[0]?.removed ?? 0;
+  const row = result.rows[0];
+  if (row?.blocked) {
+    return { blocked: row.blocked };
+  }
+  return { removed: row?.removed ?? 0 };
 }
 
 export async function latestSessionOnOrBefore(

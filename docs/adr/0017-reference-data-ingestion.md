@@ -399,11 +399,34 @@ count is added to the calendar outcome's `rowCount`, and a removal makes the out
   view loaded between them sees a revised open/close next to a date about to be removed. A run that
   also completes within that chunk is not failed by the re-stamp. Accepted: both statements come
   from the same deploy-time source change, seconds apart.
-- **Not checked**: candles or option prices already ingested on a removed date stay where they
-  are, and the engine does not require a candle's date to be a calendar session, so an indicator
-  could count a bar the calendar no longer has. A holiday has no COTAHIST file, so this only
-  happens on a wrong correction; tracked as #189.
 - **Rejected: a tombstone column** (`removed_at`, or `is_session`) with a fresh `as_of`. Every
   calendar query (market view, freshness, decisions' horizon lookup, the option chain's expiry
   join) would have to filter it, and forgetting one filter reintroduces the exact bug; nothing
   needs the removed row itself once the date is no longer a session.
+
+## Addendum: fail loudly instead of removing a session with market data (2026-09-28, #189)
+
+The gap above: a wrong correction could remove a calendar date that already has rows in `candles`
+or `option_daily_prices`, leaving them in place while the session count no longer includes the
+date — an indicator or backtest would then count a bar the calendar no longer recognizes as a
+session, silently.
+
+`deleteUnlistedTradingSessions` now checks, in the same statement as the delete and the re-stamp,
+whether any candidate date (in `[year-01-01, year-12-31]`, not in the year's listed sessions) has
+rows in `candles` or `option_daily_prices`. A holiday has no COTAHIST file, so a candidate with
+market data means the correction is the thing that is wrong, not the market data:
+
+- **All-or-nothing per year**: if any candidate is blocked, none of that year's candidates are
+  deleted and none of `trading_sessions` is re-stamped — same guarantee the delete already gave a
+  clean year, just now including "clean" meaning "no candidate carries market data".
+- **The three-way check is one statement**: the candidate list, the block check against `candles`
+  and `option_daily_prices`, the delete and the re-stamp are all CTEs of the same `WITH` query, so
+  a concurrent ingest cannot insert a candle on a candidate date between a separate check and a
+  separate delete.
+- **The repository returns `{ removed: number } | { blocked: string[] }`** instead of a bare
+  count: `blocked` names every candidate date that has market data, not merely one, so a caller can
+  report every offending date at once. `ingest.ts`'s `removeUnlistedSessions` turns a `blocked`
+  result into a `SourceOutcome` error naming those dates, which fails the calendar source and
+  `ingest()`'s own `ok` for that run; nothing is silently accepted.
+- **Dates without market data are still removed** when none of the year's candidates carries any:
+  unchanged from the original addendum.

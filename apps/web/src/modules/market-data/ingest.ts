@@ -342,8 +342,16 @@ async function removeUnlistedSessions(
   sessions: ReturnType<typeof tradingSessionsForYear>,
 ): Promise<SourceOutcome> {
   try {
-    const removed = await deleteUnlistedTradingSessions(db, year, sessions);
-    return { source: "calendar", skipped: removed === 0, rowCount: removed };
+    const result = await deleteUnlistedTradingSessions(db, year, sessions);
+    if ("blocked" in result) {
+      return {
+        source: "calendar",
+        skipped: false,
+        rowCount: 0,
+        error: `market data exists on removed session(s), not deleted: ${result.blocked.join(", ")}`,
+      };
+    }
+    return { source: "calendar", skipped: result.removed === 0, rowCount: result.removed };
   } catch (error) {
     return { source: "calendar", skipped: false, rowCount: 0, error: ingestionErrorMessage(error) };
   }
