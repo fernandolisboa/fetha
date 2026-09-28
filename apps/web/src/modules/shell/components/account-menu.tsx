@@ -29,6 +29,9 @@ export function AccountMenu({ email }: { email: string }) {
           {email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuLinkItem render={<Link href="/como-usar" />} className="px-0">
+          {t.accountMenu.howToUse}
+        </DropdownMenuLinkItem>
         <DropdownMenuLinkItem render={<Link href="/configuracoes" />} className="px-0">
           {t.destinations.settings}
         </DropdownMenuLinkItem>
