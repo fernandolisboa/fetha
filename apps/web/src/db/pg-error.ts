@@ -35,11 +35,12 @@ const MAX_SAFE_MESSAGE_LENGTH = 200;
 // carry a full day's ticker/price rows or a user's id. That string must
 // never be stored, returned or logged, whether it is the caught error's own
 // message (a query that failed for a reason the driver never turned into a
-// Postgres error, e.g. a dropped connection mid-query) or sits one level down as `.cause` on something else that wraps it. A
-// duck-typed check on `.query` matches drizzle-orm's real error class
-// (which also carries `.params`, but `.query` alone is enough to identify
-// it) without importing it; the message pattern is a second, cheaper check
-// for anything shaped the same way without that own property.
+// Postgres error, e.g. a dropped connection mid-query) or sits one level
+// down as `.cause` on something else that wraps it. A duck-typed check on
+// `.query` matches drizzle-orm's real error class (which also carries
+// `.params`, but `.query` alone is enough to identify it) without importing
+// it; the message pattern is a second, cheaper check for anything shaped the
+// same way without that own property.
 function isDrizzleQueryErrorShape(value: unknown): boolean {
   if (!(value instanceof Error)) {
     return false;
