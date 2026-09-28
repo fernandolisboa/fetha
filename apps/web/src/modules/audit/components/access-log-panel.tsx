@@ -59,7 +59,8 @@ export function AccessLogPanel({ groups }: { groups: AccessLogGroup[] }) {
                 <div>
                   {labels.events[group.event]}
                   {group.count > 1 ? (
-                    <span className="text-muted-foreground ml-1.5 font-mono text-[11px] tabular-nums">
+                    <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                      {" "}
                       {group.count}×
                     </span>
                   ) : null}
