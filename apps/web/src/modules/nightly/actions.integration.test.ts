@@ -1,8 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 process.env.REGISTRATION_MODE = "open";
 
 const runNightlyJobMock = vi.hoisted(() => vi.fn());

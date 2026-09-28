@@ -332,7 +332,7 @@ export function buildAuthOptions(
           const email = readAccountRateLimitEmail(ctx.body);
           if (email) {
             try {
-              await enforceAccountRateLimit(db, email, ctx.path, accountRule);
+              await enforceAccountRateLimit(db, email, ctx.path, accountRule, env);
             } catch (error) {
               if (error instanceof AccountRateLimitExceededError) {
                 throw new APIError("TOO_MANY_REQUESTS", { message: "rate_limited" });
@@ -357,6 +357,7 @@ export function buildAuthOptions(
                 session.user.email,
                 ctx.path,
                 DELETE_USER_ACCOUNT_RULE,
+                env,
               );
             } catch (error) {
               if (error instanceof AccountRateLimitExceededError) {
@@ -416,7 +417,7 @@ export function buildAuthOptions(
         }
         const email = readAccountRateLimitEmail(ctx.body);
         if (email) {
-          await refundAccountAttempt(db, email, ctx.path);
+          await refundAccountAttempt(db, email, ctx.path, env);
         }
       }),
     },

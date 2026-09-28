@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { Database } from "@/db/client";
@@ -70,34 +72,85 @@ function buildFakeDb(options: {
 }
 
 const RULE = { windowSeconds: 60, max: 3 };
+const ENV = { BETTER_AUTH_SECRET: "unit-test-secret" };
+const OTHER_ENV = { BETTER_AUTH_SECRET: "a-different-unit-test-secret" };
 
 describe("accountBucketKey", () => {
   it("never carries the email in clear", () => {
-    const key = accountBucketKey("a@example.com", "/sign-in/email");
+    const key = accountBucketKey("a@example.com", "/sign-in/email", ENV);
     expect(key).not.toContain("@");
     expect(key).not.toContain("example.com");
     expect(key).toMatch(/^account:[A-Za-z0-9_-]{43}\|\/sign-in\/email$/);
   });
 
   it("is stable per email and distinct across emails", () => {
-    expect(accountBucketKey("a@example.com", "/p")).toBe(accountBucketKey("a@example.com", "/p"));
-    expect(accountBucketKey("a@example.com", "/p")).not.toBe(
-      accountBucketKey("b@example.com", "/p"),
+    expect(accountBucketKey("a@example.com", "/p", ENV)).toBe(
+      accountBucketKey("a@example.com", "/p", ENV),
     );
+    expect(accountBucketKey("a@example.com", "/p", ENV)).not.toBe(
+      accountBucketKey("b@example.com", "/p", ENV),
+    );
+  });
+
+  it("is not the plain sha256 digest of the email (#191)", () => {
+    const sha256 = createHash("sha256").update("a@example.com").digest("base64url");
+    const key = accountBucketKey("a@example.com", "/sign-in/email", ENV);
+    expect(key).not.toContain(sha256);
+  });
+
+  it("produces a different key for the same email under a different secret (#191)", () => {
+    expect(accountBucketKey("a@example.com", "/p", ENV)).not.toBe(
+      accountBucketKey("a@example.com", "/p", OTHER_ENV),
+    );
+  });
+
+  it("throws instead of hashing under a missing secret (#191)", () => {
+    expect(() => accountBucketKey("a@example.com", "/p", {})).toThrow(
+      "BETTER_AUTH_SECRET must be set",
+    );
+  });
+
+  it("throws instead of hashing under an empty secret (#191)", () => {
+    expect(() => accountBucketKey("a@example.com", "/p", { BETTER_AUTH_SECRET: "" })).toThrow(
+      "BETTER_AUTH_SECRET must be set",
+    );
+  });
+
+  it("derives the same key whether the caller passes env explicitly or relies on the process.env default, so hooks and Server Actions agree (#191)", () => {
+    vi.stubEnv("BETTER_AUTH_SECRET", ENV.BETTER_AUTH_SECRET);
+    try {
+      expect(accountBucketKey("a@example.com", "/sign-in/email")).toBe(
+        accountBucketKey("a@example.com", "/sign-in/email", ENV),
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
 describe("enforceAccountRateLimit", () => {
+  it("fails closed on a missing secret before reading or writing any bucket (#191)", async () => {
+    const select = vi.fn(() => {
+      throw new Error("must not be called before the secret is validated");
+    });
+    const db = { select } as unknown as Database;
+
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, {}),
+    ).rejects.toThrow("BETTER_AUTH_SECRET must be set");
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it("creates a fresh counter row for a key with no prior request", async () => {
     const insertValues = vi.fn().mockResolvedValue(undefined);
     const db = buildFakeDb({ selects: [undefined], inserts: [insertValues] });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: accountBucketKey("a@example.com", "/sign-in/email"),
+        key: accountBucketKey("a@example.com", "/sign-in/email", ENV),
         count: 1,
       }),
     );
@@ -113,7 +166,7 @@ describe("enforceAccountRateLimit", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(insertValues).toHaveBeenCalledTimes(1);
 
@@ -137,7 +190,7 @@ describe("enforceAccountRateLimit", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(reset).toHaveBeenCalledTimes(1);
 
@@ -148,7 +201,7 @@ describe("enforceAccountRateLimit", () => {
     const db = buildFakeDb({ selects: [] });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/x", { windowSeconds: 61, max: 1 }),
+      enforceAccountRateLimit(db, "a@example.com", "/x", { windowSeconds: 61, max: 1 }, ENV),
     ).rejects.toThrow("exceeds the bucket retention");
   });
 
@@ -159,7 +212,7 @@ describe("enforceAccountRateLimit", () => {
     const db = buildFakeDb({ selects: [row], updates: [returning] });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(returning).toHaveBeenCalled();
   });
@@ -175,7 +228,7 @@ describe("enforceAccountRateLimit", () => {
     });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).rejects.toBeInstanceOf(AccountRateLimitExceededError);
   });
 
@@ -192,7 +245,7 @@ describe("enforceAccountRateLimit", () => {
     const db = buildFakeDb({ selects: [row], updates: [reset] });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(reset).toHaveBeenCalled();
 
@@ -211,7 +264,7 @@ describe("enforceAccountRateLimit", () => {
     });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(insertRace).toHaveBeenCalledTimes(1);
     expect(increment).toHaveBeenCalledTimes(1);
@@ -222,9 +275,9 @@ describe("enforceAccountRateLimit", () => {
     const insertFailure = vi.fn().mockRejectedValue(insertError);
     const db = buildFakeDb({ selects: [undefined, undefined], inserts: [insertFailure] });
 
-    await expect(enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE)).rejects.toBe(
-      insertError,
-    );
+    await expect(
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
+    ).rejects.toBe(insertError);
   });
 
   it("retries when a concurrent window reset already won, instead of admitting the request uncounted", async () => {
@@ -244,7 +297,7 @@ describe("enforceAccountRateLimit", () => {
     });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).resolves.toBeUndefined();
     expect(lostReset).toHaveBeenCalledTimes(1);
     expect(increment).toHaveBeenCalledTimes(1);
@@ -258,7 +311,7 @@ describe("enforceAccountRateLimit", () => {
     const db = buildFakeDb({ selects, updates });
 
     await expect(
-      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE),
+      enforceAccountRateLimit(db, "a@example.com", "/sign-in/email", RULE, ENV),
     ).rejects.toBeInstanceOf(AccountRateLimitExceededError);
   });
 });
@@ -273,7 +326,7 @@ describe("refundAccountAttempt", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(
-      refundAccountAttempt(failing, "someone@example.com", "/sign-in/email"),
+      refundAccountAttempt(failing, "someone@example.com", "/sign-in/email", ENV),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledWith("account rate-limit refund failed", "TypeError");
     log.mockRestore();

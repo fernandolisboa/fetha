@@ -10,9 +10,6 @@ import { openVerificationLink, registerVerifiedUser } from "./registration-test-
 import { resendVerification, signIn, signOut, signUp } from "./service";
 import { testRequestHeaders, uniqueTestIp } from "./test-support";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 function uniqueEmail(label: string): string {
   return `fetha-auth-${label}-${crypto.randomUUID()}@example.com`;
 }

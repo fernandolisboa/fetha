@@ -10,9 +10,6 @@ import { buildAuthOptions } from "./options";
 import { registerVerifiedUser } from "./registration-test-support";
 import { testRequestHeaders } from "./test-support";
 
-process.env.BETTER_AUTH_SECRET ??= "integration-test-secret-integration-test-secret";
-process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-
 const RESPONSE_DEADLINE_MS = 5000;
 
 function uniqueEmail(label: string): string {

@@ -1,4 +1,5 @@
 export interface AuthEnv {
+  BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   VERCEL_URL?: string;
   VERCEL_ENV?: string;
