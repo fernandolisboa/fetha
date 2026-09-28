@@ -11,6 +11,8 @@ import { scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
+import { purgeExpiredNightlyRuns, type NightlyRunPurgeOutcome } from "./nightly-runs-repository";
+
 export interface NightlyJobOptions {
   session?: string;
 }
@@ -25,6 +27,7 @@ export interface NightlyJobOutcome {
   accessLogPurge: AccessLogPurgeOutcome;
   unverifiedAccountPurge: UnverifiedAccountPurgeOutcome;
   sessionPurge: ExpiredSessionPurgeOutcome;
+  nightlyRunPurge: NightlyRunPurgeOutcome;
 }
 
 // Both the cron route and the owner's manual trigger page set their own
@@ -61,6 +64,7 @@ export async function runNightlyJob(
   const accessLogPurge = await purgeExpiredAccessLog(db);
   const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
   const sessionPurge = await purgeExpiredSessions(db);
+  const nightlyRunPurge = await purgeExpiredNightlyRuns(db);
   const result = await ingest(db, options.session ? { session: options.session } : {});
   const deadlineAt = startedAt + MAX_DURATION_SECONDS * 1000 - SAFETY_MARGIN_MS;
   const evaluation =
@@ -84,5 +88,6 @@ export async function runNightlyJob(
     accessLogPurge,
     unverifiedAccountPurge,
     sessionPurge,
+    nightlyRunPurge,
   };
 }

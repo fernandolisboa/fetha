@@ -50,6 +50,7 @@ supersedes or amends them and says so.
 | 0042 | The manual ingestion trigger is gated by the owner's session, not `CRON_SECRET` (#51)                            |
 | 0043 | Strategies are archived, never deleted; archived ones leave the cap and sharing (amends 0012, 0032)              |
 | 0044 | Entry proposals older than five sessions stay out of the inbox; the catch-up still logs them (amends 0039)       |
-| 0045 | The guided tour is hand-built on the Popover; its dismissal is a per-user preference (#231)                      |
+| 0045 | `nightly_runs`: a redacted run report recorded by every nightly run, read by a Postgres role (#220)              |
+| 0046 | The guided tour is hand-built on the Popover; its dismissal is a per-user preference (#231)                      |
 
 Open: none.

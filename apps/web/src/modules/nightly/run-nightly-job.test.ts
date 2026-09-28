@@ -6,6 +6,7 @@ const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 const purgeUnverifiedAccountsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
+const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
@@ -14,6 +15,9 @@ vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLog
 vi.mock("@/modules/auth", () => ({
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
   purgeExpiredSessions: purgeExpiredSessionsMock,
+}));
+vi.mock("./nightly-runs-repository", () => ({
+  purgeExpiredNightlyRuns: purgeExpiredNightlyRunsMock,
 }));
 
 const fakeDb = {} as never;
@@ -30,6 +34,7 @@ describe("runNightlyJob", () => {
     purgeExpiredAccessLogMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeUnverifiedAccountsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeExpiredSessionsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
+    purgeExpiredNightlyRunsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
@@ -81,6 +86,10 @@ describe("runNightlyJob", () => {
       callOrder.push("sessionPurge");
       return Promise.resolve({ ok: true, deleted: 0 });
     });
+    purgeExpiredNightlyRunsMock.mockImplementation(() => {
+      callOrder.push("nightlyRunPurge");
+      return Promise.resolve({ ok: true, deleted: 0 });
+    });
     ingestMock.mockImplementation(() => {
       callOrder.push("ingest");
       return Promise.resolve({
@@ -97,6 +106,7 @@ describe("runNightlyJob", () => {
       "accessLogPurge",
       "unverifiedAccountPurge",
       "sessionPurge",
+      "nightlyRunPurge",
       "ingest",
     ]);
   });
@@ -110,6 +120,7 @@ describe("runNightlyJob", () => {
     expect(purgeExpiredAccessLogMock).toHaveBeenCalledTimes(1);
     expect(purgeUnverifiedAccountsMock).toHaveBeenCalledTimes(1);
     expect(purgeExpiredSessionsMock).toHaveBeenCalledTimes(1);
+    expect(purgeExpiredNightlyRunsMock).toHaveBeenCalledTimes(1);
   });
 
   it("chains the signal evaluation onto the session ingestion just reported", async () => {
@@ -232,11 +243,13 @@ describe("runNightlyJob", () => {
     purgeExpiredAccessLogMock.mockResolvedValue({ ok: true, deleted: 3 });
     purgeUnverifiedAccountsMock.mockResolvedValue({ ok: true, deleted: 2 });
     purgeExpiredSessionsMock.mockResolvedValue({ ok: true, deleted: 1 });
+    purgeExpiredNightlyRunsMock.mockResolvedValue({ ok: true, deleted: 4 });
     const { runNightlyJob } = await import("./run-nightly-job");
     const outcome = await runNightlyJob(fakeDb);
     expect(outcome.accessLogPurge).toEqual({ ok: true, deleted: 3 });
     expect(outcome.unverifiedAccountPurge).toEqual({ ok: true, deleted: 2 });
     expect(outcome.sessionPurge).toEqual({ ok: true, deleted: 1 });
+    expect(outcome.nightlyRunPurge).toEqual({ ok: true, deleted: 4 });
   });
 
   it("reports a failed purge alongside an otherwise successful run", async () => {

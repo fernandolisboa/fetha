@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
-import { runNightlyJob } from "@/modules/nightly";
+import { runNightlyJobRecorded } from "@/modules/nightly";
 
 export const maxDuration = 300;
 
@@ -26,6 +26,6 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!isAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  const outcome = await runNightlyJob(getDb());
+  const outcome = await runNightlyJobRecorded(getDb(), "cron");
   return NextResponse.json(outcome, { status: outcome.ok ? 200 : 500 });
 }

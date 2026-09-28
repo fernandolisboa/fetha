@@ -467,6 +467,13 @@ which event, from which IP address and device. Kept 180 days and shown under Con
 (ADR-0027). pt-BR: "registro de acesso".
 _Avoid_: audit trail (in copy), activity feed, history
 
+**Nightly run report**:
+The redacted, per-run record (`nightly_runs`) of the nightly job's own purge → ingest → evaluate →
+score sequence: one row per run, cron or manual, with counts and closed-vocabulary statuses only —
+never a user id, decision id, email or raw provider/engine error string. Operational, system-written,
+not user-facing; kept 90 days (ADR-0045).
+_Avoid_: run log, job history (in code; these are not user-visible)
+
 **Account deletion**:
 The user's own, immediate and final removal of their account and every row tied to it, confirmed
 with their password (ADR-0027). There is no grace period and no recovery. pt-BR: "excluir conta".

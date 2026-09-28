@@ -1,6 +1,6 @@
 {
-  "id": "2de79b1e-0722-4b16-b240-40451482761b",
-  "prevId": "d7e11e34-f38d-432f-bed6-f3eba70ccbc4",
+  "id": "49feaf59-de02-4307-aabb-2f0d291c06bd",
+  "prevId": "2de79b1e-0722-4b16-b240-40451482761b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2604,6 +2604,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "tour_dismissed_at": {
+          "name": "tour_dismissed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
