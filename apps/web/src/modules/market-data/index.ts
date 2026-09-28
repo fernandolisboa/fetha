@@ -29,7 +29,6 @@ export {
 } from "./repositories/candle-repository";
 export { CandleChart } from "./components/candle-chart";
 export { CandleFormToggle } from "./components/candle-form-toggle";
-export { InstrumentMarketBar } from "./components/instrument-market-bar";
 export { marketDataStrings, t } from "./strings";
 export {
   buildOperationMarketView,
