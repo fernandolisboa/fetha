@@ -61,3 +61,14 @@ against its inputs (CLAUDE.md, principle 4). The owner decided (2026-09-28): arc
   by the cap, so the cap stops doing the write-loop job ADR-0032 gave it. Accepted for now: every
   path is the caller's own session writing its own rows, and a per-user rate limit on strategy
   writes is the right bound for that loop, not a larger total ceiling (tracked as #217).
+
+## Addendum: strategy writes are rate-limited (2026-09-28, #217)
+
+The residual above is closed with an ADR-0018 account bucket, not a larger ceiling.
+`createStrategyAction`, `copySharedStrategyAction`, `archiveStrategyAction` and
+`unarchiveStrategyAction` share one per-user bucket, `strategies/write`, at 20 requests per 60 s;
+the 21st answers `rate_limited` and the UI asks the user to wait a minute. One shared bucket, not
+one per action, because the loop alternates actions: separate buckets would let each half of it
+through at full rate. `addStrategyVersionAction`, `setStrategyVisibilityAction` and
+`setStrategyActiveAction` stay unlimited: they add no strategy (versions have their own 100 cap)
+and move none across the 200 cap.
