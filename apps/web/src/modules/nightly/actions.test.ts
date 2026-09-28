@@ -35,6 +35,7 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
     });
   });
 
@@ -137,6 +138,7 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
     });
     isOwnerMock.mockResolvedValue(true);
     const { triggerNightlyJobAction } = await import("./actions");
@@ -177,6 +179,7 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
     });
     isOwnerMock.mockResolvedValue(true);
     const { triggerNightlyJobAction } = await import("./actions");
@@ -218,6 +221,7 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
     });
     isOwnerMock.mockResolvedValue(true);
     const { triggerNightlyJobAction } = await import("./actions");
@@ -245,6 +249,36 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: false },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
+  it("logs the full outcome server-side when the nightly_runs purge fails on an otherwise clean run", async () => {
+    runNightlyJobMock.mockResolvedValue({
+      ok: true,
+      session: "2026-09-08",
+      okSessions: ["2026-09-08"],
+      sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
+      evaluation: { signalsWritten: 3, errors: [] },
+      scoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        decisionsScored: 2,
+        decisionsSkipped: 0,
+        errors: [],
+      },
+      accessLogPurge: { ok: true, deleted: 0 },
+      unverifiedAccountPurge: { ok: true, deleted: 0 },
+      sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: false },
     });
     isOwnerMock.mockResolvedValue(true);
     const { triggerNightlyJobAction } = await import("./actions");
@@ -273,6 +307,7 @@ describe("triggerNightlyJobAction", () => {
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
     });
     isOwnerMock.mockResolvedValue(true);
     const { triggerNightlyJobAction } = await import("./actions");
@@ -306,6 +341,7 @@ describe("triggerNightlyJobAction", () => {
             accessLogPurge: { ok: true, deleted: 0 },
             unverifiedAccountPurge: { ok: true, deleted: 0 },
             sessionPurge: { ok: true, deleted: 0 },
+            nightlyRunPurge: { ok: true, deleted: 0 },
           });
         };
       }),

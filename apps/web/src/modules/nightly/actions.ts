@@ -42,7 +42,8 @@ function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRe
   if (
     !outcome.accessLogPurge.ok ||
     !outcome.unverifiedAccountPurge.ok ||
-    !outcome.sessionPurge.ok
+    !outcome.sessionPurge.ok ||
+    !outcome.nightlyRunPurge.ok
   ) {
     return true;
   }
