@@ -5,6 +5,11 @@ import { confirmEmailAndSetPassword, readLatestLink, signUp } from "./support";
 
 export const password = "correct-horse-battery-staple";
 
+// CI seeds this account into fetha-preview after every reset
+// (scripts/seed-e2e-owner.mjs, docs/adr/0042); the preview's OWNER_EMAILS
+// names it.
+export const ownerEmail = process.env.E2E_OWNER_EMAIL || "dono-e2e@example.com";
+
 export async function registerAndSignIn(
   page: Page,
   request: APIRequestContext,
@@ -108,11 +113,6 @@ export async function triggerIngestionAsOwner(
   e2eSecret: string,
   session: string,
 ): Promise<void> {
-  const ownerEmail = process.env.E2E_OWNER_EMAIL;
-  if (!ownerEmail) {
-    throw new Error("E2E_OWNER_EMAIL is not set");
-  }
-
   test.setTimeout(TEST_TIMEOUT_MS);
 
   // `browser.newContext()` does not inherit `use.extraHTTPHeaders` from
