@@ -336,14 +336,36 @@ async function runCalendarSources(
 // date can predate the marker it would have changed (an earlier fixed marker,
 // or a corrected file whose closures hash to the same day offset), and the
 // delete is a no-op once the year matches its source (docs/adr/0017).
+//
+// The delete runs inside `withSourceLock(db, "cotahist", ...)` (docs/adr/0017,
+// #189): that lock is taken by `runSource("cotahist", ...)` around every
+// cotahist write, not by `upsertDailyCandles`/`upsertOptionDailyPrices`
+// themselves, so any writer of `candles` or `option_daily_prices` must go
+// through that same lock for this to hold — an invariant, not a detail of
+// today's two call sites. `pg_advisory_xact_lock` blocks rather than failing
+// fast, so a concurrent cotahist run either fully commits its candles before
+// this delete's snapshot is taken or cannot start until this transaction
+// ends — never interleaved. A concurrent invocation whose cotahist step is
+// already running simply makes this call wait for it; that is slower, not
+// wrong.
 async function removeUnlistedSessions(
   db: Database,
   year: number,
   sessions: ReturnType<typeof tradingSessionsForYear>,
 ): Promise<SourceOutcome> {
   try {
-    const removed = await deleteUnlistedTradingSessions(db, year, sessions);
-    return { source: "calendar", skipped: removed === 0, rowCount: removed };
+    const result = await withSourceLock(db, "cotahist", (tx) =>
+      deleteUnlistedTradingSessions(tx, year, sessions),
+    );
+    if (result.kind === "blocked") {
+      return {
+        source: "calendar",
+        skipped: false,
+        rowCount: 0,
+        error: `market data exists on removed session(s), not deleted: ${result.dates.join(", ")}`,
+      };
+    }
+    return { source: "calendar", skipped: result.removed === 0, rowCount: result.removed };
   } catch (error) {
     return { source: "calendar", skipped: false, rowCount: 0, error: ingestionErrorMessage(error) };
   }

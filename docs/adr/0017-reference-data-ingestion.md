@@ -399,11 +399,59 @@ count is added to the calendar outcome's `rowCount`, and a removal makes the out
   view loaded between them sees a revised open/close next to a date about to be removed. A run that
   also completes within that chunk is not failed by the re-stamp. Accepted: both statements come
   from the same deploy-time source change, seconds apart.
-- **Not checked**: candles or option prices already ingested on a removed date stay where they
-  are, and the engine does not require a candle's date to be a calendar session, so an indicator
-  could count a bar the calendar no longer has. A holiday has no COTAHIST file, so this only
-  happens on a wrong correction; tracked as #189.
 - **Rejected: a tombstone column** (`removed_at`, or `is_session`) with a fresh `as_of`. Every
   calendar query (market view, freshness, decisions' horizon lookup, the option chain's expiry
   join) would have to filter it, and forgetting one filter reintroduces the exact bug; nothing
   needs the removed row itself once the date is no longer a session.
+
+## Addendum: fail loudly instead of removing a session with market data (2026-09-28, #189)
+
+The gap above: a wrong correction could remove a calendar date that already has rows in `candles`
+or `option_daily_prices`, leaving them in place while the session count no longer includes the
+date — an indicator or backtest would then count a bar the calendar no longer recognizes as a
+session, silently.
+
+`deleteUnlistedTradingSessions` now checks, in the same statement as the delete and the re-stamp,
+whether any candidate date (in `[year-01-01, year-12-31]`, not in the year's listed sessions) has
+rows in `candles` or `option_daily_prices`. A holiday has no COTAHIST file, so a candidate with
+market data means the correction is the thing that is wrong, not the market data:
+
+- **All-or-nothing per year**: if any candidate is blocked, none of that year's candidates are
+  deleted and none of `trading_sessions` is re-stamped — same guarantee the delete already gave a
+  clean year, just now including "clean" meaning "no candidate carries market data". A genuinely
+  delisted holiday of the same year is kept too when a sibling candidate is blocked: cotahist keeps
+  trying to ingest that still-listed date every night and keeps failing (there is no COTAHIST file
+  for it), which is the correct signal to read as collateral of the blocked year, not a new bug.
+  `run-nightly-job.ts`'s `cotahistSucceeded` gate means that same nightly cotahist failure also
+  skips `evaluateSignalsForSession` and starves `scoreDueDecisions` of `okSessions` for the whole
+  run, not only for the retained holiday's own session: signal evaluation and decision scoring stay
+  down every night until the blocked year is fixed, which the operator should expect and read the
+  same way.
+- **The candidate list, the block check, the delete and the re-stamp are one statement** (CTEs of
+  the same `WITH` query), which keeps those four steps consistent with each other against one MVCC
+  snapshot. That is not, by itself, a guarantee against a concurrent `upsertDailyCandles` or
+  `upsertOptionDailyPrices` write landing on a candidate date invisibly to `blocked` — a write in a
+  fully separate transaction can still commit after this statement's snapshot and before its
+  delete, and the removed session would then be undetectable. The actual guarantee against that
+  race is `ingest.ts`'s `removeUnlistedSessions` calling `deleteUnlistedTradingSessions` from
+  inside `withSourceLock(db, "cotahist", ...)`, the same advisory lock every cotahist write already
+  takes before touching `candles` or `option_daily_prices` (both tables are written from within
+  that one source's `run()` callback, so one lock covers both). `pg_advisory_xact_lock` blocks
+  rather than failing fast, so the delete and a concurrent cotahist write can never interleave:
+  whichever acquires the lock first runs to commit before the other is even allowed to start. A
+  caller that invokes `deleteUnlistedTradingSessions` outside that lock (as the two integration
+  test suites that exercise it directly do) gets no such guarantee and must arrange its own.
+- **The repository returns `{ kind: "removed"; removed: number } | { kind: "blocked"; dates:
+string[] }`** instead of a bare count: `dates` names every candidate date that has market data,
+  not merely one, so a caller can report every offending date at once. `ingest.ts`'s
+  `removeUnlistedSessions` turns a `blocked` result into a `SourceOutcome` error naming those
+  dates, which fails the calendar source and `ingest()`'s own `ok` for that run; nothing is
+  silently accepted.
+- **Dates without market data are still removed** when none of the year's candidates carries any:
+  unchanged from the original addendum.
+- **Not checked**: a removed date that is an `option_series.expiry` (or an operation's own expiry)
+  with no `option_daily_prices` row on that date is still deleted — expiry is a forward-looking
+  date on a row keyed by ISIN, not a session with its own market-data row, and checking it would
+  mean walking every series and operation for a match instead of a row lookup on the two tables the
+  cotahist write actually populates. Deliberately unguarded, same spirit as the rest of this
+  ticket's scope.

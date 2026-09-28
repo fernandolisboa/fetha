@@ -13,6 +13,7 @@ import {
 } from "./schema";
 
 import { calendarMarkerSession, ingest, runSource } from "./ingest";
+import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const TEST_SESSION = "2026-06-15";
 const STOCK_TICKER = "ZZT3";
@@ -215,6 +216,53 @@ describe("ingest", () => {
         .where(eq(tradingSessions.date, TEST_SESSION));
       expect(after?.asOf.getTime()).toBeGreaterThan(before?.asOf.getTime() ?? Infinity);
     } finally {
+      await db.delete(tradingSessions).where(eq(tradingSessions.date, unlisted));
+    }
+  });
+
+  it("blocks the delete and reports it on the calendar outcome when a candle exists on the removed date", async () => {
+    const db = getDb();
+    const options = {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetch(TEST_SESSION),
+    };
+    await ingest(db, options);
+    const unlisted = "2026-06-13";
+    await db.insert(tradingSessions).values({
+      date: unlisted,
+      open: new Date(`${unlisted}T13:00:00.000Z`),
+      close: new Date(`${unlisted}T20:00:00.000Z`),
+    });
+    await ensureMonthlyPartition(db, "candles", unlisted);
+    await db.insert(candles).values({
+      ticker: STOCK_TICKER,
+      timeframe: "1d",
+      session: unlisted,
+      asOf: new Date(`${unlisted}T22:00:00.000Z`),
+      open: "10",
+      high: "10",
+      low: "10",
+      close: "10",
+      tradedQuantity: 1,
+    });
+
+    try {
+      const result = await ingest(db, options);
+
+      const calendar = result.sources.find((s) => s.source === "calendar");
+      expect(calendar?.skipped).toBe(false);
+      expect(calendar?.error).toContain(unlisted);
+      expect(result.ok).toBe(false);
+      const [stillThere] = await db
+        .select()
+        .from(tradingSessions)
+        .where(eq(tradingSessions.date, unlisted));
+      expect(stillThere).toBeDefined();
+    } finally {
+      await db
+        .delete(candles)
+        .where(and(eq(candles.ticker, STOCK_TICKER), eq(candles.session, unlisted)));
       await db.delete(tradingSessions).where(eq(tradingSessions.date, unlisted));
     }
   });

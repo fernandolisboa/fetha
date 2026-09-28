@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, or } from "drizzle-orm";
 import type {
   Centavos,
   DecimalString,
@@ -574,8 +574,23 @@ describe("runBacktestChunk", () => {
         open: row.open.toISOString(),
         close: row.close.toISOString(),
       }));
+    // A real holiday correction only ever removes a date with no COTAHIST
+    // file, so no candle can exist on it (docs/adr/0017, #189); this scenario
+    // only tests the calendar-version invariant, so the fixture candles this
+    // suite seeds on every session are cleared here to match that.
+    await db
+      .delete(candles)
+      .where(
+        and(
+          eq(candles.session, removed),
+          or(eq(candles.ticker, TICKER), eq(candles.ticker, TICKER2)),
+        ),
+      );
     try {
-      expect(await deleteUnlistedTradingSessions(db, year, stillListed)).toBe(1);
+      expect(await deleteUnlistedTradingSessions(db, year, stillListed)).toEqual({
+        kind: "removed",
+        removed: 1,
+      });
 
       const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
       expect(secondChunk).toEqual({ status: "failed", error: "data_version_changed" });
