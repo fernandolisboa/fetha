@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runNightlyJobMock = vi.hoisted(() => vi.fn());
 const recordNightlyRunMock = vi.hoisted(() => vi.fn());
+const buildNightlyRunReportMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./run-nightly-job", () => ({ runNightlyJob: runNightlyJobMock }));
 vi.mock("./nightly-runs-repository", () => ({ recordNightlyRun: recordNightlyRunMock }));
+vi.mock("./report", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./report")>();
+  return { ...actual, buildNightlyRunReport: buildNightlyRunReportMock };
+});
 
 const fakeDb = {} as never;
 
@@ -31,6 +36,11 @@ function baseOutcome() {
 }
 
 describe("runNightlyJobRecorded", () => {
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof import("./report")>("./report");
+    buildNightlyRunReportMock.mockReset().mockImplementation(actual.buildNightlyRunReport);
+  });
+
   it("records one row for a completed run, with the given trigger and a redacted report", async () => {
     runNightlyJobMock.mockReset().mockResolvedValue(baseOutcome());
     recordNightlyRunMock.mockReset().mockResolvedValue(undefined);
@@ -77,5 +87,25 @@ describe("runNightlyJobRecorded", () => {
 
     const [, row] = recordNightlyRunMock.mock.calls[0] as [unknown, { report: { error: string } }];
     expect(row.report.error).toBe("23505");
+  });
+
+  it("still returns the outcome and never rethrows when the report builder itself throws", async () => {
+    runNightlyJobMock.mockReset().mockResolvedValue(baseOutcome());
+    recordNightlyRunMock.mockReset().mockResolvedValue(undefined);
+    buildNightlyRunReportMock.mockImplementation(() => {
+      throw new Error("boom");
+    });
+    const { runNightlyJobRecorded } = await import("./recorded-run");
+
+    const outcome = await runNightlyJobRecorded(fakeDb, "cron");
+
+    expect(outcome).toEqual(baseOutcome());
+    expect(recordNightlyRunMock).toHaveBeenCalledTimes(1);
+    const [, row] = recordNightlyRunMock.mock.calls[0] as [
+      unknown,
+      { ok: boolean; report: { error: string } },
+    ];
+    expect(row.ok).toBe(true);
+    expect(row.report).toEqual({ error: "report build failed" });
   });
 });
