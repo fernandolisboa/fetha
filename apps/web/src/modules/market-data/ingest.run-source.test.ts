@@ -21,7 +21,7 @@ vi.mock("./repositories/advisory-lock", () => ({
   withSourceLock,
 }));
 
-const { runSource, runSessionBoundSource } = await import("./ingest");
+const { SourceNotPublishedError, runSource, runSessionBoundSource } = await import("./ingest");
 
 const db = {} as never;
 
@@ -84,6 +84,18 @@ function lockWithFailingMarker(markerError: Error): void {
       callback({ transaction: () => Promise.reject(markerError) }),
   );
 }
+
+describe("runSource when the provider has not published the session yet", () => {
+  it("reports the source as pending, drops its run row and never marks it failed", async () => {
+    withSourceLock.mockRejectedValueOnce(new SourceNotPublishedError("cdi"));
+
+    const outcome = await runSource(db, "sgs", "2026-09-25", 300_000, () => Promise.resolve(0));
+
+    expect(outcome).toEqual({ source: "sgs", skipped: false, rowCount: 0, pending: true });
+    expect(deleteRun).toHaveBeenCalledWith(db, "run-1");
+    expect(finishRun).not.toHaveBeenCalled();
+  });
+});
 
 describe("runSource when another run already wrote the succeeded marker", () => {
   it("reports skipped and drops its own run row on a drizzle-wrapped unique violation", async () => {
@@ -155,5 +167,32 @@ describe("runSessionBoundSource", () => {
 
     expect(result.okSessions).toEqual(["2026-06-10", "2026-06-12"]);
     expect(result.outcome.error).toContain("bad session");
+  });
+
+  it("keeps a pending session out of okSessions and reports the merged source pending, not failed", async () => {
+    withSourceLock.mockImplementation(
+      async (_db: unknown, _source: unknown, callback: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          transaction: async (savepoint: (tx: unknown) => Promise<void>) => savepoint({}),
+        };
+        return callback(tx);
+      },
+    );
+    const run = vi.fn((session: string) =>
+      session === "2026-09-25"
+        ? Promise.reject(new SourceNotPublishedError("cdi"))
+        : Promise.resolve(1),
+    );
+
+    const result = await runSessionBoundSource(
+      db,
+      "sgs",
+      ["2026-09-24", "2026-09-25"],
+      300_000,
+      run,
+    );
+
+    expect(result.okSessions).toEqual(["2026-09-24"]);
+    expect(result.outcome).toEqual({ source: "sgs", skipped: false, rowCount: 1, pending: true });
   });
 });

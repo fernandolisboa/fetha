@@ -1,7 +1,7 @@
 import type { SessionOpen } from "./parser";
 import { parseSgsResponse, splitIntoTenYearWindows } from "./parser";
 import type { MacroPoint, MacroSeriesKind } from "./schema";
-import { sgsSeriesCodes } from "./schema";
+import { sgsNotFoundBodySchema, sgsSeriesCodes } from "./schema";
 
 export class SgsFetchError extends Error {
   constructor(
@@ -11,6 +11,24 @@ export class SgsFetchError extends Error {
     super(message);
     this.name = "SgsFetchError";
   }
+}
+
+// SGS answers a date range that holds no value yet with this 404 body
+// (reproduced 2026-09-28, #216), e.g. the CDI of a session Bacen has not
+// published by the time the nightly cron runs. Any other 404 stays an error.
+export class SgsNotPublishedError extends SgsFetchError {
+  constructor(series: MacroSeriesKind) {
+    super(`SGS has no value yet for series ${series} in the requested range`, 404);
+    this.name = "SgsNotPublishedError";
+  }
+}
+
+async function isNotPublishedResponse(response: Response): Promise<boolean> {
+  if (response.status !== 404) {
+    return false;
+  }
+  const body: unknown = await response.json().catch(() => undefined);
+  return sgsNotFoundBodySchema.safeParse(body).success;
 }
 
 function toBrDate(isoDate: string): string {
@@ -41,6 +59,9 @@ export async function fetchSgsSeries(
   const results: MacroPoint[] = [];
   for (const window of windows) {
     const response = await fetchImpl(sgsUrl(series, window.from, window.to));
+    if (await isNotPublishedResponse(response)) {
+      throw new SgsNotPublishedError(series);
+    }
     if (!response.ok) {
       throw new SgsFetchError(`SGS fetch failed for series ${series}`, response.status);
     }

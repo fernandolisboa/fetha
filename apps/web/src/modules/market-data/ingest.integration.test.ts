@@ -310,6 +310,57 @@ describe("ingest", () => {
     expect(seriesRow?.ticker).toBe(OPTION_TICKER);
   });
 
+  it("reports sgs pending, not failed, when Bacen has not published the session's CDI yet, and fills it on a later run", async () => {
+    const db = getDb();
+    const published = fakeFetch(TEST_SESSION);
+    const cdiNotPublished = ((input: string) =>
+      input.includes("bcdata.sgs.12/")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                erro: {
+                  statusCode: 404,
+                  detail:
+                    "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found",
+                },
+              }),
+              { status: 404 },
+            ),
+          )
+        : published(input)) as unknown as typeof fetch;
+    const sgsRuns = () =>
+      db
+        .select()
+        .from(ingestionRuns)
+        .where(and(eq(ingestionRuns.source, "sgs"), eq(ingestionRuns.session, TEST_SESSION)));
+
+    const first = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: cdiNotPublished,
+    });
+
+    expect(first.ok).toBe(true);
+    const sgs = first.sources.find((source) => source.source === "sgs");
+    expect(sgs).toMatchObject({ pending: true, skipped: false });
+    expect(sgs?.error).toBeUndefined();
+    expect(await sgsRuns()).toEqual([]);
+
+    const second = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T23:00:00.000Z`),
+      fetchImpl: published,
+    });
+
+    expect(second.sources.find((source) => source.source === "sgs")?.pending).toBeUndefined();
+    expect((await sgsRuns()).map((run) => run.status)).toEqual(["succeeded"]);
+    const [cdi] = await db
+      .select()
+      .from(macroPoints)
+      .where(and(eq(macroPoints.series, "cdi"), eq(macroPoints.date, TEST_SESSION)));
+    expect(cdi).toBeDefined();
+  });
+
   it("is idempotent: re-running the same session changes nothing and skips already-succeeded sources", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);

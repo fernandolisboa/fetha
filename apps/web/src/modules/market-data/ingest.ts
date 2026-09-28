@@ -4,7 +4,7 @@ import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
-import { fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
+import { SgsNotPublishedError, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
 import { gaps, latestSession } from "./freshness";
@@ -51,6 +51,17 @@ export interface SourceOutcome {
   // instruments registry's out-of-scope commodity/FX option rows) rather
   // than a write failure; only sources that can partially skip rows set it.
   skippedRows?: number;
+  // The provider has not published this session's data yet (#216): not an
+  // error, and not succeeded either, so the session stays a gap the next
+  // run retries (docs/adr/0017).
+  pending?: true;
+}
+
+export class SourceNotPublishedError extends Error {
+  constructor(what: string) {
+    super(`not published yet: ${what}`);
+    this.name = "SourceNotPublishedError";
+  }
 }
 
 // A run callback normally just reports how many rows it wrote; one that also
@@ -123,6 +134,7 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
     rowCount: outcomes.reduce((total, outcome) => total + outcome.rowCount, 0),
     ...(errors.length > 0 ? { error: errors.join("; ") } : {}),
     ...(skippedRows > 0 ? { skippedRows } : {}),
+    ...(outcomes.some((outcome) => outcome.pending) ? { pending: true as const } : {}),
   };
 }
 
@@ -209,6 +221,12 @@ export async function runSource(
         : {}),
     };
   } catch (error) {
+    if (error instanceof SourceNotPublishedError) {
+      if (runId) {
+        await deleteRun(db, runId);
+      }
+      return { source, skipped: false, rowCount: 0, pending: true };
+    }
     const message = safeDbErrorMessage(error);
     if (runId) {
       await finishRun(db, runId, { status: "failed", error: message });
@@ -245,7 +263,7 @@ export async function runSessionBoundSource(
   for (const session of sessions) {
     const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
     outcomes.push(outcome);
-    if (outcome.error === undefined) {
+    if (outcome.error === undefined && !outcome.pending) {
       okSessions.push(session);
     }
   }
@@ -381,6 +399,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     maxDurationMs,
     async (session) => {
       let total = 0;
+      const notPublished: string[] = [];
       for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
         const latest = await latestMacroPointDate(db, series);
         const from = resolveSgsFromDate(latest);
@@ -388,8 +407,18 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
           continue;
         }
         const sessions = await sessionsFrom(db, from);
-        const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
-        total += await upsertMacroPoints(db, points);
+        try {
+          const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
+          total += await upsertMacroPoints(db, points);
+        } catch (error) {
+          if (!(error instanceof SgsNotPublishedError)) {
+            throw error;
+          }
+          notPublished.push(series);
+        }
+      }
+      if (notPublished.length > 0) {
+        throw new SourceNotPublishedError(notPublished.join(", "));
       }
       return total;
     },

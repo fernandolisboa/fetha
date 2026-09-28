@@ -12,6 +12,10 @@ export type SgsRawPoint = z.infer<typeof sgsRawPointSchema>;
 
 export const sgsResponseSchema = z.array(sgsRawPointSchema);
 
+export const sgsNotFoundBodySchema = z.object({
+  erro: z.object({ statusCode: z.literal(404), detail: z.string().includes("Value(s) not found") }),
+});
+
 export const macroSeriesKindSchema = z.enum(["cdi", "selic", "ipca"]);
 export type MacroSeriesKind = z.infer<typeof macroSeriesKindSchema>;
 

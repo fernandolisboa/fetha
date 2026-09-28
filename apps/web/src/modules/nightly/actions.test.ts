@@ -115,7 +115,7 @@ describe("triggerNightlyJobAction", () => {
     expect(JSON.stringify(result)).not.toContain("engine_error:boom");
   });
 
-  it("reports a skipped or failed source in the summary", async () => {
+  it("reports a skipped, failed or pending source in the summary", async () => {
     runNightlyJobMock.mockResolvedValue({
       ok: false,
       session: "2026-09-08",
@@ -123,6 +123,7 @@ describe("triggerNightlyJobAction", () => {
       sources: [
         { source: "cotahist", skipped: false, rowCount: 0, error: "boom" },
         { source: "sgs", skipped: true, rowCount: 0 },
+        { source: "instruments", skipped: false, rowCount: 0, pending: true },
       ],
       evaluation: null,
       scoring: {
@@ -149,6 +150,7 @@ describe("triggerNightlyJobAction", () => {
         sources: [
           { source: "cotahist", status: "failed" },
           { source: "sgs", status: "skipped" },
+          { source: "instruments", status: "pending" },
         ],
         signalsWritten: null,
         evaluationErrorCount: 0,

@@ -8,17 +8,23 @@ import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data/client";
 
-import { triggerNightlyJobAction, type TriggerNightlyJobResult } from "../actions";
+import {
+  triggerNightlyJobAction,
+  type SourceStatusSummary,
+  type TriggerNightlyJobResult,
+} from "../actions";
 import { t } from "../strings";
 
 type PanelResult = TriggerNightlyJobResult | { status: "client_error" };
 
-function sourceStatusLabel(status: "ok" | "skipped" | "failed"): string {
+function sourceStatusLabel(status: SourceStatusSummary["status"]): string {
   switch (status) {
     case "ok":
       return t.panel.sourceOk;
     case "skipped":
       return t.panel.sourceSkipped;
+    case "pending":
+      return t.panel.sourcePending;
     case "failed":
       return t.panel.sourceFailed;
   }
