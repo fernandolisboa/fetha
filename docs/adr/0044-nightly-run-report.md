@@ -28,10 +28,12 @@ trigger, options)` (`modules/nightly/recorded-run.ts`) wraps `runNightlyJob`: bo
   code: `recordNightlyRun` (`nightly-runs-repository.ts`) catches its own insert failure, logs it
   with `console.error` (no row data beyond the error's name), and returns — the caller always gets
   the same `NightlyJobOutcome` it would have without this ticket.
-- **The report is redacted before it is ever written**, validated by a Zod schema
-  (`nightlyRunReportSchema`, `modules/nightly/report.ts`) built from the real outcome types
-  (`SourceOutcome`, `EvaluateSignalsOutcome`, `ScoreDecisionsOutcome`, the three existing purge
-  outcomes and the new one below) rather than storing any of them whole:
+- **The report is redacted before it is ever written**, validated by a hand-declared Zod schema
+  (`nightlyRunReportSchema`, `modules/nightly/report.ts`) — it does not derive from the outcome
+  types; `buildNightlyRunReport` maps `NightlyJobOutcome` (`SourceOutcome`,
+  `EvaluateSignalsOutcome`, `ScoreDecisionsOutcome`, the four purge outcomes) onto that schema's
+  own, narrower shape, so a field the outcome types add later stays out of storage until this
+  mapping is deliberately extended:
   - per source: `source`, a closed `status` (`ok` | `skipped` | `pending` | `failed`, the same
     derivation `triggerNightlyJobAction`'s own summary already used, now shared as
     `sourceRunStatus`, extended for `SourceOutcome.pending` — a provider that has not published a
@@ -56,10 +58,37 @@ trigger, options)` (`modules/nightly/recorded-run.ts`) wraps `runNightlyJob`: bo
 - **A read-only role, no login of its own.** The same migration that creates the table creates
   `nightly_report_reader` (`NOLOGIN`, idempotent through a `DO` block checking `pg_roles` — Postgres
   has no `CREATE ROLE IF NOT EXISTS`) and grants it `USAGE` on `public` and `SELECT` on
-  `nightly_runs` only. It can read nothing else in either database. A login role granted this one —
-  its own password, its own connection string — is created by the owner later, outside this ticket,
-  and its URL goes into the agents' environment as `FETHA_REPORT_DB_URL`, letting an agent read last
-  night's run without touching the write path or any other table.
+  `nightly_runs` only. It can read nothing else in either database. This is a Postgres-level role
+  for read-only tooling, not an application or tenancy role: no session, request or Server Action in
+  this codebase ever authenticates as it, it grants no capability inside the app itself, and
+  ADR-0016's "no roles" (the app has none, `UBIQUITOUS_LANGUAGE.md`'s "Owner" entry) stands
+  unchanged — that statement is about the product's own authorization model, not about what exists
+  at the database level for operational tooling.
+- **The login role, when the owner creates it, must be created with plain SQL, never Neon's
+  Console/CLI/API.** Neon's own role-management surfaces (the dashboard's "Create role", `neonctl
+roles create`, the API) always create a role as a member of `neon_superuser`, which carries
+  `pg_read_all_data` — every table in every schema, `nightly_runs`'s narrow grant notwithstanding.
+  The only way to create a role that is _not_ a `neon_superuser` member is a raw `CREATE ROLE`
+  statement run from something already connected to the database (Neon's own SQL Editor, or `psql`),
+  never Neon's role-management tooling:
+  ```sql
+  CREATE ROLE nightly_report_login WITH LOGIN PASSWORD '<random>';
+  GRANT nightly_report_reader TO nightly_report_login;
+  ```
+  Verified after creation, from the same SQL Editor, with a query that must return `false, false`:
+  ```sql
+  SELECT pg_has_role('nightly_report_login', 'neon_superuser', 'member'),
+         has_table_privilege('nightly_report_login', '"user"', 'SELECT');
+  ```
+  A `true` on either column means the role can read every table in the database, not just
+  `nightly_runs`, and the role must be dropped and recreated through SQL instead.
+- **A killed run leaves no row, indistinguishable from one that never started.** `maxDuration` is
+  enforced by the platform, not by this codebase: a run the platform kills mid-flight never reaches
+  `runNightlyJobRecorded`'s own `try`/`catch` (its process is gone, not merely throwing), so no row
+  is written for it, the same as a cron trigger that never fired at all or a run whose own
+  `recordNightlyRun` insert failed and was logged, not stored. "No row for last night" is therefore
+  not proof the job never ran; Vercel's own cron/function logs are still the only way to tell those
+  three apart.
 
 ## Considered options
 
@@ -85,6 +114,10 @@ trigger, options)` (`modules/nightly/recorded-run.ts`) wraps `runNightlyJob`: bo
 - `NightlyJobOutcome` grows a fourth purge field, `nightlyRunPurge`; every test that constructs one
   by hand (both `run-nightly-job.test.ts` and the cron route's/action's own test doubles) needed it
   added alongside the other three.
-- The owner must create the login role and set `FETHA_REPORT_DB_URL` before any agent can read this
-  table directly; until then, the row exists but is reachable only through the app's own
-  `DATABASE_URL` (e.g. a one-off query), the same as any other table.
+- The owner must create the login role with SQL (never Neon's Console/CLI/API) and set
+  `FETHA_REPORT_DB_URL` before any agent can read this table directly; until then, the row exists
+  but is reachable only through the app's own `DATABASE_URL` (e.g. a one-off query), the same as any
+  other table.
+- A missing row for a given night does not by itself mean the job never ran: it can also mean the
+  platform killed it past `maxDuration`, or (logged, not stored) `recordNightlyRun`'s own insert
+  failed.
