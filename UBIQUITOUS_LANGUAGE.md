@@ -161,15 +161,16 @@ unsizeable; with a reason, a stable code identifying why (ADR-0013's #80 addendu
 engine never got to evaluate at all (its structure was deleted from the catalog, an engine error,
 a clamped catch-up, an unfillable market-data collection, or a market view `apps/web` itself
 could not load — too many option series to load in one call, or no market data at all for the
-window) carries one of `apps/web`'s own web-authored reason codes instead (ADR-0039), as does an
-entry kept out of the inbox by the inbox horizon (ADR-0044). Visible in the evaluation log, never
-in the inbox.
+window) carries one of `apps/web`'s own web-authored reason codes instead (ADR-0039). An entry the
+engine did evaluate as a signal, but whose session is past the inbox horizon, keeps its `signal`
+outcome and has its reason replaced by the web-authored `entry_past_inbox_horizon` (ADR-0044).
+Visible in the evaluation log, never in the inbox.
 _Avoid_: signal (reserved for the actionable outcomes), evaluation log entry, detail (removed from
 the engine's own `EvaluationRecord`, ADR-0039; `detail` survives only as a plain log column)
 
 **Inbox horizon**:
-How many of the newest trading sessions a nightly catch-up may send entry signals from: five
-(ADR-0044). Separate from the catch-up limit (21 sessions), which bounds how far back evaluation
+How many of the newest trading sessions, counted back from the wall clock, a nightly catch-up may
+send entry signals from: five (ADR-0044). Separate from the catch-up limit (21 sessions), which bounds how far back evaluation
 and the log reach.
 _Avoid_: signal expiry, freshness window
 

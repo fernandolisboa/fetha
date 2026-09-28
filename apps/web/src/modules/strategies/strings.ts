@@ -38,7 +38,7 @@ const webReasonTextPtBR: Record<WebEvaluationReason, WebReasonFormatter> = {
   market_view_too_large: () => "Watchlist grande demais para avaliar de uma vez",
   no_market_data: () => "Sem dados de mercado para a sessão",
   entry_past_inbox_horizon: (detail) =>
-    `Fora da caixa de sinais: anterior às últimas ${detail ?? ""} sessões`,
+    `Fora da caixa de entrada: anterior às últimas ${detail ?? ""} sessões`,
 };
 
 // The engine's stable `EvaluationReason` code (#80), translated exhaustively:

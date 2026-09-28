@@ -137,6 +137,13 @@ async function insertSession(session: string): Promise<void> {
     .onConflictDoNothing();
 }
 
+// The wall clock of the nightly run after `session`: the inbox horizon counts
+// sessions back from it (docs/adr/0044), and these fixtures live in the
+// 2040s.
+function nightAfter(session: string): () => number {
+  return () => Date.parse(`${session}T23:30:00.000Z`);
+}
+
 // `high`/`low`/`open`/`average` all derived from `close`:
 // hardcoded values produced impossible bars once a test started passing a
 // `close` outside their fixed 9-11 band (e.g. 22.50), harmless while only
@@ -878,14 +885,14 @@ describe("evaluateSignalsForSession", () => {
     );
     await new StrategiesRepository(db, owner).setActive(strategyB.id, true);
 
-    // `now()` clears the deadline for the outer per-user check and the
-    // first strategy, then trips it from the second strategy onward: a
-    // deadline hit strictly inside the per-strategy loop, never only
-    // between users.
+    // `now()` is read once at setup for the inbox horizon, then clears the
+    // deadline for the outer per-user check and the first strategy, then
+    // trips it from the second strategy onward: a deadline hit strictly
+    // inside the per-strategy loop, never only between users.
     let calls = 0;
     const now = (): number => {
       calls += 1;
-      return calls <= 2 ? 0 : 1_000;
+      return calls <= 3 ? 0 : 1_000;
     };
 
     const first = await evaluateSignalsForSession(db, [s1, s2, s3], { deadlineAt: 1_000, now });
@@ -948,7 +955,7 @@ describe("evaluateSignalsForSession", () => {
     // Only the newest session is drained tonight, but the calendar still
     // carries every session registered since the watermark, implying a
     // catch-up of `sessionCount - 1` sessions — past the ceiling.
-    const night2 = await evaluateSignalsForSession(db, [newest]);
+    const night2 = await evaluateSignalsForSession(db, [newest], { now: nightAfter(newest) });
     expect(night2.errors).toEqual([]);
     expect(night2.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
     expect(night2.evaluationsWritten).toBe(CATCH_UP_SESSION_LIMIT + 1);
@@ -1003,8 +1010,8 @@ describe("evaluateSignalsForSession", () => {
 
     // The first night sets the watermark; the second catches up on every
     // session since, the way a week away from the app does.
-    await evaluateSignalsForSession(db, [first]);
-    const outcome = await evaluateSignalsForSession(db, [newest]);
+    await evaluateSignalsForSession(db, [first], { now: nightAfter(first) });
+    const outcome = await evaluateSignalsForSession(db, [newest], { now: nightAfter(newest) });
     expect(outcome.errors).toEqual([]);
     expect(outcome.evaluationsWritten).toBe(caughtUp.length);
     expect(outcome.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
@@ -1029,6 +1036,49 @@ describe("evaluateSignalsForSession", () => {
         expect(row.detail).toBeNull();
       }
     }
+  }, 60_000);
+
+  it("counts the inbox horizon back from the wall clock, so sessions drained late still age out (#83)", async () => {
+    const db = getDb();
+    const sessions = randomSessionSequence(INBOX_ENTRY_SESSION_HORIZON + 4);
+    createdSessions.push(...sessions);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("inbox-horizon-lag");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of sessions) {
+      await insertSession(session);
+    }
+    // Candles only up to the fourth session: the provider is late, so the
+    // run drains sessions that closed days before tonight.
+    const drained = sessions.slice(0, 4);
+    for (const session of drained) {
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const [first, ...rest] = drained;
+    const lastDrained = drained[drained.length - 1];
+    const tonight = sessions[sessions.length - 1];
+    if (!first || !lastDrained || !tonight) throw new Error("fixture setup failed");
+    await evaluateSignalsForSession(db, [first], { now: nightAfter(tonight) });
+    const outcome = await evaluateSignalsForSession(db, [lastDrained], {
+      now: nightAfter(tonight),
+    });
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.evaluationsWritten).toBe(rest.length);
+    expect(outcome.signalsWritten).toBe(0);
+    expect(await new SignalsRepository(db, owner).listInbox()).toEqual([]);
   }, 60_000);
 
   it("counts a user whose active strategies are already caught up separately from one actually evaluated", async () => {

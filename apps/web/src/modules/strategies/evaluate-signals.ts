@@ -219,12 +219,12 @@ function clampEvaluations(
 }
 
 // The oldest session whose entry proposals may still reach the inbox: the
-// `INBOX_ENTRY_SESSION_HORIZON`-th newest calendar session up to `at`.
-// Undefined when the calendar is shorter than the horizon, so nothing is
-// past it.
-function inboxHorizonFloor(calendar: readonly TradingSession[], at: Instant): string | undefined {
-  const upToAt = calendar.filter((session) => session.close <= at);
-  return upToAt.at(-INBOX_ENTRY_SESSION_HORIZON)?.date;
+// `INBOX_ENTRY_SESSION_HORIZON`-th newest session closed by the wall clock,
+// not by `at`, so a provider publishing a week late cannot push a week of
+// stale proposals past the horizon. Undefined when the calendar is shorter
+// than the horizon, so nothing is past it.
+function inboxHorizonFloor(closedSessions: readonly TradingSession[]): string | undefined {
+  return closedSessions.at(-INBOX_ENTRY_SESSION_HORIZON)?.date;
 }
 
 function isEntryPastInboxHorizon(signal: Signal, floor: string | undefined): boolean {
@@ -258,6 +258,7 @@ export async function evaluateSignalsForSession(
   let structures: Structure[];
   let userIds: string[];
   let calendar: TradingSession[];
+  let horizonFloor: string | undefined;
   try {
     const newestTrading = await tradingSessionForDate(db, newest);
     if (!newestTrading) {
@@ -274,12 +275,12 @@ export async function evaluateSignalsForSession(
     // not turn an ingestion that already succeeded into a 500 the cron
     // retries for no reason.
     calendar = await calendarUpTo(db, new Date(at));
+    horizonFloor = inboxHorizonFloor(await calendarUpTo(db, new Date(now())));
   } catch (error) {
     console.error("evaluateSignalsForSession setup failed", safeDbErrorMessage(error));
     return emptyOutcome(sorted, [SETUP_FAILED]);
   }
   const structureById = new Map(structures.map((structure) => [structure.id, structure]));
-  const horizonFloor = inboxHorizonFloor(calendar, at);
 
   let usersEvaluated = 0;
   let usersSkipped = 0;
@@ -549,7 +550,8 @@ export async function evaluateSignalsForSession(
         // the log's own detail column is used only by the web-authored
         // failures above, which carry their own parameter there.
         const newEvaluations: NewEvaluation[] = result.value.evaluations.map((record) => {
-          const keptOutOfInbox = pastHorizon.has(`${record.ticker}|${record.session}`);
+          const keptOutOfInbox =
+            record.reason === "signal" && pastHorizon.has(`${record.ticker}|${record.session}`);
           return {
             strategyId,
             strategyVersionId: version.id,
