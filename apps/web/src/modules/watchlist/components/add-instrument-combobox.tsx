@@ -143,11 +143,12 @@ export function AddInstrumentCombobox() {
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
             <CommandStatus>{statusText}</CommandStatus>
             <CommandList>
-              {pending ? (
-                <CommandLoading label={message}>{message}</CommandLoading>
-              ) : (
-                <CommandEmpty>{message}</CommandEmpty>
-              )}
+              {trimmedQuery.length > 0 &&
+                (pending ? (
+                  <CommandLoading label={message}>{message}</CommandLoading>
+                ) : (
+                  <CommandEmpty>{message}</CommandEmpty>
+                ))}
               {!pending &&
                 !searchFailed &&
                 !rateLimited &&

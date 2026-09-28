@@ -92,7 +92,8 @@ whatever the layout injects without importing `watchlist` or `strategies` itself
 - `src/lib/`: formatters (`format/brl`, `format/parse-money`, `decimal`, `percent`, `date-time`),
   `theme/contrast`, `runtime-settings`, `instant`, `today-sao-paulo`, `utils`,
   `user-scoped-repository`, `security-headers` (static headers from `next.config.ts`), `document-policy`
-  (the per-request document policy). No business rules, no module imports.
+  (the per-request document policy), `search-status` (the search message/live-region derivation
+  shared by the watchlist combobox and the command palette). No business rules, no module imports.
 - `src/components/ui/`: shadcn/ui primitives restyled through `DESIGN.md` tokens.
 - `src/components/`: app-owned shared components built on those primitives (`error-notice`).
   No module imports.

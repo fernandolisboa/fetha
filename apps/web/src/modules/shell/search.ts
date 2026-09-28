@@ -17,17 +17,27 @@ export type InstrumentSearchFn = (input: { query: string }) => Promise<Instrumen
 export type StrategySearchFn = (input: { query: string }) => Promise<StrategySearchOutcome>;
 
 export type MergedSearchOutcome =
-  | { kind: "ok"; instruments: InstrumentSearchHit[]; strategies: StrategySearchHit[] }
+  | {
+      kind: "ok";
+      instruments: InstrumentSearchHit[];
+      strategies: StrategySearchHit[];
+      throttled: boolean;
+    }
   | { kind: "rate_limited" };
 
 export function mergeSearchOutcomes(
   instruments: InstrumentSearchOutcome,
   strategies: StrategySearchOutcome,
 ): MergedSearchOutcome {
-  if (instruments.status === "error" || strategies.status === "error") {
+  if (instruments.status === "error" && strategies.status === "error") {
     return { kind: "rate_limited" };
   }
-  return { kind: "ok", instruments: instruments.results, strategies: strategies.results };
+  return {
+    kind: "ok",
+    instruments: instruments.status === "ok" ? instruments.results : [],
+    strategies: strategies.status === "ok" ? strategies.results : [],
+    throttled: instruments.status === "error" || strategies.status === "error",
+  };
 }
 
 export function instrumentHref(ticker: string): string {

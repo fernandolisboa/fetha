@@ -37,6 +37,7 @@ test("Ctrl K palette opens and announces its empty state once typing starts", as
 
   const status = dialog.getByRole("status");
   await expect(status).toHaveText("");
+  await expect(dialog.getByText("Nenhum ativo ou estratégia encontrado.")).not.toBeVisible();
 
   await page.getByPlaceholder("Buscar ativo ou estratégia").fill("zzzzzzzzzz");
   await expect(status).toHaveText("Nenhum ativo ou estratégia encontrado.");

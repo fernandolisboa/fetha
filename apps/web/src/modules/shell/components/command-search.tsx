@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
@@ -35,6 +35,7 @@ type SearchOutcome =
       kind: "ok";
       instruments: InstrumentSearchHit[];
       strategies: StrategySearchHit[];
+      throttled: boolean;
     }
   | { query: string; kind: "rate_limited" }
   | { query: string; kind: "failed" };
@@ -76,6 +77,7 @@ export function CommandSearch({
                   kind: "ok",
                   instruments: merged.instruments,
                   strategies: merged.strategies,
+                  throttled: merged.throttled,
                 },
           );
         })
@@ -91,18 +93,28 @@ export function CommandSearch({
     };
   }, [open, trimmedQuery, searchInstruments, searchStrategies]);
 
+  const closeAndReset = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setOutcome(null);
+  }, []);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
-        setOpen((value) => !value);
+        if (open) {
+          closeAndReset();
+        } else {
+          setOpen(true);
+        }
       }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [open, closeAndReset]);
 
   // Scoped to the query it answers, the same guard the watchlist combobox
   // uses (#74): a query that changed or was cleared while a search was in
@@ -115,8 +127,11 @@ export function CommandSearch({
   const strategyResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.strategies : [];
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
-  const rateLimited = trimmedQuery.length > 0 && currentOutcome?.kind === "rate_limited";
   const hasResults = instrumentResults.length > 0 || strategyResults.length > 0;
+  const rateLimited =
+    trimmedQuery.length > 0 &&
+    (currentOutcome?.kind === "rate_limited" ||
+      (currentOutcome?.kind === "ok" && currentOutcome.throttled && !hasResults));
 
   const message = deriveSearchMessage(
     { pending, rateLimited, searchFailed },
@@ -131,12 +146,6 @@ export function CommandSearch({
     trimmedQueryLength: trimmedQuery.length,
     hasResults,
   });
-
-  function closeAndReset() {
-    setOpen(false);
-    setQuery("");
-    setOutcome(null);
-  }
 
   function selectInstrument(ticker: string) {
     router.push(instrumentHref(ticker));
@@ -165,10 +174,10 @@ export function CommandSearch({
       <CommandDialog
         open={open}
         onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (!nextOpen) {
-            setQuery("");
-            setOutcome(null);
+          if (nextOpen) {
+            setOpen(true);
+          } else {
+            closeAndReset();
           }
         }}
         title={t.search.placeholder}
@@ -177,17 +186,18 @@ export function CommandSearch({
         <CommandInput placeholder={t.search.placeholder} value={query} onValueChange={setQuery} />
         <CommandStatus>{statusText}</CommandStatus>
         <CommandList>
-          {pending ? (
-            <CommandLoading label={message}>{message}</CommandLoading>
-          ) : (
-            <CommandEmpty>{message}</CommandEmpty>
-          )}
+          {trimmedQuery.length > 0 &&
+            (pending ? (
+              <CommandLoading label={message}>{message}</CommandLoading>
+            ) : (
+              <CommandEmpty>{message}</CommandEmpty>
+            ))}
           {!pending && !searchFailed && !rateLimited && instrumentResults.length > 0 && (
             <CommandGroup heading={t.search.groups.instruments}>
               {instrumentResults.map((result) => (
                 <CommandItem
                   key={result.ticker}
-                  value={`ativo:${result.ticker}`}
+                  value={`instrument:${result.ticker}`}
                   onSelect={() => {
                     selectInstrument(result.ticker);
                   }}
@@ -202,7 +212,7 @@ export function CommandSearch({
               {strategyResults.map((result) => (
                 <CommandItem
                   key={result.id}
-                  value={`estrategia:${result.id}`}
+                  value={`strategy:${result.id}`}
                   onSelect={() => {
                     selectStrategy(result.id);
                   }}

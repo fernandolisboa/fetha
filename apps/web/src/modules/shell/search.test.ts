@@ -12,23 +12,42 @@ describe("mergeSearchOutcomes", () => {
       kind: "ok",
       instruments: [{ ticker: "PETR4" }],
       strategies: [{ id: "s1", name: "Estratégia" }],
+      throttled: false,
     });
   });
 
-  it("is rate_limited when the instrument search alone was throttled", () => {
+  it("keeps the strategy results and reports throttled when only the instrument search was throttled", () => {
     const merged = mergeSearchOutcomes(
       { status: "error", error: "rate_limited" },
-      { status: "ok", results: [] },
+      { status: "ok", results: [{ id: "s1", name: "Estratégia" }] },
     );
-    expect(merged).toEqual({ kind: "rate_limited" });
+    expect(merged).toEqual({
+      kind: "ok",
+      instruments: [],
+      strategies: [{ id: "s1", name: "Estratégia" }],
+      throttled: true,
+    });
   });
 
-  it("is rate_limited when the strategy search alone was throttled", () => {
+  it("keeps the instrument results and reports throttled when only the strategy search was throttled", () => {
     const merged = mergeSearchOutcomes(
-      { status: "ok", results: [] },
+      { status: "ok", results: [{ ticker: "PETR4" }] },
       { status: "error", error: "rate_limited" },
     );
-    expect(merged).toEqual({ kind: "rate_limited" });
+    expect(merged).toEqual({
+      kind: "ok",
+      instruments: [{ ticker: "PETR4" }],
+      strategies: [],
+      throttled: true,
+    });
+  });
+
+  it("reports throttled with no results when the untouched side was empty", () => {
+    const merged = mergeSearchOutcomes(
+      { status: "error", error: "rate_limited" },
+      { status: "ok", results: [] },
+    );
+    expect(merged).toEqual({ kind: "ok", instruments: [], strategies: [], throttled: true });
   });
 
   it("is rate_limited when both searches were throttled", () => {
