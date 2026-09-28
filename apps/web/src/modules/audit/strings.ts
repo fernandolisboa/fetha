@@ -9,6 +9,7 @@ const en = {
     event: "Access",
     origin: "Origin",
     unknown: "Unknown",
+    showMore: "Show more",
     events: {
       portfolio_read: "Portfolio read",
       decisions_read: "Decisions read",
@@ -27,6 +28,7 @@ const ptBR = {
     event: "Acesso",
     origin: "Origem",
     unknown: "Desconhecido",
+    showMore: "Ver mais",
     events: {
       portfolio_read: "Leitura da carteira",
       decisions_read: "Leitura das decisões",

@@ -1,6 +1,7 @@
 export { AccessLogRepository, type AccessLogEntry } from "./access-log-repository";
 export { AccessLogPanel } from "./components/access-log-panel";
 export type { AccessEvent } from "./events";
+export { groupAccessLog, type AccessLogGroup } from "./group-access-log";
 export { getMyAccessLog } from "./queries";
 export { recordAccess } from "./record-access";
 export {
