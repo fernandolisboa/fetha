@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   classifyStatuses,
+  findVercelCommitStatus,
   orderedFallbackShas,
   resolvePreviewOnce,
   selectPreviewDeployment,
@@ -132,6 +133,22 @@ describe("wasBuildIgnored", () => {
   });
 });
 
+describe("findVercelCommitStatus", () => {
+  it("returns the newest entry with context Vercel", () => {
+    const statuses = [
+      { context: "Vercel", state: "success", description: "Deployment ready" },
+      { context: "other", state: "success" },
+    ];
+    assert.deepEqual(findVercelCommitStatus(statuses), statuses[0]);
+  });
+
+  it("returns null when there is no Vercel commit status", () => {
+    assert.equal(findVercelCommitStatus([{ context: "other", state: "success" }]), null);
+    assert.equal(findVercelCommitStatus([]), null);
+    assert.equal(findVercelCommitStatus(undefined), null);
+  });
+});
+
 describe("orderedFallbackShas", () => {
   it("excludes the head sha and reverses oldest-to-newest into newest-to-oldest", () => {
     const commits = [{ sha: "a" }, { sha: "b" }, { sha: "c" }];
@@ -160,17 +177,17 @@ describe("resolvePreviewOnce", () => {
   });
 
   it("reports pending when head has no deployment and was not ignored", () => {
+    const vercelStatus = {
+      context: "Vercel",
+      state: "pending",
+      description: "Vercel is deploying your app",
+    };
     const io = {
       getDeploymentStatus: async () => ({ ok: true, found: false }),
-      getCommitStatuses: async () => ({
-        ok: true,
-        data: [
-          { context: "Vercel", state: "pending", description: "Vercel is deploying your app" },
-        ],
-      }),
+      getCommitStatuses: async () => ({ ok: true, data: [vercelStatus] }),
     };
     return resolvePreviewOnce({ ...base, io }).then((result) => {
-      assert.deepEqual(result, { status: "pending" });
+      assert.deepEqual(result, { status: "pending", vercelStatus });
     });
   });
 
@@ -205,18 +222,46 @@ describe("resolvePreviewOnce", () => {
   });
 
   it("reports skip when the whole PR is docs-only (no earlier commit ever built)", () => {
+    const vercelStatus = {
+      context: "Vercel",
+      state: "success",
+      description: "Canceled by Ignored Build Step",
+    };
     const io = {
       getDeploymentStatus: async () => ({ ok: true, found: false }),
-      getCommitStatuses: async () => ({
-        ok: true,
-        data: [
-          { context: "Vercel", state: "success", description: "Canceled by Ignored Build Step" },
-        ],
-      }),
-      getPRCommits: async () => ({ ok: true, data: [{ sha: "head-sha" }] }),
+      getCommitStatuses: async () => ({ ok: true, data: [vercelStatus] }),
+      getPRCommits: async () => ({ ok: true, data: [{ sha: "head-sha" }], truncated: false }),
     };
     return resolvePreviewOnce({ ...base, io }).then((result) => {
-      assert.deepEqual(result, { status: "skip" });
+      assert.deepEqual(result, { status: "skip", vercelStatus });
+    });
+  });
+
+  it("never adopts a fallback candidate when the PR commits page is truncated", () => {
+    let deploymentLookups = 0;
+    const vercelStatus = {
+      context: "Vercel",
+      state: "success",
+      description: "Canceled by Ignored Build Step",
+    };
+    const io = {
+      getDeploymentStatus: async (repo, sha) => {
+        deploymentLookups += 1;
+        if (sha === "head-sha") return { ok: true, found: false };
+        // Would resolve successfully if ever called for a fallback
+        // candidate off a truncated page — it must not be.
+        return { ok: true, found: true, classification: { status: "success", url: TRUSTED_URL } };
+      },
+      getCommitStatuses: async () => ({ ok: true, data: [vercelStatus] }),
+      getPRCommits: async () => ({
+        ok: true,
+        data: Array.from({ length: 100 }, (_, index) => ({ sha: `commit-${index}` })),
+        truncated: true,
+      }),
+    };
+    return resolvePreviewOnce({ ...base, io }).then((result) => {
+      assert.deepEqual(result, { status: "pending", vercelStatus });
+      assert.equal(deploymentLookups, 1, "only the head sha's deployment should be looked up");
     });
   });
 
@@ -349,6 +394,49 @@ describe("waitForPreview", () => {
         resolveOnce: async () => ({ status: "pending" }),
       }),
       /Timed out waiting/,
+    );
+  });
+
+  it("includes the last observed Vercel commit status in the timeout message", async () => {
+    let time = 0;
+    await assert.rejects(
+      waitForPreview({
+        repo: "fernandolisboa/fetha",
+        sha: "abc123",
+        prNumber: "1",
+        token: "token",
+        timeoutMs: 1000,
+        intervalMs: 500,
+        now: () => time,
+        sleep: async () => {
+          time += 500;
+        },
+        resolveOnce: async () => ({
+          status: "pending",
+          vercelStatus: { context: "Vercel", state: "queued", description: "Queued" },
+        }),
+      }),
+      /state=queued.*description="Queued"/,
+    );
+  });
+
+  it("omits the Vercel commit status clause from the timeout message when none was ever observed", async () => {
+    let time = 0;
+    await assert.rejects(
+      waitForPreview({
+        repo: "fernandolisboa/fetha",
+        sha: "abc123",
+        prNumber: "1",
+        token: "token",
+        timeoutMs: 1000,
+        intervalMs: 500,
+        now: () => time,
+        sleep: async () => {
+          time += 500;
+        },
+        resolveOnce: async () => ({ status: "pending" }),
+      }),
+      (error) => error.message === "Timed out waiting for a Vercel preview deployment for abc123",
     );
   });
 

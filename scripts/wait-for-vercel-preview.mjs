@@ -54,8 +54,12 @@ export function classifyStatuses(statuses) {
   return { status: "pending" };
 }
 
+export function findVercelCommitStatus(commitStatuses) {
+  return (commitStatuses ?? []).find((entry) => entry?.context === "Vercel") ?? null;
+}
+
 export function wasBuildIgnored(commitStatuses) {
-  const vercelStatus = (commitStatuses ?? []).find((entry) => entry?.context === "Vercel");
+  const vercelStatus = findVercelCommitStatus(commitStatuses);
   if (!vercelStatus) return false;
   return /ignored build step/i.test(vercelStatus.description ?? "");
 }
@@ -67,17 +71,40 @@ export function orderedFallbackShas(commits, headSha) {
     .reverse();
 }
 
+async function githubFetch(url, token) {
+  return fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+}
+
 async function tryFetchJson(url, token) {
   try {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
+    const response = await githubFetch(url, token);
     if (!response.ok) return { ok: false };
     return { ok: true, data: await response.json() };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// GitHub caps this endpoint at 100 items per page; a PR with more commits
+// than that would silently hide the commit we should fall back to (or
+// falsely report none exists). Rather than paginate for a case this rare,
+// the caller treats a truncated page as unresolved.
+function hasNextPage(response) {
+  return /<[^>]+>\s*;\s*rel="next"/.test(response.headers.get("link") ?? "");
+}
+
+async function tryFetchJsonPage(url, token) {
+  try {
+    const response = await githubFetch(url, token);
+    if (!response.ok) return { ok: false };
+    const data = await response.json();
+    return { ok: true, data, truncated: hasNextPage(response) || data.length === 100 };
   } catch {
     return { ok: false };
   }
@@ -105,7 +132,10 @@ const defaultIo = {
     return tryFetchJson(`${GITHUB_API}/repos/${repo}/commits/${sha}/statuses`, token);
   },
   getPRCommits(repo, prNumber, token) {
-    return tryFetchJson(`${GITHUB_API}/repos/${repo}/pulls/${prNumber}/commits`, token);
+    return tryFetchJsonPage(
+      `${GITHUB_API}/repos/${repo}/pulls/${prNumber}/commits?per_page=100`,
+      token,
+    );
   },
 };
 
@@ -124,12 +154,20 @@ export async function resolvePreviewOnce({ repo, sha, prNumber, token, io = defa
 
   const commitStatuses = await io.getCommitStatuses(repo, sha, token);
   if (!commitStatuses.ok) return { status: "api-error" };
+  const vercelStatus = findVercelCommitStatus(commitStatuses.data);
   if (!wasBuildIgnored(commitStatuses.data)) {
-    return { status: "pending" };
+    return { status: "pending", vercelStatus };
   }
 
   const prCommits = await io.getPRCommits(repo, prNumber, token);
   if (!prCommits.ok) return { status: "api-error" };
+  if (prCommits.truncated) {
+    // Never guess: adopting an arbitrary earlier commit off a truncated
+    // page could run e2e against the wrong (stale) preview. A false green
+    // is worse than a red timeout, so this stays pending forever rather
+    // than picking a candidate we can't be sure is the newest built one.
+    return { status: "pending", vercelStatus };
+  }
   const fallbackShas = orderedFallbackShas(prCommits.data, sha);
 
   for (const candidateSha of fallbackShas) {
@@ -138,7 +176,13 @@ export async function resolvePreviewOnce({ repo, sha, prNumber, token, io = defa
     if (candidate.found) return candidate.classification;
   }
 
-  return { status: "skip" };
+  return { status: "skip", vercelStatus };
+}
+
+function timeoutMessage(sha, vercelStatus) {
+  const base = `Timed out waiting for a Vercel preview deployment for ${sha}`;
+  if (!vercelStatus) return base;
+  return `${base} (last observed "Vercel" commit status: state=${vercelStatus.state ?? "unknown"}, description=${JSON.stringify(vercelStatus.description ?? "")})`;
 }
 
 export async function waitForPreview({
@@ -151,12 +195,13 @@ export async function waitForPreview({
   now = () => Date.now(),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   resolveOnce = resolvePreviewOnce,
-  io = defaultIo,
 }) {
   const deadline = now() + timeoutMs;
   let consecutiveApiErrors = 0;
+  let lastVercelStatus = null;
   for (;;) {
-    const result = await resolveOnce({ repo, sha, prNumber, token, io });
+    const result = await resolveOnce({ repo, sha, prNumber, token });
+    if (result.vercelStatus) lastVercelStatus = result.vercelStatus;
     if (result.status === "api-error") {
       consecutiveApiErrors += 1;
       if (consecutiveApiErrors >= MAX_CONSECUTIVE_API_ERRORS) {
@@ -173,7 +218,7 @@ export async function waitForPreview({
       }
     }
     if (now() >= deadline) {
-      throw new Error(`Timed out waiting for a Vercel preview deployment for ${sha}`);
+      throw new Error(timeoutMessage(sha, lastVercelStatus));
     }
     await sleep(intervalMs);
   }
