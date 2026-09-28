@@ -23,7 +23,7 @@ export function AccountMenu({ email }: { email: string }) {
         <span className="bg-accent text-foreground flex size-5 items-center justify-center rounded-full text-[11px] font-medium uppercase">
           {email.slice(0, 1)}
         </span>
-        <span className="text-muted-foreground hidden max-w-40 truncate md:inline">{email}</span>
+        <span className="text-muted-foreground hidden max-w-40 truncate lg:inline">{email}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 p-3">
         <DropdownMenuLabel className="text-muted-foreground px-0 text-xs font-normal">

@@ -54,7 +54,7 @@ export function MarketBar() {
     <div className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 font-mono text-xs tabular-nums">
       <span className="text-foreground truncate font-medium">{instrument.ticker}</span>
       <span className="truncate">{instrument.lastClose}</span>
-      <span className="text-faint hidden truncate md:inline">{freshness}</span>
+      <span className="text-faint hidden truncate lg:inline">{freshness}</span>
     </div>
   );
 }

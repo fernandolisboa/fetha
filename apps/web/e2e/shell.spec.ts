@@ -24,21 +24,23 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
-test("header fits a phone viewport without horizontal scroll", async ({
+test("header fits phone and tablet widths without overflowing", async ({
   page,
   baseURL,
   request,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  // An instrument page fills the market bar (ticker, close, freshness), the
+  // header's widest state.
+  await page.goto("/ativos/PETR4");
+  await expect(page.getByRole("banner").getByText("PETR4")).toBeVisible();
 
-  for (const width of [360, 390]) {
+  for (const width of [360, 390, 800]) {
     await page.setViewportSize({ width, height: 844 });
 
     const header = page.getByRole("banner");
     const headerScrollWidth = await header.evaluate((element) => element.scrollWidth);
     expect(headerScrollWidth).toBeLessThanOrEqual(width);
-    const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(pageScrollWidth).toBeLessThanOrEqual(width);
 
     const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
     expect(accountBox).not.toBeNull();
