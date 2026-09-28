@@ -125,6 +125,34 @@ test("each theme resolves its own vendored font families", async ({ page, baseUR
   }
 });
 
+test("account menu opens the Como usar guide, one section per destination", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.getByRole("button", { name: "Menu da conta" }).click();
+  await page.getByRole("menu").getByRole("menuitem", { name: "Como usar" }).click();
+  await expect(page).toHaveURL(/\/como-usar$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Como usar a Fetha" })).toBeVisible();
+
+  const main = page.getByRole("main");
+  for (const name of [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Configurações",
+  ]) {
+    await expect(main.getByRole("heading", { level: 2, name })).toBeVisible();
+  }
+
+  await main.getByRole("link", { name: "Abrir Sinais" }).click();
+  await expect(page).toHaveURL(/\/sinais$/);
+});
+
 test("rail collapse persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
