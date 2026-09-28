@@ -14,7 +14,7 @@ export function Header({
   searchStrategies: StrategySearchFn;
 }) {
   return (
-    <header className="border-border bg-card flex h-12 items-center gap-4 border-b px-4">
+    <header className="border-border bg-card flex h-12 items-center gap-2 border-b px-2 md:gap-4 md:px-4">
       <span className="text-[15px] font-semibold tracking-tight">{t.wordmark}</span>
       <CommandSearch searchInstruments={searchInstruments} searchStrategies={searchStrategies} />
       <MarketBar />
