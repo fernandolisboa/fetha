@@ -31,7 +31,7 @@ capability over one system job, not a tenancy role — it changes nothing about 
 | `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                            | the portfolio view, operation lifecycle commands, the operation builder                |
 | `backtests`   | backtest runs, their checkpoints and reports                                                                                                                                                                                                | run creation, chunked resume, the report, the comparison of runs                       |
 | `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                                      | the journal, analysis requests                                                         |
-| `nightly`     | the purge → ingest → evaluate → score sequence the nightly job runs (ADR-0042); nothing of its own                                                                                                                                          | `runNightlyJob`, the owner's manual trigger action                                     |
+| `nightly`     | the purge → ingest → evaluate → score sequence the nightly job runs (ADR-0042); the redacted per-run report (`nightly_runs`, ADR-0044)                                                                                                      | `runNightlyJobRecorded`, the owner's manual trigger action                             |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
 exposing module's interface, never through its tables.
@@ -52,7 +52,9 @@ exposing module's interface, never through its tables.
    until #28. `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
    `api/cron/ingest` (bearer `CRON_SECRET`) is the only automated trigger. The owner's manual
    re-run of a session is a session-authenticated Server Action gated on `isOwner()`
-   (`OWNER_EMAILS`, ADR-0042), never `CRON_SECRET` — that secret never reaches a human.
+   (`OWNER_EMAILS`, ADR-0042), never `CRON_SECRET` — that secret never reaches a human. Every run,
+   cron or manual, writes one redacted row to `nightly_runs` (ADR-0044), so an agent can read what
+   last night's run did without a Vercel log screenshot.
 2. **Intraday while in use.** With the app open and a provider token set, the client refreshes
    live quotes, chain and intraday candles per closed candle; intraday strategies are evaluated
    on each candle and caught up on reopening (late signals marked). Intraday candles fetched
