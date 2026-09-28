@@ -59,5 +59,8 @@ targets were rows spent at sign-up before PR #150 (merged 2026-09-27 01:53Z), th
 ADR replaced. The last account that could still spend an invite at sign-up was created when the
 production deploy that carried the fix went live, a few minutes after the 01:53Z merge. The
 03:30Z purge run on 2026-09-28 computes its cutoff as 2026-09-27 03:30Z, an hour and a half past
-that deploy, so with margin it caught and deleted every such account. Evidence: EVIDENCE_PLACEHOLDER.
+that deploy, so with margin it caught and deleted every such account, provided that run's purge succeeded. The
+run's HTTP status does not prove it (a failed purge still answers 200), so this change merges only
+after the owner has seen, in the Vercel logs of that run or any later one, a 200 with no
+"unverified account purge failed" line.
 No row the step could act on can exist from here on, so it is dead code, not a behavior change.
