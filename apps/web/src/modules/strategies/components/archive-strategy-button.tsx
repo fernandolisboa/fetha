@@ -20,24 +20,24 @@ export function ArchiveStrategyButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"rate_limited" | "generic" | null>(null);
 
   function archive() {
-    setError(false);
+    setError(null);
     setPending(true);
     startTransition(() => {
       archiveStrategyAction({ strategyId })
         .then((result) => {
           setPending(false);
           if (result.status !== "ok") {
-            setError(true);
+            setError(result.error === "rate_limited" ? "rate_limited" : "generic");
             return;
           }
           router.refresh();
         })
         .catch(() => {
           setPending(false);
-          setError(true);
+          setError("generic");
         });
     });
   }
@@ -54,7 +54,11 @@ export function ArchiveStrategyButton({
       >
         {t.list.mine.archive}
       </Button>
-      {error && <ErrorNotice>{t.list.mine.archiveError}</ErrorNotice>}
+      {error && (
+        <ErrorNotice>
+          {error === "rate_limited" ? t.list.rateLimited : t.list.mine.archiveError}
+        </ErrorNotice>
+      )}
     </div>
   );
 }

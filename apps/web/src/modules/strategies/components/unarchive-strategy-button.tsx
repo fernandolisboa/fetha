@@ -18,7 +18,7 @@ export function UnarchiveStrategyButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<"limit_reached" | "generic" | null>(null);
+  const [error, setError] = useState<"limit_reached" | "rate_limited" | "generic" | null>(null);
 
   function unarchive() {
     setError(null);
@@ -28,7 +28,11 @@ export function UnarchiveStrategyButton({
         .then((result) => {
           setPending(false);
           if (result.status !== "ok") {
-            setError(result.error === "limit_reached" ? "limit_reached" : "generic");
+            setError(
+              result.error === "limit_reached" || result.error === "rate_limited"
+                ? result.error
+                : "generic",
+            );
             return;
           }
           router.refresh();
@@ -56,7 +60,9 @@ export function UnarchiveStrategyButton({
         <ErrorNotice>
           {error === "limit_reached"
             ? t.list.archived.unarchiveLimitReached
-            : t.list.archived.unarchiveError}
+            : error === "rate_limited"
+              ? t.list.rateLimited
+              : t.list.archived.unarchiveError}
         </ErrorNotice>
       )}
     </div>
