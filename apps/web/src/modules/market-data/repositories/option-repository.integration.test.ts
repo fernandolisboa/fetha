@@ -371,31 +371,32 @@ describe("optionSeriesInWindow", () => {
     await seedSeries(underlying, "B", "2099-01-09", "2099-01-02T13:00:00.000Z");
     await seedSeries(underlying, "C", "2099-03-20", "2099-02-02T13:00:00.000Z");
 
-    const rows = await optionSeriesInWindow(
+    const result = await optionSeriesInWindow(
       getDb(),
       [underlying],
       { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
       10,
     );
 
-    expect(rows.map((row) => row.ticker)).toEqual([`${underlying}A`]);
+    if (!result.ok) throw new Error("expected ok result");
+    expect(result.rows.map((row) => row.ticker)).toEqual([`${underlying}A`]);
   });
 
-  it("returns one row past the cap so the caller can tell a chain over it", async () => {
+  it("reports over_cap so the caller can tell a chain over it", async () => {
     const underlying = uniqueTicker("CAP");
     cleanupTickers.push(underlying);
     for (const label of ["A", "B", "C"]) {
       await seedSeries(underlying, label, "2099-03-20", "2099-01-02T13:00:00.000Z");
     }
 
-    const rows = await optionSeriesInWindow(
+    const result = await optionSeriesInWindow(
       getDb(),
       [underlying],
       { expiryFloor: "2099-01-10", asOfCeiling: new Date("2099-01-31T23:59:59.999Z") },
       1,
     );
 
-    expect(rows).toHaveLength(2);
+    expect(result).toEqual({ ok: false, reason: "over_cap" });
   });
 });
 
@@ -435,31 +436,32 @@ describe("optionPricesInSessionRange", () => {
     await seedPrice(ticker, "2099-06-15");
     await seedPrice(ticker, "2099-06-16");
 
-    const rows = await optionPricesInSessionRange(
+    const result = await optionPricesInSessionRange(
       getDb(),
       [ticker],
       { fromSession: "2099-06-10", toSession: "2099-06-15" },
       10,
     );
 
-    expect(rows.map((row) => row.session).sort()).toEqual(["2099-06-10", "2099-06-15"]);
+    if (!result.ok) throw new Error("expected ok result");
+    expect(result.rows.map((row) => row.session).sort()).toEqual(["2099-06-10", "2099-06-15"]);
   });
 
-  it("returns one row past the cap so the caller can tell a price volume over it", async () => {
+  it("reports over_cap so the caller can tell a price volume over it", async () => {
     const ticker = uniqueTicker("CAP");
     cleanupTickers.push(ticker);
     await seedPrice(ticker, "2099-07-01");
     await seedPrice(ticker, "2099-07-02");
     await seedPrice(ticker, "2099-07-03");
 
-    const rows = await optionPricesInSessionRange(
+    const result = await optionPricesInSessionRange(
       getDb(),
       [ticker],
       { fromSession: "2099-07-01", toSession: "2099-07-03" },
       1,
     );
 
-    expect(rows).toHaveLength(2);
+    expect(result).toEqual({ ok: false, reason: "over_cap" });
   });
 });
 

@@ -69,6 +69,22 @@ export async function macroPointsInRange(
     .orderBy(desc(macroPoints.date), asc(macroPoints.series));
 }
 
+// The latest point of `series` visible at or before `at`: `buildOperationMarketView`'s own
+// risk-free-rate lookup (CDI), pulled out of that builder's inline `.from(macroPoints)` query.
+export async function latestMacroPointAtOrBefore(
+  db: Database,
+  series: MacroSeriesKind,
+  at: Date,
+): Promise<typeof macroPoints.$inferSelect | undefined> {
+  const [row] = await db
+    .select()
+    .from(macroPoints)
+    .where(and(eq(macroPoints.series, series), lte(macroPoints.asOf, at)))
+    .orderBy(desc(macroPoints.date))
+    .limit(1);
+  return row;
+}
+
 export async function upsertMacroPoints(db: Database, rows: MacroPoint[]): Promise<number> {
   const deduped = dedupeByKey(rows, (row) => `${row.series}:${row.date}`);
   if (deduped.length === 0) {
