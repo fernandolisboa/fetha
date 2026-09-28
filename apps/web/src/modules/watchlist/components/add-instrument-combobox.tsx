@@ -20,6 +20,7 @@ import { ErrorNotice } from "@/components/error-notice";
 
 import { addToWatchlistAction, searchInstrumentsAction } from "../actions";
 import { t } from "../strings";
+import { deriveSearchMessage, deriveSearchStatusText } from "./search-status";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -78,15 +79,21 @@ export function AddInstrumentCombobox() {
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.results : [];
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
   const rateLimited = trimmedQuery.length > 0 && currentOutcome?.kind === "rate_limited";
-  const statusText = pending
-    ? t.add.searching
-    : rateLimited
-      ? t.add.rateLimited
-      : searchFailed
-        ? t.add.searchError
-        : trimmedQuery.length > 0 && displayResults.length === 0
-          ? t.add.empty
-          : "";
+  const hasResults = displayResults.length > 0;
+
+  const message = deriveSearchMessage(
+    { pending, rateLimited, searchFailed },
+    {
+      searching: t.add.searching,
+      rateLimited: t.add.rateLimited,
+      searchError: t.add.searchError,
+      empty: t.add.empty,
+    },
+  );
+  const statusText = deriveSearchStatusText(message, {
+    trimmedQueryLength: trimmedQuery.length,
+    hasResults,
+  });
 
   function select(ticker: string) {
     setAddError(null);
@@ -137,11 +144,9 @@ export function AddInstrumentCombobox() {
             <CommandStatus>{statusText}</CommandStatus>
             <CommandList>
               {pending ? (
-                <CommandLoading label={t.add.searching}>{t.add.searching}</CommandLoading>
+                <CommandLoading label={message}>{message}</CommandLoading>
               ) : (
-                <CommandEmpty>
-                  {rateLimited ? t.add.rateLimited : searchFailed ? t.add.searchError : t.add.empty}
-                </CommandEmpty>
+                <CommandEmpty>{message}</CommandEmpty>
               )}
               {!pending &&
                 !searchFailed &&

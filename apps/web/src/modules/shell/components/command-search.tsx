@@ -6,9 +6,9 @@ import { Search } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
+  CommandEmptyStatus,
   CommandInput,
   CommandList,
-  CommandStatus,
 } from "@/components/ui/command";
 
 import { t } from "../strings";
@@ -16,6 +16,7 @@ import { t } from "../strings";
 export function CommandSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const emptyMessage = t.search.empty;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -54,9 +55,9 @@ export function CommandSearch() {
         title={t.search.placeholder}
       >
         <CommandInput placeholder={t.search.placeholder} value={query} onValueChange={setQuery} />
-        <CommandStatus>{query.trim().length > 0 ? t.search.empty : ""}</CommandStatus>
+        <CommandEmptyStatus message={emptyMessage} />
         <CommandList>
-          <CommandEmpty>{t.search.empty}</CommandEmpty>
+          <CommandEmpty>{emptyMessage}</CommandEmpty>
         </CommandList>
       </CommandDialog>
     </>

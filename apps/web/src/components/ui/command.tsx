@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "@/lib/utils";
 
 import {
@@ -51,7 +51,7 @@ function CommandDialog({
         className={cn("top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0", className)}
         showCloseButton={showCloseButton}
       >
-        {children}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   );
@@ -131,6 +131,12 @@ function CommandStatus({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+function CommandEmptyStatus({ message }: { message: string }) {
+  const searchValue = useCommandState((state) => state.search);
+  const hasNoMatches = useCommandState((state) => state.filtered.count === 0);
+  return <CommandStatus>{searchValue.length > 0 && hasNoMatches ? message : ""}</CommandStatus>;
+}
+
 function CommandGroup({
   className,
   ...props
@@ -201,6 +207,7 @@ export {
   CommandEmpty,
   CommandLoading,
   CommandStatus,
+  CommandEmptyStatus,
   CommandGroup,
   CommandItem,
   CommandShortcut,

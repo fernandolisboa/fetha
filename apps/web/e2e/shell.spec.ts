@@ -24,6 +24,24 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
+test("Ctrl K palette opens and announces its empty state once typing starts", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.keyboard.press("Control+k");
+  const dialog = page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" });
+  await expect(dialog).toBeVisible();
+
+  const status = dialog.getByRole("status");
+  await expect(status).toHaveText("");
+
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("xyz");
+  await expect(status).toHaveText("Ainda não há nada para buscar.");
+});
+
 test("theme switch persists across reload", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
