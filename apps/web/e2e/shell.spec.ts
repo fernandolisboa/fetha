@@ -24,29 +24,32 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
-test("header fits phone and tablet widths without overflowing", async ({
+test("header fits phone, tablet and desktop widths without overflowing", async ({
   page,
   baseURL,
   request,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
-  // An instrument page fills the market bar (ticker, close, freshness), the
-  // header's widest state.
   await page.goto("/ativos/PETR4");
   await expect(page.getByRole("banner").getByText("PETR4")).toBeVisible();
 
-  for (const width of [360, 390, 800]) {
+  for (const width of [360, 390, 800, 1024]) {
     await page.setViewportSize({ width, height: 844 });
+    const budget = await page.evaluate(() => document.documentElement.clientWidth);
 
-    const header = page.getByRole("banner");
-    const headerScrollWidth = await header.evaluate((element) => element.scrollWidth);
-    expect(headerScrollWidth).toBeLessThanOrEqual(width);
+    const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(pageScrollWidth).toBeLessThanOrEqual(budget);
+    const headerScrollWidth = await page
+      .getByRole("banner")
+      .evaluate((element) => element.scrollWidth);
+    expect(headerScrollWidth).toBeLessThanOrEqual(budget);
 
     const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
     expect(accountBox).not.toBeNull();
-    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(width);
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(budget);
   }
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
   await expect(page.getByRole("dialog", { name: "Buscar ativo ou estratégia" })).toBeVisible();
 });
@@ -86,7 +89,7 @@ test("Ctrl K palette navigates to an instrument result", async ({ page, baseURL,
   await expect(page).toHaveURL(/\/ativos\/PETR4$/);
 });
 
-test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, request }) => {
+test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   const runId = `${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
@@ -102,7 +105,7 @@ test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, re
   const strategyUrl = page.url();
 
   // Ctrl K's listener is attached after hydration, so a key press right
-  // after a navigation can be lost; a click on the trigger is replayed.
+  // after a navigation can be lost; a click on the trigger is replayed (#240).
   await page.goto("/");
   await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
   await page.getByPlaceholder("Buscar ativo ou estratégia").fill(`Ctrl K ${runId}`);

@@ -51,10 +51,10 @@ export function MarketBar() {
   const freshness = closeFreshnessPhrase(closeFreshnessKind(instrument.session, now));
 
   return (
-    <div className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 font-mono text-xs tabular-nums">
-      <span className="text-foreground truncate font-medium">{instrument.ticker}</span>
-      <span className="truncate">{instrument.lastClose}</span>
-      <span className="text-faint hidden truncate lg:inline">{freshness}</span>
+    <div className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums">
+      <span className="text-foreground shrink-0 font-medium">{instrument.ticker}</span>
+      <span className="shrink-0">{instrument.lastClose}</span>
+      <span className="text-faint hidden min-w-0 truncate lg:inline">{freshness}</span>
     </div>
   );
 }

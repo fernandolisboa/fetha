@@ -166,10 +166,10 @@ export function CommandSearch({
           setOpen(true);
         }}
         aria-label={t.search.placeholder}
-        className="border-border bg-background text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center gap-2 rounded-[var(--radius)] border px-0 text-[13px] md:w-[360px] md:min-w-0 md:shrink md:justify-start md:px-2.5"
+        className="border-border bg-background text-muted-foreground flex size-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius)] border px-0 text-[13px] md:h-8 md:w-[360px] md:min-w-0 md:shrink md:justify-start md:px-2.5"
       >
         <Search className="size-3.5" aria-hidden />
-        <span className="hidden truncate md:inline">{t.search.placeholder}</span>
+        <span className="hidden min-w-0 truncate md:inline">{t.search.placeholder}</span>
         <span className="text-faint ml-auto hidden font-mono text-[11px] md:inline">
           {t.search.shortcut}
         </span>
