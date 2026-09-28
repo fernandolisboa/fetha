@@ -1,4 +1,4 @@
-export { runNightlyJob, type NightlyJobOptions, type NightlyJobOutcome } from "./run-nightly-job";
+export { runNightlyJobRecorded } from "./recorded-run";
 export {
   triggerNightlyJobAction,
   type TriggerNightlyJobResult,

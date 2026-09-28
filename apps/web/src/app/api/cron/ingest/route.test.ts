@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const runNightlyJobMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock("@/modules/nightly", () => ({ runNightlyJob: runNightlyJobMock }));
+vi.mock("@/modules/nightly", () => ({ runNightlyJobRecorded: runNightlyJobMock }));
 
 describe("cron ingest route", () => {
   const originalSecret = process.env.CRON_SECRET;
@@ -67,7 +67,7 @@ describe("cron ingest route", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(runNightlyJobMock).toHaveBeenCalledWith({});
+    expect(runNightlyJobMock).toHaveBeenCalledWith({}, "cron");
     const body: unknown = await response.json();
     expect(body).toMatchObject({
       ok: true,
