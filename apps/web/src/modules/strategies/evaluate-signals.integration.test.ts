@@ -24,7 +24,11 @@ import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-re
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
-import { CATCH_UP_SESSION_LIMIT, evaluateSignalsForSession } from "./evaluate-signals";
+import {
+  CATCH_UP_SESSION_LIMIT,
+  evaluateSignalsForSession,
+  INBOX_ENTRY_SESSION_HORIZON,
+} from "./evaluate-signals";
 import { SignalsRepository } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 
@@ -131,6 +135,13 @@ async function insertSession(session: string): Promise<void> {
       close: new Date(`${session}T21:00:00.000Z`),
     })
     .onConflictDoNothing();
+}
+
+// The wall clock of the nightly run after `session`: the inbox horizon counts
+// sessions back from it (docs/adr/0044), and these fixtures live in the
+// 2040s.
+function nightAfter(session: string): () => number {
+  return () => Date.parse(`${session}T23:30:00.000Z`);
 }
 
 // `high`/`low`/`open`/`average` all derived from `close`:
@@ -874,14 +885,14 @@ describe("evaluateSignalsForSession", () => {
     );
     await new StrategiesRepository(db, owner).setActive(strategyB.id, true);
 
-    // `now()` clears the deadline for the outer per-user check and the
-    // first strategy, then trips it from the second strategy onward: a
-    // deadline hit strictly inside the per-strategy loop, never only
-    // between users.
+    // `now()` is read once at setup for the inbox horizon, then clears the
+    // deadline for the outer per-user check and the first strategy, then
+    // trips it from the second strategy onward: a deadline hit strictly
+    // inside the per-strategy loop, never only between users.
     let calls = 0;
     const now = (): number => {
       calls += 1;
-      return calls <= 2 ? 0 : 1_000;
+      return calls <= 3 ? 0 : 1_000;
     };
 
     const first = await evaluateSignalsForSession(db, [s1, s2, s3], { deadlineAt: 1_000, now });
@@ -944,9 +955,9 @@ describe("evaluateSignalsForSession", () => {
     // Only the newest session is drained tonight, but the calendar still
     // carries every session registered since the watermark, implying a
     // catch-up of `sessionCount - 1` sessions — past the ceiling.
-    const night2 = await evaluateSignalsForSession(db, [newest]);
+    const night2 = await evaluateSignalsForSession(db, [newest], { now: nightAfter(newest) });
     expect(night2.errors).toEqual([]);
-    expect(night2.signalsWritten).toBe(CATCH_UP_SESSION_LIMIT);
+    expect(night2.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
     expect(night2.evaluationsWritten).toBe(CATCH_UP_SESSION_LIMIT + 1);
 
     const repository = new SignalsRepository(db, owner);
@@ -958,7 +969,7 @@ describe("evaluateSignalsForSession", () => {
     expect(clampRow?.detail).toBe(String(clampedCount));
 
     const evaluatedSessions = new Set(
-      log.filter((row) => row.detail === null).map((row) => row.session),
+      log.filter((row) => row.outcome === "signal").map((row) => row.session),
     );
     const retainedSessions = sessions.slice(sessions.length - CATCH_UP_SESSION_LIMIT);
     expect(evaluatedSessions).toEqual(new Set([oldest, ...retainedSessions]));
@@ -967,6 +978,117 @@ describe("evaluateSignalsForSession", () => {
     expect(evaluatedSessions.has(sessions[1] as string)).toBe(false);
     // Sequential inserts/evaluations over `sessionCount` sessions and a
     // real 21-signal catch-up run past the default 20s test timeout.
+  }, 60_000);
+
+  it("logs every session of a catch-up but sends only the last INBOX_ENTRY_SESSION_HORIZON sessions' entries to the inbox (#83)", async () => {
+    const db = getDb();
+    const sessionCount = INBOX_ENTRY_SESSION_HORIZON + 4;
+    const sessions = randomSessionSequence(sessionCount + 1);
+    createdSessions.push(...sessions);
+    const nextNight = sessions.pop();
+    if (!nextNight) throw new Error("fixture setup failed");
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("inbox-horizon");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of sessions) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const [first, ...caughtUp] = sessions;
+    const newest = sessions[sessionCount - 1];
+    if (!first || !newest) throw new Error("fixture setup failed");
+
+    // The first night sets the watermark; the second catches up on every
+    // session since, the way a week away from the app does.
+    await evaluateSignalsForSession(db, [first], { now: nightAfter(first) });
+    const outcome = await evaluateSignalsForSession(db, [newest], { now: nightAfter(newest) });
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.evaluationsWritten).toBe(caughtUp.length);
+    expect(outcome.signalsWritten).toBe(INBOX_ENTRY_SESSION_HORIZON);
+
+    const repository = new SignalsRepository(db, owner);
+    const recent = sessions.slice(sessionCount - INBOX_ENTRY_SESSION_HORIZON);
+    const stale = caughtUp.slice(0, caughtUp.length - INBOX_ENTRY_SESSION_HORIZON);
+
+    const inbox = await repository.listInbox();
+    expect(new Set(inbox.map((signal) => signal.session))).toEqual(new Set([first, ...recent]));
+
+    const log = await repository.listEvaluationLog();
+    expect(log).toHaveLength(sessionCount);
+    expect(stale).toHaveLength(3);
+    for (const row of log) {
+      expect(row.outcome).toBe("signal");
+      if (stale.includes(row.session)) {
+        expect(row.reason).toBe("entry_past_inbox_horizon");
+        expect(row.detail).toBe(String(INBOX_ENTRY_SESSION_HORIZON));
+      } else {
+        expect(row.reason).toBe("signal");
+        expect(row.detail).toBeNull();
+      }
+    }
+
+    // The watermark covers the kept-out sessions, so a later night never
+    // proposes them again.
+    await insertSession(nextNight);
+    await insertCandle(ticker, nextNight);
+    const night3 = await evaluateSignalsForSession(db, [nextNight], { now: nightAfter(nextNight) });
+    expect(night3.evaluationsWritten).toBe(1);
+    expect(night3.signalsWritten).toBe(1);
+  }, 60_000);
+
+  it("counts the inbox horizon back from the wall clock, so sessions drained late still age out (#83)", async () => {
+    const db = getDb();
+    const sessions = randomSessionSequence(INBOX_ENTRY_SESSION_HORIZON + 4);
+    createdSessions.push(...sessions);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("inbox-horizon-lag");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of sessions) {
+      await insertSession(session);
+    }
+    // Candles only up to the fourth session: the provider is late, so the
+    // run drains sessions that closed days before tonight.
+    const drained = sessions.slice(0, 4);
+    for (const session of drained) {
+      await insertCandle(ticker, session);
+    }
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const [first, ...rest] = drained;
+    const lastDrained = drained[drained.length - 1];
+    const tonight = sessions[sessions.length - 1];
+    if (!first || !lastDrained || !tonight) throw new Error("fixture setup failed");
+    await evaluateSignalsForSession(db, [first], { now: nightAfter(tonight) });
+    const outcome = await evaluateSignalsForSession(db, [lastDrained], {
+      now: nightAfter(tonight),
+    });
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.evaluationsWritten).toBe(rest.length);
+    expect(outcome.signalsWritten).toBe(0);
+    expect(await new SignalsRepository(db, owner).listInbox()).toEqual([]);
   }, 60_000);
 
   it("counts a user whose active strategies are already caught up separately from one actually evaluated", async () => {

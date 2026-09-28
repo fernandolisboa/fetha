@@ -25,7 +25,9 @@ import { UserScopedRepository } from "@/lib/user-scoped-repository";
 // Every code `evaluations.reason` can hold (#133): the engine's own closed
 // `EvaluationReason` vocabulary for a row built straight from an
 // `EvaluationRecord`, plus the web-authored codes `evaluate-signals.ts`
-// writes itself for an outcome the engine never got to evaluate at all.
+// writes itself: for an outcome the engine never got to evaluate at all, or
+// (`entry_past_inbox_horizon`, docs/adr/0044) over an engine signal record
+// kept out of the inbox.
 export type StoredEvaluationReason = EvaluationReason | WebEvaluationReason;
 
 export interface NewSignal {
