@@ -337,13 +337,17 @@ async function runCalendarSources(
 // or a corrected file whose closures hash to the same day offset), and the
 // delete is a no-op once the year matches its source (docs/adr/0017).
 //
-// The delete runs inside the same "cotahist" advisory lock every
-// upsertDailyCandles/upsertOptionDailyPrices write takes (docs/adr/0017,
-// #189): `pg_advisory_xact_lock` blocks rather than failing fast, so a
-// concurrent cotahist run either fully commits its candles before this
-// delete's snapshot is taken or cannot start until this transaction ends —
-// never interleaved. A concurrent invocation whose cotahist step is already
-// running simply makes this call wait for it; that is slower, not wrong.
+// The delete runs inside `withSourceLock(db, "cotahist", ...)` (docs/adr/0017,
+// #189): that lock is taken by `runSource("cotahist", ...)` around every
+// cotahist write, not by `upsertDailyCandles`/`upsertOptionDailyPrices`
+// themselves, so any writer of `candles` or `option_daily_prices` must go
+// through that same lock for this to hold — an invariant, not a detail of
+// today's two call sites. `pg_advisory_xact_lock` blocks rather than failing
+// fast, so a concurrent cotahist run either fully commits its candles before
+// this delete's snapshot is taken or cannot start until this transaction
+// ends — never interleaved. A concurrent invocation whose cotahist step is
+// already running simply makes this call wait for it; that is slower, not
+// wrong.
 async function removeUnlistedSessions(
   db: Database,
   year: number,

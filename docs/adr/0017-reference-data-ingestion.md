@@ -422,6 +422,11 @@ market data means the correction is the thing that is wrong, not the market data
   delisted holiday of the same year is kept too when a sibling candidate is blocked: cotahist keeps
   trying to ingest that still-listed date every night and keeps failing (there is no COTAHIST file
   for it), which is the correct signal to read as collateral of the blocked year, not a new bug.
+  `run-nightly-job.ts`'s `cotahistSucceeded` gate means that same nightly cotahist failure also
+  skips `evaluateSignalsForSession` and starves `scoreDueDecisions` of `okSessions` for the whole
+  run, not only for the retained holiday's own session: signal evaluation and decision scoring stay
+  down every night until the blocked year is fixed, which the operator should expect and read the
+  same way.
 - **The candidate list, the block check, the delete and the re-stamp are one statement** (CTEs of
   the same `WITH` query), which keeps those four steps consistent with each other against one MVCC
   snapshot. That is not, by itself, a guarantee against a concurrent `upsertDailyCandles` or
