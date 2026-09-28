@@ -1,8 +1,37 @@
 # Playwright e2e
 
-Not wired into CI yet (no preview-URL plumbing exists). Run by hand against a Vercel preview
-deployment that has `E2E_SECRET` set and `REGISTRATION_MODE=open` (or a matching invite seeded
-with `scripts/seed-invite.mjs`):
+## CI
+
+`.github/workflows/ci.yml`'s `preview-database` job runs the whole suite against the PR's own
+Vercel preview, after resetting, migrating and seeding `fetha-preview` — the same job, under the
+same `preview-db` concurrency lock, so no other PR can reset the shared database mid-run. It waits
+for that PR's `vercel[bot]` "Preview" deployment to report `success` on its GitHub deployment
+status (`scripts/wait-for-vercel-preview.mjs`), then runs `pnpm --filter @fetha/web test:e2e`
+against it.
+
+It needs two repository secrets, both read only inside that job:
+
+- `E2E_SECRET` — must equal the value set on the Vercel Preview environment as `E2E_SECRET` (see
+  below); the app's E2E-only routes 404 otherwise.
+- `VERCEL_PROTECTION_BYPASS` — the project's Deployment Protection bypass value (see below).
+
+The e2e step is skipped, cleanly and without failing the job, when:
+
+- either secret is empty, or `DATABASE_URL_PREVIEW` is not configured;
+- the PR only touches docs/config Vercel itself would skip building for
+  (`apps/web/scripts/vercel-ignore-build.sh` decides, the same script Vercel's own `ignoreCommand`
+  runs);
+- the event is a push to `main`, not a pull request (there is no PR preview to test against).
+
+CI does not set `E2E_OWNER_EMAIL`: the helpers default to `dono-e2e@example.com`, the same account
+the "Seed the e2e owner account" step (`db:seed-e2e-owner`) re-creates after every reset of
+`fetha-preview`, so `signals.spec.ts`, `decisions.spec.ts`, `scoring.spec.ts`, `backtest.spec.ts`
+and `compare.spec.ts` (docs/adr/0042) find it already provisioned and verified.
+
+## Manual run
+
+Run by hand against a Vercel preview deployment that has `E2E_SECRET` set and
+`REGISTRATION_MODE=open` (or a matching invite seeded with `scripts/seed-invite.mjs`):
 
 ```
 E2E_SECRET=<value from Vercel> \
