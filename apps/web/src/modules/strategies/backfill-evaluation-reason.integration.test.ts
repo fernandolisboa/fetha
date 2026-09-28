@@ -297,9 +297,16 @@ describe("0020_backfill_evaluation_reason.sql", () => {
         ),
     );
 
-    for (const statement of migrationStatements) {
-      await db.execute(sql.raw(statement));
-    }
+    // 0020 ran before 0027 made evaluations append-only (docs/adr/0045):
+    // replay it the way it ran then, with the trigger off only inside this
+    // transaction.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`alter table evaluations disable trigger evaluations_append_only`);
+      for (const statement of migrationStatements) {
+        await tx.execute(sql.raw(statement));
+      }
+      await tx.execute(sql`alter table evaluations enable trigger evaluations_append_only`);
+    });
 
     const rows = await db
       .select({

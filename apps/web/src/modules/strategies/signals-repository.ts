@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, max, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   adjustmentRuleSchema,
@@ -18,7 +18,14 @@ import {
   type SignalKind,
 } from "@fetha/engine";
 
-import { evaluations, signals, strategies, NO_OPERATION_ID } from "./schema";
+import {
+  evaluations,
+  signalReevaluations,
+  signals,
+  strategies,
+  NO_OPERATION_ID,
+  type reevaluationStatuses,
+} from "./schema";
 import { webEvaluationReasons, type WebEvaluationReason } from "./evaluation-vocabulary";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
@@ -86,6 +93,61 @@ export interface EvaluationLogItem {
   outcome: EvaluationOutcome;
   reason: StoredEvaluationReason | null;
   detail: string | null;
+  // Written by a session re-evaluation (docs/adr/0045) rather than the
+  // nightly run.
+  reevaluated: boolean;
+}
+
+export type ReevaluationStatus = (typeof reevaluationStatuses)[number];
+
+export interface CurrentEvaluation {
+  id: string;
+  strategyVersionId: string;
+  ticker: Ticker;
+  outcome: EvaluationOutcome;
+  reason: StoredEvaluationReason | null;
+  detail: string | null;
+}
+
+export interface CurrentSignal {
+  id: string;
+  strategyVersionId: string;
+  ticker: Ticker;
+  kind: SignalKind;
+  operationId: string | null;
+  proposal: Proposal | null;
+  rule: ExitRule | AdjustmentRule | null;
+}
+
+export interface ReevaluationTargets {
+  evaluations: CurrentEvaluation[];
+  signals: CurrentSignal[];
+}
+
+export interface ReevaluationWrite {
+  strategyId: string;
+  session: string;
+  supersededEvaluationIds: string[];
+  newEvaluations: NewEvaluation[];
+  retractedSignalIds: string[];
+  replacedSignalIds: string[];
+  // Successors of `replacedSignalIds` first-class alongside brand-new ones:
+  // the count of added signals is the difference.
+  newSignals: NewSignal[];
+}
+
+export interface ReevaluationCounts {
+  evaluationsSuperseded: number;
+  signalsRetracted: number;
+  signalsReplaced: number;
+  signalsAdded: number;
+}
+
+export class ReevaluationConflictError extends Error {
+  constructor() {
+    super("Another re-evaluation of this session committed first");
+    this.name = "ReevaluationConflictError";
+  }
 }
 
 export class SignalNotFoundError extends Error {
@@ -152,7 +214,7 @@ export class SignalsRepository extends UserScopedRepository {
           rule: row.rule,
         })),
       )
-      .onConflictDoNothing({ target })
+      .onConflictDoNothing({ target, where: isNull(signals.supersededBy) })
       .returning({ id: signals.id });
     return inserted.length;
   }
@@ -182,7 +244,7 @@ export class SignalsRepository extends UserScopedRepository {
           detail: row.detail,
         })),
       )
-      .onConflictDoNothing({ target })
+      .onConflictDoNothing({ target, where: isNull(evaluations.supersededBy) })
       .returning({ id: evaluations.id });
     return inserted.length;
   }
@@ -207,7 +269,7 @@ export class SignalsRepository extends UserScopedRepository {
       })
       .from(signals)
       .innerJoin(strategies, eq(strategies.id, signals.strategyId))
-      .where(eq(signals.userId, this.userId))
+      .where(and(eq(signals.userId, this.userId), isNull(signals.supersededBy)))
       .orderBy(desc(signals.at), desc(signals.createdAt), asc(signals.ticker), asc(signals.id))
       .limit(INBOX_LIMIT);
 
@@ -243,7 +305,13 @@ export class SignalsRepository extends UserScopedRepository {
       })
       .from(signals)
       .innerJoin(strategies, eq(strategies.id, signals.strategyId))
-      .where(and(eq(signals.id, signalId), eq(signals.userId, this.userId)));
+      .where(
+        and(
+          eq(signals.id, signalId),
+          eq(signals.userId, this.userId),
+          isNull(signals.supersededBy),
+        ),
+      );
 
     if (!row) {
       throw new SignalNotFoundError();
@@ -261,7 +329,9 @@ export class SignalsRepository extends UserScopedRepository {
     const [row] = await this.db
       .select({ value: count() })
       .from(signals)
-      .where(and(eq(signals.userId, this.userId), isNull(signals.readAt)));
+      .where(
+        and(eq(signals.userId, this.userId), isNull(signals.readAt), isNull(signals.supersededBy)),
+      );
     return row?.value ?? 0;
   }
 
@@ -269,7 +339,13 @@ export class SignalsRepository extends UserScopedRepository {
     await this.db
       .update(signals)
       .set({ readAt: new Date() })
-      .where(and(eq(signals.id, signalId), eq(signals.userId, this.userId)));
+      .where(
+        and(
+          eq(signals.id, signalId),
+          eq(signals.userId, this.userId),
+          isNull(signals.supersededBy),
+        ),
+      );
   }
 
   // This user's own watermark for the nightly evaluation, scoped to one
@@ -311,10 +387,11 @@ export class SignalsRepository extends UserScopedRepository {
         outcome: evaluations.outcome,
         reason: evaluations.reason,
         detail: evaluations.detail,
+        reevaluationId: evaluations.reevaluationId,
       })
       .from(evaluations)
       .innerJoin(strategies, eq(strategies.id, evaluations.strategyId))
-      .where(eq(evaluations.userId, this.userId))
+      .where(and(eq(evaluations.userId, this.userId), isNull(evaluations.supersededBy)))
       .orderBy(
         desc(evaluations.at),
         desc(evaluations.createdAt),
@@ -323,10 +400,181 @@ export class SignalsRepository extends UserScopedRepository {
       )
       .limit(EVALUATION_LOG_LIMIT);
 
-    return rows.map((row) => ({
+    return rows.map(({ reevaluationId, ...row }) => ({
       ...row,
       outcome: evaluationOutcomeSchema.parse(row.outcome),
       reason: evaluationReasonSchema.parse(row.reason),
+      reevaluated: reevaluationId !== null,
     }));
+  }
+
+  // The rows a session re-evaluation (docs/adr/0045) may supersede: this
+  // user's current evaluations of one strategy on one session, and the
+  // current signals written for them. A `catchup_clamped` row marks a span
+  // that was never evaluated, not an evaluation, so it is never a target.
+  async reevaluationTargets(strategyId: string, session: string): Promise<ReevaluationTargets> {
+    const evaluationRows = await this.db
+      .select({
+        id: evaluations.id,
+        strategyVersionId: evaluations.strategyVersionId,
+        ticker: evaluations.ticker,
+        outcome: evaluations.outcome,
+        reason: evaluations.reason,
+        detail: evaluations.detail,
+      })
+      .from(evaluations)
+      .where(
+        and(
+          eq(evaluations.userId, this.userId),
+          eq(evaluations.strategyId, strategyId),
+          eq(evaluations.session, session),
+          isNull(evaluations.supersededBy),
+          or(isNull(evaluations.reason), ne(evaluations.reason, "catchup_clamped")),
+        ),
+      )
+      .orderBy(asc(evaluations.strategyVersionId), asc(evaluations.ticker));
+    const signalRows = await this.db
+      .select({
+        id: signals.id,
+        strategyVersionId: signals.strategyVersionId,
+        ticker: signals.ticker,
+        kind: signals.kind,
+        operationId: signals.operationId,
+        proposal: signals.proposal,
+        rule: signals.rule,
+      })
+      .from(signals)
+      .where(
+        and(
+          eq(signals.userId, this.userId),
+          eq(signals.strategyId, strategyId),
+          eq(signals.session, session),
+          isNull(signals.supersededBy),
+        ),
+      );
+    return {
+      evaluations: evaluationRows.map((row) => ({
+        ...row,
+        outcome: evaluationOutcomeSchema.parse(row.outcome),
+        reason: evaluationReasonSchema.parse(row.reason),
+      })),
+      signals: signalRows.map((row) => ({
+        ...row,
+        kind: signalKindSchema.parse(row.kind),
+        rule: signalRuleSchema.parse(row.rule),
+        operationId: fromStoredOperationId(row.operationId),
+      })),
+    };
+  }
+
+  // One authoritative re-evaluation, all or nothing: the audit row, the
+  // one-way `superseded_by` stamps and the new rows commit together. The
+  // stamps only land on rows still current, so a concurrent re-evaluation of
+  // the same session rolls this one back instead of superseding twice.
+  async applyReevaluation(write: ReevaluationWrite): Promise<ReevaluationCounts> {
+    const counts: ReevaluationCounts = {
+      evaluationsSuperseded: write.supersededEvaluationIds.length,
+      signalsRetracted: write.retractedSignalIds.length,
+      signalsReplaced: write.replacedSignalIds.length,
+      signalsAdded: write.newSignals.length - write.replacedSignalIds.length,
+    };
+    await this.db.transaction(async (tx) => {
+      await this.lockUserScope(tx, "signals");
+      const [audit] = await tx
+        .insert(signalReevaluations)
+        .values({
+          userId: this.userId,
+          strategyId: write.strategyId,
+          session: write.session,
+          status: "applied",
+          ...counts,
+        })
+        .returning({ id: signalReevaluations.id });
+      if (!audit) {
+        throw new Error("failed to record the re-evaluation");
+      }
+
+      if (write.supersededEvaluationIds.length > 0) {
+        const stamped = await tx
+          .update(evaluations)
+          .set({ supersededBy: audit.id })
+          .where(
+            and(
+              eq(evaluations.userId, this.userId),
+              inArray(evaluations.id, write.supersededEvaluationIds),
+              isNull(evaluations.supersededBy),
+            ),
+          )
+          .returning({ id: evaluations.id });
+        if (stamped.length !== write.supersededEvaluationIds.length) {
+          throw new ReevaluationConflictError();
+        }
+      }
+      const supersededSignalIds = [...write.retractedSignalIds, ...write.replacedSignalIds];
+      if (supersededSignalIds.length > 0) {
+        const stamped = await tx
+          .update(signals)
+          .set({ supersededBy: audit.id })
+          .where(
+            and(
+              eq(signals.userId, this.userId),
+              inArray(signals.id, supersededSignalIds),
+              isNull(signals.supersededBy),
+            ),
+          )
+          .returning({ id: signals.id });
+        if (stamped.length !== supersededSignalIds.length) {
+          throw new ReevaluationConflictError();
+        }
+      }
+
+      if (write.newEvaluations.length > 0) {
+        await tx.insert(evaluations).values(
+          write.newEvaluations.map((row) => ({
+            userId: this.userId,
+            strategyId: row.strategyId,
+            strategyVersionId: row.strategyVersionId,
+            ticker: row.ticker,
+            session: row.session,
+            at: row.at,
+            outcome: row.outcome,
+            reason: row.reason,
+            detail: row.detail,
+            reevaluationId: audit.id,
+          })),
+        );
+      }
+      if (write.newSignals.length > 0) {
+        await tx.insert(signals).values(
+          write.newSignals.map((row) => ({
+            userId: this.userId,
+            strategyId: row.strategyId,
+            strategyVersionId: row.strategyVersionId,
+            ticker: row.ticker,
+            timeframe: row.timeframe,
+            session: row.session,
+            at: row.at,
+            kind: row.kind,
+            indicators: row.indicators,
+            proposal: row.proposal,
+            operationId: toStoredOperationId(row.operationId),
+            rule: row.rule,
+            reevaluationId: audit.id,
+          })),
+        );
+      }
+    });
+    return counts;
+  }
+
+  // An outcome that touched no signal or evaluation: nothing changed, or the
+  // recomputation failed and so had no authority to retract anything.
+  async recordReevaluation(entry: {
+    strategyId: string;
+    session: string;
+    status: Exclude<ReevaluationStatus, "applied">;
+    failureReason: string | null;
+  }): Promise<void> {
+    await this.db.insert(signalReevaluations).values({ userId: this.userId, ...entry });
   }
 }

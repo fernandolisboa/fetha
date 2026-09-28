@@ -43,7 +43,9 @@ exposing module's interface, never through its tables.
    calendar (corporate-action factor recording is a follow-up, #50; the engine derives adjusted
    series point in time from whatever factors exist, ADR-0013), then evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
-   21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044). Sizing an entry
+   21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044; a user
+   can re-evaluate one strategy on one session after a data correction, append-only and audited,
+   ADR-0045). Sizing an entry
    uses the user's own declared risk profile (#22); a user with none declared still gets a
    full evaluation, just never a sized entry signal (the engine's `unsizeable` outcome, logged,
    never in the inbox). The same run then scores every decision whose horizon has arrived

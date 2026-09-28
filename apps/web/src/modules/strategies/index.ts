@@ -12,6 +12,7 @@ export {
 } from "./actions";
 export { SignalRow } from "./components/signal-row";
 export { evaluateSignalsForSession, type EvaluateSignalsOutcome } from "./evaluate-signals";
+export { reevaluationAnchors } from "./evaluation-log";
 export {
   getMyEvaluationLog,
   getMySignal,

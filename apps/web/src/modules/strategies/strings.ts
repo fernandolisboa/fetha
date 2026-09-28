@@ -1,6 +1,7 @@
 import type { EvaluationOutcome, EvaluationReason } from "@fetha/engine";
 
 import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vocabulary";
+import type { ReevaluationCounts } from "./signals-repository";
 
 // One rendering function per web-authored reason (#133, follow-up from
 // #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
@@ -87,6 +88,36 @@ const reasonTextPtBR: Record<EvaluationReason, string | null> = {
   profit_target_zero_base: "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
   stop_loss_zero_base: "O stop não pode disparar: a base de perda máxima da operação é zero",
 };
+
+function reevaluationSummaryEn(counts: ReevaluationCounts): string {
+  const parts = [
+    counts.signalsRetracted > 0 ? `${String(counts.signalsRetracted)} signal(s) withdrawn` : null,
+    counts.signalsReplaced > 0 ? `${String(counts.signalsReplaced)} signal(s) updated` : null,
+    counts.signalsAdded > 0 ? `${String(counts.signalsAdded)} new signal(s)` : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0
+    ? `Session re-evaluated: ${parts.join(", ")}.`
+    : "Session re-evaluated: only the log changed.";
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${String(count)} ${count === 1 ? one : many}`;
+}
+
+function reevaluationSummaryPtBR(counts: ReevaluationCounts): string {
+  const parts = [
+    counts.signalsRetracted > 0
+      ? plural(counts.signalsRetracted, "sinal retirado", "sinais retirados")
+      : null,
+    counts.signalsReplaced > 0
+      ? plural(counts.signalsReplaced, "sinal atualizado", "sinais atualizados")
+      : null,
+    counts.signalsAdded > 0 ? plural(counts.signalsAdded, "sinal novo", "sinais novos") : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0
+    ? `Sessão reavaliada: ${parts.join(", ")}.`
+    : "Sessão reavaliada: só o log mudou.";
+}
 
 const en = {
   list: {
@@ -261,6 +292,20 @@ const en = {
       empty: "No evaluation recorded yet.",
       reasonText: reasonTextEn,
       webReasonText: webReasonTextEn,
+      reevaluated: "re-evaluated",
+      reevaluate: "Re-evaluate",
+      reevaluateAriaLabel: (strategyName: string, sessionLabel: string) =>
+        `Re-evaluate ${strategyName} on ${sessionLabel}`,
+      reevaluation: {
+        applied: reevaluationSummaryEn,
+        unchanged: "Nothing changed in this session.",
+        failed: "Couldn't recompute this session. Nothing was changed.",
+        not_found: "There is no evaluation of this strategy on this session to redo.",
+        archived: "This strategy is archived. Unarchive it to re-evaluate.",
+        conflict: "Another re-evaluation of this session finished first. Reload the page.",
+        rate_limited: "Too many re-evaluations in a row. Wait a minute and try again.",
+        generic: "Couldn't re-evaluate right now. Try again.",
+      },
     },
     outcomes: {
       signal: "Signal",
@@ -456,6 +501,20 @@ const ptBR = {
       empty: "Nenhuma avaliação registrada ainda.",
       reasonText: reasonTextPtBR,
       webReasonText: webReasonTextPtBR,
+      reevaluated: "reavaliada",
+      reevaluate: "Reavaliar",
+      reevaluateAriaLabel: (strategyName: string, sessionLabel: string) =>
+        `Reavaliar ${strategyName} em ${sessionLabel}`,
+      reevaluation: {
+        applied: reevaluationSummaryPtBR,
+        unchanged: "Nada mudou nesta sessão.",
+        failed: "Não foi possível recalcular esta sessão. Nada foi alterado.",
+        not_found: "Não há avaliação desta estratégia nesta sessão para refazer.",
+        archived: "Esta estratégia está arquivada. Desarquive para reavaliar.",
+        conflict: "Outra reavaliação desta sessão terminou antes. Recarregue a página.",
+        rate_limited: "Muitas reavaliações seguidas. Aguarde um minuto e tente de novo.",
+        generic: "Não foi possível reavaliar agora. Tente novamente.",
+      },
     },
     outcomes: {
       signal: "Sinal",

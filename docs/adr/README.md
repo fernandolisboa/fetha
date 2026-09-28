@@ -50,5 +50,6 @@ supersedes or amends them and says so.
 | 0042 | The manual ingestion trigger is gated by the owner's session, not `CRON_SECRET` (#51)                            |
 | 0043 | Strategies are archived, never deleted; archived ones leave the cap and sharing (amends 0012, 0032)              |
 | 0044 | Entry proposals older than five sessions stay out of the inbox; the catch-up still logs them (amends 0039)       |
+| 0045 | Re-evaluating a session is append-only, per user and strategy, and audited (#84)                                 |
 
 Open: none.

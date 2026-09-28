@@ -13,7 +13,13 @@ import {
   riskProfiles,
 } from "@/modules/portfolio/schema";
 import { preferences } from "@/modules/preferences/schema";
-import { evaluations, signals, strategies, strategyVersions } from "@/modules/strategies/schema";
+import {
+  evaluations,
+  signalReevaluations,
+  signals,
+  strategies,
+  strategyVersions,
+} from "@/modules/strategies/schema";
 import { watchlistItems } from "@/modules/watchlist/schema";
 
 function only<T>(rows: T[]): T {
@@ -116,6 +122,9 @@ export async function seedUserFootprint(
       })
       .returning({ id: signals.id }),
   );
+  await db
+    .insert(signalReevaluations)
+    .values({ userId, strategyId: strategy.id, session: "2026-01-02", status: "unchanged" });
   await db.insert(evaluations).values({
     userId,
     strategyId,
