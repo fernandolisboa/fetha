@@ -98,6 +98,10 @@ describe("ingestionErrorMessage", () => {
     expect(ingestionErrorMessage("boom")).toBe("unknown error");
     expect(ingestionErrorMessage(undefined)).toBe("unknown error");
   });
+
+  it("reports unknown error for an Error with an empty message instead of an empty string", () => {
+    expect(ingestionErrorMessage(new Error(""))).toBe("unknown error");
+  });
 });
 
 describe("resolveSgsFromDate", () => {

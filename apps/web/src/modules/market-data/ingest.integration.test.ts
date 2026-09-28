@@ -429,7 +429,10 @@ describe("runSource against a real database failure", () => {
       return 0;
     });
 
-    expect(outcome.error).toBeDefined();
+    // Pins the real driver's cause-chain depth: db.execute's own division-by-zero
+    // failure surfaces as a DrizzleQueryError whose cause is the Postgres error
+    // (SQLSTATE 22012), not merely "some error" that happens not to leak.
+    expect(outcome.error).toBe("22012");
     expect(outcome.error).not.toContain("Failed query");
     expect(outcome.error).not.toContain("params:");
     expect(outcome.error).not.toContain("select 1 / 0");

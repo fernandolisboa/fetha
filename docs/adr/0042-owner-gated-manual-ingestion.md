@@ -72,10 +72,11 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
    once could each observe the other's magic link.
 
 7. **The action returns a redacted summary, never the full `NightlyJobOutcome`.** Another user's
-   `decisionId` (`scoring.errors`) and a provider's raw error string (`sources[].error`) are for the
-   cron response and its own logs only; `TriggerNightlyJobSummary` carries `ok`, `session`, a
-   per-source `status` (`ok`/`skipped`/`failed`) and the two counts (`signalsWritten`,
-   `decisionsScored`) the panel renders.
+   `decisionId` (`scoring.errors`) and a source's sanitized error string (`sources[].error`, a
+   Postgres SQLSTATE plus constraint or a truncated message, never a raw provider payload or SQL
+   statement — see #198) are for the cron response and its own logs only; `TriggerNightlyJobSummary`
+   carries `ok`, `session`, a per-source `status` (`ok`/`skipped`/`failed`) and the two counts
+   (`signalsWritten`, `decisionsScored`) the panel renders.
 
 8. **An in-process guard rejects a concurrent manual trigger with `{ status: "busy" }`.** A
    module-level flag in `actions.ts`, set for the duration of `runNightlyJob`, guards only this
