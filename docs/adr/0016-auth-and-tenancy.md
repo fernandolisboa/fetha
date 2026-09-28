@@ -339,3 +339,39 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   single-digit-user scale but not a pattern to grow; ADR-0029 stops a stranger from burning it
   instead); purging unverified users (an account that
   never verifies its email is never deleted today; done in ADR-0028).
+
+## Addendum 2026-09-28: the Playwright e2e suite also runs inside `preview-database` (#221)
+
+The e2e suite (CLAUDE.md's Testing section) ran only by hand against a Vercel preview until now.
+`preview-database` grew steps, after its existing reset/migrate/seed-structures/seed-e2e-owner
+sequence and still inside the same job and the same `preview-db` concurrency lock described above,
+that wait for the pull request's own Vercel preview deployment and then run the whole suite against
+it. It is the same job, not a sibling one, for the same reason the lock exists at all: a second
+job would let another PR's `db:reset` run concurrently with this PR's e2e suite against the shared
+`fetha-preview` database.
+
+- **Pull requests only.** The steps are gated on `github.event_name == 'pull_request'`; a push to
+  `main` has no pull request and therefore no preview deployment to test against, so it only runs
+  the existing reset/migrate/seed steps, same as before this addendum.
+- **Skips cleanly, never fails the job, when `E2E_SECRET` or `VERCEL_PROTECTION_BYPASS` (both
+  repository secrets) or `DATABASE_URL_PREVIEW` are not configured.** A "Check e2e prerequisites"
+  step computes one boolean output the later steps gate on, the same shape as this ADR's own
+  `preview-db.outputs.configured` check above.
+- **The lock is held for longer.** `preview-db`'s `cancel-in-progress: false` already served
+  `db:reset` against the shared database; it now also covers the minutes the e2e suite spends
+  against that PR's preview. This is accepted, not incidental: nothing else may reset
+  `fetha-preview` while the suite reads and writes rows in it. The cost is queuing, not
+  correctness — GitHub Actions keeps at most one _pending_ run per concurrency group, so with
+  several PRs open at once an earlier pending run can be replaced (cancelled) by a later push
+  before it ever starts; a PR whose run was cancelled this way needs a manual re-run once its
+  queue turn would otherwise have come up, the same operational reality `cancel-in-progress: false`
+  already implied for `db:reset` before e2e was added.
+- **Finding the right preview deployment isn't a plain sha lookup.** Vercel's `ignoreCommand`
+  (`apps/web/vercel.json`, `apps/web/scripts/vercel-ignore-build.sh`, CLAUDE.md's Working
+  agreements) diffs each push against the last commit it actually built, not against the whole
+  pull request, so a docs-only commit on top of a code commit never gets its own GitHub deployment
+  — only a `"Vercel"` commit status describing it as ignored. `scripts/wait-for-vercel-preview.mjs`
+  polls the head commit first and, only when that commit was ignored, walks the pull request's
+  commit history backward to the nearest earlier commit that did build; a pull request that is
+  docs-only from its very first commit therefore resolves to "no preview exists, skip e2e" instead
+  of waiting out the full timeout.
