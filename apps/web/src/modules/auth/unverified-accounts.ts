@@ -1,8 +1,8 @@
-import { and, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 
-import { account, invites, user, verification } from "./schema";
+import { account, user, verification } from "./schema";
 
 export const UNVERIFIED_ACCOUNT_RETENTION_HOURS = 24;
 const HOUR_MS = 60 * 60 * 1000;
@@ -43,12 +43,9 @@ export async function purgeUnverifiedAccounts(
     // An unverified account never had a session, so it owns no domain data;
     // the cascade from `user` removes its terms history, and its pending
     // reset tokens carry its id as their value. Not `deleteOperationalRowsOf`:
-    // that one deletes the email's invite. An unverified account spends no
-    // invite since docs/adr/0029; one spent at sign-up before it is left
-    // with no owner by the foreign key and goes back to pending, so the
-    // invitee can still register. Only the invites these accounts held, and
-    // only once the delete has left them ownerless: an account that verified
-    // in between keeps its invite.
+    // that one deletes the email's invite, but an unverified account spends
+    // no invite since docs/adr/0029, so it never holds one to release
+    // (docs/adr/0029's 2026-09-28 addendum).
     const stale = await db
       .select({ id: user.id })
       .from(user)
@@ -57,28 +54,10 @@ export async function purgeUnverifiedAccounts(
     if (ids.length === 0) {
       return { ok: true, deleted: 0 };
     }
-    const heldInvites = await db
-      .select({ id: invites.id })
-      .from(invites)
-      .where(inArray(invites.consumedByUserId, ids));
     const deleted = await db
       .delete(user)
       .where(and(inArray(user.id, ids), eq(user.emailVerified, false)))
       .returning({ id: user.id });
-    if (heldInvites.length > 0) {
-      await db
-        .update(invites)
-        .set({ consumedAt: null })
-        .where(
-          and(
-            inArray(
-              invites.id,
-              heldInvites.map((row) => row.id),
-            ),
-            isNull(invites.consumedByUserId),
-          ),
-        );
-    }
     if (deleted.length > 0) {
       await db.delete(verification).where(
         inArray(

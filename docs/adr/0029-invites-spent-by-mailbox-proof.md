@@ -30,10 +30,9 @@ A stranger who registers an invited email first leaves the invite pending. The i
 sign-up then resends the verification link to that pending account (ADR-0028), and opening it
 spends the invite with the account's id. `hasPendingInvite` and the invite-mode sign-up policy are
 unchanged. `consumePendingInvite` still matches only a pending row, so a spent invite is never
-spent again. An invite spent at sign-up before this change may belong to an account the purge
-later deletes. The purge notes the invites those accounts hold, deletes the accounts (the foreign
-key leaves the invites with no owner), then reopens only those of the noted invites that really
-lost their owner, so an account that verifies in between keeps its invite.
+spent again. An invite spent at sign-up before this change may have belonged to an account the
+purge later deleted; see the 2026-09-28 addendum for why the purge no longer has to account for
+that.
 
 ## Considered options
 
@@ -50,3 +49,14 @@ lost their owner, so an account that verifies in between keeps its invite.
   stranger could not burn the invite, and the owner deletes a row to revoke one.
 - Every update Better Auth makes to a verified user runs one `UPDATE` on `invites`, which matches
   nothing once the invite is spent.
+
+## Addendum, 2026-09-28: drop the purge's invite-reopen step
+
+`purgeUnverifiedAccounts` no longer notes the invites the accounts it deletes held, nor reopens
+those the delete leaves ownerless (#195). Since this ADR, an invite is spent only when the invitee
+proves the mailbox, so an unverified account never holds one to release; the step's only possible
+targets were rows spent at sign-up before PR #150 (merged 2026-09-27 01:53Z), the old behavior this
+ADR replaced. Those accounts crossed the 24-hour retention window at 2026-09-28 01:53Z, and the
+first nightly purge after that, the 03:30Z cron on 2026-09-28, deleted them: the orchestrator
+confirmed that run before this change merged. No row the step could act on can exist from here on,
+so it is dead code, not a behavior change.
