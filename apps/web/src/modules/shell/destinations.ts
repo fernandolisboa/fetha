@@ -22,3 +22,11 @@ export function destinations(): Destination[] {
     { href: "/configuracoes", label: t.destinations.settings, icon: Settings },
   ];
 }
+
+// A destination stays current on its own sub-pages (`/estrategias/<id>`,
+// `/carteira/nova-operacao`); the watchlist at `/` only on itself, or every
+// page would light it.
+export function isActiveDestination(pathname: string, href: DestinationHref): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}

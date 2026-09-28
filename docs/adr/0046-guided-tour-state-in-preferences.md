@@ -22,11 +22,13 @@ tour starts.
   Tour libraries (driver.js, shepherd, react-joyride) inject their own styles and dialog markup:
   the first fights the enforced nonce CSP (ADR-0035), the second the rule that interactive
   primitives come from shadcn.
-- **Targets are `data-tour` attributes** on shell and watchlist elements (`rail`,
-  `add-instrument`, `account-menu`) and the rail's own links, selected by their typed
+- **Targets are `data-tour` attributes** on shell and watchlist elements (`rail`, `tab-bar`,
+  `add-instrument`, `account-menu`) and the rail's and tab bar's own links, selected by their typed
   destination href. `data-tour="<name>"` is the contract between a module's markup and the tour;
-  renaming or removing one means updating `help/tour-steps.ts`. A step whose target is missing or takes no space (the
-  rail under 768px, the watchlist's button on another page) shows centered with a full dim.
+  renaming or removing one means updating `help/tour-steps.ts`. A step lists its targets in order
+  of preference and anchors on the first one on screen: the navigation steps try the rail, then
+  the bottom tab bar that replaces it under 768px (#243). A step with no target on screen (the
+  watchlist's button on another page) shows centered with a full dim.
 - **Dismissal is `preferences.tour_dismissed_at`**, per user, nullable, written by
   `dismissTourAction` on "Pular tour", Escape and "Concluir". It keeps the first timestamp. Not
   `localStorage`: the installed PWA and a second browser must agree, and a cleared site data must

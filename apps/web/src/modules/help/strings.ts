@@ -20,7 +20,7 @@ const en = {
       },
       rail: {
         title: "Navigation",
-        body: "Fetha's six destinations live here. The button at the end collapses the bar to give the content more room.",
+        body: "Fetha's six destinations live here. On a computer, the button at the end of the side bar collapses it to give the content more room.",
       },
       commandSearch: {
         title: "Search",
@@ -158,7 +158,7 @@ const ptBR = {
       },
       rail: {
         title: "Navegação",
-        body: "Os seis destinos da Fetha ficam aqui. O botão no fim recolhe a barra para dar mais espaço ao conteúdo.",
+        body: "Os seis destinos da Fetha ficam aqui. No computador, o botão no fim da barra lateral a recolhe para dar mais espaço ao conteúdo.",
       },
       commandSearch: {
         title: "Busca",

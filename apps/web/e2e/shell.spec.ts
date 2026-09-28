@@ -24,6 +24,44 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
+test("under 768px the rail becomes a bottom tab bar with the six destinations", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(navigation).toHaveCount(1);
+  await expect(navigation).toHaveAttribute("data-tour", "tab-bar");
+  const names = ["Watchlist", "Sinais", "Estratégias", "Carteira", "Diário", "Configurações"];
+  for (const name of names) {
+    const link = navigation.getByRole("link", { name });
+    await expect(link).toBeVisible();
+    const box = await link.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+
+  const barBox = await navigation.boundingBox();
+  expect((barBox?.y ?? 0) + (barBox?.height ?? 0)).toBeCloseTo(844, 0);
+  await expect(navigation.getByRole("link", { name: "Watchlist" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await navigation.getByRole("link", { name: "Sinais" }).click();
+  await expect(page).toHaveURL(/\/sinais$/);
+  await expect(navigation.getByRole("link", { name: "Sinais" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await page.setViewportSize({ width: 1024, height: 844 });
+  await expect(navigation).toHaveAttribute("data-tour", "rail");
+});
+
 test("header fits phone, tablet and desktop widths without overflowing", async ({
   page,
   baseURL,

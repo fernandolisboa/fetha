@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { setRailCollapsedAction } from "@/modules/preferences/client";
 
-import { destinations } from "../destinations";
+import { destinations, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
 export function Rail({
@@ -51,7 +51,7 @@ export function Rail({
       )}
     >
       {destinations().map((destination) => {
-        const active = pathname === destination.href;
+        const active = isActiveDestination(pathname, destination.href);
         return (
           <Link
             key={destination.href}
