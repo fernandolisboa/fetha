@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { drizzleQueryError, postgresError } from "@/db/test/pg-error";
+
 const tradingSessionForDate = vi.fn();
 const previousTradingSession = vi.fn();
 const calendarUpTo = vi.fn();
@@ -81,6 +83,21 @@ describe("evaluateSignalsForSession", () => {
     expect(outcome.errors).toEqual(["setup_failed"]);
     expect(outcome.errors.join()).not.toContain("connection reset");
     expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("logs a failed setup query as its SQLSTATE, never the statement or its bound params", async () => {
+    const failed = drizzleQueryError(postgresError("57014"));
+    failed.message = "Failed query: select * from strategies where user_id = $1\nparams: user-a";
+    listAll.mockRejectedValueOnce(failed);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await evaluateSignalsForSession(db, ["2026-09-09"]);
+
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).toContain("57014");
+    expect(logged).not.toContain("Failed query");
+    expect(logged).not.toContain("user-a");
     errorSpy.mockRestore();
   });
 
