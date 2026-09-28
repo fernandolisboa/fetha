@@ -41,7 +41,8 @@ export type StrategyActionResult =
         | "unavailable"
         | "version_limit"
         | "archived"
-        | "rate_limited";
+        | "rate_limited"
+        | "limit_reached";
     };
 
 const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
@@ -75,13 +76,14 @@ function mapKnownError(
   | "version_limit"
   | "archived"
   | "rate_limited"
+  | "limit_reached"
   | null {
   if (error instanceof AccountRateLimitExceededError) return "rate_limited";
   if (error instanceof StrategyNotFoundError) return "not_found";
   if (error instanceof StrategyVersionLimitError) return "version_limit";
   if (error instanceof StrategyNotSharedError) return "not_shared";
   if (error instanceof StrategyArchivedError) return "archived";
-  if (error instanceof StrategyLimitReachedError) return "unavailable";
+  if (error instanceof StrategyLimitReachedError) return "limit_reached";
   return classifyPersistenceError(error);
 }
 
