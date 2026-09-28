@@ -64,8 +64,8 @@ function truncate(message: string, maxLength: number): string {
 }
 
 // The one way a caught error that may come from the database becomes a
-// string that is stored, returned or logged (`ingestion_runs.error`, the
-// nightly job's outcome, job logs): a Postgres error is reduced to its
+// string that is stored, returned or logged (an ingestion run's error, a
+// nightly job's setup-failure log): a Postgres error is reduced to its
 // SQLSTATE (plus the violated constraint when the driver reports one), never
 // its own message, since that message is driver-formatted free text that can
 // itself echo back bound values.
