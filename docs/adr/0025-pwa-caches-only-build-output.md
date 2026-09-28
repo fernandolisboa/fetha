@@ -31,7 +31,7 @@ fills and journal, so the exposure grew with each feature.
    `serwist-expiration` IndexedDB database, which removes what `defaultCache` left on installed
    clients: the cached responses and the URLs and access times its expiration plugin recorded.
    Because `skipWaiting` does not wait for the previous worker's pending cache writes, the worker
-   purges again on the first request after each start.
+   purges again on the first request after each start. **(removed 2026-09-28, see Addendum.)**
 5. Since no user data is cached, sign-out needs no cache step.
 
 ## Considered options
@@ -48,3 +48,13 @@ fills and journal, so the exposure grew with each feature.
 - Every page load hits the network; build output still comes from the precache.
 - Any new runtime route must be added to `pwa-cache.ts` and its test, which asserts that no
   route stores `/api/*`, navigations or RSC payloads.
+
+## Addendum (2026-09-28, #194)
+
+Point 4's purge of `defaultCache`'s leftover caches and the `serwist-expiration` IndexedDB is
+removed: it was migration code for the pre-#43 worker (PR #118, merged 2026-09-26). Production
+has run `registration_mode: open` since 2026-09-24 (ADR-0020), so any account other than the
+owner's that installed the PWA in the two-day window before PR #118 shipped and never reopened it
+since could still carry its own leftover caches on its own device. That residual is accepted: it
+is the account's own data on the account's own device, never another tenant's, and every account
+active since 2026-09-26 has long since run the purge. The worker no longer needs it.
