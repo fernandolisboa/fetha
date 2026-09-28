@@ -138,3 +138,10 @@ browser offline and checks that a navigation renders the "Sem conexão" page.
 the new user, and checks the export shows up in the access log. A second test deletes a fresh
 account from Configurações (a wrong password first, then the right one), lands on
 `/conta-excluida` and checks the same credentials no longer sign in. Needs `E2E_SECRET`.
+
+`tour.spec.ts` covers the guided tour (#231, ADR-0045): it registers a fresh account, sees the
+tour start on the watchlist, steps forward and back, skips it, reloads and checks it stays
+dismissed, then replays it from `/como-usar` and walks all eight steps to "Concluir". A second
+test skips it with Escape. It is the one spec that imports Playwright's own `test`; every other
+spec imports `test` from `e2e/tour.ts`, whose page fixture skips the tour when it shows. Needs
+`E2E_SECRET`.

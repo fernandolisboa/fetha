@@ -44,9 +44,19 @@ test("the tour starts on first sign-in, stays dismissed, and replays from the gu
   await expect(page).toHaveURL(/\/$/);
   await expect(card.getByText("Passo 1 de 8")).toBeVisible();
 
-  for (let step = 2; step <= 8; step += 1) {
+  const titles = [
+    "Navegação",
+    "Comece pela watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Menu da conta",
+  ];
+  for (const [offset, title] of titles.entries()) {
     await card.getByRole("button", { name: "Próximo" }).click();
-    await expect(card.getByText(`Passo ${String(step)} de 8`)).toBeVisible();
+    await expect(card.getByText(`Passo ${String(offset + 2)} de 8`)).toBeVisible();
+    await expect(card.getByRole("heading", { name: title })).toBeVisible();
   }
   await expect(card.getByRole("button", { name: "Pular tour" })).toBeHidden();
   await card.getByRole("button", { name: "Concluir" }).click();

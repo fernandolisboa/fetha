@@ -166,7 +166,7 @@ instrument, evaluation time, late flag, proposal summary), StrategyEditor (close
 forms), BacktestReport (equity, drawdown, distribution, metrics table, walk-forward windows,
 declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score), ThemePicker,
 GuidedTour (a dim layer with a hairline `--accent` cutout around one element and a Popover step
-card: progress, title, one sentence, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0045).
+card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0045).
 
 ## States
 

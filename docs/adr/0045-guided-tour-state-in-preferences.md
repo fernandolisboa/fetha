@@ -20,8 +20,10 @@ tour starts.
   Tour libraries (driver.js, shepherd, react-joyride) inject their own styles and dialog markup:
   the first fights the enforced nonce CSP (ADR-0035), the second the rule that interactive
   primitives come from shadcn.
-- **Targets are `data-tour` attributes** on shell elements (`rail`, `add-instrument`,
-  `account-menu`) and the rail's own links. A step whose target is missing or takes no space (the
+- **Targets are `data-tour` attributes** on shell and watchlist elements (`rail`,
+  `add-instrument`, `account-menu`) and the rail's own links, selected by their typed
+  destination href. `data-tour="<name>"` is the contract between a module's markup and the tour;
+  renaming or removing one means updating `help/tour-steps.ts`. A step whose target is missing or takes no space (the
   rail under 768px, the watchlist's button on another page) shows centered with a full dim.
 - **Dismissal is `preferences.tour_dismissed_at`**, per user, nullable, written by
   `dismissTourAction` on "Pular tour", Escape and "Concluir". It keeps the first timestamp. Not
