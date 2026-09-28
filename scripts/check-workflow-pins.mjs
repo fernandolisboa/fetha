@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const SHA_PINNED = /^[^/@\s]+\/[^@\s]+@[0-9a-f]{40}$/;
 const DOCKER_SHA_PINNED = /^docker:\/\/[^@\s]+@sha256:[0-9a-f]{64}$/;
@@ -12,6 +13,7 @@ export function parseUsesValue(raw) {
     const end = trimmed.indexOf(quote, 1);
     return end === -1 ? trimmed.slice(1) : trimmed.slice(1, end);
   }
+  if (trimmed === "" || trimmed.startsWith("#")) return "";
   const match = trimmed.match(/^\S+/);
   return match ? match[0] : "";
 }
@@ -20,7 +22,7 @@ export function findUsesEntries(content) {
   const entries = [];
   const lines = content.split("\n");
   for (let index = 0; index < lines.length; index += 1) {
-    const match = lines[index].match(/^\s*-?\s*uses:\s*(.+)$/);
+    const match = lines[index].match(/^\s*-?\s*uses\s*:\s*(.*)$/);
     if (!match) continue;
     entries.push({ line: index + 1, value: parseUsesValue(match[1]) });
   }
@@ -28,6 +30,7 @@ export function findUsesEntries(content) {
 }
 
 export function validateUsesValue(value) {
+  if (value === "") return "`uses:` has no value on its line and cannot be verified as pinned";
   if (value.startsWith("./") || value.startsWith("../")) return null;
   if (value.startsWith("docker://")) {
     return DOCKER_SHA_PINNED.test(value)
@@ -77,15 +80,34 @@ export function checkRepo(repoRoot) {
   return findWorkflowFiles(repoRoot).flatMap((filePath) => checkFile(filePath));
 }
 
+export function run(repoRoot) {
+  const files = findWorkflowFiles(repoRoot);
+  if (files.length === 0) {
+    return { ok: false, noFilesFound: true, violations: [], fileCount: 0 };
+  }
+  const violations = files.flatMap((filePath) => checkFile(filePath));
+  return { ok: violations.length === 0, noFilesFound: false, violations, fileCount: files.length };
+}
+
 function main() {
-  const repoRoot = path.resolve(import.meta.dirname, "../../..");
-  const violations = checkRepo(repoRoot);
-  if (violations.length === 0) {
-    console.log("ok - every `uses:` is pinned to a full commit sha");
+  const repoRoot = path.resolve(import.meta.dirname, "..");
+  const result = run(repoRoot);
+
+  if (result.noFilesFound) {
+    console.error("not ok - no workflow files found under .github");
+    process.exitCode = 1;
     return;
   }
+
+  if (result.ok) {
+    console.log(
+      `ok - every \`uses:\` is pinned to a full commit sha (${result.fileCount} files checked)`,
+    );
+    return;
+  }
+
   console.error("not ok - unpinned `uses:` found");
-  for (const violation of violations) {
+  for (const violation of result.violations) {
     console.error(
       `${path.relative(repoRoot, violation.file)}:${violation.line}: ${violation.value} - ${violation.message}`,
     );
@@ -93,6 +115,6 @@ function main() {
   process.exitCode = 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main();
 }
