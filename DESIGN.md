@@ -14,9 +14,9 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
 ## Structure (one set of components; themes change tokens, never anatomy)
 
 - **App shell**: a CSS grid with named areas (header, nav, content). Header 48px: wordmark,
-  command search (`Ctrl K`: instrument, series or strategy), market bar (IBOV, CDI, the focused
-  instrument's last price and change, data freshness: "14:32 · cotação com atraso de 5 min" or
-  "fechamento de ontem"), account menu. Nav: a left rail, 200px with icons and labels, 56px
+  command search (`Ctrl K`: instrument or strategy; option series later, #241), market bar (IBOV,
+  CDI, the focused instrument's last price and change, data freshness: "14:32 · cotação com atraso
+  de 5 min" or "fechamento de ontem"), account menu. Nav: a left rail, 200px with icons and labels, 56px
   collapsed with icons only, state remembered per user; six destinations: Watchlist, Sinais (with
   an unread count), Estratégias, Carteira, Diário, Configurações; declared capital at the rail
   foot. Under 1024px the rail collapses; under 768px it becomes a bottom tab bar (rare: desktop

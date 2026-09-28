@@ -6,7 +6,8 @@ import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
-import { getMyUnreadSignalCount } from "@/modules/strategies";
+import { getMyUnreadSignalCount, searchMyStrategiesAction } from "@/modules/strategies";
+import { searchInstrumentsAction } from "@/modules/watchlist";
 
 export default async function ShellLayout({ children }: { children: ReactNode }) {
   const user = await getSession();
@@ -36,7 +37,13 @@ export default async function ShellLayout({ children }: { children: ReactNode })
 
   return (
     <TourProvider autoStart={!preferences.tourDismissed}>
-      <AppShell user={user} preferences={preferences} unreadSignalCount={unreadSignalCount}>
+      <AppShell
+        user={user}
+        preferences={preferences}
+        unreadSignalCount={unreadSignalCount}
+        searchInstruments={searchInstrumentsAction}
+        searchStrategies={searchMyStrategiesAction}
+      >
         {children}
       </AppShell>
     </TourProvider>

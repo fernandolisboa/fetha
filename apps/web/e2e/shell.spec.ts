@@ -32,14 +32,57 @@ test("Ctrl K palette opens and announces its empty state once typing starts", as
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.keyboard.press("Control+k");
-  const dialog = page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" });
+  const dialog = page.getByRole("dialog", { name: "Buscar ativo ou estratégia" });
   await expect(dialog).toBeVisible();
 
   const status = dialog.getByRole("status");
   await expect(status).toHaveText("");
+  await expect(dialog.getByText("Nenhum ativo ou estratégia encontrado.")).not.toBeVisible();
 
-  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("xyz");
-  await expect(status).toHaveText("Ainda não há nada para buscar.");
+  await page.getByPlaceholder("Buscar ativo ou estratégia").fill("zzzzzzzzzz");
+  await expect(status).toHaveText("Nenhum ativo ou estratégia encontrado.");
+});
+
+// PETR4 is one of B3's most liquid tickers and is expected to be present in
+// every ingested session (see watchlist.spec.ts), so this navigates the
+// palette to it without seeding a candle of its own.
+test("Ctrl K palette navigates to an instrument result", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder("Buscar ativo ou estratégia").fill("PETR");
+
+  const option = page.getByRole("option", { name: "PETR4", exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+
+  await expect(page).toHaveURL(/\/ativos\/PETR4$/);
+});
+
+test("Ctrl K palette navigates to a strategy result", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const runId = `${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+  const strategyName = `Busca pelo Ctrl K ${runId}`;
+
+  await page.goto("/estrategias");
+  await page.getByRole("link", { name: "Nova estratégia" }).click();
+  await page.getByLabel("Nome").fill(strategyName);
+  await page.getByRole("combobox", { name: "Estrutura" }).click();
+  await page.getByRole("option", { name: "Compra de ação", exact: true }).click();
+  await page.getByRole("button", { name: "Criar estratégia" }).click();
+  await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
+  const strategyUrl = page.url();
+
+  await page.goto("/");
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder("Buscar ativo ou estratégia").fill(`Ctrl K ${runId}`);
+
+  const option = page.getByRole("option", { name: strategyName, exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+
+  await expect(page).toHaveURL(strategyUrl);
 });
 
 test("theme switch persists across reload", async ({ page, baseURL, request }) => {

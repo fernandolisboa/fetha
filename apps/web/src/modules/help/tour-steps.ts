@@ -17,6 +17,7 @@ function railLink(href: DestinationHref): string {
 export const tourSteps: readonly TourStep[] = [
   { id: "welcome", target: null, side: "bottom" },
   { id: "rail", target: '[data-tour="rail"]', side: "right" },
+  { id: "commandSearch", target: '[data-tour="command-search"]', side: "bottom" },
   { id: "addInstrument", target: '[data-tour="add-instrument"]', side: "bottom" },
   { id: "signals", target: railLink("/sinais"), side: "right" },
   { id: "strategies", target: railLink("/estrategias"), side: "right" },

@@ -4,10 +4,12 @@ export {
   copySharedStrategyAction,
   createStrategyAction,
   markSignalReadAction,
+  searchMyStrategiesAction,
   setStrategyActiveAction,
   setStrategyVisibilityAction,
   unarchiveStrategyAction,
   type MarkSignalReadResult,
+  type SearchMyStrategiesResult,
   type StrategyActionResult,
 } from "./actions";
 export { SignalRow } from "./components/signal-row";
@@ -27,6 +29,7 @@ export { SignalNotFoundError, type SignalListItem } from "./signals-repository";
 export {
   StrategiesRepository,
   StrategyNotFoundError,
+  type StrategySearchResult,
   type StrategySummary,
   type StrategyVersionRecord,
   type StrategyVisibility,

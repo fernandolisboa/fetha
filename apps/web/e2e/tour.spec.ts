@@ -19,7 +19,7 @@ test("the tour starts on first sign-in, stays dismissed, and replays from the gu
 
   const card = page.locator("[data-tour-card]");
   await expect(card.getByText("Boas-vindas à Fetha")).toBeVisible();
-  await expect(card.getByText("Passo 1 de 8", { exact: true })).toBeVisible();
+  await expect(card.getByText("Passo 1 de 9", { exact: true })).toBeVisible();
 
   await card.getByRole("button", { name: "Próximo" }).click();
   await expect(card.getByText("Navegação")).toBeVisible();
@@ -38,10 +38,11 @@ test("the tour starts on first sign-in, stays dismissed, and replays from the gu
   await page.goto("/como-usar");
   await page.getByRole("button", { name: "Refazer o tour" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(card.getByText("Passo 1 de 8", { exact: true })).toBeVisible();
+  await expect(card.getByText("Passo 1 de 9", { exact: true })).toBeVisible();
 
   const titles = [
     "Navegação",
+    "Busca",
     "Comece pela watchlist",
     "Sinais",
     "Estratégias",
@@ -51,7 +52,7 @@ test("the tour starts on first sign-in, stays dismissed, and replays from the gu
   ];
   for (const [offset, title] of titles.entries()) {
     await card.getByRole("button", { name: "Próximo" }).click();
-    await expect(card.getByText(`Passo ${String(offset + 2)} de 8`, { exact: true })).toBeVisible();
+    await expect(card.getByText(`Passo ${String(offset + 2)} de 9`, { exact: true })).toBeVisible();
     await expect(card.getByRole("heading", { name: title })).toBeVisible();
   }
   await expect(card.getByRole("button", { name: "Pular tour" })).toBeHidden();
@@ -63,7 +64,7 @@ test("Escape skips the tour for good", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "", { tour: "keep" });
 
   const card = page.locator("[data-tour-card]");
-  await expect(card.getByText("Passo 1 de 8", { exact: true })).toBeVisible();
+  await expect(card.getByText("Passo 1 de 9", { exact: true })).toBeVisible();
 
   await Promise.all([tourDismissalSaved(page), page.keyboard.press("Escape")]);
   await expect(card).toBeHidden();
