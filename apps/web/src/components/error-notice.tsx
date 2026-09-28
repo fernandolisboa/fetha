@@ -19,13 +19,10 @@ export function ErrorNotice({
     <Alert
       variant="destructive"
       role={live ? "alert" : undefined}
-      className={cn(
-        "w-auto gap-0 rounded-none border-0 bg-transparent p-0 text-xs has-[>svg]:gap-x-1.5 *:[svg]:row-span-1",
-        className,
-      )}
+      className="w-auto gap-0 rounded-none border-0 bg-transparent p-0 has-[>svg]:gap-x-1.5 *:[svg]:row-span-1"
     >
       <CircleAlert aria-hidden="true" className="size-3.5" />
-      <AlertDescription className="text-destructive text-xs text-pretty">
+      <AlertDescription className={cn("text-destructive text-xs text-pretty", className)}>
         {children}
       </AlertDescription>
     </Alert>
