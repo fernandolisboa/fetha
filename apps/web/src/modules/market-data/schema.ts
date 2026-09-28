@@ -37,6 +37,10 @@ export const candles = pgTable(
     // parent (docs/adr/0017) propagates to every existing and future
     // partition, so no per-partition index is needed here.
     index("candles_ticker_pattern_idx").using("btree", table.ticker.op("text_pattern_ops")),
+    // Backs the calendar delete's `exists (... where session = ...)` probe
+    // (#210), which runs under the cotahist lock: the primary key leads with
+    // ticker, so without this the probe reads the whole month's partition.
+    index("candles_session_idx").on(table.session),
   ],
 );
 
@@ -73,7 +77,10 @@ export const optionDailyPrices = pgTable(
     trades: integer("trades").notNull(),
     tradedQuantity: bigint("traded_quantity", { mode: "number" }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.ticker, table.session] })],
+  (table) => [
+    primaryKey({ columns: [table.ticker, table.session] }),
+    index("option_daily_prices_session_idx").on(table.session),
+  ],
 );
 
 export const macroPoints = pgTable(

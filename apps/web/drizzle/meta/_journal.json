@@ -183,6 +183,13 @@
       "when": 1790619313503,
       "tag": "0025_strategies_archived_at",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790622377040,
+      "tag": "0026_session_indexes",
+      "breakpoints": true
     }
   ]
 }

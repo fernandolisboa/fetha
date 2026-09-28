@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -215,5 +215,34 @@ describe("deleteUnlistedTradingSessions", () => {
     const [, result] = await Promise.all([writer, deleter]);
 
     expect(result).toEqual({ kind: "blocked", dates: ["2031-03-04"] });
+  });
+});
+
+describe("the delete's market-data existence probes", () => {
+  const PROBED = "2031-03-12";
+
+  // Tiny test partitions always favour a sequential scan, so the planner is
+  // told to avoid one: the assertion is that an index leading with `session`
+  // exists to serve the probe, not the cost model's choice at test volume.
+  async function probePlan(table: "candles" | "option_daily_prices"): Promise<string> {
+    return getDb().transaction(async (tx) => {
+      await tx.execute(sql`set local enable_seqscan = off`);
+      const result = await tx.execute<{ "QUERY PLAN": string }>(
+        sql`explain select exists (select 1 from ${sql.identifier(table)} where session = ${PROBED}::date)`,
+      );
+      return result.rows.map((row) => row["QUERY PLAN"]).join("\n");
+    });
+  }
+
+  it("serves the candles probe from the session index", async () => {
+    await ensureMonthlyPartition(getDb(), "candles", PROBED);
+    expect(await probePlan("candles")).toMatch(/Index Only Scan using candles_\S*session\S*/);
+  });
+
+  it("serves the option prices probe from the session index", async () => {
+    await ensureMonthlyPartition(getDb(), "option_daily_prices", PROBED);
+    expect(await probePlan("option_daily_prices")).toMatch(
+      /Index Only Scan using option_daily_prices_\S*session\S*/,
+    );
   });
 });
