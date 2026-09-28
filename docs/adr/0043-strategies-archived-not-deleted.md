@@ -60,5 +60,4 @@ against its inputs (CLAUDE.md, principle 4). The owner decided (2026-09-28): arc
 - Residual: with archived rows outside the count, create → archive → create is no longer bounded
   by the cap, so the cap stops doing the write-loop job ADR-0032 gave it. Accepted for now: every
   path is the caller's own session writing its own rows, and a per-user rate limit on strategy
-  writes is the right bound for that loop, not a larger total ceiling (tracked as a follow-up
-  issue).
+  writes is the right bound for that loop, not a larger total ceiling (tracked as #217).
