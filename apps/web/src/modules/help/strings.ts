@@ -8,6 +8,7 @@ interface DestinationGuide {
 const en = {
   guide: {
     title: "How to use Fetha",
+    documentTitle: "How to use",
     overline: "Help",
     intro:
       "Fetha is a lab for studying B3 instruments before risking money. It prices, backtests and evaluates your strategies on public daily data, and keeps a journal of your decisions scored against what actually happened.",
@@ -26,8 +27,7 @@ const en = {
     header: {
       title: "Top of the screen",
       steps: [
-        "Ctrl K searches an instrument, an option series or a strategy.",
-        "The market bar shows the reference prices and how fresh they are, such as “fechamento de ontem”.",
+        "On an instrument's page, the market bar shows its last close and how recent it is, such as “fechamento de ontem”.",
         "The account menu holds this guide, settings and sign out.",
       ],
     },
@@ -99,6 +99,7 @@ const en = {
 const ptBR = {
   guide: {
     title: "Como usar a Fetha",
+    documentTitle: "Como usar",
     overline: "Ajuda",
     intro:
       "A Fetha é um laboratório para estudar ativos da B3 antes de arriscar dinheiro. Ela precifica, faz backtests e avalia suas estratégias com dados diários públicos, e guarda um diário das suas decisões, pontuadas contra o que de fato aconteceu.",
@@ -117,8 +118,7 @@ const ptBR = {
     header: {
       title: "No topo da tela",
       steps: [
-        "Ctrl K busca um ativo, uma série de opções ou uma estratégia.",
-        "A barra de mercado mostra os preços de referência e de quando eles são, como “fechamento de ontem”.",
+        "Na página de um ativo, a barra de mercado mostra o último fechamento e de quando ele é, como “fechamento de ontem”.",
         "O menu da conta tem este guia, as configurações e o botão de sair.",
       ],
     },
@@ -158,14 +158,14 @@ const ptBR = {
           "Cada vez que você salva, nasce uma nova versão; abra a estratégia para rodar um backtest na sua watchlist.",
           "Marque como “Ativa” para ela ser avaliada toda noite.",
           "“Comparar backtests” coloca até três simulações lado a lado.",
-          "Compartilhe uma estratégia só para leitura, copie as que outros compartilharam e arquive as que não usa mais.",
+          "Compartilhe uma estratégia em somente leitura, copie as que outros compartilharam e arquive as que não usa mais.",
         ],
       },
       "/carteira": {
         summary:
           "Suas posições reais, lançadas por você e marcadas a mercado pelo último fechamento.",
         steps: [
-          "“Registrar execução” lança uma execução à mão; “Importar planilha da B3” lê o extrato de negociação da Área do Investidor.",
+          "“Registrar execução” lança uma execução à mão; “Importar planilha da B3” lê o extrato de Negociação da Área do Investidor.",
           "Agrupe as execuções em operações para acompanhar o resultado de cada uma.",
           "“Nova operação” abre o montador: monte a estrutura perna a perna e veja payoff, gregas, pontos de equilíbrio e perda máxima.",
           "Séries vencidas esperam a sua confirmação antes de qualquer liquidação.",
@@ -190,6 +190,6 @@ const ptBR = {
   },
 } satisfies typeof en;
 
-export const onboardingStrings = { en, ptBR } as const;
+export const helpStrings = { en, ptBR } as const;
 
-export const t = onboardingStrings.ptBR;
+export const t = helpStrings.ptBR;

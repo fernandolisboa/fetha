@@ -8,7 +8,7 @@ import { t } from "../strings";
 function StepList({ steps, ordered = false }: { steps: string[]; ordered?: boolean }) {
   if (ordered) {
     return (
-      <ol className="flex flex-col gap-2 text-[13px]">
+      <ol className="flex max-w-[72ch] flex-col gap-2 text-[13px]">
         {steps.map((step, index) => (
           <li key={step} className="flex gap-2.5">
             <span className="text-muted-foreground w-4 shrink-0 text-right font-mono tabular-nums">
@@ -21,7 +21,7 @@ function StepList({ steps, ordered = false }: { steps: string[]; ordered?: boole
     );
   }
   return (
-    <ul className="marker:text-muted-foreground flex list-disc flex-col gap-1.5 pl-4 text-[13px]">
+    <ul className="marker:text-muted-foreground flex max-w-[72ch] list-disc flex-col gap-1.5 pl-4 text-[13px]">
       {steps.map((step) => (
         <li key={step}>{step}</li>
       ))}
@@ -38,7 +38,7 @@ export function HowToUseGuide() {
             <StepList steps={section.steps} />
             <Link
               href={section.href}
-              className="text-primary self-start text-[13px] underline-offset-4 hover:underline"
+              className="text-primary inline-flex min-h-8 items-center self-start text-[13px] underline-offset-4 hover:underline"
             >
               {t.guide.open(section.label)}
             </Link>

@@ -1,2 +1,2 @@
 export { HowToUseGuide } from "./components/how-to-use-guide";
-export { onboardingStrings, t } from "./strings";
+export { helpStrings, t } from "./strings";

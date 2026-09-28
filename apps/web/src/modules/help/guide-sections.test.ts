@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { destinations } from "@/modules/shell/client";
 
 import { guideSections } from "./guide-sections";
-import { onboardingStrings } from "./strings";
+import { helpStrings } from "./strings";
 
 describe("guideSections", () => {
   it("follows the rail's destinations in order", () => {
@@ -20,7 +20,7 @@ describe("guideSections", () => {
   });
 
   it("ships the same number of steps in pt-BR as in the English source", () => {
-    const { en, ptBR } = onboardingStrings;
+    const { en, ptBR } = helpStrings;
     for (const href of Object.keys(
       en.guide.destinations,
     ) as (keyof typeof en.guide.destinations)[]) {

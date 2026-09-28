@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 import { requireUser } from "@/modules/auth";
-import { HowToUseGuide, t } from "@/modules/onboarding";
+import { HowToUseGuide, t } from "@/modules/help";
 import { PageHeader } from "@/modules/shell";
 
-export const metadata: Metadata = { title: `Fetha · ${t.guide.title}` };
+export const metadata: Metadata = { title: `Fetha · ${t.guide.documentTitle}` };
 
 export default async function HowToUsePage() {
   await requireUser();
