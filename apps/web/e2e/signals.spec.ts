@@ -12,14 +12,10 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // session (#48, #19, #51), and confirms the resulting signal shows up in the
 // inbox as a SignalRow.
 const e2eSecret = process.env.E2E_SECRET;
-const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const SESSION = "2026-09-09";
 
-test.skip(
-  !e2eSecret || !ownerEmail,
-  "E2E_SECRET or E2E_OWNER_EMAIL is not set; skipping the signal inbox flow.",
-);
+test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the signal inbox flow.");
 
 test("a signal appears in the inbox after a triggered evaluation", async ({
   page,

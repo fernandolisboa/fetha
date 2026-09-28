@@ -108,15 +108,15 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
   `scoring.spec.ts`, `backtest.spec.ts` and `compare.spec.ts` need beyond `E2E_SECRET`.
 - `CONTEXT.md`'s description of the manual trigger is updated from "the owner's manual trigger:
   same bearer" to the session-authenticated Server Action described here.
-- **`E2E_OWNER_EMAIL` must be re-registered after every CI reset of `fetha-preview`.** CI resets
-  and re-migrates that database on every run (ADR-0016), which drops the account along with every
-  other row; the magic-link plugin runs with `disableSignUp: true` (options.ts), so
-  `triggerIngestionAsOwner` cannot self-provision it by clicking a magic link for an email that has
-  no account yet, the way a fresh throwaway account elsewhere in these specs self-registers. Until
-  a seeding step exists for this, re-running the owner-gated specs against a freshly reset preview
-  needs the owner account signed up and verified by hand first (the same one-time step
-  `scripts/seed-invite.mjs` already documents for `REGISTRATION_MODE=invite`) — this is a
-  known operational gap, not a design decision, and is deliberately left as a follow-up rather than
-  disabling `disableSignUp` (ADR-0018) to work around it.
+- **CI re-provisions the `E2E_OWNER_EMAIL` account after every reset of `fetha-preview`.** CI
+  resets and re-migrates that database on every run (ADR-0016), which drops the account along with
+  every other row, and the magic-link plugin runs with `disableSignUp: true` (options.ts), so
+  `triggerIngestionAsOwner` cannot self-provision it by clicking a magic link. The
+  `preview-database` job's last step, `db:seed-e2e-owner` (`scripts/seed-e2e-owner.mjs`, amended
+  2026-09-28), writes it straight back: verified, on the current terms, with a random credential
+  nobody keeps, so the shell's password gate lets the magic-link session through. The script runs
+  behind `assertDisposableDatabase`, which has no production override. The account defaults to
+  `dono-e2e@example.com`, the same default the specs read when `E2E_OWNER_EMAIL` is unset, and
+  the preview's `OWNER_EMAILS` names it. `disableSignUp` (ADR-0018) stays on.
 - A migration ships with this ADR: `apps/web/drizzle/0023_access_log_nightly_triggered.sql` adds
   `nightly_triggered` to `access_log`'s event check constraint.

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
-import { AccessLogPanel, getMyAccessLog, t as auditStrings } from "@/modules/audit";
+import { AccessLogPanel, getMyAccessLog, groupAccessLog, t as auditStrings } from "@/modules/audit";
 import {
   DeleteAccountDialog,
   isOwner,
@@ -26,7 +26,7 @@ export default async function SettingsPage() {
   await requireUser();
   const preferences = await getPreferences();
   const riskProfile = await getCurrentRiskProfile();
-  const accessLog = await getMyAccessLog();
+  const accessLogGroups = groupAccessLog(await getMyAccessLog());
   const ownerSession = await isOwner();
 
   return (
@@ -78,7 +78,7 @@ export default async function SettingsPage() {
           <h2 className="text-sm font-medium">{auditStrings.accessLog.title}</h2>
           <p className="text-muted-foreground text-xs">{auditStrings.accessLog.subtitle}</p>
         </div>
-        <AccessLogPanel entries={accessLog} />
+        <AccessLogPanel groups={accessLogGroups} />
       </section>
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
