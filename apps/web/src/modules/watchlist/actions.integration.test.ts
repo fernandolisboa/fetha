@@ -289,7 +289,7 @@ describe("searchInstrumentsAction", () => {
       }
       expect(outcome.results.map((row) => row.ticker)).toEqual([TICKER_A]);
     }
-    expect(outcomes[30]).toEqual({ status: "rate_limited" });
+    expect(outcomes[30]).toEqual({ status: "error", error: "rate_limited" });
   });
 
   it("redirects an unauthenticated caller", async () => {

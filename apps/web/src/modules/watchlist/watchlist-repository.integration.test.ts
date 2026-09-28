@@ -108,25 +108,25 @@ describe("WatchlistRepository", () => {
     expect(await repository.list()).toEqual([]);
   });
 
-  it("count reflects the number of instruments on the list", async () => {
+  it("addWithCap adds below the cap and refuses at it", async () => {
     const db = getDb();
-    const email = uniqueEmail("count");
+    const email = uniqueEmail("cap");
     createdEmails.push(email);
     const owner = await insertBareUser(email);
     const repository = new WatchlistRepository(db, owner);
 
-    expect(await repository.count()).toBe(0);
-    await repository.add("BBAS3");
-    await repository.add("PETR4");
-    expect(await repository.count()).toBe(2);
+    expect(await repository.addWithCap("BBAS3", 2)).toEqual({ status: "added" });
+    expect(await repository.addWithCap("PETR4", 2)).toEqual({ status: "added" });
+    expect(await repository.addWithCap("VALE3", 2)).toEqual({ status: "cap" });
+    expect((await repository.list()).map((item) => item.ticker).sort()).toEqual(["BBAS3", "PETR4"]);
   });
 });
 
-describe("WatchlistRepository count isolation", () => {
-  it("count only reflects the current user's own instruments", async () => {
+describe("WatchlistRepository cap isolation", () => {
+  it("addWithCap counts only the current user's own instruments", async () => {
     const db = getDb();
-    const emailA = uniqueEmail("count-a");
-    const emailB = uniqueEmail("count-b");
+    const emailA = uniqueEmail("cap-a");
+    const emailB = uniqueEmail("cap-b");
     createdEmails.push(emailA, emailB);
     const userA = await insertBareUser(emailA);
     const userB = await insertBareUser(emailB);
@@ -134,7 +134,11 @@ describe("WatchlistRepository count isolation", () => {
     await new WatchlistRepository(db, userB).add("VALE3");
     await new WatchlistRepository(db, userB).add("ITUB4");
 
-    expect(await new WatchlistRepository(db, userA).count()).toBe(0);
-    expect(await new WatchlistRepository(db, userB).count()).toBe(2);
+    expect(await new WatchlistRepository(db, userA).addWithCap("PETR4", 2)).toEqual({
+      status: "added",
+    });
+    expect(await new WatchlistRepository(db, userB).addWithCap("PETR4", 2)).toEqual({
+      status: "cap",
+    });
   });
 });

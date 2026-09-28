@@ -48,7 +48,7 @@ export function AddInstrumentCombobox() {
             return;
           }
           setOutcome(
-            result.status === "rate_limited"
+            result.status === "error"
               ? { query: trimmedQuery, kind: "rate_limited" }
               : { query: trimmedQuery, kind: "ok", results: result.results },
           );
@@ -100,6 +100,9 @@ export function AddInstrumentCombobox() {
 
   return (
     <div className="flex flex-col items-end gap-1">
+      {/* Above the trigger: the results panel stays open after a failed add
+          and opens downward, so a notice below the button would sit under it. */}
+      {addError && <ErrorNotice>{addError}</ErrorNotice>}
       <Popover
         open={open}
         onOpenChange={(nextOpen) => {
@@ -123,7 +126,7 @@ export function AddInstrumentCombobox() {
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
             <CommandList>
               {pending ? (
-                <CommandLoading>{t.add.searching}</CommandLoading>
+                <CommandLoading label={t.add.searching}>{t.add.searching}</CommandLoading>
               ) : (
                 <CommandEmpty>
                   {rateLimited ? t.add.rateLimited : searchFailed ? t.add.searchError : t.add.empty}
@@ -140,14 +143,13 @@ export function AddInstrumentCombobox() {
                       select(result.ticker);
                     }}
                   >
-                    {result.ticker}
+                    <span className="font-mono uppercase">{result.ticker}</span>
                   </CommandItem>
                 ))}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
-      {addError && <ErrorNotice>{addError}</ErrorNotice>}
     </div>
   );
 }

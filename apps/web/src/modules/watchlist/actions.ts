@@ -79,7 +79,7 @@ export async function removeFromWatchlistAction(input: {
 }
 
 export type SearchInstrumentsResult =
-  { status: "ok"; results: InstrumentSearchResult[] } | { status: "rate_limited" };
+  { status: "ok"; results: InstrumentSearchResult[] } | { status: "error"; error: "rate_limited" };
 
 // Requires a session, not because the search result is user-scoped (it is
 // reference data, ADR-0017), but so the combobox behind it cannot be used
@@ -96,7 +96,7 @@ export async function searchInstrumentsAction(input: {
     await enforceAccountRateLimit(getDb(), user.email, "watchlist/search", SEARCH_RATE_LIMIT);
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
-      return { status: "rate_limited" };
+      return { status: "error", error: "rate_limited" };
     }
     throw error;
   }
