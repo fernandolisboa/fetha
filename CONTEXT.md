@@ -131,4 +131,5 @@ stuck backtest run and listing runs in progress across strategies (0037), `fixed
 sizing a net-debit structure on its bounded max loss (0038), a typed web-authored evaluation
 vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fees by instrument
 class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
-strategies archived, never deleted, and out of the cap (0043).
+strategies archived, never deleted, and out of the cap (0043), a redacted nightly run report
+recorded by every run (0044).
