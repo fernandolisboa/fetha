@@ -227,17 +227,18 @@ Two Neon projects, one per environment class, the same shape Feudo settled on:
   serialized across runs by `concurrency: { group: preview-db }`.
 - **CI's integration suite does not use `fetha-preview`** (revised 2026-09-24). The `integration`
   job runs against a Postgres 17 service container, fresh on every run, behind Neon's local
-  HTTP/WebSocket proxy (`ghcr.io/timowilhelm/local-neon-http-proxy`, both images pinned by digest).
-  The digests live in `.github/ci-images/Dockerfile`, a stub never built, so Dependabot's `docker`
-  ecosystem can bump them (it does not scan workflow `services.*.image`); the `ci-images` job reads
-  that file's `FROM` lines and exposes them as outputs the `integration` job's service images
-  reference. This keeps the app on the same `@neondatabase/serverless` driver it uses in
-  production. The job
-  reaches it as `db.localtest.me`, pinned to `127.0.0.1` in `/etc/hosts` so the run never depends
-  on public DNS, with `ALLOW_DISPOSABLE_DATABASE=1`; `scripts/lib/local-neon.mjs` points the driver
-  at the proxy only for that host, from the integration suite's setup file and from
-  `db:seed-structures`. `db:migrate` needs no proxy: drizzle-kit migrates over `pg` straight to
-  port 5432. The proxy is CI tooling; `db:reset` and `seed-invite.mjs` are not routed through it. It runs
+  HTTP/WebSocket proxy (`ghcr.io/timowilhelm/local-neon-http-proxy`, both images pinned by
+  digest), so the app keeps the same `@neondatabase/serverless` driver it uses in production.
+  (revised 2026-09-28, #192) The digests live in `.github/ci-images/Dockerfile`, a stub never
+  built, so Dependabot's `docker` ecosystem can bump them (it does not scan workflow
+  `services.*.image`); the `ci-images` job reads that file's `FROM` lines and exposes them as
+  outputs the `integration` job's service images reference. Postgres major-version bumps are
+  ignored there, so CI stays on the major Neon production runs. The job reaches it as
+  `db.localtest.me`, pinned to `127.0.0.1` in `/etc/hosts` so the run never depends on public DNS,
+  with `ALLOW_DISPOSABLE_DATABASE=1`; `scripts/lib/local-neon.mjs` points the driver at the proxy
+  only for that host, from the integration suite's setup file and from `db:seed-structures`.
+  `db:migrate` needs no proxy: drizzle-kit migrates over `pg` straight to port 5432.
+  The proxy is CI tooling; `db:reset` and `seed-invite.mjs` are not routed through it. It runs
   `db:migrate`, `db:seed-structures`, then `pnpm --filter @fetha/web run test:integration`, in
   parallel with the `ci` job. `preview-database` still waits for `ci`, so a PR whose migrations
   fail `db:check` never resets the shared preview database. The reason is latency: GitHub-hosted runners land in East or West
