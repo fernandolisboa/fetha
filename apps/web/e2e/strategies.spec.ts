@@ -81,6 +81,8 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   const ownRow = page.getByRole("row", { name: revisedName });
   await expect(ownRow.getByRole("cell", { name: "Compartilhada", exact: true })).toBeVisible();
   await ownRow.getByRole("button", { name: `Parar de compartilhar ${revisedName}` }).click();
-  await expect(ownRow.getByRole("button", { name: `Compartilhar ${revisedName}` })).toBeVisible();
+  await expect(
+    ownRow.getByRole("button", { name: `Compartilhar ${revisedName}`, exact: true }),
+  ).toBeVisible();
   await expect(ownRow.getByRole("cell", { name: "Privada", exact: true })).toBeVisible();
 });

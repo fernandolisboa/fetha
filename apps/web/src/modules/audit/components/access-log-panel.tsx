@@ -36,13 +36,13 @@ export function AccessLogPanel({ entries }: { entries: AccessLogEntry[] }) {
       <TableBody>
         {entries.map((entry) => (
           <TableRow key={entry.id}>
-            <TableCell>
+            <TableCell className="py-1">
               <div>{labels.events[entry.event]}</div>
               <div className="text-muted-foreground font-mono text-[11px] tabular-nums">
                 {formatDateTime(entry.occurredAt)}
               </div>
             </TableCell>
-            <TableCell>
+            <TableCell className="py-1">
               <div className="font-mono tabular-nums">{entry.ipAddress ?? labels.unknown}</div>
               <div
                 className="text-muted-foreground text-[11px]"

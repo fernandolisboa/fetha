@@ -158,7 +158,8 @@ Badge (chips), Progress, Skeleton, Switch, Form controls, Command (`Ctrl K` pale
 
 Domain components (custom): AppShell (grid, rail, header), MarketBar, PageHeader, Panel,
 StatBlock, LegsTable (side, quantity, instrument, type, strike, expiry, price, delta, IV),
-PayoffChart, GreeksPanel, RiskNotice (warning with the breached limit and the "record anyway"
+PayoffChart, GreeksPanel, ErrorNotice (the Error state over the shadcn Alert; field validation
+stays a plain inline message), RiskNotice (warning with the breached limit and the "record anyway"
 rule), DecisionBar, AnalysisPanel (thesis, counter-thesis, risks, invalidation, confidence, inputs
 cited, prompt version and model), CandleChart (`lightweight-charts`), SignalRow (strategy,
 instrument, evaluation time, late flag, proposal summary), StrategyEditor (closed vocabulary
