@@ -4,7 +4,7 @@ import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
-import { fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
+import { SgsNotPublishedError, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
 import { gaps, latestSession } from "./freshness";
@@ -51,14 +51,25 @@ export interface SourceOutcome {
   // instruments registry's out-of-scope commodity/FX option rows) rather
   // than a write failure; only sources that can partially skip rows set it.
   skippedRows?: number;
+  // The provider has not published this session's data yet (#216): not an
+  // error, and not succeeded either, so the session stays a gap the next
+  // run retries (docs/adr/0017).
+  pending?: true;
 }
 
 // A run callback normally just reports how many rows it wrote; one that also
 // dropped non-conforming rows (the instruments registry) reports that count
 // too so it survives into the SourceOutcome instead of only a console.warn.
-type RunResult = number | { rowCount: number; skippedRows: number };
+// One whose provider has not published the session yet reports `pending`
+// with the rows it did write, and no succeeded marker is recorded.
+type RunResult =
+  number | { rowCount: number; skippedRows: number } | { rowCount: number; pending: true };
 
-function normalizeRunResult(result: RunResult): { rowCount: number; skippedRows?: number } {
+function normalizeRunResult(result: RunResult): {
+  rowCount: number;
+  skippedRows?: number;
+  pending?: true;
+} {
   return typeof result === "number" ? { rowCount: result } : result;
 }
 
@@ -123,6 +134,7 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
     rowCount: outcomes.reduce((total, outcome) => total + outcome.rowCount, 0),
     ...(errors.length > 0 ? { error: errors.join("; ") } : {}),
     ...(skippedRows > 0 ? { skippedRows } : {}),
+    ...(outcomes.some((outcome) => outcome.pending) ? { pending: true as const } : {}),
   };
 }
 
@@ -177,7 +189,10 @@ export async function runSource(
       if (alreadySucceeded) {
         return { rowCount: alreadySucceeded.rowCount ?? 0, skipped: true };
       }
-      const { rowCount, skippedRows } = normalizeRunResult(await run());
+      const { rowCount, skippedRows, pending } = normalizeRunResult(await run());
+      if (pending) {
+        return { rowCount, skipped: false, pending };
+      }
       const committed = await tx
         .transaction(async (savepoint) => {
           // Same nominal-type gap as withSourceLock's own cast: the
@@ -197,7 +212,7 @@ export async function runSource(
         });
       return { rowCount, skipped: !committed, skippedRows };
     });
-    if (result.skipped) {
+    if (result.skipped || "pending" in result) {
       await deleteRun(db, startedRunId);
     }
     return {
@@ -207,6 +222,7 @@ export async function runSource(
       ...("skippedRows" in result && result.skippedRows !== undefined
         ? { skippedRows: result.skippedRows }
         : {}),
+      ...("pending" in result ? { pending: result.pending } : {}),
     };
   } catch (error) {
     const message = safeDbErrorMessage(error);
@@ -245,7 +261,7 @@ export async function runSessionBoundSource(
   for (const session of sessions) {
     const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
     outcomes.push(outcome);
-    if (outcome.error === undefined) {
+    if (outcome.error === undefined && !outcome.pending) {
       okSessions.push(session);
     }
   }
@@ -381,6 +397,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     maxDurationMs,
     async (session) => {
       let total = 0;
+      const notPublished: string[] = [];
       for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
         const latest = await latestMacroPointDate(db, series);
         const from = resolveSgsFromDate(latest);
@@ -388,10 +405,27 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
           continue;
         }
         const sessions = await sessionsFrom(db, from);
-        const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
-        total += await upsertMacroPoints(db, points);
+        try {
+          const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
+          total += await upsertMacroPoints(db, points);
+        } catch (error) {
+          if (!(error instanceof SgsNotPublishedError)) {
+            throw error;
+          }
+          notPublished.push(series);
+        }
       }
-      return total;
+      if (notPublished.length === 0) {
+        return total;
+      }
+      // Only the newest session can legitimately be unpublished: Bacen
+      // publishes a session's CDI the next morning, so a value still missing
+      // a session later is a real failure (a retired series, a bad range),
+      // not something to keep reporting as pending (docs/adr/0017, #216).
+      if (session !== sgsSessions.at(-1)) {
+        throw new Error(`SGS has not published ${notPublished.join(", ")} for ${session}`);
+      }
+      return { rowCount: total, pending: true };
     },
   );
 

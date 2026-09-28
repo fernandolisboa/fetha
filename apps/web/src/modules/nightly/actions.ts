@@ -3,13 +3,14 @@
 import { getDb } from "@/db/client";
 import { recordAccess } from "@/modules/audit";
 import { isOwner } from "@/modules/auth";
+import type { SourceOutcome } from "@/modules/market-data";
 
 import { runNightlyJob } from "./run-nightly-job";
 import { manualTriggerInputSchema } from "./validation";
 
 export interface SourceStatusSummary {
   source: string;
-  status: "ok" | "skipped" | "failed";
+  status: "ok" | "skipped" | "pending" | "failed";
 }
 
 // A redacted view of NightlyJobOutcome for the browser: the full outcome
@@ -31,9 +32,14 @@ export type TriggerNightlyJobResult =
   | { status: "busy" }
   | { status: "ok"; summary: TriggerNightlyJobSummary };
 
-function sourceStatus(source: { skipped: boolean; error?: string }): SourceStatusSummary["status"] {
+function sourceStatus(
+  source: Pick<SourceOutcome, "skipped" | "pending" | "error">,
+): SourceStatusSummary["status"] {
   if (source.error !== undefined) {
     return "failed";
+  }
+  if (source.pending) {
+    return "pending";
   }
   return source.skipped ? "skipped" : "ok";
 }

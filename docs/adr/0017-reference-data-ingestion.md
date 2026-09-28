@@ -459,3 +459,34 @@ string[] }`** instead of a bare count: `dates` names every candidate date that h
   lead with `session`, so each existence check is an index-only scan of the candidate's partition
   (run-time pruning, since the dates come from the `candidates` CTE) instead of a row-by-row scan
   while the cotahist lock is held. A performance bound only; the lock remains the guarantee.
+
+## Addendum: a value the provider has not published yet is pending, not an error (2026-09-28, #216)
+
+**Context.** The 03:30Z cron of 2026-09-28 answered 500 because Bacen SGS series 12 (CDI) answered
+`404 {"erro":{"statusCode":404,"detail":"...SGSNegocioException: Value(s) not found"}}` for the
+target session: SGS returns that body for any date range that holds no value yet, and the CDI of a
+session is published the next business morning, after the nightly window. The session was retried
+and filled the next night; the only cost was a red 500 that hides real failures.
+
+**Decision.** Option 1 of the issue: the session stays a gap, and the run is not a failure.
+
+- `fetchSgsSeries` throws `SgsNotPublishedError` (a `SgsFetchError`) only for a 404 whose body
+  matches that SGS shape (Zod, `sgsNotFoundBodySchema`); any other non-2xx stays a plain
+  `SgsFetchError`.
+- The `sgs` run still fetches and upserts every other series. When the unpublished session is the
+  newest one this run attempts, the run returns `{ rowCount, pending: true }` (a `RunResult` value,
+  not a thrown error); `runSource` then writes no succeeded marker, deletes its `running` row (as it
+  does for a skipped run) and reports `{ skipped: false, pending: true }`, so the next run retries
+  the session.
+- An older session whose value is still missing is a failure, not pending: Bacen publishes a
+  session's CDI the next morning, so a value a session late means a real problem (a retired
+  series, a bad range) and must turn the cron red instead of hiding behind "pending".
+- A pending session is not in `okSessions`; a merged outcome with any pending session carries
+  `pending: true`. `pending` has no `error`, so `IngestOutcome.ok` stays true and the cron answers 200. The owner's manual trigger shows the source as "ainda não publicada".
+- Option 2 (treat the 404 as an empty result) was rejected: it records the session as succeeded
+  without its point.
+
+**Consequence.** A session whose value never appears (a B3 session that is not a banking day, if
+one ever exists) is pending for one night, then fails until a later session's value lands: the next
+range from `latest + 1` returns it, and the older session's retry finds `from > session` and
+succeeds with no rows.

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SgsFetchError, fetchSgsSeries, sgsUrl } from "./fetch";
+import { SgsFetchError, SgsNotPublishedError, fetchSgsSeries, sgsUrl } from "./fetch";
 
 const fixture = readFileSync(
   path.join(import.meta.dirname, "fixtures", "sgs-cdi-sample.json"),
@@ -54,5 +54,31 @@ describe("fetchSgsSeries", () => {
     await expect(
       fetchSgsSeries("cdi", "2026-01-01", "2026-09-08", sessions, fakeFetch(503, "")),
     ).rejects.toThrow(SgsFetchError);
+  });
+
+  it("throws SgsNotPublishedError when SGS answers its 'Value(s) not found' 404", async () => {
+    const body = JSON.stringify({
+      erro: {
+        statusCode: 404,
+        detail: "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found",
+      },
+    });
+
+    await expect(
+      fetchSgsSeries("cdi", "2026-09-26", "2026-09-28", sessions, fakeFetch(404, body)),
+    ).rejects.toThrow(SgsNotPublishedError);
+  });
+
+  it("keeps any other 404 a plain fetch failure, not a not-yet-published one", async () => {
+    const rejection = fetchSgsSeries(
+      "cdi",
+      "2026-09-26",
+      "2026-09-28",
+      sessions,
+      fakeFetch(404, "<html>Not Found</html>"),
+    );
+
+    await expect(rejection).rejects.toThrow(SgsFetchError);
+    await expect(rejection).rejects.not.toThrow(SgsNotPublishedError);
   });
 });
