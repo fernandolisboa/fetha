@@ -570,18 +570,7 @@ export async function buildOperationMarketView(
 
   const calendar: TradingSession[] = calendarRows.map(toTradingSession);
 
-  const candleView: Candle[] = [...candleRows, ...extraCandleRows].reverse().map((row) =>
-    toEngineCandle({
-      ticker: tickerSchema.parse(row.ticker),
-      session: sessionDateSchema.parse(row.session),
-      asOf: row.asOf,
-      open: toDecimal(row.open),
-      high: toDecimal(row.high),
-      low: toDecimal(row.low),
-      close: toDecimal(row.close),
-      tradedQuantity: row.tradedQuantity,
-    }),
-  );
+  const candleView: Candle[] = [...candleRows, ...extraCandleRows].reverse().map(toEngineCandle);
 
   const optionSeriesView: OptionSeries[] = seriesRows.map((row) => ({
     ticker: row.ticker,

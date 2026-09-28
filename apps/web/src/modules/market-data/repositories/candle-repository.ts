@@ -172,12 +172,21 @@ export async function candlesAtOrBefore(
   tickers: readonly string[],
   at: Date,
   limit: number,
-): Promise<(typeof candles.$inferSelect)[]> {
+): Promise<CandleRow[]> {
   if (tickers.length === 0) {
     return [];
   }
-  return db
-    .select()
+  const rows = await db
+    .select({
+      ticker: candles.ticker,
+      session: candles.session,
+      asOf: candles.asOf,
+      open: candles.open,
+      high: candles.high,
+      low: candles.low,
+      close: candles.close,
+      tradedQuantity: candles.tradedQuantity,
+    })
     .from(candles)
     .where(
       and(
@@ -188,6 +197,7 @@ export async function candlesAtOrBefore(
     )
     .orderBy(desc(candles.session))
     .limit(limit);
+  return rows.map(toCandleRow);
 }
 
 export async function latestCandle(db: Database, ticker: string): Promise<CandleRow | null> {

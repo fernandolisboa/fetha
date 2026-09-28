@@ -73,7 +73,7 @@ export async function macroPointsInRange(
 // risk-free-rate lookup (CDI), pulled out of that builder's inline `.from(macroPoints)` query.
 export async function latestMacroPointAtOrBefore(
   db: Database,
-  series: string,
+  series: MacroSeriesKind,
   at: Date,
 ): Promise<typeof macroPoints.$inferSelect | undefined> {
   const [row] = await db
