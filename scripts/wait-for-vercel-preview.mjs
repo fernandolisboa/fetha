@@ -4,8 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const GITHUB_API = "https://api.github.com";
-const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 15 * 1000;
+const MAX_CONSECUTIVE_API_ERRORS = 5;
 
 export function selectPreviewDeployment(deployments) {
   const candidates = (deployments ?? []).filter(
@@ -20,62 +21,156 @@ export function selectPreviewDeployment(deployments) {
   );
 }
 
-export function classifyStatuses(statuses) {
-  const latest = (statuses ?? [])[0];
-  if (!latest) return { status: "pending" };
-  if (latest.state === "success") {
-    if (!latest.environment_url) {
-      return { status: "failure", reason: "success status has no environment_url" };
-    }
-    return { status: "success", url: latest.environment_url };
+function isTrustedPreviewUrl(url) {
+  if (!url) return false;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
   }
-  if (latest.state === "failure" || latest.state === "error") {
-    return { status: "failure", reason: `deployment status is ${latest.state}` };
+  return parsed.protocol === "https:" && parsed.hostname.endsWith(".vercel.app");
+}
+
+export function classifyStatuses(statuses) {
+  for (const entry of statuses ?? []) {
+    if (entry?.state === "success") {
+      if (!isTrustedPreviewUrl(entry.environment_url)) {
+        return {
+          status: "failure",
+          reason: "success status has a missing or untrusted environment_url",
+        };
+      }
+      return { status: "success", url: entry.environment_url };
+    }
+    if (entry?.state === "failure" || entry?.state === "error") {
+      return { status: "failure", reason: `deployment status is ${entry.state}` };
+    }
+    // pending/queued/in_progress/inactive: not a terminal state yet, keep
+    // looking at older entries (GitHub appends "inactive" to a deployment
+    // that already succeeded once a newer one takes over the environment;
+    // that does not undo the earlier success).
   }
   return { status: "pending" };
 }
 
-async function fetchJson(url, token) {
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`GitHub API request to ${url} failed with ${response.status}`);
-  }
-  return response.json();
+export function wasBuildIgnored(commitStatuses) {
+  const vercelStatus = (commitStatuses ?? []).find((entry) => entry?.context === "Vercel");
+  if (!vercelStatus) return false;
+  return /ignored build step/i.test(vercelStatus.description ?? "");
 }
 
-async function pollGitHub({ repo, sha, token }) {
-  const deployments = await fetchJson(`${GITHUB_API}/repos/${repo}/deployments?sha=${sha}`, token);
-  const deployment = selectPreviewDeployment(deployments);
-  if (!deployment) return { status: "pending" };
-  const statuses = await fetchJson(
+export function orderedFallbackShas(commits, headSha) {
+  return (commits ?? [])
+    .map((commit) => commit?.sha)
+    .filter((sha) => sha && sha !== headSha)
+    .reverse();
+}
+
+async function tryFetchJson(url, token) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!response.ok) return { ok: false };
+    return { ok: true, data: await response.json() };
+  } catch {
+    return { ok: false };
+  }
+}
+
+async function getDeploymentStatus(repo, sha, token) {
+  const deployments = await tryFetchJson(
+    `${GITHUB_API}/repos/${repo}/deployments?sha=${sha}`,
+    token,
+  );
+  if (!deployments.ok) return { ok: false };
+  const deployment = selectPreviewDeployment(deployments.data);
+  if (!deployment) return { ok: true, found: false };
+  const statuses = await tryFetchJson(
     `${GITHUB_API}/repos/${repo}/deployments/${deployment.id}/statuses`,
     token,
   );
-  return classifyStatuses(statuses);
+  if (!statuses.ok) return { ok: false };
+  return { ok: true, found: true, classification: classifyStatuses(statuses.data) };
+}
+
+const defaultIo = {
+  getDeploymentStatus,
+  getCommitStatuses(repo, sha, token) {
+    return tryFetchJson(`${GITHUB_API}/repos/${repo}/commits/${sha}/statuses`, token);
+  },
+  getPRCommits(repo, prNumber, token) {
+    return tryFetchJson(`${GITHUB_API}/repos/${repo}/pulls/${prNumber}/commits`, token);
+  },
+};
+
+// Vercel diffs the commit it is about to build against the *last commit it
+// actually built*, not against the PR as a whole (ignoreCommand runs per
+// push). A docs-only commit on top of a code commit therefore never gets a
+// GitHub deployment; Vercel posts only a "Vercel" commit status describing
+// it as ignored. When that happens, the code under test is still the
+// nearest earlier commit that did build, so this walks the PR's commit
+// history backwards from (but excluding) head and adopts the first one
+// with any Preview deployment at all as the new target.
+export async function resolvePreviewOnce({ repo, sha, prNumber, token, io = defaultIo }) {
+  const head = await io.getDeploymentStatus(repo, sha, token);
+  if (!head.ok) return { status: "api-error" };
+  if (head.found) return head.classification;
+
+  const commitStatuses = await io.getCommitStatuses(repo, sha, token);
+  if (!commitStatuses.ok) return { status: "api-error" };
+  if (!wasBuildIgnored(commitStatuses.data)) {
+    return { status: "pending" };
+  }
+
+  const prCommits = await io.getPRCommits(repo, prNumber, token);
+  if (!prCommits.ok) return { status: "api-error" };
+  const fallbackShas = orderedFallbackShas(prCommits.data, sha);
+
+  for (const candidateSha of fallbackShas) {
+    const candidate = await io.getDeploymentStatus(repo, candidateSha, token);
+    if (!candidate.ok) return { status: "api-error" };
+    if (candidate.found) return candidate.classification;
+  }
+
+  return { status: "skip" };
 }
 
 export async function waitForPreview({
   repo,
   sha,
+  prNumber,
   token,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   intervalMs = DEFAULT_POLL_INTERVAL_MS,
   now = () => Date.now(),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  poll = pollGitHub,
+  resolveOnce = resolvePreviewOnce,
+  io = defaultIo,
 }) {
   const deadline = now() + timeoutMs;
+  let consecutiveApiErrors = 0;
   for (;;) {
-    const result = await poll({ repo, sha, token });
-    if (result.status === "success") return result.url;
-    if (result.status === "failure") {
-      throw new Error(`Vercel preview deployment failed: ${result.reason ?? "unknown reason"}`);
+    const result = await resolveOnce({ repo, sha, prNumber, token, io });
+    if (result.status === "api-error") {
+      consecutiveApiErrors += 1;
+      if (consecutiveApiErrors >= MAX_CONSECUTIVE_API_ERRORS) {
+        throw new Error(
+          `GitHub API failed ${MAX_CONSECUTIVE_API_ERRORS} times in a row while waiting for the preview deployment`,
+        );
+      }
+    } else {
+      consecutiveApiErrors = 0;
+      if (result.status === "success") return { url: result.url };
+      if (result.status === "skip") return { url: null };
+      if (result.status === "failure") {
+        throw new Error(`Vercel preview deployment failed: ${result.reason ?? "unknown reason"}`);
+      }
     }
     if (now() >= deadline) {
       throw new Error(`Timed out waiting for a Vercel preview deployment for ${sha}`);
@@ -87,21 +182,23 @@ export async function waitForPreview({
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY;
   const sha = process.env.PREVIEW_SHA;
+  const prNumber = process.env.PR_NUMBER;
   const token = process.env.GITHUB_TOKEN;
   if (!repo) throw new Error("GITHUB_REPOSITORY is not set");
   if (!sha) throw new Error("PREVIEW_SHA is not set");
+  if (!prNumber) throw new Error("PR_NUMBER is not set");
   if (!token) throw new Error("GITHUB_TOKEN is not set");
 
-  const timeoutMs = process.env.PREVIEW_TIMEOUT_MS
-    ? Number(process.env.PREVIEW_TIMEOUT_MS)
-    : DEFAULT_TIMEOUT_MS;
-  const intervalMs = process.env.PREVIEW_POLL_INTERVAL_MS
-    ? Number(process.env.PREVIEW_POLL_INTERVAL_MS)
-    : DEFAULT_POLL_INTERVAL_MS;
+  const { url } = await waitForPreview({ repo, sha, prNumber, token });
 
-  const url = await waitForPreview({ repo, sha, token, timeoutMs, intervalMs });
+  if (!url) {
+    console.log(
+      `No Vercel preview deployment exists for ${sha} or any earlier commit on this PR; skipping e2e.`,
+    );
+    return;
+  }
+
   console.log(`Vercel preview ready: ${url}`);
-
   const outputFile = process.env.GITHUB_OUTPUT;
   if (outputFile) {
     appendFileSync(outputFile, `url=${url}\n`);

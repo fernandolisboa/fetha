@@ -111,8 +111,8 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
 - **CI re-provisions the `E2E_OWNER_EMAIL` account after every reset of `fetha-preview`.** CI
   resets and re-migrates that database on every run (ADR-0016), which drops the account along with
   every other row, and the magic-link plugin runs with `disableSignUp: true` (options.ts), so
-  `triggerIngestionAsOwner` cannot self-provision it by clicking a magic link. The
-  `preview-database` job's last step, `db:seed-e2e-owner` (`scripts/seed-e2e-owner.mjs`, amended
+  `triggerIngestionAsOwner` cannot self-provision it by clicking a magic link. A step of the
+  `preview-database` job, `db:seed-e2e-owner` (`scripts/seed-e2e-owner.mjs`, amended
   2026-09-28), writes it straight back: verified, on the current terms, with a random credential
   nobody keeps, so the shell's password gate lets the magic-link session through. The script runs
   behind `assertDisposableDatabase`, which has no production override. The account defaults to

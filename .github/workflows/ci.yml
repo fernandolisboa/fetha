@@ -73,18 +73,18 @@ jobs:
   preview-database:
     needs: ci
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
       deployments: read
+      pull-requests: read
+      statuses: read
     concurrency:
       group: preview-db
       cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -143,9 +143,6 @@ jobs:
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:seed-e2e-owner
 
-      # e2e (below) only runs for pull_request events, against that PR's own
-      # Vercel preview deployment; a push to main has no PR preview to test
-      # against, and the shared fetha-preview database is only reset above.
       - name: Check e2e prerequisites
         id: e2e-prereqs
         if: github.event_name == 'pull_request'
@@ -160,39 +157,21 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check whether Vercel skipped this PR's build (docs-only)
-        id: vercel-build
-        if: github.event_name == 'pull_request' && steps.e2e-prereqs.outputs.configured == 'true'
-        run: |
-          if sh apps/web/scripts/vercel-ignore-build.sh; then
-            echo "docs_only=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Wait for the Vercel preview deployment
         id: wait-preview
-        if: >-
-          github.event_name == 'pull_request' &&
-          steps.e2e-prereqs.outputs.configured == 'true' &&
-          steps.vercel-build.outputs.docs_only == 'false'
+        if: github.event_name == 'pull_request' && steps.e2e-prereqs.outputs.configured == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node scripts/wait-for-vercel-preview.mjs
 
       - name: Install Playwright browsers
-        if: >-
-          github.event_name == 'pull_request' &&
-          steps.e2e-prereqs.outputs.configured == 'true' &&
-          steps.vercel-build.outputs.docs_only == 'false'
+        if: steps.wait-preview.outputs.url != ''
         run: pnpm --filter @fetha/web exec playwright install --with-deps chromium
 
       - name: Run the Playwright e2e suite against the PR preview
-        if: >-
-          github.event_name == 'pull_request' &&
-          steps.e2e-prereqs.outputs.configured == 'true' &&
-          steps.vercel-build.outputs.docs_only == 'false'
+        if: steps.wait-preview.outputs.url != ''
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.wait-preview.outputs.url }}
           E2E_SECRET: ${{ secrets.E2E_SECRET }}
