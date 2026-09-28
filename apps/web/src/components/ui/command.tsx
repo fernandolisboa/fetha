@@ -134,7 +134,9 @@ function CommandStatus({ className, ...props }: React.ComponentProps<"div">) {
 function CommandEmptyStatus({ message }: { message: string }) {
   const searchValue = useCommandState((state) => state.search);
   const hasNoMatches = useCommandState((state) => state.filtered.count === 0);
-  return <CommandStatus>{searchValue.length > 0 && hasNoMatches ? message : ""}</CommandStatus>;
+  return (
+    <CommandStatus>{searchValue.trim().length > 0 && hasNoMatches ? message : ""}</CommandStatus>
+  );
 }
 
 function CommandGroup({

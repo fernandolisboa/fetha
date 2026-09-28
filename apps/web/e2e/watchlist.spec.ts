@@ -16,6 +16,12 @@ test("add an instrument to the watchlist and open its chart", async ({
   baseURL,
   request,
 }) => {
+  // registerAndSignIn's sign-up throttle can itself sleep up to
+  // SIGN_UP_WINDOW_MS (e2e/support.ts), and the rate-limit loop below adds
+  // several more seconds of its own; both together can exceed Playwright's
+  // default 30s test budget.
+  test.setTimeout(90_000);
+
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
@@ -54,7 +60,12 @@ test("add an instrument to the watchlist and open its chart", async ({
   // The instrument is already added; reopen the search purely to exercise
   // the failed and rate-limited announcements, in that order, with the
   // rate limit last because tripping it poisons every search for the rest
-  // of its window and nothing after this needs a working search.
+  // of its window and nothing after this needs a working search. Waiting
+  // for the added row first gives the popover's close animation time to
+  // finish, so the reopen click below can't race a still-closing instance.
+  const row = page.getByRole("row", { name: new RegExp(TICKER) });
+  await expect(row).toBeVisible();
+
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
 
   await page.route("**/*", async (route) => {
@@ -74,25 +85,26 @@ test("add an instrument to the watchlist and open its chart", async ({
   await page.unrouteAll({ behavior: "wait" });
 
   // SEARCH_RATE_LIMIT in watchlist/actions.ts allows 30 requests per 10s
-  // per account and only resets after a gap that long since the last one,
-  // so firing enough distinct queries in a row trips it deterministically
-  // regardless of how long the loop itself takes. Two requests already
-  // landed above (the no-results and the delayed search); the aborted one
-  // never reached the server, so it doesn't count.
-  const RATE_LIMIT_ATTEMPTS = 40;
-  for (let i = 0; i < RATE_LIMIT_ATTEMPTS; i += 1) {
+  // per account and only resets after a 10s gap since the *last* request
+  // that actually reached the server (a rejected one leaves lastRequest
+  // untouched, account-rate-limit.ts's guarded UPDATE). So this can't rely
+  // on tripping "no matter how long the loop takes": if each iteration is
+  // slow enough, the window can expire mid-loop and the next query is
+  // accepted instead of throttled. Each wait is only just past the 200ms
+  // search debounce, and the loop stops as soon as the rate-limited text
+  // shows up, both to keep the whole run inside SEARCH_RATE_LIMIT's own
+  // window and to avoid 40 unconditional waits when it trips much earlier.
+  const rateLimitedText = "Muitas buscas seguidas. Espere alguns segundos e tente de novo.";
+  const RATE_LIMIT_MAX_ATTEMPTS = 40;
+  let rateLimited = false;
+  for (let i = 0; i < RATE_LIMIT_MAX_ATTEMPTS && !rateLimited; i += 1) {
     await searchInput.fill(`RL${String(i)}Q`);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(220);
+    rateLimited = (await status.textContent()) === rateLimitedText;
   }
-  await expect(status).toHaveText(
-    "Muitas buscas seguidas. Espere alguns segundos e tente de novo.",
-    { timeout: 10_000 },
-  );
+  expect(rateLimited).toBe(true);
 
   await page.keyboard.press("Escape");
-
-  const row = page.getByRole("row", { name: new RegExp(TICKER) });
-  await expect(row).toBeVisible();
 
   await row.getByRole("link", { name: TICKER }).click();
 
