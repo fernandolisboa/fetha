@@ -66,8 +66,10 @@ against its inputs (CLAUDE.md, principle 4). The owner decided (2026-09-28): arc
 
 The residual above is closed with an ADR-0018 account bucket, not a larger ceiling.
 `createStrategyAction`, `copySharedStrategyAction`, `archiveStrategyAction` and
-`unarchiveStrategyAction` share one per-user bucket, `strategies/write`, at 20 requests per 60 s;
-the 21st answers `rate_limited` and the UI asks the user to wait a minute. One shared bucket, not
+`unarchiveStrategyAction` share one per-user bucket, `strategies/write`, at 20 writes per 60 s.
+As with every ADR-0018 bucket, each accepted write restarts the window, so the bound is 20 writes
+with no 60 s pause between them rather than 20 per rolling minute; the 21st answers
+`rate_limited` and the UI asks the user to wait a minute. One shared bucket, not
 one per action, because the loop alternates actions: separate buckets would let each half of it
 through at full rate. `addStrategyVersionAction`, `setStrategyVisibilityAction` and
 `setStrategyActiveAction` stay unlimited: they add no strategy (versions have their own 100 cap)
