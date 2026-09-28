@@ -1,4 +1,3 @@
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
 import Decimal from "decimal.js";
 import {
   decimalStringSchema,
@@ -25,7 +24,6 @@ import {
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
-import { candles, macroPoints } from "./schema";
 
 import {
   calendarWindowThroughExpiry,
@@ -37,12 +35,12 @@ import {
   sessionsUpTo,
 } from "./repositories/calendar-repository";
 import {
+  candlesAtOrBefore,
   candlesInSessionRange,
-  DAILY_TIMEFRAME,
   type CandleRow,
 } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
-import { macroPointsInRange } from "./repositories/macro-repository";
+import { latestMacroPointAtOrBefore, macroPointsInRange } from "./repositories/macro-repository";
 import {
   DEFAULT_OPTION_CHAIN_TICKER_CAP,
   DEFAULT_OPTION_PRICE_ROW_CAP,
@@ -250,7 +248,7 @@ export async function loadMarketViewWithCalendarVersion(
   const wantOptionSeries = collections.includes("optionSeries");
   const wantOptionPrices = collections.includes("optionPrices");
 
-  const [candleRows, corporateActionRows, macroRows, seriesRows] = await Promise.all([
+  const [candleRows, corporateActionRows, macroRows, seriesResult] = await Promise.all([
     wantCandles
       ? candlesInSessionRange(db, instruments, fromSession, toSession)
       : Promise.resolve([]),
@@ -267,14 +265,15 @@ export async function loadMarketViewWithCalendarVersion(
           { expiryFloor: fromSession, asOfCeiling: toDate },
           optionChainTickerCap,
         )
-      : Promise.resolve([]),
+      : Promise.resolve({ ok: true as const, rows: [] }),
   ]);
 
-  if ((wantOptionSeries || wantOptionPrices) && seriesRows.length > optionChainTickerCap) {
+  if (!seriesResult.ok) {
     throw new MarketViewTooLargeError(
       `option chain for this universe and period lists more than ${String(optionChainTickerCap)} series`,
     );
   }
+  const seriesRows = seriesResult.rows;
 
   const candleView = candleRows.map(toEngineCandle);
 
@@ -322,7 +321,7 @@ export async function loadMarketViewWithCalendarVersion(
     : [];
 
   const seriesTickers = [...new Set(seriesRows.map((row) => row.ticker))];
-  const priceRows =
+  const priceResult =
     wantOptionPrices && seriesTickers.length > 0
       ? await optionPricesInSessionRange(
           db,
@@ -330,13 +329,14 @@ export async function loadMarketViewWithCalendarVersion(
           { fromSession, toSession },
           optionPriceRowCap,
         )
-      : [];
+      : { ok: true as const, rows: [] };
 
-  if (wantOptionPrices && priceRows.length > optionPriceRowCap) {
+  if (!priceResult.ok) {
     throw new MarketViewTooLargeError(
       `option day-price rows for this universe and period exceed ${String(optionPriceRowCap)}`,
     );
   }
+  const priceRows = priceResult.rows;
 
   const optionPrices: OptionDayPrice[] = priceRows.map((row) => ({
     ticker: tickerSchema.parse(row.ticker),
@@ -540,42 +540,26 @@ export async function buildOperationMarketView(
     }
   }
 
-  const [seriesRows, candleRows, extraCandleRows, cdiRow, corporateActionRows] = await Promise.all([
-    optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
-    db
-      .select()
-      .from(candles)
-      .where(
-        and(
-          eq(candles.ticker, underlying),
-          eq(candles.timeframe, DAILY_TIMEFRAME),
-          lte(candles.asOf, atDate),
-        ),
-      )
-      .orderBy(desc(candles.session))
-      .limit(Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions)),
-    extraInstruments.length === 0
-      ? Promise.resolve([])
-      : db
-          .select()
-          .from(candles)
-          .where(
-            and(
-              inArray(candles.ticker, [...extraInstruments]),
-              eq(candles.timeframe, DAILY_TIMEFRAME),
-              lte(candles.asOf, atDate),
-            ),
-          )
-          .orderBy(desc(candles.session))
-          .limit(Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions) * extraInstruments.length),
-    db
-      .select()
-      .from(macroPoints)
-      .where(and(eq(macroPoints.series, "cdi"), lte(macroPoints.asOf, atDate)))
-      .orderBy(desc(macroPoints.date))
-      .limit(1),
-    corporateActionsForTicker(db, underlying),
-  ]);
+  const [seriesRows, candleRows, extraCandleRows, latestCdi, corporateActionRows] =
+    await Promise.all([
+      optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
+      candlesAtOrBefore(
+        db,
+        [underlying],
+        atDate,
+        Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions),
+      ),
+      extraInstruments.length === 0
+        ? Promise.resolve([])
+        : candlesAtOrBefore(
+            db,
+            extraInstruments,
+            atDate,
+            Math.max(CANDLE_WINDOW_SESSIONS, pastWindowSessions) * extraInstruments.length,
+          ),
+      latestMacroPointAtOrBefore(db, "cdi", atDate),
+      corporateActionsForTicker(db, underlying),
+    ]);
 
   const calendarRows = await calendarWindowThroughExpiry(
     db,
@@ -650,7 +634,6 @@ export async function buildOperationMarketView(
     tradedQuantity: row.tradedQuantity,
   }));
 
-  const latestCdi = cdiRow[0];
   const macro: MacroPoint[] = latestCdi
     ? [
         {

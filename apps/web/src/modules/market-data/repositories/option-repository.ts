@@ -423,19 +423,28 @@ export const DEFAULT_OPTION_CHAIN_TICKER_CAP = 20_000;
 // unbounded query could reach.
 export const DEFAULT_OPTION_PRICE_ROW_CAP = 200_000;
 
+// Discriminated result for a capped chain query: `rows` never carries the sentinel +1 row a
+// caller could otherwise mistake for real data, and every caller switches on `ok` instead of
+// re-deriving "over the cap" from `rows.length` itself.
+export type CappedQueryResult<Row> = { ok: true; rows: Row[] } | { ok: false; reason: "over_cap" };
+
+function capped<Row>(rows: Row[], cap: number): CappedQueryResult<Row> {
+  return rows.length > cap ? { ok: false, reason: "over_cap" } : { ok: true, rows };
+}
+
 // A strategy's chain window for `loadMarketView`: every series listed on an underlying in the
 // universe that had not yet expired at `expiryFloor` (the start of warmup), seen on or before
 // `asOfCeiling` (the engine, not this query, decides per-step visibility off each row's own
-// `asOf`, which is why this bounds `asOf` only by the window's end). Returns at most `cap + 1`
-// rows, so a caller can tell a chain over the cap from one exactly at it without the follow-on
-// price query's `inArray` bind list ever reaching Postgres's 65,535-parameter limit.
+// `asOf`, which is why this bounds `asOf` only by the window's end). Queries at most `cap + 1`
+// rows and reports `over_cap` rather than returning the sentinel row itself, without the
+// follow-on price query's `inArray` bind list ever reaching Postgres's 65,535-parameter limit.
 export async function optionSeriesInWindow(
   db: Database,
   underlyings: readonly string[],
   window: { expiryFloor: string; asOfCeiling: Date },
   cap: number,
-): Promise<(typeof optionSeries.$inferSelect)[]> {
-  return db
+): Promise<CappedQueryResult<typeof optionSeries.$inferSelect>> {
+  const rows = await db
     .select()
     .from(optionSeries)
     .where(
@@ -446,17 +455,19 @@ export async function optionSeriesInWindow(
       ),
     )
     .limit(cap + 1);
+  return capped(rows, cap);
 }
 
-// Every day price of `tickers` in `[fromSession, toSession]`, at most `cap + 1` rows so the
-// caller can refuse a price volume over the cap before it materialises in memory.
+// Every day price of `tickers` in `[fromSession, toSession]`, querying at most `cap + 1` rows so
+// the caller can refuse a price volume over the cap before it materialises in memory, reported as
+// `over_cap` rather than the sentinel row itself.
 export async function optionPricesInSessionRange(
   db: Database,
   tickers: readonly string[],
   range: { fromSession: string; toSession: string },
   cap: number,
-): Promise<(typeof optionDailyPrices.$inferSelect)[]> {
-  return db
+): Promise<CappedQueryResult<typeof optionDailyPrices.$inferSelect>> {
+  const rows = await db
     .select()
     .from(optionDailyPrices)
     .where(
@@ -467,6 +478,7 @@ export async function optionPricesInSessionRange(
       ),
     )
     .limit(cap + 1);
+  return capped(rows, cap);
 }
 
 // One underlying's chain as `buildOperationMarketView` sees it at `at`, bounded below by the

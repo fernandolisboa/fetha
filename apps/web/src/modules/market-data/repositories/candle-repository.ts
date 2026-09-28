@@ -163,6 +163,33 @@ export async function candlesInSessionRange(
   return rows.map(toCandleRow);
 }
 
+// Every daily candle for `tickers` visible at or before `at`, latest session first, capped at
+// `limit`: `buildOperationMarketView`'s own trailing window, shared by the single-ticker
+// underlying query and the multi-ticker `extraInstruments` one, which only ever differed in
+// `tickers` and `limit`.
+export async function candlesAtOrBefore(
+  db: Database,
+  tickers: readonly string[],
+  at: Date,
+  limit: number,
+): Promise<(typeof candles.$inferSelect)[]> {
+  if (tickers.length === 0) {
+    return [];
+  }
+  return db
+    .select()
+    .from(candles)
+    .where(
+      and(
+        inArray(candles.ticker, [...tickers]),
+        eq(candles.timeframe, DAILY_TIMEFRAME),
+        lte(candles.asOf, at),
+      ),
+    )
+    .orderBy(desc(candles.session))
+    .limit(limit);
+}
+
 export async function latestCandle(db: Database, ticker: string): Promise<CandleRow | null> {
   const [row] = await db
     .select({
