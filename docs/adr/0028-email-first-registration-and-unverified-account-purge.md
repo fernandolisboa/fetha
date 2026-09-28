@@ -49,7 +49,8 @@ The rule: **a password on a verified account was set by someone who proved they 
 6. **Purge (#39).** The nightly cron deletes accounts still unverified 24 hours after creation
    (`purgeUnverifiedAccounts`, reported as `unverifiedAccountPurge`, never failing the run) and
    their pending reset tokens, and puts back to pending any invite such an account had consumed,
-   so the invitee can still register. An unverified account never had a session, so it owns no
+   so the invitee can still register. **(No longer current: see ADR-0029's 2026-09-28
+   addendum, #195.)** An unverified account never had a session, so it owns no
    domain data, and the cascade from `user` takes its terms history. It does not reuse
    `deleteOperationalRowsOf` (ADR-0027), which deletes the invite instead. 24 hours rather than the one-hour link lifetime keeps a
    resent link usable through the day; the hijack no longer depends on the purge. The privacy
