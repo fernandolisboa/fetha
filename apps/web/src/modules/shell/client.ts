@@ -5,3 +5,4 @@
 // graph into its bundle.
 export { EmptyState } from "./components/empty-state";
 export { Panel } from "./components/panel";
+export { destinations, type Destination, type DestinationHref } from "./destinations";

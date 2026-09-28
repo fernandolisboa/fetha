@@ -95,7 +95,7 @@ export interface EvaluationLogItem {
   reason: StoredEvaluationReason | null;
   detail: string | null;
   // This strategy and session went through an applied re-evaluation
-  // (docs/adr/0045), whether or not this row itself changed.
+  // (docs/adr/0046), whether or not this row itself changed.
   reevaluated: boolean;
   strategyArchived: boolean;
 }
@@ -424,7 +424,7 @@ export class SignalsRepository extends UserScopedRepository {
     }));
   }
 
-  // The rows a session re-evaluation (docs/adr/0045) may supersede: this
+  // The rows a session re-evaluation (docs/adr/0046) may supersede: this
   // user's current evaluations of one strategy on one session, and the
   // current signals written for them. A `catchup_clamped` row marks a span
   // that was never evaluated, not an evaluation, so it is never a target.

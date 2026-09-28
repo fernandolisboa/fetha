@@ -356,7 +356,7 @@ const reevaluateInputSchema = z.strictObject({
 });
 
 // Each call runs the engine over one session, so a separate, tighter bucket
-// than strategy writes (docs/adr/0018, docs/adr/0045).
+// than strategy writes (docs/adr/0018, docs/adr/0046).
 const REEVALUATE_RATE_LIMIT = { windowSeconds: 60, max: 10 };
 
 export type ReevaluateSessionResult =

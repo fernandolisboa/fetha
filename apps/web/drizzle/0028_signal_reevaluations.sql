@@ -28,7 +28,7 @@ ALTER TABLE "signals" ADD CONSTRAINT "signals_reevaluation_id_signal_reevaluatio
 ALTER TABLE "signals" ADD CONSTRAINT "signals_superseded_by_signal_reevaluations_id_fk" FOREIGN KEY ("superseded_by") REFERENCES "public"."signal_reevaluations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "evaluations_user_version_ticker_session_idx" ON "evaluations" USING btree ("user_id","strategy_version_id","ticker","session") WHERE "evaluations"."superseded_by" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "signals_user_version_ticker_session_kind_operation_idx" ON "signals" USING btree ("user_id","strategy_version_id","ticker","session","kind","operation_id") WHERE "signals"."superseded_by" is null;--> statement-breakpoint
--- Signals and evaluations are append-only (docs/adr/0045, #84): a
+-- Signals and evaluations are append-only (docs/adr/0046, #84): a
 -- re-evaluation supersedes a row by stamping `superseded_by` once and writing
 -- a new row, never by rewriting or deleting the old one. drizzle-kit has no
 -- trigger API, so this is hand-appended like `decisions_no_update` (0009).

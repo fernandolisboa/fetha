@@ -2,8 +2,11 @@ import { Eye, Bell, TrendingUp, Wallet, BookOpen, Settings, type LucideIcon } fr
 
 import { t } from "./strings";
 
+export type DestinationHref =
+  "/" | "/sinais" | "/estrategias" | "/carteira" | "/diario" | "/configuracoes";
+
 export interface Destination {
-  href: string;
+  href: DestinationHref;
   label: string;
   icon: LucideIcon;
   showUnreadBadge?: boolean;

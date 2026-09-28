@@ -130,7 +130,7 @@ export async function seedUserFootprint(
       .returning({ id: signals.id }),
   );
   // A superseded row pointing at the re-evaluation, so account deletion is
-  // proven over the links a real re-evaluation leaves (docs/adr/0045).
+  // proven over the links a real re-evaluation leaves (docs/adr/0046).
   await db.insert(evaluations).values([
     {
       userId,

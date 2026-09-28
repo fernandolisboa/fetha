@@ -3,9 +3,9 @@
 import { getDb } from "@/db/client";
 import { recordAccess } from "@/modules/audit";
 import { isOwner } from "@/modules/auth";
-import type { SourceOutcome } from "@/modules/market-data";
 
-import { runNightlyJob } from "./run-nightly-job";
+import { runNightlyJobRecorded } from "./recorded-run";
+import { sourceRunStatus } from "./report";
 import { manualTriggerInputSchema } from "./validation";
 
 export interface SourceStatusSummary {
@@ -32,29 +32,18 @@ export type TriggerNightlyJobResult =
   | { status: "busy" }
   | { status: "ok"; summary: TriggerNightlyJobSummary };
 
-function sourceStatus(
-  source: Pick<SourceOutcome, "skipped" | "pending" | "error">,
-): SourceStatusSummary["status"] {
-  if (source.error !== undefined) {
-    return "failed";
-  }
-  if (source.pending) {
-    return "pending";
-  }
-  return source.skipped ? "skipped" : "ok";
-}
-
 // True for anything a clean, complete run cannot produce: a failed retention
 // purge, or work the in-run deadline pushed to the
 // next run (evaluation.strategiesDeferred/usersSkipped,
 // scoring.usersSkipped/decisionsSkipped). None of these flip `outcome.ok`
 // or the summary's error counts, so without this check they would silently
 // stop showing up anywhere but the cron's own logs.
-function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJob>>): boolean {
+function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
   if (
     !outcome.accessLogPurge.ok ||
     !outcome.unverifiedAccountPurge.ok ||
-    !outcome.sessionPurge.ok
+    !outcome.sessionPurge.ok ||
+    !outcome.nightlyRunPurge.ok
   ) {
     return true;
   }
@@ -67,13 +56,15 @@ function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJob>>
   return outcome.scoring.usersSkipped > 0 || outcome.scoring.decisionsSkipped > 0;
 }
 
-function summarize(outcome: Awaited<ReturnType<typeof runNightlyJob>>): TriggerNightlyJobSummary {
+function summarize(
+  outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>,
+): TriggerNightlyJobSummary {
   return {
     ok: outcome.ok,
     session: outcome.session,
     sources: outcome.sources.map((source) => ({
       source: source.source,
-      status: sourceStatus(source),
+      status: sourceRunStatus(source),
     })),
     signalsWritten: outcome.evaluation ? outcome.evaluation.signalsWritten : null,
     decisionsScored: outcome.scoring.decisionsScored,
@@ -116,7 +107,9 @@ export async function triggerNightlyJobAction(input: unknown): Promise<TriggerNi
   nightlyJobInFlight = true;
   try {
     await recordAccess("nightly_triggered");
-    const outcome = await runNightlyJob(getDb(), { session: parsed.data.session });
+    const outcome = await runNightlyJobRecorded(getDb(), "manual", {
+      session: parsed.data.session,
+    });
     const summary = summarize(outcome);
     if (
       !outcome.ok ||

@@ -406,7 +406,7 @@ describe("strategy write rate limit (#217, docs/adr/0043)", () => {
   });
 });
 
-describe("reevaluateSessionAction (#84, docs/adr/0045)", () => {
+describe("reevaluateSessionAction (#84, docs/adr/0046)", () => {
   it("rejects a malformed session, reports not_found for a session never evaluated and archived for an archived strategy", async () => {
     const email = uniqueEmail("reevaluate");
     createdEmails.push(email);
