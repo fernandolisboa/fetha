@@ -28,6 +28,7 @@ const en = {
   },
   accountMenu: {
     open: "Account menu",
+    howToUse: "How to use",
   },
   emptyStates: {
     watchlist: {
@@ -78,6 +79,7 @@ const ptBR = {
   },
   accountMenu: {
     open: "Menu da conta",
+    howToUse: "Como usar",
   },
   emptyStates: {
     watchlist: {
