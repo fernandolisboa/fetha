@@ -120,4 +120,28 @@ describe("nightly_runs (docs/adr/0044)", () => {
       );
     });
   });
+
+  it("nightly_report_reader has SELECT on exactly nightly_runs, no other table in the schema", async () => {
+    const db = getDb();
+    const tables = await db.execute<{ table_name: string }>(
+      sql`select table_name from information_schema.tables
+          where table_schema = 'public' and table_type = 'BASE TABLE'`,
+    );
+    expect(tables.rows.map((row) => row.table_name)).toContain("nightly_runs");
+
+    const privileges = await Promise.all(
+      tables.rows.map(async (row) => {
+        const [privilege] = (
+          await db.execute<{ has_select: boolean }>(
+            sql`select has_table_privilege('nightly_report_reader', ${row.table_name}, 'SELECT') as has_select`,
+          )
+        ).rows;
+        return { table: row.table_name, hasSelect: privilege?.has_select ?? false };
+      }),
+    );
+
+    expect(privileges.filter((entry) => entry.hasSelect).map((entry) => entry.table)).toEqual([
+      "nightly_runs",
+    ]);
+  });
 });
