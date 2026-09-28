@@ -70,4 +70,10 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
   await expect(signalRow).toBeVisible();
   await expect(signalRow.getByText("Entrada", { exact: true })).toBeVisible();
   await expect(signalRow.getByText(strategyName)).toBeVisible();
+
+  // #243: the phone tab bar carries the same unread count as the rail.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tabBar = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(tabBar).toHaveAttribute("data-tour", "tab-bar");
+  await expect(tabBar.getByRole("link", { name: /^Sinais \d+$/ })).toBeVisible();
 });

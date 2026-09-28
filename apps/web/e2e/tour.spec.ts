@@ -72,3 +72,40 @@ test("Escape skips the tour for good", async ({ page, baseURL, request }) => {
   await page.reload();
   await expectNoTourAfterLoad(page);
 });
+
+test("on a phone the navigation step points at the bottom tab bar", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "", { tour: "keep" });
+
+  const card = page.locator("[data-tour-card]");
+  await expect(card.getByText("Boas-vindas à Fetha")).toBeVisible();
+  await card.getByRole("button", { name: "Próximo" }).click();
+  await expect(card.getByRole("heading", { name: "Navegação" })).toBeVisible();
+
+  const tabBar = page.locator('[data-tour="tab-bar"]');
+  const barBox = await tabBar.boundingBox();
+  await expect(async () => {
+    const cardBox = await card.boundingBox();
+    expect(cardBox).not.toBeNull();
+    expect((cardBox?.y ?? 0) + (cardBox?.height ?? 0)).toBeLessThanOrEqual(barBox?.y ?? 0);
+    expect(cardBox?.y ?? 0).toBeGreaterThan((barBox?.y ?? 0) / 2);
+  }).toPass();
+
+  // Destination steps light up their own tab instead of falling back to a
+  // centered card with a full-screen dim.
+  await card.getByRole("button", { name: "Próximo" }).click();
+  await card.getByRole("button", { name: "Próximo" }).click();
+  await card.getByRole("button", { name: "Próximo" }).click();
+  await expect(card.getByRole("heading", { name: "Sinais" })).toBeVisible();
+  const signalsBox = await tabBar.locator('a[href="/sinais"]').boundingBox();
+  const spotlight = page.locator("body > div.fixed.inset-0[aria-hidden] > div");
+  await expect(async () => {
+    const spotBox = await spotlight.boundingBox();
+    expect(Math.abs((spotBox?.x ?? 0) - (signalsBox?.x ?? 0))).toBeLessThanOrEqual(8);
+    expect(Math.abs((spotBox?.width ?? 0) - (signalsBox?.width ?? 0))).toBeLessThanOrEqual(8);
+  }).toPass();
+});
