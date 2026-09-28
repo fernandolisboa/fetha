@@ -41,3 +41,10 @@ how many versions it wrote to a strategy. The cost lands on the Pro team's inclu
   after the lease revives it; a "discard run" action would be the way out if that ever happens.
 - No global cap on concurrent chunks across users; many accounts each at the cap remain
   possible with open registration.
+
+## Addendum (#160, #74): one lock for every per-user cap
+
+Every per-user count-then-insert cap takes `UserScopedRepository.lockUserScope(tx, scope)`, a
+`pg_advisory_xact_lock` keyed on `<scope>:<userId>`, before counting: active backtest runs
+(`backtest_runs`), strategies per user (200, `strategies`, #160) and watchlist instruments (100,
+`watchlist`, #74). Without the lock two concurrent writes at cap-1 both pass.

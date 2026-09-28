@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { strategies, strategyVersions, strategyVisibilities } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
@@ -11,7 +11,6 @@ import { computeDefinitionDigest } from "./definition-digest";
 export type StrategyVisibility = (typeof strategyVisibilities)[number];
 const strategyVisibilitySchema = z.enum(strategyVisibilities);
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type DbOrTx = Database | Transaction;
 
 export interface StrategySummary {
@@ -93,9 +92,7 @@ export class StrategiesRepository extends UserScopedRepository {
   // list-then-insert outside a lock lets two concurrent creates at
   // cap-1 both pass (#160).
   private async enforceStrategyCap(tx: Transaction): Promise<void> {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`strategies:${this.userId}`}, 0))`,
-    );
+    await this.lockUserScope(tx, "strategies");
     const [mine] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(strategies)

@@ -1,4 +1,4 @@
-import { decimalStringSchema, instantSchema, type Ticker } from "@fetha/contracts";
+import { instantSchema, type Ticker } from "@fetha/contracts";
 import {
   engine,
   type CandleForm,
@@ -39,7 +39,7 @@ export async function loadCandleSeries(
       ticker,
       exDate: row.exDate,
       asOf: instantSchema.parse(row.asOf.toISOString()),
-      factor: decimalStringSchema.parse(row.factor),
+      factor: row.factor,
     })),
   };
 

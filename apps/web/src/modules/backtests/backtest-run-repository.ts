@@ -29,7 +29,7 @@ import {
   isDiscardedRun,
   type ActiveRunStatus,
 } from "./run-status";
-import type { Database } from "@/db/client";
+import type { Transaction } from "@/db/client";
 import { postgresErrorOf } from "@/db/pg-error";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
@@ -143,8 +143,6 @@ export interface ActiveBacktestRunSummary {
   createdAt: Date;
 }
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
 export const MAX_ACTIVE_BACKTEST_RUNS = 2;
 
 export class BacktestRunClaimError extends Error {
@@ -209,9 +207,7 @@ export class BacktestRunRepository extends UserScopedRepository {
   // (create, and claim from "failed") counts under one per-user advisory
   // lock, so concurrent calls cannot both pass the cap.
   private async enforceActiveCap(tx: Transaction): Promise<void> {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`backtest_runs:${this.userId}`}, 0))`,
-    );
+    await this.lockUserScope(tx, "backtest_runs");
     const [active] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(backtestRuns)

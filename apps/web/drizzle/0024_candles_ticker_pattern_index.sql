@@ -1,0 +1,1 @@
+CREATE INDEX "candles_ticker_pattern_idx" ON "candles" USING btree ("ticker" text_pattern_ops);

@@ -1,4 +1,6 @@
-import type { Database } from "@/db/client";
+import { sql } from "drizzle-orm";
+
+import type { Database, Transaction } from "@/db/client";
 
 // Every user-scoped repository extends this. The user is bound once, at
 // construction, from the session; no method on a subclass may accept a user
@@ -19,5 +21,14 @@ export abstract class UserScopedRepository {
 
   protected get userId(): string {
     return this.currentUser.id;
+  }
+
+  // Serializes a per-user count-then-insert cap check (docs/adr/0032):
+  // without it two concurrent writes at cap-1 both pass. Held until `tx`
+  // commits or rolls back.
+  protected async lockUserScope(tx: Transaction, scope: string): Promise<void> {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope}:${this.userId}`}, 0))`,
+    );
   }
 }
