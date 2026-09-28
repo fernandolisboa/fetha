@@ -46,7 +46,7 @@ export function ArchiveStrategyButton({
     <div className="flex flex-col items-end gap-1">
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         onClick={archive}
         disabled={pending}

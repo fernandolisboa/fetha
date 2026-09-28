@@ -62,7 +62,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8">
       <PageHeader
-        overline={t.editor.editOverline}
+        overline={archived ? t.editor.archivedOverline : t.editor.editOverline}
         headline={strategy.name}
         actions={
           <div className="flex items-center gap-4">
@@ -86,7 +86,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
       />
 
       {archived ? (
-        <Panel title={t.editor.editOverline}>
+        <Panel title={t.editor.readOnlyTitle}>
           <p className="text-muted-foreground text-sm">{t.editor.errors.archived}</p>
         </Panel>
       ) : (

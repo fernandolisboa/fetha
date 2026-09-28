@@ -118,7 +118,7 @@ const en = {
       unarchiveAriaLabel: (strategyName: string) => `Unarchive ${strategyName}`,
       unarchiveError: "Couldn't unarchive the strategy. Try again.",
       unarchiveLimitReached:
-        "This would put you over the 200-strategy limit. Archive another strategy first.",
+        "Unarchiving this strategy would go over the 200-strategy limit. Archive another one first.",
     },
     visibility: { private: "Private", shared: "Shared" },
     emptyCatalog:
@@ -127,6 +127,8 @@ const en = {
   editor: {
     createOverline: "New strategy",
     editOverline: "Edit strategy",
+    archivedOverline: "Archived strategy",
+    readOnlyTitle: "Read only",
     name: { label: "Name" },
     timeframe: { label: "Timeframe" },
     structure: { label: "Structure" },
@@ -300,7 +302,7 @@ const ptBR = {
       unarchiveAriaLabel: (strategyName: string) => `Desarquivar ${strategyName}`,
       unarchiveError: "Não foi possível desarquivar a estratégia. Tente novamente.",
       unarchiveLimitReached:
-        "Isso passaria do limite de 200 estratégias. Arquive outra estratégia antes.",
+        "Desarquivar esta estratégia ultrapassaria o limite de 200. Arquive outra primeiro.",
     },
     visibility: { private: "Privada", shared: "Compartilhada" },
     emptyCatalog: "O catálogo de estruturas ainda não foi carregado.",
@@ -308,6 +310,8 @@ const ptBR = {
   editor: {
     createOverline: "Nova estratégia",
     editOverline: "Editar estratégia",
+    archivedOverline: "Estratégia arquivada",
+    readOnlyTitle: "Somente leitura",
     name: { label: "Nome" },
     timeframe: { label: "Escala de tempo" },
     structure: { label: "Estrutura" },

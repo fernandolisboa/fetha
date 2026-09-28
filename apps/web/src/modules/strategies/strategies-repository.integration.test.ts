@@ -635,6 +635,29 @@ describe("StrategiesRepository archive/unarchive (#170, docs/adr/0043)", () => {
     expect(after.archivedAt).not.toBeNull();
   });
 
+  it("treats a repeated unarchive at the cap as a no-op, not a limit refusal", async () => {
+    const db = getDb();
+    const email = uniqueEmail("unarchive-twice-at-cap");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Unarchived twice" }));
+    await repository.archive(created.id);
+
+    await db.insert(strategies).values(
+      Array.from({ length: MAX_STRATEGIES_PER_USER - 1 }, (_, index) => ({
+        userId: owner.id,
+        name: `Bulk ${String(index)}`,
+        visibility: "private" as const,
+      })),
+    );
+
+    await repository.unarchive(created.id);
+    await expect(repository.unarchive(created.id)).resolves.toBeUndefined();
+    const after = await repository.findMine(created.id);
+    expect(after.archivedAt).toBeNull();
+  });
+
   it("excludes an archived strategy from listShared and refuses copyShared on it", async () => {
     const db = getDb();
     const emailOwner = uniqueEmail("archive-shared-owner");

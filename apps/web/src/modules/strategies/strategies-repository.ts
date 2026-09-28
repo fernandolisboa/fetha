@@ -338,11 +338,15 @@ export class StrategiesRepository extends UserScopedRepository {
   // (docs/adr/0043): unarchiving at 200 non-archived strategies is refused
   // the same way a 201st create is. Never re-activates: the strategy comes
   // back exactly as inactive as it was left, evaluated only once the user
-  // turns it on again.
+  // turns it on again. The per-user lock comes before the row lock, the same
+  // order copyShared takes them, so the two cannot deadlock. Idempotent: an
+  // already-unarchived strategy is left alone rather than counted against
+  // the cap it already sits in.
   async unarchive(strategyId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
+      await this.lockUserScope(tx, "strategies");
       const [row] = await tx
-        .select({ id: strategies.id })
+        .select({ archivedAt: strategies.archivedAt })
         .from(strategies)
         .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
         .for("update")
@@ -350,6 +354,7 @@ export class StrategiesRepository extends UserScopedRepository {
       if (!row) {
         throw new StrategyNotFoundError();
       }
+      if (!row.archivedAt) return;
       await this.enforceStrategyCap(tx);
       await tx
         .update(strategies)

@@ -4,7 +4,7 @@ import { getDb } from "@/db/client";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { forCurrentUser } from "@/modules/auth";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
-import { getMyStrategies, getMyStrategy } from "@/modules/strategies";
+import { getMyArchivedStrategies, getMyStrategies, getMyStrategy } from "@/modules/strategies";
 
 import {
   BacktestRunRepository,
@@ -36,8 +36,14 @@ export interface ActiveBacktestRunItem {
 // strategies one by one.
 export const getMyActiveBacktestRuns = cache(async (): Promise<ActiveBacktestRunItem[]> => {
   const repository = await forCurrentUser(getDb(), BacktestRunRepository);
-  const [active, strategies] = await Promise.all([repository.listMineActive(), getMyStrategies()]);
-  const names = new Map(strategies.map((strategy) => [strategy.id, strategy.name]));
+  const [active, strategies, archived] = await Promise.all([
+    repository.listMineActive(),
+    getMyStrategies(),
+    getMyArchivedStrategies(),
+  ]);
+  const names = new Map(
+    [...strategies, ...archived].map((strategy) => [strategy.id, strategy.name]),
+  );
   return active.map((run) => ({
     id: run.id,
     strategyId: run.strategyId,
@@ -73,14 +79,13 @@ export type Comparison = { groups: PickerGroup[]; runs: ComparedRun[] };
 
 // Reads persisted, completed runs only (ADR-0023): nothing is re-simulated to compare.
 export async function getMyComparison(ids: readonly string[]): Promise<Comparison> {
-  const [summaries, strategies, records] = await Promise.all([
+  const [summaries, records] = await Promise.all([
     getMyCompletedRunSummaries(),
-    getMyStrategies(),
     ids.length >= 2 ? getMyCompletedRuns(ids) : Promise.resolve([]),
   ]);
   const strategyIds = [...new Set(summaries.map((summary) => summary.strategyId))];
   const withVersions = await Promise.all(strategyIds.map((id) => getMyStrategy(id)));
-  const names = new Map(strategies.map((strategy) => [strategy.id, strategy.name]));
+  const names = new Map(withVersions.map((strategy) => [strategy.id, strategy.name]));
   const versionNumbers = new Map(
     withVersions.flatMap((strategy) =>
       strategy.versions.map((version) => [version.id, version.versionNumber] as const),
