@@ -8,7 +8,7 @@ const runNightlyJobMock = vi.hoisted(() => vi.fn());
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/modules/auth", () => ({ isOwner: isOwnerMock }));
 vi.mock("@/modules/audit", () => ({ recordAccess: recordAccessMock }));
-vi.mock("./run-nightly-job", () => ({ runNightlyJob: runNightlyJobMock }));
+vi.mock("./recorded-run", () => ({ runNightlyJobRecorded: runNightlyJobMock }));
 
 describe("triggerNightlyJobAction", () => {
   let consoleErrorSpy: MockInstance;
@@ -89,7 +89,7 @@ describe("triggerNightlyJobAction", () => {
 
     const result = await triggerNightlyJobAction({ session: "2026-09-08" });
 
-    expect(runNightlyJobMock).toHaveBeenCalledWith({}, { session: "2026-09-08" });
+    expect(runNightlyJobMock).toHaveBeenCalledWith({}, "manual", { session: "2026-09-08" });
     expect(recordAccessMock).toHaveBeenCalledWith("nightly_triggered");
     expect(result).toEqual({
       status: "ok",

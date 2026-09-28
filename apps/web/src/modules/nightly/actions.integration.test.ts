@@ -66,6 +66,7 @@ beforeEach(() => {
     accessLogPurge: { ok: true, deleted: 0 },
     unverifiedAccountPurge: { ok: true, deleted: 0 },
     sessionPurge: { ok: true, deleted: 0 },
+    nightlyRunPurge: { ok: true, deleted: 0 },
   });
 });
 
