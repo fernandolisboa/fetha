@@ -4,10 +4,8 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md. Like
 // backtest.spec.ts, it expects PETR4 candles for the two sessions below to be ingested already,
-// and re-ingests the second one first, through the owner's own session (#51), when
-// E2E_OWNER_EMAIL is set.
+// and re-ingests the second one first, through the owner's own session (#51).
 const e2eSecret = process.env.E2E_SECRET;
-const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const FROM = "2026-09-08";
 const SESSION = "2026-09-09";
@@ -33,9 +31,7 @@ test("compare the backtests of two versions of a strategy", async ({
   request,
   browser,
 }) => {
-  if (ownerEmail) {
-    await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
-  }
+  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
 
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 

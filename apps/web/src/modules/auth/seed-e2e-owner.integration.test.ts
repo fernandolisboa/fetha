@@ -10,7 +10,7 @@ import { deleteTestUser } from "@/db/test/cleanup";
 import { getAuth } from "./auth";
 import { hasPassword } from "./credential";
 import { isOwnerEmail } from "./owner";
-import { account, termsAcceptances, user } from "./schema";
+import { account, session, termsAcceptances, user } from "./schema";
 import { signInMagicLink } from "./service";
 import { testRequestHeaders } from "./test-support";
 import { CURRENT_TERMS_VERSION } from "./terms";
@@ -116,5 +116,48 @@ describe("seed-e2e-owner.mjs", () => {
       .from(termsAcceptances)
       .where(eq(termsAcceptances.userId, first.id));
     expect(acceptances).toHaveLength(1);
+  });
+
+  it("takes over an address someone registered first: their password and sessions stop working", async () => {
+    const email = uniqueEmail();
+    createdEmails.push(email);
+    const squatterId = crypto.randomUUID();
+    await getDb().insert(user).values({
+      id: squatterId,
+      name: "Squatter",
+      email,
+      emailVerified: false,
+      termsVersion: CURRENT_TERMS_VERSION,
+      termsAcceptedAt: new Date(),
+    });
+    await getDb().insert(account).values({
+      id: crypto.randomUUID(),
+      accountId: squatterId,
+      providerId: "credential",
+      userId: squatterId,
+      password: "squatter-known-hash",
+    });
+    await getDb()
+      .insert(session)
+      .values({
+        id: crypto.randomUUID(),
+        token: crypto.randomUUID(),
+        userId: squatterId,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+    runSeed(email);
+
+    const credentials = await getDb()
+      .select({ password: account.password })
+      .from(account)
+      .where(eq(account.userId, squatterId));
+    expect(credentials).toHaveLength(1);
+    expect(credentials[0]?.password).not.toBe("squatter-known-hash");
+    const sessions = await getDb()
+      .select({ id: session.id })
+      .from(session)
+      .where(eq(session.userId, squatterId));
+    expect(sessions).toEqual([]);
   });
 });

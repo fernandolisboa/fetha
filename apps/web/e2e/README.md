@@ -23,8 +23,7 @@ Environment variables:
   own `OWNER_EMAILS` allowlist (docs/adr/0042) that CI re-creates after every reset of
   `fetha-preview` (`db:seed-e2e-owner`), so nobody registers it by hand. Specs that need the
   nightly job re-run for a session (`ingestion-trigger.spec.ts`, `signals.spec.ts`,
-  `decisions.spec.ts`, `scoring.spec.ts`, and `backtest.spec.ts` and `compare.spec.ts` only when
-  `E2E_OWNER_EMAIL` is set explicitly) sign this account in through a magic link and drive
+  `decisions.spec.ts`, `scoring.spec.ts`, `backtest.spec.ts`, `compare.spec.ts`) sign this account in through a magic link and drive
   `/configuracoes`'s manual trigger form instead of holding `CRON_SECRET`; no spec needs
   `CRON_SECRET` anymore, since the manual trigger moved off it (#51).
 - `VERCEL_PROTECTION_BYPASS`: Vercel Deployment Protection (SSO) sits in front of every preview
