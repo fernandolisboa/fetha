@@ -8,15 +8,11 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // manual ingestion trigger, #51) one step further: records "Não entrar" on
 // the resulting signal and confirms the journal shows it.
 const e2eSecret = process.env.E2E_SECRET;
-const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const TICKER = "PETR4";
 const SESSION = "2026-09-09";
 const RATIONALE = "Sem margem de segurança suficiente para entrar agora.";
 
-test.skip(
-  !e2eSecret || !ownerEmail,
-  "E2E_SECRET or E2E_OWNER_EMAIL is not set; skipping the decision journal flow.",
-);
+test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision journal flow.");
 
 test('recording "não entrar" on a signal shows it in the journal', async ({
   page,

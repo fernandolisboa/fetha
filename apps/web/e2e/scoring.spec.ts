@@ -12,13 +12,9 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // already scored, with its components (#29 acceptance criterion b), not
 // "pendente".
 const e2eSecret = process.env.E2E_SECRET;
-const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const SESSION = "2026-09-09";
 
-test.skip(
-  !e2eSecret || !ownerEmail,
-  "E2E_SECRET or E2E_OWNER_EMAIL is not set; skipping the decision scoring flow.",
-);
+test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision scoring flow.");
 
 test("a seeded decision is scored by the nightly job and shows its components on /diario", async ({
   page,
