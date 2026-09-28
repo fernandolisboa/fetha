@@ -164,7 +164,9 @@ rule), DecisionBar, AnalysisPanel (thesis, counter-thesis, risks, invalidation, 
 cited, prompt version and model), CandleChart (`lightweight-charts`), SignalRow (strategy,
 instrument, evaluation time, late flag, proposal summary), StrategyEditor (closed vocabulary
 forms), BacktestReport (equity, drawdown, distribution, metrics table, walk-forward windows,
-declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score), ThemePicker.
+declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score), ThemePicker,
+GuidedTour (a dim layer with a hairline `--accent` cutout around one element and a Popover step
+card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0046).
 
 ## States
 

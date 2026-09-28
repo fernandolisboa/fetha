@@ -6,6 +6,48 @@ interface DestinationGuide {
 }
 
 const en = {
+  tour: {
+    replay: "Replay the tour",
+    progress: (step: number, total: number) => `Step ${String(step)} of ${String(total)}`,
+    skip: "Skip tour",
+    back: "Back",
+    next: "Next",
+    finish: "Finish",
+    steps: {
+      welcome: {
+        title: "Welcome to Fetha",
+        body: "A quick tour of the workstation: where each thing lives and where to start. Skip it whenever you like; the Como usar guide stays in the account menu.",
+      },
+      rail: {
+        title: "Navigation",
+        body: "Fetha's six destinations live here. The button at the end collapses the bar to give the content more room.",
+      },
+      addInstrument: {
+        title: "Start with the watchlist",
+        body: "Click “Adicionar ativo” and search a ticker, such as PETR4. Active strategies are evaluated on the watchlist's instruments.",
+      },
+      strategies: {
+        title: "Strategies",
+        body: "Create a strategy from the catalog, run a backtest and mark it “Ativa” to have it evaluated every night.",
+      },
+      signals: {
+        title: "Signals",
+        body: "What your active strategies propose lands here after the close. Answer each signal with a decision.",
+      },
+      portfolio: {
+        title: "Portfolio",
+        body: "Your real positions, entered by hand or imported from the B3 spreadsheet. Fetha places no orders.",
+      },
+      journal: {
+        title: "Journal",
+        body: "Every decision is recorded and scored when its horizon arrives, so you see how your calls aged.",
+      },
+      accountMenu: {
+        title: "Account menu",
+        body: "The Como usar guide, settings and sign out live here. You can replay this tour from the guide.",
+      },
+    },
+  },
   guide: {
     title: "How to use Fetha",
     documentTitle: "How to use",
@@ -97,6 +139,48 @@ const en = {
 };
 
 const ptBR = {
+  tour: {
+    replay: "Refazer o tour",
+    progress: (step: number, total: number) => `Passo ${String(step)} de ${String(total)}`,
+    skip: "Pular tour",
+    back: "Voltar",
+    next: "Próximo",
+    finish: "Concluir",
+    steps: {
+      welcome: {
+        title: "Boas-vindas à Fetha",
+        body: "Um tour rápido pela estação: onde fica cada coisa e por onde começar. Pule quando quiser; o guia Como usar continua no menu da conta.",
+      },
+      rail: {
+        title: "Navegação",
+        body: "Os seis destinos da Fetha ficam aqui. O botão no fim recolhe a barra para dar mais espaço ao conteúdo.",
+      },
+      addInstrument: {
+        title: "Comece pela watchlist",
+        body: "Clique em “Adicionar ativo” e busque um código, como PETR4. As estratégias ativas são avaliadas nos ativos da watchlist.",
+      },
+      strategies: {
+        title: "Estratégias",
+        body: "Crie uma estratégia a partir do catálogo, rode um backtest e marque como “Ativa” para ela ser avaliada toda noite.",
+      },
+      signals: {
+        title: "Sinais",
+        body: "O que suas estratégias ativas propõem chega aqui depois do fechamento. Responda cada sinal com uma decisão.",
+      },
+      portfolio: {
+        title: "Carteira",
+        body: "Suas posições reais, lançadas à mão ou importadas da planilha da B3. A Fetha não envia ordens.",
+      },
+      journal: {
+        title: "Diário",
+        body: "Cada decisão fica registrada e é pontuada quando chega o horizonte, para você ver como suas escolhas envelheceram.",
+      },
+      accountMenu: {
+        title: "Menu da conta",
+        body: "O guia Como usar, as configurações e o botão de sair ficam aqui. Pelo guia, dá para refazer este tour.",
+      },
+    },
+  },
   guide: {
     title: "Como usar a Fetha",
     documentTitle: "Como usar",

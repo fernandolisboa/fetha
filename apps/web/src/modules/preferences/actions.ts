@@ -39,3 +39,12 @@ export async function setRailCollapsedAction(collapsed: boolean): Promise<Prefer
 
   return { status: "ok" };
 }
+
+export async function dismissTourAction(): Promise<PreferencesActionResult> {
+  await withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), PreferencesRepository);
+    await repository.dismissTour();
+  });
+
+  return { status: "ok" };
+}

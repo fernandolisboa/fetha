@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
+import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
 import { getMyUnreadSignalCount } from "@/modules/strategies";
@@ -34,8 +35,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   ]);
 
   return (
-    <AppShell user={user} preferences={preferences} unreadSignalCount={unreadSignalCount}>
-      {children}
-    </AppShell>
+    <TourProvider autoStart={!preferences.tourDismissed}>
+      <AppShell user={user} preferences={preferences} unreadSignalCount={unreadSignalCount}>
+        {children}
+      </AppShell>
+    </TourProvider>
   );
 }

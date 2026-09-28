@@ -2,6 +2,7 @@ import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 import { confirmEmailAndSetPassword, readLatestLink, signUp } from "./support";
+import { closeTourOnceShown, skipTourWhenShown } from "./tour";
 
 export const password = "correct-horse-battery-staple";
 
@@ -15,6 +16,7 @@ export async function registerAndSignIn(
   request: APIRequestContext,
   baseURL: string | undefined,
   secret: string,
+  { tour }: { tour: "skip" | "keep" } = { tour: "skip" },
 ): Promise<string> {
   const email = `fetha-e2e-${String(Date.now())}-${String(Math.random()).slice(2, 8)}@example.com`;
   const name = "Playwright User";
@@ -23,6 +25,10 @@ export async function registerAndSignIn(
 
   const link = await readLatestLink(request, baseURL, email, secret);
   await confirmEmailAndSetPassword(page, link, password, baseURL, name);
+
+  if (tour === "skip") {
+    await closeTourOnceShown(page);
+  }
 
   return email;
 }
@@ -123,6 +129,7 @@ export async function triggerIngestionAsOwner(
   const extraHTTPHeaders = test.info().project.use.extraHTTPHeaders;
   const context = await browser.newContext({ baseURL, extraHTTPHeaders });
   const page = await context.newPage();
+  await skipTourWhenShown(page);
 
   await page.goto(`${baseURL ?? ""}/link-magico`);
   await seedMagicLinkBaseline(context.request, baseURL, ownerEmail, e2eSecret);

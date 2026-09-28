@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -58,6 +59,53 @@ describe("PreferencesRepository isolation", () => {
     expect(aPreferences.theme).toBe("terminal");
   });
 
+  it("user A dismissing the tour leaves user B's tour pending", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("tour-a");
+    const emailB = uniqueEmail("tour-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await new PreferencesRepository(db, userB).setTheme("amplo");
+
+    await new PreferencesRepository(db, userA).dismissTour();
+
+    expect((await new PreferencesRepository(db, userA).find()).tourDismissed).toBe(true);
+    expect(await new PreferencesRepository(db, userB).find()).toEqual({
+      theme: "amplo",
+      railCollapsed: false,
+      tourDismissed: false,
+    });
+  });
+
+  it("keeps the first dismissal time and the other preferences when the tour is dismissed again", async () => {
+    const db = getDb();
+    const email = uniqueEmail("tour-again");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new PreferencesRepository(db, testUser);
+    await repository.setTheme("terminal");
+
+    await repository.dismissTour();
+    const [first] = await db
+      .select({ at: preferences.tourDismissedAt })
+      .from(preferences)
+      .where(eq(preferences.userId, testUser.id));
+    await repository.dismissTour();
+    const [second] = await db
+      .select({ at: preferences.tourDismissedAt })
+      .from(preferences)
+      .where(eq(preferences.userId, testUser.id));
+
+    expect(first?.at).toBeInstanceOf(Date);
+    expect(second?.at).toEqual(first?.at);
+    expect(await repository.find()).toEqual({
+      theme: "terminal",
+      railCollapsed: false,
+      tourDismissed: true,
+    });
+  });
+
   it("defaults to instrumento and an expanded rail before any preference is stored", async () => {
     const db = getDb();
     const email = uniqueEmail("default");
@@ -66,7 +114,7 @@ describe("PreferencesRepository isolation", () => {
 
     const result = await new PreferencesRepository(db, testUser).find();
 
-    expect(result).toEqual({ theme: "instrumento", railCollapsed: false });
+    expect(result).toEqual({ theme: "instrumento", railCollapsed: false, tourDismissed: false });
   });
 
   it("persists the rail collapse state independently of the theme", async () => {
@@ -80,7 +128,7 @@ describe("PreferencesRepository isolation", () => {
     await repository.setRailCollapsed(true);
 
     const result = await repository.find();
-    expect(result).toEqual({ theme: "amplo", railCollapsed: true });
+    expect(result).toEqual({ theme: "amplo", railCollapsed: true, tourDismissed: false });
   });
 
   it("persists a concurrent theme change and rail toggle without one clobbering the other", async () => {
@@ -93,7 +141,7 @@ describe("PreferencesRepository isolation", () => {
     await Promise.all([repository.setTheme("terminal"), repository.setRailCollapsed(true)]);
 
     const result = await repository.find();
-    expect(result).toEqual({ theme: "terminal", railCollapsed: true });
+    expect(result).toEqual({ theme: "terminal", railCollapsed: true, tourDismissed: false });
   });
 
   it("falls back to the default theme when the stored value is out of the enum", async () => {
