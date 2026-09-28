@@ -1,8 +1,54 @@
 # Playwright e2e
 
-Not wired into CI yet (no preview-URL plumbing exists). Run by hand against a Vercel preview
-deployment that has `E2E_SECRET` set and `REGISTRATION_MODE=open` (or a matching invite seeded
-with `scripts/seed-invite.mjs`):
+## CI
+
+`.github/workflows/ci.yml`'s `preview-database` job runs the whole suite against the PR's own
+Vercel preview, after resetting, migrating and seeding `fetha-preview` — the same job, under the
+same `preview-db` concurrency lock, so no other PR can reset the shared database mid-run. It waits
+for that PR's `vercel[bot]` "Preview" deployment to report `success` on its GitHub deployment
+status (`scripts/wait-for-vercel-preview.mjs`), then runs `pnpm --filter @fetha/web test:e2e`
+against it.
+
+It needs two repository secrets, both read only inside that job:
+
+- `E2E_SECRET` — must equal the value set on the Vercel Preview environment as `E2E_SECRET` (see
+  below); the app's E2E-only routes 404 otherwise.
+- `VERCEL_PROTECTION_BYPASS` — the project's Deployment Protection bypass value (see below).
+
+The Vercel Preview environment must also resolve `REGISTRATION_MODE` (or the Vercel Global Config
+`registration_mode` item, ADR-0020) to `open`: CI seeds no invites, so every spec that
+self-registers a fresh account (`registration.spec.ts` and friends) needs open sign-up to work.
+
+The e2e step is skipped, cleanly and without failing the job, when:
+
+- either secret is empty, or `DATABASE_URL_PREVIEW` is not configured;
+- the event is a push to `main`, not a pull request (there is no PR preview to test against);
+- the pull request's head commit — or, if that commit was skipped by Vercel's `ignoreCommand`, the
+  nearest earlier commit on the same PR that Vercel actually built — never gets a Vercel Preview
+  deployment at all, meaning the whole PR is docs-only.
+
+Vercel's `ignoreCommand` (`apps/web/scripts/vercel-ignore-build.sh`) diffs each push against the
+last commit it actually built, not against the whole PR, so a docs-only commit stacked on top of a
+code commit gets no GitHub deployment of its own — only a `"Vercel"` commit status describing it as
+ignored. `scripts/wait-for-vercel-preview.mjs` checks the head commit first and, only when it was
+ignored this way, walks the PR's commit history backward for the nearest earlier commit that did
+build, since that commit's app code is what's actually running at its preview URL.
+
+GitHub Actions runs at most one _pending_ job per `concurrency: { group: preview-db }`; with
+several PRs open at once, a queued run can be replaced (cancelled) by a later push before it ever
+starts running. A PR whose run was cancelled this way needs a manual re-run once its queue turn
+would otherwise have come up — see docs/adr/0016's 2026-09-28 addendum.
+
+CI does not set `E2E_OWNER_EMAIL`: the helpers default to `dono-e2e@example.com`, the same account
+the "Seed the e2e owner account" step (`db:seed-e2e-owner`) re-creates after every reset of
+`fetha-preview`, so `ingestion-trigger.spec.ts`, `signals.spec.ts`, `decisions.spec.ts`,
+`scoring.spec.ts`, `backtest.spec.ts` and `compare.spec.ts` (docs/adr/0042) find it already
+provisioned and verified.
+
+## Manual run
+
+Run by hand against a Vercel preview deployment that has `E2E_SECRET` set and
+`REGISTRATION_MODE=open` (or a matching invite seeded with `scripts/seed-invite.mjs`):
 
 ```
 E2E_SECRET=<value from Vercel> \
