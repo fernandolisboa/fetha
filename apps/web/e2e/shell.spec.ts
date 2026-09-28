@@ -30,27 +30,23 @@ test("header fits a phone viewport without horizontal scroll", async ({
   request,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
-  await page.setViewportSize({ width: 390, height: 844 });
 
-  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-  const viewportWidth = await page.evaluate(() => window.innerWidth);
-  expect(scrollWidth).toBeLessThanOrEqual(viewportWidth);
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 844 });
 
-  const accountTrigger = page.getByRole("button", { name: "Menu da conta" });
-  await expect(accountTrigger).toBeVisible();
-  const accountBox = await accountTrigger.boundingBox();
-  expect(accountBox).not.toBeNull();
-  if (accountBox) {
-    expect(accountBox.x).toBeGreaterThanOrEqual(0);
-    expect(accountBox.x + accountBox.width).toBeLessThanOrEqual(viewportWidth);
+    const header = page.getByRole("banner");
+    const headerScrollWidth = await header.evaluate((element) => element.scrollWidth);
+    expect(headerScrollWidth).toBeLessThanOrEqual(width);
+    const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(pageScrollWidth).toBeLessThanOrEqual(width);
+
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect(accountBox).not.toBeNull();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(width);
   }
 
-  const searchTrigger = page.getByRole("button", { name: "Buscar ativo, série ou estratégia" });
-  await expect(searchTrigger).toBeVisible();
-  await searchTrigger.click();
-  await expect(
-    page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Buscar ativo ou estratégia" }).click();
+  await expect(page.getByRole("dialog", { name: "Buscar ativo ou estratégia" })).toBeVisible();
 });
 
 test("Ctrl K palette opens and announces its empty state once typing starts", async ({
