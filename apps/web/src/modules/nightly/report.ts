@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import { safeDbErrorMessage } from "@/db/pg-error";
+import type { SourceOutcome } from "@/modules/market-data";
 
 import type { NightlyJobOutcome } from "./run-nightly-job";
-import type { NightlyRunPurgeOutcome } from "./nightly-runs-repository";
 
 const purgeReportSchema = z.union([
   z.object({ ok: z.literal(true), deleted: z.number().int().nonnegative() }),
@@ -59,11 +59,9 @@ export const nightlyRunReportSchema = z.union([completedReportSchema, thrownRepo
 
 export type NightlyRunReport = z.infer<typeof nightlyRunReportSchema>;
 
-export function sourceRunStatus(source: {
-  skipped: boolean;
-  pending?: true;
-  error?: string;
-}): "ok" | "skipped" | "pending" | "failed" {
+export function sourceRunStatus(
+  source: Pick<SourceOutcome, "skipped" | "pending" | "error">,
+): "ok" | "skipped" | "pending" | "failed" {
   if (source.error !== undefined) {
     return "failed";
   }
@@ -73,9 +71,7 @@ export function sourceRunStatus(source: {
   return source.skipped ? "skipped" : "ok";
 }
 
-export function buildNightlyRunReport(
-  outcome: NightlyJobOutcome & { nightlyRunPurge: NightlyRunPurgeOutcome },
-): NightlyRunReport {
+export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunReport {
   return {
     session: outcome.session,
     okSessions: outcome.okSessions,

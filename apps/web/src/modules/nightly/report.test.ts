@@ -7,9 +7,8 @@ import {
   sourceRunStatus,
 } from "./report";
 import type { NightlyJobOutcome } from "./run-nightly-job";
-import type { NightlyRunPurgeOutcome } from "./nightly-runs-repository";
 
-function baseOutcome(): NightlyJobOutcome & { nightlyRunPurge: NightlyRunPurgeOutcome } {
+function baseOutcome(): NightlyJobOutcome {
   return {
     ok: true,
     session: "2026-09-08",
