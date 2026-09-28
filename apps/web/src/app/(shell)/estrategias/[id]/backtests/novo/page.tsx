@@ -35,7 +35,9 @@ export default async function NewBacktestRunPage({ params }: { params: Promise<{
       <PageHeader overline={t.create.overline} headline={strategy.name} />
 
       <Panel>
-        {watchlist.length === 0 ? (
+        {strategy.archivedAt ? (
+          <p className="text-muted-foreground text-sm">{t.create.archived}</p>
+        ) : watchlist.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.create.empty}</p>
         ) : (
           <CreateRunForm

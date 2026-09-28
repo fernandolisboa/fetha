@@ -176,6 +176,13 @@
       "when": 1790554572329,
       "tag": "0024_candles_ticker_pattern_index",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790619313503,
+      "tag": "0025_strategies_archived_at",
+      "breakpoints": true
     }
   ]
 }

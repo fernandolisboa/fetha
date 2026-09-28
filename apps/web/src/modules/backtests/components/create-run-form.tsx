@@ -91,6 +91,8 @@ export function CreateRunForm({
         } else if (result.error === "too_many_active") {
           setError(t.tooManyActive);
           setTooManyActive(true);
+        } else if (result.error === "archived") {
+          setError(t.create.archived);
         } else {
           setError(t.create.error);
         }

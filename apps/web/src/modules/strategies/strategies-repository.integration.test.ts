@@ -15,6 +15,7 @@ import {
   MAX_STRATEGIES_PER_USER,
   MAX_VERSIONS_PER_STRATEGY,
   StrategiesRepository,
+  StrategyArchivedError,
   StrategyLimitReachedError,
   StrategyNotFoundError,
   StrategyNotSharedError,
@@ -511,5 +512,210 @@ describe("StrategiesRepository strategy cap (#160)", () => {
     ).resolves.toBeDefined();
     const mineA = await repositoryA.listMine();
     expect(mineA).toHaveLength(1);
+  });
+});
+
+describe("StrategiesRepository archive/unarchive (#170, docs/adr/0043)", () => {
+  it("hides an archived strategy from listMine and shows it in listMineArchived", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-list");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "To archive" }));
+
+    await repository.archive(created.id);
+
+    expect((await repository.listMine()).map((s) => s.id)).not.toContain(created.id);
+    expect((await repository.listMineArchived()).map((s) => s.id)).toContain(created.id);
+  });
+
+  it("archive deactivates the strategy", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-deactivates");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(
+      definition({ name: "Active then archived" }),
+    );
+    await repository.setActive(created.id, true);
+
+    await repository.archive(created.id);
+
+    const after = await repository.findMine(created.id);
+    expect(after.active).toBe(false);
+    expect(after.archivedAt).not.toBeNull();
+    expect((await repository.listActiveDaily()).map((row) => row.strategyId)).not.toContain(
+      created.id,
+    );
+  });
+
+  it("archive is idempotent on an already-archived strategy", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-idempotent");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Twice archived" }));
+
+    await repository.archive(created.id);
+    await expect(repository.archive(created.id)).resolves.toBeUndefined();
+
+    const after = await repository.findMine(created.id);
+    expect(after.archivedAt).not.toBeNull();
+  });
+
+  it("unarchive clears archivedAt without re-activating", async () => {
+    const db = getDb();
+    const email = uniqueEmail("unarchive-inactive");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Unarchive me" }));
+    await repository.setActive(created.id, true);
+    await repository.archive(created.id);
+
+    await repository.unarchive(created.id);
+
+    const after = await repository.findMine(created.id);
+    expect(after.archivedAt).toBeNull();
+    expect(after.active).toBe(false);
+    expect((await repository.listMine()).map((s) => s.id)).toContain(created.id);
+  });
+
+  it("archived strategies do not count toward the cap: create succeeds at 200 with one archived", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-cap-create");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+
+    await db.insert(strategies).values(
+      Array.from({ length: MAX_STRATEGIES_PER_USER }, (_, index) => ({
+        userId: owner.id,
+        name: `Bulk ${String(index)}`,
+        visibility: "private" as const,
+      })),
+    );
+    const [toArchive] = await db
+      .select({ id: strategies.id })
+      .from(strategies)
+      .where(eq(strategies.userId, owner.id))
+      .limit(1);
+    if (!toArchive) throw new Error("expected a strategy to archive");
+    await repository.archive(toArchive.id);
+
+    await expect(
+      repository.createWithVersion(definition({ name: "Room after archive" })),
+    ).resolves.toBeDefined();
+  });
+
+  it("refuses unarchive at the cap and leaves the strategy archived", async () => {
+    const db = getDb();
+    const email = uniqueEmail("unarchive-at-cap");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(definition({ name: "Archived at cap" }));
+    await repository.archive(created.id);
+
+    await db.insert(strategies).values(
+      Array.from({ length: MAX_STRATEGIES_PER_USER }, (_, index) => ({
+        userId: owner.id,
+        name: `Bulk ${String(index)}`,
+        visibility: "private" as const,
+      })),
+    );
+
+    await expect(repository.unarchive(created.id)).rejects.toBeInstanceOf(
+      StrategyLimitReachedError,
+    );
+    const after = await repository.findMine(created.id);
+    expect(after.archivedAt).not.toBeNull();
+  });
+
+  it("excludes an archived strategy from listShared and refuses copyShared on it", async () => {
+    const db = getDb();
+    const emailOwner = uniqueEmail("archive-shared-owner");
+    const emailOther = uniqueEmail("archive-shared-other");
+    createdEmails.push(emailOwner, emailOther);
+    const owner = await insertBareUser(emailOwner);
+    const other = await insertBareUser(emailOther);
+    const ownerRepository = new StrategiesRepository(db, owner);
+    const created = await ownerRepository.createWithVersion(
+      definition({ name: "Shared then archived" }),
+    );
+    await ownerRepository.setVisibility(created.id, "shared");
+    await ownerRepository.archive(created.id);
+
+    const otherRepository = new StrategiesRepository(db, other);
+    expect((await otherRepository.listShared()).map((s) => s.id)).not.toContain(created.id);
+    await expect(otherRepository.copyShared(created.id)).rejects.toBeInstanceOf(
+      StrategyNotFoundError,
+    );
+    await expect(ownerRepository.copyShared(created.id)).rejects.toBeInstanceOf(
+      StrategyArchivedError,
+    );
+  });
+
+  it("refuses addVersion, setActive(true) and share on an archived strategy", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-read-only");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new StrategiesRepository(db, owner);
+    const created = await repository.createWithVersion(
+      definition({ name: "Read only once archived" }),
+    );
+    await repository.archive(created.id);
+
+    await expect(
+      repository.addVersion(created.id, definition({ name: "New version" })),
+    ).rejects.toBeInstanceOf(StrategyArchivedError);
+    await expect(repository.setActive(created.id, true)).rejects.toBeInstanceOf(
+      StrategyArchivedError,
+    );
+    await expect(repository.setVisibility(created.id, "shared")).rejects.toBeInstanceOf(
+      StrategyArchivedError,
+    );
+    await expect(repository.setActive(created.id, false)).resolves.toBeUndefined();
+  });
+});
+
+describe("StrategiesRepository archive/unarchive isolation", () => {
+  it("user A cannot archive or unarchive user B's strategy", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("archive-iso-a");
+    const emailB = uniqueEmail("archive-iso-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const repositoryB = new StrategiesRepository(db, userB);
+    const created = await repositoryB.createWithVersion(definition({ name: "B's strategy" }));
+
+    const repositoryA = new StrategiesRepository(db, userA);
+    await expect(repositoryA.archive(created.id)).rejects.toBeInstanceOf(StrategyNotFoundError);
+
+    await repositoryB.archive(created.id);
+    await expect(repositoryA.unarchive(created.id)).rejects.toBeInstanceOf(StrategyNotFoundError);
+
+    const stillArchived = await repositoryB.findMine(created.id);
+    expect(stillArchived.archivedAt).not.toBeNull();
+  });
+
+  it("user A's archived list never shows user B's archived strategies", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("archive-iso-list-a");
+    const emailB = uniqueEmail("archive-iso-list-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const repositoryB = new StrategiesRepository(db, userB);
+    const created = await repositoryB.createWithVersion(definition({ name: "B's archived" }));
+    await repositoryB.archive(created.id);
+
+    const repositoryA = new StrategiesRepository(db, userA);
+    expect((await repositoryA.listMineArchived()).map((s) => s.id)).not.toContain(created.id);
   });
 });

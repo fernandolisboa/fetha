@@ -48,3 +48,9 @@ Every per-user count-then-insert cap takes `UserScopedRepository.lockUserScope(t
 `pg_advisory_xact_lock` keyed on `<scope>:<userId>`, before counting: active backtest runs
 (`backtest_runs`), strategies per user (200, `strategies`, #160) and watchlist instruments (100,
 `watchlist`, #74). Without the lock two concurrent writes at cap-1 both pass.
+
+## Addendum (#170, docs/adr/0043): the strategy cap counts non-archived strategies only
+
+`enforceStrategyCap` counts `strategies` rows with `archived_at is null`. Archiving (docs/adr/0043)
+is the way out of the 200-strategy cap: a user at the cap archives one to free a slot for a create
+or a copy, and `unarchive` re-checks the same lock and count a create would.

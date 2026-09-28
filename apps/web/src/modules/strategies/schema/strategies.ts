@@ -37,6 +37,11 @@ export const strategies = pgTable(
     // version: activating always evaluates whatever version is latest at
     // evaluation time, the same way the editor always edits the latest one.
     active: boolean("active").notNull().default(false),
+    // Set on archive (docs/adr/0043), cleared on unarchive. An archived
+    // strategy is read-only, excluded from the per-user cap, sharing and
+    // nightly evaluation, but its versions, runs, signals and decisions stay
+    // reachable: archiving never deletes anything.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -46,6 +51,7 @@ export const strategies = pgTable(
   (table) => [
     index("strategies_user_id_idx").on(table.userId),
     index("strategies_active_idx").on(table.active),
+    index("strategies_archived_at_idx").on(table.archivedAt),
     check("strategies_visibility_check", sql`${table.visibility} in ('private', 'shared')`),
   ],
 );

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { strategyDefinitionSchema, type StrategyDefinition } from "@fetha/contracts";
 
@@ -37,6 +37,7 @@ export interface StrategyWithVersions {
   visibility: StrategyVisibility;
   copiedFromStrategyId: string | null;
   active: boolean;
+  archivedAt: Date | null;
   versions: StrategyVersionRecord[];
 }
 
@@ -76,6 +77,14 @@ export class StrategyVersionLimitError extends Error {
   }
 }
 
+// docs/adr/0043: an archived strategy is read-only until unarchived.
+export class StrategyArchivedError extends Error {
+  constructor() {
+    super("Strategy is archived");
+    this.name = "StrategyArchivedError";
+  }
+}
+
 // Bounds an unbounded edit loop on one strategy (#147, docs/adr/0032), well
 // above real use; a new strategy starts its own count.
 export const MAX_VERSIONS_PER_STRATEGY = 100;
@@ -86,17 +95,18 @@ export const MAX_VERSIONS_PER_STRATEGY = 100;
 export const MAX_STRATEGIES_PER_USER = 200;
 
 export class StrategiesRepository extends UserScopedRepository {
-  // Every way into a user's strategy set (create, copy) counts under one
-  // per-user advisory lock, same pattern as
+  // Every way into a user's non-archived strategy set (create, copy,
+  // unarchive) counts under one per-user advisory lock, same pattern as
   // BacktestRunRepository.enforceActiveCap (#147, docs/adr/0032): a
   // list-then-insert outside a lock lets two concurrent creates at
-  // cap-1 both pass (#160).
+  // cap-1 both pass (#160). Archived strategies do not count
+  // (docs/adr/0043): archiving is the way out of the cap.
   private async enforceStrategyCap(tx: Transaction): Promise<void> {
     await this.lockUserScope(tx, "strategies");
     const [mine] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(strategies)
-      .where(eq(strategies.userId, this.userId));
+      .where(and(eq(strategies.userId, this.userId), isNull(strategies.archivedAt)));
     if ((mine?.count ?? 0) >= MAX_STRATEGIES_PER_USER) {
       throw new StrategyLimitReachedError();
     }
@@ -112,12 +122,31 @@ export class StrategiesRepository extends UserScopedRepository {
         updatedAt: strategies.updatedAt,
       })
       .from(strategies)
-      .where(eq(strategies.userId, this.userId))
+      .where(and(eq(strategies.userId, this.userId), isNull(strategies.archivedAt)))
       .orderBy(desc(strategies.updatedAt));
 
     return this.toSummaries(this.db, rows);
   }
 
+  async listMineArchived(): Promise<StrategySummary[]> {
+    const rows = await this.db
+      .select({
+        id: strategies.id,
+        name: strategies.name,
+        visibility: strategies.visibility,
+        copiedFromStrategyId: strategies.copiedFromStrategyId,
+        updatedAt: strategies.updatedAt,
+      })
+      .from(strategies)
+      .where(and(eq(strategies.userId, this.userId), isNotNull(strategies.archivedAt)))
+      .orderBy(desc(strategies.updatedAt));
+
+    return this.toSummaries(this.db, rows);
+  }
+
+  // An archived shared strategy is no longer offered to others (docs/adr/0043):
+  // its visibility value is kept, but it stops appearing here and copyShared
+  // refuses it, the same way it stops counting toward the owner's own cap.
   async listShared(): Promise<StrategySummary[]> {
     const rows = await this.db
       .select({
@@ -128,7 +157,13 @@ export class StrategiesRepository extends UserScopedRepository {
         updatedAt: strategies.updatedAt,
       })
       .from(strategies)
-      .where(and(eq(strategies.visibility, "shared"), ne(strategies.userId, this.userId)))
+      .where(
+        and(
+          eq(strategies.visibility, "shared"),
+          ne(strategies.userId, this.userId),
+          isNull(strategies.archivedAt),
+        ),
+      )
       .orderBy(desc(strategies.updatedAt));
 
     return this.toSummaries(this.db, rows);
@@ -150,7 +185,13 @@ export class StrategiesRepository extends UserScopedRepository {
     const [row] = await this.db
       .select()
       .from(strategies)
-      .where(and(eq(strategies.id, strategyId), eq(strategies.visibility, "shared")))
+      .where(
+        and(
+          eq(strategies.id, strategyId),
+          eq(strategies.visibility, "shared"),
+          isNull(strategies.archivedAt),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new StrategyNotFoundError();
@@ -194,6 +235,9 @@ export class StrategiesRepository extends UserScopedRepository {
       if (!row) {
         throw new StrategyNotFoundError();
       }
+      if (row.archivedAt) {
+        throw new StrategyArchivedError();
+      }
       const latest = await this.latestVersion(tx, strategyId);
       const nextVersionNumber = (latest?.versionNumber ?? 0) + 1;
       if (nextVersionNumber > MAX_VERSIONS_PER_STRATEGY) {
@@ -217,14 +261,7 @@ export class StrategiesRepository extends UserScopedRepository {
   }
 
   async setActive(strategyId: string, active: boolean): Promise<void> {
-    const result = await this.db
-      .update(strategies)
-      .set({ active })
-      .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
-      .returning({ id: strategies.id });
-    if (result.length === 0) {
-      throw new StrategyNotFoundError();
-    }
+    await this.updateOwned(strategyId, { active }, active);
   }
 
   // The evaluation step's own read (#19): every strategy this user activated
@@ -235,7 +272,13 @@ export class StrategiesRepository extends UserScopedRepository {
     const rows = await this.db
       .select({ id: strategies.id })
       .from(strategies)
-      .where(and(eq(strategies.userId, this.userId), eq(strategies.active, true)));
+      .where(
+        and(
+          eq(strategies.userId, this.userId),
+          eq(strategies.active, true),
+          isNull(strategies.archivedAt),
+        ),
+      );
 
     const result: { strategyId: string; version: StrategyVersionRecord }[] = [];
     for (const row of rows) {
@@ -273,14 +316,46 @@ export class StrategiesRepository extends UserScopedRepository {
   }
 
   async setVisibility(strategyId: string, visibility: StrategyVisibility): Promise<void> {
+    await this.updateOwned(strategyId, { visibility }, visibility === "shared");
+  }
+
+  // Deactivates too (docs/adr/0043): an archived strategy stops producing
+  // signals the same way any other deactivation does. Idempotent: archiving
+  // an already-archived strategy re-stamps `archivedAt` rather than
+  // refusing.
+  async archive(strategyId: string): Promise<void> {
     const result = await this.db
       .update(strategies)
-      .set({ visibility })
+      .set({ archivedAt: new Date(), active: false })
       .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
       .returning({ id: strategies.id });
     if (result.length === 0) {
       throw new StrategyNotFoundError();
     }
+  }
+
+  // Clears `archivedAt` under the same per-user cap lock as create/copy
+  // (docs/adr/0043): unarchiving at 200 non-archived strategies is refused
+  // the same way a 201st create is. Never re-activates: the strategy comes
+  // back exactly as inactive as it was left, evaluated only once the user
+  // turns it on again.
+  async unarchive(strategyId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: strategies.id })
+        .from(strategies)
+        .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
+        .for("update")
+        .limit(1);
+      if (!row) {
+        throw new StrategyNotFoundError();
+      }
+      await this.enforceStrategyCap(tx);
+      await tx
+        .update(strategies)
+        .set({ archivedAt: null })
+        .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)));
+    });
   }
 
   async copyShared(sourceStrategyId: string): Promise<StrategyWithVersions> {
@@ -291,11 +366,21 @@ export class StrategiesRepository extends UserScopedRepository {
         .where(eq(strategies.id, sourceStrategyId))
         .limit(1);
       const ownedByCaller = source?.userId === this.userId;
-      if (!source || (source.visibility !== "shared" && !ownedByCaller)) {
+      if (
+        !source ||
+        (source.visibility !== "shared" && !ownedByCaller) ||
+        (source.archivedAt && !ownedByCaller)
+      ) {
+        // An archived shared strategy is no longer offered to others
+        // (docs/adr/0043): the same not-found another user gets for a
+        // private one, no existence oracle either way.
         throw new StrategyNotFoundError();
       }
       if (source.visibility !== "shared") {
         throw new StrategyNotSharedError();
+      }
+      if (source.archivedAt) {
+        throw new StrategyArchivedError();
       }
       const latest = await this.latestVersion(tx, sourceStrategyId);
       if (!latest) {
@@ -319,6 +404,36 @@ export class StrategiesRepository extends UserScopedRepository {
       await this.insertVersion(tx, copy.id, 1, latest.definition);
       return this.withVersions(tx, copy);
     });
+  }
+
+  // The archived check sits in the UPDATE's own WHERE, so an archive landing
+  // between a read and this write cannot leave an archived strategy active
+  // or shared.
+  private async updateOwned(
+    strategyId: string,
+    values: { active?: boolean; visibility?: StrategyVisibility },
+    refuseIfArchived: boolean,
+  ): Promise<void> {
+    const result = await this.db
+      .update(strategies)
+      .set(values)
+      .where(
+        and(
+          eq(strategies.id, strategyId),
+          eq(strategies.userId, this.userId),
+          refuseIfArchived ? isNull(strategies.archivedAt) : undefined,
+        ),
+      )
+      .returning({ id: strategies.id });
+    if (result.length > 0) {
+      return;
+    }
+    const [row] = await this.db
+      .select({ id: strategies.id })
+      .from(strategies)
+      .where(and(eq(strategies.id, strategyId), eq(strategies.userId, this.userId)))
+      .limit(1);
+    throw row ? new StrategyArchivedError() : new StrategyNotFoundError();
   }
 
   private async latestVersion(
@@ -398,6 +513,7 @@ export class StrategiesRepository extends UserScopedRepository {
       visibility: string;
       copiedFromStrategyId: string | null;
       active: boolean;
+      archivedAt: Date | null;
     },
   ): Promise<StrategyWithVersions> {
     const rows = await db
@@ -413,6 +529,7 @@ export class StrategiesRepository extends UserScopedRepository {
       visibility: strategyVisibilitySchema.parse(row.visibility),
       copiedFromStrategyId: row.copiedFromStrategyId,
       active: row.active,
+      archivedAt: row.archivedAt,
       versions: rows.map((r) => this.parseVersionRow(r)),
     };
   }
