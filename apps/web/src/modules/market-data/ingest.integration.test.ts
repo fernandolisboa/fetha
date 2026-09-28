@@ -3,7 +3,14 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { candles, ingestionRuns, macroPoints, optionDailyPrices, optionSeries } from "./schema";
+import {
+  candles,
+  ingestionRuns,
+  macroPoints,
+  optionDailyPrices,
+  optionSeries,
+  tradingSessions,
+} from "./schema";
 
 import { calendarMarkerSession, ingest } from "./ingest";
 
@@ -172,6 +179,46 @@ beforeEach(cleanup);
 afterEach(cleanup);
 
 describe("ingest", () => {
+  it("deletes a stored calendar date its year no longer lists, even on a run whose markers already succeeded", async () => {
+    const db = getDb();
+    const options = {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetch(TEST_SESSION),
+    };
+    await ingest(db, options);
+    const unlisted = "2026-06-13";
+    await db.insert(tradingSessions).values({
+      date: unlisted,
+      open: new Date(`${unlisted}T13:00:00.000Z`),
+      close: new Date(`${unlisted}T20:00:00.000Z`),
+    });
+    const [before] = await db
+      .select({ asOf: tradingSessions.asOf })
+      .from(tradingSessions)
+      .where(eq(tradingSessions.date, TEST_SESSION));
+
+    try {
+      const result = await ingest(db, options);
+
+      const calendar = result.sources.find((s) => s.source === "calendar");
+      expect(calendar?.skipped).toBe(false);
+      expect(calendar?.error).toBeUndefined();
+      const [removed] = await db
+        .select()
+        .from(tradingSessions)
+        .where(eq(tradingSessions.date, unlisted));
+      expect(removed).toBeUndefined();
+      const [after] = await db
+        .select({ asOf: tradingSessions.asOf })
+        .from(tradingSessions)
+        .where(eq(tradingSessions.date, TEST_SESSION));
+      expect(after?.asOf.getTime()).toBeGreaterThan(before?.asOf.getTime() ?? Infinity);
+    } finally {
+      await db.delete(tradingSessions).where(eq(tradingSessions.date, unlisted));
+    }
+  });
+
   it("ingests all four sources for the target session and records a run per source", async () => {
     const db = getDb();
     const result = await ingest(db, {

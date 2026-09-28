@@ -37,6 +37,43 @@ export async function upsertTradingSessions(
   return rows.length;
 }
 
+// A calendar source lists a whole year, so a date in that year it no longer lists (a holiday
+// declared after the fact, a corrected ANBIMA file) stops being a session. Deleting it cannot move
+// `max(as_of)` over the rows that remain, so the same statement re-stamps every surviving session:
+// a backtest whose window saw the removed date then fails with data_version_changed instead of
+// resuming on a different calendar (ADR-0017). The update must skip the deleted rows: when one
+// statement modifies a row twice, Postgres applies only one of the two, unpredictably, so an
+// unguarded update could win and keep the removed date.
+export async function deleteUnlistedTradingSessions(
+  db: Database,
+  year: number,
+  listedSessions: ParsedTradingSession[],
+): Promise<number> {
+  if (listedSessions.length === 0) {
+    return 0;
+  }
+  const listed = sql.join(
+    listedSessions.map((session) => sql`${session.date}::date`),
+    sql`, `,
+  );
+  const result = await db.execute<{ removed: number }>(sql`
+    with removed as (
+      delete from ${tradingSessions}
+      where ${tradingSessions.date} between ${`${String(year)}-01-01`}::date and ${`${String(year)}-12-31`}::date
+        and ${tradingSessions.date} not in (${listed})
+      returning ${tradingSessions.date}
+    ),
+    restamped as (
+      update ${tradingSessions} set ${sql.identifier(tradingSessions.asOf.name)} = now()
+      where exists (select 1 from removed)
+        and ${tradingSessions.date} not in (select date from removed)
+      returning 1
+    )
+    select count(*)::int as removed from removed
+  `);
+  return result.rows[0]?.removed ?? 0;
+}
+
 export async function latestSessionOnOrBefore(
   db: Database,
   at: Date,

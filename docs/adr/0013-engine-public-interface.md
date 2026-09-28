@@ -2396,8 +2396,8 @@ chunk (`market-data`'s `loadMarketViewWithCalendarVersion`, which returns the sa
 `calendarVersion` stamp — `max(as_of)` over the trading sessions the run's window loaded — against
 the one it persisted on the run's first chunk, failing with `data_version_changed` on a mismatch
 the same way it already does for `MarketView.dataVersion`. `calendarVersion` is deliberately kept
-out of `dataVersion` itself: `trading_sessions.as_of` is a wall-clock stamp (moved only by a real
-open/close revision, ADR-0017), not a session-close instant, and folding it into `dataVersion`'s
+out of `dataVersion` itself: `trading_sessions.as_of` is a wall-clock stamp (moved by a real
+open/close revision or a removed session, ADR-0017), not a session-close instant, and folding it into `dataVersion`'s
 `max(asOf)` over market-data collections would let it dominate that max and mask a real revision to
 a candle, corporate action, macro point or the option chain — the defect this addendum's own fix
 corrected. `run-chunk.ts` persists `calendarVersion` in a column next to `dataVersion`
@@ -2405,7 +2405,8 @@ corrected. `run-chunk.ts` persists `calendarVersion` in a column next to `dataVe
 carries `null` and is stamped, not failed, on its next chunk, mirroring `dataVersion`'s own
 null-on-first-chunk behavior.
 
-**Known limitation, not fixed here**: `upsertTradingSessions` never deletes a row. A date that
-stops being a trading session (a corrected holiday, say) keeps its old row and its old `as_of`
-forever; nothing in this addendum's mechanism, or in ADR-0017's ingestion, detects that a date
-should no longer be in the calendar at all.
+**A removed session**: `upsertTradingSessions` never deletes a row, which left a date that stopped
+being a trading session in the calendar with its old `as_of`. ADR-0017's #183 addendum closes that:
+the calendar step deletes a date its year no longer lists and re-stamps every surviving session, so
+this addendum's `calendarVersion` comparison fails the run exactly as it does for a revised
+session.
