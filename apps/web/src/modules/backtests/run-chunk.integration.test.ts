@@ -587,7 +587,10 @@ describe("runBacktestChunk", () => {
         ),
       );
     try {
-      expect(await deleteUnlistedTradingSessions(db, year, stillListed)).toEqual({ removed: 1 });
+      expect(await deleteUnlistedTradingSessions(db, year, stillListed)).toEqual({
+        kind: "removed",
+        removed: 1,
+      });
 
       const secondChunk = await runBacktestChunk(db, setup.testUser, run.id, { maxSessions: 999 });
       expect(secondChunk).toEqual({ status: "failed", error: "data_version_changed" });

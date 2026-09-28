@@ -5,7 +5,8 @@ import { candles, optionDailyPrices, tradingSessions } from "../schema";
 
 import type { ParsedTradingSession } from "../adapters/anbima-calendar/schema";
 
-export type DeleteUnlistedTradingSessionsResult = { removed: number } | { blocked: string[] };
+export type DeleteUnlistedTradingSessionsResult =
+  { kind: "removed"; removed: number } | { kind: "blocked"; dates: string[] };
 
 export async function upsertTradingSessions(
   db: Database,
@@ -52,16 +53,26 @@ export async function upsertTradingSessions(
 // session would silently leave a bar indicators and backtests still count while the session
 // count no longer does (#189). The whole year's delete is all-or-nothing: if any candidate is
 // blocked, none of that year's candidates are removed and none are re-stamped, reported back as
-// `{ blocked }` so the caller can name the offending dates instead of guessing which one. The
-// block check, the delete and the re-stamp are one statement so a concurrent ingest cannot insert
-// a candle between a separate check and delete.
+// `{ kind: "blocked" }` so the caller can name the offending dates instead of guessing which one.
+//
+// The block check, the delete and the re-stamp read one MVCC snapshot together, which is only
+// enough to keep the three of them consistent *with each other* — it does not by itself stop a
+// `upsertDailyCandles`/`upsertOptionDailyPrices` write that starts and commits in a fully separate
+// transaction while this one is running from landing on a candidate date invisibly to `blocked`.
+// The actual guarantee against that race is `ingest.ts`'s `removeUnlistedSessions`, which calls
+// this function from inside `withSourceLock(db, "cotahist", ...)` — the same lock every cotahist
+// write (`runSource("cotahist", ...)`) takes before touching `candles` or `option_daily_prices`.
+// `pg_advisory_xact_lock` blocks rather than failing fast, so the two can never interleave: either
+// a concurrent cotahist write fully commits (and releases the lock) before this transaction's
+// snapshot is taken, or it cannot even start until this transaction commits or rolls back. A
+// caller that invokes this function outside that lock gets no such guarantee.
 export async function deleteUnlistedTradingSessions(
   db: Database,
   year: number,
   listedSessions: ParsedTradingSession[],
 ): Promise<DeleteUnlistedTradingSessionsResult> {
   if (listedSessions.length === 0) {
-    return { removed: 0 };
+    return { kind: "removed", removed: 0 };
   }
   const listed = sql.join(
     listedSessions.map((session) => sql`${session.date}::date`),
@@ -98,9 +109,9 @@ export async function deleteUnlistedTradingSessions(
   `);
   const row = result.rows[0];
   if (row?.blocked) {
-    return { blocked: row.blocked };
+    return { kind: "blocked", dates: row.blocked };
   }
-  return { removed: row?.removed ?? 0 };
+  return { kind: "removed", removed: row?.removed ?? 0 };
 }
 
 export async function latestSessionOnOrBefore(

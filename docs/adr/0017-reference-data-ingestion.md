@@ -418,15 +418,35 @@ market data means the correction is the thing that is wrong, not the market data
 
 - **All-or-nothing per year**: if any candidate is blocked, none of that year's candidates are
   deleted and none of `trading_sessions` is re-stamped — same guarantee the delete already gave a
-  clean year, just now including "clean" meaning "no candidate carries market data".
-- **The three-way check is one statement**: the candidate list, the block check against `candles`
-  and `option_daily_prices`, the delete and the re-stamp are all CTEs of the same `WITH` query, so
-  a concurrent ingest cannot insert a candle on a candidate date between a separate check and a
-  separate delete.
-- **The repository returns `{ removed: number } | { blocked: string[] }`** instead of a bare
-  count: `blocked` names every candidate date that has market data, not merely one, so a caller can
-  report every offending date at once. `ingest.ts`'s `removeUnlistedSessions` turns a `blocked`
-  result into a `SourceOutcome` error naming those dates, which fails the calendar source and
-  `ingest()`'s own `ok` for that run; nothing is silently accepted.
+  clean year, just now including "clean" meaning "no candidate carries market data". A genuinely
+  delisted holiday of the same year is kept too when a sibling candidate is blocked: cotahist keeps
+  trying to ingest that still-listed date every night and keeps failing (there is no COTAHIST file
+  for it), which is the correct signal to read as collateral of the blocked year, not a new bug.
+- **The candidate list, the block check, the delete and the re-stamp are one statement** (CTEs of
+  the same `WITH` query), which keeps those four steps consistent with each other against one MVCC
+  snapshot. That is not, by itself, a guarantee against a concurrent `upsertDailyCandles` or
+  `upsertOptionDailyPrices` write landing on a candidate date invisibly to `blocked` — a write in a
+  fully separate transaction can still commit after this statement's snapshot and before its
+  delete, and the removed session would then be undetectable. The actual guarantee against that
+  race is `ingest.ts`'s `removeUnlistedSessions` calling `deleteUnlistedTradingSessions` from
+  inside `withSourceLock(db, "cotahist", ...)`, the same advisory lock every cotahist write already
+  takes before touching `candles` or `option_daily_prices` (both tables are written from within
+  that one source's `run()` callback, so one lock covers both). `pg_advisory_xact_lock` blocks
+  rather than failing fast, so the delete and a concurrent cotahist write can never interleave:
+  whichever acquires the lock first runs to commit before the other is even allowed to start. A
+  caller that invokes `deleteUnlistedTradingSessions` outside that lock (as the two integration
+  test suites that exercise it directly do) gets no such guarantee and must arrange its own.
+- **The repository returns `{ kind: "removed"; removed: number } | { kind: "blocked"; dates:
+string[] }`** instead of a bare count: `dates` names every candidate date that has market data,
+  not merely one, so a caller can report every offending date at once. `ingest.ts`'s
+  `removeUnlistedSessions` turns a `blocked` result into a `SourceOutcome` error naming those
+  dates, which fails the calendar source and `ingest()`'s own `ok` for that run; nothing is
+  silently accepted.
 - **Dates without market data are still removed** when none of the year's candidates carries any:
   unchanged from the original addendum.
+- **Not checked**: a removed date that is an `option_series.expiry` (or an operation's own expiry)
+  with no `option_daily_prices` row on that date is still deleted — expiry is a forward-looking
+  date on a row keyed by ISIN, not a session with its own market-data row, and checking it would
+  mean walking every series and operation for a match instead of a row lookup on the two tables the
+  cotahist write actually populates. Deliberately unguarded, same spirit as the rest of this
+  ticket's scope.

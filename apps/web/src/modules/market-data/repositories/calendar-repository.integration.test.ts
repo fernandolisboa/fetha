@@ -4,8 +4,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db/client";
 import { candles, optionDailyPrices, tradingSessions } from "../schema";
 
+import { withSourceLock } from "./advisory-lock";
 import { deleteUnlistedTradingSessions, upsertTradingSessions } from "./calendar-repository";
 import { ensureMonthlyPartition } from "./partitions";
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
 
 const YEAR = 2031;
 
@@ -83,7 +92,7 @@ describe("deleteUnlistedTradingSessions", () => {
     ]);
 
     const after = await stored("2030-12-01", "2031-12-31");
-    expect(result).toEqual({ removed: 1 });
+    expect(result).toEqual({ kind: "removed", removed: 1 });
     expect(after.map((row) => row.date)).toEqual(["2030-12-30", "2031-03-03", "2031-03-05"]);
     for (const row of after) {
       const previous = before.find((candidate) => candidate.date === row.date);
@@ -102,7 +111,7 @@ describe("deleteUnlistedTradingSessions", () => {
       session("2031-03-05"),
     ]);
 
-    expect(result).toEqual({ removed: 0 });
+    expect(result).toEqual({ kind: "removed", removed: 0 });
     expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
   });
 
@@ -127,7 +136,10 @@ describe("deleteUnlistedTradingSessions", () => {
     const db = getDb();
     await upsertTradingSessions(db, [session("2031-06-02")]);
 
-    expect(await deleteUnlistedTradingSessions(db, YEAR, [])).toEqual({ removed: 0 });
+    expect(await deleteUnlistedTradingSessions(db, YEAR, [])).toEqual({
+      kind: "removed",
+      removed: 0,
+    });
     expect((await stored("2031-01-01", "2031-12-31")).map((row) => row.date)).toEqual([
       "2031-06-02",
     ]);
@@ -141,7 +153,7 @@ describe("deleteUnlistedTradingSessions", () => {
 
     const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
 
-    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(result).toEqual({ kind: "blocked", dates: ["2031-03-04"] });
     expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
   });
 
@@ -153,7 +165,7 @@ describe("deleteUnlistedTradingSessions", () => {
 
     const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
 
-    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(result).toEqual({ kind: "blocked", dates: ["2031-03-04"] });
     expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
   });
 
@@ -169,7 +181,39 @@ describe("deleteUnlistedTradingSessions", () => {
 
     const result = await deleteUnlistedTradingSessions(db, YEAR, [session("2031-03-03")]);
 
-    expect(result).toEqual({ blocked: ["2031-03-04"] });
+    expect(result).toEqual({ kind: "blocked", dates: ["2031-03-04"] });
     expect(await stored("2031-01-01", "2031-12-31")).toEqual(before);
+  });
+
+  it("under the shared cotahist lock, a candle write already holding the lock is not missed", async () => {
+    const db = getDb();
+    await upsertTradingSessions(db, [session("2031-03-03"), session("2031-03-04")]);
+    await ensureMonthlyPartition(db, "candles", "2031-03-04");
+
+    const writerHasLock = deferred<undefined>();
+    const writer = withSourceLock(db, "cotahist", async (tx) => {
+      writerHasLock.resolve(undefined);
+      await new Promise((r) => setTimeout(r, 150));
+      await tx.insert(candles).values({
+        ticker: CANDLE_TICKER,
+        timeframe: "1d",
+        session: "2031-03-04",
+        asOf: new Date("2031-03-04T22:00:00.000Z"),
+        open: "10",
+        high: "10",
+        low: "10",
+        close: "10",
+        tradedQuantity: 1,
+      });
+    });
+
+    await writerHasLock.promise;
+    const deleter = withSourceLock(db, "cotahist", (tx) =>
+      deleteUnlistedTradingSessions(tx, YEAR, [session("2031-03-03")]),
+    );
+
+    const [, result] = await Promise.all([writer, deleter]);
+
+    expect(result).toEqual({ kind: "blocked", dates: ["2031-03-04"] });
   });
 });
