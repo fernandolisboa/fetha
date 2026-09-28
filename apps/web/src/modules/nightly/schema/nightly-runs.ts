@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { NightlyRunReport } from "../report";
-import { nightlyRunTriggerSchema } from "./trigger";
+import { nightlyRunTriggerSchema, type NightlyRunTrigger } from "./trigger";
 
 const triggers = nightlyRunTriggerSchema.options.map((trigger) => `'${trigger}'`).join(", ");
 
@@ -19,7 +19,7 @@ export const nightlyRuns = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    trigger: text("trigger").notNull(),
+    trigger: text("trigger").$type<NightlyRunTrigger>().notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
     ok: boolean("ok").notNull(),
