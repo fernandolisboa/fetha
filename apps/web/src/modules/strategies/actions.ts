@@ -9,7 +9,13 @@ import {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
+import {
+  AccountRateLimitExceededError,
+  enforceAccountRateLimit,
+  forCurrentUser,
+  requireUser,
+  withAuthenticatedAction,
+} from "@/modules/auth";
 
 import { classifyPersistenceError } from "./pg-error";
 import { SignalsRepository } from "./signals-repository";
@@ -34,7 +40,8 @@ export type StrategyActionResult =
         | "conflict"
         | "unavailable"
         | "version_limit"
-        | "archived";
+        | "archived"
+        | "rate_limited";
     };
 
 const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
@@ -60,7 +67,16 @@ const markSignalReadInputSchema = z.strictObject({ signalId: z.string().min(1).m
 
 function mapKnownError(
   error: unknown,
-): "not_found" | "not_shared" | "conflict" | "unavailable" | "version_limit" | "archived" | null {
+):
+  | "not_found"
+  | "not_shared"
+  | "conflict"
+  | "unavailable"
+  | "version_limit"
+  | "archived"
+  | "rate_limited"
+  | null {
+  if (error instanceof AccountRateLimitExceededError) return "rate_limited";
   if (error instanceof StrategyNotFoundError) return "not_found";
   if (error instanceof StrategyVersionLimitError) return "version_limit";
   if (error instanceof StrategyNotSharedError) return "not_shared";
@@ -73,6 +89,22 @@ async function withRepository<T>(
   run: (repository: StrategiesRepository) => Promise<T>,
 ): Promise<T> {
   return withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), StrategiesRepository);
+    return run(repository);
+  });
+}
+
+// Archived strategies leave the 200-strategy cap (docs/adr/0043), so the cap
+// alone no longer bounds a create → archive → create loop (#217). One bucket
+// covers every action that adds a strategy or moves one across the cap.
+const WRITE_RATE_LIMIT = { windowSeconds: 60, max: 20 };
+
+async function withRateLimitedRepository<T>(
+  run: (repository: StrategiesRepository) => Promise<T>,
+): Promise<T> {
+  return withAuthenticatedAction(async () => {
+    const user = await requireUser();
+    await enforceAccountRateLimit(getDb(), user.email, "strategies/write", WRITE_RATE_LIMIT);
     const repository = await forCurrentUser(getDb(), StrategiesRepository);
     return run(repository);
   });
@@ -102,7 +134,7 @@ export async function createStrategyAction(input: {
   }
 
   try {
-    const created = await withRepository(async (repository) => {
+    const created = await withRateLimitedRepository(async (repository) => {
       await assertDefinitionIsCoherent(parsed.data.definition);
       return repository.createWithVersion(parsed.data.definition);
     });
@@ -183,7 +215,7 @@ export async function copySharedStrategyAction(input: {
   }
 
   try {
-    const copy = await withRepository((repository) =>
+    const copy = await withRateLimitedRepository((repository) =>
       repository.copyShared(parsed.data.sourceStrategyId),
     );
     revalidatePath("/estrategias");
@@ -225,7 +257,8 @@ export async function setStrategyActiveAction(input: {
 const archiveInputSchema = z.strictObject({ strategyId: z.string().min(1).max(200) });
 
 export type ArchiveStrategyResult =
-  { status: "ok" } | { status: "error"; error: "invalid" | "not_found" | "unavailable" };
+  | { status: "ok" }
+  | { status: "error"; error: "invalid" | "not_found" | "rate_limited" | "unavailable" };
 
 export async function archiveStrategyAction(input: {
   strategyId: string;
@@ -236,11 +269,14 @@ export async function archiveStrategyAction(input: {
   }
 
   try {
-    await withRepository((repository) => repository.archive(parsed.data.strategyId));
+    await withRateLimitedRepository((repository) => repository.archive(parsed.data.strategyId));
     revalidatePath("/estrategias");
     revalidatePath(`/estrategias/${parsed.data.strategyId}`);
     return { status: "ok" };
   } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
     if (error instanceof StrategyNotFoundError) {
       return { status: "error", error: "not_found" };
     }
@@ -253,7 +289,10 @@ export async function archiveStrategyAction(input: {
 
 export type UnarchiveStrategyResult =
   | { status: "ok" }
-  | { status: "error"; error: "invalid" | "not_found" | "limit_reached" | "unavailable" };
+  | {
+      status: "error";
+      error: "invalid" | "not_found" | "limit_reached" | "rate_limited" | "unavailable";
+    };
 
 export async function unarchiveStrategyAction(input: {
   strategyId: string;
@@ -264,11 +303,14 @@ export async function unarchiveStrategyAction(input: {
   }
 
   try {
-    await withRepository((repository) => repository.unarchive(parsed.data.strategyId));
+    await withRateLimitedRepository((repository) => repository.unarchive(parsed.data.strategyId));
     revalidatePath("/estrategias");
     revalidatePath(`/estrategias/${parsed.data.strategyId}`);
     return { status: "ok" };
   } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
     if (error instanceof StrategyNotFoundError) {
       return { status: "error", error: "not_found" };
     }

@@ -24,6 +24,12 @@ vi.mock("@/modules/auth", async () => {
       }
       return Promise.resolve(new Repository(db, currentUser));
     },
+    requireUser: (): Promise<CurrentUser> => {
+      if (!currentUser) {
+        return Promise.reject(new actual.UnauthenticatedError());
+      }
+      return Promise.resolve(currentUser);
+    },
   };
 });
 
@@ -32,6 +38,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 const {
   addStrategyVersionAction,
   archiveStrategyAction,
+  copySharedStrategyAction,
   createStrategyAction,
   unarchiveStrategyAction,
 } = await import("./actions");
@@ -311,5 +318,57 @@ describe("archiveStrategyAction / unarchiveStrategyAction (#170, docs/adr/0043)"
 
     const result = await unarchiveStrategyAction({ strategyId: created.strategyId });
     expect(result).toEqual({ status: "error", error: "limit_reached" });
+  });
+});
+
+describe("strategy write rate limit (#217, docs/adr/0043)", () => {
+  it("bounds a create → archive loop: the 21st write in the window is rate_limited, whichever action it is", async () => {
+    const email = uniqueEmail("write-rate-limit");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const created = await createStrategyAction({ definition: definition() });
+      if (created.status !== "ok") throw new Error("setup failed");
+      expect(await archiveStrategyAction({ strategyId: created.strategyId })).toEqual({
+        status: "ok",
+      });
+    }
+
+    expect(await createStrategyAction({ definition: definition() })).toEqual({
+      status: "error",
+      error: "rate_limited",
+    });
+    expect(await archiveStrategyAction({ strategyId: "does-not-matter" })).toEqual({
+      status: "error",
+      error: "rate_limited",
+    });
+    expect(await unarchiveStrategyAction({ strategyId: "does-not-matter" })).toEqual({
+      status: "error",
+      error: "rate_limited",
+    });
+    expect(await copySharedStrategyAction({ sourceStrategyId: "does-not-matter" })).toEqual({
+      status: "error",
+      error: "rate_limited",
+    });
+  });
+
+  it("counts each user separately", async () => {
+    const emailBusy = uniqueEmail("write-rate-limit-busy");
+    const emailOther = uniqueEmail("write-rate-limit-other");
+    createdEmails.push(emailBusy, emailOther);
+    currentUser = await insertBareUser(emailBusy);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await archiveStrategyAction({ strategyId: "does-not-matter" });
+    }
+    expect(await archiveStrategyAction({ strategyId: "does-not-matter" })).toEqual({
+      status: "error",
+      error: "rate_limited",
+    });
+
+    currentUser = await insertBareUser(emailOther);
+    expect(await createStrategyAction({ definition: definition() })).toMatchObject({
+      status: "ok",
+    });
   });
 });

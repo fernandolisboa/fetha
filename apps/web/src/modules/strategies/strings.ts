@@ -120,6 +120,7 @@ const en = {
       unarchiveLimitReached:
         "Unarchiving this strategy would go over the 200-strategy limit. Archive another one first.",
     },
+    rateLimited: "Too many changes in a row. Wait a minute and try again.",
     visibility: { private: "Private", shared: "Shared" },
     emptyCatalog:
       "The structure catalog is not seeded yet, so there is nothing to build a strategy from.",
@@ -209,6 +210,7 @@ const en = {
       version_limit:
         "This strategy has reached 100 versions. Create a new strategy to keep changing it.",
       archived: "This strategy is archived. Unarchive it to make changes.",
+      rate_limited: "Too many changes in a row. Wait a minute and try again.",
     },
     versions: { title: "Versions", createdAt: "Created" },
     archivedBadge: "Archived",
@@ -304,6 +306,7 @@ const ptBR = {
       unarchiveLimitReached:
         "Desarquivar esta estratégia ultrapassaria o limite de 200. Arquive outra primeiro.",
     },
+    rateLimited: "Muitas alterações seguidas. Aguarde um minuto e tente de novo.",
     visibility: { private: "Privada", shared: "Compartilhada" },
     emptyCatalog: "O catálogo de estruturas ainda não foi carregado.",
   },
@@ -392,6 +395,7 @@ const ptBR = {
       version_limit:
         "Esta estratégia chegou a 100 versões. Crie uma nova estratégia para continuar alterando.",
       archived: "Esta estratégia está arquivada. Desarquive para fazer alterações.",
+      rate_limited: "Muitas alterações seguidas. Aguarde um minuto e tente de novo.",
     },
     versions: { title: "Versões", createdAt: "Criada em" },
     archivedBadge: "Arquivada",

@@ -18,10 +18,10 @@ export function CopyStrategyButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"rate_limited" | "generic" | null>(null);
 
   function copy() {
-    setError(false);
+    setError(null);
     setPending(true);
     startTransition(() => {
       copySharedStrategyAction({ sourceStrategyId })
@@ -30,12 +30,12 @@ export function CopyStrategyButton({
           if (result.status === "ok") {
             router.push(`/estrategias/${result.strategyId}`);
           } else {
-            setError(true);
+            setError(result.error === "rate_limited" ? "rate_limited" : "generic");
           }
         })
         .catch(() => {
           setPending(false);
-          setError(true);
+          setError("generic");
         });
     });
   }
@@ -52,7 +52,11 @@ export function CopyStrategyButton({
       >
         {t.list.shared.copy}
       </Button>
-      {error && <ErrorNotice>{t.list.shared.copyError}</ErrorNotice>}
+      {error && (
+        <ErrorNotice>
+          {error === "rate_limited" ? t.list.rateLimited : t.list.shared.copyError}
+        </ErrorNotice>
+      )}
     </div>
   );
 }
