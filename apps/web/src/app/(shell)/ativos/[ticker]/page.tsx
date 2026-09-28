@@ -9,12 +9,11 @@ import { requireUser } from "@/modules/auth";
 import {
   CandleChart,
   CandleFormToggle,
-  InstrumentMarketBar,
   latestCandle,
   loadCandleSeries,
   t,
 } from "@/modules/market-data";
-import { PageHeader, Panel } from "@/modules/shell";
+import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
 import { ErrorNotice } from "@/components/error-notice";
 
 export async function generateMetadata({
