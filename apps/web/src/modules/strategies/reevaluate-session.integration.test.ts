@@ -24,7 +24,7 @@ import { evaluateSignalsForSession } from "./evaluate-signals";
 import { INBOX_ENTRY_SESSION_HORIZON } from "./evaluate-version";
 import { reevaluateSession, ReevaluationTargetNotFoundError } from "./reevaluate-session";
 import { evaluations, signalReevaluations, signals } from "./schema";
-import { SignalsRepository } from "./signals-repository";
+import { ReevaluationConflictError, SignalsRepository } from "./signals-repository";
 import { StrategiesRepository, StrategyNotFoundError } from "./strategies-repository";
 
 vi.mock("@/modules/market-data", async (importOriginal) => {
@@ -294,6 +294,9 @@ describe("reevaluateSession (#84, docs/adr/0045)", () => {
     expect(rows.audit).toEqual([
       expect.objectContaining({ session: fixture.session, status: "applied", signalsReplaced: 1 }),
     ]);
+    expect(await repository.listEvaluationLog()).toEqual([
+      expect.objectContaining({ session: fixture.session, reevaluated: true }),
+    ]);
   });
 
   it("changes nothing and keeps the same signal, read state included, when the data did not change", async () => {
@@ -407,6 +410,46 @@ describe("reevaluateSession (#84, docs/adr/0045)", () => {
     expect(await new SignalsRepository(db, fixture.owner).listInbox()).toHaveLength(1);
   });
 
+  it("retracts a changed entry past the inbox horizon instead of writing a stale proposal", async () => {
+    const db = getDb();
+    const fixture = await evaluatedSession("aged-changed", alwaysFiringDefinition());
+    const later = randomSessionSequence(INBOX_ENTRY_SESSION_HORIZON + 1).map((date) =>
+      date.replace(/^\d{4}/, String(Number(fixture.session.slice(0, 4)) + 1)),
+    );
+    for (const date of later) {
+      createdSessions.push(date);
+      await insertSession(date);
+    }
+    const lastLater = later[later.length - 1];
+    if (!lastLater) throw new Error("fixture setup failed");
+
+    await insertCandle(fixture.ticker, fixture.session, "12.000000");
+    const outcome = await reevaluateSession(db, fixture.owner, fixture, {
+      now: nightAfter(lastLater),
+    });
+
+    expect(outcome).toEqual({
+      status: "applied",
+      counts: {
+        evaluationsSuperseded: 1,
+        signalsRetracted: 1,
+        signalsReplaced: 0,
+        signalsAdded: 0,
+      },
+    });
+    const repository = new SignalsRepository(db, fixture.owner);
+    expect(await repository.listInbox()).toEqual([]);
+    const log = await repository.listEvaluationLog();
+    expect(log).toEqual([
+      expect.objectContaining({
+        outcome: "signal",
+        reason: "entry_past_inbox_horizon",
+        detail: String(INBOX_ENTRY_SESSION_HORIZON),
+        reevaluated: true,
+      }),
+    ]);
+  });
+
   it("refuses a session this strategy was never evaluated on", async () => {
     const db = getDb();
     const fixture = await evaluatedSession("never", alwaysFiringDefinition());
@@ -440,6 +483,76 @@ describe("reevaluateSession (#84, docs/adr/0045)", () => {
     const after = await allRowsOf(fixture.owner);
     expect(after).toEqual(before);
     expect((await allRowsOf(userB)).audit).toEqual([]);
+  });
+});
+
+describe("reevaluateSession edge cases (#84, docs/adr/0045)", () => {
+  it("rolls back and audits the attempt as a conflict when another run superseded a target first", async () => {
+    const db = getDb();
+    const fixture = await evaluatedSession("conflict", alwaysFiringDefinition());
+    const [current] = await new SignalsRepository(db, fixture.owner).listInbox();
+    if (!current) throw new Error("fixture produced no signal");
+    await insertCandle(fixture.ticker, fixture.session, "12.000000");
+
+    // The concurrent winner commits after this run read its targets and
+    // before it writes: the recomputation's own market-data load sits
+    // exactly in that gap.
+    loadMarketViewMock.mockImplementationOnce(async (...args) => {
+      const [winner] = await db
+        .insert(signalReevaluations)
+        .values({
+          userId: fixture.owner.id,
+          strategyId: fixture.strategyId,
+          session: fixture.session,
+          status: "applied",
+        })
+        .returning({ id: signalReevaluations.id });
+      if (!winner) throw new Error("failed to insert the concurrent winner");
+      await db.update(signals).set({ supersededBy: winner.id }).where(eq(signals.id, current.id));
+      return realLoadMarketView(...args);
+    });
+    await expect(
+      reevaluateSession(db, fixture.owner, fixture, { now: fixture.now }),
+    ).rejects.toBeInstanceOf(ReevaluationConflictError);
+
+    const rows = await allRowsOf(fixture.owner);
+    expect(rows.signals).toHaveLength(1);
+    expect(rows.evaluations).toHaveLength(1);
+    expect(rows.audit.map((row) => [row.status, row.failureReason]).sort()).toEqual([
+      ["applied", null],
+      ["failed", "conflict"],
+    ]);
+  });
+
+  it("never targets a session only the catch-up clamp logged", async () => {
+    const db = getDb();
+    const email = uniqueEmail("clamped");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const session = randomSession();
+    createdSessions.push(session);
+    await insertSession(session);
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(
+      alwaysFiringDefinition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("test setup: expected a version");
+    await db.insert(evaluations).values({
+      userId: owner.id,
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      ticker: randomTicker(),
+      session,
+      at: new Date(`${session}T21:00:00.000Z`),
+      outcome: "insufficient_data",
+      reason: "catchup_clamped",
+      detail: "8",
+    });
+
+    await expect(
+      reevaluateSession(db, owner, { strategyId: strategy.id, session }),
+    ).rejects.toBeInstanceOf(ReevaluationTargetNotFoundError);
+    expect((await allRowsOf(owner)).audit).toEqual([]);
   });
 });
 

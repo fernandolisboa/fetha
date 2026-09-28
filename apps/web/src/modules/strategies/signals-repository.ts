@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, max, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNull, max, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   adjustmentRuleSchema,
@@ -27,6 +27,7 @@ import {
   type reevaluationStatuses,
 } from "./schema";
 import { webEvaluationReasons, type WebEvaluationReason } from "./evaluation-vocabulary";
+import { postgresErrorOf } from "@/db/pg-error";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 // Every code `evaluations.reason` can hold (#133): the engine's own closed
@@ -93,9 +94,10 @@ export interface EvaluationLogItem {
   outcome: EvaluationOutcome;
   reason: StoredEvaluationReason | null;
   detail: string | null;
-  // Written by a session re-evaluation (docs/adr/0045) rather than the
-  // nightly run.
+  // This strategy and session went through an applied re-evaluation
+  // (docs/adr/0045), whether or not this row itself changed.
   reevaluated: boolean;
+  strategyArchived: boolean;
 }
 
 export type ReevaluationStatus = (typeof reevaluationStatuses)[number];
@@ -115,6 +117,7 @@ export interface CurrentSignal {
   ticker: Ticker;
   kind: SignalKind;
   operationId: string | null;
+  indicators: IndicatorReading[];
   proposal: Proposal | null;
   rule: ExitRule | AdjustmentRule | null;
 }
@@ -387,7 +390,20 @@ export class SignalsRepository extends UserScopedRepository {
         outcome: evaluations.outcome,
         reason: evaluations.reason,
         detail: evaluations.detail,
-        reevaluationId: evaluations.reevaluationId,
+        strategyArchivedAt: strategies.archivedAt,
+        reevaluated: exists(
+          this.db
+            .select({ id: signalReevaluations.id })
+            .from(signalReevaluations)
+            .where(
+              and(
+                eq(signalReevaluations.userId, evaluations.userId),
+                eq(signalReevaluations.strategyId, evaluations.strategyId),
+                eq(signalReevaluations.session, evaluations.session),
+                eq(signalReevaluations.status, "applied"),
+              ),
+            ),
+        ).mapWith(Boolean),
       })
       .from(evaluations)
       .innerJoin(strategies, eq(strategies.id, evaluations.strategyId))
@@ -400,11 +416,11 @@ export class SignalsRepository extends UserScopedRepository {
       )
       .limit(EVALUATION_LOG_LIMIT);
 
-    return rows.map(({ reevaluationId, ...row }) => ({
+    return rows.map(({ strategyArchivedAt, ...row }) => ({
       ...row,
       outcome: evaluationOutcomeSchema.parse(row.outcome),
       reason: evaluationReasonSchema.parse(row.reason),
-      reevaluated: reevaluationId !== null,
+      strategyArchived: strategyArchivedAt !== null,
     }));
   }
 
@@ -440,6 +456,7 @@ export class SignalsRepository extends UserScopedRepository {
         ticker: signals.ticker,
         kind: signals.kind,
         operationId: signals.operationId,
+        indicators: signals.indicators,
         proposal: signals.proposal,
         rule: signals.rule,
       })
@@ -478,6 +495,32 @@ export class SignalsRepository extends UserScopedRepository {
       signalsReplaced: write.replacedSignalIds.length,
       signalsAdded: write.newSignals.length - write.replacedSignalIds.length,
     };
+    const supersededEvaluationIds = [...new Set(write.supersededEvaluationIds)];
+    const supersededSignalIds = [
+      ...new Set([...write.retractedSignalIds, ...write.replacedSignalIds]),
+    ];
+    try {
+      await this.applyReevaluationInTransaction(write, counts, {
+        supersededEvaluationIds,
+        supersededSignalIds,
+      });
+    } catch (error) {
+      // A concurrent writer inserted a current row first (partial unique
+      // index): the same lost race as a stamp that found nothing to stamp.
+      if (postgresErrorOf(error)?.code === "23505") {
+        throw new ReevaluationConflictError();
+      }
+      throw error;
+    }
+    return counts;
+  }
+
+  private async applyReevaluationInTransaction(
+    write: ReevaluationWrite,
+    counts: ReevaluationCounts,
+    ids: { supersededEvaluationIds: string[]; supersededSignalIds: string[] },
+  ): Promise<void> {
+    const { supersededEvaluationIds, supersededSignalIds } = ids;
     await this.db.transaction(async (tx) => {
       await this.lockUserScope(tx, "signals");
       const [audit] = await tx
@@ -494,23 +537,22 @@ export class SignalsRepository extends UserScopedRepository {
         throw new Error("failed to record the re-evaluation");
       }
 
-      if (write.supersededEvaluationIds.length > 0) {
+      if (supersededEvaluationIds.length > 0) {
         const stamped = await tx
           .update(evaluations)
           .set({ supersededBy: audit.id })
           .where(
             and(
               eq(evaluations.userId, this.userId),
-              inArray(evaluations.id, write.supersededEvaluationIds),
+              inArray(evaluations.id, supersededEvaluationIds),
               isNull(evaluations.supersededBy),
             ),
           )
           .returning({ id: evaluations.id });
-        if (stamped.length !== write.supersededEvaluationIds.length) {
+        if (stamped.length !== supersededEvaluationIds.length) {
           throw new ReevaluationConflictError();
         }
       }
-      const supersededSignalIds = [...write.retractedSignalIds, ...write.replacedSignalIds];
       if (supersededSignalIds.length > 0) {
         const stamped = await tx
           .update(signals)
@@ -564,7 +606,6 @@ export class SignalsRepository extends UserScopedRepository {
         );
       }
     });
-    return counts;
   }
 
   // An outcome that touched no signal or evaluation: nothing changed, or the

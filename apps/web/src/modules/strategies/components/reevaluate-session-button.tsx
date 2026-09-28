@@ -7,23 +7,40 @@ import { Button } from "@/components/ui/button";
 import { ErrorNotice } from "@/components/error-notice";
 
 import { reevaluateSessionAction, type ReevaluateSessionResult } from "../actions";
-import { t } from "../strings";
+import { t, type MessageParts } from "../strings";
 
-function messageFor(result: ReevaluateSessionResult): { text: string; error: boolean } {
+interface Message {
+  parts: MessageParts;
+  error: boolean;
+}
+
+function messageFor(result: ReevaluateSessionResult): Message {
   const copy = t.inbox.evaluationLog.reevaluation;
   switch (result.status) {
     case "applied":
-      return { text: copy.applied(result.counts), error: false };
+      return { parts: copy.applied(result.counts), error: false };
     case "unchanged":
-      return { text: copy.unchanged, error: false };
+      return { parts: [copy.unchanged], error: false };
     case "failed":
-      return { text: copy.failed, error: true };
+      return { parts: [copy.failed], error: true };
     case "error":
       return {
-        text: result.error === "invalid" ? copy.generic : copy[result.error],
+        parts: [result.error === "invalid" ? copy.generic : copy[result.error]],
         error: true,
       };
   }
+}
+
+function renderParts(parts: MessageParts) {
+  return parts.map((part, index) =>
+    typeof part === "number" ? (
+      <span key={index} className="font-mono tabular-nums">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
 }
 
 export function ReevaluateSessionButton({
@@ -39,7 +56,7 @@ export function ReevaluateSessionButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
 
   function reevaluate() {
     setMessage(null);
@@ -55,7 +72,7 @@ export function ReevaluateSessionButton({
         })
         .catch(() => {
           setPending(false);
-          setMessage({ text: t.inbox.evaluationLog.reevaluation.generic, error: true });
+          setMessage({ parts: [t.inbox.evaluationLog.reevaluation.generic], error: true });
         });
     });
   }
@@ -75,9 +92,9 @@ export function ReevaluateSessionButton({
       <div role="status" aria-live="polite">
         {message &&
           (message.error ? (
-            <ErrorNotice>{message.text}</ErrorNotice>
+            <ErrorNotice>{renderParts(message.parts)}</ErrorNotice>
           ) : (
-            <p className="text-muted-foreground text-xs">{message.text}</p>
+            <p className="text-muted-foreground text-xs">{renderParts(message.parts)}</p>
           ))}
       </div>
     </div>

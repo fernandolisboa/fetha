@@ -5,6 +5,10 @@ date: 2026-09-28
 
 # Re-evaluating a session is append-only, per user and strategy, and audited (#84)
 
+Amends ADR-0027's description of `signals` and `evaluations` as append-only through
+`onConflictDoNothing` alone: they now also allow a one-time `superseded_by` stamp, and triggers
+enforce the rest.
+
 ## Context
 
 After a bad candle is corrected, the signals and evaluation records the nightly run wrote from it
@@ -55,8 +59,9 @@ never silently change, and a failed recomputation must never empty an inbox.
   superseding that signal changes nothing in the journal or its scoring. A superseded signal can
   no longer be answered.
 - **Concurrency.** The write takes the user's `signals` advisory lock (`lockUserScope`) and stamps
-  only rows still current; if another run superseded one first, the whole write rolls back and the
-  user is told to try again.
+  only rows still current; if another run superseded one first, the whole write rolls back, a
+  `failed` audit row with reason `conflict` is written outside it, and the user is told to try
+  again.
 
 ## Consequences
 
@@ -64,5 +69,11 @@ never silently change, and a failed recomputation must never empty an inbox.
   and the old rows stay in the database for the journal to be scored against.
 - Two re-evaluations of the same session with the same data are no-ops after the first: the
   second records `unchanged`.
+- The recomputation anchors its data window on the previous session, as a one-night run would.
+  A session the nightly evaluated inside a multi-session catch-up had a longer view, so a
+  recursive indicator (EMA, RSI) seeded at the start of that view can differ slightly, and a
+  condition sitting on its threshold may flip on re-evaluation with no data change. That drift
+  already exists between nightly runs of different catch-up lengths; the fix belongs in the
+  engine's data window (#239), not here.
 - Superseded rows accumulate. They are bounded by the per-minute rate limit and by how often
   data is corrected; if they ever matter, pruning them is a separate decision.

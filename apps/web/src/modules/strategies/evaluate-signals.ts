@@ -3,11 +3,7 @@ import type { StrategyVersion, TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
-import {
-  calendarUpTo,
-  previousTradingSession,
-  tradingSessionForDate,
-} from "@/modules/market-data";
+import { calendarUpTo, previousTradingSession, tradingSessionForDate } from "@/modules/market-data";
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
@@ -49,7 +45,6 @@ const SETUP_FAILED = "setup_failed";
 // `INBOX_ENTRY_SESSION_HORIZON` instead (docs/adr/0044).
 export const CATCH_UP_SESSION_LIMIT = 21;
 
-
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
   // already in flight still finish. Unset means no deadline (CLAUDE.md
@@ -72,7 +67,6 @@ function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignal
     errors,
   };
 }
-
 
 // One failure/skip row per (ticker, session) in the catch-up range, not
 // only under the newest session (#19): a multi-session
@@ -179,7 +173,6 @@ function clampEvaluations(
     detail: String(clamped.length),
   }));
 }
-
 
 // Chained after ingestion in the cron, per user, per active daily strategy,
 // over that user's watchlist (#19, CONTEXT.md "Nightly ingestion and daily

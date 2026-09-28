@@ -92,7 +92,8 @@ exposing module's interface, never through its tables.
 - Backtest hygiene is enforced by the engine: no look-ahead, fills in the next candle or session,
   costs always charged, deterministic runs.
 - A signal and a backtest of the same strategy version resolve warm-up identically: both
-  `strategies/evaluate-signals.ts` and `backtests/run-chunk.ts` build their own `DataWindow` from
+  `strategies/evaluate-version.ts` (shared by the nightly `evaluate-signals.ts` and the user's
+  re-evaluation, `reevaluate-session.ts`) and `backtests/run-chunk.ts` build their own `DataWindow` from
   the engine's own `dataWindow()` and hand it unchanged to `market-data`'s `loadMarketView`, never
   re-deriving the boundary themselves. (A third caller, `backtests/actions.ts`, also builds a
   `DataWindow` at creation time to decide the `impliedVolatilityIndex` refusal; harmless to this
@@ -134,4 +135,5 @@ stuck backtest run and listing runs in progress across strategies (0037), `fixed
 sizing a net-debit structure on its bounded max loss (0038), a typed web-authored evaluation
 vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fees by instrument
 class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
-strategies archived, never deleted, and out of the cap (0043).
+strategies archived, never deleted, and out of the cap (0043), an inbox horizon of five sessions
+for entry proposals (0044), and append-only, audited re-evaluation of one session (0045).

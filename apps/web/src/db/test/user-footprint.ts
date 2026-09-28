@@ -106,6 +106,12 @@ export async function seedUserFootprint(
   const strategyId = strategy.id;
   const strategyVersionId = version.id;
 
+  const reevaluation = only(
+    await db
+      .insert(signalReevaluations)
+      .values({ userId, strategyId, session: "2026-09-25", status: "applied" })
+      .returning({ id: signalReevaluations.id }),
+  );
   const signal = only(
     await db
       .insert(signals)
@@ -119,21 +125,34 @@ export async function seedUserFootprint(
         at,
         kind: "entry",
         indicators: [],
+        reevaluationId: reevaluation.id,
       })
       .returning({ id: signals.id }),
   );
-  await db
-    .insert(signalReevaluations)
-    .values({ userId, strategyId: strategy.id, session: "2026-01-02", status: "unchanged" });
-  await db.insert(evaluations).values({
-    userId,
-    strategyId,
-    strategyVersionId,
-    ticker: "PETR4",
-    session: "2026-09-25",
-    at,
-    outcome: "no_signal",
-  });
+  // A superseded row pointing at the re-evaluation, so account deletion is
+  // proven over the links a real re-evaluation leaves (docs/adr/0045).
+  await db.insert(evaluations).values([
+    {
+      userId,
+      strategyId,
+      strategyVersionId,
+      ticker: "PETR4",
+      session: "2026-09-25",
+      at,
+      outcome: "no_signal",
+      supersededBy: reevaluation.id,
+    },
+    {
+      userId,
+      strategyId,
+      strategyVersionId,
+      ticker: "PETR4",
+      session: "2026-09-25",
+      at,
+      outcome: "signal",
+      reevaluationId: reevaluation.id,
+    },
+  ]);
 
   const contemplated = only(
     await db

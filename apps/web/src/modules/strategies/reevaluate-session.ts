@@ -7,10 +7,13 @@ import { RiskProfileRepository } from "@/modules/portfolio";
 
 import {
   evaluateVersion,
-  INBOX_ENTRY_SESSION_HORIZON,
   inboxHorizonFloor,
+  isEntryPastInboxHorizon,
+  keptOutOfInbox,
+  type VersionEvaluation,
 } from "./evaluate-version";
 import {
+  ReevaluationConflictError,
   SignalsRepository,
   type CurrentEvaluation,
   type CurrentSignal,
@@ -22,10 +25,16 @@ import {
 import { StrategiesRepository, StrategyArchivedError } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
 
+export type ReevaluationFailureReason =
+  | Extract<VersionEvaluation, { ok: false }>["reason"]
+  | "unknown_structure"
+  | "evaluation_failed"
+  | "conflict";
+
 export type ReevaluationOutcome =
   | { status: "applied"; counts: ReevaluationCounts }
   | { status: "unchanged" }
-  | { status: "failed"; reason: string };
+  | { status: "failed"; reason: ReevaluationFailureReason };
 
 export class ReevaluationTargetNotFoundError extends Error {
   constructor() {
@@ -47,10 +56,13 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+// The indicator readings count: a decision snapshots them as its
+// justification, so a corrected warm-up candle must not leave stale ones.
 function sameProposal(current: CurrentSignal, next: NewSignal): boolean {
   return (
     canonicalJson(current.proposal) === canonicalJson(next.proposal) &&
-    canonicalJson(current.rule) === canonicalJson(next.rule)
+    canonicalJson(current.rule) === canonicalJson(next.rule) &&
+    canonicalJson(current.indicators) === canonicalJson(next.indicators)
   );
 }
 
@@ -91,7 +103,7 @@ export async function reevaluateSession(
     throw new ReevaluationTargetNotFoundError();
   }
 
-  const fail = async (reason: string): Promise<ReevaluationOutcome> => {
+  const fail = async (reason: ReevaluationFailureReason): Promise<ReevaluationOutcome> => {
     await signalsRepository.recordReevaluation({
       strategyId: input.strategyId,
       session: input.session,
@@ -101,18 +113,18 @@ export async function reevaluateSession(
     return { status: "failed", reason };
   };
 
-  const recomputed: { evaluations: NewEvaluation[]; signals: NewSignal[] } = {
-    evaluations: [],
-    signals: [],
-  };
-  let horizonFloor: string | undefined;
-  try {
+  const recompute = async (): Promise<
+    | { ok: true; evaluations: NewEvaluation[]; signals: NewSignal[]; horizonFloor?: string }
+    | { ok: false; reason: ReevaluationFailureReason }
+  > => {
     const at = tradingSession.close;
     const since = (await previousTradingSession(db, input.session))?.close;
     const calendar = await calendarUpTo(db, new Date(at));
-    horizonFloor = inboxHorizonFloor(await calendarUpTo(db, new Date(now())));
+    const horizonFloor = inboxHorizonFloor(await calendarUpTo(db, new Date(now())));
     const structures = await new StructuresRepository(db).listAll();
     const riskProfile = await new RiskProfileRepository(db, user).current();
+    const evaluations: NewEvaluation[] = [];
+    const signals: NewSignal[] = [];
 
     const versionIds = [...new Set(targets.evaluations.map((row) => row.strategyVersionId))];
     for (const versionId of versionIds) {
@@ -121,7 +133,7 @@ export async function reevaluateSession(
         (candidate) => candidate.id === version?.definition.structureId,
       );
       if (!version || !structure) {
-        return await fail("unknown_structure");
+        return { ok: false, reason: "unknown_structure" };
       }
       const strategyVersion: StrategyVersion = {
         id: version.id,
@@ -145,16 +157,27 @@ export async function reevaluateSession(
         horizonFloor: undefined,
       });
       if (!evaluation.ok) {
-        return await fail(evaluation.reason);
+        return { ok: false, reason: evaluation.reason };
       }
-      recomputed.evaluations.push(
-        ...evaluation.evaluations.filter((row) => row.session === input.session),
-      );
-      recomputed.signals.push(...evaluation.signals.filter((row) => row.session === input.session));
+      evaluations.push(...evaluation.evaluations.filter((row) => row.session === input.session));
+      signals.push(...evaluation.signals.filter((row) => row.session === input.session));
     }
+    return { ok: true, evaluations, signals, horizonFloor };
+  };
+
+  // The failure is recorded outside the recomputation's own error handling,
+  // so an audit insert that fails surfaces instead of being retried as an
+  // evaluation failure.
+  let recomputed: Awaited<ReturnType<typeof recompute>>;
+  try {
+    recomputed = await recompute();
   } catch {
-    return await fail("evaluation_failed");
+    recomputed = { ok: false, reason: "evaluation_failed" };
   }
+  if (!recomputed.ok) {
+    return fail(recomputed.reason);
+  }
+  const { horizonFloor } = recomputed;
 
   const write: ReevaluationWrite = {
     strategyId: input.strategyId,
@@ -175,12 +198,12 @@ export async function reevaluateSession(
 
     const currentSignals = targets.signals.filter(sameKey);
     const nextSignals = recomputed.signals.filter(sameKey);
-    let keptOutOfInbox = false;
+    let pastHorizon = false;
     for (const signal of nextSignals) {
       const predecessor = currentSignals.find((row) => signalSlot(row) === signalSlot(signal));
       if (predecessor && sameProposal(predecessor, signal)) continue;
-      if (signal.kind === "entry" && horizonFloor !== undefined && signal.session < horizonFloor) {
-        keptOutOfInbox = true;
+      if (isEntryPastInboxHorizon(signal, horizonFloor)) {
+        pastHorizon = true;
         if (predecessor) write.retractedSignalIds.push(predecessor.id);
         continue;
       }
@@ -193,14 +216,7 @@ export async function reevaluateSession(
       }
     }
 
-    const finalEvaluation: NewEvaluation =
-      keptOutOfInbox && next.reason === "signal"
-        ? {
-            ...next,
-            reason: "entry_past_inbox_horizon",
-            detail: String(INBOX_ENTRY_SESSION_HORIZON),
-          }
-        : next;
+    const finalEvaluation = pastHorizon ? keptOutOfInbox(next) : next;
     if (!sameEvaluation(current, finalEvaluation)) {
       write.supersededEvaluationIds.push(current.id);
       write.newEvaluations.push(finalEvaluation);
@@ -221,6 +237,15 @@ export async function reevaluateSession(
     });
     return { status: "unchanged" };
   }
-  const counts = await signalsRepository.applyReevaluation(write);
-  return { status: "applied", counts };
+  try {
+    const counts = await signalsRepository.applyReevaluation(write);
+    return { status: "applied", counts };
+  } catch (error) {
+    // The losing write rolled back with its own audit row; record the attempt
+    // outside it so every attempt stays in the trail.
+    if (error instanceof ReevaluationConflictError) {
+      await fail("conflict");
+    }
+    throw error;
+  }
 }

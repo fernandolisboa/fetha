@@ -57,8 +57,22 @@ export function inboxHorizonFloor(closedSessions: readonly TradingSession[]): st
   return closedSessions.at(-INBOX_ENTRY_SESSION_HORIZON)?.date;
 }
 
-function isEntryPastInboxHorizon(signal: Signal, floor: string | undefined): boolean {
+export function isEntryPastInboxHorizon(
+  signal: { kind: Signal["kind"]; session: string },
+  floor: string | undefined,
+): boolean {
   return signal.kind === "entry" && floor !== undefined && signal.session < floor;
+}
+
+// The record of an entry the engine proposed but the horizon kept out of the
+// inbox: outcome stays `signal`, reason says why no row reached the inbox.
+export function keptOutOfInbox(evaluation: NewEvaluation): NewEvaluation {
+  if (evaluation.reason !== "signal") return evaluation;
+  return {
+    ...evaluation,
+    reason: "entry_past_inbox_horizon",
+    detail: String(INBOX_ENTRY_SESSION_HORIZON),
+  };
 }
 
 export interface VersionEvaluationInput {
@@ -79,7 +93,8 @@ export type VersionEvaluation =
   | { ok: true; signals: NewSignal[]; evaluations: NewEvaluation[] }
   | {
       ok: false;
-      reason: "unsatisfiable_collection" | "market_view_too_large" | "no_market_data" | "engine_error";
+      reason:
+        "unsatisfiable_collection" | "market_view_too_large" | "no_market_data" | "engine_error";
       detail: string | null;
     };
 
@@ -153,18 +168,19 @@ export async function evaluateVersion(
   // `detail` is always null for a row built straight from the engine's own
   // `EvaluationRecord` (ADR-0039); only web-authored reasons carry one.
   const evaluations: NewEvaluation[] = result.value.evaluations.map((record) => {
-    const keptOutOfInbox =
-      record.reason === "signal" && pastHorizon.has(`${record.ticker}|${record.session}`);
-    return {
+    const evaluation: NewEvaluation = {
       strategyId,
       strategyVersionId: strategyVersion.id,
       ticker: record.ticker,
       session: record.session,
       at: new Date(record.at),
       outcome: record.outcome,
-      reason: keptOutOfInbox ? ("entry_past_inbox_horizon" as const) : record.reason,
-      detail: keptOutOfInbox ? String(INBOX_ENTRY_SESSION_HORIZON) : null,
+      reason: record.reason,
+      detail: null,
     };
+    return pastHorizon.has(`${record.ticker}|${record.session}`)
+      ? keptOutOfInbox(evaluation)
+      : evaluation;
   });
   return { ok: true, signals, evaluations };
 }

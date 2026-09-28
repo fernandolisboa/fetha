@@ -14,6 +14,7 @@ function row(overrides: Partial<EvaluationLogItem> & { id: string }): Evaluation
     reason: "signal",
     detail: null,
     reevaluated: false,
+    strategyArchived: false,
     ...overrides,
   };
 }
@@ -28,5 +29,13 @@ describe("reevaluationAnchors", () => {
       row({ id: "d", strategyId: "s2" }),
     ]);
     expect(anchors).toEqual(new Set(["a", "c", "d"]));
+  });
+
+  it("gives an archived strategy's rows no anchor", () => {
+    const anchors = reevaluationAnchors([
+      row({ id: "archived", strategyId: "s9", strategyArchived: true }),
+      row({ id: "live" }),
+    ]);
+    expect(anchors).toEqual(new Set(["live"]));
   });
 });
