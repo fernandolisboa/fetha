@@ -3,7 +3,6 @@ import { engine, type Signal, type StrategyVersion, type TradingSession } from "
 
 import type { Database } from "@/db/client";
 import {
-  canSatisfyCollection,
   loadMarketView,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
@@ -93,8 +92,7 @@ export type VersionEvaluation =
   | { ok: true; signals: NewSignal[]; evaluations: NewEvaluation[] }
   | {
       ok: false;
-      reason:
-        "unsatisfiable_collection" | "market_view_too_large" | "no_market_data" | "engine_error";
+      reason: "market_view_too_large" | "no_market_data" | "engine_error";
       detail: string | null;
     };
 
@@ -114,17 +112,6 @@ export async function evaluateVersion(
     at,
     since,
   });
-
-  // `canSatisfyCollection` is market-data's own fact about what its loader
-  // can fill (`backtests/actions.ts` asks the same predicate): recorded
-  // explicitly instead of retrying `insufficient_data` every night with no
-  // clue why. The failing collection's own name goes into `detail` (#133).
-  const unsatisfiableCollection = window.collections.find(
-    (collection) => !canSatisfyCollection(collection),
-  );
-  if (unsatisfiableCollection) {
-    return { ok: false, reason: "unsatisfiable_collection", detail: unsatisfiableCollection };
-  }
 
   // `loadMarketView` throws instead of returning a candle-less view for a
   // window it cannot resolve or a chain too large to load in one call (#18,

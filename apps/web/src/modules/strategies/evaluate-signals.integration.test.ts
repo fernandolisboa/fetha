@@ -645,52 +645,6 @@ describe("evaluateSignalsForSession", () => {
     expect(newestRow?.detail).toBeNull();
   });
 
-  it("records an explicit unsatisfiable-collection outcome for an iv_rank strategy instead of looping insufficient_data forever", async () => {
-    const db = getDb();
-    const session = randomSession();
-    createdSessions.push(session);
-    const ticker = randomTicker();
-    createdTickers.push(ticker);
-
-    const email = uniqueEmail("iv-rank");
-    createdEmails.push(email);
-    const owner = await insertBareUser(email);
-
-    await insertSession(session);
-    await insertCandle(ticker, session);
-    await declareRiskProfile(owner);
-    await new WatchlistRepository(db, owner).add(ticker);
-
-    const definition: StrategyDefinition = {
-      name: "IV rank fixture",
-      timeframe: "D1",
-      entry: {
-        kind: "compare",
-        left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 20 } },
-        comparator: ">",
-        right: { kind: "constant", value: decimalString("50") },
-      },
-      structureId: "stock",
-      strikes: [],
-      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
-      exit: [],
-      adjustments: [],
-    };
-    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition);
-    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
-
-    const outcome = await evaluateSignalsForSession(db, [session]);
-    expect(outcome.errors).toEqual([]);
-
-    const repository = new SignalsRepository(db, owner);
-    expect(await repository.listInbox()).toHaveLength(0);
-    const log = await repository.listEvaluationLog();
-    expect(log).toHaveLength(1);
-    expect(log[0]?.reason).toBe("unsatisfiable_collection");
-    expect(log[0]?.detail).toBe("impliedVolatilityIndex");
-    expect(log[0]?.ticker).toBe(ticker);
-  });
-
   it("keeps a sibling strategy's watermark independent when its own loader throws mid-loop, so the next run still catches it up on the sessions it missed", async () => {
     const db = getDb();
     const [before, s1, s2, s3] = randomSessionSequence(4);
