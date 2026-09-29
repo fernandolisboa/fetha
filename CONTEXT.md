@@ -40,7 +40,10 @@ exposing module's interface, never through its tables.
 
 1. **Nightly ingestion, daily evaluation and scoring.** A nightly job with scheduled retries
    (ADR-0010, ADR-0017) ingests COTAHIST, the B3 instruments registry, Bacen SGS and the trading
-   calendar (corporate-action factor recording is a follow-up, #50; the engine derives adjusted
+   calendar, then computes the implied-volatility index for that session from those same three
+   sources (`iv_index`, no new provider, ADR-0054; eligible only once cotahist and instruments
+   have both succeeded for the session, with a time-budgeted backfill for sessions that predate
+   it) (corporate-action factor recording is a follow-up, #50; the engine derives adjusted
    series point in time from whatever factors exist, ADR-0013), then evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
    21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044; a user
@@ -97,10 +100,7 @@ exposing module's interface, never through its tables.
   `strategies/evaluate-version.ts` (shared by the nightly `evaluate-signals.ts` and the user's
   re-evaluation, `reevaluate-session.ts`) and `backtests/run-chunk.ts` build their own `DataWindow` from
   the engine's own `dataWindow()` and hand it unchanged to `market-data`'s `loadMarketView`, never
-  re-deriving the boundary themselves. (A third caller, `backtests/actions.ts`, also builds a
-  `DataWindow` at creation time to decide the `impliedVolatilityIndex` refusal; harmless to this
-  invariant today since it only reads `collections`, which does not depend on `at`/`since`, but a
-  reader trusting "two callers" alone would be wrong.) Not guaranteed by a single shared entry
+  re-deriving the boundary themselves. Not guaranteed by a single shared entry
   point (that seam was considered and rejected, #18/#19); guaranteed by construction of
   `dataWindow()` plus `apps/web/src/modules/backtests/data-window-parity.integration.test.ts`,
   which pins the two session-resolving callers against each other.
