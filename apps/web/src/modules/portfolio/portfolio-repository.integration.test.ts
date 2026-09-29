@@ -215,6 +215,41 @@ describe("PortfolioRepository isolation", () => {
     expect((await repositoryA.listOperations())[0]?.status).toBe("open");
   });
 
+  it("reads the expiry of the user's own open operations only (#257)", async () => {
+    const db = getDb();
+    const [a, b] = await Promise.all([insertUser("exp-a"), insertUser("exp-b")]);
+    const repositoryA = new PortfolioRepository(db, a);
+    const repositoryB = new PortfolioRepository(db, b);
+    await repositoryA.insertFills([
+      stockFill(),
+      stockFill({ session: closedAt }),
+      stockFill({ ticker: tickerSchema.parse("VALE3") }),
+    ]);
+    const [aOpen, aClosed, aStock] = await repositoryA.listFills();
+    if (!aOpen || !aClosed || !aStock) throw new Error("fixture setup failed");
+    const expiry = sessionDateSchema.parse("2026-10-16");
+    const open = await repositoryA.group(null, [aOpen.id], (planned) => ({
+      ok: true,
+      state: { ...openState(planned), expiry },
+    }));
+    const closed = await repositoryA.group(null, [aClosed.id], (planned) => ({
+      ok: true,
+      state: { ...openState(planned), expiry, status: "closed", closedAt },
+    }));
+    const stockOnly = await repositoryA.group(null, [aStock.id], openPlan);
+    if (!open.ok || !closed.ok || !stockOnly.ok) throw new Error("fixture setup failed");
+    const ids = [open.operationId, closed.operationId, stockOnly.operationId];
+
+    expect(await repositoryA.openOperationExpiries(ids)).toEqual(
+      new Map([
+        [open.operationId, expiry],
+        [stockOnly.operationId, null],
+      ]),
+    );
+    expect(await repositoryB.openOperationExpiries(ids)).toEqual(new Map());
+    expect(await repositoryA.openOperationExpiries([])).toEqual(new Map());
+  });
+
   it("the database refuses a fill pointing at another user's operation", async () => {
     const db = getDb();
     const [a, b] = await Promise.all([insertUser("fk-a"), insertUser("fk-b")]);

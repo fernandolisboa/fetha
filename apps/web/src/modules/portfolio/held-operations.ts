@@ -71,6 +71,17 @@ export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperatio
   };
 });
 
+export async function getMyOpenOperationExpiries(
+  ids: readonly string[],
+): Promise<Map<string, SessionDate | null>> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+  const user = await requireUser();
+  await recordAccess("portfolio_read");
+  return new PortfolioRepository(getDb(), user).openOperationExpiries(ids);
+}
+
 export interface HeldOperationScoringRequest {
   operationId: string;
   heldFillIds: readonly string[];

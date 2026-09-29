@@ -17,6 +17,7 @@ export type { PortfolioReadModel } from "./portfolio-service";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,
+  getMyOpenOperationExpiries,
   heldOperationForScoring,
   HeldOperationNotFoundError,
   type HeldOperation,
