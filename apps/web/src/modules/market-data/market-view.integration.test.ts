@@ -9,6 +9,7 @@ import { getDb } from "@/db/client";
 import {
   candles,
   corporateActionFactors,
+  impliedVolatilityIndexPoints,
   macroPoints,
   optionDailyPrices,
   optionSeries,
@@ -615,6 +616,24 @@ function smaDefinition(): StrategyDefinition {
   };
 }
 
+function ivRankDefinition(lookbackSessions: number): StrategyDefinition {
+  return {
+    name: "IV rank fixture",
+    timeframe: "D1",
+    entry: {
+      kind: "compare",
+      left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions } },
+      comparator: "<",
+      right: { kind: "constant", value: decimalString("30") },
+    },
+    structureId: "stock",
+    strikes: [],
+    sizing: { kind: "fixed_fractional", fraction: decimalString("0.2") },
+    exit: [],
+    adjustments: [],
+  };
+}
+
 const COVERED_CALL_STRUCTURE: Structure = {
   id: "covered-call",
   name: "Covered call",
@@ -926,6 +945,68 @@ describe("loadMarketView", () => {
     expect(view.macro.some((point) => point.date === macroDate && point.series === "cdi")).toBe(
       true,
     );
+  });
+
+  it("populates the implied-volatility index inside the loaded window, and its asOf feeds dataVersion", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("IVX");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2097-06-09", 30);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    // Later than the last session's own candle stamp (20:00:00Z) so this
+    // point's asOf is unambiguously the freshest one dataVersion can pick up.
+    const ivSession = sessions.at(-1) ?? "";
+    const ivAsOf = new Date(`${ivSession}T21:00:00.000Z`);
+    await db.insert(impliedVolatilityIndexPoints).values({
+      underlying: ticker,
+      session: ivSession,
+      asOf: ivAsOf,
+      impliedVolatility: "0.25000000",
+      method: "atm_30d_variance_interpolated",
+    });
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: ivRankDefinition(20),
+      structure: STOCK_STRUCTURE,
+    };
+
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+    expect(window.collections).toContain("impliedVolatilityIndex");
+    const view = await loadMarketView(db, window);
+
+    expect(view.impliedVolatilityIndex).toEqual([
+      {
+        underlying: ticker,
+        session: ivSession,
+        asOf: ivAsOf.toISOString(),
+        impliedVolatility: "0.25000000",
+      },
+    ]);
+    expect(view.dataVersion).toBe(ivAsOf.toISOString());
+
+    await db
+      .delete(impliedVolatilityIndexPoints)
+      .where(eq(impliedVolatilityIndexPoints.underlying, ticker));
   });
 
   it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes", async () => {

@@ -1,4 +1,5 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import type { Database } from "@/db/client";
 import type { IngestionSource, IngestionStatus } from "../schema";
@@ -98,6 +99,40 @@ export async function reapStaleRunningRuns(
 // marking it "failed" would misreport a benign race as an ingestion failure.
 export async function deleteRun(db: Database, id: string): Promise<void> {
   await db.delete(ingestionRuns).where(eq(ingestionRuns.id, id));
+}
+
+// Every session `requiredSource` has succeeded on but `missingSource` has
+// never succeeded on, newest first: the backfill list for a source added
+// after `requiredSource` already had history (docs/adr/0054's iv_index,
+// backfilled from cotahist's own succeeded sessions), so the full history
+// fills in over successive nightly runs rather than a one-off script.
+export async function succeededSessionsMissingRun(
+  db: Database,
+  requiredSource: IngestionSource,
+  missingSource: IngestionSource,
+): Promise<string[]> {
+  const required = alias(ingestionRuns, "required_run");
+  const missing = alias(ingestionRuns, "missing_run");
+  const rows = await db
+    .select({ session: required.session })
+    .from(required)
+    .leftJoin(
+      missing,
+      and(
+        eq(missing.session, required.session),
+        eq(missing.source, missingSource),
+        eq(missing.status, "succeeded"),
+      ),
+    )
+    .where(
+      and(
+        eq(required.source, requiredSource),
+        eq(required.status, "succeeded"),
+        isNull(missing.id),
+      ),
+    )
+    .orderBy(desc(required.session));
+  return rows.map((row) => row.session);
 }
 
 export async function latestRunPerSource(db: Database): Promise<IngestionRun[]> {

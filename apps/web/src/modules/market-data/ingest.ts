@@ -22,7 +22,9 @@ import {
   findSucceededRun,
   reapStaleRunningRuns,
   startRun,
+  succeededSessionsMissingRun,
 } from "./repositories/ingestion-run-repository";
+import { computeIvIndexForSession } from "./iv-index-compute";
 import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 
@@ -268,6 +270,46 @@ export async function runSessionBoundSource(
   return { outcome: mergeOutcomes(source, outcomes), okSessions };
 }
 
+// Like `runSessionBoundSource`, plus a second, older batch of backfill
+// sessions this invocation only starts while `Date.now()` stays under
+// `backfillDeadline` (docs/adr/0054): the recent window always runs in
+// full, so a slow provider never starves the sessions the nightly
+// evaluation actually watches, while the backfill batch yields the rest of
+// its own time budget back once the deadline passes rather than risking
+// the route's own `maxDuration`. A session already covered is skipped by
+// `runSource` itself (`findSucceededRun`), so the two batches may overlap
+// with no double-counted work.
+async function runSessionBoundSourceWithBackfill(
+  db: Database,
+  source: IngestionSource,
+  recentSessions: string[],
+  backfillSessions: string[],
+  backfillDeadline: number,
+  maxDurationMs: number,
+  run: (session: string) => Promise<RunResult>,
+): Promise<SessionBoundResult> {
+  const outcomes: SourceOutcome[] = [];
+  const okSessions: string[] = [];
+  for (const session of recentSessions) {
+    const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
+    outcomes.push(outcome);
+    if (outcome.error === undefined && !outcome.pending) {
+      okSessions.push(session);
+    }
+  }
+  for (const session of backfillSessions) {
+    if (Date.now() >= backfillDeadline) {
+      break;
+    }
+    const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
+    outcomes.push(outcome);
+    if (outcome.error === undefined && !outcome.pending) {
+      okSessions.push(session);
+    }
+  }
+  return { outcome: mergeOutcomes(source, outcomes), okSessions };
+}
+
 async function runCalendarSources(
   db: Database,
   now: Date,
@@ -339,6 +381,7 @@ export interface IngestOptions {
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
+  const startedAt = Date.now();
   const now = options.now ?? new Date();
   const fetchImpl = options.fetchImpl ?? fetch;
   const maxDurationMs = options.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
@@ -429,11 +472,50 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     },
   );
 
+  // Runs after cotahist, instruments and sgs, over the same recent window
+  // plus an older backfill batch (docs/adr/0054): the compute step needs
+  // that session's own option chain, series registry and (for the
+  // risk-free proxy) CDI, so it can only start once those are in. A
+  // session ineligible for that reason is `pending`, never `failed`
+  // (`ivIndexRun` below), so it keeps retrying every night until cotahist
+  // and instruments catch up on it, rather than aging into a permanent
+  // gap.
+  const ivIndexRecentSessions = await resolveSessions("iv_index");
+  const ivIndexBackfillCandidates = options.session
+    ? []
+    : (await succeededSessionsMissingRun(db, "cotahist", "iv_index")).filter(
+        (session) => !ivIndexRecentSessions.includes(session),
+      );
+  const ivIndexRun = async (session: string) => {
+    const [cotahistRun, instrumentsRun] = await Promise.all([
+      findSucceededRun(db, "cotahist", session),
+      findSucceededRun(db, "instruments", session),
+    ]);
+    if (!cotahistRun || !instrumentsRun) {
+      return { rowCount: 0, pending: true as const };
+    }
+    const trading = await sessionByDate(db, session);
+    if (!trading) {
+      throw new Error(`no trading session recorded for ${session}`);
+    }
+    return computeIvIndexForSession(db, session, trading.close);
+  };
+  const ivIndexResult = await runSessionBoundSourceWithBackfill(
+    db,
+    "iv_index",
+    ivIndexRecentSessions,
+    ivIndexBackfillCandidates,
+    startedAt + maxDurationMs / 2,
+    maxDurationMs,
+    ivIndexRun,
+  );
+
   const sources = [
     calendarOutcome,
     cotahistResult.outcome,
     instrumentsResult.outcome,
     sgsResult.outcome,
+    ivIndexResult.outcome,
   ];
 
   // A source that is fully caught up drains no gaps this invocation

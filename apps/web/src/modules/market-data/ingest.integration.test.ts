@@ -277,7 +277,7 @@ describe("ingest", () => {
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
-      ["calendar", "cotahist", "instruments", "sgs"].sort(),
+      ["calendar", "cotahist", "instruments", "iv_index", "sgs"].sort(),
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
@@ -427,7 +427,7 @@ describe("ingest", () => {
       .select()
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
-    expect(runs).toHaveLength(3);
+    expect(runs).toHaveLength(4);
   });
 
   it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {
@@ -519,6 +519,34 @@ describe("ingest", () => {
     expect(cotahist?.error).toBeDefined();
     expect(result.session).toBeNull();
   }, 120_000);
+
+  it("reports iv_index pending, not failed, when cotahist has not succeeded for the session yet, and never writes a run row for it", async () => {
+    const db = getDb();
+    const cotahistFailsForSession: typeof fetch = ((input: string) => {
+      if (input.includes("InstDados/SerHist")) {
+        return Promise.resolve(new Response("not found", { status: 404 }));
+      }
+      return fakeFetch(TEST_SESSION)(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: cotahistFailsForSession,
+    });
+
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeDefined();
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex).toMatchObject({ pending: true, skipped: false, rowCount: 0 });
+    expect(ivIndex?.error).toBeUndefined();
+
+    const ivIndexRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(ivIndexRuns).toEqual([]);
+  });
 
   it("two concurrent invocations for the same session never both record a failed run", async () => {
     const db = getDb();

@@ -15,9 +15,9 @@ import {
   type Candle,
   type CorporateActionFactor,
   type DataWindow,
+  type ImpliedVolatilityIndexPoint,
   type MacroPoint,
   type MarketView,
-  type MarketViewCollection,
   type OptionDayPrice,
   type OptionSeries,
   type TradingSession,
@@ -40,6 +40,7 @@ import {
   type CandleRow,
 } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
+import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
 import { latestMacroPointAtOrBefore, macroPointsInRange } from "./repositories/macro-repository";
 import {
   DEFAULT_OPTION_CHAIN_TICKER_CAP,
@@ -52,29 +53,6 @@ import {
 
 const CANDLE_WINDOW_SESSIONS = 30;
 const CALENDAR_WINDOW_SESSIONS = 30;
-
-// Not "collections this loader can never fill": `dividendYields` and `quotes`
-// are unconditionally empty
-// too (no ingestion pipeline for either), and `dividendYields` is in every
-// window regardless of strategy, so a maintainer applying "never fills"
-// literally would refuse every strategy in the product the moment they
-// noticed. The actual rule is narrower: collections whose absence leaves a
-// strategy with no way to evaluate at all, as opposed to one that degrades
-// gracefully with an explicit note — a missing dividend yield defaults to
-// `q = 0` and records `dividend_yield_defaulted`, never blocking
-// evaluation, while a missing `impliedVolatilityIndex` (follow-up #81)
-// leaves an `iv_rank` condition permanently
-// `insufficient_data` with nothing to size or compare against.
-// `market-data` is the module that knows which collections it can fill —
-// it owns the loader — so this is the one place that fact lives, not a
-// hardcoded literal re-stated in every caller that needs to refuse a
-// strategy up front (`evaluate-signals.ts`, `backtests/actions.ts`; this
-// closed the duplication between them).
-const UNSATISFIABLE_COLLECTIONS: readonly MarketViewCollection[] = ["impliedVolatilityIndex"];
-
-export function canSatisfyCollection(collection: MarketViewCollection): boolean {
-  return !UNSATISFIABLE_COLLECTIONS.includes(collection);
-}
 
 function toDecimal(value: string): DecimalString {
   return decimalStringSchema.parse(value);
@@ -247,26 +225,32 @@ export async function loadMarketViewWithCalendarVersion(
   const wantMacro = collections.includes("macro");
   const wantOptionSeries = collections.includes("optionSeries");
   const wantOptionPrices = collections.includes("optionPrices");
+  const wantIvIndex = collections.includes("impliedVolatilityIndex");
 
-  const [candleRows, corporateActionRows, macroRows, seriesResult] = await Promise.all([
-    wantCandles
-      ? candlesInSessionRange(db, instruments, fromSession, toSession)
-      : Promise.resolve([]),
-    wantCorporateActions
-      ? Promise.all(instruments.map((ticker) => corporateActionsForTicker(db, ticker))).then(
-          (rows) => rows.flat(),
-        )
-      : Promise.resolve([]),
-    wantMacro ? macroPointsInRange(db, fromSession, toSession) : Promise.resolve([]),
-    wantOptionSeries || wantOptionPrices
-      ? optionSeriesInWindow(
-          db,
-          instruments,
-          { expiryFloor: fromSession, asOfCeiling: toDate },
-          optionChainTickerCap,
-        )
-      : Promise.resolve({ ok: true as const, rows: [] }),
-  ]);
+  const [candleRows, corporateActionRows, macroRows, seriesResult, ivIndexRows] = await Promise.all(
+    [
+      wantCandles
+        ? candlesInSessionRange(db, instruments, fromSession, toSession)
+        : Promise.resolve([]),
+      wantCorporateActions
+        ? Promise.all(instruments.map((ticker) => corporateActionsForTicker(db, ticker))).then(
+            (rows) => rows.flat(),
+          )
+        : Promise.resolve([]),
+      wantMacro ? macroPointsInRange(db, fromSession, toSession) : Promise.resolve([]),
+      wantOptionSeries || wantOptionPrices
+        ? optionSeriesInWindow(
+            db,
+            instruments,
+            { expiryFloor: fromSession, asOfCeiling: toDate },
+            optionChainTickerCap,
+          )
+        : Promise.resolve({ ok: true as const, rows: [] }),
+      wantIvIndex
+        ? ivIndexPointsInRange(db, instruments, fromSession, toSession)
+        : Promise.resolve([]),
+    ],
+  );
 
   if (!seriesResult.ok) {
     throw new MarketViewTooLargeError(
@@ -368,16 +352,20 @@ export async function loadMarketViewWithCalendarVersion(
     extendedSessions.map((row) => instantSchema.parse(row.asOf.toISOString())),
   );
 
-  // No implied-volatility-index ingestion pipeline exists yet (same gap
-  // buildOperationMarketView already documents for dividendYields): the
-  // window can ask for `impliedVolatilityIndex`, but there is nothing to
-  // populate it with, so it stays empty regardless.
+  const impliedVolatilityIndex: ImpliedVolatilityIndexPoint[] = ivIndexRows.map((row) => ({
+    underlying: tickerSchema.parse(row.underlying),
+    session: sessionDateSchema.parse(row.session),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    impliedVolatility: toDecimal(row.impliedVolatility),
+  }));
+
   const dataVersion = maxAsOf([
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),
+    ...impliedVolatilityIndex.map((row) => row.asOf),
   ]);
 
   return {
@@ -390,7 +378,7 @@ export async function loadMarketViewWithCalendarVersion(
       quotes: [],
       macro,
       dividendYields: [],
-      impliedVolatilityIndex: [],
+      impliedVolatilityIndex,
       ...(dataVersion ? { dataVersion } : {}),
     },
     calendarVersion,
