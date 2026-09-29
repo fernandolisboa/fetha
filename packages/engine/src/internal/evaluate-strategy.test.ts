@@ -2924,6 +2924,8 @@ describe("evaluateStrategy — SMA over a session without a candle (#250)", () =
     expect(evaluate(session.close, fullHistory)).toEqual(["entry_condition_warmup"]);
     expect(evaluate(session.close, oneNightView)).toEqual(["entry_condition_warmup"]);
     const dayBefore = calendar[49] as TradingSession;
-    expect(evaluate(dayBefore.close, fullHistory)).not.toEqual(["entry_condition_warmup"]);
+    const atOwnSession = evaluate(dayBefore.close, fullHistory);
+    expect(atOwnSession).toHaveLength(1);
+    expect(atOwnSession).not.toEqual(["entry_condition_warmup"]);
   });
 });
