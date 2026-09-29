@@ -1,22 +1,15 @@
 import type { Instant, Structure, Ticker } from "@fetha/contracts";
-import { engine, type Signal, type StrategyVersion, type TradingSession } from "@fetha/engine";
+import type { StrategyVersion, TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
-import {
-  calendarUpTo,
-  canSatisfyCollection,
-  loadMarketView,
-  MarketViewTooLargeError,
-  MarketViewUnavailableError,
-  previousTradingSession,
-  tradingSessionForDate,
-} from "@/modules/market-data";
+import { calendarUpTo, previousTradingSession, tradingSessionForDate } from "@/modules/market-data";
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { activeStrategyUserIds } from "./active-strategy-users";
 import type { WebEvaluationReason } from "./evaluation-vocabulary";
+import { evaluateVersion, inboxHorizonFloor } from "./evaluate-version";
 import { SignalsRepository, type NewEvaluation, type NewSignal } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 import { StructuresRepository } from "./structures-repository";
@@ -52,12 +45,6 @@ const SETUP_FAILED = "setup_failed";
 // `INBOX_ENTRY_SESSION_HORIZON` instead (docs/adr/0044).
 export const CATCH_UP_SESSION_LIMIT = 21;
 
-// One trading week (docs/adr/0044, #83): an entry proposal from an older
-// session was priced at a spot that is now stale and sized against today's
-// risk profile, so the catch-up still logs its evaluation but keeps it out
-// of the inbox.
-export const INBOX_ENTRY_SESSION_HORIZON = 5;
-
 export interface EvaluateSignalsOptions {
   // Epoch ms after which no further user is started this run; the ones
   // already in flight still finish. Unset means no deadline (CLAUDE.md
@@ -78,37 +65,6 @@ function emptyOutcome(sessions: string[], errors: string[] = []): EvaluateSignal
     signalsWritten: 0,
     evaluationsWritten: 0,
     errors,
-  };
-}
-
-function signalToNewSignal(strategyId: string, signal: Signal): NewSignal {
-  const base = {
-    strategyId,
-    strategyVersionId: signal.strategyVersionId,
-    ticker: signal.ticker,
-    timeframe: signal.timeframe,
-    session: signal.session,
-    at: new Date(signal.at),
-    indicators: signal.indicators,
-  };
-  if (signal.kind === "entry") {
-    return { ...base, kind: "entry", proposal: signal.proposal, operationId: null, rule: null };
-  }
-  if (signal.kind === "exit") {
-    return {
-      ...base,
-      kind: "exit",
-      proposal: null,
-      operationId: signal.operationId,
-      rule: signal.rule,
-    };
-  }
-  return {
-    ...base,
-    kind: "adjust",
-    proposal: signal.proposal,
-    operationId: signal.operationId,
-    rule: signal.rule,
   };
 }
 
@@ -216,19 +172,6 @@ function clampEvaluations(
     reason: "catchup_clamped" as const,
     detail: String(clamped.length),
   }));
-}
-
-// The oldest session whose entry proposals may still reach the inbox: the
-// `INBOX_ENTRY_SESSION_HORIZON`-th newest session closed by the wall clock,
-// not by `at`, so a provider publishing a week late cannot push a week of
-// stale proposals past the horizon. Undefined when the calendar is shorter
-// than the horizon, so nothing is past it.
-function inboxHorizonFloor(closedSessions: readonly TradingSession[]): string | undefined {
-  return closedSessions.at(-INBOX_ENTRY_SESSION_HORIZON)?.date;
-}
-
-function isEntryPastInboxHorizon(signal: Signal, floor: string | undefined): boolean {
-  return signal.kind === "entry" && floor !== undefined && signal.session < floor;
 }
 
 // Chained after ingestion in the cron, per user, per active daily strategy,
@@ -424,30 +367,28 @@ export async function evaluateSignalsForSession(
           structure,
         };
 
-        const window = engine.dataWindow({
-          strategy: strategyVersion,
-          instruments: tickers,
+        const evaluation = await evaluateVersion(db, {
+          strategyId,
+          strategyVersion,
+          tickers,
           calendar,
           at,
           since,
+          riskProfile,
+          horizonFloor,
         });
-
-        // `canSatisfyCollection` is market-data's own fact about what its
-        // loader can fill, not re-stated here as a hardcoded literal
-        // (`backtests/actions.ts` asks the same
-        // predicate): recorded explicitly per ticker/session and never
-        // handed to the engine, instead of retrying `insufficient_data`
-        // every night with no clue why. The failing collection's own name
-        // goes into `detail` alone (sharpened by #133): a
-        // fixed `impliedVolatilityIndex` suffix here would misname the
-        // failure the moment `UNSATISFIABLE_COLLECTIONS` grows a second
-        // member — `strings.ts`'s own rendering of this reason is
-        // collection-neutral regardless, so this is for the evaluation
-        // log's own accuracy, not the copy.
-        const unsatisfiableCollection = window.collections.find(
-          (collection) => !canSatisfyCollection(collection),
-        );
-        if (unsatisfiableCollection) {
+        if (!evaluation.ok) {
+          // An unfillable collection is a standing property of the strategy,
+          // not a run failure, so only the other reasons reach `errors`.
+          // Writing the failure rows advances this version's watermark the
+          // same as a real evaluation (#18): a failed session is never
+          // retried by a later night; re-evaluating it is an explicit act
+          // (docs/adr/0047).
+          if (evaluation.reason === "engine_error") {
+            errors.push(`engine_error:${evaluation.detail ?? ""}`);
+          } else if (evaluation.reason !== "unsatisfiable_collection") {
+            errors.push(evaluation.reason);
+          }
           await writeResult(
             [],
             failureEvaluations(
@@ -455,116 +396,13 @@ export async function evaluateSignalsForSession(
               version.id,
               tickers,
               userSessions,
-              "unsatisfiable_collection",
-              unsatisfiableCollection,
+              evaluation.reason,
+              evaluation.detail,
             ),
           );
           continue;
         }
-
-        // `loadMarketView` throws instead of returning a candle-less view
-        // for a window it cannot resolve or a chain too large to load in
-        // one call (#18, market-view.ts). Uncaught here,
-        // that throw unwinds past `strategiesProcessed += 1` above and out
-        // of the whole per-strategy loop — into the outer per-**user**
-        // catch (`:476`) — so one option strategy that crosses the chain
-        // cap (or a period with no session, unreachable in practice since
-        // `at`/`since` are both derived from `calendar`) costs this user
-        // every remaining active strategy's evaluation for the night, with
-        // nothing but a generic `evaluation_failed` to explain it, and
-        // repeats deterministically every run (#18). Same
-        // shape as `unknown_structure` and `unsatisfiable_collection`
-        // just above: recorded explicitly per ticker/session, this
-        // strategy skipped, the loop moves on to the next one.
-        let view;
-        try {
-          view = await loadMarketView(db, window);
-        } catch (error) {
-          if (
-            error instanceof MarketViewTooLargeError ||
-            error instanceof MarketViewUnavailableError
-          ) {
-            const reason: WebEvaluationReason =
-              error instanceof MarketViewTooLargeError ? "market_view_too_large" : "no_market_data";
-            errors.push(reason);
-            // Writing this evaluation row advances the strategy's own
-            // watermark (`lastEvaluatedSession`) the same as a real
-            // evaluation would (#18): a `market_view_too_large`
-            // night is never automatically re-tried, even after an operator
-            // raises `DEFAULT_OPTION_CHAIN_TICKER_CAP`/`_PRICE_ROW_CAP`,
-            // because the sessions it failed on are now behind the
-            // watermark. Accepted deliberately, matching the
-            // `unknown_structure` precedent just above: the alternative
-            // (never advancing the watermark) means a chain that stays too
-            // large forever retries the same expensive, doomed load every
-            // single run. A cap raise is an operator config change, not a
-            // routine user action, so it is expected to come with a manual
-            // watermark reset or re-run if catch-up past the failed
-            // sessions is ever needed.
-            await writeResult(
-              [],
-              failureEvaluations(strategyId, version.id, tickers, userSessions, reason, null),
-            );
-            continue;
-          }
-          throw error;
-        }
-
-        const result = await engine.evaluateStrategy({
-          view,
-          strategy: strategyVersion,
-          instruments: tickers,
-          at,
-          since,
-          ...(riskProfile ? { riskProfile } : {}),
-        });
-
-        if (!result.ok) {
-          errors.push(`engine_error:${result.error.code}`);
-          await writeResult(
-            [],
-            failureEvaluations(
-              strategyId,
-              version.id,
-              tickers,
-              userSessions,
-              "engine_error",
-              result.error.code,
-            ),
-          );
-          continue;
-        }
-
-        const pastHorizon = new Set<string>();
-        const newSignals: NewSignal[] = [];
-        for (const signal of result.value.signals) {
-          if (isEntryPastInboxHorizon(signal, horizonFloor)) {
-            pastHorizon.add(`${signal.ticker}|${signal.session}`);
-          } else {
-            newSignals.push(signalToNewSignal(strategyId, signal));
-          }
-        }
-        // `detail` is always null for a row built straight from the
-        // engine's own `EvaluationRecord` (#133 removed the engine's own
-        // `detail` field: it was a pure function of `reason`, ADR-0039):
-        // the log's own detail column is used only by the web-authored
-        // failures above, which carry their own parameter there.
-        const newEvaluations: NewEvaluation[] = result.value.evaluations.map((record) => {
-          const keptOutOfInbox =
-            record.reason === "signal" && pastHorizon.has(`${record.ticker}|${record.session}`);
-          return {
-            strategyId,
-            strategyVersionId: version.id,
-            ticker: record.ticker,
-            session: record.session,
-            at: new Date(record.at),
-            outcome: record.outcome,
-            reason: keptOutOfInbox ? ("entry_past_inbox_horizon" as const) : record.reason,
-            detail: keptOutOfInbox ? String(INBOX_ENTRY_SESSION_HORIZON) : null,
-          };
-        });
-
-        await writeResult(newSignals, newEvaluations);
+        await writeResult(evaluation.signals, evaluation.evaluations);
       }
 
       // A separate counter from `usersEvaluated` (#19): every

@@ -41,6 +41,7 @@ const {
   archiveStrategyAction,
   copySharedStrategyAction,
   createStrategyAction,
+  reevaluateSessionAction,
   unarchiveStrategyAction,
 } = await import("./actions");
 const { MAX_STRATEGIES_PER_USER, StrategiesRepository } = await import("./strategies-repository");
@@ -510,5 +511,42 @@ describe("strategy write rate limit (#217, docs/adr/0043)", () => {
     expect(await createStrategyAction({ definition: definition() })).toMatchObject({
       status: "ok",
     });
+  });
+});
+
+describe("reevaluateSessionAction (#84, docs/adr/0047)", () => {
+  it("rejects a malformed session, reports not_found for a session never evaluated and archived for an archived strategy", async () => {
+    const email = uniqueEmail("reevaluate");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const created = await createStrategyAction({ definition: definition() });
+    if (created.status !== "ok") throw new Error("setup failed");
+
+    expect(
+      await reevaluateSessionAction({ strategyId: created.strategyId, session: "17/10/2026" }),
+    ).toEqual({ status: "error", error: "invalid" });
+    expect(
+      await reevaluateSessionAction({ strategyId: created.strategyId, session: "2026-01-02" }),
+    ).toEqual({ status: "error", error: "not_found" });
+    expect(
+      await reevaluateSessionAction({ strategyId: "does-not-exist", session: "2026-01-02" }),
+    ).toEqual({ status: "error", error: "not_found" });
+
+    await archiveStrategyAction({ strategyId: created.strategyId });
+    expect(
+      await reevaluateSessionAction({ strategyId: created.strategyId, session: "2026-01-02" }),
+    ).toEqual({ status: "error", error: "archived" });
+  });
+
+  it("is rate limited per user after 10 calls in the window", async () => {
+    const email = uniqueEmail("reevaluate-rate-limit");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await reevaluateSessionAction({ strategyId: "does-not-matter", session: "2026-01-02" });
+    }
+    expect(
+      await reevaluateSessionAction({ strategyId: "does-not-matter", session: "2026-01-02" }),
+    ).toEqual({ status: "error", error: "rate_limited" });
   });
 });

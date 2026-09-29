@@ -15,9 +15,11 @@ import {
   evaluationLabel,
   getMyEvaluationLog,
   getMySignals,
+  reevaluationAnchors,
   SignalRow,
   t,
 } from "@/modules/strategies";
+import { ReevaluateSessionButton } from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.signals}` };
 
@@ -30,6 +32,7 @@ export default async function SignalsPage() {
   }
 
   const signalIds = signals.map((signal) => signal.id);
+  const anchors = reevaluationAnchors(evaluationLog);
   const [decisionsBySignal, defaultHorizons] = await Promise.all([
     getMyDecisionsBySignalId(signalIds),
     defaultHorizonsForSignals(getDb(), signals),
@@ -90,6 +93,7 @@ export default async function SignalsPage() {
                 <th className="py-2 font-normal">{t.inbox.columns.instrument}</th>
                 <th className="py-2 font-normal">{t.inbox.columns.evaluatedAt}</th>
                 <th className="py-2 font-normal">{t.inbox.outcomes.signal}</th>
+                <th className="py-2 font-normal" />
               </tr>
             </thead>
             <tbody>
@@ -98,7 +102,20 @@ export default async function SignalsPage() {
                   <td className="py-2">{row.strategyName}</td>
                   <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
                   <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
-                  <td className="text-muted-foreground py-2">{evaluationLabel(row)}</td>
+                  <td className="text-muted-foreground py-2">
+                    {evaluationLabel(row)}
+                    {row.reevaluated && ` · ${t.inbox.evaluationLog.reevaluated}`}
+                  </td>
+                  <td className="py-2 text-right">
+                    {anchors.has(row.id) && (
+                      <ReevaluateSessionButton
+                        strategyId={row.strategyId}
+                        strategyName={row.strategyName}
+                        session={row.session}
+                        sessionLabel={formatDate(row.at)}
+                      />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

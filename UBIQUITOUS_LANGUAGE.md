@@ -177,6 +177,14 @@ send entry signals from: five (ADR-0044). Separate from the catch-up limit (21 s
 and the log reach.
 _Avoid_: signal expiry, freshness window
 
+**Re-evaluation**:
+Recomputing one strategy on one session it was already evaluated on, after its market data was
+corrected, triggered by the user from the evaluation log (ADR-0047). Append-only: a changed
+evaluation record or proposal is superseded by a new row, a signal the result no longer carries is
+retracted, and an unchanged proposal keeps its row and read state. Only an authoritative result
+changes anything; every attempt, failed or not, is recorded in the audit trail.
+_Avoid_: re-run, force, recompute, backfill
+
 **Evaluation time**:
 The moment a strategy's conditions are computed against the data available then: the close of a
 trading session for daily strategies, the close of each candle for intraday strategies.

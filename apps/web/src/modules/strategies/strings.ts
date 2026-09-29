@@ -1,6 +1,7 @@
 import type { EvaluationOutcome, EvaluationReason } from "@fetha/engine";
 
 import { isWebEvaluationReason, type WebEvaluationReason } from "./evaluation-vocabulary";
+import type { ReevaluationCounts } from "./signals-repository";
 
 // One rendering function per web-authored reason (#133, follow-up from
 // #80): `unknown_structure`, `unsatisfiable_collection`, `market_view_too_large`
@@ -87,6 +88,52 @@ const reasonTextPtBR: Record<EvaluationReason, string | null> = {
   profit_target_zero_base: "O alvo de lucro não pode disparar: a base de prêmio da operação é zero",
   stop_loss_zero_base: "O stop não pode disparar: a base de perda máxima da operação é zero",
 };
+
+// Counts stay numbers so the component can set them in tabular mono
+// (DESIGN.md: every number in `--font-mono`).
+export type MessageParts = readonly (string | number)[];
+
+function summaryParts(
+  lead: string,
+  items: readonly (readonly [number, string])[],
+  empty: string,
+): MessageParts {
+  const shown = items.filter(([count]) => count > 0);
+  if (shown.length === 0) return [empty];
+  return [
+    lead,
+    ...shown.flatMap(([count, label], index) => [...(index > 0 ? [", "] : []), count, ` ${label}`]),
+    ".",
+  ];
+}
+
+function reevaluationSummaryEn(counts: ReevaluationCounts): MessageParts {
+  return summaryParts(
+    "Session re-evaluated: ",
+    [
+      [counts.signalsRetracted, "signal(s) withdrawn"],
+      [counts.signalsReplaced, "signal(s) updated"],
+      [counts.signalsAdded, "new signal(s)"],
+    ],
+    "Session re-evaluated: only the log changed.",
+  );
+}
+
+function plural(count: number, one: string, many: string): readonly [number, string] {
+  return [count, count === 1 ? one : many];
+}
+
+function reevaluationSummaryPtBR(counts: ReevaluationCounts): MessageParts {
+  return summaryParts(
+    "Sessão reavaliada: ",
+    [
+      plural(counts.signalsRetracted, "sinal retirado", "sinais retirados"),
+      plural(counts.signalsReplaced, "sinal atualizado", "sinais atualizados"),
+      plural(counts.signalsAdded, "sinal novo", "sinais novos"),
+    ],
+    "Sessão reavaliada: só o log mudou.",
+  );
+}
 
 const en = {
   list: {
@@ -262,6 +309,20 @@ const en = {
       empty: "No evaluation recorded yet.",
       reasonText: reasonTextEn,
       webReasonText: webReasonTextEn,
+      reevaluated: "re-evaluated",
+      reevaluate: "Re-evaluate",
+      reevaluateAriaLabel: (strategyName: string, sessionLabel: string) =>
+        `Re-evaluate ${strategyName} on ${sessionLabel}`,
+      reevaluation: {
+        applied: reevaluationSummaryEn,
+        unchanged: "Nothing changed in this session.",
+        failed: "Couldn't re-evaluate this session. Nothing was changed.",
+        not_found: "There is no evaluation of this strategy on this session to redo.",
+        archived: "This strategy is archived. Unarchive it to re-evaluate.",
+        conflict: "Another re-evaluation of this session finished first. Reload the page.",
+        rate_limited: "Too many re-evaluations in a row. Wait a minute and try again.",
+        generic: "Couldn't re-evaluate right now. Try again.",
+      },
     },
     outcomes: {
       signal: "Signal",
@@ -458,6 +519,20 @@ const ptBR = {
       empty: "Nenhuma avaliação registrada ainda.",
       reasonText: reasonTextPtBR,
       webReasonText: webReasonTextPtBR,
+      reevaluated: "reavaliada",
+      reevaluate: "Reavaliar",
+      reevaluateAriaLabel: (strategyName: string, sessionLabel: string) =>
+        `Reavaliar ${strategyName} em ${sessionLabel}`,
+      reevaluation: {
+        applied: reevaluationSummaryPtBR,
+        unchanged: "Nada mudou nesta sessão.",
+        failed: "Não foi possível reavaliar esta sessão. Nada foi alterado.",
+        not_found: "Não há avaliação desta estratégia nesta sessão para refazer.",
+        archived: "Esta estratégia está arquivada. Desarquive para reavaliar.",
+        conflict: "Outra reavaliação desta sessão terminou antes. Recarregue a página.",
+        rate_limited: "Muitas reavaliações seguidas. Aguarde um minuto e tente de novo.",
+        generic: "Não foi possível reavaliar agora. Tente novamente.",
+      },
     },
     outcomes: {
       signal: "Sinal",

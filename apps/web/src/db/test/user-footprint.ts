@@ -13,7 +13,13 @@ import {
   riskProfiles,
 } from "@/modules/portfolio/schema";
 import { preferences } from "@/modules/preferences/schema";
-import { evaluations, signals, strategies, strategyVersions } from "@/modules/strategies/schema";
+import {
+  evaluations,
+  signalReevaluations,
+  signals,
+  strategies,
+  strategyVersions,
+} from "@/modules/strategies/schema";
 import { watchlistItems } from "@/modules/watchlist/schema";
 
 function only<T>(rows: T[]): T {
@@ -100,6 +106,12 @@ export async function seedUserFootprint(
   const strategyId = strategy.id;
   const strategyVersionId = version.id;
 
+  const reevaluation = only(
+    await db
+      .insert(signalReevaluations)
+      .values({ userId, strategyId, session: "2026-09-25", status: "applied" })
+      .returning({ id: signalReevaluations.id }),
+  );
   const signal = only(
     await db
       .insert(signals)
@@ -113,18 +125,34 @@ export async function seedUserFootprint(
         at,
         kind: "entry",
         indicators: [],
+        reevaluationId: reevaluation.id,
       })
       .returning({ id: signals.id }),
   );
-  await db.insert(evaluations).values({
-    userId,
-    strategyId,
-    strategyVersionId,
-    ticker: "PETR4",
-    session: "2026-09-25",
-    at,
-    outcome: "no_signal",
-  });
+  // A superseded row pointing at the re-evaluation, so account deletion is
+  // proven over the links a real re-evaluation leaves (docs/adr/0047).
+  await db.insert(evaluations).values([
+    {
+      userId,
+      strategyId,
+      strategyVersionId,
+      ticker: "PETR4",
+      session: "2026-09-25",
+      at,
+      outcome: "no_signal",
+      supersededBy: reevaluation.id,
+    },
+    {
+      userId,
+      strategyId,
+      strategyVersionId,
+      ticker: "PETR4",
+      session: "2026-09-25",
+      at,
+      outcome: "signal",
+      reevaluationId: reevaluation.id,
+    },
+  ]);
 
   const contemplated = only(
     await db

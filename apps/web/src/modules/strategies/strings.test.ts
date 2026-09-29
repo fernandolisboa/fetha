@@ -176,3 +176,35 @@ describe("row-action aria-labels", () => {
     }
   });
 });
+
+describe("evaluationLog.reevaluation.applied (#84)", () => {
+  it("keeps each count a number and names only the counts that changed", () => {
+    const parts = strategiesStrings.ptBR.inbox.evaluationLog.reevaluation.applied({
+      evaluationsSuperseded: 1,
+      signalsRetracted: 1,
+      signalsReplaced: 2,
+      signalsAdded: 0,
+    });
+    expect(parts).toEqual([
+      "Sessão reavaliada: ",
+      1,
+      " sinal retirado",
+      ", ",
+      2,
+      " sinais atualizados",
+      ".",
+    ]);
+  });
+
+  it("says only the log changed when no signal did", () => {
+    const counts = {
+      evaluationsSuperseded: 1,
+      signalsRetracted: 0,
+      signalsReplaced: 0,
+      signalsAdded: 0,
+    };
+    expect(strategiesStrings.en.inbox.evaluationLog.reevaluation.applied(counts)).toEqual([
+      "Session re-evaluated: only the log changed.",
+    ]);
+  });
+});

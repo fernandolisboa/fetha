@@ -24,11 +24,8 @@ import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-re
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
-import {
-  CATCH_UP_SESSION_LIMIT,
-  evaluateSignalsForSession,
-  INBOX_ENTRY_SESSION_HORIZON,
-} from "./evaluate-signals";
+import { CATCH_UP_SESSION_LIMIT, evaluateSignalsForSession } from "./evaluate-signals";
+import { INBOX_ENTRY_SESSION_HORIZON } from "./evaluate-version";
 import { SignalsRepository } from "./signals-repository";
 import { StrategiesRepository } from "./strategies-repository";
 
