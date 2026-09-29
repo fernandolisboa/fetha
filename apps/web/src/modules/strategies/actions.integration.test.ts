@@ -158,6 +158,28 @@ describe("createStrategyAction", () => {
     expect(await repository.listMine()).toEqual([]);
   });
 
+  it("rejects an indicator length above the bound and persists nothing (#249)", async () => {
+    const email = uniqueEmail("create-length-bound");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const result = await createStrategyAction({
+      definition: definition({
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "ema", length: 501 } },
+          comparator: ">",
+          right: { kind: "price", field: "close" },
+        },
+      }),
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    expect(await repository.listMine()).toEqual([]);
+  });
+
   it("creates a coherent stock-only definition", async () => {
     const email = uniqueEmail("create-ok");
     createdEmails.push(email);
@@ -209,6 +231,41 @@ describe("addStrategyVersionAction", () => {
 
     const repository = new StrategiesRepository(getDb(), currentUser);
     const found = await repository.findMine(created.strategyId);
+    expect(found.versions).toHaveLength(1);
+  });
+
+  it("rejects an iv_rank lookback above the bound, while a stored version above it stays readable (#249)", async () => {
+    const email = uniqueEmail("add-version-lookback-bound");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    const stored = await repository.createWithVersion(
+      definition({
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "rsi", length: 100_000 } },
+          comparator: "<",
+          right: { kind: "constant", value: decimalString("30") },
+        },
+      }),
+    );
+
+    const result = await addStrategyVersionAction({
+      strategyId: stored.id,
+      definition: definition({
+        name: "V2",
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 1261 } },
+          comparator: ">",
+          right: { kind: "constant", value: decimalString("50") },
+        },
+      }),
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+    const found = await repository.findMine(stored.id);
     expect(found.versions).toHaveLength(1);
   });
 

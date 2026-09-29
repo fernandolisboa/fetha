@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   checkStrategyCoherence,
-  strategyDefinitionSchema,
+  strategyDefinitionInputSchema,
   type StrategyDefinition,
 } from "@fetha/contracts";
 
@@ -46,11 +46,11 @@ export type StrategyActionResult =
         | "limit_reached";
     };
 
-const createInputSchema = z.strictObject({ definition: strategyDefinitionSchema });
+const createInputSchema = z.strictObject({ definition: strategyDefinitionInputSchema });
 
 const addVersionInputSchema = z.strictObject({
   strategyId: z.string().min(1).max(200),
-  definition: strategyDefinitionSchema,
+  definition: strategyDefinitionInputSchema,
 });
 
 const shareInputSchema = z.strictObject({

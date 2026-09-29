@@ -3,6 +3,8 @@
 import {
   decimalStringSchema,
   indicatorKinds,
+  MAX_INDICATOR_LENGTH,
+  MAX_IV_RANK_LOOKBACK_SESSIONS,
   priceFields,
   type IndicatorSpec,
   type Operand,
@@ -69,6 +71,7 @@ export function OperandField({
           {value.indicator.kind === "iv_rank" ? (
             <NumberField
               min={2}
+              max={MAX_IV_RANK_LOOKBACK_SESSIONS}
               ariaLabel={`${label} · ${t.editor.operand.indicatorLookback}`}
               value={value.indicator.lookbackSessions}
               onChange={(lookbackSessions) => {
@@ -78,6 +81,7 @@ export function OperandField({
           ) : (
             <NumberField
               min={1}
+              max={MAX_INDICATOR_LENGTH}
               ariaLabel={`${label} · ${t.editor.operand.indicatorLength}`}
               value={value.indicator.length}
               onChange={(length) => {

@@ -24,4 +24,10 @@ describe("isValidWholeNumber", () => {
     expect(isValidWholeNumber("1", 1)).toBe(true);
     expect(isValidWholeNumber("-1", 0)).toBe(false);
   });
+
+  it("enforces max when given", () => {
+    expect(isValidWholeNumber("500", 1, 500)).toBe(true);
+    expect(isValidWholeNumber("501", 1, 500)).toBe(false);
+    expect(isValidWholeNumber("0", 1, 500)).toBe(false);
+  });
 });

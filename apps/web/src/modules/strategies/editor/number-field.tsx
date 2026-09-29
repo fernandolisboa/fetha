@@ -12,7 +12,7 @@ import { isValidWholeNumber } from "./is-valid-whole-number";
 // turns a cleared field into `0` (`Number("") === 0`), silently rewriting
 // the user's "empty while I finish typing" into a real value. This field
 // keeps the raw string the user is typing in local state and only calls
-// `onChange` once it parses to an integer at or above `min`; a cleared or
+// `onChange` once it parses to an integer within `min` and `max`; a cleared or
 // otherwise invalid field is left uncommitted rather than coerced, marked
 // `aria-invalid`, and registered with `FieldValidityProvider` so the form
 // can refuse to submit while it stays uncommitted.
@@ -25,11 +25,13 @@ export function NumberField({
   value,
   onChange,
   min,
+  max,
   ariaLabel,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
+  max?: number;
   ariaLabel: string;
 }) {
   const id = useId();
@@ -41,7 +43,11 @@ export function NumberField({
     setRaw(String(value));
   }
 
-  const valid = isValidWholeNumber(raw, min);
+  const valid = isValidWholeNumber(raw, min, max);
+  const invalidMessage =
+    max !== undefined && isValidWholeNumber(raw, max + 1)
+      ? t.editor.fieldAboveMax(max)
+      : t.editor.fieldInvalid;
   useFieldValidityRegistration(id, valid);
 
   return (
@@ -49,18 +55,19 @@ export function NumberField({
       <Input
         type="number"
         min={min}
+        max={max}
         aria-label={ariaLabel}
         aria-invalid={!valid}
         value={raw}
         onChange={(event) => {
           const next = event.target.value;
           setRaw(next);
-          if (isValidWholeNumber(next, min)) {
+          if (isValidWholeNumber(next, min, max)) {
             onChange(Number(next.trim()));
           }
         }}
       />
-      {!valid && <p className="text-destructive text-xs">{t.editor.fieldInvalid}</p>}
+      {!valid && <p className="text-destructive text-xs">{invalidMessage}</p>}
     </div>
   );
 }

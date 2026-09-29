@@ -207,6 +207,7 @@ const en = {
     cancel: "Cancel",
     invalid: "Some fields are invalid. Review the values before saving.",
     fieldInvalid: "Invalid value",
+    fieldAboveMax: (max: number) => `At most ${new Intl.NumberFormat("en-US").format(max)}`,
     errors: {
       invalid: "Some fields are invalid. Review the values before saving.",
       not_found: "This strategy no longer exists.",
@@ -396,6 +397,7 @@ const ptBR = {
     cancel: "Cancelar",
     invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
     fieldInvalid: "Valor inválido",
+    fieldAboveMax: (max: number) => `No máximo ${new Intl.NumberFormat("pt-BR").format(max)}`,
     errors: {
       invalid: "Alguns campos estão inválidos. Revise os valores antes de salvar.",
       not_found: "Essa estratégia não existe mais.",

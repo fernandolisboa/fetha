@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { adjustmentRuleSchema } from "./adjustment-rule";
-import { conditionSchema } from "./condition";
+import { conditionIndicators, conditionSchema } from "./condition";
 import { exitRuleSchema } from "./exit-rule";
 import { expirySelectionSchema } from "./expiry-selection";
+import { isWithinIndicatorBounds, type IndicatorSpec } from "./indicator-spec";
 import { sizingRuleSchema } from "./sizing-rule";
 import { strikeSelectionSchema } from "./strike-selection";
 import { timeframeSchema } from "./timeframe";
@@ -24,3 +25,20 @@ export const strategyDefinitionSchema = z
     path: ["expiry"],
   });
 export type StrategyDefinition = z.infer<typeof strategyDefinitionSchema>;
+
+function definitionIndicators(definition: StrategyDefinition): IndicatorSpec[] {
+  return [
+    ...conditionIndicators(definition.entry),
+    ...definition.exit.flatMap((rule) =>
+      rule.kind === "condition" ? conditionIndicators(rule.condition) : [],
+    ),
+  ];
+}
+
+// docs/adr/0049: the write edge (actions, editor) parses with this schema;
+// stored versions keep parsing with `strategyDefinitionSchema`, so a bound
+// added later never makes an existing strategy unreadable.
+export const strategyDefinitionInputSchema = strategyDefinitionSchema.refine(
+  (definition) => definitionIndicators(definition).every(isWithinIndicatorBounds),
+  { message: "indicator parameters exceed their bounds", path: ["entry"] },
+);

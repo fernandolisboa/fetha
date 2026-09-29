@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { strategyDefinitionSchema } from "./strategy-definition";
+import { strategyDefinitionInputSchema, strategyDefinitionSchema } from "./strategy-definition";
 
 const strategy = {
   name: "Trava de alta on pullback",
@@ -120,5 +120,88 @@ describe("strategyDefinitionSchema", () => {
     expect(strategyDefinitionSchema.safeParse({ ...strategy, timeframe: "5m" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("strategyDefinitionInputSchema", () => {
+  function withEntryIndicator(indicator: unknown) {
+    return {
+      ...stockOnly,
+      entry: {
+        kind: "not",
+        condition: {
+          kind: "compare",
+          left: { kind: "price", field: "close" },
+          comparator: ">",
+          right: { kind: "indicator", indicator },
+        },
+      },
+    };
+  }
+
+  function withExitIndicator(indicator: unknown) {
+    return {
+      ...stockOnly,
+      exit: [
+        {
+          kind: "condition",
+          condition: {
+            kind: "or",
+            conditions: [
+              {
+                kind: "compare",
+                left: { kind: "indicator", indicator },
+                comparator: "<",
+                right: { kind: "constant", value: "30" },
+              },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  it("accepts indicator parameters at their bounds", () => {
+    expect(
+      strategyDefinitionInputSchema.safeParse(withEntryIndicator({ kind: "ema", length: 500 }))
+        .success,
+    ).toBe(true);
+    expect(
+      strategyDefinitionInputSchema.safeParse(
+        withExitIndicator({ kind: "iv_rank", lookbackSessions: 1260 }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it.each(["sma", "ema", "rsi", "atr"] as const)(
+    "rejects a %s length above 500 in the entry or an exit condition",
+    (kind) => {
+      expect(
+        strategyDefinitionInputSchema.safeParse(withEntryIndicator({ kind, length: 501 })).success,
+      ).toBe(false);
+      expect(
+        strategyDefinitionInputSchema.safeParse(withExitIndicator({ kind, length: 501 })).success,
+      ).toBe(false);
+    },
+  );
+
+  it("rejects an iv_rank lookback above 1260 sessions", () => {
+    expect(
+      strategyDefinitionInputSchema.safeParse(
+        withEntryIndicator({ kind: "iv_rank", lookbackSessions: 1261 }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("keeps the stored-definition schema readable above the bounds", () => {
+    const stored = withExitIndicator({ kind: "rsi", length: 100_000 });
+    expect(strategyDefinitionSchema.safeParse(stored).success).toBe(true);
+    expect(strategyDefinitionInputSchema.safeParse(stored).success).toBe(false);
+  });
+
+  it("still enforces the stored-definition rules", () => {
+    expect(
+      strategyDefinitionInputSchema.safeParse({ ...strategy, expiry: undefined }).success,
+    ).toBe(false);
   });
 });
