@@ -642,8 +642,8 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     // Read on demand: a recursive reading costs its whole trailing window, and an instant only
     // reads the specs of the condition it actually evaluates (entry, or an open operation's rules).
     const values = memoized((key) => {
-      const series = seriesByKey.get(key);
-      return series && readingAt(series.indicator, series.values, candles, position);
+      const series = assertDefined(seriesByKey.get(key), "evaluateStrategy: unknown indicator");
+      return readingAt(series.indicator, series.values, candles, position);
     });
     return {
       ok: true,
@@ -753,7 +753,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         const rawIndicatorValues = readings.value.values;
         const decimalIndicatorValues = memoized((key) => {
           const value = rawIndicatorValues.get(key);
-          return value === undefined || value === null ? value : parseDecimal(value);
+          return value ? parseDecimal(value) : null;
         });
         const ctx: ConditionContext = {
           candle: currentAdjusted,

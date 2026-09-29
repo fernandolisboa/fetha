@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, ImpliedVolatilityIndexPoint, IndicatorsInput } from "../api";
-import { computeIndicators } from "./indicators-computation";
+import Decimal from "decimal.js";
+import { computeIndicators, lastRecursiveValue } from "./indicators-computation";
 import { decimalString } from "../test/support";
 
 const candle = (session: string, close: string): Candle => ({
@@ -282,5 +283,41 @@ describe("computeIndicators", () => {
     if (!result.ok) return;
     expect(result.value.provenance.dataVersion).toBeNull();
     expect(result.value.provenance.datasetNotes).toEqual([]);
+  });
+});
+
+describe("lastRecursiveValue", () => {
+  const bars = ["10", "11", "10.5", "12", "11.5", "13"].map((close) => ({
+    high: new Decimal(close).add(1),
+    low: new Decimal(close).sub(1),
+    close: new Decimal(close),
+  }));
+
+  it("reads the same value computeIndicators ends on for the same candles", () => {
+    const view = {
+      ...emptyView,
+      candles: bars.map((bar, i) => ({
+        ...candle(`2024-01-0${String(i + 1)}`, bar.close.toFixed(2)),
+        high: decimalString(bar.high.toFixed(2)),
+        low: decimalString(bar.low.toFixed(2)),
+      })),
+    };
+    for (const kind of ["ema", "rsi", "atr"] as const) {
+      const series = computeIndicators({
+        view,
+        ticker: "PETR4",
+        timeframe: "D1",
+        indicators: [{ kind, length: 3 }],
+        at: "2024-01-06T21:00:00.000Z",
+      });
+      if (!series.ok) throw new Error("unexpected engine error");
+      expect(lastRecursiveValue(kind, 3, bars)).toBe(series.value.series[0]?.values.at(-1));
+    }
+  });
+
+  it("is null when the window is too short to seed the indicator", () => {
+    expect(lastRecursiveValue("ema", 3, bars.slice(0, 2))).toBeNull();
+    expect(lastRecursiveValue("rsi", 3, bars.slice(0, 3))).toBeNull();
+    expect(lastRecursiveValue("atr", 3, bars.slice(0, 3))).toBeNull();
   });
 });
