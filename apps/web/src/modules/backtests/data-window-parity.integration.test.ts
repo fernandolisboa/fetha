@@ -259,7 +259,7 @@ describe("run-chunk.ts and evaluate-signals.ts resolve warmup identically (#18 r
     const testUser = await insertBareUser(email);
 
     // A separate, longer session list from the SMA case above: EMA(10)'s
-    // warmup is `10 x RECURSIVE_WARMUP_MULTIPLIER` (data-window.ts) = 30
+    // warmup is `warmUpCandleCount` (indicator-warm-up.ts), 10 x 3 = 30
     // sessions, and anchoring where fewer than 31 sessions precede it makes
     // BOTH callers clamp to `earliestIndex = 0` regardless of which anchor
     // boundary (session-open vs. preceding-session-close) each resolves —
