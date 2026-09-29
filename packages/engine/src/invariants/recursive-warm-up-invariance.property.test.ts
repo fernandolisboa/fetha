@@ -216,8 +216,8 @@ describe("Recursive indicator warm-up invariance (#239)", () => {
             open: `${candle.session}T13:00:00.000Z`,
             close: candle.asOf,
           }));
-          // The last session keeps its candle: a halt longer than the window leaves the one-night
-          // view without the ticker at all, which ADR-0048 already treats as its own case.
+          // The last session keeps its candle: a ticker halted on `at`'s own session is ADR-0048's
+          // exception (a window ending at `at`), pinned by its own unit test (#250).
           const candles = series.filter(
             (_, i) => i === 0 || i === series.length - 1 || !missing[i],
           );

@@ -2890,7 +2890,40 @@ describe("evaluateStrategy — SMA over a session without a candle (#250)", () =
       .map((close, i) => dailyCandle("PETR4", i, close))
       .filter((_, i) => i !== 30);
     const oneNight = outcomeAtSession(withGap, undefined);
+    expect(oneNight.evaluations).toHaveLength(1);
     expect(oneNight.evaluations[0]?.reason).not.toBe("entry_condition_warmup");
     expect(outcomeAtSession(withGap, threeBefore.close)).toEqual(oneNight);
+  });
+
+  // ADR-0048's exception, strict for the SMA: a ticker with no candle in `at`'s own session, read
+  // without `since`, reads its latest candle over the window ending at `at`, one session later
+  // than that candle's own. A backtest bar holding the whole history agrees with the one-night
+  // view at `at`, and the bar at the candle's own session still reads it.
+  it("reads a halted ticker's latest candle over the window ending at at, in a backtest bar as in a one-night run", () => {
+    const halted = closes
+      .map((close, i) => dailyCandle("PETR4", i, close))
+      .filter((_, i) => i !== 50);
+    const evaluate = (at: string, view: MarketView) => {
+      const result = evaluateStrategy({
+        view,
+        strategy,
+        instruments: ["PETR4"],
+        at,
+        riskProfile,
+      });
+      if (!result.ok) throw new Error("unexpected engine error");
+      return result.value.evaluations.map((e) => e.reason);
+    };
+    const fullHistory: MarketView = { ...emptyView, calendar, candles: halted };
+    const window = dataWindow({ strategy, instruments: ["PETR4"], calendar, at: session.close });
+    const oneNightView: MarketView = {
+      ...fullHistory,
+      candles: halted.filter((c) => c.asOf > window.from && c.asOf <= window.to),
+    };
+
+    expect(evaluate(session.close, fullHistory)).toEqual(["entry_condition_warmup"]);
+    expect(evaluate(session.close, oneNightView)).toEqual(["entry_condition_warmup"]);
+    const dayBefore = calendar[49] as TradingSession;
+    expect(evaluate(dayBefore.close, fullHistory)).not.toEqual(["entry_condition_warmup"]);
   });
 });

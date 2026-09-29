@@ -46,8 +46,17 @@ last `length` candles present, as ADR-0048's fallback does.
 ## Consequences
 
 - A session's SMA reading is a function of the calendar, the window's end and the ticker's
-  candles in that window alone, like the recursive readings: every view `dataWindow` builds reads
-  it identically.
+  candles in that window alone, like the recursive readings: every view `dataWindow` builds for
+  the same window end reads it identically.
+- ADR-0048's one exception carries over, and is sharper here: a ticker with no candle in `at`'s
+  own session, read without `since` (a one-night run, every backtest bar), reads its latest candle
+  over the window ending at `at`, one session later than that candle's own. Where ADR-0048's
+  recursive reading moves slightly, the SMA can turn `null`: the latest candle's SMA reads at its
+  own session (the nightly run or backtest bar of that day, or a catch-up covering it) and is
+  unread when re-evaluated the next day. The re-evaluation proposes nothing new either way, and a
+  backtest bar agrees with the one-night run of the same `at`, so no run shape gains or loses an
+  entry the other has for the same day. Before this change a one-night run already read `null`
+  there (its view lacks the oldest candle); only a backtest bar read a number.
 - A ticker with a session missing stays SMA-silent for `length` sessions after it, in backtests
   and catch-ups as in the nightly run. Backtests over illiquid tickers produce fewer SMA entries
   than before; the backtest golden with one gapped ticker lost that ticker's SMA signals. Liquid
