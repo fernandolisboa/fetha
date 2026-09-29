@@ -62,6 +62,60 @@ test("under 768px the rail becomes a bottom tab bar with the six destinations", 
   await expect(navigation).toHaveAttribute("data-tour", "rail");
 });
 
+// Chromium applies env(safe-area-inset-*) only through this DevTools
+// override; a real notched phone also needs the viewport-fit=cover asserted
+// below, or iOS letterboxes the page and reports 0 insets (#246).
+test("an installed PWA on a notched phone keeps the shell clear of the notch and home indicator", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+    "content",
+    /viewport-fit=cover/,
+  );
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", {
+    insets: { top: 47, bottom: 34, left: 0, right: 0 },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const header = page.getByRole("banner");
+  const headerBox = await header.boundingBox();
+  expect(headerBox?.y).toBe(0);
+  const wordmarkBox = await header.getByText("Fetha", { exact: true }).boundingBox();
+  expect(wordmarkBox?.y ?? 0).toBeGreaterThanOrEqual(47);
+
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  const barBox = await navigation.boundingBox();
+  expect((barBox?.y ?? 0) + (barBox?.height ?? 0)).toBeCloseTo(844, 0);
+  const watchlistBox = await navigation.getByRole("link", { name: "Watchlist" }).boundingBox();
+  expect((watchlistBox?.y ?? 0) + (watchlistBox?.height ?? 0)).toBeLessThanOrEqual(844 - 34);
+  expect(watchlistBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", {
+    insets: { top: 0, bottom: 21, left: 47, right: 47 },
+  });
+  for (const width of [667, 844]) {
+    await page.setViewportSize({ width, height: 375 });
+    const landscapeHeaderBox = await header.boundingBox();
+    expect(landscapeHeaderBox?.x).toBe(0);
+    expect(landscapeHeaderBox?.width).toBe(width);
+    const wordmark = await header.getByText("Fetha", { exact: true }).boundingBox();
+    expect(wordmark?.x ?? 0).toBeGreaterThanOrEqual(47);
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+
+    const links = navigation.getByRole("link");
+    const firstBox = await links.first().boundingBox();
+    const lastBox = await links.last().boundingBox();
+    expect(firstBox?.x ?? 0).toBeGreaterThanOrEqual(47);
+    expect((lastBox?.x ?? 0) + (lastBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+  }
+});
+
 test("header fits phone, tablet and desktop widths without overflowing", async ({
   page,
   baseURL,
