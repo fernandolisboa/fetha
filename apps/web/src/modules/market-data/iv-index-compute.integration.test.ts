@@ -1,13 +1,25 @@
 import { inArray } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import { candles, macroPoints, optionDailyPrices, optionSeries, tradingSessions } from "./schema";
 
 import { computeIvIndexForSession } from "./iv-index-compute";
+import { buildOperationMarketView } from "./market-view";
 import { DAILY_TIMEFRAME } from "./repositories/candle-repository";
 import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
+
+// Wraps the real implementation by default (mirrors
+// strategies/evaluate-signals.integration.test.ts's own pattern): every
+// test keeps using genuine `buildOperationMarketView` behaviour except the
+// one below that overrides a single call to prove an unexpected error
+// propagates instead of being swallowed as "0 rows, succeeded".
+vi.mock("./market-view", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./market-view")>();
+  return { ...actual, buildOperationMarketView: vi.fn(actual.buildOperationMarketView) };
+});
+const buildOperationMarketViewMock = vi.mocked(buildOperationMarketView);
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "21:00:00.000Z";
@@ -284,4 +296,36 @@ describe("computeIvIndexForSession", () => {
     const points = await ivIndexPointsInRange(db, [bracketed, unbracketed], session0, session0);
     expect(points.map((point) => point.underlying)).toEqual([bracketed]);
   });
+
+  it("lets an unexpected error propagate instead of silently succeeding with 0 rows", async () => {
+    const db = getDb();
+    const sessions = dailySessions(3);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[0] ?? "";
+    const expiry = sessions[2] ?? "";
+
+    const underlying = uniqueTicker("ERR");
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "50.000000");
+    const optionTicker = `${underlying}C1`;
+    cleanupOptionTickers.push(optionTicker);
+    await seedCallSeries(underlying, optionTicker, session0, expiry, "50.00000000", "1.000000");
+
+    buildOperationMarketViewMock.mockRejectedValueOnce(new Error("boom"));
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    await expect(computeIvIndexForSession(db, session0, sessionClose)).rejects.toThrow("boom");
+
+    const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
+    expect(points).toEqual([]);
+  });
+
+  // `buildOperationMarketView` (market-view.ts) takes no cap options and
+  // never throws MarketViewTooLargeError/MarketViewUnavailableError today —
+  // only `loadMarketView`'s own chain and price-row caps do. There is
+  // nothing to seed here that would exercise that skip branch through real
+  // code; it exists for the day buildOperationMarketView grows one, not for
+  // a reachable case today.
 });

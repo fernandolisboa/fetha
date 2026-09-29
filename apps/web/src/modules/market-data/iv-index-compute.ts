@@ -3,7 +3,7 @@ import { engine } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 
-import { buildOperationMarketView } from "./market-view";
+import { buildOperationMarketView, MarketViewUnavailableError } from "./market-view";
 import {
   underlyingsToComputeForSession,
   upsertIvIndexPoints,
@@ -11,11 +11,16 @@ import {
 
 // One point per underlying for `session`, stamped with `sessionClose`
 // (the same instant COTAHIST candles of that session carry, docs/adr/0051):
-// a null result (no bracket, ADR-0013's `iv_index_not_bracketed`) or an
-// engine error for one underlying is skipped rather than failing the whole
+// a null result (no bracket, ADR-0013's `iv_index_not_bracketed`) or a
+// `MarketViewUnavailableError` (its `MarketViewTooLargeError` subclass
+// included) for one underlying is skipped rather than failing the whole
 // session — the underlying stays without a point for this session, retried
 // automatically by the next backfill pass, never blocking every other
-// underlying's point from being written (docs/adr/0054).
+// underlying's point from being written (docs/adr/0054). Any other error
+// (a DB failure, a bug) is left to propagate: `runSource` marks the whole
+// session failed and retries it, rather than this step silently reporting
+// "0 rows, succeeded" for a systematic failure that would otherwise never
+// be retried.
 export async function computeIvIndexForSession(
   db: Database,
   session: string,
@@ -27,22 +32,26 @@ export async function computeIvIndexForSession(
   const rows: Parameters<typeof upsertIvIndexPoints>[1] = [];
   for (const underlying of underlyings) {
     const ticker = tickerSchema.parse(underlying);
+    let view;
     try {
-      const view = await buildOperationMarketView(db, ticker, at);
-      const result = await engine.impliedVolatilityIndex({ view, underlying: ticker, at });
-      if (!result.ok || result.value.impliedVolatility === null) {
+      view = await buildOperationMarketView(db, ticker, at);
+    } catch (error) {
+      if (error instanceof MarketViewUnavailableError) {
         continue;
       }
-      rows.push({
-        underlying: ticker,
-        session,
-        asOf: sessionClose,
-        impliedVolatility: result.value.impliedVolatility,
-        method: result.value.method,
-      });
-    } catch {
+      throw error;
+    }
+    const result = await engine.impliedVolatilityIndex({ view, underlying: ticker, at });
+    if (!result.ok || result.value.impliedVolatility === null) {
       continue;
     }
+    rows.push({
+      underlying: ticker,
+      session,
+      asOf: sessionClose,
+      impliedVolatility: result.value.impliedVolatility,
+      method: result.value.method,
+    });
   }
 
   return upsertIvIndexPoints(db, rows);
