@@ -7,11 +7,11 @@ import type {
   Result,
   TruncationReport,
 } from "../api";
-import type { IndicatorSpec } from "@fetha/contracts";
+import type { DecimalString, IndicatorSpec } from "@fetha/contracts";
 import { alignByInstant } from "./align-by-instant";
 import { buildCandleSeries } from "./candle-series";
 import { PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
-import { atr } from "./indicators/atr";
+import { atr, type AtrBar } from "./indicators/atr";
 import { ema } from "./indicators/ema";
 import { ivRank } from "./indicators/iv-rank";
 import { rsi } from "./indicators/rsi";
@@ -102,6 +102,41 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
       },
     },
   };
+}
+
+// The reading of a recursive indicator at the last bar of `bars`, computed over those bars only:
+// the caller passes the fixed trailing window, so the seed never depends on how much history
+// precedes it (#239).
+export function lastRecursiveValue(
+  kind: "ema" | "rsi" | "atr",
+  length: number,
+  bars: readonly AtrBar[],
+): DecimalString | null {
+  switch (kind) {
+    case "ema":
+      return lastAsString(
+        ema(
+          bars.map((b) => b.close),
+          length,
+        ),
+        PRICE_SCALE,
+      );
+    case "rsi":
+      return lastAsString(
+        rsi(
+          bars.map((b) => b.close),
+          length,
+        ),
+        RATIO_SCALE,
+      );
+    case "atr":
+      return lastAsString(atr(bars, length), PRICE_SCALE);
+  }
+}
+
+function lastAsString(values: readonly (Decimal | null)[], scale: number): DecimalString | null {
+  const last = values.at(-1);
+  return last ? toDecimalString(last, scale) : null;
 }
 
 function toDecimalStrings(values: (Decimal | null)[], scale: number) {

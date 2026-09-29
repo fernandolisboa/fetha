@@ -2410,3 +2410,13 @@ being a trading session in the calendar with its old `as_of`. ADR-0017's #183 ad
 the calendar step deletes a date its year no longer lists and re-stamps every surviving session, so
 this addendum's `calendarVersion` comparison fails the run exactly as it does for a revised
 session.
+
+## Addendum: recursive indicators read over a fixed trailing window; `ENGINE_VERSION` bumped to `0.4.0` (2026-09-29, #239, see ADR-0048)
+
+"Condition truncation per evaluation instant" above is amended for `ema`, `rsi` and `atr`: each
+evaluation instant `c` reads them over the `3 * length` adjusted candles ending at `c` (the same
+count `dataWindow` requests, now in `internal/indicator-warm-up.ts`), not over every candle the view
+holds before `c`, so the reading no longer depends on the call's `since` or on a backtest's start.
+`sma`, `iv_rank`, the adjusted candle itself and `engine.indicators()` are unchanged.
+`ENGINE_VERSION` moves from `"0.3.0"` to `"0.4.0"`: results change, and a checkpoint from `0.3.0`
+must not resume under the new rule. ADR-0048 records the reasoning and the cost.

@@ -101,6 +101,10 @@ exposing module's interface, never through its tables.
   point (that seam was considered and rejected, #18/#19); guaranteed by construction of
   `dataWindow()` plus `apps/web/src/modules/backtests/data-window-parity.integration.test.ts`,
   which pins the two session-resolving callers against each other.
+- A recursive indicator (`ema`, `rsi`, `atr`) is read at each evaluated candle over the
+  `3 * length` candles ending there, never over whatever older history a view happens to hold, so a
+  one-night run, a catch-up, a re-evaluation and a backtest bar agree on a session's reading
+  (ADR-0048).
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
   the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for

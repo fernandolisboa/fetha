@@ -10,7 +10,7 @@ export type Verdict = "true" | "false" | "unknown";
 
 export type ConditionContext = {
   candle: Candle;
-  indicatorValues: ReadonlyMap<string, Decimal | null>;
+  indicatorValues: Pick<ReadonlyMap<string, Decimal | null>, "get">;
 };
 
 function resolveOperand(operand: Operand, ctx: ConditionContext): Decimal | null {

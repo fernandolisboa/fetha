@@ -1,15 +1,19 @@
 import Decimal from "decimal.js";
 import { assertPresent } from "../invariant";
-import { sma } from "./sma";
 
 export function ema(closes: readonly Decimal[], length: number): (Decimal | null)[] {
-  const seeded = sma(closes, length);
+  const result: (Decimal | null)[] = closes.map(() => null);
+  if (closes.length < length) return result;
   const k = new Decimal(2).div(length + 1);
-  const result: (Decimal | null)[] = [...seeded];
+  let previous = closes
+    .slice(0, length)
+    .reduce((acc, v) => acc.add(v), new Decimal(0))
+    .div(length);
+  result[length - 1] = previous;
   for (let i = length; i < closes.length; i += 1) {
-    const previous = assertPresent(result[i - 1], "ema: missing seed at i - 1");
     const close = assertPresent(closes[i], "ema: missing close at i");
-    result[i] = close.sub(previous).mul(k).add(previous);
+    previous = close.sub(previous).mul(k).add(previous);
+    result[i] = previous;
   }
   return result;
 }

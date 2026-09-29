@@ -1,6 +1,7 @@
-import type { IndicatorSpec, Instant, Timeframe } from "@fetha/contracts";
+import type { Instant, Timeframe } from "@fetha/contracts";
 import type { DataWindow, DataWindowInput, MarketViewCollection, TradingSession } from "../api";
 import { collectIndicatorSpecs } from "./collect-indicator-specs";
+import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { codeUnitCompare } from "./order";
@@ -11,8 +12,6 @@ const timeframeMinutes: Record<Timeframe, number | null> = {
   "60m": 60,
   D1: null,
 };
-
-const RECURSIVE_WARMUP_MULTIPLIER = 3;
 
 export function dataWindow(input: DataWindowInput): DataWindow {
   const { strategy, instruments, calendar, at, since } = input;
@@ -29,7 +28,7 @@ export function dataWindow(input: DataWindowInput): DataWindow {
     .filter((session, i, sorted) => sorted[i - 1]?.date !== session.date);
 
   const indicators = collectIndicatorSpecs(strategy.definition);
-  const candlesNeeded = Math.max(1, ...indicators.map(candleCountFor));
+  const candlesNeeded = Math.max(1, ...indicators.map(warmUpCandleCount));
   const ivSessionsNeeded = Math.max(
     0,
     ...indicators.filter((i) => i.kind === "iv_rank").map((i) => i.lookbackSessions),
@@ -148,17 +147,4 @@ function computeFrom(
         "dataWindow: missing session preceding the earliest needed session",
       ).close
     : boundarySession.open;
-}
-
-function candleCountFor(indicator: IndicatorSpec): number {
-  switch (indicator.kind) {
-    case "sma":
-      return indicator.length;
-    case "ema":
-    case "rsi":
-    case "atr":
-      return indicator.length * RECURSIVE_WARMUP_MULTIPLIER;
-    case "iv_rank":
-      return 1;
-  }
 }
