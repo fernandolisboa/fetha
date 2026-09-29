@@ -220,9 +220,13 @@ describe("PortfolioRepository isolation", () => {
     const [a, b] = await Promise.all([insertUser("exp-a"), insertUser("exp-b")]);
     const repositoryA = new PortfolioRepository(db, a);
     const repositoryB = new PortfolioRepository(db, b);
-    await repositoryA.insertFills([stockFill(), stockFill({ session: closedAt })]);
-    const [aOpen, aClosed] = await repositoryA.listFills();
-    if (!aOpen || !aClosed) throw new Error("fixture setup failed");
+    await repositoryA.insertFills([
+      stockFill(),
+      stockFill({ session: closedAt }),
+      stockFill({ ticker: tickerSchema.parse("VALE3") }),
+    ]);
+    const [aOpen, aClosed, aStock] = await repositoryA.listFills();
+    if (!aOpen || !aClosed || !aStock) throw new Error("fixture setup failed");
     const expiry = sessionDateSchema.parse("2026-10-16");
     const open = await repositoryA.group(null, [aOpen.id], (planned) => ({
       ok: true,
@@ -232,11 +236,15 @@ describe("PortfolioRepository isolation", () => {
       ok: true,
       state: { ...openState(planned), expiry, status: "closed", closedAt },
     }));
-    if (!open.ok || !closed.ok) throw new Error("fixture setup failed");
-    const ids = [open.operationId, closed.operationId];
+    const stockOnly = await repositoryA.group(null, [aStock.id], openPlan);
+    if (!open.ok || !closed.ok || !stockOnly.ok) throw new Error("fixture setup failed");
+    const ids = [open.operationId, closed.operationId, stockOnly.operationId];
 
     expect(await repositoryA.openOperationExpiries(ids)).toEqual(
-      new Map([[open.operationId, expiry]]),
+      new Map([
+        [open.operationId, expiry],
+        [stockOnly.operationId, null],
+      ]),
     );
     expect(await repositoryB.openOperationExpiries(ids)).toEqual(new Map());
     expect(await repositoryA.openOperationExpiries([])).toEqual(new Map());

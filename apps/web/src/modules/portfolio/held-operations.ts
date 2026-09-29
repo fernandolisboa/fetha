@@ -71,19 +71,16 @@ export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperatio
   };
 });
 
-// The expiry of each of the user's open operations among `ids`, for the
-// default horizon of the exit signals that name them (#257); an id that is
-// not the user's, or no longer open, is absent.
-export const getMyOpenOperationExpiries = cache(
-  async (ids: readonly string[]): Promise<Map<string, SessionDate | null>> => {
-    if (ids.length === 0) {
-      return new Map();
-    }
-    const user = await requireUser();
-    await recordAccess("portfolio_read");
-    return new PortfolioRepository(getDb(), user).openOperationExpiries(ids);
-  },
-);
+export async function getMyOpenOperationExpiries(
+  ids: readonly string[],
+): Promise<Map<string, SessionDate | null>> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+  const user = await requireUser();
+  await recordAccess("portfolio_read");
+  return new PortfolioRepository(getDb(), user).openOperationExpiries(ids);
+}
 
 export interface HeldOperationScoringRequest {
   operationId: string;

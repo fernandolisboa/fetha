@@ -61,9 +61,8 @@ function notInThePast(horizon: SessionDate | null, today: SessionDate): SessionD
 
 // Batched over every row on the page (one `expiryByTicker` call, not one per
 // row): the /sinais page's own default horizons, keyed by signal id. An exit
-// signal defaults to the expiry of the open operation it names, the same
-// default a held operation gets on /carteira (#257); the portfolio is read
-// only when the page has an exit signal.
+// signal takes the expiry of the operation it names, the default a held
+// operation gets on /carteira (#257).
 export async function defaultHorizonsForSignals(
   db: Database,
   signals: readonly SignalListItem[],

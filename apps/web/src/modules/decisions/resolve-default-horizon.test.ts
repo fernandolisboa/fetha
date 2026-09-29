@@ -93,6 +93,23 @@ function exitSignal(id: string, operationId: string | null): SignalListItem {
   };
 }
 
+function entrySignal(id: string, optionTicker: string): SignalListItem {
+  return {
+    ...exitSignal(id, null),
+    kind: "entry",
+    proposal: {
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: tickerSchema.parse(optionTicker),
+          quantity: quantitySchema.parse(100),
+        },
+      ],
+    } as unknown as SignalListItem["proposal"],
+  };
+}
+
 describe("defaultHorizonsForSignals — exit signals (#257)", () => {
   it("defaults an exit signal to the expiry of the open operation it names", async () => {
     mockedExpiryByTicker.mockResolvedValueOnce(new Map());
@@ -137,10 +154,25 @@ describe("defaultHorizonsForSignals — exit signals (#257)", () => {
 
   it("does not read the portfolio when no exit signal names an operation", async () => {
     mockedOpenOperationExpiries.mockClear();
-    mockedExpiryByTicker.mockResolvedValueOnce(new Map());
+    mockedExpiryByTicker.mockResolvedValue(new Map());
 
     await defaultHorizonsForSignals({} as never, [exitSignal("none", null)], FIXED_NOW);
+    await defaultHorizonsForSignals({} as never, [entrySignal("entry", "PETRA100")], FIXED_NOW);
 
     expect(mockedOpenOperationExpiries).not.toHaveBeenCalled();
+  });
+
+  it("keeps an entry signal's leg-derived default beside an exit signal's", async () => {
+    mockedExpiryByTicker.mockResolvedValueOnce(new Map([["PETRA100", "2031-07-18"]]));
+    mockedOpenOperationExpiries.mockResolvedValueOnce(new Map([["op-open", "2031-06-20"]]));
+
+    const result = await defaultHorizonsForSignals(
+      {} as never,
+      [entrySignal("entry", "PETRA100"), exitSignal("exit", "op-open")],
+      FIXED_NOW,
+    );
+
+    expect(result.get("entry")).toBe("2031-07-18");
+    expect(result.get("exit")).toBe("2031-06-20");
   });
 });
