@@ -548,6 +548,31 @@ describe("ingest", () => {
     expect(ivIndexRuns).toEqual([]);
   });
 
+  it("runs no iv_index session and writes no success marker once its own time budget has already elapsed", async () => {
+    const db = getDb();
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetch(TEST_SESSION),
+      ivIndexBudgetMs: 0,
+    });
+
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeUndefined();
+    const instruments = result.sources.find((s) => s.source === "instruments");
+    expect(instruments?.error).toBeUndefined();
+
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex).toEqual({ source: "iv_index", skipped: true, rowCount: 0 });
+
+    const ivIndexRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(ivIndexRuns).toEqual([]);
+  });
+
   it("two concurrent invocations for the same session never both record a failed run", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);

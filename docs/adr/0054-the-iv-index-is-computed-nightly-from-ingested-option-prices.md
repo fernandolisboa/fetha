@@ -42,22 +42,38 @@ in `ingest()`. For each session it drains:
    session's candles with (`trading.close`), never the time the job happened to run — the rule
    ADR-0051 requires so a one-night view and a backtest's view agree on which session a point
    belongs to.
-4. **A null result or an engine error for one underlying is skipped**, not a session failure: a
-   chain that fails to bracket 30 calendar days (`iv_index_not_bracketed`) is a legitimate outcome
-   for a thinly-listed underlying, and one underlying's failure must never cost every other
-   underlying's point for the night. The skipped underlying stays without a point for that
-   session, exactly the gap ADR-0051 already tolerates and the backfill below closes over time.
+4. **A null result, or a `MarketViewUnavailableError`/`MarketViewTooLargeError` for one
+   underlying, is skipped**, not a session failure: a chain that fails to bracket 30 calendar days
+   (`iv_index_not_bracketed`, an engine `Result` with `ok: false`) is a legitimate outcome for a
+   thinly-listed underlying, and `buildOperationMarketView`'s own "unavailable" errors are the
+   same kind of legitimate gap `loadMarketView`'s callers already treat as non-fatal elsewhere in
+   this module. One underlying's failure must never cost every other underlying's point for the
+   night. The skipped underlying stays without a point for that session, exactly the gap ADR-0051
+   already tolerates and the backfill below closes over time. Any other error — a database
+   failure, a bug — is left to propagate out of `computeIvIndexForSession`: `runSource` marks the
+   whole session `failed` and it is retried on the next run, rather than this step silently
+   reporting "0 rows, succeeded" for a systematic failure that a `succeeded` marker would then
+   hide from every later run.
 5. **One point per `(underlying, session)`**, upserted (`implied_volatility_index`, ADR-0013's
    shape: `underlying`, `session`, `asOf`, `impliedVolatility`, `method`).
 
-**Backfill, budgeted.** `iv_index` did not exist before this ticket, so every session cotahist has
-ever succeeded on is a gap the moment this source ships. Alongside the normal recent-window gaps
-(`gaps(db, "iv_index", now)`), `ingest()` also drains the sessions where `cotahist` has succeeded
-but `iv_index` has never succeeded, newest first — but only while under half of the run's own
-`maxDurationMs` has elapsed since it started. The recent window always runs in full; the backfill
-batch yields the rest of its time budget back once the deadline passes, so a single nightly
-`maxDuration` is never put at risk, and the full history fills in over successive nightly runs with
-no manual script.
+**Backfill, budgeted alongside the recent window, not separately.** `iv_index` did not exist
+before this ticket, so every session `cotahist` has ever succeeded on is a gap the moment this
+source ships. `ingest()` builds one priority-ordered session list: the normal recent-window gaps
+(`gaps(db, "iv_index", now)`, newest first) ahead of the backfill batch — sessions where `cotahist`
+has succeeded but `iv_index` never has, also newest first — deduplicated. `runNightlyJob` shares one
+300s route across `ingest()`, signal evaluation and scoring (`run-nightly-job.ts`); evaluation and
+scoring are already deadline-aware, but `ingest()` itself is not, and a first production night can
+open with all ten recent-window sessions as gaps, each computing every optionable underlying. Left
+unbudgeted, that recent window alone could exhaust the route's own budget and starve evaluation and
+scoring. `ingest()` therefore stops _starting_ a new `iv_index` session, recent or backfill alike,
+once `Date.now()` reaches `IV_INDEX_BUDGET_FRACTION` (40%) of `maxDurationMs` past its own start —
+leaving the rest of the budget for whichever session is already in flight, plus evaluation and
+scoring. A session the deadline stops before it starts is left alone entirely: not attempted, not
+recorded as failed, so it stays a gap the next run picks up. The full history fills in over
+successive nightly runs with no manual script; `ivIndexBudgetMs` on `IngestOptions` overrides the
+computed budget for tests that need the deadline already elapsed without touching `maxDurationMs`,
+which every other source's `reapStaleRunningRuns` cutoff also depends on in the same invocation.
 
 **The `unsatisfiable_collection` refusal is removed.** `market-view.ts`'s `canSatisfyCollection`
 and `UNSATISFIABLE_COLLECTIONS` are deleted along with every caller that asked them
