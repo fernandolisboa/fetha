@@ -2414,13 +2414,18 @@ session.
 ## Addendum: recursive indicators read over a fixed trailing window; `ENGINE_VERSION` bumped to `0.4.0` (2026-09-29, #239, see ADR-0048)
 
 "Condition truncation per evaluation instant" above is amended for `ema`, `rsi` and `atr`: each
-evaluation instant `c` reads them over the `3 * length` adjusted candles ending at `c` (the same
-count `dataWindow` requests, now in `internal/indicator-warm-up.ts`), not over every candle the view
-holds before `c`, so the reading no longer depends on the call's `since` or on a backtest's start.
-`sma`, `iv_rank`, the adjusted candle itself and `engine.indicators()` are unchanged.
-For those three kinds the evaluator no longer reads the per-ticker, per-factor-epoch series the
-#58 addendum describes; it recomputes each reading over its window at the instant it is read
-(`sma`, `iv_rank` and the adjusted candle still come from that cache).
+evaluation instant `c` reads them over a trailing window ending at `c`, not over every candle the
+view holds before `c`, so the reading no longer depends on the call's `since` or on a backtest's
+start. The window is `3 * length` candles for `ema` and `6 * length` for `rsi` and `atr` (the
+"Indicators" warm-up and `dataWindow`'s "Warm-up multiplier" above move to the same counts, now in
+`internal/indicator-warm-up.ts`), bounded by calendar sessions the way `dataWindow` walks them: the
+ticker's candles from the earliest session that walk reaches from `c`, so a session without a
+candle never pulls in an older one. `sma`, `iv_rank`, the adjusted candle itself and
+`engine.indicators()` are unchanged.
+For those three kinds the evaluator no longer reads the values of the per-ticker, per-factor-epoch
+series the #58 addendum describes (the cache still computes and validates them); it recomputes each
+reading over its window at the instant it is read (`sma`, `iv_rank` and the adjusted candle still
+come from that cache).
 `ENGINE_VERSION` moves from `"0.3.0"` to `"0.4.0"`. The change policy above gains a case: a bump
 also tracks a change to how an existing indicator reading a condition acts on is computed, even with
 no shape change, because stored signals and evaluations carry `engineVersion` in their provenance and

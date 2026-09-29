@@ -95,7 +95,7 @@ describe("backtest golden outputs (#58)", () => {
   it("a recursive-indicator run is the same whatever history precedes the warm-up", () => {
     const rsiAbove = (value: string): Condition => ({
       kind: "compare",
-      left: rsi14,
+      left: { kind: "indicator", indicator: { kind: "rsi", length: 7 } },
       comparator: ">",
       right: { kind: "constant", value: decimalString(value) },
     });
@@ -124,7 +124,22 @@ describe("backtest golden outputs (#58)", () => {
     const full = complete(runBacktest(input));
     expect(full.operations.length).toBeGreaterThan(0);
     expect(complete(runBacktest(trimmed))).toEqual(full);
-  }, 30_000);
+
+    // A third of the warm-up sessions with no candle (halts, illiquid days): the window is bounded
+    // by calendar sessions, so it never reaches back past the trimmed history for them.
+    const gapDates = new Set(
+      input.view.calendar
+        .filter((_, i) => i > 18 && i < 60 && i % 3 === 0)
+        .map((session) => session.date),
+    );
+    const withGaps = (run: typeof input) => ({
+      ...run,
+      view: { ...run.view, candles: run.view.candles.filter((c) => !gapDates.has(c.session)) },
+    });
+    expect(complete(runBacktest(withGaps(trimmed)))).toEqual(
+      complete(runBacktest(withGaps(input))),
+    );
+  }, 60_000);
 
   it("an IV-rank run whose index carries one point published after later sessions' points", async () => {
     const input = syntheticBacktestInput({

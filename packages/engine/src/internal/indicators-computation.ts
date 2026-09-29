@@ -14,7 +14,7 @@ import { PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decim
 import { atr, type PriceBar } from "./indicators/atr";
 import { ema } from "./indicators/ema";
 import { ivRank } from "./indicators/iv-rank";
-import { rsi } from "./indicators/rsi";
+import { lastRsi, rsi } from "./indicators/rsi";
 import { sma } from "./indicators/sma";
 import { buildIvIndexSeries } from "./iv-index-series";
 
@@ -139,6 +139,13 @@ export function lastRecursiveValue(
   length: number,
   bars: readonly PriceBar[],
 ): DecimalString | null {
+  if (kind === "rsi") {
+    const last = lastRsi(
+      bars.map((b) => b.close),
+      length,
+    );
+    return last ? toDecimalString(last, RATIO_SCALE) : null;
+  }
   const { values, scale } = recursiveSeries(kind, length, bars);
   const last = values.at(-1);
   return last ? toDecimalString(last, scale) : null;

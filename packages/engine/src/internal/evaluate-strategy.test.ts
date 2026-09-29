@@ -2777,11 +2777,11 @@ describe("createStrategyEvaluator (#58)", () => {
 describe("evaluateStrategy — recursive indicator warm-up (#239)", () => {
   it("reads the same EMA and RSI at a session in a one-night run and in a 3-session catch-up", () => {
     let seed = 7;
-    const closes = Array.from({ length: 80 }, () => {
+    const closes = Array.from({ length: 200 }, () => {
       seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
       return seed;
     }).reduce<number[]>((acc, r) => [...acc, (acc.at(-1) ?? 39) + (r / 2_147_483_648 - 0.5)], []);
-    const allCandles = closes.map((close, i) => dailyCandle("PETR4", i, close.toFixed(2)));
+    const everyCandle = closes.map((close, i) => dailyCandle("PETR4", i, close.toFixed(2)));
     const calendar = calendarSessions(closes.length);
     const positive = (indicator: IndicatorSpec): Condition => ({
       kind: "compare",
@@ -2794,9 +2794,10 @@ describe("evaluateStrategy — recursive indicator warm-up (#239)", () => {
       conditions: [positive({ kind: "ema", length: 20 }), positive({ kind: "rsi", length: 14 })],
     };
     const strategy = strategyVersion(definition({ entry }));
-    const session = calendar[75] as TradingSession;
-    const threeBefore = calendar[72] as TradingSession;
+    const session = calendar[175] as TradingSession;
+    const threeBefore = calendar[172] as TradingSession;
 
+    let allCandles = everyCandle;
     const viewFor = (since: string | undefined): MarketView => {
       const window = dataWindow({
         strategy,
@@ -2827,5 +2828,12 @@ describe("evaluateStrategy — recursive indicator warm-up (#239)", () => {
     const oneNight = readingsAtSession(undefined);
     expect(oneNight).toHaveLength(2);
     expect(readingsAtSession(threeBefore.close)).toEqual(oneNight);
+
+    // Sessions without a candle inside the window (an illiquid day, a halt) must not leave the
+    // one-night view reading fewer candles than the catch-up: the window counts calendar sessions.
+    allCandles = everyCandle.filter((_, i) => i !== 120 && i !== 160);
+    const withGaps = readingsAtSession(undefined);
+    expect(withGaps).toHaveLength(2);
+    expect(readingsAtSession(threeBefore.close)).toEqual(withGaps);
   });
 });

@@ -1,15 +1,17 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { Condition, IndicatorSpec } from "@fetha/contracts";
-import type { Candle, MarketView, Signal, StrategyVersion } from "../api";
+import type { Candle, MarketView, Signal, StrategyVersion, TradingSession } from "../api";
+import { dataWindow } from "../internal/data-window";
 import { evaluateStrategy } from "../internal/evaluate-strategy";
 import { assertDefined } from "../internal/invariant";
 import { centavos, decimalString } from "../test/support";
 import { ohlcArbitrary } from "./arbitraries";
 
 // #239: a recursive indicator's reading at an instant depends only on the fixed trailing window
-// dataWindow requests for it (3 * length candles ending there), never on how much older history
-// the view happens to hold, so a one-night run and a catch-up evaluating the same session agree.
+// the evaluator reads for it (3 * length candles for EMA, 6 * length for RSI and ATR, ending
+// there), never on how much older history the view happens to hold, so a one-night run and a
+// catch-up evaluating the same session agree.
 
 const emptyView: MarketView = {
   calendar: [],
@@ -28,7 +30,7 @@ const specs: [IndicatorSpec, ...IndicatorSpec[]] = [
   { kind: "rsi", length: 3 },
   { kind: "atr", length: 2 },
 ];
-const LONGEST_WINDOW = 9;
+const LONGEST_WINDOW = 18;
 
 const alwaysHolds = (indicator: IndicatorSpec): Condition => ({
   kind: "or",
@@ -90,10 +92,13 @@ const seriesArbitrary = fc
     }),
   );
 
-function evaluateAtLastClose(candles: readonly Candle[]): unknown {
+function evaluateAtLastClose(
+  candles: readonly Candle[],
+  calendar: readonly TradingSession[] = [],
+): unknown {
   const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
   const result = evaluateStrategy({
-    view: { ...emptyView, candles: [...candles] },
+    view: { ...emptyView, candles: [...candles], calendar: [...calendar] },
     strategy,
     instruments: ["PETR4"],
     at,
@@ -121,6 +126,42 @@ describe("Recursive indicator warm-up invariance (#239)", () => {
         expect(evaluateAtLastClose(trimmed)).toEqual(full);
         if ((full as { signals: Signal[] }).signals.length > 0) sawSignal = true;
       }),
+    );
+    expect(sawSignal).toBe(true);
+  });
+
+  // With a calendar the window counts sessions, so a session without a candle (a halt, an
+  // illiquid day) must not pull an older candle into the full view that dataWindow's view lacks.
+  it("reads them the same in dataWindow's view as over the whole history, sessions without a candle included", () => {
+    let sawSignal = false;
+    fc.assert(
+      fc.property(
+        seriesArbitrary,
+        fc.array(fc.boolean(), { minLength: 40, maxLength: 40 }),
+        (series, missing) => {
+          const calendar = series.map((candle) => ({
+            date: candle.session,
+            open: `${candle.session}T13:00:00.000Z`,
+            close: candle.asOf,
+          }));
+          const candles = series.filter((_, i) => i === series.length - 1 || !missing[i]);
+          const last = assertDefined(candles.at(-1), "test setup: missing last candle");
+          const { from } = dataWindow({
+            strategy,
+            instruments: ["PETR4"],
+            calendar,
+            at: last.asOf,
+          });
+          const full = evaluateAtLastClose(candles, calendar);
+          expect(
+            evaluateAtLastClose(
+              candles.filter((candle) => candle.asOf > from),
+              calendar.filter((session) => session.close >= from),
+            ),
+          ).toEqual(full);
+          if ((full as { signals: Signal[] }).signals.length > 0) sawSignal = true;
+        },
+      ),
     );
     expect(sawSignal).toBe(true);
   });

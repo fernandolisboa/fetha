@@ -6,6 +6,7 @@ import type {
   Instant,
   SessionDate,
   Ticker,
+  Timeframe,
 } from "@fetha/contracts";
 import {
   ENGINE_VERSION,
@@ -41,6 +42,7 @@ import {
   type ConditionContext,
   type IndicatorLookup,
 } from "./condition-evaluator";
+import { earliestCandleSession, tradingCalendar, type TradingCalendar } from "./data-window";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators, lastRecursiveValue } from "./indicators-computation";
 import type { PriceBar } from "./indicators/atr";
@@ -432,15 +434,20 @@ function barsOf(candles: readonly Candle[]): PriceBar[] {
   return bars;
 }
 
-// A recursive indicator is read over the fixed trailing window dataWindow requests for it, ending
-// at the evaluated candle, not over everything the view holds before it: the view starts where
-// the call's `since` needs it to, so reading over all of it would seed EMA, RSI and ATR at a
-// point that depends on how long the catch-up is (#239, ADR-0048).
+// A recursive indicator is read over the trailing window dataWindow requests for it, ending at the
+// evaluated candle, not over everything the view holds before it: the view starts where the
+// call's `since` needs it to, so reading over all of it would seed EMA, RSI and ATR at a point
+// that depends on how long the catch-up is (#239, ADR-0048). The window is bounded by calendar
+// sessions, as dataWindow walks them, not by a count of the candles present: a session with no
+// candle for the ticker would otherwise pull an older candle into a long view that a short view
+// never loaded. A view whose calendar does not reach the candle falls back to the count.
 function readingAt(
   indicator: IndicatorSpec,
   series: readonly (DecimalString | null)[],
   candles: readonly Candle[],
   position: number,
+  calendar: TradingCalendar,
+  timeframe: Timeframe,
 ): DecimalString | null {
   switch (indicator.kind) {
     case "sma":
@@ -449,7 +456,20 @@ function readingAt(
     case "ema":
     case "rsi":
     case "atr": {
-      const start = Math.max(0, position + 1 - warmUpCandleCount(indicator));
+      const needed = warmUpCandleCount(indicator);
+      const current = assertDefined(candles[position], "evaluateStrategy: missing candle");
+      const earliest = earliestCandleSession(calendar, current.asOf, needed, timeframe);
+      let start = earliest === null ? Math.max(0, position + 1 - needed) : position;
+      while (
+        earliest !== null &&
+        start > 0 &&
+        codeUnitCompare(
+          assertDefined(candles[start - 1], "evaluateStrategy: missing candle").session,
+          earliest,
+        ) >= 0
+      ) {
+        start -= 1;
+      }
       return lastRecursiveValue(
         indicator.kind,
         indicator.length,
@@ -645,7 +665,14 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     // reads the specs of the condition it actually evaluates (entry, or an open operation's rules).
     const values = memoized((key) => {
       const series = assertDefined(seriesByKey.get(key), "evaluateStrategy: unknown indicator");
-      return readingAt(series.indicator, series.values, candles, position);
+      return readingAt(
+        series.indicator,
+        series.values,
+        candles,
+        position,
+        tradingCalendar(view.calendar),
+        timeframe,
+      );
     });
     return {
       ok: true,
