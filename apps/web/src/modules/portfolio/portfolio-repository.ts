@@ -153,6 +153,23 @@ export class PortfolioRepository extends UserScopedRepository {
     return rows.map(toOperationRecord);
   }
 
+  async openOperationExpiries(ids: readonly string[]): Promise<Map<string, SessionDate | null>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.db
+      .select({ id: operations.id, expiry: operations.expiry })
+      .from(operations)
+      .where(
+        and(
+          eq(operations.userId, this.userId),
+          eq(operations.status, "open"),
+          inArray(operations.id, [...ids]),
+        ),
+      );
+    return new Map(rows.map((row) => [row.id, row.expiry]));
+  }
+
   // Idempotent for import-keyed fills (ADR-0021 item 7): a key this user
   // already has is skipped, never duplicated or overwritten.
   async insertFills(newFills: readonly NewFill[]): Promise<{ inserted: number }> {
