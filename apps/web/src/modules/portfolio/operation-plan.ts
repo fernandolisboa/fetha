@@ -87,17 +87,22 @@ export function planOperation(
   };
 }
 
-// The engine's `Operation` for an open operation: its non-zero legs, and
-// the shared expiry only while an option leg is still open (a stock-only
-// operation carries none, ADR-0013 "Operations, positions and strategy
-// versions").
+// The shared expiry only while an option leg is still open: a stock leg left
+// after its options closed keeps the options' expiry in the plan (and in
+// `operations.expiry`), but a stock-only operation carries none (ADR-0013
+// "Operations, positions and strategy versions", ADR-0022).
+export function heldExpiry(state: OperationState): SessionDate | null {
+  return state.legs.some((leg) => leg.role !== "stock") ? state.expiry : null;
+}
+
+// The engine's `Operation` for an open operation: its non-zero legs and its
+// `heldExpiry`.
 export function toEngineOperation(id: string, state: OperationState): Operation {
-  const hasOptionLeg = state.legs.some((leg) => leg.role !== "stock");
   return {
     id,
     underlying: state.underlying,
     legs: state.legs,
-    expiry: hasOptionLeg ? state.expiry : null,
+    expiry: heldExpiry(state),
     openedAt: state.openedAt,
     strategyVersionId: null,
     rolledFrom: null,

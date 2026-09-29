@@ -7,7 +7,7 @@ import { getMyOpenOperationExpiries, type ContemplatedOperation } from "@/module
 import type { SignalListItem } from "@/modules/strategies";
 
 import { deriveDefaultHorizon } from "./horizon";
-import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
+import { horizonChecker } from "./horizon-status";
 
 interface HorizonLeg {
   role: LegRole;
@@ -26,12 +26,11 @@ function legsForSignal(signal: SignalListItem): readonly HorizonLeg[] {
   return signal.proposal?.legs ?? [];
 }
 
-async function defaultHorizonsFor<T>(
+async function derivedHorizonsFor<T>(
   db: Database,
   items: readonly T[],
   idOf: (item: T) => string,
   legsOf: (item: T) => readonly HorizonLeg[],
-  now: Date,
 ): Promise<Map<string, SessionDate | null>> {
   const legsById = new Map(items.map((item) => [idOf(item), legsOf(item)]));
   const allOptionTickers = [...legsById.values()]
@@ -39,24 +38,35 @@ async function defaultHorizonsFor<T>(
     .filter((leg) => leg.role !== "stock")
     .map((leg) => leg.ticker);
   const expiries = await expiryByTicker(db, allOptionTickers);
-  const today = todaySaoPauloDate(now);
 
   const result = new Map<string, SessionDate | null>();
   for (const [id, legs] of legsById) {
-    const derived = deriveDefaultHorizon(
-      legs.map((leg) => ({ role: leg.role, expiry: expiries.get(leg.ticker) ?? null })),
+    result.set(
+      id,
+      deriveDefaultHorizon(
+        legs.map((leg) => ({ role: leg.role, expiry: expiries.get(leg.ticker) ?? null })),
+      ),
     );
-    result.set(id, notInThePast(derived, today));
   }
   return result;
 }
 
-// Never prefill a default that is already in the past (a signal on an
-// expired series, an expired saved operation on /carteira): the user must
-// pick a horizon by hand in that case, same as the no-option-leg case
-// `deriveDefaultHorizon` already returns null for.
-function notInThePast(horizon: SessionDate | null, today: SessionDate): SessionDate | null {
-  return horizon !== null && horizon >= today ? horizon : null;
+// Never prefill a default the decision action would refuse (a signal on an
+// expired series, an expired saved operation on /carteira, an expiry whose
+// session closed today): the user must pick a horizon by hand in that case,
+// same as the no-option-leg case `deriveDefaultHorizon` already returns
+// null for (#259).
+async function keepOpenHorizons(
+  db: Database,
+  horizons: Map<string, SessionDate | null>,
+  now: Date,
+): Promise<Map<string, SessionDate | null>> {
+  const statusOf = horizonChecker(db, now);
+  const result = new Map<string, SessionDate | null>();
+  for (const [id, horizon] of horizons) {
+    result.set(id, horizon !== null && (await statusOf(horizon)) === "open" ? horizon : null);
+  }
+  return result;
 }
 
 // Batched over every row on the page (one `expiryByTicker` call, not one per
@@ -68,7 +78,7 @@ export async function defaultHorizonsForSignals(
   signals: readonly SignalListItem[],
   now: Date = new Date(),
 ): Promise<Map<string, SessionDate | null>> {
-  const result = await defaultHorizonsFor(db, signals, (signal) => signal.id, legsForSignal, now);
+  const derived = await derivedHorizonsFor(db, signals, (signal) => signal.id, legsForSignal);
   const exitOperationIds = [
     ...new Set(
       signals.flatMap((signal) =>
@@ -76,17 +86,15 @@ export async function defaultHorizonsForSignals(
       ),
     ),
   ];
-  if (exitOperationIds.length === 0) {
-    return result;
-  }
-  const expiries = await getMyOpenOperationExpiries(exitOperationIds);
-  const today = todaySaoPauloDate(now);
-  for (const signal of signals) {
-    if (signal.kind === "exit" && signal.operationId !== null) {
-      result.set(signal.id, notInThePast(expiries.get(signal.operationId) ?? null, today));
+  if (exitOperationIds.length > 0) {
+    const expiries = await getMyOpenOperationExpiries(exitOperationIds);
+    for (const signal of signals) {
+      if (signal.kind === "exit" && signal.operationId !== null) {
+        derived.set(signal.id, expiries.get(signal.operationId) ?? null);
+      }
     }
   }
-  return result;
+  return keepOpenHorizons(db, derived, now);
 }
 
 // The /carteira page's own default horizons, keyed by contemplated
@@ -96,21 +104,34 @@ export async function defaultHorizonsForOperations(
   operations: readonly ContemplatedOperation[],
   now: Date = new Date(),
 ): Promise<Map<string, SessionDate | null>> {
-  return defaultHorizonsFor(
+  return keepOpenHorizons(
     db,
-    operations,
-    (operation) => operation.id,
-    (operation) => operation.legs,
+    await derivedHorizonsFor(
+      db,
+      operations,
+      (operation) => operation.id,
+      (operation) => operation.legs,
+    ),
     now,
   );
 }
 
-// A held operation's default horizon is its own expiry (UBIQUITOUS_LANGUAGE.md
-// "Horizon"), under the same never-in-the-past rule; a stock-only operation
-// has none.
-export function defaultHorizonForHeldOperation(
-  expiry: SessionDate | null,
+export interface HeldOperationExpiry {
+  id: string;
+  expiry: SessionDate | null;
+}
+
+// A held operation's default horizon is the expiry of its live option legs
+// (UBIQUITOUS_LANGUAGE.md "Horizon", portfolio's `heldExpiry`), keyed by
+// operation id; a stock-only operation has none.
+export async function defaultHorizonsForHeldOperations(
+  db: Database,
+  operations: readonly HeldOperationExpiry[],
   now: Date = new Date(),
-): SessionDate | null {
-  return notInThePast(expiry, todaySaoPauloDate(now));
+): Promise<Map<string, SessionDate | null>> {
+  return keepOpenHorizons(
+    db,
+    new Map(operations.map((operation) => [operation.id, operation.expiry])),
+    now,
+  );
 }

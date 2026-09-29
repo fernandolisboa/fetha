@@ -1,17 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
 import { centavosSchema, quantitySchema, tickerSchema } from "@fetha/contracts";
-import { expiryByTicker } from "@/modules/market-data";
+import { instantSchema } from "@fetha/contracts";
+import { expiryByTicker, tradingSessionForDate } from "@/modules/market-data";
 import { getMyOpenOperationExpiries, type ContemplatedOperation } from "@/modules/portfolio";
 import type { SignalListItem } from "@/modules/strategies";
 
-vi.mock("@/modules/market-data", () => ({ expiryByTicker: vi.fn() }));
+vi.mock("@/modules/market-data", () => ({
+  expiryByTicker: vi.fn(),
+  tradingSessionForDate: vi.fn(),
+}));
 vi.mock("@/modules/portfolio", () => ({ getMyOpenOperationExpiries: vi.fn() }));
 
 const mockedExpiryByTicker = vi.mocked(expiryByTicker);
 const mockedOpenOperationExpiries = vi.mocked(getMyOpenOperationExpiries);
+const mockedTradingSessionForDate = vi.mocked(tradingSessionForDate);
 
-const { defaultHorizonForHeldOperation, defaultHorizonsForOperations, defaultHorizonsForSignals } =
-  await import("./resolve-default-horizon");
+const {
+  defaultHorizonsForHeldOperations,
+  defaultHorizonsForOperations,
+  defaultHorizonsForSignals,
+} = await import("./resolve-default-horizon");
 
 const FIXED_NOW = new Date("2031-06-10T12:00:00.000Z");
 
@@ -63,14 +71,106 @@ describe("defaultHorizonsForOperations", () => {
   });
 });
 
-describe("defaultHorizonForHeldOperation", () => {
-  it("defaults to the operation's expiry", () => {
-    expect(defaultHorizonForHeldOperation("2031-06-20", FIXED_NOW)).toBe("2031-06-20");
+// FIXED_NOW is 09:00 in São Paulo on 2031-06-10: that session opens at
+// 13:00Z and closes at 20:00Z.
+function todaySession(close: string) {
+  return {
+    date: "2031-06-10",
+    open: instantSchema.parse("2031-06-10T13:00:00.000Z"),
+    close: instantSchema.parse(close),
+  };
+}
+
+describe("defaultHorizonsForHeldOperations", () => {
+  it("defaults to the operation's expiry", async () => {
+    const result = await defaultHorizonsForHeldOperations(
+      {} as never,
+      [{ id: "op", expiry: "2031-06-20" }],
+      FIXED_NOW,
+    );
+
+    expect(result.get("op")).toBe("2031-06-20");
   });
 
-  it("has no default for a stock-only operation or an expiry already past", () => {
-    expect(defaultHorizonForHeldOperation(null, FIXED_NOW)).toBeNull();
-    expect(defaultHorizonForHeldOperation("2031-06-09", FIXED_NOW)).toBeNull();
+  it("has no default for a stock-only operation or an expiry already past", async () => {
+    const result = await defaultHorizonsForHeldOperations(
+      {} as never,
+      [
+        { id: "stock", expiry: null },
+        { id: "past", expiry: "2031-06-09" },
+      ],
+      FIXED_NOW,
+    );
+
+    expect(result.get("stock")).toBeNull();
+    expect(result.get("past")).toBeNull();
+  });
+});
+
+describe("a default horizon of today (#259)", () => {
+  it("keeps today while today's session is still open", async () => {
+    mockedTradingSessionForDate.mockResolvedValueOnce(todaySession("2031-06-10T20:00:00.000Z"));
+
+    const result = await defaultHorizonsForHeldOperations(
+      {} as never,
+      [{ id: "op", expiry: "2031-06-10" }],
+      FIXED_NOW,
+    );
+
+    expect(mockedTradingSessionForDate).toHaveBeenLastCalledWith({}, "2031-06-10");
+    expect(result.get("op")).toBe("2031-06-10");
+  });
+
+  it("has no default once today's session has closed, the way the action refuses it", async () => {
+    mockedTradingSessionForDate.mockResolvedValue(todaySession("2031-06-10T20:00:00.000Z"));
+    const afterClose = new Date("2031-06-10T21:00:00.000Z");
+    mockedExpiryByTicker.mockResolvedValueOnce(new Map([["PETRA100", "2031-06-10"]]));
+    mockedOpenOperationExpiries.mockResolvedValueOnce(new Map([["op-open", "2031-06-10"]]));
+
+    const held = await defaultHorizonsForHeldOperations(
+      {} as never,
+      [{ id: "op", expiry: "2031-06-10" }],
+      afterClose,
+    );
+    const signals = await defaultHorizonsForSignals(
+      {} as never,
+      [entrySignal("entry", "PETRA100"), exitSignal("exit", "op-open")],
+      afterClose,
+    );
+
+    expect(held.get("op")).toBeNull();
+    expect(signals.get("entry")).toBeNull();
+    expect(signals.get("exit")).toBeNull();
+  });
+
+  it("has no default when today is not a trading session", async () => {
+    mockedTradingSessionForDate.mockResolvedValueOnce(undefined);
+    mockedExpiryByTicker.mockResolvedValueOnce(new Map([["PETRA100", "2031-06-10"]]));
+
+    const result = await defaultHorizonsForOperations(
+      {} as never,
+      [operation("op", "PETRA100")],
+      FIXED_NOW,
+    );
+
+    expect(result.get("op")).toBeNull();
+  });
+
+  it("reads today's session once for the whole page", async () => {
+    mockedTradingSessionForDate.mockClear();
+    mockedTradingSessionForDate.mockResolvedValue(todaySession("2031-06-10T20:00:00.000Z"));
+
+    await defaultHorizonsForHeldOperations(
+      {} as never,
+      [
+        { id: "a", expiry: "2031-06-10" },
+        { id: "b", expiry: "2031-06-10" },
+        { id: "c", expiry: "2031-06-20" },
+      ],
+      FIXED_NOW,
+    );
+
+    expect(mockedTradingSessionForDate).toHaveBeenCalledTimes(1);
   });
 });
 

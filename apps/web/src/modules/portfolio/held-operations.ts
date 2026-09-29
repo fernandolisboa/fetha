@@ -11,7 +11,7 @@ import { requireUser } from "@/modules/auth";
 import { tradingSessionForDate } from "@/modules/market-data";
 
 import { holdingKey } from "./bookkeeping";
-import { planOperation } from "./operation-plan";
+import { heldExpiry, planOperation } from "./operation-plan";
 import { PortfolioRepository } from "./portfolio-repository";
 import { hasExpired, seriesByHolding } from "./portfolio-service";
 import { realizedOperation, type RealizedOperationResult } from "./realized-operation";
@@ -54,10 +54,7 @@ export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperatio
   if (!plan.ok || plan.state.legs.length === 0) {
     throw new HeldOperationNotFoundError();
   }
-  // A stock leg left after its options closed keeps the options' expiry in
-  // the plan; only an option leg still open makes that expiry binding.
-  const hasOptionLeg = plan.state.legs.some((leg) => leg.role !== "stock");
-  const expiry = hasOptionLeg ? plan.state.expiry : null;
+  const expiry = heldExpiry(plan.state);
   if (expiry && (await hasExpired(db, expiry, nowInstant()))) {
     throw new HeldOperationNotFoundError();
   }
@@ -71,6 +68,10 @@ export const getMyHeldOperation = cache(async (id: string): Promise<HeldOperatio
   };
 });
 
+// The `heldExpiry` of each of the user's open operations among `ids`, from
+// its live legs rather than `operations.expiry`, which a stock-only
+// remainder keeps from its closed options (#259). An id that is not one of
+// the user's open operations is absent.
 export async function getMyOpenOperationExpiries(
   ids: readonly string[],
 ): Promise<Map<string, SessionDate | null>> {
@@ -79,7 +80,30 @@ export async function getMyOpenOperationExpiries(
   }
   const user = await requireUser();
   await recordAccess("portfolio_read");
-  return new PortfolioRepository(getDb(), user).openOperationExpiries(ids);
+  const db = getDb();
+  const repository = new PortfolioRepository(db, user);
+  const wanted = new Set(ids);
+  const [operations, fills] = await Promise.all([
+    repository.listOperations(),
+    repository.listFills(),
+  ]);
+  const open = operations.filter(
+    (operation) => operation.status === "open" && wanted.has(operation.id),
+  );
+  const openIds = new Set(open.map((operation) => operation.id));
+  const openFills = fills.filter(
+    (fill) => fill.operationId !== null && openIds.has(fill.operationId),
+  );
+  const series = await seriesByHolding(db, openFills);
+  return new Map(
+    open.map((operation) => {
+      const plan = planOperation(
+        openFills.filter((fill) => fill.operationId === operation.id),
+        series,
+      );
+      return [operation.id, plan.ok ? heldExpiry(plan.state) : null];
+    }),
+  );
 }
 
 export interface HeldOperationScoringRequest {
