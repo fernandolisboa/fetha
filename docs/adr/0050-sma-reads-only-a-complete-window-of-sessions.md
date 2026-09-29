@@ -39,7 +39,7 @@ last `length` candles present, as ADR-0048's fallback does.
   `6 * length` sessions, so a short window still holds enough candles to seed them.
 - `iv_rank` has the same shape of divergence (it ranks the last `lookbackSessions` index points,
   not the points inside that many sessions) but needs the index points' sessions inside the
-  evaluator, which it does not have today; it is tracked as its own issue.
+  evaluator, which it does not have today; it is tracked as #254.
 - `ENGINE_VERSION` moves from `0.4.0` to `0.5.0` (ADR-0013's change policy, 0.4.0 case), with an
   ADR-0013 addendum.
 
@@ -52,5 +52,12 @@ last `length` candles present, as ADR-0048's fallback does.
   and catch-ups as in the nightly run. Backtests over illiquid tickers produce fewer SMA entries
   than before; the backtest golden with one gapped ticker lost that ticker's SMA signals. Liquid
   tickers, which have a candle every session, are unchanged.
+- Exit rules read the same reading: a `condition` exit on an SMA (`close < sma(50)`) evaluates to
+  unknown for as long as a missing session stays in its window, the operation stays open with
+  `exit_rule_unknown`, and only price, time and expiry rules can close it meanwhile, in backtests
+  and live alike.
+- For intraday timeframes the walk is session-granular (ADR-0048): the window starts at a session
+  boundary, so a missing 15-minute candle nulls the SMA only when its last `length` candles then
+  reach back past the window's first session.
 - Nightly runs change only in the rare case where a catch-up read a gapped window; a one-night run
   already read `null` there.

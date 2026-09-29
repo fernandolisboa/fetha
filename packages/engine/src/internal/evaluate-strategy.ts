@@ -453,7 +453,12 @@ function readingAt(
 ): DecimalString | null {
   switch (indicator.kind) {
     case "sma": {
-      const earliest = earliestCandleSession(calendar, windowEnd, indicator.length, timeframe);
+      const earliest = earliestCandleSession(
+        calendar,
+        windowEnd,
+        warmUpCandleCount(indicator),
+        timeframe,
+      );
       const first = candles[position + 1 - indicator.length];
       if (
         earliest !== null &&
