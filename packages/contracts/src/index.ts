@@ -30,7 +30,13 @@ export {
   type Ticker,
 } from "./scalars";
 export { timeframeSchema, timeframes, type Timeframe } from "./timeframe";
-export { indicatorKinds, indicatorSpecSchema, type IndicatorSpec } from "./indicator-spec";
+export {
+  indicatorKinds,
+  indicatorSpecSchema,
+  MAX_INDICATOR_LENGTH,
+  MAX_IV_RANK_LOOKBACK_SESSIONS,
+  type IndicatorSpec,
+} from "./indicator-spec";
 export {
   strikeSelectionKinds,
   strikeSelectionSchema,
@@ -65,7 +71,11 @@ export {
   type LegTemplate,
   type Structure,
 } from "./structure";
-export { strategyDefinitionSchema, type StrategyDefinition } from "./strategy-definition";
+export {
+  strategyDefinitionInputSchema,
+  strategyDefinitionSchema,
+  type StrategyDefinition,
+} from "./strategy-definition";
 export { contemplatedLegSchema, type ContemplatedLeg } from "./contemplated-leg";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
 export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";

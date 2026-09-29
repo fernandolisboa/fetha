@@ -61,6 +61,20 @@ export function conditionDepth(condition: Condition): number {
   return 1 + Math.max(...condition.conditions.map(conditionDepth));
 }
 
+export function conditionIndicators(condition: Condition): IndicatorSpec[] {
+  switch (condition.kind) {
+    case "compare":
+      return [condition.left, condition.right].flatMap((operand) =>
+        operand.kind === "indicator" ? [operand.indicator] : [],
+      );
+    case "not":
+      return conditionIndicators(condition.condition);
+    case "and":
+    case "or":
+      return condition.conditions.flatMap(conditionIndicators);
+  }
+}
+
 export const conditionSchema: z.ZodType<Condition> = rawConditionSchema.refine(
   (condition) => conditionDepth(condition) <= MAX_CONDITION_DEPTH,
   { message: `condition tree must be at most ${String(MAX_CONDITION_DEPTH)} levels deep` },

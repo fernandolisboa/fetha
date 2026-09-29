@@ -4,7 +4,7 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   decimalStringSchema,
-  strategyDefinitionSchema,
+  strategyDefinitionInputSchema,
   timeframes,
   type AdjustmentRule,
   type ExitRule,
@@ -97,7 +97,7 @@ export function StrategyEditorForm({
       return;
     }
     const definition = buildDefinition();
-    const parsed = strategyDefinitionSchema.safeParse(definition);
+    const parsed = strategyDefinitionInputSchema.safeParse(definition);
     if (!parsed.success) {
       setError(t.editor.errors.invalid);
       return;

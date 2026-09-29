@@ -18,6 +18,8 @@ export function collectSpecsFromCondition(condition: Condition): IndicatorSpec[]
   return specs;
 }
 
+// Mirrored by `definitionIndicators` in packages/contracts/src/strategy-definition.ts, which bounds
+// these same specs where a definition is written (ADR-0049).
 export function collectIndicatorSpecs(definition: StrategyDefinition): IndicatorSpec[] {
   const specs = collectSpecsFromCondition(definition.entry);
   for (const rule of definition.exit) {

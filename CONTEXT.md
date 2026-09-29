@@ -108,6 +108,10 @@ exposing module's interface, never through its tables.
   sessions ending there (`3 * length` for `ema`, `6 * length` for `rsi` and `atr`), never over
   whatever older history a view happens to hold, so a one-night run, a catch-up, a re-evaluation and
   a backtest bar agree on a session's reading, missing sessions included (ADR-0048).
+- An indicator's `length` is at most 500 and an `iv_rank` lookback at most 1,260 sessions, enforced
+  where a strategy definition is written (`strategyDefinitionInputSchema`), never where a stored
+  one is read: a version saved before a bound stays readable, backtestable and evaluable
+  (ADR-0049).
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
   the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for

@@ -54,5 +54,6 @@ supersedes or amends them and says so.
 | 0046 | The guided tour is hand-built on the Popover; its dismissal is a per-user preference (#231)                      |
 | 0047 | Re-evaluating a session is append-only, per user and strategy, and audited (#84, amends 0027)                    |
 | 0048 | Recursive indicators are read over a fixed trailing window at each evaluated candle (#239, amends 0013)          |
+| 0049 | Indicator parameters are bounded where a definition is written, not where one is read (#249)                     |
 
 Open: none.

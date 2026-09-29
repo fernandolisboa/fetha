@@ -1,4 +1,5 @@
-import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -107,15 +108,26 @@ function definition(overrides: Partial<StrategyDefinition> = {}): StrategyDefini
 beforeAll(async () => {
   await getDb()
     .insert(structures)
-    .values({
-      id: "stock",
-      name: "Compra de ação",
-      legs: [{ role: "stock", side: "buy", ratio: 1 }],
-    })
+    .values([
+      {
+        id: "stock",
+        name: "Compra de ação",
+        legs: [{ role: "stock", side: "buy", ratio: 1 }],
+      },
+      {
+        id: "long-call-actions-test",
+        name: "Compra de call",
+        legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+      },
+    ])
     .onConflictDoNothing();
 });
 
 const createdEmails: string[] = [];
+
+afterAll(async () => {
+  await getDb().delete(structures).where(eq(structures.id, "long-call-actions-test"));
+});
 
 afterEach(async () => {
   currentUser = null;
@@ -157,6 +169,67 @@ describe("createStrategyAction", () => {
 
     const repository = new StrategiesRepository(getDb(), currentUser);
     expect(await repository.listMine()).toEqual([]);
+  });
+
+  it("rejects an indicator length above the bound and persists nothing (#249)", async () => {
+    const email = uniqueEmail("create-length-bound");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const result = await createStrategyAction({
+      definition: definition({
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "ema", length: 501 } },
+          comparator: ">",
+          right: { kind: "price", field: "close" },
+        },
+      }),
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    expect(await repository.listMine()).toEqual([]);
+  });
+
+  it("rejects an indicator above the bound in a roll adjustment's trigger (#249)", async () => {
+    const email = uniqueEmail("create-roll-bound");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const strikes = [{ kind: "delta" as const, target: decimalString("0.3") }];
+    const expiry = { kind: "business_days" as const, min: 5, max: 20 };
+    const optionDefinition = (length: number) =>
+      definition({
+        structureId: "long-call-actions-test",
+        strikes,
+        expiry,
+        adjustments: [
+          {
+            kind: "roll",
+            when: {
+              kind: "condition",
+              condition: {
+                kind: "compare",
+                left: { kind: "indicator", indicator: { kind: "rsi", length } },
+                comparator: "<",
+                right: { kind: "constant", value: decimalString("30") },
+              },
+            },
+            expiry,
+            strikes,
+          },
+        ],
+      });
+
+    const refused = await createStrategyAction({ definition: optionDefinition(501) });
+    expect(refused).toEqual({ status: "error", error: "invalid" });
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    expect(await repository.listMine()).toEqual([]);
+
+    const accepted = await createStrategyAction({ definition: optionDefinition(500) });
+    expect(accepted.status).toBe("ok");
   });
 
   it("creates a coherent stock-only definition", async () => {
@@ -210,6 +283,41 @@ describe("addStrategyVersionAction", () => {
 
     const repository = new StrategiesRepository(getDb(), currentUser);
     const found = await repository.findMine(created.strategyId);
+    expect(found.versions).toHaveLength(1);
+  });
+
+  it("rejects an iv_rank lookback above the bound, while a stored version above it stays readable (#249)", async () => {
+    const email = uniqueEmail("add-version-lookback-bound");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const repository = new StrategiesRepository(getDb(), currentUser);
+    const stored = await repository.createWithVersion(
+      definition({
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "rsi", length: 100_000 } },
+          comparator: "<",
+          right: { kind: "constant", value: decimalString("30") },
+        },
+      }),
+    );
+
+    const result = await addStrategyVersionAction({
+      strategyId: stored.id,
+      definition: definition({
+        name: "V2",
+        entry: {
+          kind: "compare",
+          left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 1261 } },
+          comparator: ">",
+          right: { kind: "constant", value: decimalString("50") },
+        },
+      }),
+    });
+
+    expect(result).toEqual({ status: "error", error: "invalid" });
+    const found = await repository.findMine(stored.id);
     expect(found.versions).toHaveLength(1);
   });
 
