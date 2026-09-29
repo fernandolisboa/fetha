@@ -35,6 +35,7 @@ import { defaultCompareCondition } from "./defaults";
 import { ExpiryFields } from "./expiry-fields";
 import { ExitRuleRow } from "./exit-rule-row";
 import { FieldValidityProvider } from "./field-validity";
+import { strikesFittedTo } from "./fit-strikes";
 import { SimpleSelect } from "./simple-select";
 import { SizingFields } from "./sizing-fields";
 import { StrikeList } from "./strike-list";
@@ -94,13 +95,19 @@ export function StrategyEditorForm({
   }
 
   // A structure's strike ranks rarely fit the previous structure's strike
-  // list, so picking one starts from its catalog defaults (docs/adr/0053).
+  // list, so picking one starts from its catalog defaults (docs/adr/0053);
+  // a structure left in the table after leaving the catalog keeps what fits.
   function changeStructure(nextId: string) {
     setStructureId(nextId);
     const defaults = catalogDefaults(nextId);
     if (defaults) {
       setStrikes(defaults.strikes);
       setExpiry(defaults.expiry ?? defaultExpiry);
+      return;
+    }
+    const next = structures.find((structure) => structure.id === nextId);
+    if (next) {
+      setStrikes(strikesFittedTo(next, strikes));
     }
   }
 

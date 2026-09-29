@@ -8,10 +8,15 @@ import { structureSchema } from "./structure";
 // it starts with.
 export const catalogEntrySchema = z.strictObject({
   structure: structureSchema,
-  defaults: z.strictObject({
-    strikes: z.array(strikeSelectionSchema).max(8),
-    expiry: expirySelectionSchema.optional(),
-  }),
+  defaults: z
+    .strictObject({
+      strikes: z.array(strikeSelectionSchema).max(8),
+      expiry: expirySelectionSchema.optional(),
+    })
+    .refine((defaults) => defaults.strikes.length === 0 || defaults.expiry !== undefined, {
+      message: "expiry is required when the defaults select strikes",
+      path: ["expiry"],
+    }),
   reference: z.string().min(1),
   notes: z.string().min(1),
 });

@@ -18,8 +18,17 @@ Sources, the only two the catalog uses (#20):
 
 Defaults are this project's own starting point, not taken from either source: strikes by
 moneyness at 0% or ±5% of the spot, rising with the strike rank; an expiry 15 to 45 business
-days out for structures that sell premium or spread it, 20 to 60 for structures that buy it. A
-user edits both before saving.
+days out for structures that sell premium or spread it, 20 to 60 for structures that buy it or
+hedge a stock held (the collar included). A user edits both before saving. A coarse strike grid
+can still resolve two ranks onto one strike, which the engine refuses as degenerate.
+
+The short straddle and short strangle have an unbounded loss, which both sizing rules refuse:
+they can be priced and saved, but a backtest opens no operation from them until margin-based
+sizing exists.
+
+A strike rank that carries both a call and a put (the straddles, strip, strap and box) resolves
+to the nearest strike listed for either right, then needs that exact strike listed for the
+other. When it is not, the engine skips the entry with `no_series_matches`.
 
 ## Covered
 

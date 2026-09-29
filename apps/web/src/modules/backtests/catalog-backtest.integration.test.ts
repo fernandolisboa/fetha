@@ -19,9 +19,8 @@ import {
   optionSeries,
   tradingSessions,
 } from "@/modules/market-data/schema";
-import { StrategiesRepository } from "@/modules/strategies";
+import { StrategiesRepository, StructuresRepository } from "@/modules/strategies";
 import { catalog } from "@/modules/strategies/catalog";
-import { StructuresRepository } from "@/modules/strategies/structures-repository";
 
 import { BacktestRunRepository } from "./backtest-run-repository";
 import { DEFAULT_COST_MODEL } from "./default-config";
@@ -225,5 +224,16 @@ describe("a catalog entry backtests end to end (#20)", () => {
       [CALLS[2]?.ticker, "sell"],
     ]);
     expect(operation).toMatchObject({ status: "expired", closedAt: EXPIRY });
+    if (operation?.status !== "expired") throw new Error("expected an expired operation");
+    expect(
+      operation.settlement.map((leg) => [leg.leg.ticker, leg.outcome, leg.intrinsicValue]),
+    ).toEqual([
+      [CALLS[1]?.ticker, "exercised", "0.80"],
+      [CALLS[2]?.ticker, "assigned", "0.30"],
+    ]);
+    // Hull's bull call spread at S_T above K2 pays K2 − K1 = 0.50 for a 0.25
+    // debit: 4,000 units earn R$ 1.000,00 before costs and taxes.
+    expect(operation.pnl).toBeGreaterThan(0);
+    expect(operation.pnl).toBeLessThan(100_000);
   });
 });

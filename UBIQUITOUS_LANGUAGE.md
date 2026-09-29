@@ -85,7 +85,7 @@ _Avoid_: indicator (reserved for technical indicators), rate
 **Structure**:
 A template for a multi-leg options operation: an ordered list of legs described relatively
 (buy call at the lower strike, sell call at the higher strike, same expiry), with no ticker,
-strikes or dates. Collar, trava de alta, butterfly and iron condor are structures. A single stock
+strikes or dates. Collar, trava de alta com calls, butterfly and box spread are structures. A single stock
 purchase is the trivial structure with one stock leg.
 _Avoid_: strategy (that is a rule, not a shape), setup, combo, montagem
 

@@ -27,6 +27,15 @@ describe("catalogEntrySchema", () => {
     expect(catalogEntrySchema.safeParse(bullCallSpread).success).toBe(true);
   });
 
+  it("refuses defaults that select strikes with no expiry window", () => {
+    expect(
+      catalogEntrySchema.safeParse({
+        ...bullCallSpread,
+        defaults: { strikes: bullCallSpread.defaults.strikes },
+      }).success,
+    ).toBe(false);
+  });
+
   it("refuses an entry with no source or an invalid structure", () => {
     expect(catalogEntrySchema.safeParse({ ...bullCallSpread, reference: "" }).success).toBe(false);
     expect(

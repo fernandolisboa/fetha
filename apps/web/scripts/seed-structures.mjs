@@ -37,19 +37,36 @@ const legTemplateSchema = z.discriminatedUnion("role", [
   }),
 ]);
 
-const structureSchema = z.strictObject({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  legs: z.array(legTemplateSchema).min(1),
-});
+const structureSchema = z
+  .strictObject({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    legs: z.array(legTemplateSchema).min(1),
+  })
+  .refine(
+    ({ legs }) => {
+      const ranks = new Set(legs.flatMap((leg) => (leg.role === "stock" ? [] : [leg.strikeRank])));
+      return [...ranks].every((rank) => rank <= ranks.size);
+    },
+    { message: "strike ranks must be 1..k without gaps", path: ["legs"] },
+  );
+
+const catalogSchema = z
+  .array(structureSchema)
+  .min(1)
+  .refine((structures) => new Set(structures.map(({ id }) => id)).size === structures.length, {
+    message: "structure ids must be unique",
+  });
 
 const env = guardedDatabaseEnv(assertWritableDatabase, "seed the structure catalog");
 routeToLocalNeonProxy(env.DATABASE_URL);
 const sql = neon(env.DATABASE_URL);
 
-for (const entry of catalog) {
-  const { id, name, legs } = entry.structure;
-  const structure = structureSchema.parse({ id, name, legs });
+const structures = catalogSchema.parse(
+  catalog.map(({ structure: { id, name, legs } }) => ({ id, name, legs })),
+);
+
+for (const structure of structures) {
   await sql`
     insert into structures (id, name, legs)
     values (${structure.id}, ${structure.name}, ${JSON.stringify(structure.legs)})

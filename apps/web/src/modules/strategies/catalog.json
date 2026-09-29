@@ -575,7 +575,7 @@
       }
     },
     "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (top straddle or straddle write)",
-    "notes": "Short a call and a put at the same strike: keeps both premiums if the underlying stays near it; loss is unbounded above. B3 margin requirements are not modeled."
+    "notes": "Short a call and a put at the same strike: keeps both premiums if the underlying stays near it; loss is unbounded above. B3 margin requirements are not modeled, and both sizing rules refuse an unbounded loss, so a backtest opens no operation from it."
   },
   {
     "structure": {
@@ -727,6 +727,6 @@
       }
     },
     "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (top vertical combination or strangle write)",
-    "notes": "Short a put below and a call above the spot: keeps both premiums while the underlying stays between the strikes; loss is unbounded above. B3 margin requirements are not modeled."
+    "notes": "Short a put below and a call above the spot: keeps both premiums while the underlying stays between the strikes; loss is unbounded above. B3 margin requirements are not modeled, and both sizing rules refuse an unbounded loss, so a backtest opens no operation from it."
   }
 ]

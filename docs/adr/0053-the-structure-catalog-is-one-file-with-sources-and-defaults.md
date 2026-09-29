@@ -31,9 +31,12 @@ and a committed checklist of what was covered and what was left out.
    covers publishing one. The strategy editor starts a new strategy, and a change of structure,
    from the entry's defaults; the user edits them before saving.
 4. **Defaults are this project's.** Strikes by moneyness (0% or ±5% of the spot, rising with the
-   strike rank, so the engine's `degenerate_strikes` rule never refuses a default outright), and
-   an expiry 15 to 45 business days out for structures that sell or spread premium, 20 to 60 for
-   those that buy it. Neither source prescribes these.
+   strike rank, so the selection itself is never degenerate; a coarse strike grid can still make
+   two resolved strikes collide), and an expiry 15 to 45 business days out for structures that
+   sell or spread premium, 20 to 60 for those that buy it. A hedge on a stock held (protective
+   put, collar) counts as buying protection, so the collar keeps the longer window despite its
+   short call. Neither source prescribes these. The short straddle and short strangle are in the
+   catalog but cannot be sized: both sizing rules refuse an unbounded loss.
 5. **Only cited structures.** An entry names its source section; structures with two expiries
    (ADR-0014), a short underlying, two underlyings, or no source found for this pass are left
    out, each with its reason, in `docs/catalog.md`. A unit test fails when an entry is missing
