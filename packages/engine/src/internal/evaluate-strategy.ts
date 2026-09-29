@@ -440,7 +440,8 @@ function barsOf(candles: readonly Candle[]): PriceBar[] {
 // that depends on how long the catch-up is (#239, ADR-0048). The window is bounded by calendar
 // sessions, as dataWindow walks them, not by a count of the candles present: a session with no
 // candle for the ticker would otherwise pull an older candle into a long view that a short view
-// never loaded. A view whose calendar does not reach `windowEnd` falls back to the count.
+// never loaded. A view whose calendar does not reach `windowEnd` falls back to the count. `sma` is
+// bounded by the same walk but strictly (ADR-0050).
 function readingAt(
   indicator: IndicatorSpec,
   series: readonly (DecimalString | null)[],
@@ -451,7 +452,16 @@ function readingAt(
   windowEnd: Instant,
 ): DecimalString | null {
   switch (indicator.kind) {
-    case "sma":
+    case "sma": {
+      const earliest = earliestCandleSession(calendar, windowEnd, indicator.length, timeframe);
+      const first = candles[position + 1 - indicator.length];
+      if (
+        earliest !== null &&
+        (first === undefined || codeUnitCompare(first.session, earliest) < 0)
+      )
+        return null;
+      return assertDefined(series[position], "evaluateStrategy: missing indicator value");
+    }
     case "iv_rank":
       return assertDefined(series[position], "evaluateStrategy: missing indicator value");
     case "ema":

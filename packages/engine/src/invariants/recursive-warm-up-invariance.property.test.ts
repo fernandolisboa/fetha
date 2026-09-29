@@ -92,15 +92,29 @@ const seriesArbitrary = fc
     }),
   );
 
+const smaStrategy: StrategyVersion = {
+  ...strategy,
+  definition: {
+    ...strategy.definition,
+    entry: {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "indicator", indicator: { kind: "sma", length: 4 } },
+    },
+  },
+};
+
 function evaluateAt(
   candles: readonly Candle[],
   calendar: readonly TradingSession[],
   at: string,
   since?: string,
+  version: StrategyVersion = strategy,
 ): unknown {
   const result = evaluateStrategy({
     view: { ...emptyView, candles: [...candles], calendar: [...calendar] },
-    strategy,
+    strategy: version,
     instruments: ["PETR4"],
     at,
     ...(since === undefined ? {} : { since }),
@@ -183,5 +197,58 @@ describe("Recursive indicator warm-up invariance (#239)", () => {
       ),
     );
     expect(sawSignal).toBe(true);
+  });
+
+  // #250: an SMA reads its last `length` candles only when they all fall inside the window of
+  // `length` sessions dataWindow requests, so a session without a candle cannot make a catch-up
+  // (whose view starts earlier) read a number where the one-night view reads none.
+  it("reads the SMA the same in dataWindow's view as over the whole history, sessions without a candle included", () => {
+    let sawSignal = false;
+    let sawGap = false;
+    fc.assert(
+      fc.property(
+        seriesArbitrary,
+        fc.array(fc.boolean(), { minLength: 40, maxLength: 40 }),
+        fc.option(fc.integer({ min: 1, max: 5 }), { nil: undefined }),
+        (series, missing, catchUp) => {
+          const calendar = series.map((candle) => ({
+            date: candle.session,
+            open: `${candle.session}T13:00:00.000Z`,
+            close: candle.asOf,
+          }));
+          // The last session keeps its candle: a halt longer than the window leaves the one-night
+          // view without the ticker at all, which ADR-0048 already treats as its own case.
+          const candles = series.filter(
+            (_, i) => i === 0 || i === series.length - 1 || !missing[i],
+          );
+          const at = assertDefined(calendar.at(-1), "test setup: missing last session").close;
+          const since =
+            catchUp === undefined
+              ? undefined
+              : assertDefined(calendar.at(-1 - catchUp), "test setup: missing session").close;
+          const { from } = dataWindow({
+            strategy: smaStrategy,
+            instruments: ["PETR4"],
+            calendar,
+            at,
+            ...(since === undefined ? {} : { since }),
+          });
+          const full = evaluateAt(candles, calendar, at, since, smaStrategy);
+          expect(
+            evaluateAt(
+              candles.filter((candle) => candle.asOf > from),
+              calendar.filter((session) => session.close >= from),
+              at,
+              since,
+              smaStrategy,
+            ),
+          ).toEqual(full);
+          if ((full as { signals: Signal[] }).signals.length > 0) sawSignal = true;
+          if (candles.length < series.length) sawGap = true;
+        },
+      ),
+    );
+    expect(sawSignal).toBe(true);
+    expect(sawGap).toBe(true);
   });
 });

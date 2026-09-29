@@ -112,6 +112,9 @@ exposing module's interface, never through its tables.
   where a strategy definition is written (`strategyDefinitionInputSchema`), never where a stored
   one is read: a version saved before a bound stays readable, backtestable and evaluable
   (ADR-0049).
+- An `sma` is read only when its last `length` candles all fall inside the window of `length`
+  sessions ending there; a session without a candle leaves it unread while it stays in the window,
+  in every run shape (ADR-0050).
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
   the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for

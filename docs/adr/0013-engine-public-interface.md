@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.4.0";
+export const ENGINE_VERSION = "0.5.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2433,3 +2433,14 @@ no shape change, because stored signals and evaluations carry `engineVersion` in
 a re-evaluation of the same session must be able to tell a rule change from a data change. ADR-0038's
 sizing fix changed no such reading and correctly did not bump. ADR-0048 records the reasoning and the
 cost.
+
+## Addendum: an `sma` reading needs its whole window of sessions; `ENGINE_VERSION` bumped to `0.5.0` (2026-09-29, #250, see ADR-0050)
+
+The 0.4.0 addendum left `sma` reading the last `length` candles present before `c`. It now reads
+them only when all `length` of them fall inside the window of `length` calendar sessions that
+`dataWindow` walks back from the window's end (the same `earliestCandleSession` walk, the same end
+rule); otherwise the reading is `null`. A session without a candle for the ticker therefore leaves
+the SMA unread for as long as that session stays in its window, in a one-night run, a catch-up, a
+re-evaluation and a backtest bar alike. `dataWindow`'s request for `sma` (`length` sessions) is
+unchanged, as are `iv_rank` and `engine.indicators()`. Under the change policy's 0.4.0 case this
+moves a reading conditions act on, so `ENGINE_VERSION` moves from `"0.4.0"` to `"0.5.0"`.

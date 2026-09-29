@@ -2837,3 +2837,60 @@ describe("evaluateStrategy — recursive indicator warm-up (#239)", () => {
     expect(readingsAtSession(threeBefore.close)).toEqual(withGaps);
   });
 });
+
+describe("evaluateStrategy — SMA over a session without a candle (#250)", () => {
+  const closes = Array.from({ length: 60 }, (_, i) => (40 + Math.sin(i / 3) * 2).toFixed(2));
+  const calendar = calendarSessions(closes.length);
+  const strategy = strategyVersion(definition({ entry: closeAboveSma(20) }));
+  const session = calendar[50] as TradingSession;
+  const threeBefore = calendar[47] as TradingSession;
+
+  const outcomeAtSession = (candles: readonly Candle[], since: string | undefined) => {
+    const window = dataWindow({
+      strategy,
+      instruments: ["PETR4"],
+      calendar,
+      at: session.close,
+      ...(since === undefined ? {} : { since }),
+    });
+    const result = evaluateStrategy({
+      view: {
+        ...emptyView,
+        calendar,
+        candles: candles.filter((c) => c.asOf > window.from && c.asOf <= window.to),
+      },
+      strategy,
+      instruments: ["PETR4"],
+      at: session.close,
+      ...(since === undefined ? {} : { since }),
+      riskProfile,
+    });
+    if (!result.ok) throw new Error("unexpected engine error");
+    return {
+      signals: result.value.signals.filter((s) => s.at === session.close),
+      evaluations: result.value.evaluations.filter((e) => e.at === session.close),
+    };
+  };
+
+  it("reads the same SMA at a session in a one-night run and in a catch-up when a session inside its window has no candle", () => {
+    const everyCandle = closes.map((close, i) => dailyCandle("PETR4", i, close));
+    const complete = outcomeAtSession(everyCandle, undefined);
+    expect(complete.evaluations).toHaveLength(1);
+    expect(outcomeAtSession(everyCandle, threeBefore.close)).toEqual(complete);
+
+    const withGap = everyCandle.filter((_, i) => i !== 40);
+    const oneNight = outcomeAtSession(withGap, undefined);
+    expect(oneNight.signals).toEqual([]);
+    expect(oneNight.evaluations[0]?.reason).toBe("entry_condition_warmup");
+    expect(outcomeAtSession(withGap, threeBefore.close)).toEqual(oneNight);
+  });
+
+  it("reads the SMA again once the missing session leaves its window", () => {
+    const withGap = closes
+      .map((close, i) => dailyCandle("PETR4", i, close))
+      .filter((_, i) => i !== 30);
+    const oneNight = outcomeAtSession(withGap, undefined);
+    expect(oneNight.evaluations[0]?.reason).not.toBe("entry_condition_warmup");
+    expect(outcomeAtSession(withGap, threeBefore.close)).toEqual(oneNight);
+  });
+});
