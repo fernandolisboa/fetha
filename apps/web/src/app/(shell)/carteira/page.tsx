@@ -14,7 +14,7 @@ import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
 import {
   allowedDecisionKinds,
-  defaultHorizonForHeldOperation,
+  defaultHorizonsForHeldOperations,
   defaultHorizonsForOperations,
   getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
@@ -49,13 +49,15 @@ export default async function PortfolioPage() {
       .filter(
         ({ operation, pendingSettlement }) => operation.status === "open" && !pendingSettlement,
       )
-      .map(({ operation }) => [operation.id, operation]),
+      .map(({ operation, heldExpiry }) => [operation.id, { ...operation, expiry: heldExpiry }]),
   );
-  const [decisionsByOperation, defaultHorizons, decisionsByHeldOperation] = await Promise.all([
-    getMyDecisionsByOperationId(operationIds),
-    defaultHorizonsForOperations(getDb(), operations),
-    getMyDecisionsByHeldOperationId([...heldOperations.keys()]),
-  ]);
+  const [decisionsByOperation, defaultHorizons, decisionsByHeldOperation, heldDefaultHorizons] =
+    await Promise.all([
+      getMyDecisionsByOperationId(operationIds),
+      defaultHorizonsForOperations(getDb(), operations),
+      getMyDecisionsByHeldOperationId([...heldOperations.keys()]),
+      defaultHorizonsForHeldOperations(getDb(), [...heldOperations.values()]),
+    ]);
 
   const heldOperationDecision = (operationId: string) => {
     const operation = heldOperations.get(operationId);
@@ -67,7 +69,7 @@ export default async function PortfolioPage() {
           originKind="held_operation"
           targetId={operation.id}
           allowedKinds={allowedDecisionKinds({ kind: "held_operation" })}
-          defaultHorizon={defaultHorizonForHeldOperation(operation.expiry)}
+          defaultHorizon={heldDefaultHorizons.get(operation.id) ?? null}
           defaultInstrument={operation.underlying}
         />
         {latest && <LatestDecision decision={latest} />}

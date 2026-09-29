@@ -18,7 +18,7 @@ export {
 } from "./queries";
 export type { DecisionInputs } from "./inputs";
 export {
-  defaultHorizonForHeldOperation,
+  defaultHorizonsForHeldOperations,
   defaultHorizonsForOperations,
   defaultHorizonsForSignals,
 } from "./resolve-default-horizon";

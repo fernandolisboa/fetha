@@ -40,6 +40,7 @@ import {
   type LedgerFill,
 } from "./bookkeeping";
 import {
+  heldExpiry,
   planOperation,
   toEngineOperation,
   type OperationState,
@@ -67,6 +68,7 @@ export interface PendingSettlement {
 export interface OperationRow {
   operation: OperationRecord;
   state: OperationState | null;
+  heldExpiry: SessionDate | null;
   valuation: OperationValuation | null;
   pendingSettlement: boolean;
 }
@@ -373,14 +375,20 @@ export async function loadPortfolio(
     })),
     unknownSeries,
     expiredHoldings,
-    operations: operations.map((operation) => ({
-      operation,
-      state: stateById.get(operation.id) ?? null,
-      valuation: valued?.operations.find((entry) => entry.operation.id === operation.id) ?? null,
-      pendingSettlement: pendingSettlements.some(
-        (pending) => pending.operation.id === operation.id,
-      ),
-    })),
+    operations: operations.map((operation) => {
+      const state = stateById.get(operation.id) ?? null;
+      return {
+        operation,
+        state,
+        // No plan (an unknown series) means no held expiry either: the
+        // decision action refuses that operation anyway.
+        heldExpiry: state ? heldExpiry(state) : null,
+        valuation: valued?.operations.find((entry) => entry.operation.id === operation.id) ?? null,
+        pendingSettlement: pendingSettlements.some(
+          (pending) => pending.operation.id === operation.id,
+        ),
+      };
+    }),
     pendingSettlements,
     fills,
   };

@@ -14,7 +14,6 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
-import { tradingSessionForDate } from "@/modules/market-data";
 import {
   ContemplatedOperationNotFoundError,
   getMyHeldOperation,
@@ -36,8 +35,8 @@ import {
   UnknownOperationError,
   type RecordDecisionInput,
 } from "./decisions-repository";
+import { horizonChecker } from "./horizon-status";
 import type { DecisionInputs } from "./inputs";
-import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 const recordInputSchema = z.strictObject({
   originKind: z.enum(journalOriginKinds),
@@ -87,29 +86,18 @@ export async function recordDecisionAction(
   }
   const { originKind, targetId, kind, rationale, claim, confidence, horizon } = parsed.data;
 
-  // Checked before touching the database:
+  // Checked before writing anything:
   // a horizon that was valid when the form loaded but has since crossed
   // into yesterday (or a client that skips its own validation) gets a
   // typed, friendly result here rather than an unhandled 23514 from the
   // `decisions_horizon_on_or_after_decided_check` constraint, which stays
   // in place as the hard guarantee behind this soft check.
-  const today = todaySaoPauloDate();
-  if (horizon < today) {
-    return { status: "error", error: "horizon_in_past" };
-  }
-  // A horizon of "today" is only ever valid while today's own session is
-  // still open: once it closes (or
-  // today is not a trading session at all — a weekend, a holiday), scoring
-  // a claim on "today's close" against a close that already happened before
-  // the decision was even recorded would score the past, not the future.
-  // The append-only `decisions_horizon_on_or_after_decided_check` still
-  // allows `horizon === today` at the database level (it only compares
-  // dates), so this soft check is the only guard for this specific case.
-  if (horizon === today) {
-    const todaySession = await tradingSessionForDate(getDb(), horizon);
-    if (!todaySession || todaySession.close <= new Date().toISOString()) {
-      return { status: "error", error: "horizon_session_closed" };
-    }
+  const horizonStatus = await horizonChecker(getDb(), new Date())(horizon);
+  if (horizonStatus !== "open") {
+    return {
+      status: "error",
+      error: horizonStatus === "in_past" ? "horizon_in_past" : "horizon_session_closed",
+    };
   }
 
   try {
