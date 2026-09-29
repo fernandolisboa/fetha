@@ -127,6 +127,8 @@ _Avoid_: deleted strategy, disabled strategy (that is the unrelated `active` fla
 
 **Catalog**:
 The shared, read-only library of structures and reference strategies available to every user.
+Each entry is a structure with its published source and a default strike and expiry selection;
+that default selection is what makes it a reference strategy (docs/adr/0053).
 _Avoid_: library, templates
 
 **Shared strategy**:

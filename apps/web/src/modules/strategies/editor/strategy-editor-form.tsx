@@ -26,6 +26,7 @@ import {
   createStrategyAction,
   type StrategyActionResult,
 } from "../actions";
+import { catalogDefaults } from "../catalog";
 import { t } from "../strings";
 import { AdjustmentRow } from "./adjustment-row";
 import { fromEditableEntry, toEditableEntry, type EditableEntry } from "./compare-conditions";
@@ -57,13 +58,18 @@ export function StrategyEditorForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [timeframe, setTimeframe] = useState(initial?.timeframe ?? "D1");
   const [structureId, setStructureId] = useState(initial?.structureId ?? structures[0]?.id ?? "");
+  const startingDefaults = initial ? null : catalogDefaults(structureId);
   const [entry, setEntry] = useState<EditableEntry>(
     initial
       ? toEditableEntry(initial.entry)
       : { editable: true, conditions: [defaultCompareCondition] },
   );
-  const [strikes, setStrikes] = useState<StrikeSelection[]>(initial?.strikes ?? []);
-  const [expiry, setExpiry] = useState<ExpirySelection>(initial?.expiry ?? defaultExpiry);
+  const [strikes, setStrikes] = useState<StrikeSelection[]>(
+    initial?.strikes ?? startingDefaults?.strikes ?? [],
+  );
+  const [expiry, setExpiry] = useState<ExpirySelection>(
+    initial?.expiry ?? startingDefaults?.expiry ?? defaultExpiry,
+  );
   const [sizing, setSizing] = useState<SizingRule>(
     initial?.sizing ?? { kind: "fixed_fractional", fraction: decimalStringSchema.parse("0.1") },
   );
@@ -85,6 +91,17 @@ export function StrategyEditorForm({
       exit,
       adjustments,
     };
+  }
+
+  // A structure's strike ranks rarely fit the previous structure's strike
+  // list, so picking one starts from its catalog defaults (docs/adr/0053).
+  function changeStructure(nextId: string) {
+    setStructureId(nextId);
+    const defaults = catalogDefaults(nextId);
+    if (defaults) {
+      setStrikes(defaults.strikes);
+      setExpiry(defaults.expiry ?? defaultExpiry);
+    }
   }
 
   function errorMessage(result: Extract<StrategyActionResult, { status: "error" }>): string {
@@ -155,7 +172,7 @@ export function StrategyEditorForm({
             <SimpleSelect
               ariaLabel={t.editor.structure.label}
               value={structureId}
-              onValueChange={setStructureId}
+              onValueChange={changeStructure}
               options={structures.map((structure) => ({
                 value: structure.id,
                 label: structure.name,

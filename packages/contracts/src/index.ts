@@ -93,3 +93,4 @@ export {
   type BacktestRun,
   type LimitMode,
 } from "./backtest-report";
+export { catalogEntrySchema, catalogSchema, type CatalogEntry } from "./catalog-entry";

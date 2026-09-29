@@ -2,21 +2,23 @@
 // hand against fetha-preview (apps/web/.env.local) or, with
 // ALLOW_PRODUCTION_DATABASE=1, production (lib/database-guard.mjs):
 //   node scripts/seed-structures.mjs
-// Seeds the reference structure catalog (docs/adr/0012, CLAUDE.md
-// principle 5: shared, read-only data no user writes). Alongside the
-// trivial stock purchase, #22 adds the two structures its builder ships
-// with (collar, trava de alta); #20 extends this further with the
-// remaining reference structures (butterfly, condor, ...). An upsert:
-// re-running it after a catalog edit in this file brings the row's
-// name/legs up to date.
+// Seeds the reference structure catalog (docs/adr/0012, docs/adr/0053,
+// CLAUDE.md principle 5: shared, read-only data no user writes) from
+// src/modules/strategies/catalog.json, the one source the app's editor
+// defaults read too. An upsert: re-running it after a catalog edit brings
+// each row's name/legs up to date. An entry removed from the file is not
+// deleted: strategy versions keep referencing it.
 //
-// Each row is validated against a plain re-statement of
+// Each structure is validated against a plain re-statement of
 // `packages/contracts/src/structure.ts`'s shape before it is written, since
 // this script runs as plain Node with no TypeScript build step (same
 // constraint as scripts/seed-invite.mjs) and cannot import that module's
-// `.ts` source directly.
+// `.ts` source directly. The whole entry is checked against the contracts
+// schemas by src/modules/strategies/catalog.test.ts.
 import { neon } from "@neondatabase/serverless";
 import { z } from "zod";
+
+import catalog from "../src/modules/strategies/catalog.json" with { type: "json" };
 
 import { assertWritableDatabase, guardedDatabaseEnv } from "./lib/database-guard.mjs";
 import { routeToLocalNeonProxy } from "./lib/local-neon.mjs";
@@ -41,33 +43,13 @@ const structureSchema = z.strictObject({
   legs: z.array(legTemplateSchema).min(1),
 });
 
-const catalog = [
-  { id: "stock", name: "Compra de ação", legs: [{ role: "stock", side: "buy", ratio: 1 }] },
-  {
-    id: "collar",
-    name: "Collar",
-    legs: [
-      { role: "stock", side: "buy", ratio: 1 },
-      { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
-      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
-    ],
-  },
-  {
-    id: "bull-call-spread",
-    name: "Trava de alta",
-    legs: [
-      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
-      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
-    ],
-  },
-];
-
 const env = guardedDatabaseEnv(assertWritableDatabase, "seed the structure catalog");
 routeToLocalNeonProxy(env.DATABASE_URL);
 const sql = neon(env.DATABASE_URL);
 
-for (const candidate of catalog) {
-  const structure = structureSchema.parse(candidate);
+for (const entry of catalog) {
+  const { id, name, legs } = entry.structure;
+  const structure = structureSchema.parse({ id, name, legs });
   await sql`
     insert into structures (id, name, legs)
     values (${structure.id}, ${structure.name}, ${JSON.stringify(structure.legs)})

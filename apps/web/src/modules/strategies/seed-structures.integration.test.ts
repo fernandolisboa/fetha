@@ -5,7 +5,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
+import { catalog } from "./catalog";
 import { structures } from "./schema";
+import { StructuresRepository } from "./structures-repository";
 
 const scriptPath = path.resolve(import.meta.dirname, "../../../scripts/seed-structures.mjs");
 
@@ -32,6 +34,21 @@ describe("seed-structures.mjs", () => {
 
     expect(row?.name).toBe("Compra de ação");
     expect(row?.legs).toEqual([{ role: "stock", side: "buy", ratio: 1 }]);
+  });
+
+  it("writes every catalog entry as the structure it defines (#20)", async () => {
+    runSeed();
+
+    const seeded = new Map(
+      (await new StructuresRepository(getDb()).listAll()).map((structure) => [
+        structure.id,
+        structure,
+      ]),
+    );
+
+    for (const entry of catalog) {
+      expect(seeded.get(entry.structure.id)).toEqual(entry.structure);
+    }
   });
 
   it("is idempotent: running it twice leaves a single row per id", async () => {
