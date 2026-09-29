@@ -34,16 +34,22 @@ lookback, so their full-series reading already equals the trailing one.
   what a chart draws. Only the readings a strategy evaluation acts on change.
 - A reading is computed only when the evaluated condition reads it (entry specs when nothing is
   open, the open operation's rule specs otherwise), and memoized per instant.
-- `ENGINE_VERSION` moves from `0.3.0` to `0.4.0`: signals and backtest results change for every
-  strategy that reads a recursive indicator, and a checkpoint paused under `0.3.0` must not resume
-  with the other reading rule halfway through a run (it fails with `checkpoint_mismatch`, as every
-  earlier bump did).
+- `ENGINE_VERSION` moves from `0.3.0` to `0.4.0`, although no checkpointed or persisted shape
+  changes (ADR-0013's change policy bumps only for those, and ADR-0038's value-only sizing fix did
+  not bump). This change is different in kind: it moves the indicator readings conditions act on,
+  for every strategy that reads a recursive indicator, at every session. Signals and evaluations
+  store `engineVersion` in their provenance, so a re-evaluation of a session recorded under `0.3.0`
+  can tell that a moved reading comes from the rule, not from the data; and a backtest paused under
+  `0.3.0` fails with `checkpoint_mismatch` instead of mixing the two rules in one run. The
+  ADR-0013 addendum adds this case to the change policy.
 
 ## Consequences
 
 - The reading at session S is a function of the `3 * length` candles ending at S alone, so a
   one-night run, any catch-up covering S, a re-evaluation of S and a backtest bar at S agree
-  exactly on it. The recursive-warm-up invariance property test pins this.
+  exactly on it. The recursive-warm-up invariance property test pins it for `evaluateStrategy`,
+  and a backtest golden test runs the same period over views with and without 18 older sessions
+  and expects identical runs (it fails on the previous rule).
 - The ADR-0013 "Indicators" rationale for the `3 * length` warm-up (so live and backtest readings
   converge) becomes an exact identity instead of an approximation.
 - Cost: a recursive reading is now O(`3 * length`) per evaluated candle instead of O(1) amortized.

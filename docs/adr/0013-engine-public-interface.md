@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.3.0";
+export const ENGINE_VERSION = "0.4.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2418,5 +2418,12 @@ evaluation instant `c` reads them over the `3 * length` adjusted candles ending 
 count `dataWindow` requests, now in `internal/indicator-warm-up.ts`), not over every candle the view
 holds before `c`, so the reading no longer depends on the call's `since` or on a backtest's start.
 `sma`, `iv_rank`, the adjusted candle itself and `engine.indicators()` are unchanged.
-`ENGINE_VERSION` moves from `"0.3.0"` to `"0.4.0"`: results change, and a checkpoint from `0.3.0`
-must not resume under the new rule. ADR-0048 records the reasoning and the cost.
+For those three kinds the evaluator no longer reads the per-ticker, per-factor-epoch series the
+#58 addendum describes; it recomputes each reading over its window at the instant it is read
+(`sma`, `iv_rank` and the adjusted candle still come from that cache).
+`ENGINE_VERSION` moves from `"0.3.0"` to `"0.4.0"`. The change policy above gains a case: a bump
+also tracks a change to how an existing indicator reading a condition acts on is computed, even with
+no shape change, because stored signals and evaluations carry `engineVersion` in their provenance and
+a re-evaluation of the same session must be able to tell a rule change from a data change. ADR-0038's
+sizing fix changed no such reading and correctly did not bump. ADR-0048 records the reasoning and the
+cost.

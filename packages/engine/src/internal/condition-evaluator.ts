@@ -8,9 +8,11 @@ export { indicatorSpecKey };
 
 export type Verdict = "true" | "false" | "unknown";
 
+export type IndicatorLookup<T> = Pick<ReadonlyMap<string, T>, "get">;
+
 export type ConditionContext = {
   candle: Candle;
-  indicatorValues: Pick<ReadonlyMap<string, Decimal | null>, "get">;
+  indicatorValues: IndicatorLookup<Decimal | null>;
 };
 
 function resolveOperand(operand: Operand, ctx: ConditionContext): Decimal | null {

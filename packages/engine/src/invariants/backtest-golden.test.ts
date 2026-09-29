@@ -89,6 +89,43 @@ describe("backtest golden outputs (#58)", () => {
     );
   }, 30_000);
 
+  // #239: a backtest bar reads EMA, RSI and ATR over their own trailing window, so older history
+  // in the view (a run whose data starts earlier) changes nothing inside the same period. RSI
+  // thresholds at 50 put many readings close enough to the line for a seed shift to flip one.
+  it("a recursive-indicator run is the same whatever history precedes the warm-up", () => {
+    const rsiAbove = (value: string): Condition => ({
+      kind: "compare",
+      left: rsi14,
+      comparator: ">",
+      right: { kind: "constant", value: decimalString(value) },
+    });
+    const input = syntheticBacktestInput({
+      sessions: 200,
+      instruments: 10,
+      entry: {
+        kind: "and",
+        conditions: [
+          rsiAbove("50"),
+          {
+            kind: "compare",
+            left: { kind: "price", field: "close" },
+            comparator: ">",
+            right: ema10,
+          },
+        ],
+      },
+      exit: [{ kind: "condition", condition: { kind: "not", condition: rsiAbove("50") } }],
+    });
+    const trimmedFrom = input.view.calendar[18]?.date ?? "";
+    const trimmed = {
+      ...input,
+      view: { ...input.view, candles: input.view.candles.filter((c) => c.session >= trimmedFrom) },
+    };
+    const full = complete(runBacktest(input));
+    expect(full.operations.length).toBeGreaterThan(0);
+    expect(complete(runBacktest(trimmed))).toEqual(full);
+  }, 30_000);
+
   it("an IV-rank run whose index carries one point published after later sessions' points", async () => {
     const input = syntheticBacktestInput({
       sessions: 80,

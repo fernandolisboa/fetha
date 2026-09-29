@@ -36,10 +36,14 @@ import {
   dedupeIndicatorSpecs,
   indicatorSpecKey,
 } from "./collect-indicator-specs";
-import { evaluateCondition, type ConditionContext } from "./condition-evaluator";
+import {
+  evaluateCondition,
+  type ConditionContext,
+  type IndicatorLookup,
+} from "./condition-evaluator";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators, lastRecursiveValue } from "./indicators-computation";
-import type { AtrBar } from "./indicators/atr";
+import type { PriceBar } from "./indicators/atr";
 import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
@@ -413,9 +417,9 @@ function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReaso
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
 }
 
-const parsedBars = new WeakMap<readonly Candle[], AtrBar[]>();
+const parsedBars = new WeakMap<readonly Candle[], PriceBar[]>();
 
-function barsOf(candles: readonly Candle[]): AtrBar[] {
+function barsOf(candles: readonly Candle[]): PriceBar[] {
   let bars = parsedBars.get(candles);
   if (!bars) {
     bars = candles.map((c) => ({
@@ -431,7 +435,7 @@ function barsOf(candles: readonly Candle[]): AtrBar[] {
 // A recursive indicator is read over the fixed trailing window dataWindow requests for it, ending
 // at the evaluated candle, not over everything the view holds before it: the view starts where
 // the call's `since` needs it to, so reading over all of it would seed EMA, RSI and ATR at a
-// point that depends on how long the catch-up is (#239, ADR-0047).
+// point that depends on how long the catch-up is (#239, ADR-0048).
 function readingAt(
   indicator: IndicatorSpec,
   series: readonly (DecimalString | null)[],
@@ -463,8 +467,6 @@ export type EvaluationCall = Pick<
 export type StrategyEvaluator = (
   call: EvaluationCall,
 ) => Result<Pick<Evaluation, "signals" | "evaluations">>;
-
-type IndicatorLookup<T> = Pick<ReadonlyMap<string, T>, "get">;
 
 type Readings = { candle: Candle; values: IndicatorLookup<DecimalString | null> };
 
