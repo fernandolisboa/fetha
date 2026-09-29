@@ -3,122 +3,6 @@
  "value": {
   "signals": [
    {
-    "kind": "entry",
-    "strategyVersionId": "synthetic",
-    "ticker": "TCK013",
-    "timeframe": "D1",
-    "at": "2019-03-28T20:00:00.000Z",
-    "session": "2019-03-28",
-    "indicators": [
-     {
-      "indicator": {
-       "kind": "sma",
-       "length": 20
-      },
-      "value": "36.47"
-     },
-     {
-      "indicator": {
-       "kind": "sma",
-       "length": 50
-      },
-      "value": "35.86"
-     },
-     {
-      "indicator": {
-       "kind": "iv_rank",
-       "lookbackSessions": 20
-      },
-      "value": "15.789474"
-     }
-    ],
-    "proposal": {
-     "legs": [
-      {
-       "role": "stock",
-       "side": "buy",
-       "ticker": "TCK013",
-       "quantity": 1427
-      }
-     ],
-     "pricing": {
-      "at": "2019-03-28T20:00:00.000Z",
-      "underlying": "TCK013",
-      "spot": "35.03",
-      "riskFreeRate": "0.101202",
-      "dividendYield": "0.000000",
-      "legs": [
-       {
-        "leg": {
-         "role": "stock",
-         "side": "buy",
-         "ticker": "TCK013",
-         "quantity": 1427,
-         "entryPrice": "35.03",
-         "priceSource": "close"
-        },
-        "price": "35.03",
-        "priceSource": "close",
-        "stale": null,
-        "fairValue": null,
-        "impliedVolatility": null,
-        "volatilitySource": null,
-        "greeks": {
-         "delta": "1.000000",
-         "gamma": "0.000000",
-         "theta": "0.000000",
-         "vega": "0.000000",
-         "rho": "0.000000"
-        },
-        "timeToExpiryYears": null,
-        "notes": []
-       }
-      ],
-      "netPremium": -4998781,
-      "greeks": {
-       "delta": "1427.000000",
-       "gamma": "0.000000",
-       "theta": "0.000000",
-       "vega": "0.000000",
-       "rho": "0.000000"
-      },
-      "payoff": [
-       {
-        "underlying": "28.02",
-        "pnl": -1000327
-       },
-       {
-        "underlying": "35.03",
-        "pnl": 0
-       },
-       {
-        "underlying": "42.04",
-        "pnl": 1000327
-       }
-      ],
-      "breakEvens": [
-       "35.03"
-      ],
-      "maxLoss": 4998781,
-      "maxGain": "unbounded",
-      "limitBreaches": [],
-      "notes": [
-       {
-        "code": "dividend_yield_defaulted",
-        "message": "no dividend yield visible; defaulted to 0"
-       }
-      ],
-      "provenance": {
-       "engineVersion": "0.4.0",
-       "pricingModel": "bsm_continuous_yield",
-       "dataVersion": null,
-       "datasetNotes": [],
-       "truncated": []
-      }
-     }
-    }
-   },
-   {
     "kind": "exit",
     "strategyVersionId": "synthetic",
     "ticker": "TCK023",
@@ -1673,7 +1557,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1789,7 +1673,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1905,7 +1789,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2021,7 +1905,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2137,7 +2021,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2253,7 +2137,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.4.0",
+       "engineVersion": "0.5.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2695,8 +2579,8 @@
     "ticker": "TCK013",
     "at": "2019-03-28T20:00:00.000Z",
     "session": "2019-03-28",
-    "outcome": "signal",
-    "reason": "signal"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
@@ -2744,64 +2628,64 @@
     "ticker": "TCK013",
     "at": "2019-04-08T20:00:00.000Z",
     "session": "2019-04-08",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-09T20:00:00.000Z",
     "session": "2019-04-09",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-10T20:00:00.000Z",
     "session": "2019-04-10",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-11T20:00:00.000Z",
     "session": "2019-04-11",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-12T20:00:00.000Z",
     "session": "2019-04-12",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-15T20:00:00.000Z",
     "session": "2019-04-15",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-16T20:00:00.000Z",
     "session": "2019-04-16",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-17T20:00:00.000Z",
     "session": "2019-04-17",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
     "at": "2019-04-18T20:00:00.000Z",
     "session": "2019-04-18",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK013",
@@ -3087,8 +2971,8 @@
     "ticker": "TCK013",
     "at": "2019-06-18T20:00:00.000Z",
     "session": "2019-06-18",
-    "outcome": "conditions_not_met",
-    "reason": "conditions_not_met"
+    "outcome": "insufficient_data",
+    "reason": "entry_condition_warmup"
    },
    {
     "ticker": "TCK023",
@@ -3933,7 +3817,7 @@
   ],
   "notes": [],
   "provenance": {
-   "engineVersion": "0.4.0",
+   "engineVersion": "0.5.0",
    "pricingModel": "bsm_continuous_yield",
    "truncated": [],
    "dataVersion": null,
