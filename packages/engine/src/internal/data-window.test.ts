@@ -14,7 +14,7 @@ import type {
   StrategyVersion,
   TradingSession,
 } from "../api";
-import { dataWindow } from "./data-window";
+import { dataWindow, earliestIvSession, tradingCalendar } from "./data-window";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, isAfter, isAtOrBefore } from "./instant";
 import { decimalString } from "../test/support";
@@ -765,5 +765,48 @@ describe("dataWindow", () => {
       };
       expect(dataWindow(input).from).toBe("2024-01-03T20:00:00.000Z");
     });
+  });
+});
+
+describe("earliestIvSession (#254)", () => {
+  const calendar = dailySessions(30);
+  const ivOnly = (lookbackSessions: number, at: Instant): DataWindowInput => ({
+    strategy: strategy(
+      definition({
+        entry: ivRankCondition(lookbackSessions),
+        timeframe: "D1",
+        structureId: "stock",
+      }),
+      stockStructure,
+    ),
+    instruments: ["PETR4"],
+    calendar,
+    at,
+  });
+  const sessionAfter = (from: Instant): string | undefined =>
+    calendar.find((s) => isAfter(s.close, from))?.date;
+
+  it("is the first session whose IV point dataWindow's window holds, once the anchor session has closed", () => {
+    const at = (calendar[20] as TradingSession).close;
+    expect(earliestIvSession(tradingCalendar(calendar), at, 5)).toBe(calendar[16]?.date);
+    expect(earliestIvSession(tradingCalendar(calendar), at, 5)).toBe(
+      sessionAfter(dataWindow(ivOnly(5, at)).from),
+    );
+  });
+
+  it("reaches one session further back while the anchor session is still open", () => {
+    const at = "2024-01-21T15:00:00.000Z";
+    expect(earliestIvSession(tradingCalendar(calendar), at, 5)).toBe(calendar[15]?.date);
+    expect(earliestIvSession(tradingCalendar(calendar), at, 5)).toBe(
+      sessionAfter(dataWindow(ivOnly(5, at)).from),
+    );
+  });
+
+  it("clamps to the calendar's first session and is null before it", () => {
+    const calendarView = tradingCalendar(calendar);
+    expect(earliestIvSession(calendarView, (calendar[2] as TradingSession).close, 10)).toBe(
+      calendar[0]?.date,
+    );
+    expect(earliestIvSession(calendarView, "2023-12-31T20:00:00.000Z", 10)).toBeNull();
   });
 });

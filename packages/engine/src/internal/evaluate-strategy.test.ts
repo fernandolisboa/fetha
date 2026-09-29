@@ -11,6 +11,7 @@ import type {
   CorporateActionFactor,
   DividendYieldPoint,
   EvaluateStrategyInput,
+  ImpliedVolatilityIndexPoint,
   MacroPoint,
   MarketView,
   Operation,
@@ -2927,5 +2928,96 @@ describe("evaluateStrategy — SMA over a session without a candle (#250)", () =
     const atOwnSession = evaluate(dayBefore.close, fullHistory);
     expect(atOwnSession).toHaveLength(1);
     expect(atOwnSession).not.toEqual(["entry_condition_warmup"]);
+  });
+});
+
+describe("evaluateStrategy — iv_rank over a session without an IV point (#254)", () => {
+  const count = 60;
+  const calendar = calendarSessions(count);
+  const ivRankBelow = (threshold: string): Condition => ({
+    kind: "compare",
+    left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 20 } },
+    comparator: "<",
+    right: { kind: "constant", value: decimalString(threshold) },
+  });
+  const strategy = strategyVersion(definition({ entry: ivRankBelow("101") }));
+  const session = calendar[50] as TradingSession;
+  const threeBefore = calendar[47] as TradingSession;
+  const candles = Array.from({ length: count }, (_, i) => dailyCandle("PETR4", i, "40.00"));
+  const ivPoint = (index: number, publishedAt = index): ImpliedVolatilityIndexPoint => ({
+    underlying: "PETR4",
+    session: sessionAt(index),
+    asOf: `${sessionAt(publishedAt)}T21:00:00.000Z`,
+    impliedVolatility: decimalString((0.3 + Math.sin(index / 4) * 0.05).toFixed(4)),
+  });
+  const everyPoint = Array.from({ length: count }, (_, i) => ivPoint(i));
+
+  const evaluateAt = (view: MarketView, since: string | undefined) => {
+    const result = evaluateStrategy({
+      view,
+      strategy,
+      instruments: ["PETR4"],
+      at: session.close,
+      ...(since === undefined ? {} : { since }),
+      riskProfile,
+    });
+    if (!result.ok) throw new Error("unexpected engine error");
+    return {
+      signals: result.value.signals.filter((s) => s.at === session.close),
+      evaluations: result.value.evaluations.filter((e) => e.at === session.close),
+    };
+  };
+
+  const outcomeAtSession = (points: readonly ImpliedVolatilityIndexPoint[], since?: string) => {
+    const window = dataWindow({
+      strategy,
+      instruments: ["PETR4"],
+      calendar,
+      at: session.close,
+      ...(since === undefined ? {} : { since }),
+    });
+    const inWindow = (asOf: string) => asOf > window.from && asOf <= window.to;
+    return evaluateAt(
+      {
+        ...emptyView,
+        calendar,
+        candles: candles.filter((c) => inWindow(c.asOf)),
+        impliedVolatilityIndex: points.filter((p) => inWindow(p.asOf)),
+      },
+      since,
+    );
+  };
+
+  it("reads the same rank at a session in a one-night run and in a catch-up when a session inside its window has no IV point", () => {
+    const complete = outcomeAtSession(everyPoint);
+    expect(complete.signals).toHaveLength(1);
+    expect(outcomeAtSession(everyPoint, threeBefore.close)).toEqual(complete);
+
+    const withGap = everyPoint.filter((_, i) => i !== 40);
+    const oneNight = outcomeAtSession(withGap);
+    expect(oneNight.signals).toEqual([]);
+    expect(oneNight.evaluations[0]?.reason).toBe("entry_condition_warmup");
+    expect(outcomeAtSession(withGap, threeBefore.close)).toEqual(oneNight);
+  });
+
+  it("reads the rank again once the missing session leaves its window", () => {
+    const withGap = everyPoint.filter((_, i) => i !== 30);
+    const oneNight = outcomeAtSession(withGap);
+    expect(oneNight.signals).toHaveLength(1);
+    expect(outcomeAtSession(withGap, threeBefore.close)).toEqual(oneNight);
+  });
+
+  it("agrees between a backtest bar holding a point published after at and the one-night run", () => {
+    const late = everyPoint.map((p, i) => (i === 45 ? ivPoint(45, 52) : p));
+    const fullHistory: MarketView = {
+      ...emptyView,
+      calendar,
+      candles,
+      impliedVolatilityIndex: late,
+    };
+    const bar = evaluateAt(fullHistory, undefined);
+    expect(bar.signals).toEqual([]);
+    expect(bar.evaluations[0]?.reason).toBe("entry_condition_warmup");
+    expect(bar).toEqual(outcomeAtSession(late));
   });
 });

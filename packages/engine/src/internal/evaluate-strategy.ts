@@ -42,7 +42,12 @@ import {
   type ConditionContext,
   type IndicatorLookup,
 } from "./condition-evaluator";
-import { earliestCandleSession, tradingCalendar, type TradingCalendar } from "./data-window";
+import {
+  earliestCandleSession,
+  earliestIvSession,
+  tradingCalendar,
+  type TradingCalendar,
+} from "./data-window";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
 import { computeIndicators, lastRecursiveValue } from "./indicators-computation";
 import type { PriceBar } from "./indicators/atr";
@@ -441,7 +446,8 @@ function barsOf(candles: readonly Candle[]): PriceBar[] {
 // sessions, as dataWindow walks them, not by a count of the candles present: a session with no
 // candle for the ticker would otherwise pull an older candle into a long view that a short view
 // never loaded. A view whose calendar does not reach `windowEnd` falls back to the count. `sma` is
-// bounded by the same walk but strictly (ADR-0050).
+// bounded by the same walk but strictly (ADR-0050), and so is `iv_rank` over the sessions of the
+// IV points it ranks (ADR-0051).
 function readingAt(
   indicator: IndicatorSpec,
   series: readonly (DecimalString | null)[],
@@ -450,6 +456,7 @@ function readingAt(
   calendar: TradingCalendar,
   timeframe: Timeframe,
   windowEnd: Instant,
+  rankedIvSessions: () => readonly SessionDate[],
 ): DecimalString | null {
   switch (indicator.kind) {
     case "sma": {
@@ -467,8 +474,14 @@ function readingAt(
         return null;
       return assertDefined(series[position], "evaluateStrategy: missing indicator value");
     }
-    case "iv_rank":
+    case "iv_rank": {
+      const earliest = earliestIvSession(calendar, windowEnd, indicator.lookbackSessions);
+      const sessions = rankedIvSessions();
+      const first = sessions[sessions.length - indicator.lookbackSessions];
+      if (earliest !== null && (first === undefined || codeUnitCompare(first, earliest) < 0))
+        return null;
       return assertDefined(series[position], "evaluateStrategy: missing indicator value");
+    }
     case "ema":
     case "rsi":
     case "atr": {
@@ -529,8 +542,32 @@ type TickerState = {
   factorMs: number[];
   factorsByAsOf: CorporateActionFactor[];
   prefixStable: boolean;
+  ivSessions: SessionDate[];
+  ivAsOfMs: number[];
   epochs: Map<number, Result<IndicatorSeries>>;
 };
+
+// The sessions of the IV points computeIndicators ranks up to the one it aligns to a candle at
+// `candleMs`, when the series is built at `visibleAtMs`: buildIvIndexSeries leaves out the points
+// published after `visibleAtMs`, and alignByInstant's walk stops at the first remaining point
+// published after the candle.
+function latestAsOf(state: TickerState): Instant {
+  return assertDefined(state.nominal.at(-1), "evaluateStrategy: non-empty series").asOf;
+}
+
+function rankedIvSessionsAt(
+  state: TickerState,
+  visibleAtMs: number,
+  candleMs: number,
+): SessionDate[] {
+  const ranked: SessionDate[] = [];
+  for (const [i, ms] of state.ivAsOfMs.entries()) {
+    if (ms > visibleAtMs) continue;
+    if (!(ms <= candleMs)) break;
+    ranked.push(assertDefined(state.ivSessions[i], "evaluateStrategy: missing IV session"));
+  }
+  return ranked;
+}
 
 function ivPublishedInSessionOrder(
   points: readonly ImpliedVolatilityIndexPoint[],
@@ -622,6 +659,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         })
         .sort((a, b) => (a.ms < b.ms ? -1 : a.ms > b.ms ? 1 : 0));
       const factorsByAsOf = byAsOf.map((entry) => entry.factor);
+      const ivPoints = needsIv
+        ? view.impliedVolatilityIndex
+            .filter((p) => p.underlying === ticker)
+            .sort((a, b) => codeUnitCompare(a.session, b.session))
+        : [];
       state = {
         ok: true,
         value: {
@@ -631,6 +673,8 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
           factorMs: byAsOf.map((entry) => entry.ms),
           factorsByAsOf,
           prefixStable: !needsIv || ivPublishedInSessionOrder(view.impliedVolatilityIndex, ticker),
+          ivSessions: ivPoints.map((p) => p.session),
+          ivAsOfMs: ivPoints.map((p) => instantMs(p.asOf)),
           epochs: new Map(),
         },
       };
@@ -648,23 +692,24 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     const nominalCandle = assertDefined(state.nominal[index], "evaluateStrategy: instant");
     let indicators: Result<IndicatorSeries>;
     let position = index;
+    let builtAt = c;
     if (state.prefixStable) {
       const epoch = upperBound(state.factorMs, instantMs(c));
       const cached = state.epochs.get(epoch);
       if (cached) {
         indicators = cached;
       } else {
-        const last = assertDefined(state.nominal.at(-1), "evaluateStrategy: non-empty series");
         indicators = computeIndicators({
           view: { ...state.view, corporateActions: state.factorsByAsOf.slice(0, epoch) },
           ticker: nominalCandle.ticker,
           timeframe,
           indicators: distinctSpecs,
-          at: last.asOf,
+          at: latestAsOf(state),
           form: "adjusted",
         });
         state.epochs.set(epoch, indicators);
       }
+      builtAt = latestAsOf(state);
     } else {
       indicators = computeIndicators({
         view: state.view,
@@ -678,6 +723,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     }
     if (!indicators.ok) return indicators;
     const { candles, series: allSeries } = indicators.value;
+    const candle = assertDefined(
+      candles[position],
+      "evaluateStrategy: missing current adjusted candle",
+    );
+    let rankedIv: SessionDate[] | null = null;
+    const rankedIvSessions = () =>
+      (rankedIv ??= rankedIvSessionsAt(state, instantMs(builtAt), instantMs(candle.asOf)));
     const seriesByKey = new Map(
       allSeries.map((series) => [indicatorSpecKey(series.indicator), series]),
     );
@@ -693,15 +745,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         tradingCalendar(view.calendar),
         timeframe,
         windowEnd,
+        rankedIvSessions,
       );
     });
     return {
       ok: true,
       value: {
-        candle: assertDefined(
-          indicators.value.candles[position],
-          "evaluateStrategy: missing current adjusted candle",
-        ),
+        candle,
         values,
       },
     };
