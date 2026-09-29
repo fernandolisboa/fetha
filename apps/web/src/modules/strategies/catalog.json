@@ -1,0 +1,732 @@
+[
+  {
+    "structure": {
+      "id": "stock",
+      "name": "Compra de ação",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "stock",
+          "side": "buy",
+          "ratio": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": []
+    },
+    "reference": "Baseline: the underlying on its own, no option reference applies",
+    "notes": "The trivial structure strategies compare against; no strike or expiry."
+  },
+  {
+    "structure": {
+      "id": "long-call",
+      "name": "Compra de call",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): compra de calls para exposição direcional",
+    "notes": "Long an at-the-money call. Loss limited to the premium paid; gain grows with the underlying."
+  },
+  {
+    "structure": {
+      "id": "long-put",
+      "name": "Compra de put",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): compra de puts para exposição direcional",
+    "notes": "Long an at-the-money put. Loss limited to the premium paid; gains as the underlying falls."
+  },
+  {
+    "structure": {
+      "id": "covered-call",
+      "name": "Lançamento coberto",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "stock",
+          "side": "buy",
+          "ratio": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Trading an Option and the Underlying Asset” (writing a covered call); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): lançamento coberto",
+    "notes": "Long the underlying, short a call 5% out of the money: premium income, upside capped at the strike."
+  },
+  {
+    "structure": {
+      "id": "protective-put",
+      "name": "Put de proteção",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "stock",
+          "side": "buy",
+          "ratio": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Trading an Option and the Underlying Asset” (protective put)",
+    "notes": "Long the underlying and a put 5% out of the money: loss below the strike is floored, at the cost of the premium."
+  },
+  {
+    "structure": {
+      "id": "collar",
+      "name": "Collar",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "stock",
+          "side": "buy",
+          "ratio": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Trading an Option and the Underlying Asset”: a protective put financed by a covered call, the two positions of that section held together",
+    "notes": "Long the underlying, a put 5% below and a short call 5% above: the call's premium pays for part of the floor, and caps the upside."
+  },
+  {
+    "structure": {
+      "id": "bull-call-spread",
+      "name": "Trava de alta com calls",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta",
+    "notes": "Debit spread: long the lower-strike call, short the higher. Gain and loss both bounded."
+  },
+  {
+    "structure": {
+      "id": "bull-put-spread",
+      "name": "Trava de alta com puts",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from puts); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta",
+    "notes": "Credit spread: long the lower-strike put, short the higher. Keeps the credit if the underlying stays above the upper strike."
+  },
+  {
+    "structure": {
+      "id": "bear-call-spread",
+      "name": "Trava de baixa com calls",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bear spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de baixa",
+    "notes": "Credit spread: short the lower-strike call, long the higher. Keeps the credit if the underlying stays below the lower strike."
+  },
+  {
+    "structure": {
+      "id": "bear-put-spread",
+      "name": "Trava de baixa com puts",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bear spreads created from puts); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de baixa",
+    "notes": "Debit spread: short the lower-strike put, long the higher. Gain and loss both bounded."
+  },
+  {
+    "structure": {
+      "id": "box-spread",
+      "name": "Box de quatro pontas",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 2
+        },
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (box spreads)",
+    "notes": "A bull call spread plus a bear put spread on the same two strikes: pays the strike difference at expiry whatever the underlying does, so it behaves like a fixed-income position. Hull notes the riskless payoff holds for European options only."
+  },
+  {
+    "structure": {
+      "id": "call-butterfly",
+      "name": "Borboleta com calls",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 2,
+          "strikeRank": 2
+        },
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 3
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (butterfly spreads created from calls)",
+    "notes": "Long one call at each wing and short two at the middle strike: gains most if the underlying ends near the middle strike."
+  },
+  {
+    "structure": {
+      "id": "put-butterfly",
+      "name": "Borboleta com puts",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 2,
+          "strikeRank": 2
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 3
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (butterfly spreads created from puts)",
+    "notes": "The put version of the call butterfly, with the same payoff shape."
+  },
+  {
+    "structure": {
+      "id": "long-straddle",
+      "name": "Straddle comprado",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (straddle; bottom straddle or straddle purchase)",
+    "notes": "Long a call and a put at the same at-the-money strike: gains on a large move either way, loses both premiums if the underlying stays put."
+  },
+  {
+    "structure": {
+      "id": "short-straddle",
+      "name": "Straddle vendido",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (top straddle or straddle write)",
+    "notes": "Short a call and a put at the same strike: keeps both premiums if the underlying stays near it; loss is unbounded above. B3 margin requirements are not modeled, and both sizing rules refuse an unbounded loss, so a backtest opens no operation from it."
+  },
+  {
+    "structure": {
+      "id": "strip",
+      "name": "Strip",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 2,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (strips and straps)",
+    "notes": "Long one call and two puts at the same strike: a straddle that pays more on a fall."
+  },
+  {
+    "structure": {
+      "id": "strap",
+      "name": "Strap",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 2,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (strips and straps)",
+    "notes": "Long two calls and one put at the same strike: a straddle that pays more on a rise."
+  },
+  {
+    "structure": {
+      "id": "long-strangle",
+      "name": "Strangle comprado",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (strangles; bottom vertical combination)",
+    "notes": "Long a put below and a call above the spot: cheaper than a straddle, needs a larger move to pay."
+  },
+  {
+    "structure": {
+      "id": "short-strangle",
+      "name": "Strangle vendido",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (top vertical combination or strangle write)",
+    "notes": "Short a put below and a call above the spot: keeps both premiums while the underlying stays between the strikes; loss is unbounded above. B3 margin requirements are not modeled, and both sizing rules refuse an unbounded loss, so a backtest opens no operation from it."
+  }
+]
