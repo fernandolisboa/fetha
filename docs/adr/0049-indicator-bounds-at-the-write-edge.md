@@ -24,7 +24,8 @@ from the session that ships the bound.
   live in `packages/contracts/src/indicator-spec.ts`. At 500, the widest reading (`rsi`, `atr`)
   walks 3,000 sessions per evaluated candle.
 - `strategyDefinitionInputSchema` is `strategyDefinitionSchema` plus a refinement that every
-  indicator in the entry condition and in every `condition` exit rule is within those bounds. The
+  indicator in the entry condition, in every `condition` exit rule and in every roll adjustment's
+  `condition` trigger is within those bounds (the same places the engine collects indicators from). The
   write edge parses with it: `createStrategyAction`, `addStrategyVersionAction` and the editor's
   own pre-submit check. The editor's number fields carry the same `max` and say "No máximo 500".
 - Every read path keeps `strategyDefinitionSchema`, which has no upper bound. A version stored

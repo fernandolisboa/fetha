@@ -45,7 +45,7 @@ export function NumberField({
 
   const valid = isValidWholeNumber(raw, min, max);
   const invalidMessage =
-    max !== undefined && isValidWholeNumber(raw, max + 1)
+    max !== undefined && isValidWholeNumber(raw) && Number(raw.trim()) > max
       ? t.editor.fieldAboveMax(max)
       : t.editor.fieldInvalid;
   useFieldValidityRegistration(id, valid);

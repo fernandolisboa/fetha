@@ -185,6 +185,28 @@ describe("strategyDefinitionInputSchema", () => {
     },
   );
 
+  it("rejects an indicator above its bound in a roll adjustment's trigger", () => {
+    const overBound = {
+      ...strategy,
+      adjustments: [
+        {
+          ...roll,
+          when: {
+            kind: "condition",
+            condition: {
+              kind: "compare",
+              left: { kind: "indicator", indicator: { kind: "rsi", length: 501 } },
+              comparator: "<",
+              right: { kind: "constant", value: "30" },
+            },
+          },
+        },
+      ],
+    };
+    expect(strategyDefinitionSchema.safeParse(overBound).success).toBe(true);
+    expect(strategyDefinitionInputSchema.safeParse(overBound).success).toBe(false);
+  });
+
   it("rejects an iv_rank lookback above 1260 sessions", () => {
     expect(
       strategyDefinitionInputSchema.safeParse(
