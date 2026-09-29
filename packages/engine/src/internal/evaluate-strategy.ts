@@ -569,13 +569,7 @@ function rankedIvSessionsAt(
   return ranked;
 }
 
-function ivPublishedInSessionOrder(
-  points: readonly ImpliedVolatilityIndexPoint[],
-  ticker: Ticker,
-): boolean {
-  const own = points
-    .filter((p) => p.underlying === ticker)
-    .sort((a, b) => codeUnitCompare(a.session, b.session));
+function ivPublishedInSessionOrder(own: readonly ImpliedVolatilityIndexPoint[]): boolean {
   return own.every((p, i) => {
     const previous = own[i - 1];
     return previous === undefined || !isAfter(previous.asOf, p.asOf);
@@ -672,7 +666,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
           nominalMs: series.value.nominal.map((c) => instantMs(c.asOf)),
           factorMs: byAsOf.map((entry) => entry.ms),
           factorsByAsOf,
-          prefixStable: !needsIv || ivPublishedInSessionOrder(view.impliedVolatilityIndex, ticker),
+          prefixStable: !needsIv || ivPublishedInSessionOrder(ivPoints),
           ivSessions: ivPoints.map((p) => p.session),
           ivAsOfMs: ivPoints.map((p) => instantMs(p.asOf)),
           epochs: new Map(),

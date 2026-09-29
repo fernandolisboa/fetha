@@ -45,6 +45,15 @@ When the view's calendar does not reach the window's end, the rank is read as be
 - An underlying with a session missing from its IV index stays rank-silent for `lookbackSessions`
   sessions after it, in backtests and catch-ups as in the nightly run. A point published late
   leaves the rank unread from its session until it is published.
+- A D1 IV point's `asOf` must be its session's close, the instant the COTAHIST candles of that
+  session carry (`ingest.ts` stamps candles with the calendar close), not the time it was
+  computed. A point stamped after its session's candle is a point published late: the candle aligns
+  to the previous point, whose window reaches one session too far back, so the rank is never read.
+  The IV index job (#81) must stamp points that way.
+- The IV index is produced by the app itself (#81), not by the exchange, so a missing point is a
+  failure of that job, and it costs a lot: one missing session silences an `iv_rank(252)` for a
+  year on that underlying. #81 must write one point per session per underlying, or backfill a
+  missed one, rather than rely on this rule to tolerate gaps.
 - Exit rules read the same reading: a `condition` exit on `iv_rank` evaluates to unknown while a
   missing session stays in its window, as ADR-0050 describes for `sma`.
 - No run in the app changes today: there is no IV index ingestion yet (#81), so the nightly run and
