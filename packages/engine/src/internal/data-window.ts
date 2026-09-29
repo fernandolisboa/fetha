@@ -121,6 +121,37 @@ export function earliestCandleSession(
   return assertDefined(calendar.sessions[index], "dataWindow: missing earliest session").date;
 }
 
+// The first session whose implied-volatility index point a window of `lookbackSessions` sessions
+// ending at `anchor` reads, as dataWindow walks it: the anchor session counts only once it has
+// closed, since its point is published at the close. Null when no session opens at or before
+// `anchor`.
+export function earliestIvSession(
+  calendar: TradingCalendar,
+  anchor: Instant,
+  lookbackSessions: number,
+): SessionDate | null {
+  const anchorIndex = sessionIndexAtOrBefore(calendar, anchor);
+  if (anchorIndex === null) return null;
+  const anchorSession = assertDefined(
+    calendar.sessions[anchorIndex],
+    "dataWindow: missing anchor session",
+  );
+  const index = earliestIvIndex(
+    anchorIndex,
+    isAtOrBefore(anchorSession.close, anchor),
+    lookbackSessions,
+  );
+  return assertDefined(calendar.sessions[index], "dataWindow: missing earliest IV session").date;
+}
+
+function earliestIvIndex(
+  anchorIndex: number,
+  anchorSessionClosed: boolean,
+  lookbackSessions: number,
+): number {
+  return Math.max(0, anchorIndex - (anchorSessionClosed ? lookbackSessions - 1 : lookbackSessions));
+}
+
 function candlesPerSession(session: TradingSession, minutes: number | null): number {
   if (minutes === null) return 1;
   return Math.max(
@@ -188,7 +219,7 @@ function computeFrom(
   );
   const ivEarliestIndex =
     ivSessionsNeeded > 0
-      ? Math.max(0, anchorIndex - (anchorSessionClosed ? ivSessionsNeeded - 1 : ivSessionsNeeded))
+      ? earliestIvIndex(anchorIndex, anchorSessionClosed, ivSessionsNeeded)
       : anchorIndex;
   const earliestIndex = Math.min(candleEarliestIndex, ivEarliestIndex);
 

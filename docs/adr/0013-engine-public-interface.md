@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.5.0";
+export const ENGINE_VERSION = "0.6.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2444,3 +2444,13 @@ the SMA unread for as long as that session stays in its window, in a one-night r
 re-evaluation and a backtest bar alike. `dataWindow`'s request for `sma` (`length` sessions) is
 unchanged, as are `iv_rank` and `engine.indicators()`. Under the change policy's 0.4.0 case this
 moves a reading conditions act on, so `ENGINE_VERSION` moves from `"0.4.0"` to `"0.5.0"`.
+
+## Addendum: an `iv_rank` reading needs its whole window of sessions; `ENGINE_VERSION` bumped to `0.6.0` (2026-09-29, #254, see ADR-0051)
+
+The 0.5.0 addendum left `iv_rank` ranking the last `lookbackSessions` IV points present at `c`. It
+now reads the rank only when the oldest of those points falls inside the window of
+`lookbackSessions` calendar sessions `dataWindow` walks back from the window's end for the IV index
+(the same `earliestIvSession` walk, one session further while the anchor session is open, the same
+end rule); otherwise the reading is `null`. `dataWindow`'s request for `iv_rank` is unchanged, as
+is `engine.indicators()`. Under the change policy's 0.4.0 case this moves a reading conditions act
+on, so `ENGINE_VERSION` moves from `"0.5.0"` to `"0.6.0"`.
