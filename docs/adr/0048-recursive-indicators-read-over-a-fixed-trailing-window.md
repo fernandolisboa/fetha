@@ -65,9 +65,13 @@ the view holds before `c`. The seed is the start of that window, never the start
 
 ## Consequences
 
-- The reading at a candle is a function of the calendar and of the ticker's candles in its window
+- A reading is a function of the calendar, the window's end and the ticker's candles in its window
   alone. Any view that holds every candle of those sessions reads it identically: a one-night run,
-  any catch-up covering it, a re-evaluation and a backtest bar. `dataWindow` guarantees that for
+  any catch-up covering the candle, a re-evaluation and a backtest bar. The one exception is by
+  design: a ticker with no candle in `at`'s session, read without `since`, reads its latest candle
+  as of `at` (a window that ends later), so a catch-up that reads the same candle at its own session
+  can differ; after a halt longer than the window, that reading is `null` and the entry condition
+  is `insufficient_data`, in a backtest bar as in a one-night run. `dataWindow` guarantees that for
   its own views, because the window of a candle evaluated after `since` never starts before the
   window of `since` itself, and `apps/web` loads every candle of every session from `from` on.
   The walk starts from the candle's `asOf`, so the identity also assumes a daily candle is stamped
