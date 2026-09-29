@@ -43,7 +43,9 @@ exposing module's interface, never through its tables.
    calendar (corporate-action factor recording is a follow-up, #50; the engine derives adjusted
    series point in time from whatever factors exist, ADR-0013), then evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
-   21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044). Sizing an entry
+   21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044; a user
+   can re-evaluate one strategy on one session after a data correction, append-only and audited,
+   ADR-0047). Sizing an entry
    uses the user's own declared risk profile (#22); a user with none declared still gets a
    full evaluation, just never a sized entry signal (the engine's `unsizeable` outcome, logged,
    never in the inbox). The same run then scores every decision whose horizon has arrived
@@ -92,7 +94,8 @@ exposing module's interface, never through its tables.
 - Backtest hygiene is enforced by the engine: no look-ahead, fills in the next candle or session,
   costs always charged, deterministic runs.
 - A signal and a backtest of the same strategy version resolve warm-up identically: both
-  `strategies/evaluate-signals.ts` and `backtests/run-chunk.ts` build their own `DataWindow` from
+  `strategies/evaluate-version.ts` (shared by the nightly `evaluate-signals.ts` and the user's
+  re-evaluation, `reevaluate-session.ts`) and `backtests/run-chunk.ts` build their own `DataWindow` from
   the engine's own `dataWindow()` and hand it unchanged to `market-data`'s `loadMarketView`, never
   re-deriving the boundary themselves. (A third caller, `backtests/actions.ts`, also builds a
   `DataWindow` at creation time to decide the `impliedVolatilityIndex` refusal; harmless to this
@@ -140,4 +143,4 @@ vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fee
 class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
 strategies archived, never deleted, and out of the cap (0043), entry proposals older than five
 sessions kept out of the inbox (0044), a redacted nightly run report recorded by every run (0045),
-the guided tour's dismissal kept as a per-user preference (0046).
+the guided tour's dismissal kept as a per-user preference (0046), and append-only, audited re-evaluation of one session (0047).

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   checkStrategyCoherence,
+  sessionDateSchema,
   strategyDefinitionSchema,
   type StrategyDefinition,
 } from "@fetha/contracts";
@@ -18,7 +19,12 @@ import {
 } from "@/modules/auth";
 
 import { classifyPersistenceError } from "./pg-error";
-import { SignalsRepository } from "./signals-repository";
+import { reevaluateSession, ReevaluationTargetNotFoundError } from "./reevaluate-session";
+import {
+  ReevaluationConflictError,
+  SignalsRepository,
+  type ReevaluationCounts,
+} from "./signals-repository";
 import {
   StrategiesRepository,
   StrategyArchivedError,
@@ -372,4 +378,64 @@ export async function searchMyStrategiesAction(input: {
   const repository = await forCurrentUser(getDb(), StrategiesRepository);
   const results = await repository.searchMine(parsed.data.query, MAX_SEARCH_RESULTS);
   return { status: "ok", results };
+}
+
+const reevaluateInputSchema = z.strictObject({
+  strategyId: z.string().min(1).max(200),
+  session: sessionDateSchema,
+});
+
+// Each call runs the engine over one session, so a separate, tighter bucket
+// than strategy writes (docs/adr/0018, docs/adr/0047).
+const REEVALUATE_RATE_LIMIT = { windowSeconds: 60, max: 10 };
+
+export type ReevaluateSessionResult =
+  | { status: "applied"; counts: ReevaluationCounts }
+  | { status: "unchanged" }
+  | { status: "failed" }
+  | {
+      status: "error";
+      error: "invalid" | "not_found" | "archived" | "rate_limited" | "conflict";
+    };
+
+export async function reevaluateSessionAction(input: {
+  strategyId: string;
+  session: string;
+}): Promise<ReevaluateSessionResult> {
+  const parsed = reevaluateInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", error: "invalid" };
+  }
+
+  try {
+    const outcome = await withAuthenticatedAction(async () => {
+      const user = await requireUser();
+      await enforceAccountRateLimit(
+        getDb(),
+        user.email,
+        "signals/reevaluate",
+        REEVALUATE_RATE_LIMIT,
+      );
+      return reevaluateSession(getDb(), user, parsed.data);
+    });
+    revalidatePath("/sinais");
+    return outcome.status === "failed" ? { status: "failed" } : outcome;
+  } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
+    if (
+      error instanceof StrategyNotFoundError ||
+      error instanceof ReevaluationTargetNotFoundError
+    ) {
+      return { status: "error", error: "not_found" };
+    }
+    if (error instanceof StrategyArchivedError) {
+      return { status: "error", error: "archived" };
+    }
+    if (error instanceof ReevaluationConflictError) {
+      return { status: "error", error: "conflict" };
+    }
+    throw error;
+  }
 }

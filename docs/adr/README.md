@@ -52,6 +52,7 @@ supersedes or amends them and says so.
 | 0044 | Entry proposals older than five sessions stay out of the inbox; the catch-up still logs them (amends 0039)       |
 | 0045 | `nightly_runs`: a redacted run report recorded by every nightly run, read by a Postgres role (#220)              |
 | 0046 | The guided tour is hand-built on the Popover; its dismissal is a per-user preference (#231)                      |
+| 0047 | Re-evaluating a session is append-only, per user and strategy, and audited (#84, amends 0027)                    |
 | 0048 | Recursive indicators are read over a fixed trailing window at each evaluated candle (#239, amends 0013)          |
 
 Open: none.

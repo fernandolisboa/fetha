@@ -211,6 +211,13 @@
       "when": 1790636236039,
       "tag": "0029_option_series_ticker_pattern_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790644789194,
+      "tag": "0030_signal_reevaluations",
+      "breakpoints": true
     }
   ]
 }
