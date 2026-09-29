@@ -36,9 +36,11 @@ from the session that ships the bound.
 
 ## Consequences
 
-- Only strategies saved before this change can exceed the bounds, and they keep their old cost.
-  If one turns out to exist and to matter, a follow-up can cap it at evaluation time; nothing
-  suggests one does.
+- Only strategies saved before this change, and copies of them made through sharing, can exceed
+  the bounds; they keep their old cost. If one turns out to exist and to matter, a follow-up can
+  cap it at evaluation time or refuse the copy; nothing suggests one does.
+- The bounds cap the cost of each reading, not of a strategy: the number of indicators a condition
+  tree holds is bounded only by its depth (`MAX_CONDITION_DEPTH`) and the request size.
 - A later tightening follows the same rule: bound the input schema, never the stored one.
 - `MAX_CONDITION_DEPTH` predates this rule and stays on the shared schema: no stored definition
   could have exceeded it when it shipped.

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const indicatorKinds = ["sma", "ema", "rsi", "atr", "iv_rank"] as const;
 
 // docs/adr/0049: a recursive reading walks 6 × length sessions at every
-// evaluated candle (ADR-0048), so these bounds cap the cost of one strategy.
+// evaluated candle (ADR-0048), so these bounds cap the cost of one reading.
 // They apply where a definition is written, not where a stored one is read.
 export const MAX_INDICATOR_LENGTH = 500;
 export const MAX_IV_RANK_LOOKBACK_SESSIONS = 1260;
