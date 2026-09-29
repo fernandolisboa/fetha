@@ -22,7 +22,7 @@ export const candlePriceArbitrary = fc
   .integer({ min: 100, max: 100_000 })
   .map((cents) => decimalString((cents / 100).toFixed(2)));
 
-const ohlcArbitrary = fc
+export const ohlcArbitrary = fc
   .tuple(
     candlePriceArbitrary,
     candlePriceArbitrary,

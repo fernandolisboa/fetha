@@ -7,14 +7,14 @@ import type {
   Result,
   TruncationReport,
 } from "../api";
-import type { IndicatorSpec } from "@fetha/contracts";
+import type { DecimalString, IndicatorSpec } from "@fetha/contracts";
 import { alignByInstant } from "./align-by-instant";
 import { buildCandleSeries } from "./candle-series";
 import { PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
-import { atr } from "./indicators/atr";
+import { atr, type PriceBar } from "./indicators/atr";
 import { ema } from "./indicators/ema";
 import { ivRank } from "./indicators/iv-rank";
-import { rsi } from "./indicators/rsi";
+import { lastRsi, rsi } from "./indicators/rsi";
 import { sma } from "./indicators/sma";
 import { buildIvIndexSeries } from "./iv-index-series";
 
@@ -68,11 +68,11 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
       case "sma":
         return { indicator, values: toDecimalStrings(sma(closes, indicator.length), PRICE_SCALE) };
       case "ema":
-        return { indicator, values: toDecimalStrings(ema(closes, indicator.length), PRICE_SCALE) };
       case "rsi":
-        return { indicator, values: toDecimalStrings(rsi(closes, indicator.length), RATIO_SCALE) };
-      case "atr":
-        return { indicator, values: toDecimalStrings(atr(bars, indicator.length), PRICE_SCALE) };
+      case "atr": {
+        const { values, scale } = recursiveSeries(indicator.kind, indicator.length, bars);
+        return { indicator, values: toDecimalStrings(values, scale) };
+      }
       case "iv_rank": {
         const rankSeries = ivRank(ivPointValues, indicator.lookbackSessions);
         const aligned = alignByInstant(candleAsOf, ivPointAsOf, rankSeries);
@@ -102,6 +102,53 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
       },
     },
   };
+}
+
+function recursiveSeries(
+  kind: "ema" | "rsi" | "atr",
+  length: number,
+  bars: readonly PriceBar[],
+): { values: (Decimal | null)[]; scale: number } {
+  switch (kind) {
+    case "ema":
+      return {
+        values: ema(
+          bars.map((b) => b.close),
+          length,
+        ),
+        scale: PRICE_SCALE,
+      };
+    case "rsi":
+      return {
+        values: rsi(
+          bars.map((b) => b.close),
+          length,
+        ),
+        scale: RATIO_SCALE,
+      };
+    case "atr":
+      return { values: atr(bars, length), scale: PRICE_SCALE };
+  }
+}
+
+// The reading of a recursive indicator at the last bar of `bars`, computed over those bars only:
+// the caller passes the fixed trailing window, so the seed never depends on how much history
+// precedes it (#239).
+export function lastRecursiveValue(
+  kind: "ema" | "rsi" | "atr",
+  length: number,
+  bars: readonly PriceBar[],
+): DecimalString | null {
+  if (kind === "rsi") {
+    const last = lastRsi(
+      bars.map((b) => b.close),
+      length,
+    );
+    return last ? toDecimalString(last, RATIO_SCALE) : null;
+  }
+  const { values, scale } = recursiveSeries(kind, length, bars);
+  const last = values.at(-1);
+  return last ? toDecimalString(last, scale) : null;
 }
 
 function toDecimalStrings(values: (Decimal | null)[], scale: number) {

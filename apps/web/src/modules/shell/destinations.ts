@@ -22,3 +22,19 @@ export function destinations(): Destination[] {
     { href: "/configuracoes", label: t.destinations.settings, icon: Settings },
   ];
 }
+
+// A destination stays current on its own sub-pages (`/estrategias/<id>`,
+// `/carteira/nova-operacao`); the watchlist at `/` only on itself, or every
+// page would light it.
+export function isActiveDestination(pathname: string, href: DestinationHref): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+// A 53px tab-bar cell at 320px fits two digits; the rail shows the same text so
+// the count does not change when the viewport crosses 768px.
+const MAX_SHOWN_UNREAD = 99;
+
+export function formatUnreadCount(count: number): string {
+  return count > MAX_SHOWN_UNREAD ? `${String(MAX_SHOWN_UNREAD)}+` : String(count);
+}

@@ -75,9 +75,10 @@ function candlesNeeded(spec: IndicatorSpec): number {
     case "sma":
       return spec.length;
     case "ema":
+      return spec.length * 3;
     case "rsi":
     case "atr":
-      return spec.length * 3;
+      return spec.length * 6;
     case "iv_rank":
       return 1;
   }
@@ -86,7 +87,7 @@ function candlesNeeded(spec: IndicatorSpec): number {
 const specArbitrary: fc.Arbitrary<IndicatorSpec> = fc.oneof(
   fc.record({
     kind: fc.constantFrom("sma" as const, "ema" as const, "rsi" as const, "atr" as const),
-    length: fc.integer({ min: 1, max: 12 }),
+    length: fc.integer({ min: 1, max: 6 }),
   }),
   fc.record({
     kind: fc.constant("iv_rank" as const),
@@ -123,7 +124,7 @@ function strategyReading(specs: readonly IndicatorSpec[], timeframe: Timeframe):
 }
 
 // Sessions closer to 20 than to 40 keep runtime down while still exceeding the largest lookback
-// the specs below can draw (12 * 3 = 36 candles, or 8 IV sessions), so the escape hatch
+// the specs below can draw (6 * 6 = 36 candles, or 8 IV sessions), so the escape hatch
 // (coversWholeCalendar) is reached in only a minority of runs.
 const caseArbitrary = fc
   .record({

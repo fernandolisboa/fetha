@@ -24,6 +24,130 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByText("sem dados")).toBeVisible();
 });
 
+test("under 768px the rail becomes a bottom tab bar with the six destinations", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(navigation).toHaveCount(1);
+  await expect(navigation).toHaveAttribute("data-tour", "tab-bar");
+  const names = ["Watchlist", "Sinais", "Estratégias", "Carteira", "Diário", "Configurações"];
+  for (const name of names) {
+    const link = navigation.getByRole("link", { name });
+    await expect(link).toBeVisible();
+    const box = await link.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+
+  const barBox = await navigation.boundingBox();
+  expect((barBox?.y ?? 0) + (barBox?.height ?? 0)).toBeCloseTo(844, 0);
+  await expect(navigation.getByRole("link", { name: "Watchlist" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await navigation.getByRole("link", { name: "Sinais" }).click();
+  await expect(page).toHaveURL(/\/sinais$/);
+  await expect(navigation.getByRole("link", { name: "Sinais" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await page.setViewportSize({ width: 1024, height: 844 });
+  await expect(navigation).toHaveAttribute("data-tour", "rail");
+});
+
+// Chromium applies env(safe-area-inset-*) only through this DevTools
+// override; a real notched phone also needs the viewport-fit=cover asserted
+// below, or iOS letterboxes the page and reports 0 insets (#246).
+test("an installed PWA on a notched phone keeps the shell clear of the notch and home indicator", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+    "content",
+    /viewport-fit=cover/,
+  );
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", {
+    insets: { top: 47, bottom: 34, left: 0, right: 0 },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const header = page.getByRole("banner");
+  const headerBox = await header.boundingBox();
+  expect(headerBox?.y).toBe(0);
+  const wordmarkBox = await header.getByText("Fetha", { exact: true }).boundingBox();
+  expect(wordmarkBox?.y ?? 0).toBeGreaterThanOrEqual(47);
+
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  const barBox = await navigation.boundingBox();
+  expect((barBox?.y ?? 0) + (barBox?.height ?? 0)).toBeCloseTo(844, 0);
+  const watchlistBox = await navigation.getByRole("link", { name: "Watchlist" }).boundingBox();
+  expect((watchlistBox?.y ?? 0) + (watchlistBox?.height ?? 0)).toBeLessThanOrEqual(844 - 34);
+  expect(watchlistBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", {
+    insets: { top: 0, bottom: 21, left: 47, right: 47 },
+  });
+  for (const width of [667, 844]) {
+    await page.setViewportSize({ width, height: 375 });
+    const landscapeHeaderBox = await header.boundingBox();
+    expect(landscapeHeaderBox?.x).toBe(0);
+    expect(landscapeHeaderBox?.width).toBe(width);
+    const wordmark = await header.getByText("Fetha", { exact: true }).boundingBox();
+    expect(wordmark?.x ?? 0).toBeGreaterThanOrEqual(47);
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+
+    const links = navigation.getByRole("link");
+    const firstBox = await links.first().boundingBox();
+    const lastBox = await links.last().boundingBox();
+    expect(firstBox?.x ?? 0).toBeGreaterThanOrEqual(47);
+    expect((lastBox?.x ?? 0) + (lastBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+  }
+});
+
+test("header fits phone, tablet and desktop widths without overflowing", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/ativos/PETR4");
+  await expect(page.getByRole("banner").getByText("PETR4")).toBeVisible();
+
+  for (const width of [360, 390, 800, 1024]) {
+    await page.setViewportSize({ width, height: 844 });
+    const budget = await page.evaluate(() => document.documentElement.clientWidth);
+
+    const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(pageScrollWidth).toBeLessThanOrEqual(budget);
+    const headerScrollWidth = await page
+      .getByRole("banner")
+      .evaluate((element) => element.scrollWidth);
+    expect(headerScrollWidth).toBeLessThanOrEqual(budget);
+
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect(accountBox).not.toBeNull();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(budget);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Buscar ativo, série ou estratégia" }),
+  ).toBeVisible();
+});
+
 test("Ctrl K palette opens and announces its empty state once typing starts", async ({
   page,
   baseURL,
@@ -37,9 +161,84 @@ test("Ctrl K palette opens and announces its empty state once typing starts", as
 
   const status = dialog.getByRole("status");
   await expect(status).toHaveText("");
+  await expect(dialog.getByText("Nenhum ativo, série ou estratégia encontrado.")).not.toBeVisible();
 
-  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("xyz");
-  await expect(status).toHaveText("Ainda não há nada para buscar.");
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("zzzzzzzzzz");
+  await expect(status).toHaveText("Nenhum ativo, série ou estratégia encontrado.");
+});
+
+// PETR4 is one of B3's most liquid tickers and is expected to be present in
+// every ingested session (see watchlist.spec.ts), so this navigates the
+// palette to it without seeding a candle of its own.
+test("Ctrl K palette navigates to an instrument result", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("PETR");
+
+  const option = page.getByRole("option", { name: "PETR4", exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+
+  await expect(page).toHaveURL(/\/ativos\/PETR4$/);
+});
+
+// Same reference-data assumption as operation-builder.spec.ts: nightly
+// ingestion keeps at least one live PETR4 series in the registry.
+test("the palette navigates to an option series page", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill("PETR");
+
+  const seriesGroup = page.getByRole("group", { name: "Séries de opção" });
+  const firstSeries = seriesGroup.getByRole("option").first();
+  await expect(firstSeries).toBeVisible();
+  const seriesTicker = (await firstSeries.locator("span").first().textContent()) ?? "";
+  expect(seriesTicker).toMatch(/^PETR[A-Z0-9]+$/);
+  await firstSeries.click();
+
+  await expect(page).toHaveURL(new RegExp(`/opcoes/${seriesTicker}$`));
+  await expect(page.getByRole("heading", { level: 1, name: seriesTicker })).toBeVisible();
+  await expect(page.getByText("Série de opção", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^(Call|Put)$/)).toBeVisible();
+  await expect(page.getByText(/^(Americana|Europeia)$/)).toBeVisible();
+  await expect(page.getByText(/^Strike \d[\d.]*,\d{2}$/)).toBeVisible();
+  await expect(page.getByText(/^Vence em \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
+
+  // PETR3 and PETR4 options share the PETR root, so either can come first.
+  const underlyingLink = page.getByRole("link", { name: /^Ver PETR[34]$/ });
+  const underlying = ((await underlyingLink.textContent()) ?? "").replace("Ver ", "");
+  await underlyingLink.click();
+  await expect(page).toHaveURL(new RegExp(`/ativos/${underlying}$`));
+});
+
+test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const runId = `${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+  const strategyName = `Busca pelo Ctrl K ${runId}`;
+
+  await page.goto("/estrategias");
+  await page.getByRole("link", { name: "Nova estratégia" }).click();
+  await page.getByLabel("Nome").fill(strategyName);
+  await page.getByRole("combobox", { name: "Estrutura" }).click();
+  await page.getByRole("option", { name: "Compra de ação", exact: true }).click();
+  await page.getByRole("button", { name: "Criar estratégia" }).click();
+  await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
+  const strategyUrl = page.url();
+
+  // Ctrl K's listener is attached after hydration, so a key press right
+  // after a navigation can be lost; a click on the trigger is replayed (#240).
+  await page.goto("/");
+  await page.getByRole("button", { name: "Buscar ativo, série ou estratégia" }).click();
+  await page.getByPlaceholder("Buscar ativo, série ou estratégia").fill(`Ctrl K ${runId}`);
+
+  const option = page.getByRole("option", { name: strategyName, exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+
+  await expect(page).toHaveURL(strategyUrl);
 });
 
 test("theme switch persists across reload", async ({ page, baseURL, request }) => {

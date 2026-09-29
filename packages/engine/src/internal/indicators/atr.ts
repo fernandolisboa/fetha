@@ -1,9 +1,9 @@
 import Decimal from "decimal.js";
 import { assertPresent } from "../invariant";
 
-export type AtrBar = { high: Decimal; low: Decimal; close: Decimal };
+export type PriceBar = { high: Decimal; low: Decimal; close: Decimal };
 
-export function atr(bars: readonly AtrBar[], length: number): (Decimal | null)[] {
+export function atr(bars: readonly PriceBar[], length: number): (Decimal | null)[] {
   const result: (Decimal | null)[] = bars.map(() => null);
   if (bars.length <= length) return result;
 

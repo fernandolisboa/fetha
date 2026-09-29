@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
+import { searchOptionSeriesAction } from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
-import { getMyUnreadSignalCount } from "@/modules/strategies";
+import { getMyUnreadSignalCount, searchMyStrategiesAction } from "@/modules/strategies";
+import { searchInstrumentsAction } from "@/modules/watchlist";
 
 export default async function ShellLayout({ children }: { children: ReactNode }) {
   const user = await getSession();
@@ -36,7 +38,16 @@ export default async function ShellLayout({ children }: { children: ReactNode })
 
   return (
     <TourProvider autoStart={!preferences.tourDismissed}>
-      <AppShell user={user} preferences={preferences} unreadSignalCount={unreadSignalCount}>
+      <AppShell
+        user={user}
+        preferences={preferences}
+        unreadSignalCount={unreadSignalCount}
+        search={{
+          instruments: searchInstrumentsAction,
+          optionSeries: searchOptionSeriesAction,
+          strategies: searchMyStrategiesAction,
+        }}
+      >
         {children}
       </AppShell>
     </TourProvider>

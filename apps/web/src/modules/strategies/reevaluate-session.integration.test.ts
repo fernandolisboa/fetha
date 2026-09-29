@@ -556,7 +556,7 @@ describe("reevaluateSession edge cases (#84, docs/adr/0047)", () => {
   });
 });
 
-describe("append-only signals and evaluations (migration 0029)", () => {
+describe("append-only signals and evaluations (migration 0030)", () => {
   it("refuses to rewrite an evaluation or a signal, and to supersede one twice", async () => {
     const db = getDb();
     const fixture = await evaluatedSession("append-only", alwaysFiringDefinition());

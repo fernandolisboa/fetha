@@ -18,7 +18,10 @@ The stock or ETF an option series is written on.
 _Avoid_: base asset, spot
 
 **Option series**:
-One listed option contract on an underlying: call or put, strike, expiry, exercise style.
+One listed option contract on an underlying: call or put, strike, expiry, exercise style. B3
+reuses a ticker across listing cycles (ADR-0017), so a lookup by ticker alone (the Ctrl K search
+and the series page, #241) means the cycle still alive today, the nearest expiry first, or the
+most recently expired one when none is; the latest registry snapshot breaks a tie.
 _Avoid_: option contract, series code, option ticker (that is its identifier, not the concept)
 
 **Chain**:

@@ -70,10 +70,8 @@ never silently change, and a failed recomputation must never empty an inbox.
 - Two re-evaluations of the same session with the same data are no-ops after the first: the
   second records `unchanged`.
 - The recomputation anchors its data window on the previous session, as a one-night run would.
-  A session the nightly evaluated inside a multi-session catch-up had a longer view, so a
-  recursive indicator (EMA, RSI) seeded at the start of that view can differ slightly, and a
-  condition sitting on its threshold may flip on re-evaluation with no data change. That drift
-  already exists between nightly runs of different catch-up lengths; the fix belongs in the
-  engine's data window (#239), not here.
+  Since ADR-0048 (#239) recursive indicators read a fixed trailing window at each evaluated
+  candle, so a session evaluated inside a multi-session catch-up and re-evaluated alone reads the
+  same values.
 - Superseded rows accumulate. They are bounded by the per-minute rate limit and by how often
   data is corrected; if they ever matter, pruning them is a separate decision.

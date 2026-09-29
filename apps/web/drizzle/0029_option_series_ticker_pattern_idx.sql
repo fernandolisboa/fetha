@@ -1,0 +1,1 @@
+CREATE INDEX "option_series_ticker_pattern_idx" ON "option_series" USING btree ("ticker" text_pattern_ops);

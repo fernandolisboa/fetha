@@ -20,7 +20,7 @@ import { ErrorNotice } from "@/components/error-notice";
 
 import { addToWatchlistAction, searchInstrumentsAction } from "../actions";
 import { t } from "../strings";
-import { deriveSearchMessage, deriveSearchStatusText } from "./search-status";
+import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -143,11 +143,12 @@ export function AddInstrumentCombobox() {
             <CommandInput placeholder={t.add.placeholder} value={query} onValueChange={setQuery} />
             <CommandStatus>{statusText}</CommandStatus>
             <CommandList>
-              {pending ? (
-                <CommandLoading label={message}>{message}</CommandLoading>
-              ) : (
-                <CommandEmpty>{message}</CommandEmpty>
-              )}
+              {trimmedQuery.length > 0 &&
+                (pending ? (
+                  <CommandLoading label={message}>{message}</CommandLoading>
+                ) : (
+                  <CommandEmpty>{message}</CommandEmpty>
+                ))}
               {!pending &&
                 !searchFailed &&
                 !rateLimited &&

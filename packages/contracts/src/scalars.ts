@@ -54,6 +54,12 @@ export type SignedQuantity = z.infer<typeof signedQuantitySchema>;
 export const tickerSchema = z.string().regex(/^[A-Z0-9]{4,12}$/);
 export type Ticker = z.infer<typeof tickerSchema>;
 
+// A ticker prefix typed into a search box. `%`, `_` and `\` are live `LIKE`
+// wildcards: rejecting everything but letters and digits keeps them from
+// ever reaching a prefix query, so a search cannot scan a whole table or
+// probe the registry with a `PE_R4`-style pattern.
+export const tickerPrefixQuerySchema = z.string().regex(/^[A-Za-z0-9]{1,12}$/);
+
 export const sessionDateSchema = z.iso.date();
 export type SessionDate = z.infer<typeof sessionDateSchema>;
 

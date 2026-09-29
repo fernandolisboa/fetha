@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { rsi } from "./rsi";
+import { lastRsi, rsi } from "./rsi";
 
 describe("Wilder RSI (New Concepts in Technical Trading Systems, 1978)", () => {
   it("is null until length changes are available, then follows Wilder's smoothed average gain/loss", () => {
@@ -62,5 +63,18 @@ describe("Wilder RSI (New Concepts in Technical Trading Systems, 1978)", () => {
     expect(toTwoDp(result[14])).toBe("70.46");
     expect(toTwoDp(result[15])).toBe("66.25");
     expect(toTwoDp(result[16])).toBe("66.48");
+  });
+
+  it("lastRsi is the last value of the full series, flat and one-sided series included", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.integer({ min: 95, max: 105 }), { maxLength: 30 }),
+        fc.integer({ min: 1, max: 6 }),
+        (ticks, length) => {
+          const closes = ticks.map((t) => new Decimal(t).div(10));
+          expect(lastRsi(closes, length)).toEqual(rsi(closes, length).at(-1) ?? null);
+        },
+      ),
+    );
   });
 });

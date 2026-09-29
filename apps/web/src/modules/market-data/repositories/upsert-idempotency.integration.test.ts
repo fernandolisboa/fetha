@@ -89,6 +89,33 @@ describe("repository upsert idempotency", () => {
     expect(rows[0]).toMatchObject({ close: "10.750000", open: "10.000000" });
   });
 
+  // #38 stays deferred on this: a restated COTAHIST row for an ingested session replaces the stored
+  // candle, so the engine never sees two versions of one daily session.
+  it("upsertDailyCandles: a restated row for the same session replaces the stored candle", async () => {
+    const db = getDb();
+    const asOf = new Date(`${SESSION}T20:00:00.000Z`);
+
+    await upsertDailyCandles(db, SESSION, asOf, [stockRow]);
+    await upsertDailyCandles(db, SESSION, asOf, [
+      cotahistStockRowSchema.parse({
+        ...stockRow,
+        high: "11.500000",
+        close: "11.250000",
+        tradedQuantity: 5200,
+      }),
+    ]);
+
+    const rows = await db.select().from(candles).where(eq(candles.ticker, TICKER));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      session: SESSION,
+      asOf,
+      high: "11.500000",
+      close: "11.250000",
+      tradedQuantity: 5200,
+    });
+  });
+
   it("upsertOptionDailyPrices: inserting the same row twice yields one row with the same values", async () => {
     const db = getDb();
     const asOf = new Date(`${SESSION}T20:00:00.000Z`);

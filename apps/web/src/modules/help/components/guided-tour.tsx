@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { dismissTourAction } from "@/modules/preferences/client";
 
 import { t } from "../strings";
-import { tourSteps, type TourStep } from "../tour-steps";
+import { tourSteps, type TourStep, type TourTarget } from "../tour-steps";
 
 interface TourControls {
   start: () => void;
@@ -41,17 +41,28 @@ const AUTO_START_DELAY_MS = 600;
 
 // A target counts only when it takes up space and fits the viewport's width
 // (scrollIntoView handles the vertical axis): the rail is display:none under
-// 768px, the header's account menu can sit past the right edge on a phone,
-// and a step whose element is missing (the watchlist's add button on another
-// page) falls back to a centered card whose buttons stay reachable.
-function findTarget(step: TourStep): HTMLElement | null {
-  if (!step.target) return null;
-  const element = document.querySelector<HTMLElement>(step.target);
-  if (!element) return null;
+// 768px and the tab bar from 768px up, the header's account menu can sit
+// past the right edge on a phone, and a step whose element is missing (the
+// watchlist's add button on another page) falls back to a centered card
+// whose buttons stay reachable.
+function isOnScreen(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
-  const visible =
-    rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= window.innerWidth;
-  return visible ? element : null;
+  return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= window.innerWidth;
+}
+
+interface FoundTarget {
+  element: HTMLElement;
+  side: TourTarget["side"];
+}
+
+function findTarget(step: TourStep): FoundTarget | null {
+  for (const { selector, side } of step.targets) {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (element && isOnScreen(element)) {
+      return { element, side };
+    }
+  }
+  return null;
 }
 
 function viewportCenter() {
@@ -122,18 +133,26 @@ function TourCard({
   // Replay navigates to the watchlist and starts at once; looking again when
   // the route lands finds targets that only exist there.
   const pathname = usePathname();
-  const [target, setTarget] = useState<HTMLElement | null>(null);
+  const [found, setFound] = useState<FoundTarget | null>(null);
+  const target = found?.element ?? null;
   const rect = useTargetRect(target);
 
   useEffect(() => {
     if (!step) return;
     const frame = requestAnimationFrame(() => {
-      const found = findTarget(step);
-      found?.scrollIntoView({ block: "nearest" });
-      setTarget(found);
+      const next = findTarget(step);
+      next?.element.scrollIntoView({ block: "nearest" });
+      setFound(next);
     });
+    // Crossing 768px swaps the rail for the tab bar (#243): the step must
+    // re-anchor on whichever one is now on screen.
+    function onResize() {
+      if (step) setFound(findTarget(step));
+    }
+    window.addEventListener("resize", onResize);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener("resize", onResize);
     };
   }, [step, pathname]);
 
@@ -157,7 +176,7 @@ function TourCard({
       >
         <PopoverContent
           anchor={anchored ? target : viewportCenter()}
-          side={anchored ? step.side : "bottom"}
+          side={anchored && found ? found.side : "bottom"}
           sideOffset={anchored ? 12 : 0}
           collisionPadding={16}
           initialFocus={nextRef}

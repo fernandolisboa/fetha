@@ -12,6 +12,7 @@ import {
   rightOpenUnitIntervalSchema,
   sessionDateSchema,
   signedQuantitySchema,
+  tickerPrefixQuerySchema,
   tickerSchema,
   type Centavos,
   type Confidence,
@@ -165,6 +166,16 @@ describe("tickerSchema", () => {
 
   it.each(["petr4", "PET", "PETR 4", "PETR4.SA", "ABCDEFGHIJKLM"])("rejects %s", (value) => {
     expect(tickerSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("tickerPrefixQuerySchema", () => {
+  it.each(["P", "petr", "PETRJ4", "ABCDEFGHIJKL"])("accepts %s", (value) => {
+    expect(tickerPrefixQuerySchema.safeParse(value).success).toBe(true);
+  });
+
+  it.each(["", "%", "PE_R4", "PETR\\", "PETR 4", "ABCDEFGHIJKLM"])("rejects %j", (value) => {
+    expect(tickerPrefixQuerySchema.safeParse(value).success).toBe(false);
   });
 });
 

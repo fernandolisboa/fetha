@@ -1,5 +1,13 @@
 import Decimal from "decimal.js";
-import type { DecimalString, ExitRule, Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type {
+  DecimalString,
+  ExitRule,
+  IndicatorSpec,
+  Instant,
+  SessionDate,
+  Ticker,
+  Timeframe,
+} from "@fetha/contracts";
 import {
   ENGINE_VERSION,
   type Candle,
@@ -29,9 +37,16 @@ import {
   dedupeIndicatorSpecs,
   indicatorSpecKey,
 } from "./collect-indicator-specs";
-import { evaluateCondition, type ConditionContext } from "./condition-evaluator";
+import {
+  evaluateCondition,
+  type ConditionContext,
+  type IndicatorLookup,
+} from "./condition-evaluator";
+import { earliestCandleSession, tradingCalendar, type TradingCalendar } from "./data-window";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
-import { computeIndicators } from "./indicators-computation";
+import { computeIndicators, lastRecursiveValue } from "./indicators-computation";
+import type { PriceBar } from "./indicators/atr";
+import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
 import { validateOperationCoherence } from "./operation-coherence";
@@ -404,6 +419,66 @@ function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReaso
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
 }
 
+const parsedBars = new WeakMap<readonly Candle[], PriceBar[]>();
+
+function barsOf(candles: readonly Candle[]): PriceBar[] {
+  let bars = parsedBars.get(candles);
+  if (!bars) {
+    bars = candles.map((c) => ({
+      high: parseDecimal(c.high),
+      low: parseDecimal(c.low),
+      close: parseDecimal(c.close),
+    }));
+    parsedBars.set(candles, bars);
+  }
+  return bars;
+}
+
+// A recursive indicator is read over the trailing window dataWindow requests for it, ending at the
+// evaluated candle, not over everything the view holds before it: the view starts where the
+// call's `since` needs it to, so reading over all of it would seed EMA, RSI and ATR at a point
+// that depends on how long the catch-up is (#239, ADR-0048). The window is bounded by calendar
+// sessions, as dataWindow walks them, not by a count of the candles present: a session with no
+// candle for the ticker would otherwise pull an older candle into a long view that a short view
+// never loaded. A view whose calendar does not reach `windowEnd` falls back to the count.
+function readingAt(
+  indicator: IndicatorSpec,
+  series: readonly (DecimalString | null)[],
+  candles: readonly Candle[],
+  position: number,
+  calendar: TradingCalendar,
+  timeframe: Timeframe,
+  windowEnd: Instant,
+): DecimalString | null {
+  switch (indicator.kind) {
+    case "sma":
+    case "iv_rank":
+      return assertDefined(series[position], "evaluateStrategy: missing indicator value");
+    case "ema":
+    case "rsi":
+    case "atr": {
+      const needed = warmUpCandleCount(indicator);
+      const earliest = earliestCandleSession(calendar, windowEnd, needed, timeframe);
+      let start = earliest === null ? Math.max(0, position + 1 - needed) : position;
+      while (
+        earliest !== null &&
+        start > 0 &&
+        codeUnitCompare(
+          assertDefined(candles[start - 1], "evaluateStrategy: missing candle").session,
+          earliest,
+        ) >= 0
+      ) {
+        start -= 1;
+      }
+      return lastRecursiveValue(
+        indicator.kind,
+        indicator.length,
+        barsOf(candles).slice(start, position + 1),
+      );
+    }
+  }
+}
+
 type EvaluationBase = Pick<EvaluateStrategyInput, "view" | "strategy" | "instruments">;
 export type EvaluationCall = Pick<
   EvaluateStrategyInput,
@@ -413,7 +488,17 @@ export type StrategyEvaluator = (
   call: EvaluationCall,
 ) => Result<Pick<Evaluation, "signals" | "evaluations">>;
 
-type Readings = { candle: Candle; values: Map<string, DecimalString | null> };
+type Readings = { candle: Candle; values: IndicatorLookup<DecimalString | null> };
+
+function memoized<T>(compute: (key: string) => T | undefined): IndicatorLookup<T> {
+  const memo = new Map<string, T | undefined>();
+  return {
+    get(key) {
+      if (!memo.has(key)) memo.set(key, compute(key));
+      return memo.get(key);
+    },
+  };
+}
 
 // One ticker's slice of the view, built once per evaluator (#58): its nominal series over every
 // asOf, and its adjusted series with indicators per factor epoch (how many of its corporate
@@ -539,7 +624,12 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     return state;
   }
 
-  function readingsAt(state: TickerState, index: number, c: Instant): Result<Readings> {
+  function readingsAt(
+    state: TickerState,
+    index: number,
+    c: Instant,
+    windowEnd: Instant,
+  ): Result<Readings> {
     const nominalCandle = assertDefined(state.nominal[index], "evaluateStrategy: instant");
     let indicators: Result<IndicatorSeries>;
     let position = index;
@@ -572,13 +662,24 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       if (indicators.ok) position = indicators.value.candles.length - 1;
     }
     if (!indicators.ok) return indicators;
-    const values = new Map<string, DecimalString | null>();
-    for (const series of indicators.value.series) {
-      values.set(
-        indicatorSpecKey(series.indicator),
-        assertDefined(series.values[position], "evaluateStrategy: missing indicator value"),
+    const { candles, series: allSeries } = indicators.value;
+    const seriesByKey = new Map(
+      allSeries.map((series) => [indicatorSpecKey(series.indicator), series]),
+    );
+    // Read on demand: a recursive reading costs its whole trailing window, and an instant only
+    // reads the specs of the condition it actually evaluates (entry, or an open operation's rules).
+    const values = memoized((key) => {
+      const series = assertDefined(seriesByKey.get(key), "evaluateStrategy: unknown indicator");
+      return readingAt(
+        series.indicator,
+        series.values,
+        candles,
+        position,
+        tradingCalendar(view.calendar),
+        timeframe,
+        windowEnd,
       );
-    }
+    });
     return {
       ok: true,
       value: {
@@ -681,16 +782,18 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         const c = nominalCandle.asOf;
         const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
 
-        const readings = readingsAt(state, index, c);
+        // Without `since` the call reads the latest candle at `at`, which may be older than `at`'s
+        // session (a halt): its window then ends at `at`, the anchor dataWindow's view starts
+        // from, so that view always holds it. With `since`, every candle read is after it, and a
+        // window ending at the candle never starts before the one ending at `since`.
+        const readings = readingsAt(state, index, c, call.since === undefined ? call.at : c);
         if (!readings.ok) return { ok: false, error: readings.error };
         const currentAdjusted = readings.value.candle;
         const rawIndicatorValues = readings.value.values;
-        const decimalIndicatorValues = new Map<string, Decimal | null>(
-          [...rawIndicatorValues.entries()].map(([key, value]) => [
-            key,
-            value === null ? null : parseDecimal(value),
-          ]),
-        );
+        const decimalIndicatorValues = memoized((key) => {
+          const value = rawIndicatorValues.get(key);
+          return value ? parseDecimal(value) : null;
+        });
         const ctx: ConditionContext = {
           candle: currentAdjusted,
           indicatorValues: decimalIndicatorValues,

@@ -1,9 +1,11 @@
-import type { IndicatorSpec, Instant, Timeframe } from "@fetha/contracts";
+import type { Instant, SessionDate, Timeframe } from "@fetha/contracts";
 import type { DataWindow, DataWindowInput, MarketViewCollection, TradingSession } from "../api";
 import { collectIndicatorSpecs } from "./collect-indicator-specs";
+import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAtOrBefore } from "./instant";
 import { assertDefined } from "./invariant";
 import { codeUnitCompare } from "./order";
+import { upperBound } from "./search";
 
 const timeframeMinutes: Record<Timeframe, number | null> = {
   "15m": 15,
@@ -12,38 +14,26 @@ const timeframeMinutes: Record<Timeframe, number | null> = {
   D1: null,
 };
 
-const RECURSIVE_WARMUP_MULTIPLIER = 3;
-
 export function dataWindow(input: DataWindowInput): DataWindow {
   const { strategy, instruments, calendar, at, since } = input;
-  // One session per date (#40): a duplicated date would be walked twice and shorten the window.
-  // dataWindow never fails, so it keeps the earliest-opening row of a date; every method that
-  // computes over the view rejects the duplicate itself.
-  const sortedCalendar = [...calendar]
-    .sort(
-      (a, b) =>
-        codeUnitCompare(a.date, b.date) ||
-        compareInstants(a.open, b.open) ||
-        compareInstants(a.close, b.close),
-    )
-    .filter((session, i, sorted) => sorted[i - 1]?.date !== session.date);
+  const sortedCalendar = tradingCalendar(calendar);
 
   const indicators = collectIndicatorSpecs(strategy.definition);
-  const candlesNeeded = Math.max(1, ...indicators.map(candleCountFor));
+  const candlesNeeded = Math.max(1, ...indicators.map(warmUpCandleCount));
   const ivSessionsNeeded = Math.max(
     0,
     ...indicators.filter((i) => i.kind === "iv_rank").map((i) => i.lookbackSessions),
   );
 
   const anchor = since ?? at;
-  const anchorIndex = findSessionIndexAtOrBefore(sortedCalendar, anchor);
-  const firstSession = sortedCalendar[0];
+  const anchorIndex = sessionIndexAtOrBefore(sortedCalendar, anchor);
+  const firstSession = sortedCalendar.sessions[0];
 
   const from =
     anchorIndex === null
       ? (firstSession?.open ?? at)
       : computeFrom(
-          sortedCalendar,
+          sortedCalendar.sessions,
           anchorIndex,
           candlesNeeded,
           ivSessionsNeeded,
@@ -70,17 +60,65 @@ export function dataWindow(input: DataWindowInput): DataWindow {
   };
 }
 
-function findSessionIndexAtOrBefore(
-  calendar: readonly TradingSession[],
-  instant: Instant,
-): number | null {
-  let index: number | null = null;
-  for (let i = 0; i < calendar.length; i += 1) {
-    const session = assertDefined(calendar[i], "dataWindow: missing calendar session");
-    if (isAtOrBefore(session.open, instant)) index = i;
-    else break;
-  }
-  return index;
+export type TradingCalendar = {
+  sessions: readonly TradingSession[];
+  leadingOpenMs: readonly number[];
+};
+
+const tradingCalendars = new WeakMap<readonly TradingSession[], TradingCalendar>();
+
+// One session per date (#40): a duplicated date would be walked twice and shorten the window.
+// dataWindow never fails, so it keeps the earliest-opening row of a date; every method that
+// computes over the view rejects the duplicate itself. Memoized per calendar array: the evaluator
+// walks it once per recursive reading (ADR-0048).
+export function tradingCalendar(calendar: readonly TradingSession[]): TradingCalendar {
+  const cached = tradingCalendars.get(calendar);
+  if (cached) return cached;
+  const sessions = [...calendar]
+    .sort(
+      (a, b) =>
+        codeUnitCompare(a.date, b.date) ||
+        compareInstants(a.open, b.open) ||
+        compareInstants(a.close, b.close),
+    )
+    .filter((session, i, sorted) => sorted[i - 1]?.date !== session.date);
+  let highest = -Infinity;
+  const leadingOpenMs = sessions.map((session) => {
+    highest = Math.max(highest, instantMs(session.open));
+    return highest;
+  });
+  const result = { sessions, leadingOpenMs };
+  tradingCalendars.set(calendar, result);
+  return result;
+}
+
+// The last of the leading sessions (in date order) that open at or before `instant`: the walk
+// stops at the first session opening after it, so the running maximum of the opens is the
+// ascending key.
+function sessionIndexAtOrBefore(calendar: TradingCalendar, instant: Instant): number | null {
+  const count = upperBound(calendar.leadingOpenMs, instantMs(instant));
+  return count === 0 ? null : count - 1;
+}
+
+// The first session whose candles a window of `candlesNeeded` candles ending at `anchor` reads,
+// walked over calendar sessions exactly as dataWindow walks them: a view dataWindow built for any
+// earlier anchor holds every candle from it on. Null when no session opens at or before `anchor`.
+export function earliestCandleSession(
+  calendar: TradingCalendar,
+  anchor: Instant,
+  candlesNeeded: number,
+  timeframe: Timeframe,
+): SessionDate | null {
+  const anchorIndex = sessionIndexAtOrBefore(calendar, anchor);
+  if (anchorIndex === null) return null;
+  const { index } = earliestCandleIndex(
+    calendar.sessions,
+    anchorIndex,
+    candlesNeeded,
+    timeframe,
+    anchor,
+  );
+  return assertDefined(calendar.sessions[index], "dataWindow: missing earliest session").date;
 }
 
 function candlesPerSession(session: TradingSession, minutes: number | null): number {
@@ -91,14 +129,13 @@ function candlesPerSession(session: TradingSession, minutes: number | null): num
   );
 }
 
-function computeFrom(
+function earliestCandleIndex(
   calendar: readonly TradingSession[],
   anchorIndex: number,
   candlesNeeded: number,
-  ivSessionsNeeded: number,
   timeframe: Timeframe,
   anchor: Instant,
-): Instant {
+): { index: number; anchorSessionClosed: boolean } {
   const minutes = timeframeMinutes[timeframe];
   const anchorSession = assertDefined(calendar[anchorIndex], "dataWindow: missing anchor session");
 
@@ -131,7 +168,24 @@ function computeFrom(
     remaining -= candlesPerSession(session, minutes);
   }
 
-  const candleEarliestIndex = Math.max(0, anchorIndex - sessionsBack);
+  return { index: Math.max(0, anchorIndex - sessionsBack), anchorSessionClosed };
+}
+
+function computeFrom(
+  calendar: readonly TradingSession[],
+  anchorIndex: number,
+  candlesNeeded: number,
+  ivSessionsNeeded: number,
+  timeframe: Timeframe,
+  anchor: Instant,
+): Instant {
+  const { index: candleEarliestIndex, anchorSessionClosed } = earliestCandleIndex(
+    calendar,
+    anchorIndex,
+    candlesNeeded,
+    timeframe,
+    anchor,
+  );
   const ivEarliestIndex =
     ivSessionsNeeded > 0
       ? Math.max(0, anchorIndex - (anchorSessionClosed ? ivSessionsNeeded - 1 : ivSessionsNeeded))
@@ -148,17 +202,4 @@ function computeFrom(
         "dataWindow: missing session preceding the earliest needed session",
       ).close
     : boundarySession.open;
-}
-
-function candleCountFor(indicator: IndicatorSpec): number {
-  switch (indicator.kind) {
-    case "sma":
-      return indicator.length;
-    case "ema":
-    case "rsi":
-    case "atr":
-      return indicator.length * RECURSIVE_WARMUP_MULTIPLIER;
-    case "iv_rank":
-      return 1;
-  }
 }
