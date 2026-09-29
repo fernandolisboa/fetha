@@ -28,8 +28,8 @@ the view holds before `c`. The seed is the start of that window, never the start
 
 - **Window size.** `ema` reads `3 * length` candles; `rsi` and `atr` read `6 * length`. The seed's
   residual weight after the window is `(1 - 2/(L+1))^(2L)` for EMA (under 2%) and
-  `((L-1)/L)^(n-L)` for Wilder smoothing, which decays slower: at `3 * length` it is still 12.6%
-  for L = 14, at `6 * length` it is 0.6%. The sizes live in one place,
+  `((L-1)/L)^(n-1-L)` for Wilder smoothing over `n` candles, which decays slower: at `3 * length`
+  it is still 13.5% for L = 14, at `6 * length` it is 0.6%. The sizes live in one place,
   `internal/indicator-warm-up.ts`, read by both `dataWindow` (how much history to request) and the
   evaluator (how much of it to read).
 - **Bounded by calendar sessions, not by a count of candles.** The window is every candle of the
@@ -38,7 +38,13 @@ the view holds before `c`. The seed is the start of that window, never the start
   `internal/data-window.ts`). A session with no candle for the ticker (a halt, an illiquid day)
   leaves the window one candle short rather than pulling in an older candle: a count would reach
   further back in a long view than a short view ever loaded, and the two readings would differ.
-- **Fallback.** When the view's calendar has no session at or before `c`, the window is the last
+- **Where the window ends.** At `c`'s `asOf` when the call has a `since` (every candle it reads is
+  after `since`). Without `since` the call reads the latest candle at or before `at`, which can be
+  older than `at`'s own session when the ticker has no candle there (a halt): the window then ends
+  at `at`, the anchor `dataWindow`'s view was built from, so that candle's reading as of `at`
+  never needs a session the view lacks. A backtest evaluates each session the same way (no
+  `since`, `at` = the session's close), so it agrees with a one-night run on that reading too.
+- **Fallback.** When the view's calendar has no session at or before the window's end, the window is the last
   `3 * length` or `6 * length` candles present. `dataWindow` itself returns the whole calendar in
   that case, so nothing narrower is guaranteed to be in the view.
 - `engine.indicators()` is unchanged: it returns a series over the view it is given, which is what
@@ -64,6 +70,10 @@ the view holds before `c`. The seed is the start of that window, never the start
   any catch-up covering it, a re-evaluation and a backtest bar. `dataWindow` guarantees that for
   its own views, because the window of a candle evaluated after `since` never starts before the
   window of `since` itself, and `apps/web` loads every candle of every session from `from` on.
+  The walk starts from the candle's `asOf`, so the identity also assumes a daily candle is stamped
+  at or after its session's close as the view's calendar records it, which ingestion does
+  (`asOf` = the calendar close). A calendar revision that moves a close later than an already
+  stamped candle's `asOf` would walk one session further back for that candle.
   Tests pin it: the recursive-warm-up invariance property test for `evaluateStrategy`, a
   one-night versus catch-up test with and without missing sessions, and a backtest golden test
   that runs the same period over views with and without 18 older sessions, then again with a
@@ -71,7 +81,9 @@ the view holds before `c`. The seed is the start of that window, never the start
 - The ADR-0013 "Indicators" rationale for the warm-up (so live and backtest readings converge)
   becomes an exact identity instead of an approximation.
 - `dataWindow` requests `6 * length` sessions for `rsi` and `atr` instead of `3 * length`: an
-  RSI(14) strategy loads 84 sessions of candles instead of 42.
+  RSI(14) strategy loads 84 sessions of candles instead of 42, and a strategy with option legs
+  loads the option series and day prices of those sessions too, so it reaches `loadMarketView`'s
+  row caps (`MarketViewTooLargeError`) sooner.
 - Cost: a recursive reading is now O(window) Decimal operations per evaluated candle instead of
   O(1) amortized. `ema` computes only its seed SMA and `rsi` only its last ratio, and readings are
   lazy. On the #58 benchmark shape (1,250 sessions x 20 instruments) with an EMA(50) and RSI(14)

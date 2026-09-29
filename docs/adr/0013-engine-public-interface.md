@@ -2420,8 +2420,9 @@ start. The window is `3 * length` candles for `ema` and `6 * length` for `rsi` a
 "Indicators" warm-up and `dataWindow`'s "Warm-up multiplier" above move to the same counts, now in
 `internal/indicator-warm-up.ts`), bounded by calendar sessions the way `dataWindow` walks them: the
 ticker's candles from the earliest session that walk reaches from `c`, so a session without a
-candle never pulls in an older one. `sma`, `iv_rank`, the adjusted candle itself and
-`engine.indicators()` are unchanged.
+candle never pulls in an older one. A call without `since` whose latest candle predates `at`'s
+session ends that window at `at` instead, the anchor `dataWindow` built the view from. `sma`,
+`iv_rank`, the adjusted candle itself and `engine.indicators()` are unchanged.
 For those three kinds the evaluator no longer reads the values of the per-ticker, per-factor-epoch
 series the #58 addendum describes (the cache still computes and validates them); it recomputes each
 reading over its window at the instant it is read (`sma`, `iv_rank` and the adjusted candle still

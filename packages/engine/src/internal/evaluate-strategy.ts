@@ -440,7 +440,7 @@ function barsOf(candles: readonly Candle[]): PriceBar[] {
 // that depends on how long the catch-up is (#239, ADR-0048). The window is bounded by calendar
 // sessions, as dataWindow walks them, not by a count of the candles present: a session with no
 // candle for the ticker would otherwise pull an older candle into a long view that a short view
-// never loaded. A view whose calendar does not reach the candle falls back to the count.
+// never loaded. A view whose calendar does not reach `windowEnd` falls back to the count.
 function readingAt(
   indicator: IndicatorSpec,
   series: readonly (DecimalString | null)[],
@@ -448,6 +448,7 @@ function readingAt(
   position: number,
   calendar: TradingCalendar,
   timeframe: Timeframe,
+  windowEnd: Instant,
 ): DecimalString | null {
   switch (indicator.kind) {
     case "sma":
@@ -457,8 +458,7 @@ function readingAt(
     case "rsi":
     case "atr": {
       const needed = warmUpCandleCount(indicator);
-      const current = assertDefined(candles[position], "evaluateStrategy: missing candle");
-      const earliest = earliestCandleSession(calendar, current.asOf, needed, timeframe);
+      const earliest = earliestCandleSession(calendar, windowEnd, needed, timeframe);
       let start = earliest === null ? Math.max(0, position + 1 - needed) : position;
       while (
         earliest !== null &&
@@ -624,7 +624,12 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     return state;
   }
 
-  function readingsAt(state: TickerState, index: number, c: Instant): Result<Readings> {
+  function readingsAt(
+    state: TickerState,
+    index: number,
+    c: Instant,
+    windowEnd: Instant,
+  ): Result<Readings> {
     const nominalCandle = assertDefined(state.nominal[index], "evaluateStrategy: instant");
     let indicators: Result<IndicatorSeries>;
     let position = index;
@@ -672,6 +677,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         position,
         tradingCalendar(view.calendar),
         timeframe,
+        windowEnd,
       );
     });
     return {
@@ -776,7 +782,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         const c = nominalCandle.asOf;
         const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
 
-        const readings = readingsAt(state, index, c);
+        // Without `since` the call reads the latest candle at `at`, which may be older than `at`'s
+        // session (a halt): its window then ends at `at`, the anchor dataWindow's view starts
+        // from, so that view always holds it. With `since`, every candle read is after it, and a
+        // window ending at the candle never starts before the one ending at `since`.
+        const readings = readingsAt(state, index, c, call.since === undefined ? call.at : c);
         if (!readings.ok) return { ok: false, error: readings.error };
         const currentAdjusted = readings.value.candle;
         const rawIndicatorValues = readings.value.values;

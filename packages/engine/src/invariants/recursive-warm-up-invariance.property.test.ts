@@ -92,16 +92,18 @@ const seriesArbitrary = fc
     }),
   );
 
-function evaluateAtLastClose(
+function evaluateAt(
   candles: readonly Candle[],
-  calendar: readonly TradingSession[] = [],
+  calendar: readonly TradingSession[],
+  at: string,
+  since?: string,
 ): unknown {
-  const at = assertDefined(candles.at(-1), "test setup: missing last candle").asOf;
   const result = evaluateStrategy({
     view: { ...emptyView, candles: [...candles], calendar: [...calendar] },
     strategy,
     instruments: ["PETR4"],
     at,
+    ...(since === undefined ? {} : { since }),
     riskProfile: {
       declaredCapital: centavos(1_000_000_00),
       limits: {
@@ -114,6 +116,14 @@ function evaluateAtLastClose(
   });
   if (!result.ok) throw new Error("test setup: unexpected engine error");
   return { signals: result.value.signals, evaluations: result.value.evaluations };
+}
+
+function evaluateAtLastClose(candles: readonly Candle[]): unknown {
+  return evaluateAt(
+    candles,
+    [],
+    assertDefined(candles.at(-1), "test setup: missing last candle").asOf,
+  );
 }
 
 describe("Recursive indicator warm-up invariance (#239)", () => {
@@ -131,32 +141,41 @@ describe("Recursive indicator warm-up invariance (#239)", () => {
   });
 
   // With a calendar the window counts sessions, so a session without a candle (a halt, an
-  // illiquid day) must not pull an older candle into the full view that dataWindow's view lacks.
+  // illiquid day), the newest one included, must not pull an older candle into the full view that
+  // dataWindow's view lacks: neither in a one-night call nor in a catch-up.
   it("reads them the same in dataWindow's view as over the whole history, sessions without a candle included", () => {
     let sawSignal = false;
     fc.assert(
       fc.property(
         seriesArbitrary,
         fc.array(fc.boolean(), { minLength: 40, maxLength: 40 }),
-        (series, missing) => {
+        fc.option(fc.integer({ min: 1, max: 5 }), { nil: undefined }),
+        (series, missing, catchUp) => {
           const calendar = series.map((candle) => ({
             date: candle.session,
             open: `${candle.session}T13:00:00.000Z`,
             close: candle.asOf,
           }));
-          const candles = series.filter((_, i) => i === series.length - 1 || !missing[i]);
-          const last = assertDefined(candles.at(-1), "test setup: missing last candle");
+          const candles = series.filter((_, i) => i === 0 || !missing[i]);
+          const at = assertDefined(calendar.at(-1), "test setup: missing last session").close;
+          const since =
+            catchUp === undefined
+              ? undefined
+              : assertDefined(calendar.at(-1 - catchUp), "test setup: missing session").close;
           const { from } = dataWindow({
             strategy,
             instruments: ["PETR4"],
             calendar,
-            at: last.asOf,
+            at,
+            ...(since === undefined ? {} : { since }),
           });
-          const full = evaluateAtLastClose(candles, calendar);
+          const full = evaluateAt(candles, calendar, at, since);
           expect(
-            evaluateAtLastClose(
+            evaluateAt(
               candles.filter((candle) => candle.asOf > from),
               calendar.filter((session) => session.close >= from),
+              at,
+              since,
             ),
           ).toEqual(full);
           if ((full as { signals: Signal[] }).signals.length > 0) sawSignal = true;
