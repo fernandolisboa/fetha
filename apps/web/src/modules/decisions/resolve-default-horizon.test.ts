@@ -156,7 +156,7 @@ describe("a default horizon of today (#259)", () => {
     expect(result.get("op")).toBeNull();
   });
 
-  it("reads today's session once for the whole page", async () => {
+  it("reads today's session once for every row it resolves", async () => {
     mockedTradingSessionForDate.mockClear();
     mockedTradingSessionForDate.mockResolvedValue(todaySession("2031-06-10T20:00:00.000Z"));
 

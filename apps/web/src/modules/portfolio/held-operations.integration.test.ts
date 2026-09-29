@@ -35,7 +35,7 @@ vi.mock("@/modules/auth", async () => {
   };
 });
 
-const { getMyOpenOperationExpiries } = await import("./held-operations");
+const { getMyHeldOperation, getMyOpenOperationExpiries } = await import("./held-operations");
 
 const createdEmails: string[] = [];
 const cleanups: (() => Promise<void>)[] = [];
@@ -135,6 +135,10 @@ describe("getMyOpenOperationExpiries", () => {
 
     currentUser = owner;
     expect(await getMyOpenOperationExpiries([operationId])).toEqual(new Map([[operationId, null]]));
+    expect(await getMyHeldOperation(operationId)).toMatchObject({
+      expiry: null,
+      legs: [{ role: "stock", quantity: 100 }],
+    });
   });
 
   it("user A reads nothing of user B's open operations", async () => {

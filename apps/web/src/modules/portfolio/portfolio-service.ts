@@ -380,6 +380,8 @@ export async function loadPortfolio(
       return {
         operation,
         state,
+        // No plan (an unknown series) means no held expiry either: the
+        // decision action refuses that operation anyway.
         heldExpiry: state ? heldExpiry(state) : null,
         valuation: valued?.operations.find((entry) => entry.operation.id === operation.id) ?? null,
         pendingSettlement: pendingSettlements.some(

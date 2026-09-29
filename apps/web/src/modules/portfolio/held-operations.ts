@@ -12,7 +12,7 @@ import { tradingSessionForDate } from "@/modules/market-data";
 
 import { holdingKey } from "./bookkeeping";
 import { heldExpiry, planOperation, type OperationPlan } from "./operation-plan";
-import { PortfolioRepository } from "./portfolio-repository";
+import { PortfolioRepository, type FillRecord } from "./portfolio-repository";
 import { hasExpired, seriesByHolding } from "./portfolio-service";
 import { realizedOperation, type RealizedOperationResult } from "./realized-operation";
 
@@ -56,15 +56,18 @@ async function planMyOpenOperations(
       .filter((operation) => operation.status === "open" && wanted.has(operation.id))
       .map((operation) => operation.id),
   );
-  const openFills = fills.filter(
-    (fill) => fill.operationId !== null && openIds.has(fill.operationId),
-  );
-  const series = await seriesByHolding(db, openFills);
+  const fillsById = new Map([...openIds].map((id) => [id, [] as FillRecord[]]));
+  for (const fill of fills) {
+    if (fill.operationId !== null) {
+      fillsById.get(fill.operationId)?.push(fill);
+    }
+  }
+  const series = await seriesByHolding(db, [...fillsById.values()].flat());
   return new Map(
-    [...openIds].map((id) => {
-      const own = openFills.filter((fill) => fill.operationId === id);
-      return [id, { fillIds: own.map((fill) => fill.id), plan: planOperation(own, series) }];
-    }),
+    [...fillsById].map(([id, own]) => [
+      id,
+      { fillIds: own.map((fill) => fill.id), plan: planOperation(own, series) },
+    ]),
   );
 }
 
