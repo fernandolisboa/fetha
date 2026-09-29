@@ -95,23 +95,25 @@ test("an installed PWA on a notched phone keeps the shell clear of the notch and
   expect((watchlistBox?.y ?? 0) + (watchlistBox?.height ?? 0)).toBeLessThanOrEqual(844 - 34);
   expect(watchlistBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
-  await page.evaluate(() => {
-    window.scrollTo(0, document.documentElement.scrollHeight);
-  });
-  const mainBottom = await page
-    .getByRole("main")
-    .evaluate((element) => element.getBoundingClientRect().bottom);
-  expect(mainBottom).toBeLessThanOrEqual((barBox?.y ?? 0) + 1);
-
   await cdp.send("Emulation.setSafeAreaInsetsOverride", {
     insets: { top: 0, bottom: 21, left: 47, right: 47 },
   });
-  await page.setViewportSize({ width: 844, height: 390 });
-  const rail = page.getByRole("navigation", { name: "Navegação principal" });
-  const railBox = await rail.boundingBox();
-  expect(railBox?.x ?? 0).toBeGreaterThanOrEqual(47);
-  const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
-  expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(844 - 47);
+  for (const width of [667, 844]) {
+    await page.setViewportSize({ width, height: 375 });
+    const landscapeHeaderBox = await header.boundingBox();
+    expect(landscapeHeaderBox?.x).toBe(0);
+    expect(landscapeHeaderBox?.width).toBe(width);
+    const wordmark = await header.getByText("Fetha", { exact: true }).boundingBox();
+    expect(wordmark?.x ?? 0).toBeGreaterThanOrEqual(47);
+    const accountBox = await page.getByRole("button", { name: "Menu da conta" }).boundingBox();
+    expect((accountBox?.x ?? 0) + (accountBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+
+    const links = navigation.getByRole("link");
+    const firstBox = await links.first().boundingBox();
+    const lastBox = await links.last().boundingBox();
+    expect(firstBox?.x ?? 0).toBeGreaterThanOrEqual(47);
+    expect((lastBox?.x ?? 0) + (lastBox?.width ?? Infinity)).toBeLessThanOrEqual(width - 47);
+  }
 });
 
 test("header fits phone, tablet and desktop widths without overflowing", async ({

@@ -24,8 +24,9 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   collapsed rail, the active one in `--accent` with a 2px top line, Sinais' unread count as a
   small accent pill; it is fixed to the viewport bottom and the page keeps a gutter its height.
   Installed on a notched phone (`viewport-fit=cover`), the page is inset by
-  `env(safe-area-inset-*)`: the header's surface extends under the status bar, the tab bar's under
-  the home indicator, and its cells stay 56px tall above it.
+  `env(safe-area-inset-*)`: the header's and the tab bar's surfaces extend under the status bar,
+  the home indicator and the side insets, while their contents stay inside; the tab bar's cells
+  stay 56px tall, and the gutter below the content is the shell's 56px plus the body's bottom inset.
   The header never scrolls sideways: under 1024px the account menu shows only its avatar and the
   market bar drops the freshness phrase; under 768px the command search becomes a 44px icon button
   and the account avatar a 44px target.
