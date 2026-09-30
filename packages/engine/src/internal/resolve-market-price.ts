@@ -2,7 +2,12 @@ import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contrac
 import type { MarketView } from "../api";
 import { parseDecimal, PRICE_SCALE, toDecimalString } from "./decimal";
 import type { ResolvedMarketPrice } from "./option-pricing";
-import { lastVisibleByAsOfString, latestVisibleIndexed, rowsWithKey } from "./view-index";
+import {
+  lastVisibleByAsOfString,
+  latestSessionVersion,
+  latestVisibleIndexed,
+  rowsWithKey,
+} from "./view-index";
 
 type Row = { ticker: Ticker };
 const tickerOf = (row: Row): string => row.ticker;
@@ -47,7 +52,11 @@ export function resolveLegMarketPrice(
   if (quote?.last) return { value: quote.last, source: "last", stale: null };
 
   if (kind === "stock") {
-    const candle = latestVisibleIndexed(rowsWithKey(view.candles, dailyCandleTickerOf, ticker), at);
+    const candle = latestSessionVersion(
+      rowsWithKey(view.candles, dailyCandleTickerOf, ticker),
+      at,
+      latestVisibleIndexed,
+    );
     if (!candle) return null;
     const stale = atSession && candle.session !== atSession ? { session: candle.session } : null;
     return { value: candle.close, source: "close", stale };
@@ -78,9 +87,10 @@ export function resolveUnderlyingSpot(
     );
   }
   if (quote?.last) return quote.last;
-  const candle = lastVisibleByAsOfString(
+  const candle = latestSessionVersion(
     rowsWithKey(view.candles, dailyCandleTickerOf, ticker),
     at,
+    lastVisibleByAsOfString,
   );
   return candle?.close ?? null;
 }

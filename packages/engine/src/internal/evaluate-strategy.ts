@@ -59,6 +59,7 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
 import { toQuantity } from "./scalars";
 import { groupBy, upperBound } from "./search";
+import { latestVisible } from "./visible";
 import { sizeStockEntry } from "./sizing";
 import { splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
@@ -538,7 +539,11 @@ function memoized<T>(compute: (key: string) => T | undefined): IndicatorLookup<T
 type TickerState = {
   view: MarketView;
   nominal: Candle[];
-  nominalMs: number[];
+  firstMs: number[];
+  // Each slot's versions and every version, only for a ticker with a restated daily session
+  // (#38, ADR-0055): a restatement makes the series at an instant stop being a prefix of the
+  // series at a later one, so such a ticker never takes the #58 prefix cache.
+  versions: { bySlot: Candle[][]; all: Candle[] } | null;
   factorMs: number[];
   factorsByAsOf: CorporateActionFactor[];
   prefixStable: boolean;
@@ -547,14 +552,44 @@ type TickerState = {
   epochs: Map<number, Result<IndicatorSeries>>;
 };
 
-// The sessions of the IV points computeIndicators ranks up to the one it aligns to a candle at
-// `candleMs`, when the series is built at `visibleAtMs`: buildIvIndexSeries leaves out the points
-// published after `visibleAtMs`, and alignByInstant's walk stops at the first remaining point
-// published after the candle.
+// The candle a call evaluates at `index`, and the instant it is evaluated at: a catch-up replays
+// each session as it was first published, at that instant; a call without `since` reads the latest
+// session's version visible at `at`, evaluated at the latest asOf visible then, which may be an
+// earlier session's restatement. A restatement is never an instant of its own; later instants
+// read it (ADR-0055).
+function evaluatedAt(
+  state: TickerState,
+  index: number,
+  readLatestVisible: boolean,
+  at: Instant,
+): { candle: Candle; at: Instant } {
+  const nominal = assertDefined(state.nominal[index], "evaluateStrategy: instant index");
+  if (state.versions === null) return { candle: nominal, at: nominal.asOf };
+  const own = assertDefined(state.versions.bySlot[index], "evaluateStrategy: session versions");
+  if (!readLatestVisible) {
+    const first = assertDefined(own[0], "evaluateStrategy: first version");
+    return { candle: first, at: first.asOf };
+  }
+  const latest = latestVisible(state.versions.all, at);
+  // An unparseable `at` sees nothing, and the call reads the latest candle, as it always has.
+  if (latest === null) return { candle: nominal, at: nominal.asOf };
+  // The session at `index` is the last one first published by `at`, so a version of it is
+  // visible; `own` is in asOf order with no two sharing an instant.
+  const candle = assertDefined(
+    own.filter((c) => isAtOrBefore(c.asOf, at)).at(-1),
+    "evaluateStrategy: visible version",
+  );
+  return { candle, at: latest.asOf };
+}
+
 function latestAsOf(state: TickerState): Instant {
   return assertDefined(state.nominal.at(-1), "evaluateStrategy: non-empty series").asOf;
 }
 
+// The sessions of the IV points computeIndicators ranks up to the one it aligns to a candle at
+// `candleMs`, when the series is built at `visibleAtMs`: buildIvIndexSeries leaves out the points
+// published after `visibleAtMs`, and alignByInstant's walk stops at the first remaining point
+// published after the candle.
 function rankedIvSessionsAt(
   state: TickerState,
   visibleAtMs: number,
@@ -653,6 +688,10 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         })
         .sort((a, b) => (a.ms < b.ms ? -1 : a.ms > b.ms ? 1 : 0));
       const factorsByAsOf = byAsOf.map((entry) => entry.factor);
+      const restated = series.value.versions.some((own) => own.length > 1);
+      const versions = restated
+        ? { bySlot: series.value.versions, all: series.value.versions.flat() }
+        : null;
       const ivPoints = needsIv
         ? view.impliedVolatilityIndex
             .filter((p) => p.underlying === ticker)
@@ -663,10 +702,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         value: {
           view: tickerView,
           nominal: series.value.nominal,
-          nominalMs: series.value.nominal.map((c) => instantMs(c.asOf)),
+          firstMs: series.value.firstAsOf.map(instantMs),
+          versions,
           factorMs: byAsOf.map((entry) => entry.ms),
           factorsByAsOf,
-          prefixStable: !needsIv || ivPublishedInSessionOrder(ivPoints),
+          prefixStable: versions === null && (!needsIv || ivPublishedInSessionOrder(ivPoints)),
           ivSessions: ivPoints.map((p) => p.session),
           ivAsOfMs: ivPoints.map((p) => instantMs(p.asOf)),
           epochs: new Map(),
@@ -723,7 +763,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     );
     let rankedIv: SessionDate[] | null = null;
     const rankedIvSessions = () =>
-      (rankedIv ??= rankedIvSessionsAt(state, instantMs(builtAt), instantMs(candle.asOf)));
+      (rankedIv ??= rankedIvSessionsAt(
+        state,
+        instantMs(builtAt),
+        assertDefined(state.firstMs[index], "evaluateStrategy: instant"),
+      ));
     const seriesByKey = new Map(
       allSeries.map((series) => [indicatorSpecKey(series.indicator), series]),
     );
@@ -797,9 +841,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       const state = tickerResult.value;
       // An unparseable `at` or `since` compares false both ways, as in isAfter/isAtOrBefore:
       // nothing is "after" an unparseable `at`, and nothing is "at or before" it or after `since`
-      // either. A candle's own asOf is a validated Instant (instantSchema), so nominalMs has no
+      // either. A candle's own asOf is a validated Instant (instantSchema), so firstMs has no
       // NaN to place.
-      const upToAt = upperBound(state.nominalMs, atMs);
+      const upToAt = upperBound(state.firstMs, atMs);
       const visible = Number.isNaN(atMs) ? state.nominal.length : upToAt;
 
       if (visible === 0) {
@@ -812,7 +856,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       const instants: number[] = [];
       if (call.since !== undefined) {
         const sinceMs = instantMs(call.since);
-        const from = Number.isNaN(sinceMs) ? upToAt : upperBound(state.nominalMs, sinceMs);
+        const from = Number.isNaN(sinceMs) ? upToAt : upperBound(state.firstMs, sinceMs);
         for (let i = from; i < upToAt; i += 1) instants.push(i);
       } else {
         instants.push(visible - 1);
@@ -834,11 +878,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       const opsForTicker = openOperations.filter((op) => op.underlying === ticker);
 
       for (const index of instants) {
-        const nominalCandle = assertDefined(
-          state.nominal[index],
-          "evaluateStrategy: instant index within the series",
-        );
-        const c = nominalCandle.asOf;
+        const evaluated = evaluatedAt(state, index, call.since === undefined, call.at);
+        const nominalCandle = evaluated.candle;
+        const c = evaluated.at;
         const activeOps = opsForTicker.filter((op) => op.openedAt <= nominalCandle.session);
 
         // Without `since` the call reads the latest candle at `at`, which may be older than `at`'s

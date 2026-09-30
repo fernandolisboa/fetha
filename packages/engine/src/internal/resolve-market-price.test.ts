@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { MarketView } from "../api";
+import type { Candle, MarketView } from "../api";
 import { decimalString } from "../test/support";
-import { resolveLegMarketPrice } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 
 const at = "2024-01-02T21:00:00.000Z";
 
@@ -145,5 +145,50 @@ describe("resolveLegMarketPrice", () => {
       ],
     };
     expect(resolveLegMarketPrice(view, "PETR4", at, undefined, "2024-01-02", "stock")).toBeNull();
+  });
+});
+
+describe("a restated daily candle (#38)", () => {
+  const candle = (session: string, asOf: string, close: string): Candle => ({
+    ticker: "PETR4",
+    timeframe: "D1",
+    session,
+    asOf,
+    open: decimalString(close),
+    high: decimalString(close),
+    low: decimalString(close),
+    close: decimalString(close),
+    tradedQuantity: 1000,
+  });
+  const first = candle("2024-01-01", "2024-01-01T21:00:00.000Z", "10.00");
+  const second = candle("2024-01-02", at, "11.00");
+  const restatedFirst = candle("2024-01-01", "2024-01-03T12:00:00.000Z", "15.00");
+  const restatedSecond = candle("2024-01-02", "2024-01-03T12:00:00.000Z", "12.00");
+  const orders = (rows: Candle[]) => [rows, [...rows].reverse()];
+
+  it("never makes an earlier session's restatement the spot or a stock's mark", () => {
+    for (const candles of orders([first, second, restatedFirst])) {
+      const view: MarketView = { ...baseView, candles };
+      const later = "2024-01-03T13:00:00.000Z";
+      expect(resolveUnderlyingSpot(view, "PETR4", later)).toBe(decimalString("11.00"));
+      expect(resolveLegMarketPrice(view, "PETR4", later, undefined, "2024-01-03", "stock")).toEqual(
+        { value: decimalString("11.00"), source: "close", stale: { session: "2024-01-02" } },
+      );
+    }
+  });
+
+  it("reads the latest session's restatement from its asOf on, and the earlier version before it", () => {
+    for (const candles of orders([first, second, restatedSecond])) {
+      const view: MarketView = { ...baseView, candles };
+      expect(resolveUnderlyingSpot(view, "PETR4", "2024-01-03T11:00:00.000Z")).toBe(
+        decimalString("11.00"),
+      );
+      expect(resolveUnderlyingSpot(view, "PETR4", "2024-01-03T12:00:00.000Z")).toBe(
+        decimalString("12.00"),
+      );
+      expect(
+        resolveLegMarketPrice(view, "PETR4", "2024-01-03T12:00:00.000Z", undefined, null, "stock"),
+      ).toEqual({ value: decimalString("12.00"), source: "close", stale: null });
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CostModel } from "@fetha/contracts";
-import type { Leg, MarketView, TradingSession } from "../api";
+import type { Candle, Leg, MarketView, OptionDayPrice, TradingSession } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
 import {
   fillCosts,
@@ -218,5 +218,48 @@ describe("resolveFillOpportunity", () => {
       source: "next_session_average",
       kind: "option",
     });
+  });
+
+  it("fills at the session's latest version visible at its close, in any input order (#38)", () => {
+    const stock = (asOf: string, open: string): Candle => ({
+      ticker: "PETR4",
+      timeframe: "D1",
+      session: session.date,
+      asOf,
+      open: decimalString(open),
+      high: decimalString(open),
+      low: decimalString(open),
+      close: decimalString(open),
+      tradedQuantity: 500,
+    });
+    const option = (asOf: string, average: string): OptionDayPrice => ({
+      ticker: "PETR4C28",
+      session: session.date,
+      asOf,
+      average: decimalString(average),
+      close: decimalString(average),
+      trades: 1,
+      tradedQuantity: 10,
+    });
+    const candles = [stock("2024-01-02T20:00:00.000Z", "10.00"), stock(session.close, "10.20")];
+    const optionPrices = [
+      option("2024-01-02T20:00:00.000Z", "2.00"),
+      option(session.close, "3.00"),
+    ];
+    for (const reversed of [false, true]) {
+      const view: MarketView = {
+        ...emptyView,
+        candles: reversed ? [...candles].reverse() : candles,
+        optionPrices: reversed ? [...optionPrices].reverse() : optionPrices,
+      };
+      expect(resolveFillOpportunity(view, costModel, stockLeg, session, "buy")).toMatchObject({
+        ready: true,
+        price: decimalString("10.20"),
+      });
+      expect(resolveFillOpportunity(view, costModel, callLeg, session, "buy")).toMatchObject({
+        ready: true,
+        reference: decimalString("3.00"),
+      });
+    }
   });
 });

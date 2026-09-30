@@ -116,6 +116,55 @@ describe("computeIndicators", () => {
     ]);
   });
 
+  it("aligns a restated daily candle's iv_rank to its session as first published (#38)", () => {
+    const restated: Candle = {
+      ...candle("2024-01-03", "12.00"),
+      asOf: "2024-01-05T22:00:00.000Z",
+    };
+    const point = (session: string, iv: string): ImpliedVolatilityIndexPoint => ({
+      underlying: "PETR4",
+      session,
+      asOf: `${session}T21:00:00.000Z`,
+      impliedVolatility: decimalString(iv),
+    });
+    const result = computeIndicators({
+      view: {
+        ...emptyView,
+        candles: [
+          candle("2024-01-02", "10.00"),
+          candle("2024-01-03", "10.00"),
+          candle("2024-01-04", "10.00"),
+          candle("2024-01-05", "10.00"),
+          restated,
+        ],
+        impliedVolatilityIndex: [
+          point("2024-01-02", "0.10"),
+          point("2024-01-03", "0.30"),
+          point("2024-01-04", "0.20"),
+          point("2024-01-05", "0.40"),
+        ],
+      },
+      ticker: "PETR4",
+      timeframe: "D1",
+      indicators: [{ kind: "iv_rank", lookbackSessions: 2 }],
+      at: "2024-01-05T23:00:00.000Z",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candles.map((c) => [c.session, c.close])).toEqual([
+      ["2024-01-02", "10.00"],
+      ["2024-01-03", "12.00"],
+      ["2024-01-04", "10.00"],
+      ["2024-01-05", "10.00"],
+    ]);
+    expect(result.value.series).toEqual([
+      {
+        indicator: { kind: "iv_rank", lookbackSessions: 2 },
+        values: [null, "100.000000", "0.000000", "100.000000"],
+      },
+    ]);
+  });
+
   it("aligns intraday iv_rank to the latest IV point with asOf <= candle.asOf, never a same-session point published at the close", () => {
     const midSessionCandle: Candle = {
       ticker: "PETR4",

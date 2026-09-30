@@ -1,7 +1,6 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
-import { assertDefined } from "./invariant";
-import { isAtOrBefore } from "./instant";
 import { upperBound } from "./search";
+import { latestVisible } from "./visible";
 
 type SessionRow = { session: SessionDate; asOf: Instant };
 
@@ -17,7 +16,9 @@ export function indexBySession<T extends SessionRow>(rows: readonly T[]): Sessio
   return { rows: sorted, sessions: sorted.map((row) => row.session) };
 }
 
-// The first-listed row of `session` visible at `visibleAt`: `rows.find(...)` on the input.
+// The latest version of `session` visible at `visibleAt`, the first-listed one on a tie: what
+// `latestVisible` returns over the session's rows. A restated row replaces the earlier one from
+// its own asOf on, whatever the input order (#38, ADR-0055).
 export function rowOnSession<T extends SessionRow>(
   index: SessionRows<T> | undefined,
   session: SessionDate,
@@ -27,27 +28,34 @@ export function rowOnSession<T extends SessionRow>(
   const end = upperBound(index.sessions, session);
   let start = end;
   while (start > 0 && index.sessions[start - 1] === session) start -= 1;
-  for (let i = start; i < end; i += 1) {
-    const row = assertDefined(index.rows[i], "rowOnSession: index within bounds");
-    if (isAtOrBefore(row.asOf, visibleAt)) return row;
-  }
-  return null;
+  return latestVisibleIn(index, start, end, visibleAt);
 }
 
-// The row of the latest session up to `upto` that has a row visible at `visibleAt`, the
-// first-listed visible one of that session: what reducing the visible rows up to `upto` by a
-// strictly later session returns.
+// The latest visible version (as rowOnSession reads it) of the latest session up to `upto` that
+// has a row visible at `visibleAt`.
 export function lastKnownRow<T extends SessionRow>(
   index: SessionRows<T> | undefined,
   upto: SessionDate,
   visibleAt: Instant,
 ): T | null {
   if (!index) return null;
-  let found: T | null = null;
-  for (let i = upperBound(index.sessions, upto) - 1; i >= 0; i -= 1) {
-    const row = assertDefined(index.rows[i], "lastKnownRow: index within bounds");
-    if (found !== null && row.session !== found.session) break;
-    if (isAtOrBefore(row.asOf, visibleAt)) found = row;
+  let end = upperBound(index.sessions, upto);
+  while (end > 0) {
+    const session = index.sessions[end - 1];
+    let start = end;
+    while (start > 0 && index.sessions[start - 1] === session) start -= 1;
+    const row = latestVisibleIn(index, start, end, visibleAt);
+    if (row !== null) return row;
+    end = start;
   }
-  return found;
+  return null;
+}
+
+function latestVisibleIn<T extends SessionRow>(
+  index: SessionRows<T>,
+  start: number,
+  end: number,
+  visibleAt: Instant,
+): T | null {
+  return latestVisible(index.rows.slice(start, end), visibleAt);
 }
