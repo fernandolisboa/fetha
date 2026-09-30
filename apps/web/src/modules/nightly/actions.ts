@@ -33,12 +33,22 @@ export type TriggerNightlyJobResult =
   | { status: "ok"; summary: TriggerNightlyJobSummary };
 
 // True for anything a clean, complete run cannot produce: a failed retention
-// purge, or work the in-run deadline pushed to the
+// purge, work the in-run deadline pushed to the
 // next run (evaluation.strategiesDeferred/usersSkipped,
-// scoring.usersSkipped/decisionsSkipped). None of these flip `outcome.ok`
-// or the summary's error counts, so without this check they would silently
-// stop showing up anywhere but the cron's own logs.
+// scoring.usersSkipped/decisionsSkipped), a failed iv_index (kept out of
+// `ok`, docs/adr/0054) or an evaluated session left without its IV index.
+// None of these flip `outcome.ok` or the summary's error counts, so without
+// this check they would silently stop showing up anywhere but the cron's
+// own logs. iv_index's `deferred` is not trouble: the backfill defers
+// sessions every night until it drains (#264).
 function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
+  if (
+    outcome.sources.some(
+      (source) => source.error !== undefined || source.newestSessionComputed === false,
+    )
+  ) {
+    return true;
+  }
   if (
     !outcome.accessLogPurge.ok ||
     !outcome.unverifiedAccountPurge.ok ||

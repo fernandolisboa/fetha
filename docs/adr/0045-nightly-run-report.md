@@ -38,7 +38,8 @@ trigger, options)` (`modules/nightly/recorded-run.ts`) wraps `runNightlyJob`: bo
     derivation `triggerNightlyJobAction`'s own summary already used, now shared as
     `sourceRunStatus`, extended for `SourceOutcome.pending` — a provider that has not published a
     session's data yet, #216 — the same way that summary's own union was),
-    `rowCount`, `skippedRows?`, and `error?` — `SourceOutcome.error` only, already sanitized by
+    `rowCount`, `skippedRows?`, `deferred?` and `newestSessionComputed?` (both `iv_index` only,
+    ADR-0054, #264), and `error?` — `SourceOutcome.error` only, already sanitized by
     `safeDbErrorMessage` (`@/db/pg-error`, #211/#224) to a Postgres SQLSTATE plus constraint or a
     truncated message, never a raw provider payload.
   - `session`, `okSessions`, and every purge outcome (`ok` + a count, never an id).

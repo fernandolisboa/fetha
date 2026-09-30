@@ -318,6 +318,68 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  function cleanRunWithIvIndex(ivIndex: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ok: true,
+      session: "2026-09-08",
+      okSessions: ["2026-09-08"],
+      sources: [
+        { source: "cotahist", skipped: false, rowCount: 10 },
+        { source: "iv_index", skipped: false, rowCount: 5, ...ivIndex },
+      ],
+      evaluation: { signalsWritten: 3, errors: [], strategiesDeferred: 0, usersSkipped: 0 },
+      scoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        decisionsScored: 2,
+        decisionsSkipped: 0,
+        errors: [],
+      },
+      accessLogPurge: { ok: true, deleted: 0 },
+      unverifiedAccountPurge: { ok: true, deleted: 0 },
+      sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
+    };
+  }
+
+  it("logs the full outcome server-side when iv_index failed, although its error never flips ok (#264)", async () => {
+    runNightlyJobMock.mockResolvedValue(
+      cleanRunWithIvIndex({ error: "23505", newestSessionComputed: true }),
+    );
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
+  it("logs the full outcome server-side when the evaluated session was left without its IV index (#264)", async () => {
+    runNightlyJobMock.mockResolvedValue(
+      cleanRunWithIvIndex({ pending: true, newestSessionComputed: false }),
+    );
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("never logs a backfill that is only deferring older sessions while the evaluated session has its IV index (#264)", async () => {
+    runNightlyJobMock.mockResolvedValue(
+      cleanRunWithIvIndex({ pending: true, deferred: 40, newestSessionComputed: true }),
+    );
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it("rejects a second call while a run is already in progress", async () => {
     isOwnerMock.mockResolvedValue(true);
     let resolveJob: (() => void) | undefined;
