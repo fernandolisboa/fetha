@@ -29,12 +29,15 @@ import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-re
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 
 const DEFAULT_MAX_DURATION_MS = 300_000;
-// iv_index gets 40% of the route's own maxDurationMs, counted from ingest()'s
-// own start: the rest is left for whichever session is already in flight
-// when the budget runs out, plus the nightly job's own evaluation and
-// scoring steps that share the same 300s route (run-nightly-job.ts) and are
-// deadline-aware, unlike ingest() itself.
-const IV_INDEX_BUDGET_FRACTION = 0.4;
+// Starting a new iv_index session is gated at 40% of the route's own
+// maxDurationMs, counted from ingest()'s own start, for every session except
+// the newest one in the recent window: that single session is the one
+// tonight's evaluation reads, so it may still start as late as the 60% hard
+// stop (docs/adr/0054). The 60% figure also bounds how long a single
+// session's own compute may run past its start, checked between underlyings
+// inside `computeIvIndexForSession`.
+const IV_INDEX_START_BUDGET_FRACTION = 0.4;
+const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -63,6 +66,10 @@ export interface SourceOutcome {
   // error, and not succeeded either, so the session stays a gap the next
   // run retries (docs/adr/0017).
   pending?: true;
+  // Sessions this invocation left entirely unattempted once its start
+  // deadline passed (docs/adr/0054): implies `pending`, distinct from a
+  // session that was attempted and reported `pending` itself.
+  deferred?: number;
 }
 
 // A run callback normally just reports how many rows it wrote; one that also
@@ -136,13 +143,17 @@ function mergeOutcomes(source: IngestionSource, outcomes: SourceOutcome[]): Sour
     .map((outcome) => outcome.error)
     .filter((error): error is string => Boolean(error));
   const skippedRows = outcomes.reduce((total, outcome) => total + (outcome.skippedRows ?? 0), 0);
+  const deferred = outcomes.reduce((total, outcome) => total + (outcome.deferred ?? 0), 0);
   return {
     source,
     skipped: outcomes.every((outcome) => outcome.skipped),
     rowCount: outcomes.reduce((total, outcome) => total + outcome.rowCount, 0),
     ...(errors.length > 0 ? { error: errors.join("; ") } : {}),
     ...(skippedRows > 0 ? { skippedRows } : {}),
-    ...(outcomes.some((outcome) => outcome.pending) ? { pending: true as const } : {}),
+    ...(outcomes.some((outcome) => outcome.pending) || deferred > 0
+      ? { pending: true as const }
+      : {}),
+    ...(deferred > 0 ? { deferred } : {}),
   };
 }
 
@@ -257,56 +268,40 @@ interface SessionBoundResult {
 // left in the window is fully caught up, not absent: it still reports a
 // `{ skipped: true }` SourceOutcome instead of being dropped, so a caller
 // can tell "nothing to do" apart from "this source doesn't exist".
+// A session not yet started once `Date.now()` reaches `deadline` is left
+// alone entirely (docs/adr/0054): not attempted, not recorded as failed or
+// skipped, so it stays a gap the next run retries rather than risking the
+// caller's own `maxDuration`. `sessions` is already ordered by priority, so
+// once the deadline is spent the sessions left unattempted are the ones
+// that mattered least this run.
 export async function runSessionBoundSource(
   db: Database,
   source: IngestionSource,
   sessions: string[],
   maxDurationMs: number,
   run: (session: string) => Promise<RunResult>,
+  deadline = Infinity,
 ): Promise<SessionBoundResult> {
   const outcomes: SourceOutcome[] = [];
   const okSessions: string[] = [];
-  for (const session of sessions) {
-    const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
-    outcomes.push(outcome);
-    if (outcome.error === undefined && !outcome.pending) {
-      okSessions.push(session);
-    }
-  }
-  return { outcome: mergeOutcomes(source, outcomes), okSessions };
-}
-
-// Like `runSessionBoundSource`, but stops *starting* a new session once
-// `Date.now()` reaches `deadline` (docs/adr/0054): a session not yet
-// started when the deadline passes is left alone entirely — not attempted,
-// not recorded as failed or skipped — so it stays a gap `gaps()` (or the
-// next backfill pass) retries on a later run, rather than either risking
-// the caller's own `maxDuration` or falsely reporting a session this
-// invocation never touched. `sessions` is already ordered by priority
-// (docs/adr/0054: newest first, recent window before backfill), so once the
-// budget is spent the sessions left unattempted are the ones that mattered
-// least this run.
-async function runBudgetedSessionBoundSource(
-  db: Database,
-  source: IngestionSource,
-  sessions: string[],
-  deadline: number,
-  maxDurationMs: number,
-  run: (session: string) => Promise<RunResult>,
-): Promise<SessionBoundResult> {
-  const outcomes: SourceOutcome[] = [];
-  const okSessions: string[] = [];
+  let attempted = 0;
   for (const session of sessions) {
     if (Date.now() >= deadline) {
       break;
     }
+    attempted += 1;
     const outcome = await runSource(db, source, session, maxDurationMs, () => run(session));
     outcomes.push(outcome);
     if (outcome.error === undefined && !outcome.pending) {
       okSessions.push(session);
     }
   }
-  return { outcome: mergeOutcomes(source, outcomes), okSessions };
+  const deferred = sessions.length - attempted;
+  const merged = mergeOutcomes(source, outcomes);
+  return {
+    outcome: deferred > 0 ? { ...merged, skipped: false, pending: true, deferred } : merged,
+    okSessions,
+  };
 }
 
 async function runCalendarSources(
@@ -377,10 +372,10 @@ export interface IngestOptions {
   now?: Date;
   fetchImpl?: typeof fetch;
   maxDurationMs?: number;
-  // Overrides `maxDurationMs * IV_INDEX_BUDGET_FRACTION`: test-only knob to
-  // force the iv_index budget to have already elapsed (e.g. `0`) without
-  // touching `maxDurationMs` itself, which `reapStaleRunningRuns` also uses
-  // as a cutoff for every other source in the same invocation.
+  // Overrides `maxDurationMs * IV_INDEX_START_BUDGET_FRACTION`: test-only
+  // knob to force that start deadline to have already elapsed (e.g. `0`)
+  // without touching `maxDurationMs` itself, which `reapStaleRunningRuns`
+  // also uses as a cutoff for every other source in the same invocation.
   ivIndexBudgetMs?: number;
 }
 
@@ -476,33 +471,30 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     },
   );
 
-  // Runs after cotahist, instruments and sgs, over the same recent window
-  // plus an older backfill batch (docs/adr/0054): the compute step needs
-  // that session's own option chain, series registry and (for the
-  // risk-free proxy) CDI, so it can only start once those are in. A
-  // session ineligible for that reason is `pending`, never `failed`
-  // (`ivIndexRun` below), so it keeps retrying every night until cotahist
-  // and instruments catch up on it, rather than aging into a permanent
-  // gap.
+  // Runs after cotahist and instruments, over the same recent window plus an
+  // older backfill batch (docs/adr/0054): the compute step needs that
+  // session's own option chain, series registry and (for the risk-free
+  // proxy) CDI, so it can only start once those are in. A session ineligible
+  // for that reason is `pending`, never `failed` (`ivIndexRun` below), so it
+  // keeps retrying every night rather than aging into a permanent gap.
   const ivIndexRecentSessions = await resolveSessions("iv_index");
   const ivIndexBackfillCandidates = options.session
     ? []
-    : (await succeededSessionsMissingRun(db, "cotahist", "iv_index")).filter(
+    : (await succeededSessionsMissingRun(db, ["cotahist", "instruments"], "iv_index")).filter(
         (session) => !ivIndexRecentSessions.includes(session),
       );
-  // One priority-ordered list, not two separate loops (docs/adr/0054): the
-  // recent window (`gaps()`'s own oldest-first order) is reversed to newest
-  // first and put ahead of the backfill batch (already newest first), then
-  // deduplicated, so a tight budget is spent on the sessions that matter
-  // most — today's gaps before very old history — with every session,
-  // recent or backfill alike, subject to the same deadline below. A
-  // one-night gap of 10 unbudgeted recent sessions, each computing every
-  // optionable underlying, could otherwise blow the nightly route's own
-  // 300s budget and starve the evaluation and scoring steps that share it.
-  const ivIndexSessions = [
-    ...new Set([...ivIndexRecentSessions].reverse().concat(ivIndexBackfillCandidates)),
+  // The newest recent-window session is the one tonight's evaluation reads,
+  // so it gets its own start deadline (the 60% hard stop) instead of the 40%
+  // every other session — older recent sessions and the backfill batch — must
+  // start under (docs/adr/0054). Both lists stay newest-first / most-recent
+  // history first, so a tight budget is spent on the sessions that matter
+  // most.
+  const ivIndexNewestSession = ivIndexRecentSessions.at(-1);
+  const ivIndexRestSessions = [
+    ...new Set([...ivIndexRecentSessions.slice(0, -1)].reverse().concat(ivIndexBackfillCandidates)),
   ];
-  const ivIndexRun = async (session: string) => {
+  const ivIndexHardStopAt = startedAt + maxDurationMs * IV_INDEX_HARD_STOP_FRACTION;
+  const ivIndexRun = async (session: string): Promise<RunResult> => {
     const [cotahistRun, instrumentsRun] = await Promise.all([
       findSucceededRun(db, "cotahist", session),
       findSucceededRun(db, "instruments", session),
@@ -514,17 +506,38 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     if (!trading) {
       throw new Error(`no trading session recorded for ${session}`);
     }
-    return computeIvIndexForSession(db, session, trading.close);
+    const { rowCount, pending } = await computeIvIndexForSession(
+      db,
+      session,
+      trading.close,
+      ivIndexHardStopAt,
+    );
+    return pending ? { rowCount, pending: true as const } : rowCount;
   };
-  const ivIndexBudgetMs = options.ivIndexBudgetMs ?? maxDurationMs * IV_INDEX_BUDGET_FRACTION;
-  const ivIndexResult = await runBudgetedSessionBoundSource(
+  const ivIndexStartBudgetMs =
+    options.ivIndexBudgetMs ?? maxDurationMs * IV_INDEX_START_BUDGET_FRACTION;
+  const ivIndexNewestResult = ivIndexNewestSession
+    ? await runSessionBoundSource(
+        db,
+        "iv_index",
+        [ivIndexNewestSession],
+        maxDurationMs,
+        ivIndexRun,
+        ivIndexHardStopAt,
+      )
+    : { outcome: mergeOutcomes("iv_index", []), okSessions: [] };
+  const ivIndexRestResult = await runSessionBoundSource(
     db,
     "iv_index",
-    ivIndexSessions,
-    startedAt + ivIndexBudgetMs,
+    ivIndexRestSessions,
     maxDurationMs,
     ivIndexRun,
+    startedAt + ivIndexStartBudgetMs,
   );
+  const ivIndexResult = {
+    outcome: mergeOutcomes("iv_index", [ivIndexNewestResult.outcome, ivIndexRestResult.outcome]),
+    okSessions: [...ivIndexNewestResult.okSessions, ...ivIndexRestResult.okSessions],
+  };
 
   const sources = [
     calendarOutcome,
@@ -554,10 +567,16 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const okSessions =
     cotahistResult.okSessions.length > 0 ? cotahistResult.okSessions : session ? [session] : [];
 
+  // iv_index errors stay out of `ok` the same way cotahistSucceeded keeps
+  // sgs/instruments failures from blocking evaluation (run-nightly-job.ts):
+  // it is computed reference data derived from the other sources, never
+  // itself a dependency the cron response should 500 on (docs/adr/0054).
   return {
     session,
     okSessions,
-    ok: sources.every((outcome) => outcome.error === undefined),
+    ok: sources
+      .filter((outcome) => outcome.source !== "iv_index")
+      .every((outcome) => outcome.error === undefined),
     sources,
   };
 }
