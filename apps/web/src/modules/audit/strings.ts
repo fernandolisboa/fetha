@@ -15,6 +15,7 @@ const en = {
       decisions_read: "Decisions read",
       data_export: "Data exported",
       nightly_triggered: "Manual ingestion triggered",
+      corporate_action_recorded: "Corporate-action factor recorded",
     } satisfies Record<AccessEvent, string>,
   },
 };
@@ -34,6 +35,7 @@ const ptBR = {
       decisions_read: "Leitura das decisões",
       data_export: "Exportação dos dados",
       nightly_triggered: "Disparo manual da ingestão",
+      corporate_action_recorded: "Fator de evento corporativo registrado",
     },
   },
 } satisfies typeof en;

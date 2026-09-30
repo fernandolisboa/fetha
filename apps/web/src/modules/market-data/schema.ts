@@ -118,6 +118,12 @@ export const corporateActionFactors = pgTable(
     exDate: date("ex_date", { mode: "string" }).notNull(),
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
     factor: numeric("factor", { precision: 18, scale: 8 }).notNull(),
+    // Write-time stamp, distinct from `as_of`: the owner can type a factor
+    // for a past ex-date today, so `as_of` (that session's own open) never
+    // moves once the row is corrected, and `MarketView.dataVersion` would
+    // never see the correction (docs/adr/0054's `computed_at` for the same
+    // reason, docs/adr/0052).
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.ticker, table.exDate] })],
 );

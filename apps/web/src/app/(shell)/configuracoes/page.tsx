@@ -10,6 +10,11 @@ import {
   SignOutButton,
   t as authStrings,
 } from "@/modules/auth";
+import {
+  CorporateActionPanel,
+  recentCorporateActionFactorsList,
+  t as marketDataStrings,
+} from "@/modules/market-data";
 import { NightlyTriggerPanel, t as nightlyStrings } from "@/modules/nightly";
 import { getPreferences, ThemePicker, t as preferencesStrings } from "@/modules/preferences";
 import { getCurrentRiskProfile, t as portfolioStrings } from "@/modules/portfolio";
@@ -28,6 +33,7 @@ export default async function SettingsPage() {
   const riskProfile = await getCurrentRiskProfile();
   const accessLogGroups = groupAccessLog(await getMyAccessLog());
   const ownerSession = await isOwner();
+  const corporateActionFactors = ownerSession ? await recentCorporateActionFactorsList() : [];
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
@@ -98,6 +104,18 @@ export default async function SettingsPage() {
             <p className="text-muted-foreground text-xs">{nightlyStrings.panel.subtitle}</p>
           </div>
           <NightlyTriggerPanel />
+        </section>
+      ) : null}
+
+      {ownerSession ? (
+        <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+          <div>
+            <h2 className="text-sm font-medium">{marketDataStrings.corporateActionPanel.title}</h2>
+            <p className="text-muted-foreground text-xs">
+              {marketDataStrings.corporateActionPanel.subtitle}
+            </p>
+          </div>
+          <CorporateActionPanel factors={corporateActionFactors} />
         </section>
       ) : null}
 

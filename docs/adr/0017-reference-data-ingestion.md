@@ -39,7 +39,8 @@ run per (source, session)" a database invariant, not just application discipline
 ingestion job, and read by every user through `market-data.freshness()`/`gaps()`/`allGaps()` (the
 market bar, #13) — a table users read but never write, distinct from `invites`/`mail_outbox`
 (ADR-0016, written and read by the system alone). `data_version` was removed from the schema and
-migration in this round of review; recording real corporate-action factors is #50, not this table.
+migration in this round of review; corporate-action factors are the owner's own entries (#50,
+ADR-0052), not written by this table's ingestion.
 
 Instruments and COTAHIST each pick **their own** target sessions per run: every un-succeeded
 session in the last 10 closed trading sessions on or before `at` ("Session selection" below); the
@@ -326,16 +327,18 @@ from one response instead of querying `ingestion_runs` directly.
 COTAHIST prices are **not adjusted for corporate actions** and the file **includes delisted
 instruments** (survivorship-neutral, not survivorship-bias-free by omission). `FATCOT` is a
 quotation-lot factor (grouping, e.g. `1000` for some BDRs/FIIs), not a corporate-action
-adjustment; the `corporate_action_factors` table exists (ADR-0013's engine reads it) but nothing
-in this ticket writes to it any more. The earlier `detectFatcotFactorChanges` /
+adjustment; the `corporate_action_factors` table exists (ADR-0013's engine reads it), and #50
+(ADR-0052) gives the owner a form on `/configuracoes` to write it — nothing in this ticket's own
+ingestion writes to it. The earlier `detectFatcotFactorChanges` /
 `upsertCorporateActionFactors` pair, which inferred a factor from a `FATCOT` change between two
 sessions, is **removed**: per quant review it used the absolute `FATCOT` value as if it were an
 adjustment ratio, applied it to prices already normalized by that same `FATCOT`, and was keyed on
 the option ticker rather than the underlying — wrong on all three counts, and it was never wired
 into `ingest()` regardless. Recording real corporate-action factors (from a labeled event, not an
-inferred `FATCOT` change) is tracked in #50 and is out of this ticket's scope; see also
-`UBIQUITOUS_LANGUAGE.md` ("Reference data") and `docs/adr/0004-backtest-hygiene.md`, both updated
-to point at #50. **Dividends remain uncovered**: no source this ticket adds carries dividend data.
+inferred `FATCOT` change) is #50, resolved by ADR-0052 as an owner-entered form rather than a
+second attempt at inferring one from this ticket's own data; see also `UBIQUITOUS_LANGUAGE.md`
+("Reference data") and `docs/adr/0004-backtest-hygiene.md`. **Dividends remain uncovered**: no
+source this ticket adds carries dividend data.
 
 ## Port (amends ADR-0007)
 

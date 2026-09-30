@@ -42,9 +42,10 @@ _Avoid_: resolution, interval, period (reserved for the backtest date range)
 Market data shared by all users and read-only to them: daily candles, option series, daily
 option prices, corporate-action factors, macro series, the trading calendar and the
 implied-volatility index, ingested from public B3 and Bacen sources or, for the
-implied-volatility index, computed nightly from the others (no adapter, ADR-0054). Corporate-action
-factor recording from labeled events is tracked as a follow-up (#50, ADR-0017); the table exists
-and is read by the engine (ADR-0013) but no current ingestion source writes to it.
+implied-volatility index, computed nightly from the others (no adapter, ADR-0054), except
+corporate-action factors, which the owner types by hand on `/configuracoes` from each company's
+own public notice (#50, ADR-0052) since no licensed automatic source exists yet; the table is
+still read by the engine like every other reference collection (ADR-0013).
 _Avoid_: shared data, public data
 
 **Intraday tier**:
@@ -64,9 +65,12 @@ _Avoid_: holiday list, business calendar
 
 **Corporate-action factor**:
 The multiplier applied to earlier prices and quantities of an instrument to compensate for a
-split, reverse split, bonus or dividend, so that a series stays comparable across the event.
-Recorded by ingestion with its ex-date; applied by the engine point in time, so a factor is
-invisible to any computation dated before its ex-date session open (ADR-0013).
+split, reverse split or bonus, so that a series stays comparable across the event. Entered by the
+owner on `/configuracoes` from the company's own public notice, one ticker and ex-date at a time
+(#50, ADR-0052); applied by the engine point in time, so a factor is invisible to any computation
+dated before its ex-date session open (ADR-0013). A factor of `1` is the owner's own way to
+neutralize a mistaken entry (there is no delete) and is kept out of every collection the engine
+reads, though the row itself, and its write-time `recorded_at`, stay in storage.
 _Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
 
 **Adjusted series / nominal series**:
@@ -450,9 +454,10 @@ _Avoid_: account, tenant (in code), member
 
 **Owner**:
 An account whose email is listed in `OWNER_EMAILS`, verified. An operator capability over a
-system job (today: the manual re-run of the nightly ingestion, ADR-0042), not a tenancy or
-data-access role — it grants no read or write on another user's rows, and the app otherwise has no
-roles (ADR-0016). Distinct from "user"/"tenant": ordinary multi-user isolation is unaffected.
+system job (the manual re-run of the nightly ingestion, ADR-0042) and over recording
+corporate-action factors on `/configuracoes` (#50, ADR-0052), not a tenancy or data-access role —
+it grants no read or write on another user's rows, and the app otherwise has no roles (ADR-0016).
+Distinct from "user"/"tenant": ordinary multi-user isolation is unaffected.
 _Avoid_: admin, superuser, role
 
 **Invite**:
