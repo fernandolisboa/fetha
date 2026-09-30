@@ -59,3 +59,6 @@ When the view's calendar does not reach the window's end, the rank is read as be
 - No run in the app changes today: there is no IV index ingestion yet (#81), so the nightly run and
   the backtest action refuse a strategy that reads `iv_rank` before evaluating it
   (`canSatisfyCollection`). The rule is the engine's, and applies to both once #81 lands.
+  (Superseded: ADR-0054 removes `canSatisfyCollection` once the IV index ingestion this note
+  describes as missing ships; a strategy that reads `iv_rank` too early now reads
+  `insufficient_data` like any other under-warmed indicator, instead of being refused outright.)

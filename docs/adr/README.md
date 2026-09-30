@@ -59,6 +59,6 @@ supersedes or amends them and says so.
 | 0051 | An IV rank is read only when its whole window of sessions holds an IV point (#254, amends 0050)                  |
 | 0052 | Corporate-action factors have no free, licensed automatic source yet (#50, proposed)                             |
 | 0053 | The structure catalog is one file, each entry with its source and default selection (#20)                        |
-| 0054 | The IV index is computed nightly from already-ingested option prices, no new source (#81)                        |
+| 0054 | The IV index is computed nightly from already-ingested option prices, no new source (#81, amends 0017, 0051)     |
 
 Open: 0052 (the source for corporate-action factors, pending the owner).
