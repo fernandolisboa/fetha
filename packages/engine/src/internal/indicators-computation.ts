@@ -38,7 +38,9 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
   }
 
   const closes = candleSeries.value.adjusted.map((c) => parseDecimal(c.close));
-  const candleAsOf = candleSeries.value.adjusted.map((c) => c.asOf);
+  // A restated daily candle keeps its session's slot but carries a later asOf (ADR-0055), so the
+  // slots are aligned by when each session was first published, which is in order.
+  const slotAsOf = candleSeries.value.firstAsOf;
   const bars = candleSeries.value.adjusted.map((c) => ({
     high: parseDecimal(c.high),
     low: parseDecimal(c.low),
@@ -46,7 +48,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
   }));
 
   const truncated: TruncationReport[] = [...candleSeries.value.truncated];
-  let ivPointAsOf: typeof candleAsOf = [];
+  let ivPointAsOf: typeof slotAsOf = [];
   let ivPointValues: Decimal[] = [];
 
   if (input.indicators.some((spec) => spec.kind === "iv_rank")) {
@@ -75,7 +77,7 @@ export function computeIndicators(input: IndicatorsInput): Result<IndicatorSerie
       }
       case "iv_rank": {
         const rankSeries = ivRank(ivPointValues, indicator.lookbackSessions);
-        const aligned = alignByInstant(candleAsOf, ivPointAsOf, rankSeries);
+        const aligned = alignByInstant(slotAsOf, ivPointAsOf, rankSeries);
         return {
           indicator,
           values: aligned.map((v) => (v ? toDecimalString(v, RATIO_SCALE) : null)),

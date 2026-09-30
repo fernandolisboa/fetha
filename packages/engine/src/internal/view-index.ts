@@ -1,5 +1,6 @@
 import type { Instant } from "@fetha/contracts";
-import { instantMs } from "./instant";
+import { compareInstants, instantMs, isAtOrBefore } from "./instant";
+import { codeUnitCompare } from "./order";
 import { groupBy, upperBound } from "./search";
 
 // Lookup indexes over a MarketView's collections (#58). A backtest asks the same view the same
@@ -95,4 +96,45 @@ export function lastVisibleByAsOfString<T extends { asOf: Instant }>(
     );
   }
   return index.rows[upperBound(index.ms, atMs) - 1] ?? null;
+}
+
+const repeatedSessionCaches = new WeakMap<object, boolean>();
+
+function hasRepeatedSession(rows: readonly { session: string }[]): boolean {
+  const cached = repeatedSessionCaches.get(rows);
+  if (cached !== undefined) return cached;
+  const repeated = new Set(rows.map((row) => row.session)).size < rows.length;
+  repeatedSessionCaches.set(rows, repeated);
+  return repeated;
+}
+
+// One ticker's daily rows read at `at` (#38, ADR-0055): the session published last, the one
+// whose first visible version has the latest asOf (the later session on a tie), at its own latest
+// visible version (the first-listed on an equal asOf). With no session listed twice that is
+// `newest(rows, at)`, the lookup its caller has always used, so only a view with a restatement
+// takes the scan.
+export function latestSessionVersion<T extends { asOf: Instant; session: string }>(
+  rows: readonly T[],
+  at: Instant,
+  newest: (rows: readonly T[], at: Instant) => T | null,
+): T | null {
+  if (!hasRepeatedSession(rows)) return newest(rows, at);
+  const bySession = new Map<string, { first: T; latest: T }>();
+  for (const row of rows) {
+    if (!isAtOrBefore(row.asOf, at)) continue;
+    const versions = bySession.get(row.session) ?? { first: row, latest: row };
+    if (compareInstants(row.asOf, versions.first.asOf) < 0) versions.first = row;
+    if (compareInstants(row.asOf, versions.latest.asOf) > 0) versions.latest = row;
+    bySession.set(row.session, versions);
+  }
+  let published: { first: T; latest: T } | null = null;
+  for (const versions of bySession.values()) {
+    const order =
+      published === null
+        ? 1
+        : compareInstants(versions.first.asOf, published.first.asOf) ||
+          codeUnitCompare(versions.first.session, published.first.session);
+    if (order > 0) published = versions;
+  }
+  return published?.latest ?? null;
 }

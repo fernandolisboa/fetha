@@ -562,4 +562,61 @@ describe("buildCandleSeries", () => {
     if (result.ok) return;
     expect(result.error.path).toBe("view.candles[0].open");
   });
+
+  describe("a restated daily candle (#38)", () => {
+    const original = candle("2024-01-02", "10.00");
+    const next = candle("2024-01-03", "11.00");
+    const restated = candle("2024-01-02", "10.50", "2024-01-04T12:00:00.000Z");
+    const series = (candles: Candle[], at: string) => {
+      const result = buildCandleSeries({
+        candles,
+        corporateActions: [],
+        ticker: "PETR4",
+        timeframe: "D1",
+        at,
+      });
+      if (!result.ok) throw new Error("unexpected engine error");
+      return result.value;
+    };
+
+    it("reads the earlier version before the restatement's asOf, in the session's own slot", () => {
+      const value = series([original, next, restated], "2024-01-03T23:00:00.000Z");
+      expect(value.nominal).toEqual([original, next]);
+      expect(value.truncated).toEqual([
+        { collection: "candles", ticker: "PETR4", dropped: 1, reason: "after_at" },
+      ]);
+    });
+
+    it("replaces it from the restatement's asOf on, keeping session order, whatever the input order", () => {
+      for (const candles of [
+        [original, next, restated],
+        [restated, next, original],
+      ]) {
+        const value = series(candles, "2024-01-04T12:00:00.000Z");
+        expect(value.nominal).toEqual([restated, next]);
+        expect(value.adjusted.map((c) => c.close)).toEqual(["10.50", "11.00"]);
+        expect(value.truncated).toEqual([]);
+      }
+    });
+
+    it("leaves intraday candles of one session keyed by asOf", () => {
+      const bar = (asOf: string, close: string): Candle => ({
+        ...candle("2024-01-02", close, asOf),
+        timeframe: "60m",
+      });
+      const bars = [
+        bar("2024-01-02T14:00:00.000Z", "10.00"),
+        bar("2024-01-02T15:00:00.000Z", "10.20"),
+      ];
+      const result = buildCandleSeries({
+        candles: bars,
+        corporateActions: [],
+        ticker: "PETR4",
+        timeframe: "60m",
+        at: "2024-01-02T23:00:00.000Z",
+      });
+      if (!result.ok) throw new Error("unexpected engine error");
+      expect(result.value.nominal).toEqual(bars);
+    });
+  });
 });

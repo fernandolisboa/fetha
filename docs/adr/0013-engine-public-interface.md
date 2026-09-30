@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.6.0";
+export const ENGINE_VERSION = "0.7.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2454,3 +2454,15 @@ now reads the rank only when the oldest of those points falls inside the window 
 end rule); otherwise the reading is `null`. `dataWindow`'s request for `iv_rank` is unchanged, as
 is `engine.indicators()`. Under the change policy's 0.4.0 case this moves a reading conditions act
 on, so `ENGINE_VERSION` moves from `"0.5.0"` to `"0.6.0"`.
+
+## Addendum: a daily candle is identified by its session; `ENGINE_VERSION` bumped to `0.7.0` (2026-09-30, #38, see ADR-0055)
+
+A `D1` candle is identified by `(ticker, session)`: at an instant `t`, a session reads its latest
+version with `asOf <= t`, in the series slot its first version took. `evaluateStrategy` never
+evaluates a restatement as an instant of its own: a catch-up evaluates each session at its first
+version's `asOf`; a call without `since` reads the latest session's version visible at `at` and is
+evaluated at the latest visible `asOf` of the ticker's daily rows. Every lookup that picks one row
+per session (fills, marks, last-known closes, the underlying spot) reads the latest visible
+version, so a restated view obeys I3. Intraday candles stay keyed by `asOf`, and the #58 cache is
+kept for every ticker without a restated session. Under the change policy's 0.4.0 case this moves
+readings conditions act on, so `ENGINE_VERSION` moves from `"0.6.0"` to `"0.7.0"`.
