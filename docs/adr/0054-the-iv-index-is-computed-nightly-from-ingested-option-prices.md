@@ -143,6 +143,12 @@ does move: the insert defaults it to `now()` and the upsert's `onConflictDoUpdat
 - Dividend yields remain unimplemented; `q = 0` and `dividend_yield_defaulted` are still what the
   IV index (and every other pricing path) uses until a dividend-yield source is decided (no ADR
   covers it yet).
+- The nightly evaluation consumes a session whether or not `iv_index` covered it: an `iv_rank`
+  condition on a session the budget deferred records `insufficient_data` and is not re-evaluated
+  on its own once the backfill fills it (re-evaluation stays a user action, ADR-0047).
+- `computed_at` is a wall clock, so an `iv_rank` backtest resumed after a nightly run that wrote
+  points inside its window fails with `data_version_changed` rather than mixing datasets; while
+  the backfill drains, long `iv_rank` runs are effectively single-sitting.
 - `implied_volatility_index` is shared reference data (CLAUDE.md principle 5): no `user_id`, no
   isolation test, read-only to every user, written only by this ingestion source.
 - Known limitation: the engine's `impliedVolatilityIndex` result carries `seriesUsed` (which two

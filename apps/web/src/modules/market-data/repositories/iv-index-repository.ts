@@ -78,7 +78,8 @@ export async function underlyingsToComputeForSession(
         eq(candles.session, session),
       ),
     )
-    .where(eq(optionDailyPrices.session, session));
+    .where(eq(optionDailyPrices.session, session))
+    .orderBy(optionSeries.underlying);
 
   return rows.map((row) => row.underlying);
 }

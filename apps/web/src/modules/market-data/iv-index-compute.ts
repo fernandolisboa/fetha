@@ -65,6 +65,7 @@ export async function computeIvIndexForSession(
       view = await buildOperationMarketView(db, ticker, at);
     } catch (error) {
       if (error instanceof MarketViewUnavailableError) {
+        pending = true;
         continue;
       }
       throw error;
