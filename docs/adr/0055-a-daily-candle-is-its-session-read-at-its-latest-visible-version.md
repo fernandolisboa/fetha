@@ -68,7 +68,9 @@ by `asOf`: two bars of one session are two candles.
 
 - A view with a restated daily session yields one candle for it in every computation; an
   evaluation instant between the two `asOf` values reads the earlier version (I1 holds), and any
-  input order yields the same artifacts (I3 holds).
+  input order yields the same artifacts (I3 holds). `restated-candles.property.test.ts` draws
+  restated sessions and pins I1, I3 and catch-up equivalence over them, since the shared
+  arbitraries draw one version per session.
 - A catch-up and the nightly runs that led up to it agree session by session, since each night saw
   each session as first published.
 - `engine.indicators()` output can list a restated candle whose `asOf` is later than the next

@@ -3,6 +3,7 @@ import type { Instant, Ticker, Timeframe } from "@fetha/contracts";
 import type { Candle, CorporateActionFactor, TruncationReport } from "../api";
 import { PRICE_SCALE, toDecimalString } from "./decimal";
 import { compareInstants, instantMs, isAfter } from "./instant";
+import { assertDefined } from "./invariant";
 import { codeUnitCompare, sortedEntries, sortUnique } from "./order";
 
 export type BuildCandleSeriesInput = {
@@ -20,6 +21,7 @@ export type CandleSeriesResult =
         nominal: Candle[];
         adjusted: Candle[];
         truncated: TruncationReport[];
+        versions: Candle[][];
         firstAsOf: Instant[];
       };
     }
@@ -107,7 +109,7 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
     }
     visible.push(c);
   }
-  const { nominal, firstAsOf } = latestVersions(visible, input.timeframe);
+  const { nominal, versions, firstAsOf } = latestVersions(visible, input.timeframe);
 
   if (afterAtDropped > 0) {
     truncated.push({
@@ -172,33 +174,43 @@ export function buildCandleSeries(input: BuildCandleSeriesInput): CandleSeriesRe
     };
   });
 
-  return { ok: true, value: { nominal, adjusted, truncated, firstAsOf } };
+  return { ok: true, value: { nominal, adjusted, truncated, versions, firstAsOf } };
 }
 
 // A daily candle is identified by its session (#38, ADR-0055): a restated row replaces the
 // earlier version from its own asOf on, and the session keeps the slot its first version took,
-// so the series stays in the order sessions were published. `firstAsOf` is that first version's
-// instant, the one a catch-up evaluates the session at. Intraday candles stay keyed by asOf.
-// `rows` is sorted by asOf.
+// so the series stays in the order sessions were published. `versions` holds each slot's visible
+// versions in asOf order; `firstAsOf` is the first one's instant, the one a catch-up evaluates the
+// session at. Intraday candles stay keyed by asOf. `rows` is sorted by asOf, with no two sharing an
+// instant (sortUnique), so the last version is the latest.
 function latestVersions(
   rows: readonly Candle[],
   timeframe: Timeframe,
-): { nominal: Candle[]; firstAsOf: Instant[] } {
-  if (timeframe !== "D1") return { nominal: [...rows], firstAsOf: rows.map((c) => c.asOf) };
+): { nominal: Candle[]; versions: Candle[][]; firstAsOf: Instant[] } {
+  if (timeframe !== "D1") {
+    return {
+      nominal: [...rows],
+      versions: rows.map((c) => [c]),
+      firstAsOf: rows.map((c) => c.asOf),
+    };
+  }
   const slotBySession = new Map<string, number>();
   const nominal: Candle[] = [];
+  const versions: Candle[][] = [];
   const firstAsOf: Instant[] = [];
   for (const c of rows) {
     const slot = slotBySession.get(c.session);
     if (slot === undefined) {
       slotBySession.set(c.session, nominal.length);
       nominal.push(c);
+      versions.push([c]);
       firstAsOf.push(c.asOf);
     } else {
       nominal[slot] = c;
+      assertDefined(versions[slot], "candle-series: session slot").push(c);
     }
   }
-  return { nominal, firstAsOf };
+  return { nominal, versions, firstAsOf };
 }
 
 export function isPositiveDecimal(value: string): boolean {

@@ -1,7 +1,6 @@
 import type { Instant, SessionDate } from "@fetha/contracts";
-import { assertDefined } from "./invariant";
-import { compareInstants, isAtOrBefore } from "./instant";
 import { upperBound } from "./search";
+import { latestVisible } from "./visible";
 
 type SessionRow = { session: SessionDate; asOf: Instant };
 
@@ -58,11 +57,5 @@ function latestVisibleIn<T extends SessionRow>(
   end: number,
   visibleAt: Instant,
 ): T | null {
-  let latest: T | null = null;
-  for (let i = start; i < end; i += 1) {
-    const row = assertDefined(index.rows[i], "session-rows: index within bounds");
-    if (!isAtOrBefore(row.asOf, visibleAt)) continue;
-    if (latest === null || compareInstants(row.asOf, latest.asOf) > 0) latest = row;
-  }
-  return latest;
+  return latestVisible(index.rows.slice(start, end), visibleAt);
 }

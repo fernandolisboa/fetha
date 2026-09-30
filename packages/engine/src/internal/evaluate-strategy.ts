@@ -540,7 +540,10 @@ type TickerState = {
   view: MarketView;
   nominal: Candle[];
   firstMs: number[];
-  versions: Candle[][] | null;
+  // Each slot's versions and every version, only for a ticker with a restated daily session
+  // (#38, ADR-0055): a restatement makes the series at an instant stop being a prefix of the
+  // series at a later one, so such a ticker never takes the #58 prefix cache.
+  versions: { bySlot: Candle[][]; all: Candle[] } | null;
   factorMs: number[];
   factorsByAsOf: CorporateActionFactor[];
   prefixStable: boolean;
@@ -548,28 +551,6 @@ type TickerState = {
   ivAsOfMs: number[];
   epochs: Map<number, Result<IndicatorSeries>>;
 };
-
-// A ticker's daily sessions with more than one version (#38, ADR-0055), each session's versions
-// in asOf order and aligned with `nominal`; null when every session has one, which keeps the
-// #58 prefix cache: a restatement makes the series at an instant stop being a prefix of the
-// series at a later one.
-function sessionVersions(
-  candles: readonly Candle[],
-  timeframe: Timeframe,
-  nominal: readonly Candle[],
-  firstAsOf: readonly Instant[],
-): Candle[][] | null {
-  if (nominal.every((c, i) => c.asOf === firstAsOf[i])) return null;
-  const bySession = groupBy(
-    candles.filter((c) => c.timeframe === timeframe),
-    (c) => c.session,
-  );
-  return nominal.map((c) =>
-    [...assertDefined(bySession.get(c.session), "evaluateStrategy: session rows")].sort((a, b) =>
-      compareInstants(a.asOf, b.asOf),
-    ),
-  );
-}
 
 // The candle a call evaluates at `index`, and the instant it is evaluated at: a catch-up replays
 // each session as it was first published, at that instant; a call without `since` reads the latest
@@ -579,20 +560,21 @@ function sessionVersions(
 function evaluatedAt(
   state: TickerState,
   index: number,
-  latestAtAt: boolean,
+  readLatestVisible: boolean,
   at: Instant,
 ): { candle: Candle; at: Instant } {
   const nominal = assertDefined(state.nominal[index], "evaluateStrategy: instant index");
   if (state.versions === null) return { candle: nominal, at: nominal.asOf };
-  const own = assertDefined(state.versions[index], "evaluateStrategy: session versions");
-  if (!latestAtAt) {
+  const own = assertDefined(state.versions.bySlot[index], "evaluateStrategy: session versions");
+  if (!readLatestVisible) {
     const first = assertDefined(own[0], "evaluateStrategy: first version");
     return { candle: first, at: first.asOf };
   }
-  const latest = latestVisible(state.versions.flat(), at);
+  const latest = latestVisible(state.versions.all, at);
   // An unparseable `at` sees nothing, and the call reads the latest candle, as it always has.
   if (latest === null) return { candle: nominal, at: nominal.asOf };
-  // The session at `index` is the last one first published by `at`, so a version of it is visible.
+  // The session at `index` is the last one first published by `at`, so a version of it is
+  // visible; `own` is in asOf order with no two sharing an instant.
   const candle = assertDefined(
     own.filter((c) => isAtOrBefore(c.asOf, at)).at(-1),
     "evaluateStrategy: visible version",
@@ -706,12 +688,10 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
         })
         .sort((a, b) => (a.ms < b.ms ? -1 : a.ms > b.ms ? 1 : 0));
       const factorsByAsOf = byAsOf.map((entry) => entry.factor);
-      const versions = sessionVersions(
-        tickerView.candles,
-        timeframe,
-        series.value.nominal,
-        series.value.firstAsOf,
-      );
+      const restated = series.value.versions.some((own) => own.length > 1);
+      const versions = restated
+        ? { bySlot: series.value.versions, all: series.value.versions.flat() }
+        : null;
       const ivPoints = needsIv
         ? view.impliedVolatilityIndex
             .filter((p) => p.underlying === ticker)
