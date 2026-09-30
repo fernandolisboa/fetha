@@ -100,6 +100,41 @@ export async function deleteRun(db: Database, id: string): Promise<void> {
   await db.delete(ingestionRuns).where(eq(ingestionRuns.id, id));
 }
 
+// Every session where every source in `requiredSources` has succeeded but
+// `missingSource` has not, newest first: the backfill list for a source added
+// after its requirements already had history (docs/adr/0054's iv_index,
+// requiring both cotahist and instruments, backfilled against their own
+// succeeded sessions), so the full history fills in over successive nightly
+// runs rather than a one-off script.
+export async function succeededSessionsMissingRun(
+  db: Database,
+  requiredSources: readonly IngestionSource[],
+  missingSource: IngestionSource,
+): Promise<string[]> {
+  if (requiredSources.length === 0) {
+    return [];
+  }
+
+  const [requiredSets, missingSet] = await Promise.all([
+    Promise.all(requiredSources.map((source) => succeededSessionSet(db, source))),
+    succeededSessionSet(db, missingSource),
+  ]);
+
+  const [firstSet, ...restSets] = requiredSets;
+  const sessions = [...(firstSet ?? new Set<string>())].filter(
+    (session) => restSets.every((set) => set.has(session)) && !missingSet.has(session),
+  );
+  return sessions.sort().reverse();
+}
+
+async function succeededSessionSet(db: Database, source: IngestionSource): Promise<Set<string>> {
+  const rows = await db
+    .select({ session: ingestionRuns.session })
+    .from(ingestionRuns)
+    .where(and(eq(ingestionRuns.source, source), eq(ingestionRuns.status, "succeeded")));
+  return new Set(rows.map((row) => row.session));
+}
+
 export async function latestRunPerSource(db: Database): Promise<IngestionRun[]> {
   const rows = await db.select().from(ingestionRuns).orderBy(desc(ingestionRuns.startedAt));
   const latestBySource = new Map<IngestionSource, IngestionRun>();

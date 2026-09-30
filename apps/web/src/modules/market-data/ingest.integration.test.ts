@@ -1,5 +1,5 @@
 import { zipSync } from "fflate";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
@@ -12,8 +12,11 @@ import {
   tradingSessions,
 } from "./schema";
 
-import { calendarMarkerSession, ingest, runSource } from "./ingest";
+import { calendarMarkerSession, ingest, runSessionBoundSource, runSource } from "./ingest";
 import { ensureMonthlyPartition } from "./repositories/partitions";
+import { succeededSessionsMissingRun } from "./repositories/ingestion-run-repository";
+import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
+import { impliedVolatilityIndexPoints } from "./schema";
 
 const TEST_SESSION = "2026-06-15";
 const STOCK_TICKER = "ZZT3";
@@ -92,7 +95,16 @@ function buildSgsFixture(url: string): string {
   if (finalDate !== "15/06/2026") {
     return JSON.stringify([]);
   }
-  return JSON.stringify([{ data: "15/06/2026", valor: "0.05" }]);
+  // Also carries the prior trading session's own value (12/06/2026, a
+  // Friday, the session immediately before TEST_SESSION on the real
+  // calendar): the IV index needs a CDI point visible at TEST_SESSION's own
+  // close, which — because CDI's `asOf` is the next session's open — can
+  // only be a point dated on or before the previous trading session,
+  // never TEST_SESSION's own same-day value.
+  return JSON.stringify([
+    { data: "12/06/2026", valor: "0.05" },
+    { data: "15/06/2026", valor: "0.05" },
+  ]);
 }
 
 function fakeFetch(session: string): typeof fetch {
@@ -277,7 +289,7 @@ describe("ingest", () => {
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
-      ["calendar", "cotahist", "instruments", "sgs"].sort(),
+      ["calendar", "cotahist", "instruments", "iv_index", "sgs"].sort(),
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
@@ -427,7 +439,7 @@ describe("ingest", () => {
       .select()
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
-    expect(runs).toHaveLength(3);
+    expect(runs).toHaveLength(4);
   });
 
   it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {
@@ -518,6 +530,247 @@ describe("ingest", () => {
     const cotahist = result.sources.find((s) => s.source === "cotahist");
     expect(cotahist?.error).toBeDefined();
     expect(result.session).toBeNull();
+  }, 120_000);
+
+  it("reports iv_index pending, not failed, when cotahist has not succeeded for the session yet, and never writes a run row for it", async () => {
+    const db = getDb();
+    const cotahistFailsForSession: typeof fetch = ((input: string) => {
+      if (input.includes("InstDados/SerHist")) {
+        return Promise.resolve(new Response("not found", { status: 404 }));
+      }
+      return fakeFetch(TEST_SESSION)(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: cotahistFailsForSession,
+    });
+
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeDefined();
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex).toMatchObject({ pending: true, skipped: false, rowCount: 0 });
+    expect(ivIndex?.error).toBeUndefined();
+
+    const ivIndexRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(ivIndexRuns).toEqual([]);
+  });
+
+  it("still starts the sole (newest) iv_index session once its ordinary 40% start budget has elapsed, since only the 60% hard stop gates it", async () => {
+    const db = getDb();
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetch(TEST_SESSION),
+      ivIndexBudgetMs: 0,
+    });
+
+    const cotahist = result.sources.find((s) => s.source === "cotahist");
+    expect(cotahist?.error).toBeUndefined();
+    const instruments = result.sources.find((s) => s.source === "instruments");
+    expect(instruments?.error).toBeUndefined();
+
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex?.error).toBeUndefined();
+    expect(ivIndex?.skipped).toBe(false);
+
+    const ivIndexRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(ivIndexRuns).toHaveLength(1);
+    expect(ivIndexRuns[0]?.status).toBe("succeeded");
+  });
+
+  it("defers every session left unattempted once a source's start deadline has already elapsed, without attempting or recording them", async () => {
+    const db = getDb();
+    let calls = 0;
+    const run = () => {
+      calls += 1;
+      return Promise.resolve(0);
+    };
+
+    const { outcome, okSessions } = await runSessionBoundSource(
+      db,
+      "iv_index",
+      ["2091-01-05", "2091-01-06"],
+      120_000,
+      run,
+      Date.now() - 1,
+    );
+
+    expect(calls).toBe(0);
+    expect(okSessions).toEqual([]);
+    expect(outcome).toEqual({
+      source: "iv_index",
+      skipped: false,
+      rowCount: 0,
+      pending: true,
+      deferred: 2,
+    });
+
+    const runs = await db
+      .select()
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "iv_index"),
+          inArray(ingestionRuns.session, ["2091-01-05", "2091-01-06"]),
+        ),
+      );
+    expect(runs).toEqual([]);
+  });
+
+  it("backfills iv_index for an old session whose cotahist and instruments already succeeded outside the current recent window", async () => {
+    const db = getDb();
+    const now = new Date(`${TEST_SESSION}T22:00:00.000Z`);
+
+    await ingest(db, { session: TEST_SESSION, now, fetchImpl: fakeFetch(TEST_SESSION) });
+
+    const oldSessions = await db
+      .select()
+      .from(tradingSessions)
+      .where(lte(tradingSessions.date, "2024-06-01"))
+      .orderBy(asc(tradingSessions.date))
+      .limit(50);
+    const oldSession = oldSessions[0]?.date ?? "";
+    const expiryLower = oldSessions[20]?.date ?? "";
+    const expiryUpper = oldSessions[40]?.date ?? "";
+    const oldSessionClose = oldSessions[0]?.close ?? new Date(0);
+
+    const underlying = `ZBF${crypto.randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()}`;
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = `${underlying}CH`;
+
+    await db.insert(ingestionRuns).values([
+      {
+        source: "cotahist",
+        session: oldSession,
+        status: "succeeded",
+        startedAt: now,
+        finishedAt: now,
+        rowCount: 1,
+      },
+      {
+        source: "instruments",
+        session: oldSession,
+        status: "succeeded",
+        startedAt: now,
+        finishedAt: now,
+        rowCount: 1,
+      },
+    ]);
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: oldSession,
+      asOf: oldSessionClose,
+      annualRate: "0.00000000",
+    });
+    await ensureMonthlyPartition(db, "candles", oldSession);
+    await db.insert(candles).values({
+      ticker: underlying,
+      timeframe: "1d",
+      session: oldSession,
+      asOf: oldSessionClose,
+      open: "50",
+      high: "50",
+      low: "50",
+      close: "50",
+      tradedQuantity: 1,
+    });
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${tickerLower}`,
+        ticker: tickerLower,
+        underlying,
+        right: "call",
+        strike: "50.00000000",
+        expiry: expiryLower,
+        style: "european",
+        asOf: oldSessionClose,
+      },
+      {
+        isin: `ISIN-${tickerUpper}`,
+        ticker: tickerUpper,
+        underlying,
+        right: "call",
+        strike: "50.00000000",
+        expiry: expiryUpper,
+        style: "european",
+        asOf: oldSessionClose,
+      },
+    ]);
+    await ensureMonthlyPartition(db, "option_daily_prices", oldSession);
+    await db.insert(optionDailyPrices).values([
+      {
+        ticker: tickerLower,
+        session: oldSession,
+        asOf: oldSessionClose,
+        right: "call",
+        strike: "50.00000000",
+        expiry: expiryLower,
+        average: "1.500000",
+        close: "1.500000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+      {
+        ticker: tickerUpper,
+        session: oldSession,
+        asOf: oldSessionClose,
+        right: "call",
+        strike: "50.00000000",
+        expiry: expiryUpper,
+        average: "2.500000",
+        close: "2.500000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+    ]);
+
+    try {
+      const candidatesBefore = await succeededSessionsMissingRun(
+        db,
+        ["cotahist", "instruments"],
+        "iv_index",
+      );
+      expect(candidatesBefore).toContain(oldSession);
+      expect(candidatesBefore).toEqual([...candidatesBefore].sort().reverse());
+
+      await ingest(db, { now, fetchImpl: fakeFetchAnySession() });
+
+      const [ivIndexRun] = await db
+        .select()
+        .from(ingestionRuns)
+        .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, oldSession)));
+      expect(ivIndexRun?.status).toBe("succeeded");
+
+      const points = await ivIndexPointsInRange(db, [underlying], oldSession, oldSession);
+      expect(points).toHaveLength(1);
+    } finally {
+      await db
+        .delete(ingestionRuns)
+        .where(
+          and(
+            inArray(ingestionRuns.source, ["cotahist", "instruments", "iv_index"]),
+            eq(ingestionRuns.session, oldSession),
+          ),
+        );
+      await db.delete(macroPoints).where(eq(macroPoints.date, oldSession));
+      await db.delete(candles).where(eq(candles.ticker, underlying));
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, underlying));
+      await db
+        .delete(optionDailyPrices)
+        .where(inArray(optionDailyPrices.ticker, [tickerLower, tickerUpper]));
+      await db
+        .delete(impliedVolatilityIndexPoints)
+        .where(eq(impliedVolatilityIndexPoints.underlying, underlying));
+    }
   }, 120_000);
 
   it("two concurrent invocations for the same session never both record a failed run", async () => {

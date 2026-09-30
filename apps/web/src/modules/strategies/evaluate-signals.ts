@@ -378,15 +378,13 @@ export async function evaluateSignalsForSession(
           horizonFloor,
         });
         if (!evaluation.ok) {
-          // An unfillable collection is a standing property of the strategy,
-          // not a run failure, so only the other reasons reach `errors`.
           // Writing the failure rows advances this version's watermark the
           // same as a real evaluation (#18): a failed session is never
           // retried by a later night; re-evaluating it is an explicit act
           // (docs/adr/0047).
           if (evaluation.reason === "engine_error") {
             errors.push(`engine_error:${evaluation.detail ?? ""}`);
-          } else if (evaluation.reason !== "unsatisfiable_collection") {
+          } else {
             errors.push(evaluation.reason);
           }
           await writeResult(

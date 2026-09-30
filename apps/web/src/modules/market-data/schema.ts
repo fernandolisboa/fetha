@@ -122,7 +122,38 @@ export const corporateActionFactors = pgTable(
   (table) => [primaryKey({ columns: [table.ticker, table.exDate] })],
 );
 
-export const ingestionSourceValues = ["cotahist", "instruments", "sgs", "calendar"] as const;
+// One implied-volatility index point per underlying and session, computed by
+// the engine from that session's own chain (docs/adr/0054). `as_of` is the
+// session's close, the instant its candles carry (docs/adr/0051). Shared
+// reference data like the rest of this file; small enough (one row per
+// optionable underlying per session) to need no monthly partitioning.
+export const impliedVolatilityIndexPoints = pgTable(
+  "implied_volatility_index",
+  {
+    underlying: text("underlying").notNull(),
+    session: date("session", { mode: "string" }).notNull(),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    impliedVolatility: numeric("implied_volatility", { precision: 18, scale: 8 }).notNull(),
+    method: text("method").notNull(),
+    // Write-time stamp, distinct from `as_of`: a backfilled point can carry
+    // the same session close as an already-loaded candle, so `as_of` alone
+    // cannot tell a MarketView that new IV data has landed for a window it
+    // already read (docs/adr/0054).
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.underlying, table.session] }),
+    index("implied_volatility_index_session_idx").on(table.session),
+  ],
+);
+
+export const ingestionSourceValues = [
+  "cotahist",
+  "instruments",
+  "sgs",
+  "calendar",
+  "iv_index",
+] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 
 export const ingestionStatusValues = ["running", "succeeded", "failed"] as const;

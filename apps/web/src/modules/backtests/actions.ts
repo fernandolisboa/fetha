@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { centavosSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
-import { engine, type StrategyVersion } from "@fetha/engine";
-
 import { getDb } from "@/db/client";
 import {
   AccountRateLimitExceededError,
@@ -13,11 +11,7 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import {
-  calendarUpTo,
-  candleSessionBoundsInRange,
-  canSatisfyCollection,
-} from "@/modules/market-data";
+import { calendarUpTo, candleSessionBoundsInRange } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -34,13 +28,7 @@ import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 export type CreateBacktestRunResult = {
   status: "error";
   error:
-    | "invalid"
-    | "not_found"
-    | "rate_limited"
-    | "no_risk_profile"
-    | "unsatisfiable_collection"
-    | "too_many_active"
-    | "archived";
+    "invalid" | "not_found" | "rate_limited" | "no_risk_profile" | "too_many_active" | "archived";
 };
 
 const createInputSchema = z.strictObject({
@@ -196,36 +184,6 @@ async function createBacktestRun(
     return { status: "error", error: "invalid" };
   }
   const period = { from: candleBounds.first, to: candleBounds.last };
-
-  // Mirrors the nightly evaluator's own refusal (`evaluate-signals.ts`):
-  // an `iv_rank` strategy's every session reads `insufficient_data`, no
-  // signal ever fires, and the run completes green, immutable and empty —
-  // the same shape a strategy with no fireable signal was blocked for.
-  // Refused here, before the immutable row exists, rather than left to
-  // complete silently. `canSatisfyCollection` is market-data's own fact
-  // about what its loader can fill, asked here and by evaluate-signals.ts
-  // rather than each hardcoding `"impliedVolatilityIndex"` independently
-  // when #81 lands, one place changes, not two.
-  const strategyVersion: StrategyVersion = {
-    id: version.id,
-    definition: version.definition,
-    structure,
-  };
-  const fromSession = calendar.find((session) => session.date === period.from);
-  const toSession = calendar.find((session) => session.date === period.to);
-  if (!fromSession || !toSession) {
-    return { status: "error", error: "invalid" };
-  }
-  const window = engine.dataWindow({
-    strategy: strategyVersion,
-    instruments: parsed.universe,
-    calendar,
-    at: toSession.close,
-    since: fromSession.open,
-  });
-  if (window.collections.some((collection) => !canSatisfyCollection(collection))) {
-    return { status: "error", error: "unsatisfiable_collection" };
-  }
 
   let run: BacktestRunRecord;
   try {

@@ -24,6 +24,7 @@ and fixed fixtures and adapters to match them.
 | Instruments registry | `b3-instruments`                                       | `(isin)` option series                                                    | fetched "for today" every run                 |
 | Bacen SGS            | `bacen-sgs`                                            | `(series, date)` macro points                                             | incremental since the last stored point       |
 | ANBIMA calendar      | `anbima-calendar`                                      | `(date)` trading sessions                                                 | committed once, re-ingested per calendar year |
+| IV index             | none — computed from the sources above                 | `(underlying, session)` implied-volatility points                         | one session at a time, backfilled (ADR-0054)  |
 
 Every write is an `INSERT ... ON CONFLICT (natural key) DO UPDATE`, so re-ingesting the same file
 twice changes nothing (tested: `ingest.integration.test.ts`, "is idempotent", and
