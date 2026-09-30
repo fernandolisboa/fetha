@@ -225,6 +225,13 @@
       "when": 1790727485449,
       "tag": "0031_implied_volatility_index",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790802630377,
+      "tag": "0032_corporate_action_factors_recorded_at",
+      "breakpoints": true
     }
   ]
 }

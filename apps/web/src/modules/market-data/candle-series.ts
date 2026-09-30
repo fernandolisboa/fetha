@@ -11,7 +11,7 @@ import type { Database } from "@/db/client";
 
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
 import { recentDailyCandles } from "./repositories/candle-repository";
-import { emptyMarketView, toEngineCandle } from "./market-view";
+import { emptyMarketView, toEngineCandle, toEngineCorporateActions } from "./market-view";
 
 const CANDLE_LOOKBACK_SESSIONS = 260;
 const ENGINE_TIMEFRAME = "D1";
@@ -35,12 +35,7 @@ export async function loadCandleSeries(
   const view: MarketView = {
     ...emptyMarketView(),
     candles: candleRows.map((row) => toEngineCandle(row)),
-    corporateActions: corporateActionRows.map((row) => ({
-      ticker,
-      exDate: row.exDate,
-      asOf: instantSchema.parse(row.asOf.toISOString()),
-      factor: row.factor,
-    })),
+    corporateActions: toEngineCorporateActions(corporateActionRows),
   };
 
   return engine.indicators({

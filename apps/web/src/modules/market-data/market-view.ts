@@ -39,7 +39,11 @@ import {
   candlesInSessionRange,
   type CandleRow,
 } from "./repositories/candle-repository";
-import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
+import { isNeutralFactor } from "./corporate-action-factor";
+import {
+  corporateActionsForTicker,
+  type CorporateActionFactorRow,
+} from "./repositories/corporate-action-repository";
 import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
 import { latestMacroPointAtOrBefore, macroPointsInRange } from "./repositories/macro-repository";
 import {
@@ -112,6 +116,25 @@ export function emptyMarketView(): MarketView {
 // `Candle`: both the DataWindow-driven loader and the point-in-time
 // operation builder share it so a candle's shape can never drift between
 // them.
+// A `1` factor is the owner's documented way to neutralize a mistaken
+// entry (no delete exists, ADR-0052): kept out of every collection the
+// engine sees, so it cannot trigger `suppressStaleImpliedVolatility`
+// (packages/engine/src/internal/price-operation.ts) around the ex-date it
+// names. Callers still fold the unfiltered rows' `recordedAt` into
+// `dataVersion`, so the write still fails a chunked run in progress.
+export function toEngineCorporateActions(
+  rows: readonly CorporateActionFactorRow[],
+): CorporateActionFactor[] {
+  return rows
+    .filter((row) => !isNeutralFactor(row.factor))
+    .map((row) => ({
+      ticker: row.ticker,
+      exDate: row.exDate,
+      asOf: instantSchema.parse(row.asOf.toISOString()),
+      factor: row.factor,
+    }));
+}
+
 export function toEngineCandle(row: CandleRow): Candle {
   return {
     ticker: row.ticker,
@@ -261,12 +284,7 @@ export async function loadMarketViewWithCalendarVersion(
 
   const candleView = candleRows.map(toEngineCandle);
 
-  const corporateActions: CorporateActionFactor[] = corporateActionRows.map((row) => ({
-    ticker: row.ticker,
-    exDate: row.exDate,
-    asOf: instantSchema.parse(row.asOf.toISOString()),
-    factor: row.factor,
-  }));
+  const corporateActions = toEngineCorporateActions(corporateActionRows);
 
   // The engine rejects an exact `(series, asOf)` collision outright
   // (`evaluateStrategy`'s own `sortUnique(view.macro, ...)`, run before
@@ -359,13 +377,15 @@ export async function loadMarketViewWithCalendarVersion(
     impliedVolatility: toDecimal(row.impliedVolatility),
   }));
 
-  // `computed_at`, not `asOf`: a backfilled IV point can carry the same
-  // session close as an already-loaded candle, so `asOf` alone would never
-  // move `dataVersion` when a point lands for a session this window
-  // already read (docs/adr/0054).
+  // `computed_at`/`recorded_at`, not `asOf`: a backfilled IV point or an
+  // owner-entered factor for a past ex-date can each carry an `asOf` a
+  // window already read, so `asOf` alone would never move `dataVersion`
+  // when either lands after that window was first loaded (docs/adr/0054,
+  // docs/adr/0052).
   const dataVersion = maxAsOf([
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
+    ...corporateActionRows.map((row) => instantSchema.parse(row.recordedAt.toISOString())),
     ...macro.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),
@@ -626,19 +646,17 @@ export async function buildOperationMarketView(
       ]
     : [];
 
-  const corporateActions: CorporateActionFactor[] = corporateActionRows.map((row) => ({
-    ticker: row.ticker,
-    exDate: row.exDate,
-    asOf: instantSchema.parse(row.asOf.toISOString()),
-    factor: row.factor,
-  }));
+  const corporateActions = toEngineCorporateActions(corporateActionRows);
 
+  // `recorded_at`, not `asOf`, for the same reason as `loadMarketView`'s own
+  // `dataVersion` above (docs/adr/0052).
   const dataVersion = maxAsOf([
     ...candleView.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
+    ...corporateActionRows.map((row) => instantSchema.parse(row.recordedAt.toISOString())),
   ]);
 
   return {

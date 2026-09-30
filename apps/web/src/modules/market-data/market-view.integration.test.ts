@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
@@ -388,6 +388,80 @@ describe("buildOperationMarketView", () => {
         factor: "0.50000000",
       },
     ]);
+  });
+
+  it("keeps a `1` factor (the owner's documented undo, ADR-0052) out of corporateActions, but its recordedAt still moves dataVersion on every write", async () => {
+    const underlying = uniqueTicker("CAF");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-08-03", 3);
+    const atSession = sessions[1];
+    const exDateSession = sessions[0];
+    if (!atSession || !exDateSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const at = `${atSession}T14:00:00.000Z`;
+
+    await db.insert(corporateActionFactors).values({
+      ticker: underlying,
+      exDate: exDateSession,
+      asOf: new Date(`${exDateSession}T13:00:00.000Z`),
+      factor: "0.50000000",
+    });
+    const withSplit = await buildOperationMarketView(db, underlying, at);
+    expect(withSplit.corporateActions).toHaveLength(1);
+
+    // Re-submitting the same (ticker, exDate) with `1` is the owner's only
+    // way to neutralize a mistaken entry (no delete exists): the row stays
+    // (so its `recordedAt` can still move `dataVersion`), but it must never
+    // reach the engine again, or `suppressStaleImpliedVolatility`
+    // (packages/engine/src/internal/price-operation.ts) would keep treating
+    // this ex-date as real.
+    await db
+      .update(corporateActionFactors)
+      .set({ factor: "1.00000000", recordedAt: new Date(`${exDateSession}T15:00:00.000Z`) })
+      .where(
+        and(
+          eq(corporateActionFactors.ticker, underlying),
+          eq(corporateActionFactors.exDate, exDateSession),
+        ),
+      );
+    const neutralized = await buildOperationMarketView(db, underlying, at);
+
+    expect(neutralized.corporateActions).toEqual([]);
+    expect(neutralized.dataVersion).not.toBe(withSplit.dataVersion);
+  });
+
+  it("moves dataVersion when a corporate-action factor is recorded now for a past ex-date (#50, ADR-0052 migration 0032)", async () => {
+    const underlying = uniqueTicker("CAF");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-09-07", 3);
+    const atSession = sessions[1];
+    const exDateSession = sessions[0];
+    if (!atSession || !exDateSession) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const before = await buildOperationMarketView(db, underlying, at);
+
+    // The ex-date's own open, older than the fixture's `at`: if
+    // `dataVersion` tracked only `asOf` here, this insert would never move
+    // it forward past whatever the trading-session rows above already
+    // stamped it at (docs/adr/0052, mirroring the `loadMarketView` fixture
+    // below).
+    await db.insert(corporateActionFactors).values({
+      ticker: underlying,
+      exDate: exDateSession,
+      asOf: new Date(`${exDateSession}T13:00:00.000Z`),
+      factor: "0.50000000",
+      recordedAt: new Date(`${atSession}T23:00:00.000Z`),
+    });
+    const after = await buildOperationMarketView(db, underlying, at);
+
+    expect(after.dataVersion).not.toBe(before.dataVersion);
   });
 
   it("excludes a series that expired long before the calendar window instead of accumulating every ticker ever listed", async () => {
@@ -1069,6 +1143,63 @@ describe("loadMarketView", () => {
     await db
       .delete(impliedVolatilityIndexPoints)
       .where(eq(impliedVolatilityIndexPoints.underlying, ticker));
+  });
+
+  it("changes dataVersion when a corporate-action factor is recorded now for a past ex-date (#50, ADR-0052 migration 0032)", async () => {
+    const db = getDb();
+    const ticker = uniqueTicker("CAF");
+    cleanupTickers.push(ticker);
+
+    const sessions = businessDays("2096-03-02", 10);
+    await seedSessions(sessions);
+    for (const session of sessions) {
+      const close = decimalString("10.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: STOCK_STRUCTURE,
+    };
+    const window = await windowFor(strategy, [ticker], sessions[0] ?? "", sessions.at(-1) ?? "");
+
+    const before = await loadMarketView(db, window);
+
+    // The ex-date's own open (the fixture's `asOf`, ADR-0013), older than
+    // every candle already inside this window: if `dataVersion` tracked only
+    // `asOf`, this insert would never move it. `recordedAt` is stamped
+    // explicitly, later than every session's own 2096 date, mirroring the
+    // implied-volatility fixture above (`computedAt`) since this fixture
+    // predates the real wall clock `defaultNow()` would otherwise fall back
+    // to (migration 0032's own reason to fold `recorded_at` into
+    // `dataVersion`, docs/adr/0052).
+    const lastSession = sessions.at(-1) ?? "";
+    await db.insert(corporateActionFactors).values({
+      ticker,
+      exDate: lastSession,
+      asOf: new Date(`${lastSession}T13:00:00.000Z`),
+      factor: "0.50000000",
+      recordedAt: new Date(`${lastSession}T21:00:00.000Z`),
+    });
+
+    const after = await loadMarketView(db, window);
+    expect(after.dataVersion).not.toBe(before.dataVersion);
+
+    await db.delete(corporateActionFactors).where(eq(corporateActionFactors.ticker, ticker));
   });
 
   it("collapses a colliding (series, asOf) group to its freshest date, so the run the engine would otherwise reject on sight completes", async () => {

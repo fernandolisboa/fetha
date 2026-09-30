@@ -1,0 +1,3 @@
+ALTER TABLE "access_log" DROP CONSTRAINT "access_log_event_check";--> statement-breakpoint
+ALTER TABLE "corporate_action_factors" ADD COLUMN "recorded_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
+ALTER TABLE "access_log" ADD CONSTRAINT "access_log_event_check" CHECK ("access_log"."event" in ('portfolio_read', 'decisions_read', 'data_export', 'nightly_triggered', 'corporate_action_recorded'));

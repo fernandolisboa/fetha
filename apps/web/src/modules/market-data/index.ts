@@ -52,3 +52,12 @@ export { buildPortfolioMarketView } from "./portfolio-view";
 export { latestSessionOnOrBefore } from "./repositories/calendar-repository";
 export { searchOptionSeriesAction, type SearchOptionSeriesResult } from "./actions";
 export { OptionSeriesPricesTable } from "./components/option-series-prices-table";
+export {
+  recordCorporateActionFactorAction,
+  type RecordCorporateActionFactorResult,
+} from "./corporate-action-actions";
+export {
+  recentCorporateActionFactorsList,
+  type RecentCorporateActionFactor,
+} from "./corporate-action-queries";
+export { CorporateActionPanel } from "./components/corporate-action-panel";
