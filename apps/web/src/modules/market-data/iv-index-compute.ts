@@ -21,18 +21,21 @@ export interface ComputeIvIndexResult {
 // session would make the engine default r=0 silently (`resolveRiskFreeRate`),
 // baking a wrong rate into a point that is never recomputed once persisted
 // (docs/adr/0054). Left pending instead, so the next run retries it once the
-// rate lands.
-async function cdiEligibleForSession(
+// rate lands. A session with no earlier trading session is the floor of the
+// history: CDI is ingested from the calendar's own first day
+// (`SGS_DEFAULT_SINCE`, ingest.ts) and each point is visible only from the
+// next session's open, so no rate can ever be visible at its close. It is
+// terminal instead of pending forever (#264).
+async function cdiEligibility(
   db: Database,
-  session: string,
   sessionClose: Date,
-): Promise<boolean> {
+): Promise<"eligible" | "pending" | "never"> {
   const previousSession = await latestSessionOnOrBefore(db, new Date(sessionClose.getTime() - 1));
   const cdi = await latestMacroPointAtOrBefore(db, "cdi", sessionClose);
   if (!cdi) {
-    return false;
+    return previousSession ? "pending" : "never";
   }
-  return !previousSession || cdi.date >= previousSession.date;
+  return !previousSession || cdi.date >= previousSession.date ? "eligible" : "pending";
 }
 
 export async function computeIvIndexForSession(
@@ -41,8 +44,9 @@ export async function computeIvIndexForSession(
   sessionClose: Date,
   hardStopAt = Infinity,
 ): Promise<ComputeIvIndexResult> {
-  if (!(await cdiEligibleForSession(db, session, sessionClose))) {
-    return { rowCount: 0, pending: true };
+  const eligibility = await cdiEligibility(db, sessionClose);
+  if (eligibility !== "eligible") {
+    return { rowCount: 0, pending: eligibility === "pending" };
   }
 
   const allUnderlyings = await underlyingsToComputeForSession(db, session);

@@ -70,6 +70,13 @@ export interface SourceOutcome {
   // deadline passed (docs/adr/0054): implies `pending`, distinct from a
   // session that was attempted and reported `pending` itself.
   deferred?: number;
+  // iv_index only: whether the session tonight's evaluation reads (the
+  // outcome's own `session`) has a succeeded iv_index run, which `pending`
+  // alone cannot tell while the backfill keeps the source pending night
+  // after night (#264). A succeeded run may hold no point (no underlying
+  // bracketed 30 days), which is not trouble. Absent when there is no such
+  // session, or when the check itself failed.
+  newestSessionComputed?: boolean;
 }
 
 // A run callback normally just reports how many rows it wrote; one that also
@@ -534,18 +541,10 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     ivIndexRun,
     startedAt + ivIndexStartBudgetMs,
   );
-  const ivIndexResult = {
-    outcome: mergeOutcomes("iv_index", [ivIndexNewestResult.outcome, ivIndexRestResult.outcome]),
-    okSessions: [...ivIndexNewestResult.okSessions, ...ivIndexRestResult.okSessions],
-  };
-
-  const sources = [
-    calendarOutcome,
-    cotahistResult.outcome,
-    instrumentsResult.outcome,
-    sgsResult.outcome,
-    ivIndexResult.outcome,
-  ];
+  const ivIndexOutcome = mergeOutcomes("iv_index", [
+    ivIndexNewestResult.outcome,
+    ivIndexRestResult.outcome,
+  ]);
 
   // A source that is fully caught up drains no gaps this invocation
   // (`cotahistSessions` is empty), so `okSessions` is empty too even though a
@@ -567,6 +566,14 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const okSessions =
     cotahistResult.okSessions.length > 0 ? cotahistResult.okSessions : session ? [session] : [];
 
+  const sources = [
+    calendarOutcome,
+    cotahistResult.outcome,
+    instrumentsResult.outcome,
+    sgsResult.outcome,
+    session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
+  ];
+
   // iv_index errors stay out of `ok` the same way cotahistSucceeded keeps
   // sgs/instruments failures from blocking evaluation (run-nightly-job.ts):
   // it is computed reference data derived from the other sources, never
@@ -579,6 +586,21 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
       .every((outcome) => outcome.error === undefined),
     sources,
   };
+}
+
+// A diagnostics-only read after every source already did its work: its own
+// failure must never discard the run's outcome, so the field is left out.
+async function withNewestSessionComputed(
+  db: Database,
+  outcome: SourceOutcome,
+  session: string,
+): Promise<SourceOutcome> {
+  try {
+    const run = await findSucceededRun(db, "iv_index", session);
+    return { ...outcome, newestSessionComputed: run !== undefined };
+  } catch {
+    return outcome;
+  }
 }
 
 function nextDay(isoDate: string): string {

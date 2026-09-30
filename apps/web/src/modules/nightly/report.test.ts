@@ -141,6 +141,35 @@ describe("buildNightlyRunReport", () => {
     expect(nightlyRunReportSchema.safeParse(report).success).toBe(true);
   });
 
+  it("keeps iv_index's deferred count and whether the evaluated session has its IV index (#264)", () => {
+    const outcome = baseOutcome();
+    outcome.sources = [
+      {
+        source: "iv_index",
+        skipped: false,
+        rowCount: 12,
+        pending: true,
+        deferred: 40,
+        newestSessionComputed: true,
+      },
+    ];
+
+    const report = buildNightlyRunReport(outcome);
+
+    expect(report).toMatchObject({
+      sources: [
+        {
+          source: "iv_index",
+          status: "pending",
+          rowCount: 12,
+          deferred: 40,
+          newestSessionComputed: true,
+        },
+      ],
+    });
+    expect(nightlyRunReportSchema.parse(report)).toEqual(report);
+  });
+
   it("produces a report the schema accepts", () => {
     const report = buildNightlyRunReport(baseOutcome());
     expect(nightlyRunReportSchema.safeParse(report).success).toBe(true);

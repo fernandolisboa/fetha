@@ -15,6 +15,8 @@ const sourceReportSchema = z.object({
   status: z.enum(["ok", "skipped", "pending", "failed"]),
   rowCount: z.number().int().nonnegative(),
   skippedRows: z.number().int().nonnegative().optional(),
+  deferred: z.number().int().nonnegative().optional(),
+  newestSessionComputed: z.boolean().optional(),
   error: z.string().optional(),
 });
 
@@ -80,6 +82,10 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       status: sourceRunStatus(source),
       rowCount: source.rowCount,
       ...(source.skippedRows !== undefined ? { skippedRows: source.skippedRows } : {}),
+      ...(source.deferred !== undefined ? { deferred: source.deferred } : {}),
+      ...(source.newestSessionComputed !== undefined
+        ? { newestSessionComputed: source.newestSessionComputed }
+        : {}),
       ...(source.error !== undefined ? { error: source.error } : {}),
     })),
     accessLogPurge: outcome.accessLogPurge,

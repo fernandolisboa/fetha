@@ -453,6 +453,55 @@ describe("computeIvIndexForSession", () => {
     expect(points).toEqual([]);
   });
 
+  it("settles the first session of the calendar with no point instead of leaving it pending forever, since no CDI can ever be visible at its close (#264)", async () => {
+    const db = getDb();
+    // Before every session any fixture or the real calendar seeds, so it has
+    // no earlier trading session, as the first ingested session does.
+    const session0 = "1990-01-02";
+    const session1 = "1990-01-03";
+    cleanupSessionDates.push(session0, session1);
+    await seedSessions([session0, session1]);
+
+    const underlying = uniqueTicker("FLR");
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "50.000000");
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = `${underlying}CH`;
+    cleanupOptionTickers.push(tickerLower, tickerUpper);
+    await seedCallSeries(
+      underlying,
+      tickerLower,
+      session0,
+      "1990-01-22",
+      "50.00000000",
+      bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+    );
+    await seedCallSeries(
+      underlying,
+      tickerUpper,
+      session0,
+      "1990-02-11",
+      "50.00000000",
+      bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+    );
+    // The session's own CDI, stamped at the next session's open as Bacen
+    // publishes it: invisible at its close.
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session1}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.10000000",
+    });
+
+    const result = await computeIvIndexForSession(
+      db,
+      session0,
+      new Date(`${session0}T${SESSION_CLOSE_UTC}`),
+    );
+    expect(result).toEqual({ rowCount: 0, pending: false });
+    expect(await ivIndexPointsInRange(db, [underlying], session0, session0)).toEqual([]);
+  });
+
   it("resumes only the underlyings still missing a point once the hard stop has already passed, keeping what an earlier call already wrote", async () => {
     const db = getDb();
     const sessions = dailySessions(45);

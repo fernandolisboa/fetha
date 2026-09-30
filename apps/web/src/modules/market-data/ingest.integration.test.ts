@@ -1,6 +1,6 @@
 import { zipSync } from "fflate";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import {
@@ -13,10 +13,19 @@ import {
 } from "./schema";
 
 import { calendarMarkerSession, ingest, runSessionBoundSource, runSource } from "./ingest";
+import { computeIvIndexForSession } from "./iv-index-compute";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 import { succeededSessionsMissingRun } from "./repositories/ingestion-run-repository";
 import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
 import { impliedVolatilityIndexPoints } from "./schema";
+
+// Wraps the real implementation, so every test computes the IV index for
+// real except the one that forces it to throw (#264).
+vi.mock("./iv-index-compute", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./iv-index-compute")>();
+  return { ...actual, computeIvIndexForSession: vi.fn(actual.computeIvIndexForSession) };
+});
+const computeIvIndexForSessionMock = vi.mocked(computeIvIndexForSession);
 
 const TEST_SESSION = "2026-06-15";
 const STOCK_TICKER = "ZZT3";
@@ -189,7 +198,10 @@ async function cleanup(): Promise<void> {
 // query that expected exactly one such row (below) is otherwise fragile
 // against any stray leftover from a run that failed mid-test.
 beforeEach(cleanup);
-afterEach(cleanup);
+afterEach(async () => {
+  computeIvIndexForSessionMock.mockReset();
+  await cleanup();
+});
 
 describe("ingest", () => {
   it("deletes a stored calendar date its year no longer lists, even on a run whose markers already succeeded", async () => {
@@ -293,6 +305,7 @@ describe("ingest", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
+    expect(result.sources.find((s) => s.source === "iv_index")?.newestSessionComputed).toBe(true);
 
     const [candleRow] = await db
       .select()
@@ -558,6 +571,32 @@ describe("ingest", () => {
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
     expect(ivIndexRuns).toEqual([]);
+  });
+
+  it("keeps a failing iv_index out of ok while its own outcome carries the error (#264)", async () => {
+    const db = getDb();
+    computeIvIndexForSessionMock.mockRejectedValueOnce(new Error("iv index exploded"));
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: fakeFetch(TEST_SESSION),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.session).toBe(TEST_SESSION);
+    expect(
+      result.sources.filter((s) => s.source !== "iv_index").every((s) => s.error === undefined),
+    ).toBe(true);
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex?.error).toContain("iv index exploded");
+    expect(ivIndex?.newestSessionComputed).toBe(false);
+
+    const [ivIndexRun] = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(ivIndexRun?.status).toBe("failed");
   });
 
   it("still starts the sole (newest) iv_index session once its ordinary 40% start budget has elapsed, since only the 60% hard stop gates it", async () => {

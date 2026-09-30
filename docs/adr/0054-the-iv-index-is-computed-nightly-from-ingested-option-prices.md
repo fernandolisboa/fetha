@@ -30,12 +30,13 @@ in `ingest()`. For each session it drains:
 1. **Eligibility.** A session is only attempted once `cotahist` and `instruments` both have a
    succeeded run for it (the compute step needs that session's own option chain and series
    registry), and a CDI macro point is visible at the session's own close and dated on or after
-   the previous trading session (`cdiEligibleForSession`, `iv-index-compute.ts`): without a fresh
+   the previous trading session (`cdiEligibility`, `iv-index-compute.ts`): without a fresh
    rate, the engine's own risk-free resolution would default `r = 0` silently and bake the wrong
    rate into a point that is never recomputed once persisted. An ineligible session answers
    `{ rowCount: 0, pending: true }` — the same shape `sgs` already uses for a not-yet-published CDI
    (ADR-0017, #216) — so no succeeded marker is written and the session keeps retrying on later
-   runs instead of aging into a permanent gap.
+   runs instead of aging into a permanent gap. The one exception is the first session of the
+   history, which is terminal (Follow-ups below).
 2. **Compute, one underlying at a time, resumable.** `underlyingsToComputeForSession` (a new
    `iv-index-repository.ts`) lists every underlying with both an `option_daily_prices` row and its
    own stock candle on that session — the minimum a spot and a chain give the engine to solve for.
@@ -130,6 +131,27 @@ with a candle this window already loaded, so `asOf` alone could never tell a res
 that new IV data landed inside a window it already read. `computed_at` is the write-time stamp that
 does move: the insert defaults it to `now()` and the upsert's `onConflictDoUpdate` also sets it to
 `now()`, so any write — first or backfilled, resumed or replacing a value — bumps it.
+
+**Follow-ups (#264).**
+
+- **The first session of the history is terminal, not pending forever.** CDI is ingested from the
+  calendar's own first day (`SGS_DEFAULT_SINCE`) and each point is visible only from the next
+  session's open, so a session with no earlier trading session can never see a rate at its close.
+  `computeIvIndexForSession` settles it with no point and no `pending` (a `succeeded` run with 0
+  rows) instead of retrying it every night; this is the one exception to ADR-0051's rule that every
+  session gets a point. It is never computed with `r = 0`: the rule above still
+  holds for every session that could one day see a rate. "No earlier session" reads the
+  `trading_sessions` rows, not `FIRST_INGESTED_CALENDAR_YEAR`; lowering that constant does not
+  reopen the settled session, and needs none: SGS only moves forward from its latest point, so no
+  earlier CDI would ever land for it.
+- **The nightly report carries what `pending` hides.** The `iv_index` `SourceOutcome` reports its
+  `deferred` count and `newestSessionComputed`: whether the session tonight's evaluation reads
+  (`IngestOutcome.session`) has a succeeded `iv_index` run. Both reach the stored report
+  (ADR-0045). While the backfill drains, `pending` stays constant, so these two are what tell a
+  draining backfill apart from an evaluated session left without its index.
+- **The owner's manual trigger logs an `iv_index` failure** (kept out of `ok`) and an evaluated
+  session left without its index, like every other trouble that does not flip `ok`. A backfill
+  that only defers older sessions is not logged: it defers sessions every night until it drains.
 
 ## Consequences
 

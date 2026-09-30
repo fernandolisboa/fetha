@@ -53,7 +53,10 @@ When the view's calendar does not reach the window's end, the rank is read as be
 - The IV index is produced by the app itself (#81), not by the exchange, so a missing point is a
   failure of that job, and it costs a lot: one missing session silences an `iv_rank(252)` for a
   year on that underlying. #81 must write one point per session per underlying, or backfill a
-  missed one, rather than rely on this rule to tolerate gaps.
+  missed one, rather than rely on this rule to tolerate gaps. (Amended by ADR-0054, #264: the
+  calendar's first session is the one deliberate exception, since no CDI can ever be visible at
+  its close. It costs nothing a window could have read: every window that reaches back to it
+  starts on it, so a rank there first reads one session later.)
 - Exit rules read the same reading: a `condition` exit on `iv_rank` evaluates to unknown while a
   missing session stays in its window, as ADR-0050 describes for `sma`.
 - No run in the app changes today: there is no IV index ingestion yet (#81), so the nightly run and
