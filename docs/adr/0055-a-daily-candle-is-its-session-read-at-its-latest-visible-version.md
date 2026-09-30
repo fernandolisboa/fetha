@@ -44,9 +44,9 @@ by `asOf`: two bars of one session are two candles.
   `rowOnSession` and `lastKnownRow` (backtest fills, marks and last-known closes),
   `resolveFillOpportunity` (stock candles and option day prices, for `score`'s counterfactual), and
   the underlying spot and a stock's mark from candles (`resolveUnderlyingSpot`,
-  `resolveLegMarketPrice`). The spot
-  is the latest session's latest version, not the row with the greatest `asOf`, so an old session's
-  restatement never becomes the current price. `markToMarket`, `proposeSettlement` and `score`'s
+  `resolveLegMarketPrice`). The spot is the session published last (the series' last slot) at its
+  latest visible version, not the row with the greatest `asOf`, so an old session's restatement
+  never becomes the current price. `markToMarket`, `proposeSettlement` and `score`'s
   horizon close already read `latestVisible` per session.
 - `validateViewIntegrity` keeps rejecting a duplicate `(ticker, timeframe, asOf)`; two versions of
   one session are valid input.
@@ -71,8 +71,10 @@ by `asOf`: two bars of one session are two candles.
   input order yields the same artifacts (I3 holds). `restated-candles.property.test.ts` draws
   restated sessions and pins I1, I3 and catch-up equivalence over them, since the shared
   arbitraries draw one version per session.
-- A catch-up and the nightly runs that led up to it agree session by session, since each night saw
-  each session as first published.
+- A catch-up and the nightly runs that led up to it agree session by session as long as no
+  restatement becomes visible between a session's first publication and the night that evaluates
+  it; otherwise that night reads the restatement and the catch-up does not. The app keys signals
+  and evaluations by session, so it keeps one record either way.
 - `engine.indicators()` output can list a restated candle whose `asOf` is later than the next
   slot's; consumers must order by slot, not by `asOf`.
 - A ticker with a restated session loses the #58 cache and costs one series build per evaluated
