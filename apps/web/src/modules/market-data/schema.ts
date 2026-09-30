@@ -135,6 +135,11 @@ export const impliedVolatilityIndexPoints = pgTable(
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
     impliedVolatility: numeric("implied_volatility", { precision: 18, scale: 8 }).notNull(),
     method: text("method").notNull(),
+    // Write-time stamp, distinct from `as_of`: a backfilled point can carry
+    // the same session close as an already-loaded candle, so `as_of` alone
+    // cannot tell a MarketView that new IV data has landed for a window it
+    // already read (docs/adr/0054).
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.underlying, table.session] }),

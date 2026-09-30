@@ -359,13 +359,17 @@ export async function loadMarketViewWithCalendarVersion(
     impliedVolatility: toDecimal(row.impliedVolatility),
   }));
 
+  // `computed_at`, not `asOf`: a backfilled IV point can carry the same
+  // session close as an already-loaded candle, so `asOf` alone would never
+  // move `dataVersion` when a point lands for a session this window
+  // already read (docs/adr/0054).
   const dataVersion = maxAsOf([
     ...candleView.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...macro.map((row) => row.asOf),
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),
-    ...impliedVolatilityIndex.map((row) => row.asOf),
+    ...ivIndexRows.map((row) => instantSchema.parse(row.computedAt.toISOString())),
   ]);
 
   return {
