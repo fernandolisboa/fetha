@@ -12,7 +12,11 @@ import {
 
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
-import { candles, tradingSessions } from "@/modules/market-data/schema";
+import {
+  candles,
+  impliedVolatilityIndexPoints,
+  tradingSessions,
+} from "@/modules/market-data/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import {
   loadMarketView,
@@ -1080,5 +1084,75 @@ describe("evaluateSignalsForSession", () => {
 
     const repository = new SignalsRepository(db, owner);
     expect(await repository.listInbox()).toHaveLength(1);
+  });
+
+  it("reads a real iv_rank value, not insufficient_data, once implied_volatility_index rows cover its lookback window (#81)", async () => {
+    const db = getDb();
+    const [s0, s1] = randomSessionSequence(2);
+    if (!s0 || !s1) throw new Error("fixture setup failed");
+    createdSessions.push(s0, s1);
+    const ticker = randomTicker();
+    createdTickers.push(ticker);
+
+    const email = uniqueEmail("iv-rank");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+
+    for (const session of [s0, s1]) {
+      await insertSession(session);
+      await insertCandle(ticker, session);
+    }
+    await db.insert(impliedVolatilityIndexPoints).values([
+      {
+        underlying: ticker,
+        session: s0,
+        asOf: new Date(`${s0}T21:00:00.000Z`),
+        impliedVolatility: "0.10000000",
+        method: "atm_30d_variance_interpolated",
+      },
+      {
+        underlying: ticker,
+        session: s1,
+        asOf: new Date(`${s1}T21:00:00.000Z`),
+        impliedVolatility: "0.30000000",
+        method: "atm_30d_variance_interpolated",
+      },
+    ]);
+    await declareRiskProfile(owner);
+    await new WatchlistRepository(db, owner).add(ticker);
+
+    const definition: StrategyDefinition = {
+      name: "IV rank fixture",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 2 } },
+        comparator: ">=",
+        right: { kind: "constant", value: decimalString("0") },
+      },
+      structureId: "stock",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [],
+    };
+    const strategy = await new StrategiesRepository(db, owner).createWithVersion(definition);
+    await new StrategiesRepository(db, owner).setActive(strategy.id, true);
+
+    const result = await evaluateSignalsForSession(db, [s1]);
+    expect(result.errors).toEqual([]);
+
+    const signalsRepository = new SignalsRepository(db, owner);
+    const log = await signalsRepository.listEvaluationLog();
+    const row = log.find((entry) => entry.session === s1);
+    // A `>= 0` entry always fires once iv_rank computes a real number; what
+    // this asserts is that it is not `insufficient_data` (the pre-#81
+    // outcome, when `canSatisfyCollection` refused the strategy outright).
+    expect(row?.outcome).toBe("signal");
+    expect(row?.detail).toBeNull();
+
+    await db
+      .delete(impliedVolatilityIndexPoints)
+      .where(eq(impliedVolatilityIndexPoints.underlying, ticker));
   });
 });
