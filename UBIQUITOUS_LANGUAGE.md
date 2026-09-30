@@ -34,6 +34,14 @@ over one timeframe interval: a trading session (daily) or an intraday interval o
 minutes. Stored and exchanged in nominal form; the adjusted form is derived.
 _Avoid_: bar, OHLC, quote history, volume (ambiguous between quantity and financial value)
 
+**Restatement**:
+A later version of a daily candle for the same session, published with a later `asOf` (a corrected
+COTAHIST file, a late adjustment). A daily candle is identified by `(ticker, session)`: from its own
+`asOf` on, the restatement replaces the earlier version in the session's place, and it is never an
+evaluation instant of its own (ADR-0055). Intraday candles have none: two bars of one session are
+two candles.
+_Avoid_: revision, correction, updated candle
+
 **Timeframe**:
 The interval a candle, an indicator or a strategy is defined on: `15m`, `30m`, `60m` or `D1`.
 _Avoid_: resolution, interval, period (reserved for the backtest date range)

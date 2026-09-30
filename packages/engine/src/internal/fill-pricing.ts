@@ -1,8 +1,8 @@
 import Decimal from "decimal.js";
 import type { Centavos, CostModel, DecimalString } from "@fetha/contracts";
-import type { Candle, Leg, MarketView, OptionDayPrice, Side, TradingSession } from "../api";
+import type { Leg, MarketView, Side, TradingSession } from "../api";
 import { CENTAVOS_PER_REAL, PRICE_SCALE, parseDecimal, toDecimalString } from "./decimal";
-import { isAtOrBefore } from "./instant";
+import { latestVisible } from "./visible";
 import { toCentavos } from "./scalars";
 
 // Shared by runBacktest (its own session-indexed fill loop) and score's counterfactual
@@ -86,12 +86,11 @@ export function resolveFillOpportunity(
   tradeSide: Side,
 ): FillOpportunity {
   if (leg.role === "stock") {
-    const candle = view.candles.find(
-      (c): c is Candle =>
-        c.ticker === leg.ticker &&
-        c.timeframe === "D1" &&
-        c.session === session.date &&
-        isAtOrBefore(c.asOf, session.close),
+    const candle = latestVisible(
+      view.candles.filter(
+        (c) => c.ticker === leg.ticker && c.timeframe === "D1" && c.session === session.date,
+      ),
+      session.close,
     );
     if (!candle || candle.tradedQuantity <= 0) return { ready: false };
     return {
@@ -102,9 +101,9 @@ export function resolveFillOpportunity(
       kind: "stock",
     };
   }
-  const dayPrice = view.optionPrices.find(
-    (p): p is OptionDayPrice =>
-      p.ticker === leg.ticker && p.session === session.date && isAtOrBefore(p.asOf, session.close),
+  const dayPrice = latestVisible(
+    view.optionPrices.filter((p) => p.ticker === leg.ticker && p.session === session.date),
+    session.close,
   );
   if (!dayPrice || dayPrice.tradedQuantity <= 0 || !dayPrice.average) return { ready: false };
   const filled = slippedOptionPrice(dayPrice.average, tradeSide, costModel.optionSlippageRate);

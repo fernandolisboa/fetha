@@ -65,6 +65,30 @@ export const candleSeriesArbitrary: fc.Arbitrary<Candle[]> = fc
     }),
   );
 
+// `candleSeriesArbitrary` plus up to three restated daily candles (#38, ADR-0055): a later version
+// of a drawn session, published between one minute and three days after the first, each at its own
+// instant (a millisecond offset keeps every asOf distinct from a session close and from each other).
+export const restatedCandleSeriesArbitrary: fc.Arbitrary<Candle[]> = fc
+  .tuple(
+    candleSeriesArbitrary,
+    fc.array(
+      fc.record({
+        index: fc.nat(),
+        lagMinutes: fc.integer({ min: 1, max: 3 * 24 * 60 }),
+        ohlc: ohlcArbitrary,
+      }),
+      { minLength: 1, maxLength: 3 },
+    ),
+  )
+  .map(([candles, restatements]) => [
+    ...candles,
+    ...restatements.map(({ index, lagMinutes, ohlc }, k): Candle => {
+      const first = assertDefined(candles[index % candles.length], "arbitraries: drawn session");
+      const asOf = new Date(Date.parse(first.asOf) + lagMinutes * 60_000 + k + 1).toISOString();
+      return { ...first, ...ohlc, asOf };
+    }),
+  ]);
+
 const centavos = (value: number): Centavos => value as Centavos;
 
 // Long enough to exercise annualization (MIN_ANNUALIZED_SESSIONS is 126 per ADR-0013), one

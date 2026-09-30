@@ -60,3 +60,4 @@ supersedes or amends them and says so.
 | 0052 | Corporate-action factors are owner-entered on /configuracoes, no automatic source yet (#50, amends 0013)         |
 | 0053 | The structure catalog is one file, each entry with its source and default selection (#20)                        |
 | 0054 | The IV index is computed nightly from already-ingested option prices, no new source (#81, amends 0017, 0051)     |
+| 0055 | A daily candle is its session, read at its latest visible version (#38, amends 0013)                             |

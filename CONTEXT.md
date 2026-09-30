@@ -120,6 +120,10 @@ exposing module's interface, never through its tables.
   window of sessions `dataWindow` requests for them; a session without a point, or a point not yet
   published, leaves it unread while it stays in the window; a D1 IV point's `asOf` is its session's
   close, like the candle's (ADR-0051).
+- A daily candle is its session: a view holding two versions of one session reads the latest one
+  visible at each instant, in the slot of the first; a catch-up evaluates each session once, as
+  first published, and a restatement is read from its `asOf` on, never evaluated on its own
+  (ADR-0055).
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
   the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for

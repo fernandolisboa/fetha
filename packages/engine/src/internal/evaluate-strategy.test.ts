@@ -3021,3 +3021,98 @@ describe("evaluateStrategy — iv_rank over a session without an IV point (#254)
     expect(bar).toEqual(outcomeAtSession(late));
   });
 });
+
+describe("evaluateStrategy — restated daily candles (#38)", () => {
+  const smaAbove = (value: string): Condition => ({
+    kind: "compare",
+    left: { kind: "indicator", indicator: { kind: "sma", length: 3 } },
+    comparator: ">",
+    right: { kind: "constant", value: decimalString(value) },
+  });
+  const calendar = calendarSessions(6);
+  const close = (index: number): string => (calendar[index] as TradingSession).close;
+  const flat = Array.from({ length: 5 }, (_, i) => dailyCandle("PETR4", i, "10"));
+  const restated: Candle = {
+    ...dailyCandle("PETR4", 2, "13"),
+    asOf: `${sessionAt(4)}T12:00:00.000Z`,
+  };
+  const strategy = strategyVersion(definition({ entry: smaAbove("10.5") }));
+  const run = (candles: Candle[], at: string, since?: string) => {
+    const result = evaluateStrategy({
+      view: { ...emptyView, calendar, candles },
+      strategy,
+      instruments: ["PETR4"],
+      at,
+      ...(since === undefined ? {} : { since }),
+      riskProfile,
+    });
+    if (!result.ok) throw new Error(`unexpected engine error: ${JSON.stringify(result.error)}`);
+    return result.value;
+  };
+
+  it("evaluates each session once, as first published, and reads the restatement from its asOf on", () => {
+    for (const candles of [[...flat, restated], [restated, ...flat].reverse()]) {
+      const catchUp = run(candles, close(4), close(1));
+      expect(catchUp.evaluations.map((e) => [e.session, e.at, e.outcome])).toEqual([
+        [sessionAt(2), close(2), "conditions_not_met"],
+        [sessionAt(3), close(3), "conditions_not_met"],
+        [sessionAt(4), close(4), "signal"],
+      ]);
+      const signal = catchUp.signals[0] as Extract<Signal, { kind: "entry" }>;
+      expect(signal.indicators).toEqual([
+        { indicator: { kind: "sma", length: 3 }, value: "11.00" },
+      ]);
+      expect(run(candles, close(4), close(3))).toEqual({
+        ...catchUp,
+        evaluations: catchUp.evaluations.slice(2),
+      });
+    }
+  });
+
+  it("reads the latest session's version visible at `at` without since", () => {
+    const latestRestated: Candle = {
+      ...dailyCandle("PETR4", 4, "16"),
+      asOf: `${sessionAt(5)}T12:00:00.000Z`,
+    };
+    const candles = [...flat, latestRestated];
+    const before = run(candles, `${sessionAt(5)}T11:00:00.000Z`);
+    expect(before.evaluations.map((e) => [e.session, e.at, e.outcome])).toEqual([
+      [sessionAt(4), close(4), "conditions_not_met"],
+    ]);
+    const after = run(candles, `${sessionAt(5)}T12:00:00.000Z`);
+    expect(after.evaluations.map((e) => [e.session, e.at, e.outcome])).toEqual([
+      [sessionAt(4), latestRestated.asOf, "signal"],
+    ]);
+  });
+
+  it("reads the latest version when `at` does not parse, as it reads the latest candle", () => {
+    const latestRestated: Candle = {
+      ...dailyCandle("PETR4", 4, "16"),
+      asOf: `${sessionAt(5)}T12:00:00.000Z`,
+    };
+    const evaluated = run([...flat, latestRestated], "not an instant");
+    expect(evaluated.evaluations.map((e) => [e.session, e.outcome])).toEqual([
+      [sessionAt(4), "signal"],
+    ]);
+  });
+
+  it("reads an earlier session restated after the latest candle, at the restatement's asOf", () => {
+    const lateRestated: Candle = { ...restated, asOf: `${sessionAt(5)}T12:00:00.000Z` };
+    const candles = [...flat, lateRestated];
+    const before = run(candles, `${sessionAt(5)}T11:00:00.000Z`);
+    expect(before.evaluations.map((e) => [e.session, e.at, e.outcome])).toEqual([
+      [sessionAt(4), close(4), "conditions_not_met"],
+    ]);
+    const after = run(candles, `${sessionAt(5)}T13:00:00.000Z`);
+    expect(after.evaluations.map((e) => [e.session, e.at, e.outcome])).toEqual([
+      [sessionAt(4), lateRestated.asOf, "signal"],
+    ]);
+    expect(run(candles, `${sessionAt(5)}T13:00:00.000Z`, close(3)).evaluations).toEqual([
+      expect.objectContaining({
+        session: sessionAt(4),
+        at: close(4),
+        outcome: "conditions_not_met",
+      }),
+    ]);
+  });
+});
