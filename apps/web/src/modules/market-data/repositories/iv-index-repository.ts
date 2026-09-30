@@ -4,16 +4,6 @@ import type { Database } from "@/db/client";
 import { candles, impliedVolatilityIndexPoints, optionDailyPrices, optionSeries } from "../schema";
 import { DAILY_TIMEFRAME } from "./candle-repository";
 
-const CHUNK_SIZE = 1000;
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-}
-
 export interface IvIndexPointRow {
   underlying: string;
   session: string;
@@ -27,27 +17,26 @@ export async function upsertIvIndexPoints(db: Database, rows: IvIndexPointRow[])
     return 0;
   }
 
-  for (const batch of chunk(rows, CHUNK_SIZE)) {
-    await db
-      .insert(impliedVolatilityIndexPoints)
-      .values(
-        batch.map((row) => ({
-          underlying: row.underlying,
-          session: row.session,
-          asOf: row.asOf,
-          impliedVolatility: row.impliedVolatility,
-          method: row.method,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [impliedVolatilityIndexPoints.underlying, impliedVolatilityIndexPoints.session],
-        set: {
-          asOf: sql`excluded.as_of`,
-          impliedVolatility: sql`excluded.implied_volatility`,
-          method: sql`excluded.method`,
-        },
-      });
-  }
+  await db
+    .insert(impliedVolatilityIndexPoints)
+    .values(
+      rows.map((row) => ({
+        underlying: row.underlying,
+        session: row.session,
+        asOf: row.asOf,
+        impliedVolatility: row.impliedVolatility,
+        method: row.method,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [impliedVolatilityIndexPoints.underlying, impliedVolatilityIndexPoints.session],
+      set: {
+        asOf: sql`excluded.as_of`,
+        impliedVolatility: sql`excluded.implied_volatility`,
+        method: sql`excluded.method`,
+        computedAt: sql`now()`,
+      },
+    });
 
   return rows.length;
 }
@@ -73,11 +62,6 @@ export async function ivIndexPointsInRange(
     );
 }
 
-// Every underlying with both an option chain that traded on `session`
-// (`option_daily_prices`, joined to `option_series` for its `underlying`)
-// and its own stock candle on that same session (docs/adr/0054): the IV
-// index needs a spot to solve for volatility, so an underlying with only
-// one of the two has nothing this compute step can produce a point from.
 export async function underlyingsToComputeForSession(
   db: Database,
   session: string,
@@ -95,6 +79,18 @@ export async function underlyingsToComputeForSession(
       ),
     )
     .where(eq(optionDailyPrices.session, session));
+
+  return rows.map((row) => row.underlying);
+}
+
+export async function underlyingsWithPointOnSession(
+  db: Database,
+  session: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ underlying: impliedVolatilityIndexPoints.underlying })
+    .from(impliedVolatilityIndexPoints)
+    .where(eq(impliedVolatilityIndexPoints.session, session));
 
   return rows.map((row) => row.underlying);
 }

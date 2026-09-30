@@ -4,33 +4,61 @@ import { engine } from "@fetha/engine";
 import type { Database } from "@/db/client";
 
 import { buildOperationMarketView, MarketViewUnavailableError } from "./market-view";
+import { latestSessionOnOrBefore } from "./repositories/calendar-repository";
+import { latestMacroPointAtOrBefore } from "./repositories/macro-repository";
 import {
   underlyingsToComputeForSession,
+  underlyingsWithPointOnSession,
   upsertIvIndexPoints,
 } from "./repositories/iv-index-repository";
 
-// One point per underlying for `session`, stamped with `sessionClose`
-// (the same instant COTAHIST candles of that session carry, docs/adr/0051):
-// a null result (no bracket, ADR-0013's `iv_index_not_bracketed`) or a
-// `MarketViewUnavailableError` (its `MarketViewTooLargeError` subclass
-// included) for one underlying is skipped rather than failing the whole
-// session — the underlying stays without a point for this session, retried
-// automatically by the next backfill pass, never blocking every other
-// underlying's point from being written (docs/adr/0054). Any other error
-// (a DB failure, a bug) is left to propagate: `runSource` marks the whole
-// session failed and retries it, rather than this step silently reporting
-// "0 rows, succeeded" for a systematic failure that would otherwise never
-// be retried.
+export interface ComputeIvIndexResult {
+  rowCount: number;
+  pending: boolean;
+}
+
+// A session whose only visible CDI point predates the previous trading
+// session would make the engine default r=0 silently (`resolveRiskFreeRate`),
+// baking a wrong rate into a point that is never recomputed once persisted
+// (docs/adr/0054). Left pending instead, so the next run retries it once the
+// rate lands.
+async function cdiEligibleForSession(
+  db: Database,
+  session: string,
+  sessionClose: Date,
+): Promise<boolean> {
+  const previousSession = await latestSessionOnOrBefore(db, new Date(sessionClose.getTime() - 1));
+  const cdi = await latestMacroPointAtOrBefore(db, "cdi", sessionClose);
+  if (!cdi) {
+    return false;
+  }
+  return !previousSession || cdi.date >= previousSession.date;
+}
+
 export async function computeIvIndexForSession(
   db: Database,
   session: string,
   sessionClose: Date,
-): Promise<number> {
-  const underlyings = await underlyingsToComputeForSession(db, session);
-  const at = instantSchema.parse(sessionClose.toISOString());
+  hardStopAt = Infinity,
+): Promise<ComputeIvIndexResult> {
+  if (!(await cdiEligibleForSession(db, session, sessionClose))) {
+    return { rowCount: 0, pending: true };
+  }
 
+  const allUnderlyings = await underlyingsToComputeForSession(db, session);
+  const done = new Set(await underlyingsWithPointOnSession(db, session));
+  const remaining = allUnderlyings.filter((underlying) => !done.has(underlying));
+
+  const at = instantSchema.parse(sessionClose.toISOString());
   const rows: Parameters<typeof upsertIvIndexPoints>[1] = [];
-  for (const underlying of underlyings) {
+  let pending = false;
+
+  for (const underlying of remaining) {
+    if (Date.now() >= hardStopAt) {
+      pending = true;
+      break;
+    }
+
     const ticker = tickerSchema.parse(underlying);
     let view;
     try {
@@ -41,10 +69,27 @@ export async function computeIvIndexForSession(
       }
       throw error;
     }
-    const result = await engine.impliedVolatilityIndex({ view, underlying: ticker, at });
-    if (!result.ok || result.value.impliedVolatility === null) {
+
+    // `buildOperationMarketView` carries each option's latest price over a
+    // trailing window (`latestOptionPricesAt`), not just `session`'s own: a
+    // bracket with no trade on `session` must be treated as unpriced here,
+    // not solved from a stale premium.
+    const optionPrices = view.optionPrices.filter((price) => price.session === session);
+
+    const result = await engine.impliedVolatilityIndex({
+      view: { ...view, optionPrices },
+      underlying: ticker,
+      at,
+    });
+
+    if (!result.ok) {
+      pending = true;
       continue;
     }
+    if (result.value.impliedVolatility === null) {
+      continue;
+    }
+
     rows.push({
       underlying: ticker,
       session,
@@ -54,5 +99,6 @@ export async function computeIvIndexForSession(
     });
   }
 
-  return upsertIvIndexPoints(db, rows);
+  const rowCount = await upsertIvIndexPoints(db, rows);
+  return { rowCount, pending };
 }

@@ -1,13 +1,15 @@
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { engine } from "@fetha/engine";
+
 import { getDb } from "@/db/client";
 import { candles, macroPoints, optionDailyPrices, optionSeries, tradingSessions } from "./schema";
 
 import { computeIvIndexForSession } from "./iv-index-compute";
 import { buildOperationMarketView } from "./market-view";
 import { DAILY_TIMEFRAME } from "./repositories/candle-repository";
-import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
+import { ivIndexPointsInRange, upsertIvIndexPoints } from "./repositories/iv-index-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 // Wraps the real implementation by default (mirrors
@@ -217,8 +219,8 @@ describe("computeIvIndexForSession", () => {
     );
 
     const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
-    const rowCount = await computeIvIndexForSession(db, session0, sessionClose);
-    expect(rowCount).toBe(1);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 1, pending: false });
 
     const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
     expect(points).toHaveLength(1);
@@ -228,6 +230,10 @@ describe("computeIvIndexForSession", () => {
     expect(point?.asOf.toISOString()).toBe(sessionClose.toISOString());
     expect(point?.impliedVolatility).not.toBeNull();
     const iv = Number(point?.impliedVolatility);
+    // T1=20/252, T2=40/252, T30=30/252, w=0.5: sqrt((0.04*20 + 0.16*40) / (2*30)) =
+    // sqrt(0.12), the same closed-form target as the engine's own
+    // implied-volatility-index.test.ts fixture this mirrors.
+    expect(iv).toBeCloseTo(Math.sqrt(0.12), 3);
     expect(iv).toBeGreaterThan(sigmaLower);
     expect(iv).toBeLessThan(sigmaUpper);
   });
@@ -290,8 +296,8 @@ describe("computeIvIndexForSession", () => {
     );
 
     const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
-    const rowCount = await computeIvIndexForSession(db, session0, sessionClose);
-    expect(rowCount).toBe(1);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 1, pending: false });
 
     const points = await ivIndexPointsInRange(db, [bracketed, unbracketed], session0, session0);
     expect(points.map((point) => point.underlying)).toEqual([bracketed]);
@@ -305,6 +311,13 @@ describe("computeIvIndexForSession", () => {
 
     const session0 = sessions[0] ?? "";
     const expiry = sessions[2] ?? "";
+
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.00000000",
+    });
 
     const underlying = uniqueTicker("ERR");
     cleanupUnderlyings.push(underlying);
@@ -328,4 +341,259 @@ describe("computeIvIndexForSession", () => {
   // nothing to seed here that would exercise that skip branch through real
   // code; it exists for the day buildOperationMarketView grows one, not for
   // a reachable case today.
+
+  it("never solves from a bracket leg whose only premium is stale (priced on a prior session), even though buildOperationMarketView still carries it", async () => {
+    const db = getDb();
+    const sessions = dailySessions(46);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const prevSession = sessions[0] ?? "";
+    const session0 = sessions[1] ?? "";
+    const expiryLower = sessions[21] ?? "";
+    const expiryUpper = sessions[41] ?? "";
+    const farOtmExpiry = sessions[11] ?? "";
+
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: prevSession,
+      asOf: new Date(`${prevSession}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.00000000",
+    });
+
+    const underlying = uniqueTicker("STL");
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = `${underlying}CH`;
+    const tickerFarOtm = `${underlying}CF`;
+    cleanupOptionTickers.push(tickerLower, tickerUpper, tickerFarOtm);
+
+    // The ATM bracket's only premiums are on `prevSession`, one session
+    // before the one being computed: `buildOperationMarketView` still
+    // carries them (its own `latestOptionPricesAt` looks back ~30 sessions),
+    // but they must not be usable to solve `session0`'s own point.
+    await seedCallSeries(
+      underlying,
+      tickerLower,
+      prevSession,
+      expiryLower,
+      "50.00000000",
+      bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+    );
+    await seedCallSeries(
+      underlying,
+      tickerUpper,
+      prevSession,
+      expiryUpper,
+      "50.00000000",
+      bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+    );
+    // A deep out-of-the-money trade on `session0` itself, only so this
+    // underlying is a candidate for `session0`'s own compute pass at all.
+    await seedCallSeries(
+      underlying,
+      tickerFarOtm,
+      session0,
+      farOtmExpiry,
+      "5.00000000",
+      "45.000000",
+    );
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 0, pending: false });
+
+    const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
+    expect(points).toEqual([]);
+  });
+
+  it("stays pending, writing no point, when no CDI point is visible on or after the previous trading session", async () => {
+    const db = getDb();
+    const sessions = dailySessions(45);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[1] ?? "";
+    const expiryLower = sessions[21] ?? "";
+    const expiryUpper = sessions[41] ?? "";
+
+    // No CDI point seeded at all: `resolveRiskFreeRate` would otherwise
+    // default r=0 silently and bake it into a point that is never
+    // recomputed once persisted.
+    const underlying = uniqueTicker("CDI");
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "50.000000");
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = `${underlying}CH`;
+    cleanupOptionTickers.push(tickerLower, tickerUpper);
+    await seedCallSeries(
+      underlying,
+      tickerLower,
+      session0,
+      expiryLower,
+      "50.00000000",
+      bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+    );
+    await seedCallSeries(
+      underlying,
+      tickerUpper,
+      session0,
+      expiryUpper,
+      "50.00000000",
+      bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+    );
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 0, pending: true });
+
+    const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
+    expect(points).toEqual([]);
+  });
+
+  it("resumes only the underlyings still missing a point once the hard stop has already passed, keeping what an earlier call already wrote", async () => {
+    const db = getDb();
+    const sessions = dailySessions(45);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[0] ?? "";
+    const expiryLower = sessions[20] ?? "";
+    const expiryUpper = sessions[40] ?? "";
+
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.00000000",
+    });
+
+    const done = uniqueTicker("DON");
+    const pending = uniqueTicker("PEN");
+    cleanupUnderlyings.push(done, pending);
+    await seedUnderlyingSpot(done, session0, "50.000000");
+    await seedUnderlyingSpot(pending, session0, "50.000000");
+
+    for (const underlying of [done, pending]) {
+      await seedCallSeries(
+        underlying,
+        `${underlying}CL`,
+        session0,
+        expiryLower,
+        "50.00000000",
+        bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+      );
+      await seedCallSeries(
+        underlying,
+        `${underlying}CH`,
+        session0,
+        expiryUpper,
+        "50.00000000",
+        bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+      );
+      cleanupOptionTickers.push(`${underlying}CL`, `${underlying}CH`);
+    }
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+
+    // Simulates an earlier, interrupted call that already wrote `done`'s
+    // point for this session, without going through the compute step itself.
+    await upsertIvIndexPoints(db, [
+      {
+        underlying: done,
+        session: session0,
+        asOf: sessionClose,
+        impliedVolatility: "0.25000000",
+        method: "atm_30d_variance_interpolated",
+      },
+    ]);
+
+    // Only `pending` is left to compute; a hard stop already in the past
+    // must be checked before it starts, so this call keeps `done`'s point
+    // untouched and reports the session as still pending instead of
+    // recomputing anything.
+    const stoppedResult = await computeIvIndexForSession(
+      db,
+      session0,
+      sessionClose,
+      Date.now() - 1,
+    );
+    expect(stoppedResult).toEqual({ rowCount: 0, pending: true });
+
+    const afterStop = await ivIndexPointsInRange(db, [done, pending], session0, session0);
+    expect(afterStop.map((point) => point.underlying)).toEqual([done]);
+
+    const finished = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(finished).toEqual({ rowCount: 1, pending: false });
+
+    const points = await ivIndexPointsInRange(db, [done, pending], session0, session0);
+    expect(points.map((point) => point.underlying).sort()).toEqual([done, pending].sort());
+  });
+
+  it("writes what it could and reports pending, not succeeded, when the engine itself returns ok:false for one underlying", async () => {
+    const db = getDb();
+    const sessions = dailySessions(45);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[0] ?? "";
+    const expiryLower = sessions[20] ?? "";
+    const expiryUpper = sessions[40] ?? "";
+
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.00000000",
+    });
+
+    const good = uniqueTicker("OKY");
+    const bad = uniqueTicker("BAD");
+    cleanupUnderlyings.push(good, bad);
+    await seedUnderlyingSpot(good, session0, "50.000000");
+    await seedUnderlyingSpot(bad, session0, "50.000000");
+
+    for (const underlying of [good, bad]) {
+      await seedCallSeries(
+        underlying,
+        `${underlying}CL`,
+        session0,
+        expiryLower,
+        "50.00000000",
+        bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+      );
+      await seedCallSeries(
+        underlying,
+        `${underlying}CH`,
+        session0,
+        expiryUpper,
+        "50.00000000",
+        bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+      );
+      cleanupOptionTickers.push(`${underlying}CL`, `${underlying}CH`);
+    }
+
+    const originalImpliedVolatilityIndex = engine.impliedVolatilityIndex.bind(engine);
+    const engineSpy = vi
+      .spyOn(engine, "impliedVolatilityIndex")
+      .mockImplementation(async (input) => {
+        if (input.underlying === bad) {
+          return { ok: false, error: { code: "missing_instrument", ticker: bad } };
+        }
+        return originalImpliedVolatilityIndex(input);
+      });
+
+    try {
+      const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+      const result = await computeIvIndexForSession(db, session0, sessionClose);
+      expect(result.pending).toBe(true);
+
+      const points = await ivIndexPointsInRange(db, [good, bad], session0, session0);
+      expect(points.map((point) => point.underlying)).toEqual([good]);
+    } finally {
+      engineSpy.mockRestore();
+    }
+  });
 });
