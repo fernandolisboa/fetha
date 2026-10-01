@@ -2,7 +2,15 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import { instrumentOptionSeriesSchema } from "../adapters/b3-instruments/schema";
+import { cotahistOptionRowSchema } from "../adapters/cotahist/schema";
+import {
+  candles,
+  optionDailyPrices,
+  optionSeries,
+  optionSeriesStrikes,
+  tradingSessions,
+} from "../schema";
 
 import { ensureMonthlyPartition } from "./partitions";
 import {
@@ -14,6 +22,8 @@ import {
   optionSeriesInWindow,
   searchOptionSeries,
   seriesKey,
+  upsertOptionDailyPrices,
+  upsertOptionSeries,
 } from "./option-repository";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -66,6 +76,7 @@ describe("optionChainForUnderlying", () => {
     const priced = pricedTickers.splice(0);
     if (priced.length > 0) {
       await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, priced));
+      await db.delete(optionSeriesStrikes).where(inArray(optionSeriesStrikes.ticker, priced));
     }
     const dates = seededSessionDates.splice(0);
     if (dates.length > 0) {
@@ -338,6 +349,86 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toBeNull();
+  });
+
+  it("shows a strike-change session's last price, matched against the strike epoch visible at the price's own instant (#274)", async () => {
+    const underlying = uniqueTicker("CRP");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}B310`;
+    const isin = `ISIN-${optionTicker}`;
+    const sessions = businessDays("2099-08-02", 6);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const oldStrikeSession = sessions[1];
+    const strikeChangeSession = sessions[2];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !oldStrikeSession || !strikeChangeSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await upsertOptionSeries(db, new Date(`${firstSession}T13:00:00.000Z`), [
+      instrumentOptionSeriesSchema.parse({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        right: "call",
+        strike: "29.95000000",
+        expiry,
+        style: "european",
+        asOf: firstSession,
+      }),
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", oldStrikeSession);
+    pricedTickers.push(optionTicker);
+    await upsertOptionDailyPrices(
+      db,
+      oldStrikeSession,
+      new Date(`${oldStrikeSession}T20:00:00.000Z`),
+      [
+        cotahistOptionRowSchema.parse({
+          kind: "option",
+          session: oldStrikeSession,
+          ticker: optionTicker,
+          right: "call",
+          strike: "29.95000000",
+          expiry,
+          factor: "1.000000",
+          open: "2.000000",
+          high: "2.000000",
+          low: "2.000000",
+          average: "2.000000",
+          close: "2.000000",
+          trades: 1,
+          tradedQuantity: 100,
+        }),
+      ],
+    );
+
+    // The registry adjusts the strike for the corporate action one session
+    // later, with no new COTAHIST price row ingested for that ticker yet:
+    // the latest visible price row still carries the pre-event strike.
+    await upsertOptionSeries(db, new Date(`${strikeChangeSession}T13:00:00.000Z`), [
+      instrumentOptionSeriesSchema.parse({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        right: "call",
+        strike: "14.98000000",
+        expiry,
+        style: "european",
+        asOf: strikeChangeSession,
+      }),
+    ]);
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.strike).toBe("14.98000000");
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: oldStrikeSession });
   });
 });
 

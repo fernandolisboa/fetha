@@ -293,6 +293,25 @@ export interface ChainSeries {
 // listed and still never have traded, or its only trade can sit outside the
 // window, in which case this is `null` and the picker can tell the user the
 // series is unpriceable before they pick it (PETR4 chain vs `option_daily_prices`).
+
+// Epochs sorted ascending by `asOf` for one `(ticker, expiry, right)` cycle: the strike visible
+// at `instant` is the last one whose own `asOf` has not yet arrived, falling back to the
+// series' current strike for a cycle with no epoch rows (a write predating migration 0033).
+function strikeVisibleAt(
+  epochs: readonly { strike: string; asOf: Date }[],
+  instant: Date,
+  fallback: string,
+): string {
+  let visible = fallback;
+  for (const epoch of epochs) {
+    if (epoch.asOf > instant) {
+      break;
+    }
+    visible = epoch.strike;
+  }
+  return visible;
+}
+
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,
@@ -334,10 +353,10 @@ export async function optionChainForUnderlying(
   const series = [...latestByTicker.values()];
   const tickers = series.map((row) => row.ticker);
 
-  const priceRows =
+  const [priceRows, epochRows] = await Promise.all([
     tickers.length === 0
       ? []
-      : await db
+      : db
           .selectDistinctOn([optionDailyPrices.ticker], {
             ticker: optionDailyPrices.ticker,
             session: optionDailyPrices.session,
@@ -345,6 +364,7 @@ export async function optionChainForUnderlying(
             strike: optionDailyPrices.strike,
             average: optionDailyPrices.average,
             close: optionDailyPrices.close,
+            asOf: optionDailyPrices.asOf,
           })
           .from(optionDailyPrices)
           .where(
@@ -354,11 +374,36 @@ export async function optionChainForUnderlying(
               ...(calendarFloor ? [gte(optionDailyPrices.session, calendarFloor)] : []),
             ),
           )
-          .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session));
+          .orderBy(asc(optionDailyPrices.ticker), desc(optionDailyPrices.session)),
+    tickers.length === 0
+      ? []
+      : db
+          .select({
+            ticker: optionSeriesStrikes.ticker,
+            expiry: optionSeriesStrikes.expiry,
+            right: optionSeriesStrikes.right,
+            strike: optionSeriesStrikes.strike,
+            asOf: optionSeriesStrikes.asOf,
+          })
+          .from(optionSeriesStrikes)
+          .where(inArray(optionSeriesStrikes.ticker, tickers))
+          .orderBy(asc(optionSeriesStrikes.asOf)),
+  ]);
 
   const latestPriceByTicker = new Map<string, (typeof priceRows)[number]>();
   for (const row of priceRows) {
     latestPriceByTicker.set(row.ticker, row);
+  }
+
+  const epochsByCycle = new Map<string, { strike: string; asOf: Date }[]>();
+  for (const row of epochRows) {
+    const key = `${row.ticker}|${row.expiry}|${row.right}`;
+    const epochs = epochsByCycle.get(key);
+    if (epochs) {
+      epochs.push({ strike: row.strike, asOf: row.asOf });
+    } else {
+      epochsByCycle.set(key, [{ strike: row.strike, asOf: row.asOf }]);
+    }
   }
 
   return series
@@ -366,9 +411,18 @@ export async function optionChainForUnderlying(
     .map(({ ticker, right, strike, expiry, style }) => {
       const priceRow = latestPriceByTicker.get(ticker);
       // A price row from a listing cycle the ticker has since moved past
-      // (ADR-0017) must not surface as this cycle's last price.
+      // (ADR-0017) must not surface as this cycle's last price. Within the
+      // current cycle, the price's own strike is compared against the strike
+      // epoch visible at the price row's own `asOf` (ADR-0056), not the
+      // ticker's current registry strike: on a session where the registry
+      // and COTAHIST briefly disagree about the strike, the price's own
+      // instant still resolves to the strike it was actually recorded under.
+      const epochs = priceRow
+        ? (epochsByCycle.get(`${ticker}|${priceRow.expiry}|${right}`) ?? [])
+        : [];
+      const visibleStrike = priceRow ? strikeVisibleAt(epochs, priceRow.asOf, strike) : null;
       const matchesCurrentCycle =
-        priceRow && priceRow.expiry === expiry && priceRow.strike === strike;
+        priceRow && priceRow.expiry === expiry && priceRow.strike === visibleStrike;
       const value = matchesCurrentCycle ? (priceRow.close ?? priceRow.average) : null;
       return {
         ticker,
