@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MarketView } from "../api";
 import { decimalString } from "../test/support";
-import { validateViewIntegrity } from "./validate-view-integrity";
+import { corporateActionIntegrityError, validateViewIntegrity } from "./validate-view-integrity";
 
 const baseView: MarketView = {
   calendar: [
@@ -109,5 +109,40 @@ describe("validateViewIntegrity", () => {
     };
     const later = { ...dayPrice, asOf: "2024-01-02T21:05:00.000Z" };
     expect(validateViewIntegrity({ ...baseView, optionPrices: [dayPrice, later] })).toBeNull();
+  });
+
+  it("rejects corporateActions with a duplicate (ticker, exDate)", () => {
+    const factor = {
+      ticker: "PETR4",
+      exDate: "2024-01-05",
+      asOf: "2024-01-05T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const view: MarketView = {
+      ...baseView,
+      corporateActions: [factor, { ...factor, asOf: "2024-01-05T14:00:00.000Z" }],
+    };
+    expect(validateViewIntegrity(view)).toEqual({
+      code: "invalid_input",
+      path: "view.corporateActions",
+      message: "duplicate corporate action for PETR4|2024-01-05",
+    });
+    expect(corporateActionIntegrityError(view.corporateActions)).toEqual({
+      code: "invalid_input",
+      path: "view.corporateActions",
+      message: "duplicate corporate action for PETR4|2024-01-05",
+    });
+  });
+
+  it("allows two corporateActions rows for the same ticker with different exDate", () => {
+    const factor = {
+      ticker: "PETR4",
+      exDate: "2024-01-05",
+      asOf: "2024-01-05T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const later = { ...factor, exDate: "2024-01-08" };
+    expect(corporateActionIntegrityError([factor, later])).toBeNull();
+    expect(validateViewIntegrity({ ...baseView, corporateActions: [factor, later] })).toBeNull();
   });
 });

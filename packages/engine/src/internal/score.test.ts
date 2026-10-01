@@ -828,7 +828,7 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     });
   });
 
-  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole score (#69 part 2)", () => {
+  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole score", () => {
     const callSeries: OptionSeries = {
       ticker: "PETR4C28",
       underlying: "PETR4",
@@ -987,6 +987,34 @@ describe("score — remaining coverage: view integrity, coherence, short legs, u
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("propagates a view-integrity error (two corporate-action rows sharing a (ticker, exDate))", () => {
+    const view: MarketView = {
+      ...emptyView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-05",
+          asOf: "2024-01-05T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-05",
+          asOf: "2024-01-05T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.corporateActions",
+      message: "duplicate corporate action for PETR4|2024-01-05",
+    });
   });
 
   it("propagates an operation-coherence error (a stock leg's ticker must match the underlying)", () => {
@@ -1183,6 +1211,38 @@ describe("score — settlement at expiry for the taken-operation path (ADR-0014 
     if (!result.ok) return;
     // ITM at expiry: intrinsic = 33.00 - 28.00 = 5.00; (5.00 - 2.00) * 100 * 1
     expect(result.value.pnl).toBe(centavos(300));
+  });
+
+  it("caps a settled option leg's factor window at its own expiry: a split ex-dated after expiry never rebases it a second time", () => {
+    const expiredSeries: OptionSeries = { ...callSeries, expiry: "2024-01-03" };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [expiredSeries],
+      candles: [stockCandle("2024-01-03", "30.00", "30.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        horizon: "2024-01-05",
+        operation: { ...longCallOperation("2.00"), expiry: "2024-01-03" },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Intrinsic at expiry (28.00 strike, 30.00 close) = 2.00, exactly the entry premium: the
+    // split ex-dated the day after expiry must never rebase a leg that no longer exists by
+    // then, or (2.00 / 0.5 - 2.00 * 0.5) * 100 * 1 would wrongly show a R$200 gain.
+    expect(result.value.pnl).toBe(centavos(0));
   });
 
   it("carries a kept stock leg to the horizon close alongside a settled option leg (covered call)", () => {
@@ -1865,6 +1925,321 @@ describe("score — realized fills matched by ticker and side, rebased by the sp
     // remaining 50 nominal marked at the horizon close (6.50): effective quantity 100,
     // (6.50 - 5.00) * 100 * 100 = 15000
     expect(result.value.pnl).toBe(centavos(25_000));
+  });
+});
+
+describe("a non-stock leg's quantity window stops at its own expiry", () => {
+  it("does not rebase a short put's quantity by a factor ex-dated after its own expiry, even though the horizon is later still", () => {
+    const putSeries: OptionSeries = {
+      ticker: "PETR4P28",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-03",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [putSeries],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [
+        stockCandle("2024-01-03", "30.00", "30.00"),
+        stockCandle("2024-01-05", "30.00", "30.00"),
+      ],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4P28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-03",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score({ ...baseInput, view, operation }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Pre-fix, the uncapped window (openedAt..horizon) picked up the 0.5 factor even though the
+    // leg had already expired the day before its ex-date, doubling the effective quantity and
+    // the strike's own notional in the max-loss formula (maxLoss 5400, normalizedPnl 0.037037).
+    // Capped at the leg's own expiry (), the factor never applies.
+    expect(result.value.maxLoss).toBe(centavos(2600));
+    expect(result.value.normalizedPnl).toBe(decimalString("0.076923"));
+  });
+
+  it("holds for a vertical put spread too: each leg's own expiry caps its quantity window independently of the horizon", () => {
+    const shortPutSeries: OptionSeries = {
+      ticker: "PETR4P28",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-03",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const longPutSeries: OptionSeries = {
+      ticker: "PETR4P24",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("24.00"),
+      expiry: "2024-01-03",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [shortPutSeries, longPutSeries],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [
+        stockCandle("2024-01-03", "30.00", "30.00"),
+        stockCandle("2024-01-05", "30.00", "30.00"),
+      ],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4P28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+        {
+          role: "put",
+          side: "buy",
+          ticker: "PETR4P24",
+          quantity: quantity(1),
+          entryPrice: decimalString("0.50"),
+        },
+      ],
+      expiry: "2024-01-03",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score({ ...baseInput, view, operation }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Both legs are unrebased (the factor ex-dates after this spread's own expiry): the spread's
+    // max loss is the strike width minus the net credit, at nominal quantity 1 — (28.00 - 24.00
+    // - 1.50) x 100 = 250 centavos. Pre-fix, both legs' quantities doubled (entry prices halved
+    // to match), skewing this same max loss to 650.
+    expect(result.value.maxLoss).toBe(centavos(250));
+  });
+});
+
+describe("score — a factor ex-dated exactly on a leg's own expiry (the series' own last session) derives stably, even read from a later horizon", () => {
+  it("derives the strike and flags it, even though the operation already settled before the horizon", () => {
+    const putSeries: OptionSeries = {
+      ticker: "PETR4P28",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-03",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [putSeries],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [
+        stockCandle("2024-01-03", "15.00", "15.00"),
+        stockCandle("2024-01-05", "15.00", "15.00"),
+      ],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4P28",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-03",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score({ ...baseInput, view, operation }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A factor ex-dated exactly on the leg's own expiry (the series' own last session) can
+    // never get an epoch of its own, since the series ceases to exist at that very session:
+    // the strike derives (28.00 x 0.5 = 14.00), with confidence, no matter how much later the
+    // horizon reads it from. Pre-fix, comparing against the uncapped horizon session (01-05)
+    // instead of `through = min(atSession, expiry)` read this as "unconfirmed" and left the
+    // strike at 28.00 (maxLoss 540000, normalizedPnl 0.037037).
+    expect(result.value.maxLoss).toBe(centavos(260000));
+    expect(result.value.normalizedPnl).toBe(decimalString("0.076923"));
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
+    // this same leg/session is read twice (once by
+    // `buildEntryPricedLegs` for maxLoss, once by `settlementPnl` for pnl) — the note must
+    // still appear exactly once, never duplicated.
+    expect(
+      result.value.notes.filter((n) => n.code === "option_strike_derived_across_corporate_action"),
+    ).toHaveLength(1);
+  });
+
+  it("the do_not_enter counterfactual path also dedupes its own strike-adjustment note, taken from a settled counterfactual close", () => {
+    const putSeries: OptionSeries = {
+      ticker: "PETR4P28",
+      underlying: "PETR4",
+      right: "put",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-06",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [putSeries],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-06",
+          asOf: "2024-01-06T00:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      optionPrices: [optionDayPrice("PETR4P28", "2024-01-02", "2.00")],
+      candles: [stockCandle("2024-01-06", "15.00", "15.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "put",
+          side: "sell",
+          ticker: "PETR4P28",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-06",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        operation,
+        subject: "do_not_enter",
+        horizon: "2024-01-06",
+        origin: { kind: "manual" },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const adjustmentCodes = new Set([
+      "option_strike_derived_across_corporate_action",
+      "option_strike_unadjusted_across_corporate_action",
+    ]);
+    const codes = result.value.notes.filter((n) => adjustmentCodes.has(n.code)).map((n) => n.code);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+});
+
+describe("score — dedup is narrowed to the two strike-adjustment codes alone", () => {
+  it("keeps both legs' own stale_price notes on a two-leg operation, never collapsing the second leg's note into the first's", () => {
+    // `stale_price` is parameterized per leg (ticker and session in the message): deduping by
+    // code alone, as the two strike-adjustment codes once were, silently dropped every stale
+    // leg after the first.
+    const callSeries: OptionSeries = {
+      ticker: "PETR4C28",
+      underlying: "PETR4",
+      right: "call",
+      strike: decimalString("28.00"),
+      expiry: "2024-01-09",
+      style: "european",
+      asOf: "2024-01-01T00:00:00.000Z",
+    };
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [callSeries],
+      candles: [stockCandle("2024-01-03", "10.00", "10.00")],
+      optionPrices: [optionDayPrice("PETR4C28", "2024-01-02", "2.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-09",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = score(
+      { ...baseInput, view, operation, subject: "hold", horizon: "2024-01-05" },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const staleNotes = result.value.notes.filter((n) => n.code === "stale_price");
+    expect(staleNotes).toHaveLength(2);
+    expect(staleNotes.map((n) => n.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("PETR4 marked at its last trade on 2024-01-03"),
+        expect.stringContaining("PETR4C28 marked at its last trade on 2024-01-02"),
+      ]),
+    );
   });
 });
 

@@ -16,7 +16,7 @@ import type {
   TradingSession,
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
-import { calendarIntegrityError } from "./validate-view-integrity";
+import { calendarIntegrityError, corporateActionIntegrityError } from "./validate-view-integrity";
 import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
@@ -28,7 +28,12 @@ import {
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
-import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
+import {
+  NO_RISK_PROFILE_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STALE_PRICE_NOTE,
+} from "./notes";
 import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLeg } from "./option-pricing";
 import type { ProvenanceBase } from "./provenance";
@@ -119,7 +124,7 @@ function valueOneLeg(
 
   const resolvedStrike = resolveOptionStrike(view, leg.ticker, underlying, atSession, at);
   if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
-  const { series, strike: strikeString, derived: strikeDerived } = resolvedStrike.value;
+  const { series, strike: strikeString, adjustment } = resolvedStrike.value;
   if (series.underlying !== underlying) {
     return {
       ok: false,
@@ -132,14 +137,12 @@ function valueOneLeg(
       error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
-  // #69 part 2: this leg's strike had no epoch of its own yet reflecting a corporate action
-  // visible at `at`; it was derived from the underlying's own factor rather than read straight
-  // off a listed epoch (option-strike.ts).
-  const strikeDerivedNote: Note = {
-    code: "option_strike_derived_across_corporate_action",
-    message:
-      "this leg's strike had no listed epoch reflecting a corporate action visible yet; it was derived from the underlying's own factor",
-  };
+  const strikeAdjustmentNote: Note | null =
+    adjustment === "derived"
+      ? OPTION_STRIKE_DERIVED_NOTE
+      : adjustment === "unconfirmed"
+        ? OPTION_STRIKE_UNCONFIRMED_NOTE
+        : null;
 
   if (expiredIntrinsicBasis !== null) {
     const strike = parseDecimal(strikeString);
@@ -165,7 +168,7 @@ function valueOneLeg(
         },
       ],
     };
-    if (strikeDerived) valuation.notes = [...valuation.notes, strikeDerivedNote];
+    if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
     return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic } };
   }
 
@@ -230,7 +233,7 @@ function valueOneLeg(
     givenVolatility: leg.volatility ?? null,
     suppressStaleImpliedVolatility,
   });
-  if (strikeDerived) valuation.notes = [...valuation.notes, strikeDerivedNote];
+  if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
   const premiumPerUnit = valuation.price
     ? parseDecimal(valuation.price)
     : valuation.fairValue
@@ -955,6 +958,8 @@ export function priceOperation(
 ): Result<OperationPricing> {
   const calendarError = calendarIntegrityError(input.view.calendar);
   if (calendarError) return err(calendarError);
+  const corporateActionError = corporateActionIntegrityError(input.view.corporateActions);
+  if (corporateActionError) return err(corporateActionError);
   if (Array.isArray(input.legs)) {
     const [firstLeg] = input.legs;
     if (!firstLeg) {

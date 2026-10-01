@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, MarketView, Operation, OptionSeries, TradingSession } from "../api";
 import { dailyCalendar, decimalString, quantity } from "../test/support";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import { proposeSettlement } from "./propose-settlement";
 
 const calendar = dailyCalendar(2, 20);
@@ -735,6 +736,36 @@ describe("proposeSettlement", () => {
     expect(result.error.code === "invalid_input" && result.error.path).toBe("view.calendar");
   });
 
+  it("returns invalid_input for two corporate-action rows sharing a (ticker, exDate)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+      corporateActions: [
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: expiryClose, factor: decimalString("0.5") },
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: expiryClose, factor: decimalString("0.5") },
+      ],
+    };
+    const op = operation({
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.corporateActions",
+      message: "duplicate corporate action for PETR4|2024-01-05",
+    });
+  });
+
   it("returns invalid_input for a duplicate (ticker, timeframe, asOf) candle", () => {
     const dupCandle = { ...underlyingCandle("30.00") };
     const view: MarketView = {
@@ -758,5 +789,105 @@ describe("proposeSettlement", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
     expect(result.error.code === "invalid_input" && result.error.path).toBe("view.candles");
+  });
+
+  it("derives a strike with confidence when a factor is ex-dated exactly on the settlement session itself", () => {
+    const settlementExpiry = "2024-01-08";
+    const settlementClose = "2024-01-08T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: settlementExpiry,
+          asOf: settlementClose,
+          open: decimalString("20.00"),
+          high: decimalString("20.00"),
+          low: decimalString("20.00"),
+          close: decimalString("20.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+      optionSeries: [
+        {
+          ticker: "PETR4C14",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("28.00"),
+          expiry: settlementExpiry,
+          style: "european",
+          asOf: "2024-01-02T21:00:00.000Z",
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: settlementExpiry,
+          asOf: "2024-01-08T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const op = operation({
+      expiry: settlementExpiry,
+      openedAt: "2024-01-03",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C14",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]).toMatchObject({
+      outcome: "exercised",
+      intrinsicValue: decimalString("6.00"),
+    });
+    expect(result.value.notes).toContainEqual(OPTION_STRIKE_DERIVED_NOTE);
+  });
+
+  it("keeps a strike unadjusted and flags it unconfirmed when a factor is ex-dated before the settlement session with no epoch reflecting it yet", () => {
+    const openedAt = "2024-01-03";
+    const view: MarketView = {
+      ...baseView,
+      candles: [underlyingCandle("14.50")],
+      optionSeries: [
+        { ...optionSeries("BBASD350", "call", "27.19"), asOf: "2024-01-02T21:00:00.000Z" },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-08",
+          asOf: "2024-01-08T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const op = operation({
+      openedAt,
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "BBASD350",
+          quantity: quantity(1),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]).toMatchObject({
+      outcome: "expired_worthless",
+      intrinsicValue: decimalString("0.00"),
+    });
+    expect(result.value.notes).toContainEqual(OPTION_STRIKE_UNCONFIRMED_NOTE);
   });
 });

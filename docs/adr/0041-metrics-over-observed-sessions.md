@@ -88,7 +88,8 @@ regardless of `hasCandle` for a warm-up session, so a leading session that happe
 candle is counted once, under warm-up, never doubled into both exclusions. `runBacktest` emits at
 most two new notes on the completed run, mirroring the four existing run-level codes
 (`negative_cash`, `limit_breach_warned`, `non_positive_equity`,
-`option_strike_unadjusted_across_corporate_action`):
+`option_strike_unadjusted_across_corporate_action` — repurposed by #69 part 2 (ADR-0013 `0.8.0`
+addendum) to mean "this strike may not reflect a corporate action"; still emitted):
 
 - `warm_up_sessions_excluded`, carrying the excluded count and, when known, the first tradable
   session's date (or, if the whole run stayed inside warm-up, that no session ever became

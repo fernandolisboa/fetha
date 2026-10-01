@@ -41,6 +41,11 @@ import { resolveOptionStrike } from "./option-strike";
 import { computePayoffProfile, type PricedLeg } from "./price-operation";
 import type { ProvenanceBase } from "./provenance";
 import { proposeSettlement as computeProposeSettlement } from "./propose-settlement";
+import {
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STRIKE_ADJUSTMENT_CODES,
+} from "./notes";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -124,8 +129,7 @@ function staleMarkNote(ticker: Ticker, session: SessionDate): Note {
 // share count and effective entry price are rebased by the product of every split/reverse-split
 // factor visible at `at` between the operation's `openedAt` and `through` (mark-to-market's own
 // `rebasedLegs`), keyed on the operation's own `underlying` for every leg — stock and option
-// alike (#69 part 2: B3 scales option holdings and re-strikes the listed series by the same
-// factor as the underlying, rather than forcing a series rollover).
+// alike.
 function legSplitFactor(
   view: MarketView,
   underlying: string,
@@ -161,10 +165,22 @@ function buildEntryPricedLegs(
   openedAt: SessionDate,
   through: SessionDate,
   legs: readonly OperationLeg[],
-): { ok: true; value: PricedLeg[] } | { ok: false; error: EngineError } {
+  expiry: SessionDate | null,
+): { ok: true; value: PricedLeg[]; notes: Note[] } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
+  // a max loss built on a derived or unconfirmed
+  // strike is flagged here too, not only once the operation has actually settled — the same two
+  // notes `propose-settlement.ts`'s own forwarding uses, deduplicated so several legs sharing
+  // the same adjustment do not repeat the note.
+  let anyDerived = false;
+  let anyUnconfirmed = false;
   for (const [legIndex, leg] of legs.entries()) {
-    const factorResult = legSplitFactor(view, underlying, openedAt, through, at);
+    // An option leg ceases to exist at its own listed expiry (// the same cap mark-to-market.ts already applies): a corporate action ex-dated after it
+    // rebases whatever stock position an exercise or assignment produced, never this leg's own
+    // quantity. A stock leg has no expiry of its own and rebases all the way to `through`.
+    const legThrough =
+      leg.role !== "stock" && expiry !== null && expiry < through ? expiry : through;
+    const factorResult = legSplitFactor(view, underlying, openedAt, legThrough, at);
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const effectiveQuantity = new Decimal(leg.quantity).div(factor).floor().toNumber();
@@ -193,15 +209,23 @@ function buildEntryPricedLegs(
       });
       continue;
     }
+    // option-strike.ts caps its own window at the series' own expiry internally, so `through`
+    // (never `legThrough`) is passed here — the same uncapped `atSession` every other caller
+    // passes, relying on that internal cap rather than re-deriving it.
     const resolvedStrike = resolveOptionStrike(view, leg.ticker, underlying, through, at);
     if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
+    if (resolvedStrike.value.adjustment === "derived") anyDerived = true;
+    if (resolvedStrike.value.adjustment === "unconfirmed") anyUnconfirmed = true;
     priced.push({
       valuation: dummyValuation(effectiveLeg),
       strike: resolvedStrike.value.strike,
       premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
     });
   }
-  return { ok: true, value: priced };
+  const notes: Note[] = [];
+  if (anyDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  if (anyUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  return { ok: true, value: priced, notes };
 }
 
 function computeOperationMaxLoss(
@@ -209,7 +233,7 @@ function computeOperationMaxLoss(
   at: Instant,
   horizonSession: SessionDate,
   operation: Operation,
-): { ok: true; value: Centavos | "unbounded" } | { ok: false; error: EngineError } {
+): { ok: true; value: Centavos | "unbounded"; notes: Note[] } | { ok: false; error: EngineError } {
   const spot = resolveUnderlyingSpot(view, operation.underlying, at);
   if (!spot)
     return { ok: false, error: { code: "missing_instrument", ticker: operation.underlying } };
@@ -220,10 +244,11 @@ function computeOperationMaxLoss(
     operation.openedAt,
     horizonSession,
     operation.legs,
+    operation.expiry,
   );
   if (!legsResult.ok) return legsResult;
   const { maxLoss } = computePayoffProfile(legsResult.value, spot);
-  return { ok: true, value: maxLoss };
+  return { ok: true, value: maxLoss, notes: legsResult.notes };
 }
 
 type LegClosure = { legIndex: number; closed: number };
@@ -341,16 +366,20 @@ function settlementPnl(
   if (!settlement.ok) return { ok: false, error: settlement.error };
 
   let pnl = new Decimal(0);
-  const notes: Note[] = [];
+  // Forwarded here rather than re-derived: `computeProposeSettlement` already decided, per leg,
+  // whether a strike was derived with confidence or merely kept and flagged — score's own settlement path surfaces the exact same notes a live
+  // settlement proposal would.
+  const notes: Note[] = settlement.value.notes.filter((n) => STRIKE_ADJUSTMENT_CODES.has(n.code));
   for (const legSettlement of settlement.value.legs) {
     const leg = legSettlement.leg;
-    const factorResult = legSplitFactor(
-      view,
-      underlying,
-      openedAt,
-      horizonSession.date,
-      horizonSession.close,
-    );
+    // A "kept" leg is a stock leg (never expires, rebased all the way to the horizon); every
+    // other outcome is an option leg, which ceases to exist at its own listed `expiry` — a
+    // corporate action ex-dated after it rebases the stock trade the exercise/assignment
+    // produced, never this leg's own premium. `expiry` is always at or before `horizonSession`
+    // here (both call sites only reach `settlementPnl` once the operation has expired by the
+    // horizon), so capping at it is never a no-op shortened to the wrong side.
+    const through = legSettlement.outcome === "kept" ? horizonSession.date : expiry;
+    const factorResult = legSplitFactor(view, underlying, openedAt, through, horizonSession.close);
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
@@ -387,7 +416,7 @@ function settlementPnl(
     }
 
     // `intrinsicValue` is already on the current (post-split) scale `settleLeg` resolved the
-    // strike against (#69 part 2, option-strike.ts) — the same scale `mark` is on in the "kept"
+    // strike against — the same scale `mark` is on in the "kept"
     // branch above, so it is compared against `effectiveEntry` directly, with no factor of its
     // own to apply.
     const settleValue = parseDecimal(legSettlement.intrinsicValue);
@@ -915,6 +944,7 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
     );
     if (!maxLossResult.ok) return err(maxLossResult.error);
     maxLoss = maxLossResult.value;
+    notes.push(...maxLossResult.notes);
 
     if (input.subject === "do_not_enter") {
       pnl = toCentavos(0);
@@ -930,7 +960,20 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       );
       if (!pnlResult.ok) return err(pnlResult.error);
       pnl = pnlResult.value;
-      notes.push(...pnlResult.notes);
+      // A settled operation's own strike-adjustment note (forwarded from `settlementPnl`,
+      // computed against the same leg/session) can be the exact one `maxLossResult` already
+      // pushed above; never repeat it. Only the two strike-adjustment codes are deduped, by
+      // `code` alone: those two are forwarded, unparameterized, from a settlement computed
+      // against the very same leg/session, so two notes sharing that code really are the same
+      // note (`Note` is plain, shared, immutable data per code, `notes.ts`). Every other code
+      // (e.g. `stale_price`, one per leg) is parameterized per leg and must never be collapsed
+      // across legs — deduping those by code alone silently dropped every stale leg after the
+      // first in a multi-leg operation.
+      for (const note of pnlResult.notes) {
+        const alreadyNoted =
+          STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code);
+        if (!alreadyNoted) notes.push(note);
+      }
     }
 
     if (maxLoss === "unbounded") {
@@ -950,7 +993,14 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       );
       if (!counterfactual.ok) return err(counterfactual.error);
       counterfactualPnl = counterfactual.pnl;
-      notes.push(...counterfactual.notes);
+      // Same strike-adjustment-only dedup as the taken-operation path above: a do_not_enter
+      // counterfactual that settles can forward the exact same strike-adjustment note
+      // `maxLossResult` already pushed for the (never-taken) operation's own max loss.
+      for (const note of counterfactual.notes) {
+        const alreadyNoted =
+          STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code);
+        if (!alreadyNoted) notes.push(note);
+      }
     }
   }
 

@@ -206,18 +206,10 @@ function validateViewContents(view: MarketView): Result<Evaluation> | null {
     }
   }
 
-  const factorDupe = sortUnique(
-    view.corporateActions,
-    (f) => `${f.ticker}|${f.exDate}`,
-    (a, b) => codeUnitCompare(a.ticker, b.ticker) || codeUnitCompare(a.exDate, b.exDate),
-  );
-  if (!factorDupe.ok) {
-    return invalidInput(
-      "view.corporateActions",
-      `duplicate corporate action factor for ${factorDupe.duplicateKey}`,
-    );
-  }
-
+  // A duplicate (ticker, exDate) corporate-action row is now caught earlier, by
+  // `validateIntegrity` (`corporateActionIntegrityError`, shared with every other caller that
+  // resolves a strike or a split factor, which always
+  // runs before this function — so this never needs its own copy of that check.
   for (const [index, f] of view.corporateActions.entries()) {
     if (!isPositiveDecimal(f.factor)) {
       return invalidInput(

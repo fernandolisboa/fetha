@@ -17,7 +17,8 @@ import type {
 import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
-import { resolveOptionStrike } from "./option-strike";
+import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
 import { toCentavos } from "./scalars";
@@ -55,18 +56,20 @@ export function settleLeg(
   session: SessionDate,
   at: Instant,
   view: MarketView,
-): { ok: true; value: LegSettlement; strikeDerived: boolean } | { ok: false; error: EngineError } {
+):
+  | { ok: true; value: LegSettlement; adjustment: OptionStrikeAdjustment }
+  | { ok: false; error: EngineError } {
   if (leg.role === "stock") {
     return {
       ok: true,
       value: { leg: { ...leg, role: "stock" }, outcome: "kept", intrinsicValue: null, fills: [] },
-      strikeDerived: false,
+      adjustment: "none",
     };
   }
 
   const resolved = resolveOptionStrike(view, leg.ticker, underlying, session, at);
   if (!resolved.ok) return { ok: false, error: resolved.error };
-  const { series, strike: strikeString, derived: strikeDerived } = resolved.value;
+  const { series, strike: strikeString, adjustment } = resolved.value;
   if (!parseDecimal(strikeString).gt(0)) {
     return {
       ok: false,
@@ -124,7 +127,7 @@ export function settleLeg(
         intrinsicValue,
         fills,
       },
-      strikeDerived,
+      adjustment,
     };
   }
   return {
@@ -141,7 +144,7 @@ export function settleLeg(
       intrinsicValue,
       fills,
     },
-    strikeDerived,
+    adjustment,
   };
 }
 
@@ -190,6 +193,7 @@ export function proposeSettlement(
 
   const legs: LegSettlement[] = [];
   let anyStrikeDerived = false;
+  let anyStrikeUnconfirmed = false;
   for (const [legIndex, leg] of operation.legs.entries()) {
     const settled = settleLeg(
       leg,
@@ -202,7 +206,8 @@ export function proposeSettlement(
     );
     if (!settled.ok) return err(settled.error);
     legs.push(settled.value);
-    anyStrikeDerived ||= settled.strikeDerived;
+    if (settled.adjustment === "derived") anyStrikeDerived = true;
+    if (settled.adjustment === "unconfirmed") anyStrikeUnconfirmed = true;
   }
 
   // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
@@ -217,16 +222,18 @@ export function proposeSettlement(
         },
       ]
     : [];
-  // #69 part 2: at least one option leg's strike had no epoch of its own yet reflecting a
-  // corporate action visible by this settlement, so the strike above was derived from the
-  // underlying's own factor rather than read straight off a listed epoch.
-  if (anyStrikeDerived) {
-    notes.push({
-      code: "option_strike_derived_across_corporate_action",
-      message:
-        "a corporate action was visible on an operation with an option leg with no epoch of its own reflecting it yet; its strike was derived from the underlying's own factor",
-    });
-  }
+  // #69 part 2, at least one option leg's strike had a factor ex-dated
+  // exactly on the settlement session itself, applied with confidence since that session's own
+  // epoch cannot exist yet (option-strike.ts). this must be the
+  // exact same `Note` object `score.ts`'s own forwarding uses (`buildEntryPricedLegs`), or its
+  // dedup-by-code-and-message guard cannot recognize the two as the same note and a settled
+  // operation reads it twice.
+  if (anyStrikeDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  // At least one option leg's strike had a factor ex-dated earlier still, with no epoch of its
+  // own confirming it reflects the strike above: this could be a genuine ingestion gap or an
+  // already-correct, early-dated epoch (ADR-0056 backfill step 2) — indistinguishable from here,
+  // so the strike is kept as read and flagged rather than guessed either way.
+  if (anyStrikeUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
 
   return {
     ok: true,

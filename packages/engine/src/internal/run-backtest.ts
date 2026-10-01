@@ -52,11 +52,13 @@ import { groupBy } from "./search";
 import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { settleLeg } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
+import { corporateActionIntegrityError } from "./validate-view-integrity";
 import { computeWalkForward } from "./walk-forward";
 
 type PendingEntry = {
@@ -135,11 +137,15 @@ type BacktestState = {
   pendingTaxDeduction: { monthKey: string; tax: number } | null;
   operationSeq: number;
   equityClampEngaged: boolean;
-  // #69 part 2: set once a settlement sees at least one option leg whose strike had no epoch
-  // of its own yet reflecting a corporate action visible by that settlement, so run-wide the
-  // run can flag that at least one strike was derived from the underlying's own factor rather
-  // than read straight off a listed epoch (option-strike.ts).
+  // #69 part 2, set once a settlement sees at least one option leg whose
+  // strike carried a factor ex-dated exactly on that settlement's own session, applied with
+  // confidence since that session's own epoch could not exist yet (option-strike.ts).
   optionStrikeDerivedAcrossCorporateActionNoted: boolean;
+  // Set once a settlement sees at least one option leg whose strike carried a factor ex-dated
+  // earlier, with no epoch of its own confirming it: a genuine ingestion gap and an
+  // already-correct, early-dated backfill (ADR-0056 step 2) are indistinguishable from here, so
+  // the strike is kept as read but flagged, run-wide, rather than guessed either way.
+  optionStrikeUnconfirmedAcrossCorporateActionNoted: boolean;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -172,6 +178,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     operationSeq: 0,
     equityClampEngaged: false,
     optionStrikeDerivedAcrossCorporateActionNoted: false,
+    optionStrikeUnconfirmedAcrossCorporateActionNoted: false,
   };
 }
 
@@ -304,6 +311,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
   if (typeof raw.currentMonthKey !== "string" && raw.currentMonthKey !== null) return false;
   if (typeof raw.equityClampEngaged !== "boolean") return false;
   if (typeof raw.optionStrikeDerivedAcrossCorporateActionNoted !== "boolean") return false;
+  if (typeof raw.optionStrikeUnconfirmedAcrossCorporateActionNoted !== "boolean") return false;
   if (raw.pendingTaxDeduction !== null) {
     if (!isPlainObject(raw.pendingTaxDeduction)) return false;
     if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
@@ -547,6 +555,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       );
     }
   }
+  const corporateActionError = corporateActionIntegrityError(view.corporateActions);
+  if (corporateActionError) return { ok: false, error: corporateActionError };
 
   const candlesByTicker = indexTickerSessions(view.candles.filter((c) => c.timeframe === "D1"));
 
@@ -796,9 +806,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           session.date,
           session.close,
         );
-        // Every leg's signal-time quantity is rescaled the same way (#69 part 2: B3 scales
-        // option holdings by the same factor as the underlying, rather than forcing a series
-        // rollover).
+        // Every leg's signal-time quantity is rescaled the same way.
         const rescaledQuantities: number[] = [];
         for (const leg of pending.legs) {
           const rescaled = entryFactor.eq(1)
@@ -1160,6 +1168,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       let sellProceeds = new Decimal(0);
       let settlementCosts = new Decimal(0);
       let anyStrikeDerived = false;
+      let anyStrikeUnconfirmed = false;
 
       for (const [legIndex, leg] of op.legs.entries()) {
         if (leg.role === "stock") {
@@ -1195,13 +1204,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           view,
         );
         if (!settled.ok) return { ok: false, error: settled.error };
-        anyStrikeDerived ||= settled.strikeDerived;
+        if (settled.adjustment === "derived") anyStrikeDerived = true;
+        if (settled.adjustment === "unconfirmed") anyStrikeUnconfirmed = true;
 
         // Every option leg folds its own premium into pnl the same way whether it expires
         // worthless or is exercised/assigned: the intrinsic value it carries shows up
         // entirely in the stock trade the exercise/assignment produces, never twice (ADR-0014
         // "Taxes", extended here to the operation's own pnl). Rebased the same way every other
-        // leg is (#69 part 2): the total premium this collapses to (`effectiveEntryPrice *
+        // leg is: the total premium this collapses to (`effectiveEntryPrice *
         // effectiveQuantity`) always equals `leg.entryPrice * leg.quantity`, the real cash this
         // leg's entry actually paid or received, regardless of `splitFactor`.
         const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
@@ -1221,7 +1231,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
         // settleLeg's fill is cost-free (a settlement proposal is not a trade, ADR-0013 #25
         // addendum); the run charges its own cost model on it, as it does on every other fill.
-        // B3 scales option holdings by the same factor as the underlying (#69 part 2): the real,
+        // B3 scales option holdings by the same factor as the underlying: the real,
         // immediate trade only ever moves a whole number of shares, so it is floored the same
         // way a stock leg's own exit is, with any fractional remainder cash-settled right here,
         // at this same strike price, the same way a stock-leg exit's own split residue is
@@ -1252,7 +1262,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           state.cash -= (fill.side === "buy" ? 1 : -1) * gross + costs;
           if (fill.side === "sell") state.currentMonthStockSales += gross;
         } else {
-          settlement.push(settled.value);
+          // The effective units floored to zero (a corporate-action factor leaving less than
+          // one whole share to trade): the stored artifact must not report a fill that never
+          // happened, so the proposed fill `settleLeg` returned is dropped, never carried
+          // through as-is.
+          settlement.push({ ...settled.value, fills: [] });
         }
         if (residue.isPositive()) {
           const residueGrossCentavos = grossCentavos(bareFill.price, residue).round().toNumber();
@@ -1274,6 +1288,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
       if (anyStrikeDerived) {
         state.optionStrikeDerivedAcrossCorporateActionNoted = true;
+      }
+      if (anyStrikeUnconfirmed) {
+        state.optionStrikeUnconfirmedAcrossCorporateActionNoted = true;
       }
 
       const matchedQty = Decimal.min(buyQty, sellQty);
@@ -1837,12 +1854,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         "equity was non-positive at least once during the run and was clamped to a positive sizing budget",
     });
   }
-  if (state.optionStrikeDerivedAcrossCorporateActionNoted) {
-    notes.push({
-      code: "option_strike_derived_across_corporate_action",
-      message:
-        "a corporate action was visible on an operation with an option leg with no epoch of its own reflecting it yet; its strike was derived from the underlying's own factor (#69 part 2)",
-    });
+  // the shared `notes.ts` constants, not a third independent
+  // wording of the same two codes (score.ts and propose-settlement.ts each already emit these
+  // exact objects; run-backtest.ts rolls at least one leg-level occurrence up to the run as a
+  // whole, ADR-0013's deferred roll-up, issue #269).
+  if (state.optionStrikeDerivedAcrossCorporateActionNoted) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  if (state.optionStrikeUnconfirmedAcrossCorporateActionNoted) {
+    notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
   }
 
   const truncated = batchTruncationReport({

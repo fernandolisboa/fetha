@@ -19,8 +19,10 @@ export function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): b
 // A true (ticker, asOf) duplicate (a data-integrity issue, not a re-listing: a re-listing
 // always advances asOf) must still resolve to the same row regardless of array order. Break
 // the tie by strike, then expiry, then right, then ticker, all numerically/lexicographically
-// (documented in ADR-0013's #21 addendum).
-function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
+// (documented in ADR-0013's #21 addendum). Exported for `option-strike.ts`, which must collapse the same (ticker, asOf) duplicates the
+// same way before chaining strike transitions between them, or two rows sharing an exact asOf
+// can chain in array order instead of resolving to the single row `resolveSeries` itself would.
+export function isEarlierOnExactTie(a: OptionSeries, b: OptionSeries): boolean {
   const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
   if (strikeCompare !== 0) return strikeCompare < 0;
   if (a.expiry !== b.expiry) return a.expiry < b.expiry;

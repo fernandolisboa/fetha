@@ -518,9 +518,7 @@ describe("markToMarket", () => {
     expect(stockLeg?.leg.quantity).toBe(quantity(200));
     expect(stockLeg?.greeks?.delta).toBe(decimalString("1.000000"));
     const optionLeg = result.value.operations[0]?.pricing.legs[1];
-    // The option leg rebases the same way the stock leg does (#69 part 2: B3 scales option
-    // holdings by the same factor as the underlying, rather than exempting the option's own
-    // ticker): pre-split 1 contract is 2 post-split contracts.
+    // The option leg rebases the same way the stock leg does: pre-split 1 contract is 2 post-split contracts.
     expect(optionLeg?.leg.quantity).toBe(quantity(2));
     // The stock entry price is rebased to the post-split scale too (20.00 * 0.5 = 10.00), so
     // marking at the post-split spot of 10.00 shows no phantom gain on the stock leg from the
@@ -966,6 +964,125 @@ describe("markToMarket", () => {
     });
   });
 
+  it("caps a long call's factor window at its own expiry: a split ex-dated after expiry never rebases it", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-08",
+          asOf: "2024-01-08T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-05",
+          asOf: "2024-01-05T21:00:00.000Z",
+          open: decimalString("30.00"),
+          high: decimalString("30.00"),
+          low: decimalString("30.00"),
+          close: decimalString("30.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    const op = stockOperation({
+      id: "op-expired-call",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-02",
+    });
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(0));
+    const optionLeg = result.value.operations[0]?.pricing.legs[0];
+    expect(optionLeg?.fairValue).toBe(decimalString("2.00"));
+    expect(
+      optionLeg?.notes.some((n) => n.code === "option_strike_derived_across_corporate_action"),
+    ).toBe(false);
+  });
+
+  it("derives a strike exactly on the series' own last session, stably, even marked days later", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [{ ...callSeries("PETR4C28", "28.00"), expiry: "2024-01-05" }],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-05",
+          asOf: "2024-01-05T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-05",
+          asOf: "2024-01-05T21:00:00.000Z",
+          open: decimalString("30.00"),
+          high: decimalString("30.00"),
+          low: decimalString("30.00"),
+          close: decimalString("30.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    const op = stockOperation({
+      id: "op-expired-call-on-expiry-split",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-02",
+    });
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A factor ex-dated exactly on the series' own last session can never get an epoch of its
+    // own, since the series ceases to exist at that very session — comparing against the
+    // uncapped mark session (01-10) instead of `through = min(atSession, expiry) = 01-05` would
+    // have wrongly read this as "unconfirmed" days after it should have derived.
+    const optionLeg = result.value.operations[0]?.pricing.legs[0];
+    // Intrinsic at the derived strike (30.00 - 14.00 = 16.00), pinning the strike indirectly;
+    // `leg.quantity` is the rebased, floored effective count `priceLegsAt` actually priced.
+    expect(optionLeg?.fairValue).toBe(decimalString("16.00"));
+    expect(optionLeg?.leg.quantity).toBe(quantity(200));
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(300000));
+    expect(
+      optionLeg?.notes.some((n) => n.code === "option_strike_derived_across_corporate_action"),
+    ).toBe(true);
+  });
+
   it("prices a short call normally, never at intrinsic, before its own expiry session's close", () => {
     const expirySessionOpen = "2024-01-05T13:00:00.000Z";
     const expirySessionClose = "2024-01-05T21:00:00.000Z";
@@ -1286,7 +1403,7 @@ describe("markToMarket", () => {
     });
   });
 
-  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole mark (#69 part 2)", () => {
+  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole mark", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
@@ -1394,6 +1511,27 @@ describe("markToMarket", () => {
       code: "invalid_input",
       path: "view.calendar",
       message: "duplicate calendar date 2024-01-02",
+    });
+  });
+
+  it("returns invalid_input for two corporate-action rows sharing a (ticker, exDate)", () => {
+    const view: MarketView = {
+      ...baseView,
+      corporateActions: [
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: at, factor: decimalString("0.5") },
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: at, factor: decimalString("0.5") },
+      ],
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "invalid_input",
+      path: "view.corporateActions",
+      message: "duplicate corporate action for PETR4|2024-01-05",
     });
   });
 
