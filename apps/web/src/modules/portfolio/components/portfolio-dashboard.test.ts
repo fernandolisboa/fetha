@@ -118,6 +118,12 @@ describe("settlementLegs (#271 review round 1 item 5)", () => {
     expect(view).toMatchObject({ quantity: 200, price: null });
   });
 
+  it("returns no legs when a corrupt factor left no closing quantities (#282)", () => {
+    expect(
+      settlementLegs({ ...pendingSettlement([exercisedLegSettlement()]), closingQuantities: null }),
+    ).toEqual([]);
+  });
+
   it("returns no legs without a proposal", () => {
     expect(settlementLegs({ ...pendingSettlement([]), proposal: null })).toEqual([]);
   });

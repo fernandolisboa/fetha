@@ -148,17 +148,16 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
 export function settlementLegs(
   pending: PortfolioReadModel["pendingSettlements"][number],
 ): SettlementLegView[] {
-  if (!pending.proposal) return [];
-  return pending.proposal.legs.map((settlement) => {
+  const { proposal, closingQuantities } = pending;
+  if (!proposal || !closingQuantities) return [];
+  return proposal.legs.map((settlement) => {
     const fill = settlement.fills[0];
     return {
       ticker: settlement.leg.ticker,
       role: settlement.leg.role,
       side: settlement.leg.side,
       quantity:
-        pending.closingQuantities[settlement.leg.ticker] ??
-        fill?.quantity ??
-        settlement.leg.quantity,
+        closingQuantities[settlement.leg.ticker] ?? fill?.quantity ?? settlement.leg.quantity,
       price: fill?.price ?? null,
       strike: (pending.strikes[settlement.leg.ticker] as DecimalString | undefined) ?? null,
       intrinsicValue: settlement.intrinsicValue,
@@ -183,7 +182,7 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
                 {pending.state.expiry && session(pending.state.expiry)}
               </span>
             </span>
-            {pending.proposal ? (
+            {pending.proposal && pending.closingQuantities ? (
               <SettlementDialog
                 operationId={pending.operation.id}
                 underlying={pending.operation.underlying}
@@ -193,7 +192,9 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
               />
             ) : (
               <span className="text-[12px]" style={{ color: "var(--warning)" }}>
-                {labels.settlements.proposalError}
+                {pending.proposal
+                  ? labels.settlements.factorError
+                  : labels.settlements.proposalError}
               </span>
             )}
           </li>

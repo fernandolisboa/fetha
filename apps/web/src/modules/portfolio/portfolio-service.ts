@@ -70,8 +70,8 @@ export interface PendingSettlement {
   fillIds: string[];
   proposal: SettlementProposal | null;
   // #282: the count each option leg closes at (`closingQuantities`), which the dialog shows and
-  // the confirm action checks against.
-  closingQuantities: Record<string, number>;
+  // the confirm action checks against; null when a corrupt factor leaves no storable count.
+  closingQuantities: Record<string, number> | null;
   strikes: Record<string, string>;
 }
 
@@ -355,10 +355,8 @@ export async function loadPortfolio(
         operation,
         state,
         fillIds: operationFills.map((fill) => fill.id),
-        // A corrupt factor leaves no count the ledger could store: the same "no proposal" the
-        // dashboard already shows when the expiry session's data is missing.
-        proposal: closing ? proposal : null,
-        closingQuantities: closing ? Object.fromEntries(closing) : {},
+        proposal,
+        closingQuantities: closing ? Object.fromEntries(closing) : null,
         strikes: Object.fromEntries(
           state.legs.flatMap((leg) => {
             const facts = state.expiry

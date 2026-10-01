@@ -113,6 +113,8 @@ const en = {
       group: "Create operation",
       ungroupedHint: "Held outside any operation; create one to settle it.",
       proposalError: "No settlement proposal: the expiry session's data is missing.",
+      factorError:
+        "No settlement proposal: a corporate-action factor on the underlying yields an invalid quantity.",
       dialogTitle: "Settlement of",
       underlyingClose: "Underlying close at expiry",
       leg: "Leg",
@@ -357,6 +359,8 @@ const ptBR = {
       group: "Criar operação",
       ungroupedHint: "Fora de qualquer operação; crie uma para liquidar.",
       proposalError: "Sem proposta de liquidação: faltam os dados do pregão de vencimento.",
+      factorError:
+        "Sem proposta de liquidação: o fator de um evento societário no ativo-objeto gera uma quantidade inválida.",
       dialogTitle: "Liquidação de",
       underlyingClose: "Fechamento do ativo-objeto no vencimento",
       leg: "Perna",

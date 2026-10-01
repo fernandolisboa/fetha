@@ -393,7 +393,7 @@ describe("real positions follow a split as the broker records it (#271)", () => 
     expect(settled.positions.map((row) => row.holding.ticker)).not.toContain(put);
   });
 
-  it("(f) a factor that pushes the closing count out of bounds leaves no proposal to confirm (#282)", async () => {
+  it("(f) a factor that pushes the closing count out of bounds leaves nothing to confirm (#282)", async () => {
     const market = await seedOptionMarket();
     const owner = await signIn("out-of-bounds-factor");
     const put = `${market.underlying.slice(0, 4)}P320`;
@@ -426,7 +426,8 @@ describe("real positions follow a split as the broker records it (#271)", () => 
 
     const afterExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[8] ?? ""));
     const [pending] = afterExpiry.pendingSettlements;
-    expect(pending?.proposal).toBeNull();
+    expect(pending?.proposal).not.toBeNull();
+    expect(pending?.closingQuantities).toBeNull();
     expect(
       await confirmSettlementAction({
         operationId: pending?.operation.id,

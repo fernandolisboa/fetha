@@ -289,9 +289,11 @@ otherwise (dissolved below one unit) the nominal count. The settlement dialog sh
 render and confirm returns `conflict` for an expired-worthless leg too), and `planSettlement`
 writes it. A non-positive factor or one that pushes the count outside `Quantity`'s bounds is
 refused as corrupt data instead of being folded into the dissolved fallback or failing at the
-integer column: the dashboard shows the operation without a proposal, and confirm returns
-`no_proposal`. That code and its copy were written for "nothing to settle"; a corrupt factor reuses
-them rather than adding a distinct error, worth revisiting if a real case ever needs telling apart. `dissolvedTickers`, which nothing read, is gone.
+integer column: the dashboard names the corporate-action factor as the reason there is nothing to
+confirm (its own message, not the missing-expiry-data one), and confirm returns `no_proposal`.
+A leg dissolved below one unit still writes its nominal count, which read-back normalization
+inverse-rebases (nominal 1 at F = 10 reads back as 10 against a 1-share buy); that netting gap
+belongs with the residual-cash follow-up above. `dissolvedTickers`, which nothing read, is gone.
 
 ## Considered options
 
