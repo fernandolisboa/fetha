@@ -147,9 +147,31 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   session's close, the same single reading instant as every other caller above) before the fill,
   so it lands on the post-split share count the fill's post-split price actually trades at, never
   the pre-split count at a post-split price. A factor that rounds a pending entry's quantity to
-  zero, or past a safe integer, is `invalid_input` the same way. Premise superseded by ADR-0056
-  (option series keep their ticker; strikes are point-in-time) for an option leg specifically:
-  engine note unchanged until #69 part 2.
+  zero, or past a safe integer, is `invalid_input` the same way.
+  - **Amended by #69 part 2 (ADR-0013 addendum, `ENGINE_VERSION` `0.8.0`): an option leg rebases
+    the same way, and its strike derives when no listed epoch reflects the split yet.** `F` above
+    was already written leg-general — this rule never carved out a stock-only exception of its
+    own — but the implementation did, through a stock-only gate the #23 round-2 batch and ADR-0013's
+    "Known gap" note left in place pending #69. That gate is now removed: an option leg's
+    `quantity` and `entryPrice` rebase by the same `F`, keyed by `operation.underlying` (factors
+    are recorded per underlying; the option keeps its own ticker across the event, ADR-0056). An option leg's quantity
+    window is capped at its own expiry (an option cannot be split after it ceases to exist). Its
+    strike follows the ADR-0013 `0.8.0` addendum's correctness round 2 rule, the single statement
+    of it: the strike is a property of the series, not of the holding, so there is no entry-time
+    comparison at all — `resolveOptionStrike` reads the latest visible epoch's strike as-is unless
+    a visible factor on the underlying is ex-dated exactly on the pricing session capped at the
+    series' expiry (ADR-0013 `through`) (derived, confidently, since that session's own epoch
+    cannot exist yet) or ex-dated earlier with no
+    epoch of its own confirming the strike reflects it (kept as read, but flagged, since a genuine
+    ingestion gap and an already-correct early backfill are indistinguishable from here). An
+    exercised or assigned option leg's real trade floors its rebased quantity to a whole share,
+    cash-settling the fractional residue immediately at that leg's own strike — the same residue
+    treatment this rule already specifies for a stock leg's fill — while the full unrounded
+    effective quantity still feeds the average-cost and residual-position bucketing, so a settled
+    option leg nets correctly against a stock leg already in the same operation (a collar, a
+    covered call). See the ADR-0013 `0.8.0` addendum for the shared `resolveOptionStrike` helper
+    and its two notes, `option_strike_derived_across_corporate_action` and
+    `option_strike_unadjusted_across_corporate_action`.
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same

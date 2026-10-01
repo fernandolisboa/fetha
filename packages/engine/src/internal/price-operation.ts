@@ -16,7 +16,7 @@ import type {
   TradingSession,
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
-import { calendarIntegrityError } from "./validate-view-integrity";
+import { calendarIntegrityError, corporateActionIntegrityError } from "./validate-view-integrity";
 import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
@@ -28,7 +28,13 @@ import {
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
-import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
+import {
+  NO_RISK_PROFILE_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STALE_PRICE_NOTE,
+} from "./notes";
+import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLeg } from "./option-pricing";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -116,23 +122,30 @@ function valueOneLeg(
     };
   }
 
-  const series = resolveSeries(view, leg.ticker, at);
-  if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
+  const resolvedStrike = resolveOptionStrike(view, leg.ticker, underlying, atSession, at);
+  if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
+  const { series, strike: strikeString, adjustment } = resolvedStrike.value;
   if (series.underlying !== underlying) {
     return {
       ok: false,
       error: { code: "invalid_input", path: legPath, message: "leg underlying mismatch" },
     };
   }
-  if (!isPositive(series.strike)) {
+  if (!isPositive(strikeString)) {
     return {
       ok: false,
       error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
+  const strikeAdjustmentNote: Note | null =
+    adjustment === "derived"
+      ? OPTION_STRIKE_DERIVED_NOTE
+      : adjustment === "unconfirmed"
+        ? OPTION_STRIKE_UNCONFIRMED_NOTE
+        : null;
 
   if (expiredIntrinsicBasis !== null) {
-    const strike = parseDecimal(series.strike);
+    const strike = parseDecimal(strikeString);
     const basis = parseDecimal(expiredIntrinsicBasis);
     const intrinsic =
       leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
@@ -155,7 +168,8 @@ function valueOneLeg(
         },
       ],
     };
-    return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit: intrinsic } };
+    if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
+    return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic } };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -210,7 +224,7 @@ function valueOneLeg(
     );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
-    strike: series.strike,
+    strike: strikeString,
     spot,
     riskFreeRate,
     dividendYield,
@@ -219,13 +233,14 @@ function valueOneLeg(
     givenVolatility: leg.volatility ?? null,
     suppressStaleImpliedVolatility,
   });
+  if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
   const premiumPerUnit = valuation.price
     ? parseDecimal(valuation.price)
     : valuation.fairValue
       ? parseDecimal(valuation.fairValue)
       : new Decimal(0);
 
-  return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit } };
+  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit } };
 }
 
 function legIntrinsicSlopeAtInfinity(role: "stock" | "call" | "put"): number {
@@ -943,6 +958,8 @@ export function priceOperation(
 ): Result<OperationPricing> {
   const calendarError = calendarIntegrityError(input.view.calendar);
   if (calendarError) return err(calendarError);
+  const corporateActionError = corporateActionIntegrityError(input.view.corporateActions);
+  if (corporateActionError) return err(corporateActionError);
   if (Array.isArray(input.legs)) {
     const [firstLeg] = input.legs;
     if (!firstLeg) {

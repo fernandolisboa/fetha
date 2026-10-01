@@ -77,10 +77,18 @@ function runWithNotes(notes: Note[]): BacktestRun {
 }
 
 describe("generalNotesFor", () => {
-  it("excludes the option-strike-across-corporate-action note, which the operations table surfaces instead", () => {
-    expect(surfacedNoteCodes).toContain("option_strike_unadjusted_across_corporate_action");
+  it("includes the unadjusted-strike-across-corporate-action note in the general notes panel: the engine now fires it run-wide, never per operation, so the operations table's own head is not a place it would ever be seen", () => {
+    expect(surfacedNoteCodes).not.toContain("option_strike_unadjusted_across_corporate_action");
     const run = runWithNotes([note("option_strike_unadjusted_across_corporate_action")]);
-    expect(generalNotesFor(run)).toEqual([]);
+    expect(generalNotesFor(run)).toEqual([
+      note("option_strike_unadjusted_across_corporate_action"),
+    ]);
+  });
+
+  it("includes the derived-strike-across-corporate-action note in the general notes panel: the engine fires it run-wide, never per operation, so the operations table's own head is not a place it would ever be seen", () => {
+    expect(surfacedNoteCodes).not.toContain("option_strike_derived_across_corporate_action");
+    const run = runWithNotes([note("option_strike_derived_across_corporate_action")]);
+    expect(generalNotesFor(run)).toEqual([note("option_strike_derived_across_corporate_action")]);
   });
 
   it("never filters no_operation, less_than_one_effective_unit or no_risk_profile, which the run never emits", () => {

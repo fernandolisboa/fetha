@@ -115,6 +115,40 @@ describe("priceOperation (concrete legs)", () => {
     });
   });
 
+  it("rejects a view with two corporate-action rows sharing a (ticker, exDate) as invalid_input", () => {
+    const view: MarketView = {
+      ...baseView,
+      corporateActions: [
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: at, factor: decimalString("0.5") },
+        { ticker: "PETR4", exDate: "2024-01-05", asOf: at, factor: decimalString("0.5") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("30.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_input",
+        path: "view.corporateActions",
+        message: "duplicate corporate action for PETR4|2024-01-05",
+      },
+    });
+  });
+
   it("rejects a non-positive given volatility as invalid_input", () => {
     const view: MarketView = { ...baseView, optionSeries: [callSeries("PETR4C40", "40.00")] };
     const result = priceOperation(
@@ -1117,6 +1151,33 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
+  });
+
+  it("reads an option leg's strike unadjusted when the view carries no calendar to anchor derivation to", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: [],
+      optionSeries: [callSeries("PETR4C40", "40.00")],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
   });
 
   it("returns insufficient_data when a concrete option leg's expiry is not in the calendar", () => {

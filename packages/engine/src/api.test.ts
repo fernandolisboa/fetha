@@ -269,6 +269,7 @@ describe("closed vocabularies", () => {
       "less_than_one_effective_unit",
       "stale_price_across_corporate_action",
       "option_strike_unadjusted_across_corporate_action",
+      "option_strike_derived_across_corporate_action",
       "candle_less_sessions_excluded",
       "warm_up_sessions_excluded",
     ]);

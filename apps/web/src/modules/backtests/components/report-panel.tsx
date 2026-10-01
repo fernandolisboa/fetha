@@ -104,10 +104,19 @@ const limitBreachCodes: NoteCode[] = ["limit_breach_warned"];
 // gives short_window_not_annualized beside cagr/sharpe.
 const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_sessions_excluded"];
 // `run-backtest.ts` (packages/engine) assembles `BacktestRun.notes` from the
-// metrics notes plus six run-level codes: `negative_cash`,
+// metrics notes plus seven run-level codes: `negative_cash`,
 // `limit_breach_warned`, `non_positive_equity`,
-// `option_strike_unadjusted_across_corporate_action`,
+// `option_strike_derived_across_corporate_action` and
+// `option_strike_unadjusted_across_corporate_action` (ADR-0013 `0.8.0`
+// addendum, the legacy code is repurposed, not retired —
+// it now means "this strike may not reflect a corporate action"),
 // `warm_up_sessions_excluded` and `candle_less_sessions_excluded` (ADR-0041).
+// Both strike-adjustment codes fire once, run-wide, never per operation (#69
+// part 2), so neither gets the `operationCodes`-style treatment a note the
+// engine attaches to a specific operation or fill would — that would hide it
+// everywhere a run has no operations-table row to render it beside; both fall
+// through to the general notes panel instead, same as any other run-level
+// code with no dedicated spot of its own.
 // `no_operation`,
 // `less_than_one_effective_unit` and `no_risk_profile` are valid `NoteCode`
 // union members but the run never emits them here — the first two are
@@ -119,19 +128,13 @@ const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_ses
 // backtests/actions.ts refuses to create a run without a declared risk
 // profile, and that profile rides on the run into every pricing call
 // (this corrects an earlier, mistaken instruction to filter it as if it
-// were never emitted). Only the one code
-// the run does emit is filtered here, to keep it out of the general notes
-// panel: it renders once at this panel's own head via `<NotesFor
-// codes={operationCodes} />` below, not per operations-table row. If the
-// report should ever show the per-operation notes, the
-// engine needs to roll them up onto the run first (see the follow-up issue
-// filed for this).
-const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
+// were never emitted). If the report should ever show the per-operation
+// notes, the engine needs to roll them up onto the run first (see the
+// follow-up issue filed for this).
 const surfacedCodes: NoteCode[] = [
   ...equityDrawdownCodes,
   ...annualizedCodes,
   ...limitBreachCodes,
-  ...operationCodes,
   ...sessionsCodes,
 ];
 
@@ -228,7 +231,6 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
       <WalkForwardTable run={run} />
 
       <Panel title={t.report.operationsTable.title}>
-        <NotesFor run={run} codes={operationCodes} />
         {run.operations.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.report.operationsTable.empty}</p>
         ) : (

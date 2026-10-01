@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.7.0";
+export const ENGINE_VERSION = "0.8.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -150,6 +150,7 @@ export type NoteCode =
   | "less_than_one_effective_unit"
   | "stale_price_across_corporate_action"
   | "option_strike_unadjusted_across_corporate_action"
+  | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
   | "warm_up_sessions_excluded";
 export const noteCodes = [
@@ -178,6 +179,7 @@ export const noteCodes = [
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
   "option_strike_unadjusted_across_corporate_action",
+  "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
 ] as const satisfies readonly NoteCode[];
@@ -959,7 +961,9 @@ export interface Engine {
 - `tradedQuantity` is the integer count of shares or contracts traded in the candle or session;
   the DSL price field of the same name reads it. `OptionDayPrice.tradedQuantity` and `trades` have
   no adjusted form: option series are exchange-adjusted instead of engine-adjusted (Q51,
-  `splitFactor`, see below), and their nominal count is never scaled. A candle's financial volume
+  `splitFactor`, see below; superseded by #69 part 2, 0.8.0 addendum — B3's own series epoch is
+  not always visible in time, so the engine now derives a strike itself when it isn't). A candle's
+  financial volume
   in reais is not a stored field (only `tradedQuantity` is), so there is nothing to leave
   unscaled: were a financial-volume field added later, it would stay nominal, since price times
   quantity is already invariant under the split and scaling it again would double-count the
@@ -1432,7 +1436,7 @@ observations stamped the same `asOf` (a real occurrence — CDI at year end, or 
 publication schedule maps several dates onto one `asOf`) are not two independent points to the
 engine, they are one observation recorded twice, and the more recent `date` is the more accurate
 reading of it. A duplicate `(ticker, asOf)` in `optionSeries` is a narrower case: it is not
-rejected, because a legitimate re-listing (a strike adjustment, a superseded expiry) always
+rejected, because a legitimate new row (a new strike epoch, a superseded expiry) always
 advances `asOf`, so a true tie on `(ticker, asOf)` is data noise, not a signal the caller needs
 surfaced; it resolves deterministically to the lower-strike row regardless of array order (PR
 #53 round 4 item 4). `since < at`. `resume.configDigest` must equal the digest of `config` and
@@ -1709,7 +1713,10 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   comparison rebases only a stock leg's own premium onto the entry scale for a corporate action
   (Q51, `splitFactor`): an option leg's listed series is exchange-adjusted instead (a new ticker
   is listed post-adjustment), and `splitFactor` is always 1 for one, so dividing by it there is a
-  no-op. Resolved fresh at every instant `c` a since..at catch-up batch visits, not once for the
+  no-op (superseded by #69 part 2, 0.8.0 addendum — `resolveOptionStrike` now reads the strike as a
+  property of the series itself at this path's own session, with no entry instant involved).
+  Resolved fresh at every instant `c` a since..at
+  catch-up batch visits, not once for the
   whole batch at `at`: an option leg's time-to-expiry and rates both move within a catch-up, so a
   base resolved once at the batch's own end would let an earlier instant see a later instant's
   rates (round 1 item 13). When either pricing call cannot price an operation at all (a
@@ -1743,6 +1750,8 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   half its legs and leaves the rest pending, which would leave an unhedged position the strategy
   never asked for. Corporate-action rebasing (Q51) stays scoped to a stock leg's own ticker for the
   same exchange-adjustment reason exit rules do; an option leg's fill quantity is never rescaled.
+  **Superseded by #69 part 2 (see the addendum below, `ENGINE_VERSION` `0.8.0`):** every leg, stock
+  or option, now rebases by the underlying's own split factor product.
 - **Settlement in a run delegates to `propose-settlement.ts`'s own `settleLeg`** (#72), the same
   way fills already delegate to `priceOperation`. At #23's own time of writing `proposeSettlement`
   was itself still unimplemented (the #21 addendum), so #23 implemented the exercise/assignment
@@ -1850,7 +1859,13 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
     settlement sees a non-trivial split factor on an operation with an option leg, rather than
     refused (item 18); tracked in issue #69. Premise superseded by ADR-0056 (option series keep
-    their ticker; strikes are point-in-time): engine note unchanged until #69 part 2.
+    their ticker; strikes are point-in-time).
+    **Resolved by #69 part 2 (see the addendum below, `ENGINE_VERSION` `0.8.0`):** the engine
+    derives a strike itself only for a factor ex-dated on the pricing session capped at the
+    series' own expiry (`through`), whose own epoch cannot exist yet. A factor ex-dated earlier,
+    with no epoch of its own confirming the strike reflects it, keeps the strike as read and fires
+    this same note, repurposed (not retired) — now meaning "this strike may not reflect a
+    corporate action" rather than "this strike does not."
   - **`brokerage.optionPerContract` is charged once per fill, per leg, not scaled by the fill's
     own contract count (round 2 item 11).** `run-backtest.ts`'s `fillCosts` adds it as a flat
     per-order charge alongside `b3FeeRate`'s own proportional fee, the same shape
@@ -1927,7 +1942,9 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   leg's own effective quantity and entry price are rebased across a corporate-action factor per
   ADR-0014 Q51 (PR #55) — not just the stock leg's, since an option leg's own ticker naturally
   carries no factor (a split forces a series rollover, out of scope for both this ticket and
-  #23) and the same rebasing therefore leaves it untouched. `unrealizedPnl` is
+  #23; superseded by #69 part 2, 0.8.0 addendum — an option leg's own strike and effective
+  quantity are now rebased too, capped at the leg's own expiry) and the same rebasing therefore
+  leaves it untouched. `unrealizedPnl` is
   `sum(sign(side) * effectiveQuantity * (markOnEffectiveScale − effectiveEntryPrice))` in
   centavos. An operation whose listed expiry has already passed by the mark session is not
   rejected outright (round 1 item 3): its option legs are valued at intrinsic (the underlying's
@@ -1965,7 +1982,7 @@ records the semantic decisions the frozen types and ADR-0014 left open.
   rather than the first array match, so a same-session candle revision resolves the same way
   regardless of `MarketView.candles` order (I3) and a revision published after the expiry close
   stays invisible to the proposal (I1) — the same reasoning `resolve-series.ts` already documents
-  for a re-listed option series. `sessionByDate` (`internal/calendar.ts`) resolves the exact
+  for a series with several strike epochs. `sessionByDate` (`internal/calendar.ts`) resolves the exact
   `TradingSession` for `operation.expiry`, distinct from `sessionAtOrBefore`'s "last session at or
   before an instant": `proposeSettlement` receives no `at`, only the operation's own `expiry`
   date, and needs that session's own close as the truncation instant. When the calendar has no
@@ -2467,3 +2484,201 @@ per session (fills, marks, last-known closes, the underlying spot) reads the lat
 version, so a restated view obeys I3. Intraday candles stay keyed by `asOf`, and the #58 cache is
 kept for every ticker without a restated session. Under the change policy's 0.4.0 case this moves
 readings conditions act on, so `ENGINE_VERSION` moves from `"0.6.0"` to `"0.7.0"`.
+
+## Addendum: every leg rebases across a corporate action; option strikes derive when no listed epoch reflects it yet; `ENGINE_VERSION` bumped to `0.8.0` (2026-10-01, #69 part 2)
+
+Part 1 of #69 (PR #268) gave `MarketView.optionSeries` one row per strike epoch per ticker and
+`resolveSeries` the instant-aware lookup over them. This addendum is part 2: it removes the
+stock-only gate the #23 round-2 batch and the "Known gap" note above left on corporate-action
+rebasing, and gives the engine a way to price an option leg correctly even before an exchange gets
+around to listing the adjusted series.
+
+- **Every leg of an operation on underlying `U` rebases.** `legPnlCentavos`, the entry- and
+  exit-fill resolvers, `computeMarkValue`, `evaluateNumericExitRule`'s current-premium read,
+  `priceOperation`'s per-leg valuation, `markToMarket`'s existing-operation path and `score.ts`'s
+  max-loss/pnl bases all key the corporate-action factor by `operation.underlying`, never by
+  `leg.ticker`, and apply `splitFactorProduct`'s product of every factor visible in
+  `(entryOrOpenedAt, at]` to a stock AND an option leg alike: `effectiveQuantity = quantity /
+factor`, `effectiveEntryPrice = entryPrice * factor`. A listed option series itself still comes
+  from the exchange exactly as adjusted (part 1's per-epoch `resolveSeries`); this rebasing is for
+  the leg's own held quantity and cost basis, which a corporate action changes the same way it
+  changes a stock leg's.
+- **A dissolved leg is dropped, not refused.** Where the stock-only gate used to make a
+  non-stock-ticketed corporate action an `invalid_input` refusal of the whole mark or score, a
+  factor that dissolves a leg below one effective unit now drops that leg (note
+  `less_than_one_effective_unit`) and continues pricing or scoring the rest of the operation,
+  matching the existing stock-leg precedent instead of carving out a second rule for option legs.
+- **New shared helper, `internal/option-strike.ts` — correctness round 2: the strike is a property
+  of the series, not of the holding.** Round 1's entry-anchored rule (comparing the strike visible
+  at the operation's own entry instant against the strike visible now) returned three BLOCKING
+  correctness findings and the quant review's own X1/X2/X3 shapes below: an entry instant has
+  nothing to do with which strike a listed series actually carries at a later read. The rule is now
+  anchored purely on the series and the calendar, with no entry concept at all —
+  `resolveOptionStrike(view, ticker, underlying, atSession, at)` (the `entrySession` parameter is
+  gone) returns `{ series, strike, adjustment }`, where `adjustment` is `"none" | "derived" |
+"unconfirmed"`:
+  - `E` = the latest epoch of `ticker` visible at `at` (`resolveSeries`, part 1).
+  - `through = min(atSession, E.expiry)` — correctness round 3 BLOCKING 2: every bound below
+    compares against `through`, never the uncapped `atSession`. A factor ex-dated on the series'
+    own last session can never get an epoch of its own, no matter how much later it is read (the
+    series itself ceases to exist at that session); comparing against the uncapped read session
+    instead made the same factor read `"derived"` on the expiry session itself but
+    `"unconfirmed"` days later purely because the caller's own read instant moved — the strike
+    must be stable across every read instant once the operation has stopped changing.
+  - `W` = the underlying's visible factors (`asOf <= at`) whose `exDate` falls in
+    `(session(E.asOf), through]`.
+  - Every factor already reflected by a real strike transition is dropped first, one-to-one
+    (correctness round 3 BLOCKING 1, replacing round 2's many-to-one `isFactorReflected`): walk
+    every visible factor with `exDate <= through` — not just `W`, since an out-of-window factor
+    can still be the one that actually claims a transition a later, in-window factor would
+    otherwise be mistaken for — oldest `exDate` first, and let each claim the earliest
+    not-yet-claimed transition between two consecutive visible epochs of the same ticker whose
+    target strike equals its own source strike times the factor, rounded half-up to the cent
+    (`round_half_up(P.strike * F.factor, 2) == Q.strike`). The original check compared a factor
+    against _any_ earlier epoch, so a second, epoch-less factor identical to an already-reflected
+    one (two repeated 2-for-1 splits, both factor `0.5` — the common B3 case) was silently
+    credited with an event it did not produce, reading `"none"` forever instead of ever flagging
+    the second split. One-to-one matching fixes this: the earliest factor always gets first claim
+    on the transition that actually followed it. This is also what lets an ADR-0056 step-3 epoch
+    — one backfilled with an `asOf` earlier than the real ex-date it reflects — be recognized as
+    already-adjusted without comparing against any entry instant. Four refinements from
+    correctness rounds 4-5 complete the rule:
+    - a factor may claim transition `i` (`epochs[i - 1] -> epochs[i]`) only when its own `exDate`
+      is strictly after `session(epochs[i - 1].asOf)` — an unrelated, chronologically earlier
+      factor (e.g. a split of the underlying from years before this series even listed) cannot
+      claim a transition it could not possibly have caused (round 4 BLOCKING 1);
+    - two `optionSeries` rows sharing an exact `(ticker, asOf)` — a true data-integrity duplicate,
+      never a re-listing — collapse to the single row `resolveSeries` itself would pick for that
+      instant, before any transition is built, so the chain is a pure function of the row set,
+      never of `MarketView.optionSeries`'s own array order (I3, round 4 BLOCKING 2);
+    - the chain only ever includes epochs of the ticker's own `expiry` and `right`, so a reused B3
+      ticker's unrelated, elapsed cycle can never join it (round 5 advisory 3);
+    - a duplicated `(ticker, exDate)` corporate-action row is rejected outright as `invalid_input`
+      (`corporateActionIntegrityError`), not collapsed — every quantity path
+      (`splitFactorProduct`) multiplies every visible factor unconditionally, so a silent collapse
+      agreeing with the strike path alone while every quantity path double-applies the same
+      duplicate was worse than refusing the duplicate (round 5 BLOCKING 1; ADR-0013's own ordering
+      constraints and the database's `primaryKey(ticker, exDate)` already treat it as one event).
+  - If nothing is left in `W` after that filter, the strike is `E.strike` as read, `adjustment:
+"none"`.
+  - If everything left is ex-dated exactly on `through` itself — the one session where that
+    session's own close-stamped epoch cannot exist yet — the engine derives: `E.strike` times the
+    product of those factors, rounded half-up to the cent (`Decimal.ROUND_HALF_UP`), `adjustment:
+"derived"`, noted `option_strike_derived_across_corporate_action`.
+  - Otherwise (something left over is ex-dated strictly before `through`, with no epoch
+    confirming it) the strike stays `E.strike` as read, `adjustment: "unconfirmed"`, noted
+    `option_strike_unadjusted_across_corporate_action`: a genuine ingestion gap (the registry
+    simply hasn't listed the adjusted series yet) and an already-correct, early-dated backfill
+    (ADR-0056 step 2, "the latest strike under the registry's first sighting") read identically
+    from here, so the strike is kept and flagged rather than guessed either way.
+  - Quantity and entry-price rebasing (`splitFactorProduct`, below) are unaffected by this
+    round and stay entry-anchored, as they always have — only the strike itself moves to a
+    series-property rule. Every caller (`propose-settlement.ts`'s `settleLeg`,
+    `price-operation.ts`'s per-leg valuation, `evaluate-strategy.ts`'s exit-rule bases,
+    `score.ts`'s `buildEntryPricedLegs`, `run-backtest.ts`'s per-settlement note tracking) passes
+    only `atSession`/`at`, with no entry instant to thread at all; `sessionAtOrBefore`
+    (`internal/calendar.ts`, #58) still resolves a session from an instant.
+  - **The one residual this rule leaves, accepted as-is** (pinned in `option-strike.test.ts`): a
+    correctly backfilled, early-dated single epoch (ADR-0056 step 2) that nothing ever confirms
+    with a later, un-backfilled epoch keeps the right strike forever but reads `"unconfirmed"`
+    forever too — a false alarm the data alone cannot distinguish from a genuine gap. The
+    source-side remedy, a follow-up and not made here: bound ADR-0056's own backfill step so a
+    registry-sourced epoch's `asOf` never predates the corporate-action factor's own ex-date
+    session open when a matching factor row exists, closing the ambiguity at the source instead of
+    flagging around it here. Tracked as issue #272.
+  - **A second residual, newly documented (correctness round 3, advisory 6): a non-split re-strike
+    can coincide numerically with the one-to-one match.** A cash-dividend epoch (no factor of its
+    own) can land, by coincidence, on exactly `round_half_up(P.strike * F, 2)` for some unrelated,
+    genuinely unreflected factor `F`. Example: a dividend re-strike 27.19 -> 24.72, then a 10%
+    bonus (`F = 0.90909...`) with no epoch of its own: `27.19 * F` also rounds to 24.72, so the
+    bonus is wrongly read as already reflected (`"none"` instead of `"derived"`/`"unconfirmed"`).
+    The data alone cannot distinguish a coincidence from a real match, and the band is one cent
+    wide, so this is low-probability; accepted as-is, alongside the first residual, rather than
+    fixed.
+- **`proposeSettlement`'s fill quantity stays nominal.** Only the strike is split-adjusted by this
+  addendum; a proposed fill's `quantity` is still `leg.quantity`, the real portfolio's own nominal
+  holding. Rebasing a real position's recorded quantity across a corporate action is a follow-up for
+  ADR-0021's hand-adjusted holdings, not changed here. Tracked as issue #271.
+- **Further follow-ups, not made here.** `resolveLegSelection` and `impliedVolatilityIndex` both
+  still read a leg's or a series' strike as listed, never through `resolveOptionStrike`, so a
+  selection or an IV-index point built across a corporate action can disagree with a priced leg's
+  own adjusted strike (issue #270). `runBacktest`'s own mark can compare a stale pre-split price
+  against an already-rebased post-split quantity on the same session a split takes effect (issue
+  #273). The implied-volatility index itself is not recomputed across a corporate action, a gap the
+  owner has accepted as-is for now (issue #275).
+- **`option_strike_unadjusted_across_corporate_action` is repurposed, not legacy.** Correctness
+  round 2 brings it back into active use with a new meaning: "this strike may not reflect a
+  corporate action" (`adjustment: "unconfirmed"` above), fired whenever a factor is ex-dated before
+  the read session with no epoch of its own confirming the strike reflects it. The other note,
+  `option_strike_derived_across_corporate_action`, now fires only for the narrower `"derived"`
+  case — a factor ex-dated exactly on the read session itself, applied with confidence since that
+  session's own epoch cannot exist yet. Where each note is attached differs by caller, not a single
+  "run-wide" shape: `priceOperation`/`markToMarket` attach it per `LegValuation`, on the leg whose
+  strike it actually adjusted; `proposeSettlement` attaches it per settlement proposal; `score`
+  attaches each code at most once per scored result (`STRIKE_ADJUSTMENT_CODES`, deduped by code,
+  `notes.ts`); `runBacktest` rolls at least one leg-level occurrence up into one note per code on
+  `BacktestRun.notes`, run-wide, since the frozen `createStrategyEvaluator` return has no per-leg
+  note slot to attach it to instead — issue #269 tracks giving it one, so a report panel can show
+  which leg or operation the note actually came from rather than only that the run saw one.
+- **Exercise and assignment rebase too, capped at the leg's own expiry.** An exercised or assigned
+  option leg becomes a real stock trade; its rebased `effectiveQuantity` floors to a whole share
+  count for the real fill (a trade cannot execute a fraction of a share), and any fractional
+  residue left over is cash-settled immediately at the same strike, mirroring the residue
+  `resolvePendingExitFills` already carries for a stock-leg exit. The full, unrounded
+  `effectiveQuantity` — not the floored trade quantity — still feeds the aggregate
+  `buyQty`/`sellQty`/`buyCost`/`sellProceeds` bucketing average-cost and residual-position tracking
+  already use, so a settlement nets correctly against a stock leg in the same operation (a collar,
+  a covered call) or produces the correct residual stock position when there is none. An option
+  ceases to exist at its own listed expiry, so `mark-to-market.ts`'s quantity-rebasing window for a
+  non-stock leg is capped at `min(atSession, operation.expiry)` the same way the strike's own
+  derivation window is — a corporate action ex-dated after expiry rebases whatever stock position
+  the exercise or assignment produced, never the option leg itself (review round 1 repro 1: a
+  factor ex-dated three sessions after expiry otherwise inflated a settled call's unrealized P&L by
+  its full notional).
+- **`score.ts`'s `settlementPnl` applies its own `effectiveEntry`/`effectiveQuantity`, capped the
+  same way.** `settlementPnl` (score.ts:356–357) computes its own factor-rebased entry price and
+  quantity for each settled leg, independent of whatever rebasing `buildEntryPricedLegs` applied
+  earlier in the same call — not "on top of" it, since the two serve different purposes (entry-side
+  basis versus settlement-side pnl). Before review round 1, this factor's window ran through
+  `min(expiry, horizon)` for every leg, including option legs, so a factor ex-dated after an
+  option's own expiry still rebased its settled intrinsic value a second time; the window is now
+  capped at `expiry` for every outcome except `"kept"` (a stock leg, which has no expiry of its own
+  and rebases all the way to the horizon instead) — repro 2: the same shape as repro 1, one session
+  earlier, inflating a settled call's pnl by its own notional instead of zeroing it.
+- **Property I8** (`invariants/i8-split-invariant-settlement.property.test.ts`; filed under I8, not
+  I5, since this catalog's own I5 is reserved for "Numeric discipline"): a split on the underlying
+  does not change an option leg's economic P&L beyond the derived strike's own cent rounding, for a
+  long call, a long put, a short (assigned) put, and a covered call across a non-whole-reciprocal
+  split (3-for-2, factor 2/3, which leaves a genuine fractional residue on both its stock and
+  option legs). Fixed example (B3's own 2024 BBAS3 2-for-1, ex-date 2024-04-16): 100 BBASD350 calls
+  bought at R$1.00, strike 27.19, split factor 0.5, settling weeks later through a real listed
+  epoch of 13.60 (27.19 × 0.5 = 13.595, rounded half-up to 13.60) — correctness round 2's rule only
+  derives with confidence on the ex-date's own session, so by the time a real backtest settles, the
+  registry's own epoch is what every fixture here relies on, exactly as real B3 data would by
+  settlement — underlying closes at 14.50 at expiry: pnl = 200 × (14.50 − 13.60) − 100 × 1.00 =
+  R$80.00; the same fixture's epoch dated at the ex-date's own close, and separately backfilled
+  before the ex-date per ADR-0056's own step 3, both reach the exact same R$80.00, never
+  re-deriving on top of it. The never-split twin (same relative move, pre-split
+  scale: close 29.00, strike unchanged at 27.19):
+  pnl = 100 × (29.00 − 27.19) − 100 × 1.00 = R$81.00. The R$1.00 gap is exactly the strike's own
+  half-cent rounding (27.19 × 0.5 = 13.595) over 200 effective shares. A `fast-check` property
+  generalizes the same identity over a long call, a long put and a short (assigned) put, any split
+  factor whose reciprocal is a whole number (no fractional-residue noise), any strike, premium and
+  quantity, against a closed-form expected pnl. A separate, concrete example — rather than a
+  generalized property, since a bare option leg's own two-layer residue settlement (the real,
+  floored exercise cash-settled at the strike; the aggregate residual cash-settled at the
+  underlying's close) makes a single closed-form intractable — covers the non-whole-reciprocal
+  3-for-2 case through a covered call instead, whose 1:1 stock/option ratio rebases both legs by
+  the same factor and nets the residue to exactly zero, checked against the run's own
+  cash-conservation identity (`Σ op.pnl == finalCash - initialCapital`) rather than a hand-derived
+  number.
+- **Golden backtests** (`invariants/__golden__/*.json`, `backtest-golden.test.ts`) move only on
+  `engineVersion`; none of the four fixtures' own corporate-action, option or non-option scenarios
+  happen to exercise an epoch-less post-split option leg, so no other field in any of the four
+  files changed. Updated deliberately via `vitest run src/invariants/backtest-golden.test.ts -u`,
+  then diffed to confirm.
+
+Under the change policy's `0.4.0` case this changes what settlement, mark and scoring compute for
+an operation with an option leg across a corporate action — a correctness fix to a previously
+disclosed known gap, not merely an additive field — so `ENGINE_VERSION` moves from `"0.7.0"` to
+`"0.8.0"`.

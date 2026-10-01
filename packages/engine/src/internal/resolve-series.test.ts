@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MarketView, OptionSeries } from "../api";
 import { decimalString } from "../test/support";
-import { collapseSeriesByTicker, resolveSeries } from "./resolve-series";
+import { collapseSeriesByTicker, isEarlierOnExactTie, resolveSeries } from "./resolve-series";
 
 const at = "2024-01-10T21:00:00.000Z";
 
@@ -63,5 +63,12 @@ describe("resolveSeries / collapseSeriesByTicker", () => {
     const reverse: MarketView = { ...baseView, optionSeries: [call, put] };
     expect(resolveSeries(forward, "PETR4C40", at)).toEqual(call);
     expect(resolveSeries(reverse, "PETR4C40", at)).toEqual(call);
+  });
+
+  it("isEarlierOnExactTie falls through to ticker, lexicographically, when strike, expiry and right all match", () => {
+    const a = series({ ticker: "PETR4C40" });
+    const b = series({ ticker: "PETR4C41" });
+    expect(isEarlierOnExactTie(a, b)).toBe(true);
+    expect(isEarlierOnExactTie(b, a)).toBe(false);
   });
 });

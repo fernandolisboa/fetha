@@ -31,7 +31,9 @@ This ADR is scoped to the market-data layer: the data model, the writers and the
 **not** rebase an _open operation's_ option legs across the event the way ADR-0014 Q51 already
 does for stock legs (`splitFactorProduct`) — that remains the engine gap ADR-0013's #23 addendum
 flagged (`option_strike_unadjusted_across_corporate_action`), tracked as a follow-up PR of the same
-issue (#69).
+issue (#69). Resolved by #69 part 2, ADR-0013 `0.8.0` addendum: strike from the latest visible
+epoch; derived only for a factor ex-dated on the pricing session itself (capped at expiry);
+otherwise kept and flagged `option_strike_unadjusted_across_corporate_action` (repurposed).
 
 ## Decision
 
@@ -219,7 +221,10 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
   a split or dividend the way its stock legs already are (ADR-0014 Q51). `settlement_pending`/
   `option_strike_unadjusted_across_corporate_action` still applies until the engine itself adjusts a
   held option leg's strike; this ADR only fixes what the market view carries, not how an open
-  position reads it.
+  position reads it. Resolved by #69 part 2, ADR-0013 `0.8.0` addendum: strike from the latest
+  visible epoch; derived only for a factor ex-dated on the pricing session itself (capped at
+  expiry); otherwise kept and flagged `option_strike_unadjusted_across_corporate_action`
+  (repurposed).
 
 ## Amends ADR-0017
 

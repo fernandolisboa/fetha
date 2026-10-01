@@ -206,18 +206,10 @@ function validateViewContents(view: MarketView): Result<Evaluation> | null {
     }
   }
 
-  const factorDupe = sortUnique(
-    view.corporateActions,
-    (f) => `${f.ticker}|${f.exDate}`,
-    (a, b) => codeUnitCompare(a.ticker, b.ticker) || codeUnitCompare(a.exDate, b.exDate),
-  );
-  if (!factorDupe.ok) {
-    return invalidInput(
-      "view.corporateActions",
-      `duplicate corporate action factor for ${factorDupe.duplicateKey}`,
-    );
-  }
-
+  // A duplicate (ticker, exDate) corporate-action row is now caught earlier, by
+  // `validateIntegrity` (`corporateActionIntegrityError`, shared with every other caller that
+  // resolves a strike or a split factor, which always
+  // runs before this function — so this never needs its own copy of that check.
   for (const [index, f] of view.corporateActions.entries()) {
     if (!isPositiveDecimal(f.factor)) {
       return invalidInput(
@@ -325,13 +317,11 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
 // one spot (priceLegsAt's own quote-mid/last/close ladder), one rate
 // resolution, per operation per instant — never a second, stale-unaware pricing ladder
 // re-implemented here leg by leg against a different spot (`currentClose`) than the base
-// was computed against. An option leg's own listed series is exchange-adjusted for a
-// corporate action of the underlying (a new ticker is listed post-adjustment); only the
-// stock leg's own ticker persists unchanged through a split, so only a stock leg's premium
-// is rebased onto `op.legs[i].entryPrice`'s own scale before the diff (ADR-0013 "Exit rule
-// evaluation", extended by the #23 addendum) — `splitFactor` is always 1 for an option leg
-// (Q51: a split forces a series rollover, never a factor on the option's own ticker), so
-// dividing by it is a no-op there.
+// was computed against. Every leg's current premium is rebased onto `op.legs[i].entryPrice`'s
+// own scale before the diff (ADR-0013 "Exit rule evaluation", extended to option legs by #69
+// part 2: B3 re-strikes a listed option series by the same factor as the underlying, rather
+// than forcing a series rollover) — `splitFactor` is 1 when no corporate action is visible, so
+// dividing by it is a no-op then.
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
@@ -384,7 +374,7 @@ function evaluateNumericExitRule(
         ? parseDecimal(valuation.fairValue)
         : null;
     if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };
-    const currentPremium = leg.role === "stock" ? rawPremium.div(splitFactor) : rawPremium;
+    const currentPremium = rawPremium.div(splitFactor);
     const legSign = leg.side === "buy" ? 1 : -1;
     const entry = parseDecimal(leg.entryPrice);
     pnlCentavos = pnlCentavos.add(

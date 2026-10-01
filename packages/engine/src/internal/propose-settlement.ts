@@ -17,9 +17,10 @@ import type {
 import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
+import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
-import { resolveSeries } from "./resolve-series";
 import { toCentavos } from "./scalars";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
@@ -55,17 +56,21 @@ export function settleLeg(
   session: SessionDate,
   at: Instant,
   view: MarketView,
-): { ok: true; value: LegSettlement } | { ok: false; error: EngineError } {
+):
+  | { ok: true; value: LegSettlement; adjustment: OptionStrikeAdjustment }
+  | { ok: false; error: EngineError } {
   if (leg.role === "stock") {
     return {
       ok: true,
       value: { leg: { ...leg, role: "stock" }, outcome: "kept", intrinsicValue: null, fills: [] },
+      adjustment: "none",
     };
   }
 
-  const series = resolveSeries(view, leg.ticker, at);
-  if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
-  if (!parseDecimal(series.strike).gt(0)) {
+  const resolved = resolveOptionStrike(view, leg.ticker, underlying, session, at);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const { series, strike: strikeString, adjustment } = resolved.value;
+  if (!parseDecimal(strikeString).gt(0)) {
     return {
       ok: false,
       error: invalidInput(
@@ -75,7 +80,7 @@ export function settleLeg(
     };
   }
 
-  const strike = parseDecimal(series.strike);
+  const strike = parseDecimal(strikeString);
   const intrinsic =
     leg.role === "call"
       ? Decimal.max(underlyingClose.sub(strike), 0)
@@ -122,6 +127,7 @@ export function settleLeg(
         intrinsicValue,
         fills,
       },
+      adjustment,
     };
   }
   return {
@@ -138,6 +144,7 @@ export function settleLeg(
       intrinsicValue,
       fills,
     },
+    adjustment,
   };
 }
 
@@ -185,6 +192,8 @@ export function proposeSettlement(
   const closeDecimal = parseDecimal(underlyingClose);
 
   const legs: LegSettlement[] = [];
+  let anyStrikeDerived = false;
+  let anyStrikeUnconfirmed = false;
   for (const [legIndex, leg] of operation.legs.entries()) {
     const settled = settleLeg(
       leg,
@@ -197,6 +206,8 @@ export function proposeSettlement(
     );
     if (!settled.ok) return err(settled.error);
     legs.push(settled.value);
+    if (settled.adjustment === "derived") anyStrikeDerived = true;
+    if (settled.adjustment === "unconfirmed") anyStrikeUnconfirmed = true;
   }
 
   // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
@@ -211,6 +222,18 @@ export function proposeSettlement(
         },
       ]
     : [];
+  // #69 part 2, at least one option leg's strike had a factor ex-dated
+  // exactly on the settlement session itself, applied with confidence since that session's own
+  // epoch cannot exist yet (option-strike.ts). this must be the
+  // exact same `Note` object `score.ts`'s own forwarding uses (`buildEntryPricedLegs`), or its
+  // dedup-by-code-and-message guard cannot recognize the two as the same note and a settled
+  // operation reads it twice.
+  if (anyStrikeDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  // At least one option leg's strike had a factor ex-dated earlier still, with no epoch of its
+  // own confirming it reflects the strike above: this could be a genuine ingestion gap or an
+  // already-correct, early-dated epoch (ADR-0056 backfill step 2) — indistinguishable from here,
+  // so the strike is kept as read and flagged rather than guessed either way.
+  if (anyStrikeUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
 
   return {
     ok: true,
