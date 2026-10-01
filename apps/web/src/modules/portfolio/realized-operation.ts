@@ -88,6 +88,7 @@ export function realizedOperation(input: RealizedOperationInput): RealizedOperat
     return { ok: false, reason: "corporate_action_normalization_skipped" };
   }
   const normalizedFills = normalizedInput.fills;
+  const recordedPriceById = new Map(input.fills.map((fill) => [fill.id, fill.price]));
 
   const held: OperationFill[] = [];
   const later: { fill: OperationFill; at: Instant }[] = [];
@@ -144,11 +145,16 @@ export function realizedOperation(input: RealizedOperationInput): RealizedOperat
         ? Math.min(Math.abs(position), fill.quantity)
         : 0;
     if (closing > 0) {
+      // The engine's own score (packages/engine/src/score.ts computeOperationPnl) computes
+      // fill.price − entryPrice×F against a nominal entryPrice and the live-session price exactly
+      // as the fill happened: rebasing this price back to the operation's nominal basis as well
+      // would double-count the factor and score a result F times too large (review round 2 item
+      // 2). Only the quantity is nominal here; the price stays the broker-recorded one.
       realizedFills.push({
         ticker: fill.ticker,
         side: fill.side,
         quantity: quantitySchema.parse(closing),
-        price: fill.price,
+        price: recordedPriceById.get(fill.id) ?? fill.price,
         session: fill.session,
         at,
         costs: centavosSchema.parse(
