@@ -22,6 +22,7 @@ import {
   type IndicatorSeries,
   type LegInput,
   type MarketView,
+  type Note,
   type Operation,
   type OperationLeg,
   type Result,
@@ -54,6 +55,11 @@ import type { PriceBar } from "./indicators/atr";
 import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
+import {
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  strikeAdjustmentNotesOf,
+} from "./notes";
 import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
@@ -261,7 +267,7 @@ function validateViewContents(view: MarketView): Result<Evaluation> | null {
   return null;
 }
 
-type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
+type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal; notes: Note[] };
 
 const exitRuleProvenanceBase: {
   engineVersion: string;
@@ -309,7 +315,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   const pricing = result.value;
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
-  return { premiumBase, maxLossBase };
+  return { premiumBase, maxLossBase, notes: strikeAdjustmentNotesOf(pricing.legs) };
 }
 
 // The current side of a profit_target/stop_loss comparison prices every leg through the
@@ -329,7 +335,7 @@ function evaluateNumericExitRule(
   at: Instant,
   bases: ExitRuleBases,
   splitFactor: Decimal,
-): { fired: boolean; zeroBase: boolean; unknown: boolean } {
+): { fired: boolean; zeroBase: boolean; unknown: boolean; notes: Note[] } {
   const legs: LegInput[] = op.legs.map((leg) => ({
     role: leg.role,
     side: leg.side,
@@ -355,7 +361,8 @@ function evaluateNumericExitRule(
   // this branch cannot fail once bases has already succeeded for the same op at the same
   // instant.
   /* v8 ignore next */
-  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true };
+  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true, notes: [] };
+  const notes = strikeAdjustmentNotesOf(pricingResult.value.legs);
   let pnlCentavos = new Decimal(0);
   for (const [index, leg] of op.legs.entries()) {
     const valuation = pricingResult.value.legs[index];
@@ -373,7 +380,7 @@ function evaluateNumericExitRule(
         valuation?.fairValue
         ? parseDecimal(valuation.fairValue)
         : null;
-    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };
+    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true, notes: [] };
     const currentPremium = rawPremium.div(splitFactor);
     const legSign = leg.side === "buy" ? 1 : -1;
     const entry = parseDecimal(leg.entryPrice);
@@ -382,18 +389,20 @@ function evaluateNumericExitRule(
     );
   }
   if (rule.kind === "profit_target") {
-    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
+    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false, notes };
     return {
       fired: pnlCentavos.gte(bases.premiumBase.mul(parseDecimal(rule.fractionOfPremium))),
       zeroBase: false,
       unknown: false,
+      notes,
     };
   }
-  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
+  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true, unknown: false, notes };
   return {
     fired: pnlCentavos.lte(bases.maxLossBase.mul(parseDecimal(rule.multipleOfMaxLoss)).neg()),
     zeroBase: false,
     unknown: false,
+    notes,
   };
 }
 
@@ -505,7 +514,7 @@ export type EvaluationCall = Pick<
 >;
 export type StrategyEvaluator = (
   call: EvaluationCall,
-) => Result<Pick<Evaluation, "signals" | "evaluations">>;
+) => Result<Pick<Evaluation, "signals" | "evaluations" | "notes">>;
 
 type Readings = { candle: Candle; values: IndicatorLookup<DecimalString | null> };
 
@@ -823,6 +832,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
 
     const signals: Signal[] = [];
     const evaluations: EvaluationRecord[] = [];
+    // Rolled up from every exit-rule base's, exit-rule current-side pricing's and entry
+    // proposal's own per-leg strike adjustment, across every op/ticker and every instant this
+    // call visits (issue #269) — the same dedup-by-code `score.ts` already applies to its own
+    // entry-priced legs.
+    const strikeAdjustmentCodes = new Set<Note["code"]>();
     const atMs = instantMs(call.at);
 
     for (const ticker of instruments) {
@@ -997,6 +1011,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               }
             }
             const pricing = entryPricing.value;
+            // This proposal's own per-leg strike adjustment is not rolled into
+            // `strikeAdjustmentCodes` here: `createStrategyEvaluator`'s own result is shared by
+            // `runBacktest` (which may still refuse this exact signal — a limit breach, an
+            // exhausted retry count — and must only roll a code up once a fill is actually
+            // accepted) and by the public `evaluateStrategy` below (which has no such concept and
+            // rolls every proposed entry's own notes up unconditionally, over `result.value
+            // .signals`, once `createStrategyEvaluator` returns). Issue #269.
             signals.push({
               kind: "entry",
               strategyVersionId: strategy.id,
@@ -1090,6 +1111,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             instantUnknown = true;
             continue;
           }
+          for (const note of bases.notes) strikeAdjustmentCodes.add(note.code);
           const visibleFactors = state.view.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
           const splitFactorResult = splitFactorProduct(
             visibleFactors,
@@ -1105,6 +1127,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               case "profit_target":
               case "stop_loss": {
                 const outcome = evaluateNumericExitRule(rule, op, view, c, bases, splitFactor);
+                for (const note of outcome.notes) strikeAdjustmentCodes.add(note.code);
                 if (outcome.unknown) {
                   instantUnknown = true;
                   break;
@@ -1208,7 +1231,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       }
     }
 
-    return { ok: true, value: { signals, evaluations } };
+    const notes: Note[] = [];
+    if (strikeAdjustmentCodes.has(OPTION_STRIKE_DERIVED_NOTE.code))
+      notes.push(OPTION_STRIKE_DERIVED_NOTE);
+    if (strikeAdjustmentCodes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) {
+      notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+    }
+    return { ok: true, value: { signals, evaluations, notes } };
   };
 }
 
@@ -1218,11 +1247,26 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   const needsIv = dedupeIndicatorSpecs(collectIndicatorSpecs(input.strategy.definition)).some(
     (spec) => spec.kind === "iv_rank",
   );
+  // Every proposed entry's own strike-adjustment notes roll up here, unconditionally — unlike
+  // `runBacktest`'s own internal use of `createStrategyEvaluator`, this function has no later
+  // step that could still refuse the signal, so there is no "rejected proposal" to exclude
+  // (issue #269). Concatenated with `createStrategyEvaluator`'s own exit-rule-base notes and
+  // deduped by code, not filtered through `strikeAdjustmentNotesOf`'s own two-code whitelist a
+  // second time: `result.value.notes` happens to carry only those two codes today, but this
+  // merge must survive a future note type joining it there unfiltered.
+  const entryLegs = result.value.signals
+    .filter((signal): signal is Extract<Signal, { kind: "entry" }> => signal.kind === "entry")
+    .flatMap((signal) => signal.proposal.pricing.legs);
+  const notesByCode = new Map<Note["code"], Note>();
+  for (const note of [...result.value.notes, ...strikeAdjustmentNotesOf(entryLegs)]) {
+    notesByCode.set(note.code, note);
+  }
+  const notes = [...notesByCode.values()];
   return {
     ok: true,
     value: {
       ...result.value,
-      notes: [],
+      notes,
       provenance: {
         engineVersion: ENGINE_VERSION,
         pricingModel: "bsm_continuous_yield",

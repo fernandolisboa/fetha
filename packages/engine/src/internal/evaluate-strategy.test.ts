@@ -2032,6 +2032,100 @@ describe("evaluateStrategy — stock-only strategies", () => {
     });
     expect(result.value.signals).toEqual([]);
   });
+
+  it("rolls an exit-rule base's own option_strike_derived_across_corporate_action note up into evaluateStrategy's own notes (#269)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [dailyCandle("PETR4", 3, "16.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-02-01", "2024-01-01T21:00:00.000Z")],
+    };
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-02-01",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
+  });
+
+  it("rolls an exit-rule base's own option_strike_unadjusted_across_corporate_action note up into evaluateStrategy's own notes (#269)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [dailyCandle("PETR4", 3, "16.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-02-01", "2024-01-01T21:00:00.000Z")],
+    };
+    const optionOperation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: "2024-02-01",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3) })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [optionOperation],
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_unadjusted_across_corporate_action" }),
+    );
+  });
 });
 
 describe("evaluateStrategy — option structures (#23)", () => {
@@ -2111,6 +2205,49 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.proposal.legs.map((l) => l.role)).toEqual(["stock", "call"]);
     expect(signal.proposal.legs[1]?.ticker).toBe("PETR4C33");
     expect(signal.proposal.pricing.legs[1]?.leg.side).toBe("sell");
+  });
+
+  it("rolls an entry proposal's own option_strike_derived_across_corporate_action note up into evaluateStrategy's own notes (#269)", () => {
+    const closes = ["10.00", "10.00", "10.00", "13.00"];
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(30),
+      candles: closes.map((close, i) => dailyCandle("PETR4", i, close)),
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(3),
+          asOf: `${sessionAt(3)}T13:00:00.000Z`,
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", sessionAt(15), `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(0), "1.00")],
+      quotes: [petr4Quote(`${sessionAt(0)}T21:00:00.000Z`)],
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: closeAboveSma(3),
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.signals[0]?.kind).toBe("entry");
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
   });
 
   it("records unsizeable(unaffordable_budget) for an option entry when the budget cannot afford one unit (#59)", () => {
@@ -2724,7 +2861,11 @@ describe("createStrategyEvaluator (#58)", () => {
       if (!expected.ok) throw new Error("expected an evaluation");
       expect(evaluate({ at, riskProfile })).toEqual({
         ok: true,
-        value: { signals: expected.value.signals, evaluations: expected.value.evaluations },
+        value: {
+          signals: expected.value.signals,
+          evaluations: expected.value.evaluations,
+          notes: expected.value.notes,
+        },
       });
     }
   });

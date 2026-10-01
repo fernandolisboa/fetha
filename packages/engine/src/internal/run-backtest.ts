@@ -24,6 +24,7 @@ import {
   type MissedEntry,
   type MissedEntryReason,
   type MonthlyTax,
+  type Note,
   type Operation,
   type OperationLeg,
   type OptionDayPrice,
@@ -63,6 +64,7 @@ import {
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
+  strikeAdjustmentNotesOf,
 } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { settleLeg } from "./propose-settlement";
@@ -1614,6 +1616,24 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     state.firstTradableSession = session.date;
   }
 
+  // Issue #269: an exit-rule base's or an exit-rule current-side pricing's own per-leg strike
+  // adjustment (evaluate-strategy.ts's `computeExitRuleBases`/`evaluateNumericExitRule`, both
+  // already priced through `priceLegsAt`) — and, below, an accepted entry proposal's own per-leg
+  // strike adjustment — rolls into the same two run-wide flags the settlement path below already
+  // sets, rather than a second pair of flags or a second note on the run — the run only needs to
+  // know a strike was ever derived or left unconfirmed somewhere in its life, not which caller
+  // first noticed it.
+  function rollExitRuleStrikeNotes(notes: readonly Note[]): void {
+    for (const note of notes) {
+      if (note.code === OPTION_STRIKE_DERIVED_NOTE.code) {
+        state.optionStrikeDerivedAcrossCorporateActionNoted = true;
+      }
+      if (note.code === OPTION_STRIKE_UNCONFIRMED_NOTE.code) {
+        state.optionStrikeUnconfirmedAcrossCorporateActionNoted = true;
+      }
+    }
+  }
+
   // Step 4: period end sweep — closes every still-open operation at its own mark, marks (never
   // trades) any pending settlement's residual, and finalizes stranded pending entries. Computes
   // its own marks (rather than reusing markOpenOperations's marksThisSession) precisely so it can
@@ -1769,6 +1789,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     });
     if (!evalResult.ok) return { ok: false, error: evalResult.error };
     noteFirstTradableSession(session, evalResult.value.evaluations);
+    rollExitRuleStrikeNotes(evalResult.value.notes);
 
     const seenTickersThisRound = new Set<Ticker>();
     for (const signal of evalResult.value.signals) {
@@ -1783,6 +1804,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           finalizeMissedEntry(signal.ticker, signal.at, "no_trades");
           continue;
         }
+        // Rolled up here, on acceptance into a pending entry (queued into state.pendingEntries
+        // right below) — not on an actual fill, which `resolvePendingEntryFills` only resolves a
+        // session later. A limit-breached proposal never reaches this line at all (refused above,
+        // before ever being priced into anything the run goes on to hold), but a proposal that
+        // does clear that gate still rolls its note up here even if it is queued, retried and
+        // finally abandoned (`finalizeMissedEntry("no_trades")`, once retryCount reaches 3) without
+        // ever filling: deliberately conservative, since the earlier attempts that queued it were
+        // priced on the same derived/unconfirmed strike, and over-warning on an attempt that never
+        // filled is safer than risking a silent drop on one that did (issue #269).
+        rollExitRuleStrikeNotes(strikeAdjustmentNotesOf(signal.proposal.pricing.legs));
         state.pendingEntries[signal.ticker] = {
           legs: signal.proposal.legs,
           maxLoss: signal.proposal.pricing.maxLoss,
@@ -1887,6 +1918,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         });
         if (!finalEval.ok) return { ok: false, error: finalEval.error };
         noteFirstTradableSession(session, finalEval.value.evaluations);
+        rollExitRuleStrikeNotes(finalEval.value.notes);
       }
       continue;
     }

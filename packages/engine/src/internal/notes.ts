@@ -1,4 +1,4 @@
-import type { Note } from "../api";
+import type { LegValuation, Note } from "../api";
 
 // Shared literal `Note` messages now at their third independent copy:
 // option-pricing.ts, price-operation.ts and mark-to-market.ts each declared their own
@@ -55,3 +55,17 @@ export const STRIKE_ADJUSTMENT_CODES: ReadonlySet<Note["code"]> = new Set([
   OPTION_STRIKE_DERIVED_NOTE.code,
   OPTION_STRIKE_UNCONFIRMED_NOTE.code,
 ]);
+
+// Pulls the two codes above out of a set of per-leg `LegValuation.notes` (an exit-rule base's or
+// an entry proposal's own pricing, issue #269), deduped to at most one note per code — the same
+// roll-up `score.ts`'s own `anyDerived`/`anyUnconfirmed` pattern already applies to its scored
+// legs. Shared by `evaluate-strategy.ts` (the exit-rule-base and entry-proposal paths) and
+// `run-backtest.ts` (the entry-fill path), so every caller rolls the same two codes up the same
+// way.
+export function strikeAdjustmentNotesOf(legs: readonly Pick<LegValuation, "notes">[]): Note[] {
+  const codes = new Set(legs.flatMap((leg) => leg.notes.map((n) => n.code)));
+  const notes: Note[] = [];
+  if (codes.has(OPTION_STRIKE_DERIVED_NOTE.code)) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  if (codes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  return notes;
+}
