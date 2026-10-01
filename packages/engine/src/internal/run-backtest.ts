@@ -64,6 +64,7 @@ import {
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
+  strikeAdjustmentNotesOf,
 } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { settleLeg } from "./propose-settlement";
@@ -1617,10 +1618,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
   // Issue #269: an exit-rule base's or an exit-rule current-side pricing's own per-leg strike
   // adjustment (evaluate-strategy.ts's `computeExitRuleBases`/`evaluateNumericExitRule`, both
-  // already priced through `priceLegsAt`) rolls into the same two run-wide flags the settlement
-  // path below already sets, rather than a second pair of flags or a second note on the run — the
-  // run only needs to know a strike was ever derived or left unconfirmed somewhere in its life,
-  // not which caller first noticed it.
+  // already priced through `priceLegsAt`) — and, below, an accepted entry proposal's own per-leg
+  // strike adjustment — rolls into the same two run-wide flags the settlement path below already
+  // sets, rather than a second pair of flags or a second note on the run — the run only needs to
+  // know a strike was ever derived or left unconfirmed somewhere in its life, not which caller
+  // first noticed it.
   function rollExitRuleStrikeNotes(notes: readonly Note[]): void {
     for (const note of notes) {
       if (note.code === OPTION_STRIKE_DERIVED_NOTE.code) {
@@ -1802,6 +1804,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           finalizeMissedEntry(signal.ticker, signal.at, "no_trades");
           continue;
         }
+        // Rolled up only once the proposal is actually accepted into a pending entry, never for
+        // one `finalizeMissedEntry` above just refused: a rejected proposal's strike adjustment
+        // never prices anything the run's own notes should speak for (issue #269).
+        rollExitRuleStrikeNotes(strikeAdjustmentNotesOf(signal.proposal.pricing.legs));
         state.pendingEntries[signal.ticker] = {
           legs: signal.proposal.legs,
           maxLoss: signal.proposal.pricing.maxLoss,

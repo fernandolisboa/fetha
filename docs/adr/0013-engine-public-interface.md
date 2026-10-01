@@ -2882,39 +2882,70 @@ price every leg on a derived or unconfirmed strike and still report no note at a
   ADR-0013 and needs no superseding ADR of its own; only the addendum the issue itself asked for.
   `computeExitRuleBases` and `evaluateNumericExitRule` each now return the `OPTION_STRIKE_DERIVED_NOTE`/
   `OPTION_STRIKE_UNCONFIRMED_NOTE` codes present on their own `priceLegsAt` call's leg valuations
-  (`strikeAdjustmentNotesOf`, deduped by code, mirroring `score.ts`'s own `anyDerived`/`anyUnconfirmed`
-  pattern); the evaluator's closure collects every code it sees across every op and every instant a
-  call visits into one `Set`, and returns at most one note per code, same as every other
-  roll-up site this note pair already has.
+  (`strikeAdjustmentNotesOf(legs: readonly Pick<LegValuation, "notes">[])`, a new shared helper in
+  `internal/notes.ts` — moved there, not left private to `evaluate-strategy.ts`, so `run-backtest.ts`
+  can call the identical dedup for its own entry-fill path below rather than re-implement it — deduped
+  by code, mirroring `score.ts`'s own `anyDerived`/`anyUnconfirmed` pattern); the evaluator's closure
+  collects every code it sees across every op and every instant a call visits into one `Set`, and
+  returns at most one note per code, same as every other roll-up site this note pair already has.
+- **An accepted entry proposal's own strike adjustment rolls up too, not only an exit-rule base's.**
+  `priceOperation`'s own per-leg valuation already carried the note on an option entry's proposal
+  (`Signal.proposal.pricing.legs[i].notes`, since the #69 part 2 addendum); nothing before this
+  addendum ever read it back out. `createStrategyEvaluator`'s own closure deliberately does **not**
+  fold an entry proposal's notes into its shared `Set` next to the exit-rule-base ones: its result is
+  read by two callers with different rules for what counts — the public `evaluateStrategy` below,
+  which has no concept of a caller still refusing the proposed signal, and `runBacktest`, which can
+  (a limit breach, an exhausted retry count) and must never roll a code up for a proposal that was
+  never actually accepted into a fill. Each caller therefore applies `strikeAdjustmentNotesOf` to the
+  entry signal's own `proposal.pricing.legs` itself, at the point each one's own rule is satisfied.
 - **The public `evaluateStrategy` gains real notes too, not by a type change.** `Evaluation.notes`
   already existed on the frozen type but `evaluateStrategy` hard-coded it to `[]`; this addendum
-  replaces that with the notes `createStrategyEvaluator` itself now collects. This is a behavior
-  change — the same session evaluated before and after this fix can now return a non-empty
+  replaces that with `createStrategyEvaluator`'s own exit-rule-base notes merged, unconditionally,
+  with `strikeAdjustmentNotesOf` applied over every proposed `"entry"` signal's own
+  `proposal.pricing.legs` (there is no accept/reject step inside this function to gate on). This is a
+  behavior change — the same session evaluated before and after this fix can now return a non-empty
   `notes` where it used to return none — not a shape change, so it needs no second ADR entry of its
-  own, but it is exactly the kind of change the `0.4.0` case below tracks.
+  own, but it is exactly the kind of change the `0.4.0` case above tracks.
 - **`runBacktest` reuses its existing two flags, not a third pair.** `queueNextSignals`'s and the
-  final-session catch-up `evaluate()` call's own results now feed their `notes` into a new
+  final-session catch-up `evaluate()` call's own exit-rule-base `notes` feed into a new
   `rollExitRuleStrikeNotes` helper, which sets the same `optionStrikeDerivedAcrossCorporateActionNoted`
   / `optionStrikeUnconfirmedAcrossCorporateActionNoted` checkpointed flags the settlement path
-  already sets — the run only needs to know a strike was ever derived or left unconfirmed somewhere
+  already sets; the same helper is called a second time, per accepted entry signal only — after the
+  limit-breach and exhausted-retry refusals above it, right where the proposal is actually written
+  into `state.pendingEntries` — over `strikeAdjustmentNotesOf(signal.proposal.pricing.legs)`. A
+  refused proposal (either path) never reaches either call, so it never prices anything the run's own
+  notes speak for. The run only needs to know a strike was ever derived or left unconfirmed somewhere
   in its life, not which caller first noticed it, so one pair of flags and one note per code on
   `BacktestRun.notes` (unchanged shape) serves every caller. `BacktestCheckpoint`'s own schema is
   unchanged: no new field, so a resumed chunk started on `"0.10.0"` is still refused by the existing
   `engineVersion` checkpoint guard, the same way every prior bump in this ADR already is.
+- **`runBacktest`'s own daily mark and period-end sweep need no roll-up at all.** `computeMarkValue`
+  and `closePeriodEnd` value every leg through `lastKnownLegPrice`/`lastKnownRescaledPrice` — the
+  series' own last traded price, rescaled by the split factor (#273) — and never call
+  `resolveOptionStrike` or read a strike anywhere in that path (an option's own market price needs no
+  strike to look up by ticker); there is no `LegValuation` and no strike-adjustment note on that path
+  to roll up, so neither function changed here.
 - **`score.ts`/the public `evaluateStrategy`'s sibling checked for the same gap.** `score.ts` already
   dedupes `OPTION_STRIKE_DERIVED_NOTE`/`OPTION_STRIKE_UNCONFIRMED_NOTE` onto its own scored result
   (`STRIKE_ADJUSTMENT_CODES`, since the #69 part 2 addendum); it has no exit-rule-base pricing path of
   its own to leak the note from, so no further change was needed there.
-- **Tests.** Two `run-backtest.test.ts` cases pin the gap directly: an option-legged operation that
-  exits by `profit_target` before its own expiry, with a split ex-dated exactly on the session an
-  exit-rule base is priced at (the `"derived"` case) and, separately, a split ex-dated on an earlier
-  session with no epoch ever confirming it while the operation is still held (the `"unconfirmed"`
-  case) — both assert `BacktestRun.notes` contains the corresponding code; both failed before this
-  fix (the run closed by `exit_rule` with an empty `notes` array) and pass after it.
+- **Tests.** Three `run-backtest.test.ts` cases and three `evaluate-strategy.test.ts` cases pin the
+  gap directly. Against `runBacktest`: an option-legged operation that exits by `profit_target`
+  before its own expiry, with a split ex-dated exactly on the session an exit-rule base is priced at
+  (the `"derived"` case) and, separately, a split ex-dated on an earlier session with no epoch ever
+  confirming it while the operation is still held (the `"unconfirmed"` case); and an operation whose
+  entry proposal alone is priced across a split ex-dated exactly on the entry session, with a second
+  epoch listed moments later that makes every subsequent exit-rule base read `"none"` — proving the
+  note survives on the run even once nothing still in flight would re-derive it. Against the public
+  `evaluateStrategy` directly: the same `"derived"`/`"unconfirmed"` exit-rule-base shapes with an
+  open operation passed in `openOperations` and no backtest loop at all, and an entry proposal alone
+  (no open operation) priced across a split ex-dated on the entry session. All six assert `notes`
+  contains the corresponding code; all six failed before this fix (an empty `notes` array either way)
+  and pass after it.
 - **Golden backtests** move only on `engineVersion` (`vitest run src/invariants/backtest-golden.test.ts
 -u`, diffed to confirm): none of the four fixtures' own scenarios close an option-legged operation by
-  exit rule while a corporate-action-adjusted strike is in play, so no other field in any of the four
-  files changed.
+  exit rule, or open one, while a corporate-action-adjusted strike is in play, so no other field in
+  any of the four files changed.
 
 Under the change policy's `0.4.0` case this changes what `runBacktest` and the public
 `evaluateStrategy` report in `notes` for an option-legged operation priced across a corporate action

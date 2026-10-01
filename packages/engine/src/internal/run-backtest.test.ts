@@ -2909,6 +2909,51 @@ describe("runBacktest — option structures (#23)", () => {
     );
   });
 
+  it("rolls an accepted entry proposal's own option_strike_derived_across_corporate_action note up into the run's notes even once a later epoch makes every subsequent exit-rule base read none (#269)", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d, i) =>
+        candle("PETR4", d, i < 2 ? "8.00" : "10.00", i < 2 ? "8.00" : "10.00"),
+      ),
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: days[2] as string,
+          asOf: `${days[2] as string}T13:00:00.000Z`,
+          factor: decimalString("0.5"),
+        },
+      ],
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+        callOrPutSeries("PETR4C11", "call", "5.50", expiry, `${days[2] as string}T20:00:00.001Z`),
+      ],
+      optionPrices: days.slice(0, 7).map((d) => optionDayPrice("PETR4C11", d, "4.50")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(run.operations).toHaveLength(1);
+    expect(run.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
+  });
+
   it("rescales an illiquid option leg's stale pre-split mark by the factor since its own session (#273), no phantom jump in equity", () => {
     const days = businessDays(20);
     const expiry = days[15] as string;

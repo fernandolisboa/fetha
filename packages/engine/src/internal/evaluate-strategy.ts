@@ -55,7 +55,11 @@ import type { PriceBar } from "./indicators/atr";
 import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import {
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  strikeAdjustmentNotesOf,
+} from "./notes";
 import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
@@ -312,18 +316,6 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
   return { premiumBase, maxLossBase, notes: strikeAdjustmentNotesOf(pricing.legs) };
-}
-
-// The only two note codes a leg's own strike adjustment can ever carry (option-strike.ts):
-// pulled out of an exit-rule base's or an exit-rule current-side pricing's own per-leg
-// `LegValuation.notes` so a run can roll them up (issue #269) the same way `score.ts` already
-// does for its own entry-priced legs.
-function strikeAdjustmentNotesOf(legs: readonly { notes: Note[] }[]): Note[] {
-  const codes = new Set(legs.flatMap((leg) => leg.notes.map((n) => n.code)));
-  const notes: Note[] = [];
-  if (codes.has(OPTION_STRIKE_DERIVED_NOTE.code)) notes.push(OPTION_STRIKE_DERIVED_NOTE);
-  if (codes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
-  return notes;
 }
 
 // The current side of a profit_target/stop_loss comparison prices every leg through the
@@ -840,10 +832,11 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
 
     const signals: Signal[] = [];
     const evaluations: EvaluationRecord[] = [];
-    // Rolled up from every exit-rule base's and current-side pricing's own per-leg strike
-    // adjustment, across every op and every instant this call visits (issue #269) — the same
-    // dedup-by-code `score.ts` already applies to its own entry-priced legs.
-    const exitRuleStrikeCodes = new Set<Note["code"]>();
+    // Rolled up from every exit-rule base's, exit-rule current-side pricing's and entry
+    // proposal's own per-leg strike adjustment, across every op/ticker and every instant this
+    // call visits (issue #269) — the same dedup-by-code `score.ts` already applies to its own
+    // entry-priced legs.
+    const strikeAdjustmentCodes = new Set<Note["code"]>();
     const atMs = instantMs(call.at);
 
     for (const ticker of instruments) {
@@ -1018,6 +1011,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               }
             }
             const pricing = entryPricing.value;
+            // This proposal's own per-leg strike adjustment is not rolled into
+            // `strikeAdjustmentCodes` here: `createStrategyEvaluator`'s own result is shared by
+            // `runBacktest` (which may still refuse this exact signal — a limit breach, an
+            // exhausted retry count — and must only roll a code up once a fill is actually
+            // accepted) and by the public `evaluateStrategy` below (which has no such concept and
+            // rolls every proposed entry's own notes up unconditionally, over `result.value
+            // .signals`, once `createStrategyEvaluator` returns). Issue #269.
             signals.push({
               kind: "entry",
               strategyVersionId: strategy.id,
@@ -1111,7 +1111,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             instantUnknown = true;
             continue;
           }
-          for (const note of bases.notes) exitRuleStrikeCodes.add(note.code);
+          for (const note of bases.notes) strikeAdjustmentCodes.add(note.code);
           const visibleFactors = state.view.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
           const splitFactorResult = splitFactorProduct(
             visibleFactors,
@@ -1127,7 +1127,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               case "profit_target":
               case "stop_loss": {
                 const outcome = evaluateNumericExitRule(rule, op, view, c, bases, splitFactor);
-                for (const note of outcome.notes) exitRuleStrikeCodes.add(note.code);
+                for (const note of outcome.notes) strikeAdjustmentCodes.add(note.code);
                 if (outcome.unknown) {
                   instantUnknown = true;
                   break;
@@ -1232,9 +1232,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
     }
 
     const notes: Note[] = [];
-    if (exitRuleStrikeCodes.has(OPTION_STRIKE_DERIVED_NOTE.code))
+    if (strikeAdjustmentCodes.has(OPTION_STRIKE_DERIVED_NOTE.code))
       notes.push(OPTION_STRIKE_DERIVED_NOTE);
-    if (exitRuleStrikeCodes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) {
+    if (strikeAdjustmentCodes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) {
       notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
     }
     return { ok: true, value: { signals, evaluations, notes } };
@@ -1247,10 +1247,22 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   const needsIv = dedupeIndicatorSpecs(collectIndicatorSpecs(input.strategy.definition)).some(
     (spec) => spec.kind === "iv_rank",
   );
+  // Every proposed entry's own strike-adjustment notes roll up here, unconditionally — unlike
+  // `runBacktest`'s own internal use of `createStrategyEvaluator`, this function has no later
+  // step that could still refuse the signal, so there is no "rejected proposal" to exclude
+  // (issue #269).
+  const entryLegs = result.value.signals
+    .filter((signal): signal is Extract<Signal, { kind: "entry" }> => signal.kind === "entry")
+    .flatMap((signal) => signal.proposal.pricing.legs);
+  const notes = strikeAdjustmentNotesOf([
+    ...result.value.notes.map((note) => ({ notes: [note] })),
+    ...entryLegs,
+  ]);
   return {
     ok: true,
     value: {
       ...result.value,
+      notes,
       provenance: {
         engineVersion: ENGINE_VERSION,
         pricingModel: "bsm_continuous_yield",
