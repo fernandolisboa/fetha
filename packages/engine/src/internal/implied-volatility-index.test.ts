@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { MarketView, OptionSeries, TradingSession } from "../api";
+import type { CorporateActionFactor, MarketView, OptionSeries, TradingSession } from "../api";
 import { bsmPriceRaw } from "./black-scholes";
 import { decimalString } from "../test/support";
 import { assertDefined } from "./invariant";
 import { computeImpliedVolatilityIndex } from "./implied-volatility-index";
+import { OPTION_STRIKE_DERIVED_NOTE } from "./notes";
 
 function dailyCalendar(fromIso: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
@@ -697,5 +698,94 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(orderedResult.ok).toBe(true);
     if (!orderedResult.ok) return;
     expect(orderedResult.value.seriesUsed).toEqual(["PETR4CA"]);
+  });
+
+  it("#270: solves ATM vol from the corporate-action-adjusted strike, not the raw listed one", () => {
+    // `PETR4C100` is listed before the split at a raw strike of 100.00. A 2-for-1 split
+    // (factor 0.5) is ex-dated exactly on the evaluation session itself, with no epoch of the
+    // ticker reflecting it yet (`resolveOptionStrike`'s "derived" case): the series' own strike
+    // the moment it trades is 50.00, not 100.00. The quoted price below is the ATM-50 price; fed
+    // the raw 100.00 strike instead, the solver either fails to converge or recovers a wildly
+    // different sigma.
+    const evalAt = sessionAt(5).close;
+    const expiry = sessionAt(35).date;
+    const trueSigma = 0.3;
+    const price = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: trueSigma,
+      right: "call",
+    });
+    const splitFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: sessionAt(5).date,
+      asOf: sessionAt(5).open,
+      factor: decimalString("0.5"),
+    };
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: evalAt, last: decimalString("50.00"), bid: null, ask: null },
+      ],
+      optionSeries: [{ ...callSeries("PETR4C100", "100.00", expiry), asOf: sessionAt(0).close }],
+      corporateActions: [splitFactor],
+      optionPrices: [
+        {
+          ticker: "PETR4C100",
+          session: sessionAt(5).date,
+          asOf: evalAt,
+          average: null,
+          close: decimalString(price.toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.impliedVolatility).not.toBeNull();
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(result.value.seriesUsed).toEqual(["PETR4C100"]);
+    expect(result.value.notes).toContainEqual(OPTION_STRIKE_DERIVED_NOTE);
+  });
+
+  it("#270: propagates an invalid corporate-action factor from the strike resolver (exact bracket)", () => {
+    const expiry = sessionAt(30).date;
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C50", "50.00", expiry)],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(0).date,
+          asOf: sessionAt(0).open,
+          factor: decimalString("-1"),
+        },
+      ],
+      optionPrices: [
+        {
+          ticker: "PETR4C50",
+          session: sessionAt(0).date,
+          asOf: at,
+          average: null,
+          close: decimalString("1.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", at, testProvenanceBase);
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_input",
+        path: "corporateActions[].factor",
+        message: "a corporate-action factor must be positive",
+      },
+    });
   });
 });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Structure } from "@fetha/contracts";
-import type { MarketView, OptionSeries } from "../api";
+import type { CorporateActionFactor, MarketView, OptionSeries } from "../api";
 import { dailyCalendar, decimalString } from "../test/support";
+import { bsmPriceRaw } from "./black-scholes";
 import { resolveLegSelection } from "./resolve-leg-selection";
 
 const calendar = dailyCalendar(2, 20);
@@ -564,5 +565,159 @@ describe("resolveLegSelection", () => {
     if (!forwardResult.ok) return;
     const [, putLeg] = forwardResult.legs;
     expect(putLeg).toMatchObject({ role: "put", series: { ticker: "PETR4P30A" } });
+  });
+
+  describe("#270: selection reads the corporate-action-adjusted strike", () => {
+    // Listed before the split, both still visible: `PETR4C100` (raw 100.00, derived 50.00 once
+    // the factor applies) and `PETR4C50` (raw 50.00, derived 25.00). A factor of 0.5 is ex-dated
+    // exactly on the evaluation session itself, with no epoch of either ticker reflecting it yet
+    // (`resolveOptionStrike`'s "derived" case) - so a selection rule reading `series.strike`
+    // straight picks by the stale, pre-split grid instead of the one the underlying actually
+    // trades against now.
+    const evalAt = "2024-01-05T21:00:00.000Z";
+    const splitFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-05",
+      asOf: "2024-01-05T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    };
+    const singleCall: Structure = {
+      id: "single-call",
+      name: "single call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const splitSeries = [callSeries("PETR4C100", "100.00"), callSeries("PETR4C50", "50.00")];
+
+    it("propagates an invalid corporate-action factor surfaced while resolving a candidate's strike", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: splitSeries,
+        corporateActions: [{ ...splitFactor, factor: decimalString("-1") }],
+      };
+      const result = resolveLegSelection({
+        structure: singleCall,
+        underlying: "PETR4",
+        strikes: [{ kind: "nearest", price: decimalString("50.00") }],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view,
+        at: evalAt,
+        spot: decimalString("50.00"),
+        riskFreeRate: decimalString("0.1"),
+        dividendYield: decimalString("0"),
+      });
+      expect(result).toEqual({
+        ok: false,
+        error: {
+          code: "invalid_input",
+          path: "corporateActions[].factor",
+          message: "a corporate-action factor must be positive",
+        },
+      });
+    });
+
+    it("picks the nearest-strike leg by the derived strike, not the raw listed one", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: splitSeries,
+        corporateActions: [splitFactor],
+      };
+      const result = resolveLegSelection({
+        structure: singleCall,
+        underlying: "PETR4",
+        strikes: [{ kind: "nearest", price: decimalString("50.00") }],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view,
+        at: evalAt,
+        spot: decimalString("50.00"),
+        riskFreeRate: decimalString("0.1"),
+        dividendYield: decimalString("0"),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "PETR4C100" } });
+    });
+
+    it("picks the moneyness leg by the derived strike, not the raw listed one", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: splitSeries,
+        corporateActions: [splitFactor],
+      };
+      const result = resolveLegSelection({
+        structure: singleCall,
+        underlying: "PETR4",
+        strikes: [{ kind: "moneyness", percent: decimalString("0") }],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view,
+        at: evalAt,
+        spot: decimalString("50.00"),
+        riskFreeRate: decimalString("0.1"),
+        dividendYield: decimalString("0"),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "PETR4C100" } });
+    });
+
+    it("picks the delta-target leg by the derived strike, not the raw listed one", () => {
+      // A gentle 10% bonus (factor 0.9), not a 2-for-1 split: strikes stay close to spot so a
+      // mis-specified strike still solves an implied volatility, isolating the distance-ranking
+      // bug this test targets from an unrelated convergence failure. `PETR4CA` (raw 55.56,
+      // derived 50.00) is the ATM leg once the factor is read correctly; `PETR4CB` (raw 50.00,
+      // derived 45.00) only looks ATM on its stale, pre-bonus raw strike.
+      const t = 7 / 252;
+      const spot = 50;
+      const sigma = 0.3;
+      const bonusFactor: CorporateActionFactor = {
+        ticker: "PETR4",
+        exDate: "2024-01-05",
+        asOf: "2024-01-05T13:00:00.000Z",
+        factor: decimalString("0.9"),
+      };
+      const seriesA = callSeries("PETR4CA", "55.56");
+      const seriesB = callSeries("PETR4CB", "50.00");
+      const priceAt = (k: number) =>
+        bsmPriceRaw({ s: spot, k, t, r: 0, q: 0, sigma, right: "call" });
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: [seriesA, seriesB],
+        corporateActions: [bonusFactor],
+        optionPrices: [
+          {
+            ticker: "PETR4CA",
+            session: "2024-01-05",
+            asOf: evalAt,
+            average: null,
+            close: decimalString(priceAt(50).toFixed(2)),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+          {
+            ticker: "PETR4CB",
+            session: "2024-01-05",
+            asOf: evalAt,
+            average: null,
+            close: decimalString(priceAt(45).toFixed(2)),
+            trades: 1,
+            tradedQuantity: 1,
+          },
+        ],
+      };
+      const result = resolveLegSelection({
+        structure: singleCall,
+        underlying: "PETR4",
+        strikes: [{ kind: "delta", target: decimalString("0.5") }],
+        expiry: { kind: "business_days", min: 1, max: 30 },
+        view,
+        at: evalAt,
+        spot: decimalString(String(spot)),
+        riskFreeRate: decimalString("0"),
+        dividendYield: decimalString("0"),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "PETR4CA" } });
+    });
   });
 });

@@ -13,6 +13,7 @@ import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import { parseDecimal } from "./decimal";
 import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
+import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { toQuantity } from "./scalars";
@@ -46,14 +47,20 @@ function distinctRanks(structure: Structure): number[] {
   return [...ranks].sort((a, b) => a - b);
 }
 
+type SeriesSelectionResult =
+  { ok: true; series: OptionSeries | null } | { ok: false; error: EngineError };
+
 function nearestSeriesByStrike(
   candidates: readonly OptionSeries[],
   target: Decimal,
-): OptionSeries | null {
+  strikeOf: StrikeResolver,
+): SeriesSelectionResult {
   let best: OptionSeries | null = null;
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
-    const distance = parseDecimal(series.strike).sub(target).abs();
+    const resolved = strikeOf(series);
+    if (!resolved.ok) return resolved;
+    const distance = parseDecimal(resolved.value.strike).sub(target).abs();
     const isBetter =
       bestDistance === null ||
       distance.lt(bestDistance) ||
@@ -63,7 +70,7 @@ function nearestSeriesByStrike(
       bestDistance = distance;
     }
   }
-  return best;
+  return { ok: true, series: best };
 }
 
 function nearestSeriesByAbsDelta(
@@ -75,15 +82,18 @@ function nearestSeriesByAbsDelta(
   riskFreeRate: DecimalString,
   dividendYield: DecimalString,
   timeToExpiryYears: number,
-): OptionSeries | null {
+  strikeOf: StrikeResolver,
+): SeriesSelectionResult {
   let best: OptionSeries | null = null;
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
+    const resolved = strikeOf(series);
+    if (!resolved.ok) return resolved;
     const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
     const valuation = priceOptionLeg({
       leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: toQuantity(1) },
-      strike: series.strike,
+      strike: resolved.value.strike,
       spot,
       riskFreeRate,
       dividendYield,
@@ -102,7 +112,7 @@ function nearestSeriesByAbsDelta(
       bestDistance = distance;
     }
   }
-  return best;
+  return { ok: true, series: best };
 }
 
 // Two tickers can list the same (underlying, expiry, right, strike): a `.find` over
@@ -112,14 +122,18 @@ function seriesAtStrike(
   candidates: readonly OptionSeries[],
   right: "call" | "put",
   strike: DecimalString,
-): OptionSeries | null {
+  strikeOf: StrikeResolver,
+): SeriesSelectionResult {
   const target = parseDecimal(strike);
   let best: OptionSeries | null = null;
   for (const series of candidates) {
-    if (series.right !== right || !parseDecimal(series.strike).eq(target)) continue;
+    if (series.right !== right) continue;
+    const resolved = strikeOf(series);
+    if (!resolved.ok) return resolved;
+    if (!parseDecimal(resolved.value.strike).eq(target)) continue;
     if (!best || series.ticker < best.ticker) best = series;
   }
-  return best;
+  return { ok: true, series: best };
 }
 
 export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionResolution {
@@ -195,6 +209,13 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
   invariant(tteResult.ok, "chosenExpiry must resolve a time to expiry: it passed the window check");
   const timeToExpiryYears = tteResult.years;
 
+  const strikeOf = createOptionStrikeResolver(
+    input.view,
+    input.underlying,
+    atSession.date,
+    input.at,
+  );
+
   const resolvedStrikes: DecimalString[] = [];
   const chosenByRankAndRight = new Map<string, OptionSeries>();
   for (const [i, rank] of ranks.entries()) {
@@ -227,18 +248,18 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       };
     }
 
-    let chosen: OptionSeries | null = null;
+    let selection: SeriesSelectionResult;
     if (rule.kind === "nearest") {
-      chosen = nearestSeriesByStrike(candidates, parseDecimal(rule.price));
+      selection = nearestSeriesByStrike(candidates, parseDecimal(rule.price), strikeOf);
     } else if (rule.kind === "moneyness") {
       const target = parseDecimal(input.spot).mul(new Decimal(1).add(parseDecimal(rule.percent)));
-      chosen = nearestSeriesByStrike(candidates, target);
+      selection = nearestSeriesByStrike(candidates, target, strikeOf);
     } else {
       // A shared strike rank can list both rights (a straddle): the governing delta is
       // the first right the structure declares at that rank (`rightsAtRank[0]`, insertion
       // order over `structure.legs`), never a best-of-both or an average across rights,
       // since the two legs must land on one strike.
-      chosen = nearestSeriesByAbsDelta(
+      selection = nearestSeriesByAbsDelta(
         candidates.filter((series) => series.right === rightsAtRank[0]),
         parseDecimal(rule.target),
         input.view,
@@ -247,8 +268,11 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
         input.riskFreeRate,
         input.dividendYield,
         timeToExpiryYears,
+        strikeOf,
       );
     }
+    if (!selection.ok) return { ok: false, error: selection.error };
+    const chosen = selection.series;
     if (!chosen) {
       return {
         ok: false,
@@ -260,7 +284,9 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
         },
       };
     }
-    resolvedStrikes.push(chosen.strike);
+    const chosenStrike = strikeOf(chosen);
+    if (!chosenStrike.ok) return { ok: false, error: chosenStrike.error };
+    resolvedStrikes.push(chosenStrike.value.strike);
     chosenByRankAndRight.set(`${String(rank)}:${chosen.right}`, chosen);
   }
 
@@ -295,16 +321,23 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
       "every strike rank was resolved above",
     );
     const rankKey = `${String(template.strikeRank)}:${template.role}`;
-    const series =
-      chosenByRankAndRight.get(rankKey) ??
-      seriesAtStrike(
+    const alreadyChosen = chosenByRankAndRight.get(rankKey);
+    let series: OptionSeries | null;
+    if (alreadyChosen) {
+      series = alreadyChosen;
+    } else {
+      const fallback = seriesAtStrike(
         latestSeries.filter(
           (candidate) =>
             candidate.underlying === input.underlying && candidate.expiry === chosenExpiry,
         ),
         template.role,
         strike,
+        strikeOf,
       );
+      if (!fallback.ok) return { ok: false, error: fallback.error };
+      series = fallback.series;
+    }
     if (!series) {
       return {
         ok: false,
