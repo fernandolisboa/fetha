@@ -327,4 +327,41 @@ describe("real positions follow a split as the broker records it (#271)", () => 
     if (!operationValuation) throw new Error("expected an operation valuation");
     expect(operationValuation.pricing.legs[0]?.leg.quantity).toBe(200);
   });
+
+  it("(d) a 1-for-7 reverse split rebases exactly, not refused by decimal.js rounding (review round 2 item 1)", async () => {
+    const market = await seedStockMarket();
+    const owner = await signIn("one-for-seven-split");
+
+    await recordFillAction({
+      ticker: market.underlying,
+      side: "buy",
+      quantity: 700,
+      price: "10,00",
+      session: market.sessions[0] ?? "",
+      costs: "",
+    });
+    // A 1-for-7 reverse split (factor 7): 1/7 is a non-terminating decimal, so inverting the
+    // factor before dividing (review round 2's blocking finding) lands on 700.00000000000000001
+    // instead of exactly 700 and wrongly refuses the whole group.
+    await recordSplit(market.underlying, market.sessions[2] ?? "", "7");
+    // Broker-recorded post-split basis: 100 shares, equivalent to the first fill's 700 pre-split.
+    await recordFillAction({
+      ticker: market.underlying,
+      side: "buy",
+      quantity: 100,
+      price: "70,00",
+      session: market.sessions[4] ?? "",
+      costs: "",
+    });
+
+    const fills = await new PortfolioRepository(getDb(), owner).listFills();
+    expect(
+      await groupFillsAction({ fillIds: fills.map((fill) => fill.id), operationId: null }),
+    ).toEqual({ status: "ok" });
+
+    const loaded = await loadPortfolio(getDb(), owner, closeOf(market.sessions[6] ?? ""));
+    const operationValuation = loaded.operations[0]?.valuation;
+    if (!operationValuation) throw new Error("expected an operation valuation");
+    expect(operationValuation.pricing.legs[0]?.leg.quantity).toBe(200);
+  });
 });

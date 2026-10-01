@@ -39,22 +39,41 @@ export interface NormalizeFillsResult<T extends LedgerFill> {
   skipped: boolean;
 }
 
-// Rebases one fill by `factor`, the engine's own effective-quantity formula (ADR-0014 Q51):
-// quantity ÷ factor, price × factor. `null` when the division does not land on a whole share or
-// falls outside `Quantity`'s bounds (`packages/contracts`).
-function rebaseFillEffective<T extends LedgerFill>(fill: T, factor: Decimal): T | null {
-  if (factor.eq(1)) return fill;
-  const rebasedQuantity = new Decimal(fill.quantity).div(factor);
+function rebasedFill<T extends LedgerFill>(
+  fill: T,
+  rebasedQuantity: Decimal,
+  rebasedPrice: Decimal,
+): T | null {
   if (!rebasedQuantity.eq(rebasedQuantity.round())) return null;
   const quantity = rebasedQuantity.toNumber();
   if (!quantitySchema.safeParse(quantity).success) return null;
   return {
     ...fill,
     quantity,
-    price: decimalStringSchema.parse(
-      new Decimal(fill.price).mul(factor).toFixed(NORMALIZED_PRICE_SCALE),
-    ),
+    price: decimalStringSchema.parse(rebasedPrice.toFixed(NORMALIZED_PRICE_SCALE)),
   };
+}
+
+// The engine's own effective-quantity formula (ADR-0014 Q51): quantity ÷ factor, price × factor.
+// `null` when the division does not land on a whole share or falls outside `Quantity`'s bounds
+// (`packages/contracts`).
+function rebaseFillForward<T extends LedgerFill>(fill: T, factor: Decimal): T | null {
+  if (factor.eq(1)) return fill;
+  const price = new Decimal(fill.price);
+  return rebasedFill(fill, new Decimal(fill.quantity).div(factor), price.mul(factor));
+}
+
+// The inverse of the engine's formula, computed by its own explicit multiplication/division
+// rather than by inverting the factor and reusing `rebaseFillForward`: review round 2 item 1
+// caught that `1 ÷ F` is a non-terminating decimal for a factor like 7, 3, 6 or 9, so dividing a
+// fill's quantity by that inverted value introduced rounding error large enough to fail the
+// whole-share check and wrongly refuse an exact rebase (F=7, quantity=100 computed
+// 700.00000000000000001, not 700). quantity × factor and price ÷ factor are each a single exact
+// decimal.js operation on the stored factor itself.
+function rebaseFillBackward<T extends LedgerFill>(fill: T, factor: Decimal): T | null {
+  if (factor.eq(1)) return fill;
+  const price = new Decimal(fill.price);
+  return rebasedFill(fill, new Decimal(fill.quantity).mul(factor), price.div(factor));
 }
 
 // #271: "each fill is recorded as the broker showed it on its own date." A fill dated after an
@@ -78,7 +97,7 @@ export function normalizeFillsForOperationBasis<T extends LedgerFill>(
     if (!factorResult.ok) {
       return { fills: [...fills], skipped: true };
     }
-    const rebased = rebaseFillEffective(fill, new Decimal(1).div(factorResult.value));
+    const rebased = rebaseFillBackward(fill, factorResult.value);
     if (!rebased) {
       return { fills: [...fills], skipped: true };
     }
@@ -127,11 +146,15 @@ export function normalizeFillsForHoldingsBasis<T extends LedgerFill>(
       normalized.push(...group);
       continue;
     }
+    // Review round 2 item 4: an option holding never rebases forward past its own expiry, the
+    // same cap the engine itself applies (ADR-0014 Q51 windows an option leg at `openedAt` through
+    // its own expiry, never beyond); a stock holding (no expiry) has no such cap.
+    const through = first?.expiry && first.expiry < asOf ? first.expiry : asOf;
     const rebasedGroup: T[] = [];
     let skipped = false;
     for (const fill of group) {
-      const factorResult = splitFactorProduct(factors, fill.session, asOf);
-      const rebased = factorResult.ok ? rebaseFillEffective(fill, factorResult.value) : null;
+      const factorResult = splitFactorProduct(factors, fill.session, through);
+      const rebased = factorResult.ok ? rebaseFillForward(fill, factorResult.value) : null;
       if (!rebased) {
         skipped = true;
         break;

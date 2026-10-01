@@ -165,6 +165,29 @@ describe("normalizeFillsForOperationBasis (#271)", () => {
     const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
     expect(result).toEqual({ fills, skipped: true });
   });
+
+  describe("non-terminating-decimal factors (review round 2 item 1)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+
+    it.each([
+      { factor: "3", quantities: [1, 2, 5, 13] },
+      { factor: "6", quantities: [1, 2, 5, 13] },
+      { factor: "7", quantities: [1, 2, 5, 13, 100] },
+      { factor: "9", quantities: [1, 2, 5, 13] },
+    ])("rebases exactly, never refuses, for a 1-for-$factor grouping", ({ factor, quantities }) => {
+      for (const quantity of quantities) {
+        const postGrouping = fill({
+          session: "2026-09-15",
+          quantity,
+          price: "10" as DecimalString,
+        });
+        const factors = [split("2026-09-10", factor)];
+        const result = normalizeFillsForOperationBasis([postGrouping], openedAt, factors);
+        expect(result.skipped).toBe(false);
+        expect(result.fills[0]?.quantity).toBe(quantity * Number(factor));
+      }
+    });
+  });
 });
 
 describe("normalizeFillsForHoldingsBasis (#271, forward to asOf per review round 1 item 3)", () => {
@@ -215,5 +238,94 @@ describe("normalizeFillsForHoldingsBasis (#271, forward to asOf per review round
     const result = normalizeFillsForHoldingsBasis(fills, "2026-10-01", () => "PETR4", factors);
     expect(result.fills).toEqual(fills);
     expect(result.skippedHoldingKeys).toEqual(new Set([holdingKeyOf(first)]));
+  });
+
+  describe("non-terminating-decimal factors (review round 2 item 1)", () => {
+    it.each([
+      { factor: "3", quantities: [3, 6, 15, 39] },
+      { factor: "6", quantities: [6, 12, 30, 78] },
+      { factor: "7", quantities: [7, 14, 35, 91, 700] },
+      { factor: "9", quantities: [9, 18, 45, 117] },
+    ])(
+      "rebases exactly forward, never refuses, for a 1-for-$factor grouping",
+      ({ factor, quantities }) => {
+        for (const quantity of quantities) {
+          const preGrouping = fill({
+            ticker: "PETR4",
+            session: "2026-09-01",
+            quantity,
+            price: "10" as DecimalString,
+          });
+          const factors = new Map([["PETR4", [split("2026-09-10", factor)]]]);
+          const result = normalizeFillsForHoldingsBasis(
+            [preGrouping],
+            "2026-10-01",
+            () => "PETR4",
+            factors,
+          );
+          expect(result.skippedHoldingKeys.size).toBe(0);
+          expect(result.fills[0]?.quantity).toBe(quantity / Number(factor));
+        }
+      },
+    );
+  });
+
+  it("round-trips: an operation's backward rebase to openedAt and a holding's forward rebase to today land on the same current basis", () => {
+    // A fill recorded on the broker's own, already-grouped basis (quantity 100, a 1-for-7
+    // grouping of a nominal 700) read two ways: as part of an operation (rebased backward to the
+    // operation's own pre-grouping openedAt, nominal 700) and as a bare holding (rebased forward
+    // from its own session to today, unchanged since it is already on today's basis). Both must
+    // agree on what the real, current position is once the engine's own forward rebase (for the
+    // operation) and this module's own forward rebase (for the holding) are applied.
+    const factor = "7";
+    const groupedFill = fill({
+      ticker: "PETR4",
+      session: "2026-09-15",
+      quantity: 100,
+      price: "70" as DecimalString,
+    });
+    const factors = [split("2026-09-10", factor)];
+
+    const operationBasis = normalizeFillsForOperationBasis([groupedFill], "2026-09-01", factors);
+    expect(operationBasis.skipped).toBe(false);
+    const nominal = operationBasis.fills[0];
+    if (!nominal) throw new Error("expected a rebased fill");
+    // The engine's own forward rebase at mark time: nominal quantity ÷ factor.
+    const engineForwardQuantity = nominal.quantity / Number(factor);
+
+    const holdingsBasis = normalizeFillsForHoldingsBasis(
+      [groupedFill],
+      "2026-10-01",
+      () => "PETR4",
+      new Map([["PETR4", factors]]),
+    );
+    expect(holdingsBasis.skippedHoldingKeys.size).toBe(0);
+    const currentHolding = holdingsBasis.fills[0];
+    if (!currentHolding) throw new Error("expected a rebased holding fill");
+
+    expect(engineForwardQuantity).toBe(currentHolding.quantity);
+    expect(engineForwardQuantity).toBe(groupedFill.quantity);
+  });
+
+  it("caps the forward window at an option holding's own expiry (review round 2 item 4)", () => {
+    const preExpiryFill = fill({
+      ticker: "PETRJ320",
+      expiry: "2026-10-10",
+      assetClass: "option",
+      session: "2026-09-01",
+      quantity: 100,
+      price: "2" as DecimalString,
+    });
+    // One factor ex-dated before expiry (inside the capped window) and one after (outside it).
+    const factors = new Map([["PETR4", [split("2026-09-15", "0.5"), split("2026-11-01", "0.5")]]]);
+    const result = normalizeFillsForHoldingsBasis(
+      [preExpiryFill],
+      "2026-12-01",
+      () => "PETR4",
+      factors,
+    );
+    expect(result.skippedHoldingKeys.size).toBe(0);
+    // Only the pre-expiry factor (0.5) applies: quantity ÷ 0.5 = 200, not ÷ 0.25 = 400.
+    expect(result.fills[0]?.quantity).toBe(200);
   });
 });
