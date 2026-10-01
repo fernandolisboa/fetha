@@ -1958,8 +1958,8 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       (valid: object) => ({ ...valid, pendingTaxDeduction: "nope" }),
     ],
     [
-      "an object whose optionStrikeAcrossCorporateActionNoted is not a boolean",
-      (valid: object) => ({ ...valid, optionStrikeAcrossCorporateActionNoted: "nope" }),
+      "an object whose optionStrikeDerivedAcrossCorporateActionNoted is not a boolean",
+      (valid: object) => ({ ...valid, optionStrikeDerivedAcrossCorporateActionNoted: "nope" }),
     ],
     [
       "an object whose firstTradableSession is neither a string nor null (ADR-0041)",
@@ -2583,7 +2583,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(run.walkForward?.[1]?.metrics.slippage).toBe(centavos(47460));
   });
 
-  it("notes option_strike_unadjusted_across_corporate_action when a split falls inside an option-legged operation's life (Q51 gap, no series-rollover support yet)", () => {
+  it("notes option_strike_derived_across_corporate_action when a split falls inside an option-legged operation's life with no epoch of its own reflecting it yet (#69 part 2)", () => {
     const days = businessDays(20);
     const expiry = days[10] as string;
     const config = baseConfig({
@@ -2619,7 +2619,7 @@ describe("runBacktest — option structures (#23)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
     expect(result.value.run.notes).toContainEqual(
-      expect.objectContaining({ code: "option_strike_unadjusted_across_corporate_action" }),
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
     );
   });
 
@@ -2732,25 +2732,31 @@ describe("runBacktest — option structures (#23)", () => {
     const op = run.operations.find((o) => o.status === "expired");
     expect(op).toBeDefined();
     if (op?.status !== "expired") return;
-    // The stock leg's own effective quantity at expiry (344 / 3 = 114.666…7 shares) is
-    // strictly less than the call's assigned 344: the residual (buyQty − sellQty =
-    // 114.667 − 344 = −229.333…) is truncated to the integer −229 (matches the next
-    // session's own residual-close fill below) with a −0.333…7 (−1/3 share) fraction cash-
-    // settled right at this same expiry session's close (45.00): before this was fixed,
-    // `.round()` silently rounded −229.333 to −229 with no cash movement for the dropped
-    // third of a share, breaking exactly this invariant.
+    // A covered call's 1:1 stock/option ratio rebases both legs by the same factor (#69 part
+    // 2: the assigned call's own 344 contracts become 344 / 3 = 114.666…7 too, not the
+    // unrebased 344 an earlier, option-legs-exempt version of this fix left behind), so the
+    // stock leg's effective count and the assignment's effective count net to exactly zero —
+    // no residual, no next session's own fill. The assignment's own real trade floors to 114
+    // whole shares at the derived strike (5.00 x 3 = 15.00); the leftover 0.666…7 of a
+    // contract is cash-settled immediately at that same strike, the same way a stock-leg
+    // exit's own split residue is (resolvePendingExitFills, ADR-0014 Q51) — an
+    // exercise/assignment is a real, immediate trade, so none of its value can wait for a
+    // deferred residual close the way the stock leg's own "kept" shares do.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
-    expect(residualFill).toMatchObject({ side: "buy", quantity: 229, source: "next_session_open" });
+    expect(residualFill).toBeUndefined();
+    const assignmentFill = run.fills.find((f) => f.session === expiry);
+    expect(assignmentFill).toMatchObject({
+      side: "sell",
+      quantity: 114,
+      price: decimalString("15.00"),
+    });
     const finalCash = run.equityCurve.at(-1)?.cash;
     if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
     const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
     expect(totalPnl).toBe(finalCash - config.initialCapital);
-    expect(op.pnl).toBe(centavos(-1359968));
-    // The expiry-session equity point still marks the 229-share residual short at the
-    // session's own close (45.00, before the next session's own fill closes it): cash
-    // 671 147 minus that mark-to-market liability nets to −359 353.
+    expect(op.pnl).toBe(centavos(-327353));
     const expiryEquityPoint = run.equityCurve.find((p) => p.session === expiry);
-    expect(expiryEquityPoint).toMatchObject({ cash: centavos(671147), equity: centavos(-359353) });
+    expect(expiryEquityPoint).toMatchObject({ cash: centavos(672647), equity: centavos(672647) });
   });
 
   const bullCallSpread: Structure = {
@@ -3119,14 +3125,19 @@ describe("runBacktest — option structures (#23)", () => {
       period: { from: days[0] as string, to: days[11] as string },
     });
     // Entry: 200 shares at 20.00 on 2024-01-03 — not divisible by the 3:1 grouping
-    // (ex-date 2024-01-09, before the 2024-01-16 expiry). Spot stays strictly between the
-    // 14/26 strikes the whole run: both options expire worthless, so the whole stock leg
-    // (effective 200 / 3 = 66.666…7 shares, entry rebased to 60.00/share) is the residual.
+    // (ex-date 2024-01-09, before the 2024-01-16 expiry). The underlying triples with the
+    // grouping (20.00 -> 60.00, matching the covered-call fixture above), and so do both
+    // listed strikes once derived (#69 part 2: 14.00 x 3 = 42.00, 26.00 x 3 = 78.00), so spot
+    // stays strictly between them the whole run: both options expire worthless, and the whole
+    // stock leg (effective 200 / 3 = 66.666…7 shares, entry rebased to 60.00/share) is the
+    // residual.
     const view: MarketView = {
       ...emptyView,
       calendar: optionCalendar,
       corporateActions: [grouping],
-      candles: days.map((d) => candle("PETR4", d, "20.00", "20.00")),
+      candles: days.map((d, i) =>
+        candle("PETR4", d, i < 5 ? "20.00" : "60.00", i < 5 ? "20.00" : "60.00"),
+      ),
       optionSeries: [
         callOrPutSeries("PETR4P14", "put", "14.00", expiry, `${days[0] as string}T20:00:00.000Z`),
         callOrPutSeries("PETR4C26", "call", "26.00", expiry, `${days[0] as string}T20:00:00.000Z`),
@@ -3143,17 +3154,24 @@ describe("runBacktest — option structures (#23)", () => {
     const op = run.operations.find((o) => o.status === "expired");
     expect(op).toBeDefined();
     if (op?.status !== "expired") return;
-    // 66.666…7 truncates to 66 (matches the residual-close fill below), with a +0.666…7
-    // (+2/3 share) fraction cash-settled at this same expiry session's close (20.00): the
-    // opposite sign from the covered-call fixture above, exercising the other side of the
-    // fractional-residue cash settlement.
+    // Both legs expire worthless at the derived strikes (#69 part 2: 14.00 x 3 = 42.00,
+    // 26.00 x 3 = 78.00, spot 60.00 strictly between them), so this residual is entirely the
+    // stock leg's own: 66.666…7 truncates to 66 (matches the residual-close fill below), with
+    // a +0.666…7 (+2/3 share) fraction cash-settled at this same expiry session's close
+    // (60.00) — the opposite sign from the covered-call fixture above, exercising the other
+    // side of the fractional-residue cash settlement.
     const residualFill = run.fills.find((f) => f.operationId === op.id && f.session > expiry);
-    expect(residualFill).toMatchObject({ side: "sell", quantity: 66, source: "next_session_open" });
+    expect(residualFill).toMatchObject({
+      side: "sell",
+      quantity: 66,
+      price: decimalString("60.00"),
+      source: "next_session_open",
+    });
     const finalCash = run.equityCurve.at(-1)?.cash;
     if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
     const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
     expect(totalPnl).toBe(finalCash - config.initialCapital);
-    expect(op.pnl).toBe(centavos(-267173));
+    expect(op.pnl).toBe(centavos(-638));
   });
 
   it("resolves a pending exit rule for an operation that settled with a deferred residual: a days_before_expiry rule that never filled on a zero-volume expiry session must not throw on the following session", () => {

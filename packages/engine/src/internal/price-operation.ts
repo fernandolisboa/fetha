@@ -29,6 +29,7 @@ import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
+import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLeg } from "./option-pricing";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -116,23 +117,32 @@ function valueOneLeg(
     };
   }
 
-  const series = resolveSeries(view, leg.ticker, at);
-  if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
+  const resolvedStrike = resolveOptionStrike(view, leg.ticker, underlying, atSession, at);
+  if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
+  const { series, strike: strikeString, derived: strikeDerived } = resolvedStrike.value;
   if (series.underlying !== underlying) {
     return {
       ok: false,
       error: { code: "invalid_input", path: legPath, message: "leg underlying mismatch" },
     };
   }
-  if (!isPositive(series.strike)) {
+  if (!isPositive(strikeString)) {
     return {
       ok: false,
       error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
+  // #69 part 2: this leg's strike had no epoch of its own yet reflecting a corporate action
+  // visible at `at`; it was derived from the underlying's own factor rather than read straight
+  // off a listed epoch (option-strike.ts).
+  const strikeDerivedNote: Note = {
+    code: "option_strike_derived_across_corporate_action",
+    message:
+      "this leg's strike had no listed epoch reflecting a corporate action visible yet; it was derived from the underlying's own factor",
+  };
 
   if (expiredIntrinsicBasis !== null) {
-    const strike = parseDecimal(series.strike);
+    const strike = parseDecimal(strikeString);
     const basis = parseDecimal(expiredIntrinsicBasis);
     const intrinsic =
       leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
@@ -155,7 +165,8 @@ function valueOneLeg(
         },
       ],
     };
-    return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit: intrinsic } };
+    if (strikeDerived) valuation.notes = [...valuation.notes, strikeDerivedNote];
+    return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic } };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -210,7 +221,7 @@ function valueOneLeg(
     );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
-    strike: series.strike,
+    strike: strikeString,
     spot,
     riskFreeRate,
     dividendYield,
@@ -219,13 +230,14 @@ function valueOneLeg(
     givenVolatility: leg.volatility ?? null,
     suppressStaleImpliedVolatility,
   });
+  if (strikeDerived) valuation.notes = [...valuation.notes, strikeDerivedNote];
   const premiumPerUnit = valuation.price
     ? parseDecimal(valuation.price)
     : valuation.fairValue
       ? parseDecimal(valuation.fairValue)
       : new Decimal(0);
 
-  return { ok: true, leg: { valuation, strike: series.strike, premiumPerUnit } };
+  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit } };
 }
 
 function legIntrinsicSlopeAtInfinity(role: "stock" | "call" | "put"): number {

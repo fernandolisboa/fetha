@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.7.0";
+export const ENGINE_VERSION = "0.8.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -150,6 +150,7 @@ export type NoteCode =
   | "less_than_one_effective_unit"
   | "stale_price_across_corporate_action"
   | "option_strike_unadjusted_across_corporate_action"
+  | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
   | "warm_up_sessions_excluded";
 export const noteCodes = [
@@ -178,6 +179,7 @@ export const noteCodes = [
   "less_than_one_effective_unit",
   "stale_price_across_corporate_action",
   "option_strike_unadjusted_across_corporate_action",
+  "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
 ] as const satisfies readonly NoteCode[];
@@ -1743,6 +1745,8 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
   half its legs and leaves the rest pending, which would leave an unhedged position the strategy
   never asked for. Corporate-action rebasing (Q51) stays scoped to a stock leg's own ticker for the
   same exchange-adjustment reason exit rules do; an option leg's fill quantity is never rescaled.
+  **Superseded by #69 part 2 (see the addendum below, `ENGINE_VERSION` `0.8.0`):** every leg, stock
+  or option, now rebases by the underlying's own split factor product.
 - **Settlement in a run delegates to `propose-settlement.ts`'s own `settleLeg`** (#72), the same
   way fills already delegate to `priceOperation`. At #23's own time of writing `proposeSettlement`
   was itself still unimplemented (the #21 addendum), so #23 implemented the exercise/assignment
@@ -1850,6 +1854,11 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
     settlement sees a non-trivial split factor on an operation with an option leg, rather than
     refused (item 18); tracked in issue #69.
+    **Resolved by #69 part 2 (see the addendum below, `ENGINE_VERSION` `0.8.0`):**
+    `option_strike_unadjusted_across_corporate_action` is legacy — kept in the `NoteCode` union
+    for artifacts a run produced before this addendum, never emitted going forward — superseded
+    by a strike the engine derives itself and the new note
+    `option_strike_derived_across_corporate_action`.
   - **`brokerage.optionPerContract` is charged once per fill, per leg, not scaled by the fill's
     own contract count (round 2 item 11).** `run-backtest.ts`'s `fillCosts` adds it as a flat
     per-order charge alongside `b3FeeRate`'s own proportional fee, the same shape
@@ -2466,3 +2475,83 @@ per session (fills, marks, last-known closes, the underlying spot) reads the lat
 version, so a restated view obeys I3. Intraday candles stay keyed by `asOf`, and the #58 cache is
 kept for every ticker without a restated session. Under the change policy's 0.4.0 case this moves
 readings conditions act on, so `ENGINE_VERSION` moves from `"0.6.0"` to `"0.7.0"`.
+
+## Addendum: every leg rebases across a corporate action; option strikes derive when no listed epoch reflects it yet; `ENGINE_VERSION` bumped to `0.8.0` (2026-10-01, #69 part 2)
+
+Part 1 of #69 (PR #268) gave `MarketView.optionSeries` one row per strike epoch per ticker and
+`resolveSeries` the instant-aware lookup over them. This addendum is part 2: it removes the
+stock-only gate the #23 round-2 batch and the "Known gap" note above left on corporate-action
+rebasing, and gives the engine a way to price an option leg correctly even before an exchange gets
+around to listing the adjusted series.
+
+- **Every leg of an operation on underlying `U` rebases.** `legPnlCentavos`, the entry- and
+  exit-fill resolvers, `computeMarkValue`, `evaluateNumericExitRule`'s current-premium read,
+  `priceOperation`'s per-leg valuation, `markToMarket`'s existing-operation path and `score.ts`'s
+  max-loss/pnl bases all key the corporate-action factor by `operation.underlying`, never by
+  `leg.ticker`, and apply `splitFactorProduct`'s product of every factor visible in
+  `(entryOrOpenedAt, at]` to a stock AND an option leg alike: `effectiveQuantity = quantity /
+factor`, `effectiveEntryPrice = entryPrice * factor`. A listed option series itself still comes
+  from the exchange exactly as adjusted (part 1's per-epoch `resolveSeries`); this rebasing is for
+  the leg's own held quantity and cost basis, which a corporate action changes the same way it
+  changes a stock leg's.
+- **A dissolved leg is dropped, not refused.** Where the stock-only gate used to make a
+  non-stock-ticketed corporate action an `invalid_input` refusal of the whole mark or score, a
+  factor that dissolves a leg below one effective unit now drops that leg (note
+  `less_than_one_effective_unit`) and continues pricing or scoring the rest of the operation,
+  matching the existing stock-leg precedent instead of carving out a second rule for option legs.
+- **New shared helper, `internal/option-strike.ts`.** An option leg's strike at an instant resolves
+  to the latest visible epoch's own `strike` (part 1's `resolveSeries`, unchanged) when that epoch
+  already reflects every split factor visible by the valuation instant. When it does not — the
+  common case right after a split and before the exchange re-lists an adjusted series — the engine
+  derives the strike itself: `series.strike` scaled by the product of the factors whose `exDate`
+  falls in `(sessionOf(series.asOf), atSession]`, rounded half-up to the cent
+  (`Decimal.ROUND_HALF_UP`, decimal.js's own default). `resolveOptionStrike(view, ticker,
+underlying, atSession, at)` is the one place this logic lives, returning `{ series, strike,
+derived }`; `propose-settlement.ts`'s `settleLeg`, `price-operation.ts`'s per-leg valuation
+  (both the live-pricing and the expired-intrinsic-basis branches), and `score.ts`'s
+  `buildEntryPricedLegs` all call it instead of reading `series.strike` directly, so settlement,
+  mark, intrinsic/greeks inputs and exit-rule bases never disagree on which strike an option leg
+  is priced against.
+- **`option_strike_unadjusted_across_corporate_action` is legacy.** The engine never emits it going
+  forward; it stays in the `NoteCode` union only so a run's stored `result` from before this
+  addendum keeps deserializing. The new note, `option_strike_derived_across_corporate_action`, is
+  additive and fires once, run-wide, whenever any leg's strike was derived rather than read
+  verbatim from a listed epoch — the same "flagged, not refused" shape the legacy note had, now
+  describing a corrected price instead of an uncorrected one.
+- **Exercise and assignment rebase too.** An exercised or assigned option leg becomes a real stock
+  trade; its rebased `effectiveQuantity` floors to a whole share count for the real fill (a trade
+  cannot execute a fraction of a share), and any fractional residue left over is cash-settled
+  immediately at the same strike, mirroring the residue `resolvePendingExitFills` already carries
+  for a stock-leg exit. The full, unrounded `effectiveQuantity` — not the floored trade quantity —
+  still feeds the aggregate `buyQty`/`sellQty`/`buyCost`/`sellProceeds` bucketing average-cost and
+  residual-position tracking already use, so a settlement nets correctly against a stock leg in the
+  same operation (a collar, a covered call) or produces the correct residual stock position when
+  there is none.
+- **A pre-existing double-factor bug in `score.ts`'s `settlementPnl` is fixed in passing.** Before
+  this addendum, `legSettlement.intrinsicValue` was multiplied by `factor` a second time on top of
+  the rebasing `buildEntryPricedLegs` already applied — a no-op bug while a non-trivial factor only
+  ever matched a stock leg's own entry/exit price elsewhere, since nothing in `score.ts` ever keyed
+  a factor by an option's own ticker. Now that an option leg legitimately carries a non-1 factor,
+  the double multiplication would have doubled a settled option leg's intrinsic value; `settleValue`
+  uses `legSettlement.intrinsicValue` as-is, matching how the "kept" branch already treats `mark`.
+- **Property I5** (`invariants/i5-split-invariant-settlement.property.test.ts`): a split on the
+  underlying does not change a long call's economic P&L beyond the derived strike's own cent
+  rounding. Fixed example (B3's own 2026 BBAS3-style 2-for-1): 100 BBASD350 calls bought at R$1.00,
+  strike 27.19, split factor 0.5 ex-dividend before expiry, series carrying no epoch of its own
+  reflecting the split — the engine derives strike 27.19 × 0.5 = 13.595, rounded half-up to 13.60 —
+  underlying closes at 14.50 at expiry: pnl = 200 × (14.50 − 13.60) − 100 × 1.00 = R$80.00. The
+  never-split twin (same relative move, pre-split scale: close 29.00, strike unchanged at 27.19):
+  pnl = 100 × (29.00 − 27.19) − 100 × 1.00 = R$81.00. The R$1.00 gap is exactly the strike's own
+  half-cent rounding (27.19 × 0.5 = 13.595) over 200 effective shares. A `fast-check` property
+  generalizes the same identity over any split factor whose reciprocal is a whole number (no
+  fractional-residue noise), any strike, premium and quantity, against a closed-form expected pnl.
+- **Golden backtests** (`invariants/__golden__/*.json`, `backtest-golden.test.ts`) move only on
+  `engineVersion`; none of the four fixtures' own corporate-action, option or non-option scenarios
+  happen to exercise an epoch-less post-split option leg, so no other field in any of the four
+  files changed. Updated deliberately via `vitest run src/invariants/backtest-golden.test.ts -u`,
+  then diffed to confirm.
+
+Under the change policy's `0.4.0` case this changes what settlement, mark and scoring compute for
+an operation with an option leg across a corporate action — a correctness fix to a previously
+disclosed known gap, not merely an additive field — so `ENGINE_VERSION` moves from `"0.7.0"` to
+`"0.8.0"`.

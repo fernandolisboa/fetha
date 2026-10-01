@@ -37,11 +37,11 @@ import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
 import { invalidInput } from "./errors";
 import { assertPresent, invariant } from "./invariant";
 import { isAfter, isAtOrBefore } from "./instant";
+import { resolveOptionStrike } from "./option-strike";
 import { computePayoffProfile, type PricedLeg } from "./price-operation";
 import type { ProvenanceBase } from "./provenance";
 import { proposeSettlement as computeProposeSettlement } from "./propose-settlement";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
-import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
@@ -123,17 +123,18 @@ function staleMarkNote(ticker: Ticker, session: SessionDate): Note {
 // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
 // share count and effective entry price are rebased by the product of every split/reverse-split
 // factor visible at `at` between the operation's `openedAt` and `through` (mark-to-market's own
-// `rebasedLegs`). An option leg's own ticker never carries a factor (a split forces a series
-// rollover, ADR-0013 #25 addendum), so this is a no-op (F = 1) for every option leg.
+// `rebasedLegs`), keyed on the operation's own `underlying` for every leg — stock and option
+// alike (#69 part 2: B3 scales option holdings and re-strikes the listed series by the same
+// factor as the underlying, rather than forcing a series rollover).
 function legSplitFactor(
   view: MarketView,
-  ticker: string,
+  underlying: string,
   openedAt: SessionDate,
   through: SessionDate,
   at: Instant,
 ): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
   const factors = view.corporateActions.filter(
-    (f) => f.ticker === ticker && isAtOrBefore(f.asOf, at),
+    (f) => f.ticker === underlying && isAtOrBefore(f.asOf, at),
   );
   return splitFactorProduct(factors, openedAt, through);
 }
@@ -156,28 +157,20 @@ function dummyValuation(leg: OperationLeg): LegValuation {
 function buildEntryPricedLegs(
   view: MarketView,
   at: Instant,
+  underlying: Ticker,
   openedAt: SessionDate,
   through: SessionDate,
   legs: readonly OperationLeg[],
 ): { ok: true; value: PricedLeg[] } | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
   for (const [legIndex, leg] of legs.entries()) {
-    const factorResult = legSplitFactor(view, leg.ticker, openedAt, through, at);
+    const factorResult = legSplitFactor(view, underlying, openedAt, through, at);
     if (!factorResult.ok) return factorResult;
     const factor = factorResult.value;
     const effectiveQuantity = new Decimal(leg.quantity).div(factor).floor().toNumber();
-    if (effectiveQuantity <= 0) {
-      if (leg.role !== "stock") {
-        return {
-          ok: false,
-          error: invalidInput(
-            `operation.legs[${String(legIndex)}]`,
-            "a corporate-action factor dissolves a non-stock leg below one effective unit",
-          ),
-        };
-      }
-      continue;
-    }
+    // A factor large enough to dissolve a leg below one effective unit (stock or option alike,
+    // #69 part 2) excludes it from this payoff's legs rather than aborting the whole call.
+    if (effectiveQuantity <= 0) continue;
     if (!Number.isSafeInteger(effectiveQuantity)) {
       return {
         ok: false,
@@ -200,11 +193,11 @@ function buildEntryPricedLegs(
       });
       continue;
     }
-    const series = resolveSeries(view, leg.ticker, at);
-    if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
+    const resolvedStrike = resolveOptionStrike(view, leg.ticker, underlying, through, at);
+    if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
     priced.push({
       valuation: dummyValuation(effectiveLeg),
-      strike: series.strike,
+      strike: resolvedStrike.value.strike,
       premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
     });
   }
@@ -223,6 +216,7 @@ function computeOperationMaxLoss(
   const legsResult = buildEntryPricedLegs(
     view,
     at,
+    operation.underlying,
     operation.openedAt,
     horizonSession,
     operation.legs,
@@ -352,7 +346,7 @@ function settlementPnl(
     const leg = legSettlement.leg;
     const factorResult = legSplitFactor(
       view,
-      leg.ticker,
+      underlying,
       openedAt,
       horizonSession.date,
       horizonSession.close,
@@ -392,7 +386,11 @@ function settlementPnl(
       continue;
     }
 
-    const settleValue = parseDecimal(legSettlement.intrinsicValue).mul(factor);
+    // `intrinsicValue` is already on the current (post-split) scale `settleLeg` resolved the
+    // strike against (#69 part 2, option-strike.ts) — the same scale `mark` is on in the "kept"
+    // branch above, so it is compared against `effectiveEntry` directly, with no factor of its
+    // own to apply.
+    const settleValue = parseDecimal(legSettlement.intrinsicValue);
     pnl = pnl.add(
       settleValue
         .sub(effectiveEntry)
@@ -440,7 +438,7 @@ function computeOperationPnl(
     // post-split fill price.
     const factorResult = legSplitFactor(
       view,
-      leg.ticker,
+      operation.underlying,
       operation.openedAt,
       fill.session,
       fill.at,
@@ -486,7 +484,13 @@ function computeOperationPnl(
       pnl = pnl.add(settled.value);
       notes.push(...settled.notes);
     } else {
-      const marked = markLegsToHorizon(view, remainingLegs, operation.openedAt, horizonSession);
+      const marked = markLegsToHorizon(
+        view,
+        operation.underlying,
+        remainingLegs,
+        operation.openedAt,
+        horizonSession,
+      );
       if (!marked.ok) return marked;
       pnl = pnl.add(marked.value);
       notes.push(...marked.notes);
@@ -548,6 +552,7 @@ function findFillSession(
 
 function markLegsToHorizon(
   view: MarketView,
+  underlying: Ticker,
   legs: readonly OperationLeg[],
   openedAt: SessionDate,
   horizonSession: TradingSession,
@@ -557,7 +562,7 @@ function markLegsToHorizon(
   for (const leg of legs) {
     const factorResult = legSplitFactor(
       view,
-      leg.ticker,
+      underlying,
       openedAt,
       horizonSession.date,
       horizonSession.close,
@@ -618,7 +623,13 @@ function settleOrMarkCounterfactualToHorizon(
     const pnl = settled.value.sub(entryCosts);
     return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: settled.notes };
   }
-  const marked = markLegsToHorizon(view, filledLegs, entryOpportunitySession, horizonSession);
+  const marked = markLegsToHorizon(
+    view,
+    operation.underlying,
+    filledLegs,
+    entryOpportunitySession,
+    horizonSession,
+  );
   if (!marked.ok) return marked;
   const pnl = marked.value.sub(entryCosts);
   return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: marked.notes };
@@ -710,7 +721,7 @@ function computeCounterfactual(
       for (const f of exitOpportunity.fills) {
         const factorResult = legSplitFactor(
           input.view,
-          f.leg.ticker,
+          operation.underlying,
           entryOpportunity.session.date,
           exitOpportunity.session.date,
           exitOpportunity.session.close,

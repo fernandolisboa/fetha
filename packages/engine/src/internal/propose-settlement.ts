@@ -17,9 +17,9 @@ import type {
 import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
 import { validateOperationCoherence } from "./operation-coherence";
+import { resolveOptionStrike } from "./option-strike";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
-import { resolveSeries } from "./resolve-series";
 import { toCentavos } from "./scalars";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
@@ -55,17 +55,19 @@ export function settleLeg(
   session: SessionDate,
   at: Instant,
   view: MarketView,
-): { ok: true; value: LegSettlement } | { ok: false; error: EngineError } {
+): { ok: true; value: LegSettlement; strikeDerived: boolean } | { ok: false; error: EngineError } {
   if (leg.role === "stock") {
     return {
       ok: true,
       value: { leg: { ...leg, role: "stock" }, outcome: "kept", intrinsicValue: null, fills: [] },
+      strikeDerived: false,
     };
   }
 
-  const series = resolveSeries(view, leg.ticker, at);
-  if (!series) return { ok: false, error: { code: "missing_instrument", ticker: leg.ticker } };
-  if (!parseDecimal(series.strike).gt(0)) {
+  const resolved = resolveOptionStrike(view, leg.ticker, underlying, session, at);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const { series, strike: strikeString, derived: strikeDerived } = resolved.value;
+  if (!parseDecimal(strikeString).gt(0)) {
     return {
       ok: false,
       error: invalidInput(
@@ -75,7 +77,7 @@ export function settleLeg(
     };
   }
 
-  const strike = parseDecimal(series.strike);
+  const strike = parseDecimal(strikeString);
   const intrinsic =
     leg.role === "call"
       ? Decimal.max(underlyingClose.sub(strike), 0)
@@ -122,6 +124,7 @@ export function settleLeg(
         intrinsicValue,
         fills,
       },
+      strikeDerived,
     };
   }
   return {
@@ -138,6 +141,7 @@ export function settleLeg(
       intrinsicValue,
       fills,
     },
+    strikeDerived,
   };
 }
 
@@ -185,6 +189,7 @@ export function proposeSettlement(
   const closeDecimal = parseDecimal(underlyingClose);
 
   const legs: LegSettlement[] = [];
+  let anyStrikeDerived = false;
   for (const [legIndex, leg] of operation.legs.entries()) {
     const settled = settleLeg(
       leg,
@@ -197,6 +202,7 @@ export function proposeSettlement(
     );
     if (!settled.ok) return err(settled.error);
     legs.push(settled.value);
+    anyStrikeDerived ||= settled.strikeDerived;
   }
 
   // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
@@ -211,6 +217,16 @@ export function proposeSettlement(
         },
       ]
     : [];
+  // #69 part 2: at least one option leg's strike had no epoch of its own yet reflecting a
+  // corporate action visible by this settlement, so the strike above was derived from the
+  // underlying's own factor rather than read straight off a listed epoch.
+  if (anyStrikeDerived) {
+    notes.push({
+      code: "option_strike_derived_across_corporate_action",
+      message:
+        "a corporate action was visible on an operation with an option leg with no epoch of its own reflecting it yet; its strike was derived from the underlying's own factor",
+    });
+  }
 
   return {
     ok: true,

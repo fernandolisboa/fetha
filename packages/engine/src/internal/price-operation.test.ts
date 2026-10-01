@@ -1119,6 +1119,33 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("reads an option leg's strike unadjusted when the view carries no calendar to anchor derivation to (#69 part 2)", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: [],
+      optionSeries: [callSeries("PETR4C40", "40.00")],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C40",
+            quantity: quantity(1),
+            volatility: decimalString("0.2"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("insufficient_data");
+  });
+
   it("returns insufficient_data when a concrete option leg's expiry is not in the calendar", () => {
     const view: MarketView = {
       ...baseView,

@@ -106,7 +106,9 @@ const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_ses
 // `run-backtest.ts` (packages/engine) assembles `BacktestRun.notes` from the
 // metrics notes plus six run-level codes: `negative_cash`,
 // `limit_breach_warned`, `non_positive_equity`,
-// `option_strike_unadjusted_across_corporate_action`,
+// `option_strike_derived_across_corporate_action` (ADR-0013 `0.8.0` addendum;
+// `option_strike_unadjusted_across_corporate_action` is legacy, kept only on
+// a run stored before that addendum and never emitted going forward),
 // `warm_up_sessions_excluded` and `candle_less_sessions_excluded` (ADR-0041).
 // `no_operation`,
 // `less_than_one_effective_unit` and `no_risk_profile` are valid `NoteCode`
@@ -126,7 +128,10 @@ const sessionsCodes: NoteCode[] = ["candle_less_sessions_excluded", "warm_up_ses
 // report should ever show the per-operation notes, the
 // engine needs to roll them up onto the run first (see the follow-up issue
 // filed for this).
-const operationCodes: NoteCode[] = ["option_strike_unadjusted_across_corporate_action"];
+const operationCodes: NoteCode[] = [
+  "option_strike_unadjusted_across_corporate_action",
+  "option_strike_derived_across_corporate_action",
+];
 const surfacedCodes: NoteCode[] = [
   ...equityDrawdownCodes,
   ...annualizedCodes,

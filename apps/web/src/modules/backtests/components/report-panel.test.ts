@@ -83,6 +83,12 @@ describe("generalNotesFor", () => {
     expect(generalNotesFor(run)).toEqual([]);
   });
 
+  it("excludes the derived-strike-across-corporate-action note (#69 part 2), which the operations table surfaces instead", () => {
+    expect(surfacedNoteCodes).toContain("option_strike_derived_across_corporate_action");
+    const run = runWithNotes([note("option_strike_derived_across_corporate_action")]);
+    expect(generalNotesFor(run)).toEqual([]);
+  });
+
   it("never filters no_operation, less_than_one_effective_unit or no_risk_profile, which the run never emits", () => {
     expect(surfacedNoteCodes).not.toContain("no_operation");
     expect(surfacedNoteCodes).not.toContain("less_than_one_effective_unit");

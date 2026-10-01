@@ -169,6 +169,8 @@ const en = {
     stale_price_across_corporate_action: "Price carried forward across a corporate action.",
     option_strike_unadjusted_across_corporate_action:
       "The option's strike was not adjusted for a corporate action.",
+    option_strike_derived_across_corporate_action:
+      "The option's strike was derived from a corporate action because no adjusted listing was available yet.",
     candle_less_sessions_excluded: "Some sessions had no candle and were left out of the metrics.",
     warm_up_sessions_excluded:
       "The strategy's warm-up period was left out of the metrics; it never had enough history to trade.",
@@ -388,6 +390,8 @@ const ptBR = {
     stale_price_across_corporate_action: "Preço carregado através de um evento societário.",
     option_strike_unadjusted_across_corporate_action:
       "Strike da opção não foi ajustado por um evento societário.",
+    option_strike_derived_across_corporate_action:
+      "Strike da opção foi calculado a partir de um evento societário, pois ainda não havia série ajustada listada.",
     candle_less_sessions_excluded:
       "Alguns pregões não tinham candle e ficaram de fora das métricas.",
     warm_up_sessions_excluded:

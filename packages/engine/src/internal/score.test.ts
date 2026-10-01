@@ -828,7 +828,7 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     });
   });
 
-  it("rejects a corporate-action factor keyed by a non-stock leg's own ticker that dissolves it below one effective unit", () => {
+  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole score (#69 part 2)", () => {
     const callSeries: OptionSeries = {
       ticker: "PETR4C28",
       underlying: "PETR4",
@@ -843,13 +843,14 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
       optionSeries: [callSeries],
       corporateActions: [
         {
-          ticker: "PETR4C28",
+          ticker: "PETR4",
           exDate: "2024-01-03",
           asOf: "2024-01-03T00:00:00.000Z",
           factor: decimalString("1000"),
         },
       ],
       candles: [stockCandle("2024-01-05", "20.00", "20.00")],
+      optionPrices: [optionDayPrice("PETR4C28", "2024-01-05", "0.01")],
     };
     const operation: Operation = {
       id: "op-2",
@@ -869,13 +870,10 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
       rolledFrom: null,
     };
     const result = score({ ...baseInput, view, operation }, provenanceBase);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toEqual({
-      code: "invalid_input",
-      path: "operation.legs[0]",
-      message: "a corporate-action factor dissolves a non-stock leg below one effective unit",
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.maxLoss).toBe(centavos(0));
+    expect(result.value.notes).toContainEqual(expect.objectContaining({ code: "zero_max_loss" }));
   });
 });
 

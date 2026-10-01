@@ -518,12 +518,15 @@ describe("markToMarket", () => {
     expect(stockLeg?.leg.quantity).toBe(quantity(200));
     expect(stockLeg?.greeks?.delta).toBe(decimalString("1.000000"));
     const optionLeg = result.value.operations[0]?.pricing.legs[1];
-    expect(optionLeg?.leg.quantity).toBe(quantity(1));
+    // The option leg rebases the same way the stock leg does (#69 part 2: B3 scales option
+    // holdings by the same factor as the underlying, rather than exempting the option's own
+    // ticker): pre-split 1 contract is 2 post-split contracts.
+    expect(optionLeg?.leg.quantity).toBe(quantity(2));
     // The stock entry price is rebased to the post-split scale too (20.00 * 0.5 = 10.00), so
     // marking at the post-split spot of 10.00 shows no phantom gain on the stock leg from the
-    // split itself; the short call (untouched by the stock's split factor) contributes
-    // (2.00 - 0.50) * 1 unit = R$150 of unrealized gain.
-    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(150));
+    // split itself; the short call's own entry premium rebases to 2.00 * 0.5 = 1.00, so
+    // (1.00 - 0.50) * 2 effective contracts = 100 centavos of unrealized gain.
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(100));
   });
 
   it("prices standalone positions, aggregating equity and unrealized P&L with cash", () => {
@@ -1283,14 +1286,14 @@ describe("markToMarket", () => {
     });
   });
 
-  it("returns invalid_input, never throwing, for a corporate-action row keyed by an option leg's own ticker", () => {
+  it("drops an option leg a corporate-action factor dissolves below one effective unit, instead of refusing the whole mark (#69 part 2)", () => {
     const view: MarketView = {
       ...baseView,
       quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
       optionSeries: [callSeries("PETR4C28", "28.00")],
       corporateActions: [
         {
-          ticker: "PETR4C28",
+          ticker: "PETR4",
           exDate: "2024-01-02",
           asOf: "2024-01-02T13:00:00.000Z",
           factor: decimalString("10"),
@@ -1313,9 +1316,12 @@ describe("markToMarket", () => {
       { view, at, positions: [], operations: [op], cash: centavos(0) },
       provenanceBase,
     );
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("invalid_input");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.operations[0]?.pricing.legs).toHaveLength(0);
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "less_than_one_effective_unit" }),
+    );
   });
 
   it("returns invalid_input, never throwing, when a near-zero corporate-action factor overflows a safe integer effective quantity", () => {

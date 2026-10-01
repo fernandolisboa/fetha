@@ -135,14 +135,11 @@ type BacktestState = {
   pendingTaxDeduction: { monthKey: string; tax: number } | null;
   operationSeq: number;
   equityClampEngaged: boolean;
-  // Q51 guard: a real corporate action forces a re-listed, exchange-
-  // adjusted option series with its own new ticker (ADR-0014 Q51's "only a stock leg's own
-  // ticker persists unchanged"), which a caller-supplied view has no way to signal today —
-  // the engine has no series-rollover concept yet. Set once a settlement sees a non-trivial
-  // split factor on an operation carrying an option leg, so the run can flag that its
-  // settlement compared the underlying's adjusted close against that leg's unadjusted listed
-  // strike, until a follow-up ticket adds real rollover handling.
-  optionStrikeAcrossCorporateActionNoted: boolean;
+  // #69 part 2: set once a settlement sees at least one option leg whose strike had no epoch
+  // of its own yet reflecting a corporate action visible by that settlement, so run-wide the
+  // run can flag that at least one strike was derived from the underlying's own factor rather
+  // than read straight off a listed epoch (option-strike.ts).
+  optionStrikeDerivedAcrossCorporateActionNoted: boolean;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -174,7 +171,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     pendingTaxDeduction: null,
     operationSeq: 0,
     equityClampEngaged: false,
-    optionStrikeAcrossCorporateActionNoted: false,
+    optionStrikeDerivedAcrossCorporateActionNoted: false,
   };
 }
 
@@ -306,7 +303,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
 
   if (typeof raw.currentMonthKey !== "string" && raw.currentMonthKey !== null) return false;
   if (typeof raw.equityClampEngaged !== "boolean") return false;
-  if (typeof raw.optionStrikeAcrossCorporateActionNoted !== "boolean") return false;
+  if (typeof raw.optionStrikeDerivedAcrossCorporateActionNoted !== "boolean") return false;
   if (raw.pendingTaxDeduction !== null) {
     if (!isPlainObject(raw.pendingTaxDeduction)) return false;
     if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
@@ -453,21 +450,18 @@ function missedEntryReasonFor(outcome: EvaluationOutcome | undefined): MissedEnt
   return "no_trades";
 }
 
-// A leg's realized (or marked) pnl at a given price: a stock leg rebases through `splitFactor`
-// (I1, ADR-0014 Q51); an option leg never does (its own listed series is exchange-adjusted
-// instead, ADR-0013's #23 addendum), so `splitFactor` is ignored for it.
+// A leg's realized (or marked) pnl at a given price: every leg of an operation on underlying U
+// — stock and option alike — rebases through `splitFactor` (I1, ADR-0014 Q51, extended to option
+// legs by #69 part 2: B3 scales option holdings and re-strikes the listed series by the same
+// factor as the underlying, rather than forcing a series rollover).
 function legPnlCentavos(
   leg: OperationLeg,
   exitPrice: DecimalString,
   splitFactor: Decimal,
 ): Decimal {
   const sign = leg.side === "buy" ? 1 : -1;
-  const effectiveEntryPrice =
-    leg.role === "stock"
-      ? parseDecimal(leg.entryPrice).mul(splitFactor)
-      : parseDecimal(leg.entryPrice);
-  const effectiveQuantity =
-    leg.role === "stock" ? new Decimal(leg.quantity).div(splitFactor) : new Decimal(leg.quantity);
+  const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
+  const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
   return parseDecimal(exitPrice)
     .sub(effectiveEntryPrice)
     .mul(sign)
@@ -802,15 +796,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           session.date,
           session.close,
         );
-        // Only a stock leg's own ticker persists unchanged through a split (an option
-        // leg's listed series is exchange-adjusted instead, ADR-0013's #23 addendum), so
-        // only a stock leg's signal-time quantity is rescaled here.
+        // Every leg's signal-time quantity is rescaled the same way (#69 part 2: B3 scales
+        // option holdings by the same factor as the underlying, rather than forcing a series
+        // rollover).
         const rescaledQuantities: number[] = [];
         for (const leg of pending.legs) {
-          if (leg.role !== "stock") {
-            rescaledQuantities.push(leg.quantity);
-            continue;
-          }
           const rescaled = entryFactor.eq(1)
             ? leg.quantity
             : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
@@ -951,62 +941,40 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
         const entryCost = entryCosts[legIndex] ?? toCentavos(0);
 
-        if (leg.role !== "stock") {
-          // An option contract trades a whole number already; no split rebasing and no
-          // fractional residue (ADR-0013's #23 addendum: only a stock leg's own ticker
-          // persists unchanged through a corporate action).
-          const costs = fillCosts(config.costModel, legFill.price, leg.quantity, legFill.kind);
-          const gross = grossCentavos(legFill.price, leg.quantity).round().toNumber();
+        // The exit trades an integer number of units; a grouping factor that does not divide
+        // `leg.quantity` evenly leaves a sub-one-unit residue, cash-settled at this same fill's
+        // price rather than dropped or rounded into a unit that was never granted (ADR-0014 Q51,
+        // extended to option legs by #69 part 2: B3 scales option holdings by the same factor as
+        // the underlying, rather than forcing a series rollover). `pnl` is computed once, below,
+        // from the full unrounded effective quantity, so it already accounts for both the traded
+        // units and the residue.
+        const tradedTicker = leg.role === "stock" ? op.underlying : leg.ticker;
+        const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
+        const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
+        // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
+        // a real unit count can be; that is invalid input, not a value toQuantity should throw
+        // an invariant over.
+        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
+          return invalidInput(
+            "view.corporateActions",
+            `split factor produces a non-integer-safe effective unit count for ${tradedTicker}`,
+          );
+        }
+        const residue = rawEffectiveQuantity.sub(effectiveUnits);
+        let costs = toCentavos(0);
+        if (effectiveUnits > 0) {
+          const q = toQuantity(effectiveUnits);
+          costs = fillCosts(config.costModel, legFill.price, q, legFill.kind);
+          const gross = grossCentavos(legFill.price, q).round().toNumber();
           state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
           if (legFill.kind === "option") {
             state.slippageEntries.push({
               session: session.date,
-              amount: slippageCentavos(legFill.reference, legFill.price, leg.quantity),
+              amount: slippageCentavos(legFill.reference, legFill.price, q),
             });
           }
           state.fills.push({
-            ticker: leg.ticker,
-            side: exitSide,
-            quantity: leg.quantity,
-            price: legFill.price,
-            session: session.date,
-            at: session.open,
-            costs,
-            operationId: op.id,
-            source: legFill.source,
-          });
-          optionPnl = optionPnl
-            .add(legPnlCentavos(leg, legFill.price, splitFactor))
-            .sub(costs)
-            .sub(entryCost);
-          continue;
-        }
-
-        // The exit trades an integer number of shares; a grouping factor that does not divide
-        // `leg.quantity` evenly leaves a sub-one-share residue, cash-settled at this same fill's
-        // price rather than dropped or rounded into a share that was never granted (ADR-0014
-        // Q51). `pnl` is computed once, below, from the full unrounded effective quantity, so it
-        // already accounts for both the traded shares and the residue.
-        const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
-        const effectiveShares = Math.floor(rawEffectiveQuantity.toNumber());
-        // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
-        // a real share count can be; that is invalid input, not a value toQuantity should throw
-        // an invariant over.
-        if (effectiveShares > 0 && !Number.isSafeInteger(effectiveShares)) {
-          return invalidInput(
-            "view.corporateActions",
-            `split factor produces a non-integer-safe effective share count for ${op.underlying}`,
-          );
-        }
-        const residue = rawEffectiveQuantity.sub(effectiveShares);
-        let costs = toCentavos(0);
-        if (effectiveShares > 0) {
-          const q = toQuantity(effectiveShares);
-          costs = fillCosts(config.costModel, legFill.price, q, "stock");
-          const gross = grossCentavos(legFill.price, q).round().toNumber();
-          state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
-          state.fills.push({
-            ticker: op.underlying,
+            ticker: tradedTicker,
             side: exitSide,
             quantity: q,
             price: legFill.price,
@@ -1014,19 +982,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             at: session.open,
             costs,
             operationId: op.id,
-            source: "next_session_open",
+            source: legFill.source,
           });
-          if (exitSide === "sell") state.currentMonthStockSales += gross;
+          if (exitSide === "sell" && leg.role === "stock") state.currentMonthStockSales += gross;
         }
         if (residue.isPositive()) {
           const residueGross = grossCentavos(legFill.price, residue).round().toNumber();
           state.cash += (exitSide === "sell" ? 1 : -1) * residueGross;
-          if (exitSide === "sell") state.currentMonthStockSales += residueGross;
+          if (exitSide === "sell" && leg.role === "stock") {
+            state.currentMonthStockSales += residueGross;
+          }
         }
-        stockPnl = stockPnl
-          .add(legPnlCentavos(leg, legFill.price, splitFactor))
-          .sub(costs)
-          .sub(entryCost);
+        const legPnl = legPnlCentavos(leg, legFill.price, splitFactor).sub(costs).sub(entryCost);
+        if (leg.role === "stock") {
+          stockPnl = stockPnl.add(legPnl);
+        } else {
+          optionPnl = optionPnl.add(legPnl);
+        }
       }
       const pnlCentavos = toCentavos(stockPnl.add(optionPnl).round().toNumber());
       state.currentMonthStockGain += stockPnl.round().toNumber();
@@ -1164,27 +1136,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       }
       const underlyingClose = expirySessionCandle.close;
 
-      // The stock leg, if any, rebases through a corporate action the same way an open
-      // position's mark and a stock-leg exit already do (I1, ADR-0014 Q51): the settlement's
-      // own bucketing must land on the same effective share count and cost basis a same-session
-      // mark of this operation would, or a split visible by this same close silently mis-nets
-      // the residual against the option legs' unadjusted strike-quantity contribution.
+      // Every leg, stock and option alike, rebases through a corporate action the same way an
+      // open position's mark and an exit already do (I1, ADR-0014 Q51, extended to option legs
+      // by #69 part 2): the settlement's own bucketing must land on the same effective unit
+      // count and cost basis a same-session mark of this operation would.
       const splitFactor = corporateActionFactorThrough(
         op.underlying,
         op.openedAt,
         session.date,
         session.close,
       );
-      // Q51 guard: a factor other than 1 on an operation with an option
-      // leg means a real corporate action was visible over this leg's life, but the engine
-      // has no series-rollover concept to re-list that leg's strike against — it settles the
-      // adjusted underlying close against the leg's own unadjusted listed strike as if
-      // nothing happened. Flagged once, run-wide, rather than refused: the same fixtures this
-      // ADR's #23 addendum already exercises never carry a corporate action, so this is a
-      // documented gap, not a reachable regression today.
-      if (!splitFactor.eq(1) && op.legs.some((leg) => leg.role !== "stock")) {
-        state.optionStrikeAcrossCorporateActionNoted = true;
-      }
 
       const settlement: LegSettlement[] = [];
       let optionsPnl = new Decimal(0);
@@ -1198,6 +1159,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       let sellQty = new Decimal(0);
       let sellProceeds = new Decimal(0);
       let settlementCosts = new Decimal(0);
+      let anyStrikeDerived = false;
 
       for (const [legIndex, leg] of op.legs.entries()) {
         if (leg.role === "stock") {
@@ -1233,15 +1195,21 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           view,
         );
         if (!settled.ok) return { ok: false, error: settled.error };
+        anyStrikeDerived ||= settled.strikeDerived;
 
         // Every option leg folds its own premium into pnl the same way whether it expires
         // worthless or is exercised/assigned: the intrinsic value it carries shows up
         // entirely in the stock trade the exercise/assignment produces, never twice (ADR-0014
-        // "Taxes", extended here to the operation's own pnl).
+        // "Taxes", extended here to the operation's own pnl). Rebased the same way every other
+        // leg is (#69 part 2): the total premium this collapses to (`effectiveEntryPrice *
+        // effectiveQuantity`) always equals `leg.entryPrice * leg.quantity`, the real cash this
+        // leg's entry actually paid or received, regardless of `splitFactor`.
+        const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
+        const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const legPremiumPnl = new Decimal(leg.side === "buy" ? 1 : -1)
-          .mul(parseDecimal(leg.entryPrice))
+          .mul(effectiveEntryPrice)
           .mul(CENTAVOS_PER_REAL)
-          .mul(leg.quantity)
+          .mul(effectiveQuantity)
           .neg();
         optionsPnl = optionsPnl.add(legPremiumPnl);
 
@@ -1253,27 +1221,59 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
         // settleLeg's fill is cost-free (a settlement proposal is not a trade, ADR-0013 #25
         // addendum); the run charges its own cost model on it, as it does on every other fill.
+        // B3 scales option holdings by the same factor as the underlying (#69 part 2): the real,
+        // immediate trade only ever moves a whole number of shares, so it is floored the same
+        // way a stock leg's own exit is, with any fractional remainder cash-settled right here,
+        // at this same strike price, the same way a stock-leg exit's own split residue is
+        // (resolvePendingExitFills, ADR-0014 Q51) — an exercise/assignment is a real, immediate
+        // trade, never a deferred one like the stock leg's own "kept" bucketing above, so none of
+        // its value can wait for this operation's aggregate residual close.
         const bareFill = assertDefined(
           settled.value.fills[0],
           "run-backtest: settleLeg reports a non-worthless outcome with no fill",
         );
-        const costs = fillCosts(config.costModel, bareFill.price, leg.quantity, "stock");
-        const fill: Fill = { ...bareFill, costs };
-        settlement.push({ ...settled.value, fills: [fill] });
-        state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
-        settlementCosts = settlementCosts.add(costs);
-        const gross = grossCentavos(fill.price, leg.quantity).round().toNumber();
-        state.cash -= (fill.side === "buy" ? 1 : -1) * gross + costs;
-        if (fill.side === "buy") {
-          buyQty = buyQty.add(leg.quantity);
-          buyCost = buyCost.add(parseDecimal(fill.price).mul(CENTAVOS_PER_REAL).mul(leg.quantity));
-        } else {
-          sellQty = sellQty.add(leg.quantity);
-          sellProceeds = sellProceeds.add(
-            parseDecimal(fill.price).mul(CENTAVOS_PER_REAL).mul(leg.quantity),
+        const effectiveUnits = Math.floor(effectiveQuantity.toNumber());
+        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
+          return invalidInput(
+            "view.corporateActions",
+            `split factor produces a non-integer-safe effective unit count for ${leg.ticker}`,
           );
-          state.currentMonthStockSales += gross;
         }
+        const residue = effectiveQuantity.sub(effectiveUnits);
+        let costs = toCentavos(0);
+        if (effectiveUnits > 0) {
+          const q = toQuantity(effectiveUnits);
+          costs = fillCosts(config.costModel, bareFill.price, q, "stock");
+          const fill: Fill = { ...bareFill, quantity: q, costs };
+          settlement.push({ ...settled.value, fills: [fill] });
+          state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
+          settlementCosts = settlementCosts.add(costs);
+          const gross = grossCentavos(fill.price, q).round().toNumber();
+          state.cash -= (fill.side === "buy" ? 1 : -1) * gross + costs;
+          if (fill.side === "sell") state.currentMonthStockSales += gross;
+        } else {
+          settlement.push(settled.value);
+        }
+        if (residue.isPositive()) {
+          const residueGrossCentavos = grossCentavos(bareFill.price, residue).round().toNumber();
+          state.cash += (bareFill.side === "sell" ? 1 : -1) * residueGrossCentavos;
+          if (bareFill.side === "sell") state.currentMonthStockSales += residueGrossCentavos;
+        }
+        if (bareFill.side === "buy") {
+          buyQty = buyQty.add(effectiveQuantity);
+          buyCost = buyCost.add(
+            parseDecimal(bareFill.price).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity),
+          );
+        } else {
+          sellQty = sellQty.add(effectiveQuantity);
+          sellProceeds = sellProceeds.add(
+            parseDecimal(bareFill.price).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity),
+          );
+        }
+      }
+
+      if (anyStrikeDerived) {
+        state.optionStrikeDerivedAcrossCorporateActionNoted = true;
       }
 
       const matchedQty = Decimal.min(buyQty, sellQty);
@@ -1413,10 +1413,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         }
         const markPrice = markPriceOrNull;
         const sign = leg.side === "buy" ? 1 : -1;
-        const effectiveQuantity =
-          leg.role === "stock"
-            ? new Decimal(leg.quantity).div(splitFactor)
-            : new Decimal(leg.quantity);
+        const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
@@ -1840,11 +1837,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         "equity was non-positive at least once during the run and was clamped to a positive sizing budget",
     });
   }
-  if (state.optionStrikeAcrossCorporateActionNoted) {
+  if (state.optionStrikeDerivedAcrossCorporateActionNoted) {
     notes.push({
-      code: "option_strike_unadjusted_across_corporate_action",
+      code: "option_strike_derived_across_corporate_action",
       message:
-        "a corporate action was visible on an operation with an option leg; settlement compared the underlying's adjusted close against that leg's own unadjusted listed strike (no series-rollover support yet)",
+        "a corporate action was visible on an operation with an option leg with no epoch of its own reflecting it yet; its strike was derived from the underlying's own factor (#69 part 2)",
     });
   }
 

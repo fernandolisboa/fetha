@@ -16,7 +16,7 @@ import { sessionAtOrBefore } from "./calendar";
 import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
-import { assertDefined, invariant } from "./invariant";
+import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
 import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
@@ -108,14 +108,13 @@ function priceExistingOperation(
 
   // ADR-0014 Q51: `Operation.legs` stay nominal at every step, so every leg's own effective
   // count (`quantity / F`) and effective entry price (`entryPrice × F`) are computed here, on
-  // the ticker's own visible split/reverse-split factors between `openedAt` and the mark
-  // session — never just the stock leg's, since an unrebased quantity fed into pricing reads
-  // exposure, greeks and max loss off by F. An option leg's own ticker never
-  // carries a corporate-action factor (a split forces a series rollover, ADR-0013 #25
-  // addendum), so this naturally leaves option legs untouched (F = 1). `rawEffectiveQuantity`
-  // is kept unrounded throughout: the effective count is never rounded mid-run (Q51), so every
-  // leg's own unrealized P&L below is computed on it directly, matching `runBacktest`'s own
-  // mark and P&L rather than the integer count `toQuantity` needs for pricing.
+  // the operation's own underlying's visible split/reverse-split factors between `openedAt`
+  // and the mark session — every leg, stock and option alike (#69 part 2: B3 scales option
+  // holdings and re-strikes the listed series by the same factor as the underlying, rather
+  // than forcing a series rollover). `rawEffectiveQuantity` is kept unrounded throughout: the
+  // effective count is never rounded mid-run (Q51), so every leg's own unrealized P&L below is
+  // computed on it directly, matching `runBacktest`'s own mark and P&L rather than the integer
+  // count `toQuantity` needs for pricing.
   const rebasedLegs: {
     leg: (typeof operation.legs)[number];
     legIndex: number;
@@ -124,7 +123,7 @@ function priceExistingOperation(
   }[] = [];
   for (const [legIndex, leg] of operation.legs.entries()) {
     const visibleFactors = view.corporateActions.filter(
-      (f) => f.ticker === leg.ticker && isAtOrBefore(f.asOf, at),
+      (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, at),
     );
     const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, markSession);
     if (!factorResult.ok) return { ok: false, error: factorResult.error };
@@ -155,20 +154,10 @@ function priceExistingOperation(
     }
     const floored = rawEffectiveQuantity.floor().toNumber();
     if (floored <= 0) {
-      // Only a stock leg's own ticker is ever meant to carry a factor != 1 (Q51: an option
-      // leg's factor is always 1, a split forces a series rollover instead); a corporate-action
-      // row keyed by an option leg's own ticker with a factor large enough to dissolve it is
-      // type-valid but domain-invalid input, not the impossible branch the invariant below
-      // still guards.
-      if (leg.role !== "stock") {
-        return {
-          ok: false,
-          error: invalidInput(
-            `${path}.legs[${String(legIndex)}]`,
-            "a corporate-action factor dissolves a non-stock leg below one effective unit; only a stock leg's own ticker may carry a factor other than 1",
-          ),
-        };
-      }
+      // A factor large enough to dissolve a leg below one effective unit (stock or option
+      // alike, #69 part 2) excludes it from `legInputs`/pricing.legs the same way; its residual
+      // value is still folded into unrealizedPnl below, from its own market price directly
+      // (`less_than_one_effective_unit`).
       residueOnlyLegIndexes.add(legIndex);
       continue;
     }
@@ -222,19 +211,11 @@ function priceExistingOperation(
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
     let mark: DecimalString | null;
     if (residueOnlyLegIndexes.has(legIndex)) {
-      // Only a stock leg's own ticker ever carries a factor != 1 (Q51: an option leg's factor
-      // is always 1, a split forces a series rollover instead), so a residue-only leg can only
-      // ever be a stock leg; its mark is resolved the same way a standalone `Position`'s is
-      // below, never through `pricing.legs` since it was excluded from `legInputs` above.
-      invariant(
-        leg.role === "stock",
-        "mark-to-market: only a stock leg's own factor can dissolve it below one effective unit",
-      );
-      const resolved = resolveLegMarketPrice(view, leg.ticker, at, undefined, markSession, "stock");
-      // `leg.ticker` equals `operation.underlying` here (operation-coherence.ts), the same
-      // ticker `priceLegsAt` already resolved a spot for through the identical quote/candle
-      // ladder to get this far — a stale, but never a null, mark for a residue-only leg.
-      /* v8 ignore next */
+      // A residue-only leg's mark is resolved from its own ticker directly, never through
+      // `pricing.legs` since it was excluded from `legInputs` above (#69 part 2: a stock or an
+      // option leg alike can be dissolved below one effective unit).
+      const kind = leg.role === "stock" ? "stock" : "option";
+      const resolved = resolveLegMarketPrice(view, leg.ticker, at, undefined, markSession, kind);
       mark = resolved?.value ?? null;
     } else if (unpricedExpiredLegIndexes.has(legIndex)) {
       // No expiry candle exists to resolve intrinsic value from and no time-to-expiry is left
