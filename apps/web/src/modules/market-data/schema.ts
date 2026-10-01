@@ -93,6 +93,28 @@ export const optionDailyPrices = pgTable(
   ],
 );
 
+// One row per epoch: the first instant a listing cycle (ticker, expiry,
+// right) is known to have traded or been registered at a given strike
+// (ADR-0056). `option_series.strike`/`asOf` alone conflate every strike a
+// series has ever carried under its earliest sighting, which leaks a
+// post-corporate-action strike into a pre-event instant; this table is the
+// strike's own point-in-time history, keyed by the strike itself so a split
+// or a dividend adjustment adds a row instead of overwriting one.
+export const optionSeriesStrikes = pgTable(
+  "option_series_strikes",
+  {
+    ticker: text("ticker").notNull(),
+    expiry: date("expiry", { mode: "string" }).notNull(),
+    right: text("right").notNull(),
+    strike: numeric("strike", { precision: 18, scale: 8 }).notNull(),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ticker, table.expiry, table.right, table.strike] }),
+    index("option_series_strikes_lookup_idx").on(table.ticker, table.expiry, table.right),
+  ],
+);
+
 export const macroPoints = pgTable(
   "macro_points",
   {

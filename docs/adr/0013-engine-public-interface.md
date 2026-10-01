@@ -1849,7 +1849,8 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     original ticker and unadjusted listed strike against the underlying's adjusted close. Flagged
     once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
     settlement sees a non-trivial split factor on an operation with an option leg, rather than
-    refused (item 18); tracked in issue #69.
+    refused (item 18); tracked in issue #69. Premise superseded by ADR-0056 (option series keep
+    their ticker; strikes are point-in-time): engine note unchanged until #69 part 2.
   - **`brokerage.optionPerContract` is charged once per fill, per leg, not scaled by the fill's
     own contract count (round 2 item 11).** `run-backtest.ts`'s `fillCosts` adds it as a flat
     per-order charge alongside `b3FeeRate`'s own proportional fee, the same shape

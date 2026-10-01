@@ -494,3 +494,18 @@ and filled the next night; the only cost was a red 500 that hides real failures.
 one ever exists) is pending for one night, then fails until a later session's value lands: the next
 range from `latest + 1` returns it, and the older session's retry finds `from > session` and
 succeeds with no rows.
+
+## Addendum: the strike history sits beside the ISIN key (2026-09-30, #69, ADR-0056)
+
+**"Option series identity"** above still holds: `isin` is the stable natural key upsert targets,
+`as_of` on `option_series` still only ever moves backward. What it left implicit is that
+`option_series.strike`, being overwritten on every conflict while `as_of` stays the row's earliest
+sighting, cannot represent a strike a corporate action later changed — the overwritten strike ends
+up stamped with an `as_of` that predates it. ADR-0056 adds `option_series_strikes`, keyed by
+`(ticker, expiry, right, strike)`, as the strike's own point-in-time history within one listing
+cycle: a narrower, orthogonal kind of "more than one row can matter here" than the reused-ticker
+case this ADR already documents (a listing-cycle rollover changes the ticker and the expiry; a
+corporate action changes the strike alone, in place). `option_series.strike` is unchanged and stays
+the current strike for search and the series page; every loader that feeds the engine now resolves
+a series to its strike history instead of its single current row. See ADR-0056 for the table, the
+writers and the loader rule.

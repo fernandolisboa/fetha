@@ -147,7 +147,9 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   session's close, the same single reading instant as every other caller above) before the fill,
   so it lands on the post-split share count the fill's post-split price actually trades at, never
   the pre-split count at a post-split price. A factor that rounds a pending entry's quantity to
-  zero, or past a safe integer, is `invalid_input` the same way.
+  zero, or past a safe integer, is `invalid_input` the same way. Premise superseded by ADR-0056
+  (option series keep their ticker; strikes are point-in-time) for an option leg specifically:
+  engine note unchanged until #69 part 2.
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same

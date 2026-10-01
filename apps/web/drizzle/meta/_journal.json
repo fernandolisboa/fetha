@@ -232,6 +232,13 @@
       "when": 1790802630377,
       "tag": "0032_corporate_action_factors_recorded_at",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790805246380,
+      "tag": "0033_option_series_strikes",
+      "breakpoints": true
     }
   ]
 }
