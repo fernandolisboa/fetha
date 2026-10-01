@@ -78,6 +78,7 @@ function pendingSettlement(
     operation: operationRecord(),
     state: baseState(),
     fillIds: [],
+    closingQuantities: {},
     strikes: { PETR4C28: "28.00" },
     proposal: {
       operationId: "op-1",
@@ -107,6 +108,14 @@ describe("settlementLegs (#271 review round 1 item 5)", () => {
       pendingSettlement([exercisedLegSettlement({ fills: [], residualValue: -560 as never })]),
     );
     expect(view).toMatchObject({ quantity: 1, price: null });
+  });
+
+  it("shows an option leg's closing quantity, the count the ledger stores (#282)", () => {
+    const [view] = settlementLegs({
+      ...pendingSettlement([exercisedLegSettlement({ fills: [], outcome: "expired_worthless" })]),
+      closingQuantities: { PETR4C28: 200 },
+    });
+    expect(view).toMatchObject({ quantity: 200, price: null });
   });
 
   it("returns no legs without a proposal", () => {

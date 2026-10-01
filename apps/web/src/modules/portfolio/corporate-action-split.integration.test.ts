@@ -46,7 +46,8 @@ vi.mock("@/modules/auth", async () => {
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { recordFillAction, groupFillsAction } = await import("./portfolio-actions");
+const { recordFillAction, groupFillsAction, confirmSettlementAction } =
+  await import("./portfolio-actions");
 const { loadPortfolio } = await import("./portfolio-service");
 const { PortfolioRepository } = await import("./portfolio-repository");
 
@@ -326,6 +327,70 @@ describe("real positions follow a split as the broker records it (#271)", () => 
     const operationValuation = loaded.operations[0]?.valuation;
     if (!operationValuation) throw new Error("expected an operation valuation");
     expect(operationValuation.pricing.legs[0]?.leg.quantity).toBe(200);
+  });
+
+  it("(e) an expired-worthless leg across a split: the dialog shows, the action checks and the ledger stores one count (#282)", async () => {
+    const market = await seedOptionMarket();
+    const owner = await signIn("worthless-across-split");
+    const tradeDay = market.sessions[2] ?? "";
+    // A put struck at 32 against a 35 close at expiry: out of the money, so the engine proposes
+    // expired_worthless and has no delivery fill to size the closing fill on.
+    const put = `${market.underlying.slice(0, 4)}P320`;
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin: `ISIN-${put}`,
+        ticker: put,
+        underlying: market.underlying,
+        right: "put",
+        strike: "32.00000000",
+        expiry: market.expiry,
+        style: "european",
+        asOf: new Date(`${market.sessions[0] ?? ""}T13:00:00.000Z`),
+      });
+    await recordFillAction({
+      ticker: put,
+      side: "buy",
+      quantity: 100,
+      price: "0,50",
+      session: tradeDay,
+      costs: "",
+    });
+    await recordSplit(market.underlying, market.sessions[4] ?? "", "0.5");
+
+    const fills = await new PortfolioRepository(getDb(), owner).listFills();
+    expect(
+      await groupFillsAction({ fillIds: fills.map((fill) => fill.id), operationId: null }),
+    ).toEqual({
+      status: "ok",
+    });
+
+    const afterExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[8] ?? ""));
+    const [pending] = afterExpiry.pendingSettlements;
+    if (!pending?.proposal) throw new Error("expected a settlement proposal");
+    expect(pending.proposal.legs[0]?.outcome).toBe("expired_worthless");
+    expect(pending.closingQuantities).toEqual({ [put]: 200 });
+
+    const choice = { ticker: put, outcome: "expired_worthless" as const, price: "0", costs: "" };
+    expect(
+      await confirmSettlementAction({
+        operationId: pending.operation.id,
+        choices: [{ ...choice, quantity: 100 }],
+      }),
+    ).toEqual({ status: "error", error: "conflict" });
+    expect(
+      await confirmSettlementAction({
+        operationId: pending.operation.id,
+        choices: [{ ...choice, quantity: 200 }],
+      }),
+    ).toEqual({ status: "ok" });
+
+    const closing = (await new PortfolioRepository(getDb(), owner).listFills()).find(
+      (fill) => fill.ticker === put && fill.side === "sell",
+    );
+    expect(closing?.quantity).toBe(200);
+    const settled = await loadPortfolio(getDb(), owner, closeOf(market.sessions[9] ?? ""));
+    expect(settled.positions.map((row) => row.holding.ticker)).not.toContain(put);
   });
 
   it("(d) a 1-for-7 reverse split rebases exactly, not refused by decimal.js rounding (review round 2 item 1)", async () => {

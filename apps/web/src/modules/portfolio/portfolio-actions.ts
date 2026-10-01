@@ -33,7 +33,7 @@ import {
   proposeSettlementFor,
   seriesByHolding,
 } from "./portfolio-service";
-import { planSettlement, type LegChoice } from "./settlement-plan";
+import { closingQuantities, planSettlement, type LegChoice } from "./settlement-plan";
 
 function underlyingOfFill(fill: LedgerFill, series: SeriesByHolding): string | null {
   return fill.assetClass === "stock"
@@ -385,16 +385,22 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     if (!proposal || !(await hasExpired(db, expiry, nowInstant()))) {
       return { status: "error" as const, error: "no_proposal" as const };
     }
-    // #271 review round 1 item 8: refuse rather than settle against a quantity the dialog showed
-    // before a corporate action was ingested between render and confirm.
-    const deliveredQuantityByTicker = new Map(
-      parsed.data.choices.map((choice) => [choice.ticker, choice.quantity]),
+    const closing = closingQuantities(
+      operation.openedAt,
+      expiry,
+      corporateActions.get(operation.underlying) ?? [],
+      proposal.legs,
     );
-    const quantityMismatch = proposal.legs.some((settlement) => {
-      const seen = deliveredQuantityByTicker.get(settlement.leg.ticker);
-      if (seen === undefined) return false;
-      const expected = settlement.fills[0]?.quantity ?? settlement.leg.quantity;
-      return seen !== expected;
+    if (!closing) {
+      return { status: "error" as const, error: "no_proposal" as const };
+    }
+    // #271 review round 1 item 8, #282: refuse rather than settle against a quantity the dialog
+    // showed before a corporate action was ingested between render and confirm. The dialog and
+    // the ledger both read `closingQuantities`, so this compares what was shown with what would
+    // be stored.
+    const quantityMismatch = parsed.data.choices.some((choice) => {
+      const expected = closing.get(choice.ticker);
+      return expected !== undefined && expected !== choice.quantity;
     });
     if (quantityMismatch) {
       return { status: "error" as const, error: "conflict" as const };
@@ -402,8 +408,7 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     const settlement = planSettlement(
       operation.underlying,
       expiry,
-      operation.openedAt,
-      corporateActions.get(operation.underlying) ?? [],
+      closing,
       proposal.legs,
       choices,
     );
