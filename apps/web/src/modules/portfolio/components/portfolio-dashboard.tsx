@@ -141,22 +141,23 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-// #271 review round 1 item 5: the dialog must default its price and show its quantity from the
-// engine's own rebased fill, not the leg's nominal `quantity` or its strike — `leg.quantity` is
-// nominal throughout (ADR-0014 Q51) and never what B3 actually delivers across a split. A leg
-// with no fill (expired worthless, or dissolved below one effective unit) falls back to the
-// nominal leg, the only number left to show.
+// #271 review round 1 item 5: the dialog defaults its price from the engine's own rebased fill,
+// not the leg's strike. #282: an option leg shows the count it closes at
+// (`closingQuantities`), the same one the ledger stores and the confirm action checks; a kept
+// stock leg shows the engine's fill or its nominal quantity.
 export function settlementLegs(
   pending: PortfolioReadModel["pendingSettlements"][number],
 ): SettlementLegView[] {
-  if (!pending.proposal) return [];
-  return pending.proposal.legs.map((settlement) => {
+  const { proposal, closingQuantities } = pending;
+  if (!proposal || !closingQuantities) return [];
+  return proposal.legs.map((settlement) => {
     const fill = settlement.fills[0];
     return {
       ticker: settlement.leg.ticker,
       role: settlement.leg.role,
       side: settlement.leg.side,
-      quantity: fill?.quantity ?? settlement.leg.quantity,
+      quantity:
+        closingQuantities[settlement.leg.ticker] ?? fill?.quantity ?? settlement.leg.quantity,
       price: fill?.price ?? null,
       strike: (pending.strikes[settlement.leg.ticker] as DecimalString | undefined) ?? null,
       intrinsicValue: settlement.intrinsicValue,
@@ -181,7 +182,7 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
                 {pending.state.expiry && session(pending.state.expiry)}
               </span>
             </span>
-            {pending.proposal ? (
+            {pending.proposal && pending.closingQuantities ? (
               <SettlementDialog
                 operationId={pending.operation.id}
                 underlying={pending.operation.underlying}
@@ -191,7 +192,9 @@ function PendingSettlements({ model }: { model: PortfolioReadModel }) {
               />
             ) : (
               <span className="text-[12px]" style={{ color: "var(--warning)" }}>
-                {labels.settlements.proposalError}
+                {pending.proposal
+                  ? labels.settlements.factorError
+                  : labels.settlements.proposalError}
               </span>
             )}
           </li>

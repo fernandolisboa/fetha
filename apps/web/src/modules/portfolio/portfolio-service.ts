@@ -52,6 +52,7 @@ import {
 } from "./operation-plan";
 import { PortfolioRepository, type FillRecord, type OperationRecord } from "./portfolio-repository";
 import { RiskProfileRepository } from "./risk-profile-repository";
+import { closingQuantities } from "./settlement-plan";
 
 export interface PositionRow {
   holding: Holding;
@@ -68,6 +69,9 @@ export interface PendingSettlement {
   state: OperationState;
   fillIds: string[];
   proposal: SettlementProposal | null;
+  // #282: the count each option leg closes at (`closingQuantities`), which the dialog shows and
+  // the confirm action checks against; null when a corrupt factor leaves no storable count.
+  closingQuantities: Record<string, number> | null;
   strikes: Record<string, string>;
 }
 
@@ -338,11 +342,21 @@ export async function loadPortfolio(
     }
     const openOption = state.legs.some((leg) => leg.role !== "stock");
     if (openOption && state.expiry && expired.has(state.expiry)) {
+      const proposal = await proposeSettlementFor(db, operation.id, state, state.expiry);
+      const closing = proposal
+        ? closingQuantities(
+            operation.openedAt,
+            state.expiry,
+            corporateActions.get(operation.underlying) ?? [],
+            proposal.legs,
+          )
+        : null;
       pendingSettlements.push({
         operation,
         state,
         fillIds: operationFills.map((fill) => fill.id),
-        proposal: await proposeSettlementFor(db, operation.id, state, state.expiry),
+        proposal,
+        closingQuantities: closing ? Object.fromEntries(closing) : null,
         strikes: Object.fromEntries(
           state.legs.flatMap((leg) => {
             const facts = state.expiry

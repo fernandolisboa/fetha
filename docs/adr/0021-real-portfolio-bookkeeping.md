@@ -254,8 +254,8 @@ nominal now; the recorded price passes through unchanged. And item 5's fallback 
 than it reads: an expired-worthless or dissolved leg's closing fill is now sized on the broker
 basis too (`leg.quantity ÷ F` over `(openedAt, expiry]`, the same window an option leg's own
 rebase caps at), with the nominal `leg.quantity` as a fallback only once that rebase itself
-dissolves the leg below one effective unit — `planSettlement`'s new `dissolvedTickers` names every
-leg the fallback applied to, rather than letting it pass as a confirmed broker count.
+dissolves the leg below one effective unit (#282 below replaces the `dissolvedTickers` list that
+first named those legs).
 
 Two notes, not code changes: a stale installed PWA sending `confirmSettlementAction` the
 pre-item-8 payload (no delivered `quantity` per choice) fails `settlementInputSchema`'s parse and
@@ -288,6 +288,21 @@ the leg's own rebase window) by the factors since that session before computing
 the underlying or the series did not trade on the ex-date. The mechanism is in the ADR-0013 #279
 addendum (`ENGINE_VERSION` 0.13.0); the operation's notes carry
 `stale_price_across_corporate_action` when it applies.
+
+### Addendum: one closing count per option leg (#282)
+
+`closingQuantities` (`settlement-plan.ts`) computes the count each option leg closes at: the
+engine's delivered fill when there is one, otherwise `leg.quantity ÷ F` over `(openedAt, expiry]`,
+otherwise (dissolved below one unit) the nominal count. The settlement dialog shows it,
+`confirmSettlementAction` compares the submitted quantity against it (so a factor ingested between
+render and confirm returns `conflict` for an expired-worthless leg too), and `planSettlement`
+writes it. A non-positive factor or one that pushes the count outside `Quantity`'s bounds is
+refused as corrupt data instead of being folded into the dissolved fallback or failing at the
+integer column: the dashboard names the corporate-action factor as the reason there is nothing to
+confirm (its own message, not the missing-expiry-data one), and confirm returns `no_proposal`.
+A leg dissolved below one unit still writes its nominal count, which read-back normalization
+inverse-rebases (nominal 1 at F = 10 reads back as 10 against a 1-share buy); that netting gap
+belongs with the residual-cash follow-up above. `dissolvedTickers`, which nothing read, is gone.
 
 ## Considered options
 
