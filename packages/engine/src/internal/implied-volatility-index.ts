@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type {
   EngineError,
   ImpliedVolatilityIndex,
@@ -43,7 +43,7 @@ type AtmSolution = {
   anyDerived: boolean;
   anyUnconfirmed: boolean;
 };
-type AtmOutcome = { ok: true; value: AtmSolution | null } | { ok: false; error: EngineError };
+type AtmOutcome = Result<AtmSolution | null>;
 
 // Order-invariance (I3): `candidates` comes from filtering MarketView.optionSeries, whose row
 // order is not meaningful. Reuses the shared strike-then-ticker tie-break so two tickers at
@@ -57,16 +57,22 @@ function nearestByStrike(
   strikeOf: StrikeResolver,
 ): { ok: true; series: OptionSeries | null } | { ok: false; error: EngineError } {
   let best: OptionSeries | null = null;
+  let bestStrike: DecimalString | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const series of candidates) {
     const resolved = strikeOf(series);
     if (!resolved.ok) return resolved;
-    const distance = Math.abs(Number(resolved.value.strike) - forward);
+    const strike = resolved.value.strike;
+    const distance = Math.abs(Number(strike) - forward);
     const isBetter =
       distance < bestDistance ||
-      (distance === bestDistance && best !== null && isEarlierByStrikeThenTicker(series, best));
+      (distance === bestDistance &&
+        best !== null &&
+        bestStrike !== null &&
+        isEarlierByStrikeThenTicker(strike, series, bestStrike, best));
     if (isBetter) {
       best = series;
+      bestStrike = strike;
       bestDistance = distance;
     }
   }

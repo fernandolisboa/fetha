@@ -17,9 +17,6 @@ export type ResolvedOptionStrike = {
 export type ResolveOptionStrikeResult =
   { ok: true; value: ResolvedOptionStrike } | { ok: false; error: EngineError };
 
-// A per-candidate-set memoized reader for `resolveOptionStrike`, so a caller comparing many
-// series of the same underlying at the same read instant (leg selection, the IV index) resolves
-// each ticker's own strike once rather than once per comparison.
 export type StrikeResolver = (series: OptionSeries) => ResolveOptionStrikeResult;
 
 export function createOptionStrikeResolver(

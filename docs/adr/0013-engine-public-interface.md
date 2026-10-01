@@ -2723,6 +2723,27 @@ ResolveOptionStrikeResult`, the same shape `resolveOptionStrike` already returns
 - **Issue #275 (recomputing stored IV index points) is untouched.** This addendum fixes how a point
   is computed when `computeImpliedVolatilityIndex` runs; it does not recompute or migrate any
   already-persisted `ImpliedVolatilityIndexPoint` row, and no ingestion code in `apps/web` changed.
+- **The equidistance tie-break moved to the resolved strike too (review round 1 BLOCKING 1).**
+  `resolve-series.ts`'s shared `isEarlierByStrikeThenTicker` took two `OptionSeries` and compared
+  `.strike` directly; every one of its three call sites now resolves each candidate's own strike
+  first and passes the two resolved `DecimalString`s alongside the two series, so a tie on distance
+  breaks on the lower _resolved_ strike, then the lexicographically earlier ticker — not the lower
+  raw one. Repro that failed round 1: a 0.5 factor ex-dated on the evaluation session, `PETR4CA`
+  (raw 90, derived 45) and `PETR4CB` (raw 55, listed that same session already reflecting the
+  split, so `"none"`, 55 as listed) both land exactly 5.00 from a 50.00 nearest-strike target; the
+  raw-strike tie-break picked `PETR4CB` (the lower _raw_ number) in both array orders, when the
+  lower _resolved_ strike, and therefore the correct pick, is `PETR4CA`.
+- **`degenerate_strikes` is evaluated on the resolved strikes, by construction of the fix above —
+  two legs can collapse onto one _effective_ strike even when their raw listed ones differ.** A
+  1.01/1.02 penny pair, both halved by the same 0.5 factor, both round half-up to 0.51: before this
+  addendum this would have resolved as two distinct strikes (1.01, 1.02) and priced as a spread with
+  a one-cent edge that does not actually exist once the factor is read; after it, the same pair is
+  refused as `degenerate_strikes`, matching how a true one-strike duplicate was always refused.
+- **`seriesAtStrike`'s fallback path (the second leg of a shared-rank straddle, resolved after the
+  first leg's own delta or nearest-strike pick) already compared each candidate's own resolved
+  strike from this addendum's first pass; review round 1 (BLOCKING 2) added a straddle-shaped test
+  pinning it** (`PETR4CALL`/`PETR4PUT`, same raw strike, same factor, the losing right resolved
+  through the fallback against the winning right's own resolved target).
 - **Golden backtests** move only on `engineVersion` (`vitest run
 src/invariants/backtest-golden.test.ts -u`, diffed to confirm): none of the four fixtures'
   scenarios exercise leg selection or the IV index across an epoch-less post-split option, so no

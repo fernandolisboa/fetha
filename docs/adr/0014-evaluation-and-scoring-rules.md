@@ -39,7 +39,8 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   session's close (strikes from that session's chain, size from that session's prices and the
   run's current equity), so the other `MissedEntryReason`s arise at fill time too: `no_series_match`
   when no listed series satisfies the selection at the attempt's session, `degenerate_strikes`
-  when two distinct strike ranks resolve to the same listed strike, `unsizeable` when the sizing
+  when two distinct strike ranks resolve to the same listed strike (resolved via
+  `resolveOptionStrike`, ADR-0013 0.9.0 addendum), `unsizeable` when the sizing
   rule yields zero units at that session's prices (or the max loss is unbounded under
   `fixed_risk`), `limit_breach` under `enforce` (Q39). In the live evaluator (`evaluateStrategy`)
   the same three failures are `EvaluationRecord`s, not missed entries, because nothing is filled

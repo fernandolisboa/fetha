@@ -56,17 +56,23 @@ function nearestSeriesByStrike(
   strikeOf: StrikeResolver,
 ): SeriesSelectionResult {
   let best: OptionSeries | null = null;
+  let bestStrike: DecimalString | null = null;
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
     const resolved = strikeOf(series);
     if (!resolved.ok) return resolved;
-    const distance = parseDecimal(resolved.value.strike).sub(target).abs();
+    const strike = resolved.value.strike;
+    const distance = parseDecimal(strike).sub(target).abs();
     const isBetter =
       bestDistance === null ||
       distance.lt(bestDistance) ||
-      (distance.eq(bestDistance) && best !== null && isEarlierByStrikeThenTicker(series, best));
+      (distance.eq(bestDistance) &&
+        best !== null &&
+        bestStrike !== null &&
+        isEarlierByStrikeThenTicker(strike, series, bestStrike, best));
     if (isBetter) {
       best = series;
+      bestStrike = strike;
       bestDistance = distance;
     }
   }
@@ -85,15 +91,17 @@ function nearestSeriesByAbsDelta(
   strikeOf: StrikeResolver,
 ): SeriesSelectionResult {
   let best: OptionSeries | null = null;
+  let bestStrike: DecimalString | null = null;
   let bestDistance: Decimal | null = null;
   for (const series of candidates) {
     const resolved = strikeOf(series);
     if (!resolved.ok) return resolved;
+    const strike = resolved.value.strike;
     const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
     const valuation = priceOptionLeg({
       leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: toQuantity(1) },
-      strike: resolved.value.strike,
+      strike,
       spot,
       riskFreeRate,
       dividendYield,
@@ -106,9 +114,13 @@ function nearestSeriesByAbsDelta(
     const isBetter =
       bestDistance === null ||
       distance.lt(bestDistance) ||
-      (distance.eq(bestDistance) && best !== null && isEarlierByStrikeThenTicker(series, best));
+      (distance.eq(bestDistance) &&
+        best !== null &&
+        bestStrike !== null &&
+        isEarlierByStrikeThenTicker(strike, series, bestStrike, best));
     if (isBetter) {
       best = series;
+      bestStrike = strike;
       bestDistance = distance;
     }
   }
