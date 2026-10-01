@@ -17,6 +17,7 @@ import { Panel } from "@/modules/shell";
 
 import { RiskNotice } from "../builder/risk-notice";
 import { StatBlock } from "../builder/stat-blocks";
+import type { OperationState } from "../operation-plan";
 import type { PortfolioReadModel, PositionRow } from "../portfolio-service";
 import { t } from "../strings";
 
@@ -38,6 +39,12 @@ function signedMoney(value: Centavos | null): string {
 function tone(value: number | null): string | undefined {
   if (value === null || value === 0) return undefined;
   return value > 0 ? "var(--up)" : "var(--down)";
+}
+
+export function corporateActionNotice(state: OperationState | null): string | null {
+  return state?.corporateActionNormalizationSkipped
+    ? labels.operations.corporateActionNotNormalized
+    : null;
 }
 
 function instrumentType(row: PositionRow): string {
@@ -231,7 +238,14 @@ function OperationsTable({
       <TableBody>
         {model.operations.map(({ operation, state, valuation, pendingSettlement }) => (
           <TableRow key={operation.id}>
-            <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
+            <TableCell className="font-mono uppercase">
+              {operation.underlying}
+              {corporateActionNotice(state) && (
+                <span className="text-muted-foreground mt-1 block max-w-[220px] font-sans text-[11px] whitespace-normal normal-case">
+                  {corporateActionNotice(state)}
+                </span>
+              )}
+            </TableCell>
             <TableCell className="text-[12px]">
               {pendingSettlement ? (
                 <span style={{ color: "var(--warning)" }}>
