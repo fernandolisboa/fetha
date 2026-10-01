@@ -3636,6 +3636,51 @@ describe("runBacktest — option structures (#23)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("returns invalid_input, never throwing, when that factor reaches the residual's mark on a zero-volume session (#279)", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const residualCloseSession = days[11] as string;
+    const microFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: residualCloseSession,
+      asOf: `${residualCloseSession}T13:00:00.000Z`,
+      factor: decimalString("0.0000000000000001"),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [microFactor],
+      candles: days.map((d, i) => {
+        if (d === residualCloseSession) return candle("PETR4", d, "12.00", "12.00", 0);
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   const bullCallSpread: Structure = {
     id: "bull_call_spread",
     name: "Trava de alta",
