@@ -44,7 +44,13 @@ import {
 } from "./backtest-metrics";
 import { computeMonthlyTax } from "./backtest-taxes";
 import { configDigest } from "./config-digest";
-import { CENTAVOS_PER_REAL, parseDecimal, RATIO_SCALE, toDecimalString } from "./decimal";
+import {
+  CENTAVOS_PER_REAL,
+  parseDecimal,
+  PRICE_SCALE,
+  RATIO_SCALE,
+  toDecimalString,
+} from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
 import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
@@ -52,7 +58,11 @@ import { groupBy } from "./search";
 import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import {
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
+} from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { settleLeg } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
@@ -146,6 +156,9 @@ type BacktestState = {
   // already-correct, early-dated backfill (ADR-0056 step 2) are indistinguishable from here, so
   // the strike is kept as read but flagged, run-wide, rather than guessed either way.
   optionStrikeUnconfirmedAcrossCorporateActionNoted: boolean;
+  // Set once lastKnownLegPrice rescales a leg's stale mark across a corporate-action ex-date
+  // visible on its underlying (issue #273), the same run-wide rollup the two notes above use.
+  stalePriceRescaledAcrossCorporateActionNoted: boolean;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -179,6 +192,7 @@ function initialState(initialCapital: Centavos): BacktestState {
     equityClampEngaged: false,
     optionStrikeDerivedAcrossCorporateActionNoted: false,
     optionStrikeUnconfirmedAcrossCorporateActionNoted: false,
+    stalePriceRescaledAcrossCorporateActionNoted: false,
   };
 }
 
@@ -312,6 +326,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
   if (typeof raw.equityClampEngaged !== "boolean") return false;
   if (typeof raw.optionStrikeDerivedAcrossCorporateActionNoted !== "boolean") return false;
   if (typeof raw.optionStrikeUnconfirmedAcrossCorporateActionNoted !== "boolean") return false;
+  if (typeof raw.stalePriceRescaledAcrossCorporateActionNoted !== "boolean") return false;
   if (raw.pendingTaxDeduction !== null) {
     if (!isPlainObject(raw.pendingTaxDeduction)) return false;
     if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
@@ -378,31 +393,47 @@ function candleFor(
   return rowOnSession(candlesByTicker.get(ticker), session, visibleAt);
 }
 
+type KnownPrice = { price: DecimalString; session: SessionDate };
+
 // Both call sites only ask about a ticker that already has an open operation, which can only
 // exist because a fill found a candle for it on or before this same session in an
 // uninterrupted run — but a resumed run's view can legitimately lack that history if the
-// caller didn't carry it over, so both callers turn a null into insufficient_data.
+// caller didn't carry it over, so both callers turn a null into insufficient_data. The row's own
+// session is exposed alongside its price so a caller (lastKnownLegPrice) can tell a genuinely
+// stale mark from a fresh one, rather than only the price itself.
+function lastKnownCloseRow(
+  candlesByTicker: Map<Ticker, SessionRows<Candle>>,
+  ticker: Ticker,
+  uptoSession: SessionDate,
+  visibleAt: Instant,
+): KnownPrice | null {
+  const row = lastKnownRow(candlesByTicker.get(ticker), uptoSession, visibleAt);
+  return row ? { price: row.close, session: row.session } : null;
+}
+
 function lastKnownClose(
   candlesByTicker: Map<Ticker, SessionRows<Candle>>,
   ticker: Ticker,
   uptoSession: SessionDate,
   visibleAt: Instant,
 ): DecimalString | null {
-  return lastKnownRow(candlesByTicker.get(ticker), uptoSession, visibleAt)?.close ?? null;
+  return lastKnownCloseRow(candlesByTicker, ticker, uptoSession, visibleAt)?.price ?? null;
 }
 
-// The option-leg mirror of lastKnownClose (ADR-0014 Q42, a stale mark carried forward from
+// The option-leg mirror of lastKnownCloseRow (ADR-0014 Q42, a stale mark carried forward from
 // the series' last trade): close before average, matching the same ladder priceOperation's
 // own market-price resolution uses.
-function lastKnownOptionPrice(
+function lastKnownOptionPriceRow(
   optionPricesByTicker: Map<Ticker, SessionRows<OptionDayPrice>>,
   ticker: Ticker,
   uptoSession: SessionDate,
   visibleAt: Instant,
-): DecimalString | null {
+): KnownPrice | null {
   const latest = lastKnownRow(optionPricesByTicker.get(ticker), uptoSession, visibleAt);
   if (latest === null) return null;
-  return latest.close ?? latest.average;
+  const price = latest.close ?? latest.average;
+  if (!price) return null;
+  return { price, session: latest.session };
 }
 
 // A resumed run's view must carry the same history as the run that produced its checkpoint
@@ -635,20 +666,6 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return { ok: true, value: null };
   }
 
-  // A leg's own current mark: a stock leg reads the underlying's last known close, an
-  // option leg its own series' last known day price (ADR-0014 Q42). Every mark — the daily
-  // equity mark, the period-end sweep and a settlement's own residual valuation — reads the
-  // same instant (I1).
-  function lastKnownLegPrice(
-    leg: Leg,
-    uptoSession: SessionDate,
-    visibleAt: Instant,
-  ): DecimalString | null {
-    if (leg.role === "stock") {
-      return lastKnownClose(candlesByTicker, leg.ticker, uptoSession, visibleAt);
-    }
-    return lastKnownOptionPrice(optionPricesByTicker, leg.ticker, uptoSession, visibleAt);
-  }
   // `Operation.legs` themselves stay nominal — the evaluator already rebases its own exit-rule
   // comparisons the same way (ADR-0014 Q51) — so this is applied only where runBacktest computes
   // marks, fills and P&L on its own. `visibleAt` is the reading instant: every caller — an entry
@@ -676,6 +693,33 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       "run-backtest: the upfront corporateActions validation already rejected a non-positive factor",
     );
     return result.value;
+  }
+
+  // A leg's own current mark: a stock leg reads the underlying's last known close, an
+  // option leg its own series' last known day price (ADR-0014 Q42). Every mark — the daily
+  // equity mark, the period-end sweep and a settlement's own residual valuation — reads the
+  // same instant (I1). Issue #273: a stale row — one whose own session predates `uptoSession` —
+  // sits on whatever price scale its own session had, which a corporate action ex-dated since
+  // then has already moved the leg's effective quantity away from (`corporateActionFactorThrough`,
+  // keyed by `operation.underlying` the same way every other leg rebase above is). Rescaling by
+  // that same factor keeps the mark on the scale `effectiveQuantity` expects; a fresh row (its own
+  // session already `uptoSession`) is never stale by definition and skips this.
+  function lastKnownLegPrice(
+    leg: Leg,
+    underlying: Ticker,
+    uptoSession: SessionDate,
+    visibleAt: Instant,
+  ): DecimalString | null {
+    const known =
+      leg.role === "stock"
+        ? lastKnownCloseRow(candlesByTicker, leg.ticker, uptoSession, visibleAt)
+        : lastKnownOptionPriceRow(optionPricesByTicker, leg.ticker, uptoSession, visibleAt);
+    if (known === null) return null;
+    if (known.session === uptoSession) return known.price;
+    const rescale = corporateActionFactorThrough(underlying, known.session, uptoSession, visibleAt);
+    if (rescale.eq(1)) return known.price;
+    state.stalePriceRescaledAcrossCorporateActionNoted = true;
+    return toDecimalString(parseDecimal(known.price).mul(rescale), PRICE_SCALE);
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
@@ -1418,7 +1462,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       for (const leg of op.legs) {
-        const markPriceOrNull = lastKnownLegPrice(leg, session.date, session.close);
+        const markPriceOrNull = lastKnownLegPrice(leg, op.underlying, session.date, session.close);
         if (markPriceOrNull === null) {
           return missingMarkError(
             leg.ticker,
@@ -1530,9 +1574,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       let pnl = new Decimal(0);
       for (let legIndex = 0; legIndex < op.legs.length; legIndex += 1) {
         const leg = assertDefined(op.legs[legIndex], "run-backtest: legIndex within bounds");
-        const price = lastKnownLegPrice(leg, session.date, session.close);
+        const price = lastKnownLegPrice(leg, op.underlying, session.date, session.close);
         // computeMarkValue already read this exact leg at this exact session (same op.legs,
-        // untouched since, same pure lastKnownLegPrice) moments earlier in the same loop
+        // untouched since, same deterministic lastKnownLegPrice) moments earlier in the same loop
         // iteration, before this final-session branch runs at all: a null here would already
         // have returned from that earlier call, so this can never be reached.
         /* v8 ignore start */
@@ -1861,6 +1905,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   if (state.optionStrikeDerivedAcrossCorporateActionNoted) notes.push(OPTION_STRIKE_DERIVED_NOTE);
   if (state.optionStrikeUnconfirmedAcrossCorporateActionNoted) {
     notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  }
+  if (state.stalePriceRescaledAcrossCorporateActionNoted) {
+    notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   }
 
   const truncated = batchTruncationReport({

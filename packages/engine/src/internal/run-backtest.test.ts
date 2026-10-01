@@ -1167,6 +1167,40 @@ describe("runBacktest — corporate actions across an open position", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
   });
+
+  it("rescales a stale pre-split mark read from before the ex-date to the post-split scale (#273), no phantom gain", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        // PETR4 does not trade on the ex-date session itself (illiquid): the period-end mark
+        // and close both read the last known 2024-01-03 close, 10.00, pre-split — a price
+        // the already-rebased (post-split) effective share count no longer shares.
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const dayOfSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-04");
+    const dayBeforeSplit = result.value.run.equityCurve.find((p) => p.session === "2024-01-03");
+    expect(dayOfSplit?.equity).toBe(dayBeforeSplit?.equity);
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    // No price move once rescaled (the same reasoning as the "no phantom drawdown" test
+    // above): pnl is exactly the entry's own costs (250 b3Fee + 100 brokerage on a 5,000.00
+    // gross), never a doubled mark from reading the stale price at the post-split quantity.
+    expect(op.pnl).toBe(centavos(-350));
+    expect(result.value.run.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
 });
 
 describe("runBacktest — corporate actions on entry fills", () => {
@@ -2707,6 +2741,59 @@ describe("runBacktest — option structures (#23)", () => {
     if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
     expect(result.value.run.notes).toContainEqual(
       expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
+  });
+
+  it("rescales an illiquid option leg's stale pre-split mark by the factor since its own session (#273), no phantom jump in equity", () => {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({ entry: closeAbove9 }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 18 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[6] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: days[3] as string,
+          asOf: `${days[3] as string}T13:00:00.000Z`,
+          factor: decimalString("0.5"),
+        },
+      ],
+      optionSeries: [
+        callOrPutSeries("PETR4C11", "call", "11.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      // The series never trades again after the entry fill on days[1] (days[0]'s own row only
+      // feeds the entry's own sizing preview, evaluated at the signal instant): every later
+      // mark — days[2] through the period_end close on days[6] — reads this same stale row,
+      // and the split's ex-date (days[3]) falls strictly after it.
+      optionPrices: [days[0] as string, days[1] as string].map((d) =>
+        optionDayPrice("PETR4C11", d, "1.00"),
+      ),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const beforeExDate = run.equityCurve.find((p) => p.session === days[2]);
+    const onExDate = run.equityCurve.find((p) => p.session === days[3]);
+    // The post-split effective quantity doubles the same session the factor's ex-date
+    // applies; an unrescaled stale mark would double the leg's value with it, instead of
+    // staying flat against the (also stale) price it had the session before.
+    expect(onExDate?.equity).toBe(beforeExDate?.equity);
+    expect(run.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
     );
   });
 
