@@ -192,7 +192,7 @@ const simulatedOperationSchema = z
         status: z.literal("expired"),
         closedAt: sessionDateSchema,
         settlement: z.array(legSettlementSchema),
-        residualSettledBy: z.enum(["trade", "period_end"]).nullable(),
+        residualSettledBy: z.enum(["trade", "cash", "period_end"]).nullable(),
       }),
     ),
   );
