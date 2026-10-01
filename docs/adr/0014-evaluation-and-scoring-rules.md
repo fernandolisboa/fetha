@@ -153,9 +153,8 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
     was already written leg-general — this rule never carved out a stock-only exception of its
     own — but the implementation did, through a stock-only gate the #23 round-2 batch and ADR-0013's
     "Known gap" note left in place pending #69. That gate is now removed: an option leg's
-    `quantity` and `entryPrice` rebase by the same `F`, keyed by `operation.underlying` (never by
-    the option's own ticker, which an exchange re-lists post-split under a new symbol rather than
-    adjusting in place). A listed option series still carries its own exchange-adjusted strike once
+    `quantity` and `entryPrice` rebase by the same `F`, keyed by `operation.underlying` (factors are
+    recorded per underlying; the option keeps its own ticker across the event, ADR-0056). A listed option series still carries its own exchange-adjusted strike once
     one exists; until then, the engine derives it: the latest visible epoch's `strike` scaled by
     the product of factors with `exDate` in `(sessionOf(series.asOf), atSession]`, rounded
     half-up to the cent. An exercised or assigned option leg's real trade floors its rebased

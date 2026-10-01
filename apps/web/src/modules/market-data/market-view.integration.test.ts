@@ -13,6 +13,7 @@ import {
   macroPoints,
   optionDailyPrices,
   optionSeries,
+  optionSeriesStrikes,
   tradingSessions,
 } from "./schema";
 
@@ -1837,5 +1838,206 @@ describe("loadMarketView", () => {
         collections: ["candles"],
       }),
     ).rejects.toBeInstanceOf(MarketViewUnavailableError);
+  });
+});
+
+// ADR-0056: a corporate action (the BBAS3 2024-04-16 split, ADR-0056's own
+// COTAHIST finding: BBASB310 29.95 -> 14.98) keeps a series' ticker and
+// halves its strike, but the earlier `option_series`-only model stamped the
+// latest strike with the series' *earliest* `as_of`, leaking the post-event
+// strike into a pre-event instant. `option_series_strikes` fixes this at the
+// loader, with no engine change (`resolveSeries` already resolves the
+// latest-visible-asOf row per ticker).
+describe("option strike epochs across a corporate action (ADR-0056)", () => {
+  const cleanupTickers: string[] = [];
+  const cleanupOptionTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(candles).where(eq(candles.ticker, ticker));
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+    for (const optionTicker of cleanupOptionTickers.splice(0)) {
+      await db.delete(optionDailyPrices).where(eq(optionDailyPrices.ticker, optionTicker));
+      await db.delete(optionSeriesStrikes).where(eq(optionSeriesStrikes.ticker, optionTicker));
+    }
+    const dates = seededSessionDates.splice(0);
+    if (dates.length > 0) {
+      await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
+    }
+  });
+
+  async function seedUnderlyingCandles(underlying: string, sessions: string[]): Promise<void> {
+    const db = getDb();
+    for (const session of sessions) {
+      const close = decimalString("30.00");
+      await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+        {
+          kind: "stock",
+          session,
+          ticker: underlying,
+          open: close,
+          high: close,
+          low: close,
+          average: close,
+          close,
+          trades: 10,
+          tradedQuantity: 1000,
+        },
+      ]);
+    }
+  }
+
+  it("loadMarketView carries both epochs, resolving 29.95 at D-1's close and 14.98 at D's close", async () => {
+    const db = getDb();
+    const underlying = uniqueTicker("BBS");
+    cleanupTickers.push(underlying);
+    const optionTicker = `${underlying}B310`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-01-06", 12);
+    await seedSessions(sessions);
+    await seedUnderlyingCandles(underlying, sessions);
+
+    const sessionDMinus1 = sessions[5] ?? "";
+    const sessionD = sessions[6] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    const firstSession = sessions[0] ?? "";
+
+    // The production bug: `option_series` overwrites strike with the latest
+    // value but keeps the *earliest* as_of.
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "14.98000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await db.insert(optionSeriesStrikes).values([
+      {
+        ticker: optionTicker,
+        expiry,
+        right: "call",
+        strike: "29.95000000",
+        asOf: new Date(`${sessionDMinus1}T20:00:00.000Z`),
+      },
+      {
+        ticker: optionTicker,
+        expiry,
+        right: "call",
+        strike: "14.98000000",
+        asOf: new Date(`${sessionD}T20:00:00.000Z`),
+      },
+    ]);
+
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition: smaDefinition(),
+      structure: COVERED_CALL_STRUCTURE,
+    };
+    const window = await windowFor(strategy, [underlying], firstSession, sessions.at(-1) ?? "");
+    const view = await loadMarketView(db, window);
+
+    const epochs = view.optionSeries.filter((series) => series.ticker === optionTicker);
+    expect(epochs).toHaveLength(2);
+    const beforeSplit = epochs.find((series) => series.strike === "29.95000000");
+    const afterSplit = epochs.find((series) => series.strike === "14.98000000");
+    expect(beforeSplit?.asOf).toBe(instantSchema.parse(`${sessionDMinus1}T20:00:00.000Z`));
+    expect(afterSplit?.asOf).toBe(instantSchema.parse(`${sessionD}T20:00:00.000Z`));
+  });
+
+  it("buildOperationMarketView keeps D-1's own price row at D-1 and D's own price row at D, instead of dropping the pre-event row (the regression)", async () => {
+    const db = getDb();
+    const underlying = uniqueTicker("BBO");
+    cleanupTickers.push(underlying);
+    const optionTicker = `${underlying}B310`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-02-03", 12);
+    await seedSessions(sessions);
+    await seedUnderlyingCandles(underlying, sessions);
+
+    const sessionDMinus1 = sessions[5] ?? "";
+    const sessionD = sessions[6] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    const firstSession = sessions[0] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "14.98000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await db.insert(optionSeriesStrikes).values([
+      {
+        ticker: optionTicker,
+        expiry,
+        right: "call",
+        strike: "29.95000000",
+        asOf: new Date(`${sessionDMinus1}T20:00:00.000Z`),
+      },
+      {
+        ticker: optionTicker,
+        expiry,
+        right: "call",
+        strike: "14.98000000",
+        asOf: new Date(`${sessionD}T20:00:00.000Z`),
+      },
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", sessionDMinus1);
+    await ensureMonthlyPartition(db, "option_daily_prices", sessionD);
+    await db.insert(optionDailyPrices).values([
+      {
+        ticker: optionTicker,
+        session: sessionDMinus1,
+        asOf: new Date(`${sessionDMinus1}T20:00:00.000Z`),
+        right: "call",
+        strike: "29.95000000",
+        expiry,
+        average: "2.000000",
+        close: "2.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+      {
+        ticker: optionTicker,
+        session: sessionD,
+        asOf: new Date(`${sessionD}T20:00:00.000Z`),
+        right: "call",
+        strike: "14.98000000",
+        expiry,
+        average: "1.000000",
+        close: "1.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+    ]);
+
+    const viewAtDMinus1 = await buildOperationMarketView(
+      db,
+      tickerSchema.parse(underlying),
+      instantSchema.parse(`${sessionDMinus1}T20:00:00.000Z`),
+    );
+    const priceAtDMinus1 = viewAtDMinus1.optionPrices.find(
+      (price) => price.ticker === optionTicker,
+    );
+    expect(priceAtDMinus1?.close).toBe("2.000000");
+
+    const viewAtD = await buildOperationMarketView(
+      db,
+      tickerSchema.parse(underlying),
+      instantSchema.parse(`${sessionD}T20:00:00.000Z`),
+    );
+    const priceAtD = viewAtD.optionPrices.find((price) => price.ticker === optionTicker);
+    expect(priceAtD?.close).toBe("1.000000");
   });
 });

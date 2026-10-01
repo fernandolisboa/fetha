@@ -21,7 +21,13 @@ _Avoid_: base asset, spot
 One listed option contract on an underlying: call or put, strike, expiry, exercise style. B3
 reuses a ticker across listing cycles (ADR-0017), so a lookup by ticker alone (the Ctrl K search
 and the series page, #241) means the cycle still alive today, the nearest expiry first, or the
-most recently expired one when none is; the latest registry snapshot breaks a tie.
+most recently expired one when none is; the latest registry snapshot breaks a tie. A corporate
+action on the underlying (a split, a bonus, a cash dividend) adjusts a series' strike without
+changing its ticker or ISIN; the strike's own history is a **strike epoch** — the first instant a
+listing cycle is known to have carried a given strike (ADR-0056), so the engine can see the strike
+that was actually live at a given instant rather than only the latest one — bounded by what has
+been ingested (ADR-0056's trade-offs): a strike never traded and never re-fetched by the registry
+before an event has no epoch to recover it from.
 _Avoid_: option contract, series code, option ticker (that is its identifier, not the concept)
 
 **Chain**:

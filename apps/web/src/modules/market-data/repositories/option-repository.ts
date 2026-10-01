@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import {
   and,
   asc,
@@ -28,7 +29,13 @@ import {
 } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
-import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import {
+  candles,
+  optionDailyPrices,
+  optionSeries,
+  optionSeriesStrikes,
+  tradingSessions,
+} from "../schema";
 
 import type { InstrumentOptionSeries } from "../adapters/b3-instruments/schema";
 import type { CotahistOptionRow } from "../adapters/cotahist/schema";
@@ -57,6 +64,55 @@ function dedupeByKey<T>(rows: T[], keyOf: (row: T) => string): T[] {
     byKey.set(keyOf(row), row);
   }
   return [...byKey.values()];
+}
+
+interface StrikeEpoch {
+  ticker: string;
+  expiry: string;
+  right: string;
+  strike: string;
+  asOf: Date;
+}
+
+// The registry parser passes strikes through unnormalized ("340", "100,39"
+// pre-parse): two ISINs on the same (ticker, expiry, right) whose strikes
+// differ only textually ("14.98" vs "14.980") are the same numeric column
+// value and the same conflict target, so the key must normalize or a batch
+// insert hits that target twice and Postgres refuses ("ON CONFLICT DO UPDATE
+// command cannot affect row a second time").
+function strikeEpochKey(epoch: StrikeEpoch): string {
+  return `${epoch.ticker}|${epoch.expiry}|${epoch.right}|${new Decimal(epoch.strike).toFixed(8)}`;
+}
+
+// `as_of` moves only backward on conflict (`LEAST`) — the same monotonic
+// rule ADR-0017 uses for `option_series.as_of` itself, so a re-ingested
+// older snapshot can never erase a newer epoch a later run already recorded.
+async function upsertStrikeEpochs(db: Database, epochs: StrikeEpoch[]): Promise<void> {
+  const deduped = dedupeByKey(epochs, strikeEpochKey);
+  if (deduped.length === 0) {
+    return;
+  }
+  // Sorted so two overlapping ingestion runs take Postgres row locks in the
+  // same order, the same deadlock-avoidance a batched upsert always needs
+  // once it can touch more than one row of the same target.
+  deduped.sort((a, b) => strikeEpochKey(a).localeCompare(strikeEpochKey(b)));
+  for (const batch of chunk(deduped, CHUNK_SIZE)) {
+    await db
+      .insert(optionSeriesStrikes)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [
+          optionSeriesStrikes.ticker,
+          optionSeriesStrikes.expiry,
+          optionSeriesStrikes.right,
+          optionSeriesStrikes.strike,
+        ],
+        set: {
+          asOf: sql`least(${optionSeriesStrikes.asOf}, excluded.as_of)`,
+        },
+        setWhere: sql`${optionSeriesStrikes.asOf} > excluded.as_of`,
+      });
+  }
 }
 
 // isin is the registry's stable natural key (B3 reuses option tickers and
@@ -102,6 +158,17 @@ export async function upsertOptionSeries(
         },
       });
   }
+
+  await upsertStrikeEpochs(
+    db,
+    deduped.map((row) => ({
+      ticker: row.ticker,
+      expiry: row.expiry,
+      right: row.right,
+      strike: row.strike,
+      asOf,
+    })),
+  );
 
   return deduped.length;
 }
@@ -151,6 +218,17 @@ export async function upsertOptionDailyPrices(
         },
       });
   }
+
+  await upsertStrikeEpochs(
+    db,
+    deduped.map((row) => ({
+      ticker: row.ticker,
+      expiry: row.expiry,
+      right: row.right,
+      strike: row.strike,
+      asOf,
+    })),
+  );
 
   return deduped.length;
 }
@@ -599,30 +677,96 @@ function capped<Row>(rows: Row[], cap: number): CappedQueryResult<Row> {
   return rows.length > cap ? { ok: false, reason: "over_cap" } : { ok: true, rows };
 }
 
-// A strategy's chain window for `loadMarketView`: every series listed on an underlying in the
-// universe that had not yet expired at `expiryFloor` (the start of warmup), seen on or before
-// `asOfCeiling` (the engine, not this query, decides per-step visibility off each row's own
-// `asOf`, which is why this bounds `asOf` only by the window's end). Queries at most `cap + 1`
-// rows and reports `over_cap` rather than returning the sentinel row itself, without the
-// follow-on price query's `inArray` bind list ever reaching Postgres's 65,535-parameter limit.
+export interface OptionSeriesEpochRow {
+  ticker: string;
+  underlying: string;
+  right: string;
+  strike: string;
+  expiry: string;
+  style: string;
+  asOf: Date;
+}
+
+function epochJoin() {
+  return and(
+    eq(optionSeriesStrikes.ticker, optionSeries.ticker),
+    eq(optionSeriesStrikes.expiry, optionSeries.expiry),
+    eq(optionSeriesStrikes.right, optionSeries.right),
+  );
+}
+
+function epochAsOfCondition(asOfCeiling: Date) {
+  return sql`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf}) <= ${asOfCeiling}`;
+}
+
+// COALESCEd against `option_series` (ADR-0056) so a series with no epoch row yet
+// (a write predating this table, or a gap the backfill did not reach) resolves
+// exactly as it did before the table existed.
+const epochColumns = {
+  ticker: optionSeries.ticker,
+  underlying: optionSeries.underlying,
+  right: optionSeries.right,
+  style: optionSeries.style,
+  expiry: optionSeries.expiry,
+  strike: sql<string>`coalesce(${optionSeriesStrikes.strike}, ${optionSeries.strike})`.mapWith(
+    optionSeries.strike,
+  ),
+  asOf: sql<Date>`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf})`.mapWith(
+    optionSeries.asOf,
+  ),
+};
+
+// A strategy's chain window for `loadMarketView`: every epoch of every series listed on an
+// underlying in the universe that had not yet expired at `expiryFloor` (the start of warmup),
+// with an epoch visible on or before `asOfCeiling` (the engine, not this query, decides
+// per-step visibility off each row's own `asOf`, which is why this bounds `asOf` only by the
+// window's end). `cap` counts *distinct tickers*, not epoch rows (ADR-0056: one series can now
+// contribute more than one row), so it is checked in a first pass before the epoch rows
+// materialise, keeping the follow-on price query's `inArray` bind list within Postgres's 65,535
+// parameter limit the same way it always has. The epoch rows themselves are not separately
+// capped: `DEFAULT_OPTION_CHAIN_TICKER_CAP` tickers times a handful of epochs each is far under
+// any volume `DEFAULT_OPTION_PRICE_ROW_CAP` already treats as safe for the heavier follow-on
+// price query.
 export async function optionSeriesInWindow(
   db: Database,
   underlyings: readonly string[],
   window: { expiryFloor: string; asOfCeiling: Date },
   cap: number,
-): Promise<CappedQueryResult<typeof optionSeries.$inferSelect>> {
-  const rows = await db
-    .select()
+): Promise<CappedQueryResult<OptionSeriesEpochRow>> {
+  const tickerRows = await db
+    .selectDistinct({ ticker: optionSeries.ticker })
     .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
     .where(
       and(
         inArray(optionSeries.underlying, [...underlyings]),
-        lte(optionSeries.asOf, window.asOfCeiling),
         gte(optionSeries.expiry, window.expiryFloor),
+        epochAsOfCondition(window.asOfCeiling),
       ),
     )
     .limit(cap + 1);
-  return capped(rows, cap);
+
+  if (tickerRows.length > cap) {
+    return { ok: false, reason: "over_cap" };
+  }
+  const tickers = tickerRows.map((row) => row.ticker);
+  if (tickers.length === 0) {
+    return { ok: true, rows: [] };
+  }
+
+  const rows = await db
+    .select(epochColumns)
+    .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
+    .where(
+      and(
+        inArray(optionSeries.underlying, [...underlyings]),
+        inArray(optionSeries.ticker, tickers),
+        gte(optionSeries.expiry, window.expiryFloor),
+        epochAsOfCondition(window.asOfCeiling),
+      ),
+    );
+  return { ok: true, rows };
 }
 
 // Every day price of `tickers` in `[fromSession, toSession]`, querying at most `cap + 1` rows so
@@ -649,20 +793,22 @@ export async function optionPricesInSessionRange(
 }
 
 // One underlying's chain as `buildOperationMarketView` sees it at `at`, bounded below by the
-// calendar floor so it does not accumulate every ticker the underlying has ever listed.
+// calendar floor so it does not accumulate every ticker the underlying has ever listed. One row
+// per strike epoch (ADR-0056), not per ticker.
 export async function optionSeriesForUnderlyingAt(
   db: Database,
   underlying: string,
   at: Date,
   expiryFloor: string | undefined,
-): Promise<(typeof optionSeries.$inferSelect)[]> {
+): Promise<OptionSeriesEpochRow[]> {
   return db
-    .select()
+    .select(epochColumns)
     .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
     .where(
       and(
         eq(optionSeries.underlying, underlying),
-        lte(optionSeries.asOf, at),
+        epochAsOfCondition(at),
         ...(expiryFloor ? [gte(optionSeries.expiry, expiryFloor)] : []),
       ),
     );

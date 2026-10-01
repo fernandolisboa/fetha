@@ -1853,7 +1853,8 @@ every one of them; now the vocabulary and the evaluator agree everywhere a calle
     original ticker and unadjusted listed strike against the underlying's adjusted close. Flagged
     once, run-wide, as note `option_strike_unadjusted_across_corporate_action` whenever a
     settlement sees a non-trivial split factor on an operation with an option leg, rather than
-    refused (item 18); tracked in issue #69.
+    refused (item 18); tracked in issue #69. Premise superseded by ADR-0056 (option series keep
+    their ticker; strikes are point-in-time).
     **Resolved by #69 part 2 (see the addendum below, `ENGINE_VERSION` `0.8.0`):**
     `option_strike_unadjusted_across_corporate_action` is legacy — kept in the `NoteCode` union
     for artifacts a run produced before this addendum, never emitted going forward — superseded
@@ -2502,7 +2503,7 @@ factor`, `effectiveEntryPrice = entryPrice * factor`. A listed option series its
 - **New shared helper, `internal/option-strike.ts`.** An option leg's strike at an instant resolves
   to the latest visible epoch's own `strike` (part 1's `resolveSeries`, unchanged) when that epoch
   already reflects every split factor visible by the valuation instant. When it does not — the
-  common case right after a split and before the exchange re-lists an adjusted series — the engine
+  common case right after a split and before an adjusted strike epoch is ingested (ADR-0056) — the engine
   derives the strike itself: `series.strike` scaled by the product of the factors whose `exDate`
   falls in `(sessionOf(series.asOf), atSession]`, rounded half-up to the cent
   (`Decimal.ROUND_HALF_UP`, decimal.js's own default). `resolveOptionStrike(view, ticker,
