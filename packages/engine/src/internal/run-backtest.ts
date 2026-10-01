@@ -362,9 +362,10 @@ function invalidInput<T>(path: string, message: string): Result<T> {
 }
 
 // Issue #279: the mark rebases a held quantity the same way a fill does, so it refuses the same
-// corrupt factor the fill path's `truncateToWholeUnits` refuses, instead of `toCentavos` throwing
-// on a zero-volume session where no fill ran first. `closePeriodEnd` reads the same legs and
-// residuals right after `computeMarkValue` on the same session, so this guard covers it too.
+// unit counts the fill path's `truncateToWholeUnits` refuses, on a zero-volume session where no
+// fill ran first. `closePeriodEnd` reads the same legs and residuals right after
+// `computeMarkValue` on the same session, so this guard covers it too. Like the fill path, it
+// bounds the unit count, not the centavos that count times a price can reach.
 function isSafeUnitCount(quantity: Decimal): boolean {
   return Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber());
 }

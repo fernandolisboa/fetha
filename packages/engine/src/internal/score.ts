@@ -170,7 +170,7 @@ function rescaleStaleMark(
   if (!rescaled.ok) return rescaled;
   if (
     rescaled.value.rescaled &&
-    !notes.includes(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE)
+    !notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
   ) {
     notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   }
@@ -1014,8 +1014,9 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       pnl = pnlResult.value;
       // A settled operation's own strike-adjustment note (forwarded from `settlementPnl`,
       // computed against the same leg/session) can be the exact one `maxLossResult` already
-      // pushed above; never repeat it. Only the two strike-adjustment codes are deduped, by
-      // `code` alone: those two are forwarded, unparameterized, from a settlement computed
+      // pushed above; never repeat it. Only the two strike-adjustment codes and the run-wide
+      // stale-mark rescale (#279) are deduped, by `code` alone: those are unparameterized, the
+      // first two forwarded from a settlement computed
       // against the very same leg/session, so two notes sharing that code really are the same
       // note (`Note` is plain, shared, immutable data per code, `notes.ts`). Every other code
       // (e.g. `stale_price`, one per leg) is parameterized per leg and must never be collapsed
@@ -1023,8 +1024,9 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       // first in a multi-leg operation.
       for (const note of pnlResult.notes) {
         const alreadyNoted =
-          (STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code)) ||
-          (note === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE && notes.includes(note));
+          (STRIKE_ADJUSTMENT_CODES.has(note.code) ||
+            note.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code) &&
+          notes.some((n) => n.code === note.code);
         if (!alreadyNoted) notes.push(note);
       }
     }
@@ -1051,8 +1053,9 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       // `maxLossResult` already pushed for the (never-taken) operation's own max loss.
       for (const note of counterfactual.notes) {
         const alreadyNoted =
-          (STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code)) ||
-          (note === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE && notes.includes(note));
+          (STRIKE_ADJUSTMENT_CODES.has(note.code) ||
+            note.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code) &&
+          notes.some((n) => n.code === note.code);
         if (!alreadyNoted) notes.push(note);
       }
     }

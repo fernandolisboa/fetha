@@ -531,6 +531,34 @@ describe("markToMarket", () => {
     );
   });
 
+  it("refuses a non-positive factor between a stale mark and the operation's own opening (#279)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [preSplitCandle("20.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [],
+        operations: [stockOperation({ openedAt: "2024-01-02" })],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("rebases a covered call's stock leg quantity across a 2:1 split (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...baseView,

@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import type { CorporateActionFactor } from "../api";
 import { decimalString } from "../test/support";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 
 // Mirrored by value in apps/web/src/modules/portfolio/corporate-action-basis.split-factor-
 // pin.test.ts, which runs the portfolio edge's own `splitFactorProduct` copy against the
@@ -146,4 +146,54 @@ describe("splitFactorProduct against the shared fixture pinned with apps/web's o
       }
     });
   }
+});
+
+describe("rescaleStalePrice (#279)", () => {
+  const factor = (exDate: string, value: string): CorporateActionFactor => ({
+    ticker: "PETR4",
+    exDate,
+    asOf: `${exDate}T13:00:00.000Z`,
+    factor: decimalString(value),
+  });
+
+  it("leaves a fresh price untouched", () => {
+    const result = rescaleStalePrice(
+      [factor("2024-01-05", "0.5")],
+      new Decimal(20),
+      null,
+      "2024-01-10",
+    );
+    expect(result).toEqual({ ok: true, value: { price: new Decimal(20), rescaled: false } });
+  });
+
+  it("rescales a stale price by the factors over (stale session, through]", () => {
+    const result = rescaleStalePrice(
+      [factor("2024-01-03", "0.5"), factor("2024-01-05", "0.5"), factor("2024-01-12", "0.5")],
+      new Decimal(20),
+      "2024-01-03",
+      "2024-01-10",
+    );
+    expect(result.ok && result.value.price.toString()).toBe("10");
+    expect(result.ok && result.value.rescaled).toBe(true);
+  });
+
+  it("reports no rescale when no factor falls inside the window", () => {
+    const result = rescaleStalePrice(
+      [factor("2024-01-12", "0.5")],
+      new Decimal(20),
+      "2024-01-03",
+      "2024-01-10",
+    );
+    expect(result.ok && result.value.rescaled).toBe(false);
+  });
+
+  it("refuses a non-positive factor inside the window", () => {
+    const result = rescaleStalePrice(
+      [factor("2024-01-05", "0")],
+      new Decimal(20),
+      "2024-01-03",
+      "2024-01-10",
+    );
+    expect(result.ok).toBe(false);
+  });
 });
