@@ -393,6 +393,50 @@ describe("real positions follow a split as the broker records it (#271)", () => 
     expect(settled.positions.map((row) => row.holding.ticker)).not.toContain(put);
   });
 
+  it("(f) a factor that pushes the closing count out of bounds leaves no proposal to confirm (#282)", async () => {
+    const market = await seedOptionMarket();
+    const owner = await signIn("out-of-bounds-factor");
+    const put = `${market.underlying.slice(0, 4)}P320`;
+    await getDb()
+      .insert(optionSeries)
+      .values({
+        isin: `ISIN-${put}`,
+        ticker: put,
+        underlying: market.underlying,
+        right: "put",
+        strike: "32.00000000",
+        expiry: market.expiry,
+        style: "european",
+        asOf: new Date(`${market.sessions[0] ?? ""}T13:00:00.000Z`),
+      });
+    await recordFillAction({
+      ticker: put,
+      side: "buy",
+      quantity: 100,
+      price: "0,50",
+      session: market.sessions[2] ?? "",
+      costs: "",
+    });
+    // 100 ÷ 0.00001 = 10,000,000 contracts, past `Quantity`'s bound: corrupt data, not a count.
+    await recordSplit(market.underlying, market.sessions[4] ?? "", "0.00001");
+    const fills = await new PortfolioRepository(getDb(), owner).listFills();
+    expect(
+      await groupFillsAction({ fillIds: fills.map((fill) => fill.id), operationId: null }),
+    ).toEqual({ status: "ok" });
+
+    const afterExpiry = await loadPortfolio(getDb(), owner, closeOf(market.sessions[8] ?? ""));
+    const [pending] = afterExpiry.pendingSettlements;
+    expect(pending?.proposal).toBeNull();
+    expect(
+      await confirmSettlementAction({
+        operationId: pending?.operation.id,
+        choices: [
+          { ticker: put, outcome: "expired_worthless", price: "0", costs: "", quantity: 100 },
+        ],
+      }),
+    ).toEqual({ status: "error", error: "no_proposal" });
+  });
+
   it("(d) a 1-for-7 reverse split rebases exactly, not refused by decimal.js rounding (review round 2 item 1)", async () => {
     const market = await seedStockMarket();
     const owner = await signIn("one-for-seven-split");
