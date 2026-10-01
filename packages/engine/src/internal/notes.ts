@@ -34,6 +34,19 @@ export const OPTION_STRIKE_UNCONFIRMED_NOTE: Note = {
     "a corporate action is visible on the underlying with no listed epoch confirming this strike reflects it; it may not",
 };
 
+// runBacktest's own mark path (issue #273): a leg's last known price (ADR-0014 Q42) whose own
+// session predates a corporate-action ex-date visible on the underlying is rescaled by the same
+// factor its quantity already carries (`corporateActionFactorThrough`), rather than left to sit
+// on the pre-action scale the already-rebased effective quantity no longer shares. Shares its
+// code with `option-pricing.ts`'s IV-suppression note (same underlying situation, a different
+// consequence — there the price is never rescaled, only the solve is suppressed; here the mark
+// itself is), rolled up into one run-wide note the same way the strike-adjustment notes below are.
+export const STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE: Note = {
+  code: "stale_price_across_corporate_action",
+  message:
+    "a leg's stale mark predated a corporate-action ex-date visible on its underlying; it was rescaled by the factor(s) since the price's own session (ADR-0014 Q51)",
+};
+
 // The only two codes a single leg's own strike adjustment can ever repeat under (forwarded from
 // a settlement proposal computed against the same leg/session by more than one caller, #69 part
 // 2 correctness rounds 3-5): safe to dedup by code alone, unlike every other note code (e.g.

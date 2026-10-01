@@ -1772,6 +1772,31 @@ describe("score — stale mark note names the ticker and session (ADR-0014 Q42/Q
     });
   });
 
+  it("rescales a stale pre-split mark exactly (#273), no phantom pnl from an odd-centavo close", () => {
+    const view: MarketView = {
+      ...emptyView,
+      // PETR4 never trades again after 2024-01-03; the split's own ex-date and the horizon
+      // both fall strictly after it, so markLegsToHorizon reads this same stale row.
+      candles: [stockCandle("2024-01-03", "10.05", "10.05")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Rescaled mark: 10.05 × 0.5 = 5.025 (exact); effective entry 10.00 × 0.5 = 5.00; effective
+    // quantity 100 / 0.5 = 200. pnl = (5.025 − 5.00) × 100 × 200 = 500 centavos. An unrescaled
+    // mark (the pre-fix bug) would read (10.05 − 5.00) × 100 × 200 = 101 000 — more than 200×
+    // the correct figure.
+    expect(result.value.pnl).toBe(centavos(500));
+  });
+
   it("notes a kept stock leg settled alongside an expiring option leg when its own mark is stale", () => {
     const callSeries: OptionSeries = {
       ticker: "PETR4C28",

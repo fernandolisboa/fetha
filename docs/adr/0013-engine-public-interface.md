@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.9.0";
+export const ENGINE_VERSION = "0.10.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2754,3 +2754,106 @@ computes for a series with no listed epoch yet reflecting a corporate action ex-
 session — a correctness fix to a previously disclosed known gap (`ENGINE_VERSION` `0.8.0`'s own
 addendum, "Further follow-ups, not made here"), not merely an additive field — so `ENGINE_VERSION`
 moves from `"0.8.0"` to `"0.9.0"`.
+
+## Addendum: a stale mark rescales across the corporate action it predates; `ENGINE_VERSION` bumped to `0.10.0` (2026-10-01, #273)
+
+The #69 part 2 addendum above flagged this as a known follow-up: `runBacktest`'s own mark
+(`computeMarkValue`, the daily equity point) and its period-end sweep (`closePeriodEnd`) each read
+a leg's `lastKnownLegPrice` — the stale-mark carry-forward ADR-0014 Q42 already allows for an
+untraded series — without checking whether a corporate action ex-dated since that price's own
+session had already moved the leg's effective quantity (`corporateActionFactorThrough`, Q51) off
+the scale that stale price was quoted on. A stock leg illiquid across a split, or (since #69) an
+option series illiquid across one, read its last trade at the pre-action scale while its quantity
+was already rebased to the post-action one — the mark or period-end close came out off by the
+factor, silently.
+
+- **Fix: rescale, don't just flag.** `lastKnownLegPrice` now compares the resolved row's own
+  `session` against the session being marked; a match (the common case, a series trading every
+  day) is unchanged. A stale row — its own session strictly before the mark session — is rescaled
+  by `corporateActionFactorThrough(operation.underlying, row.session, markSession, visibleAt)`,
+  the same shared helper (`splitFactorProduct`) and the same `operation.underlying` keying every
+  other leg rebase in this file already uses, just anchored at the stale price's own session
+  instead of the operation's `openedAt`. This is the one new call site; no other caller of
+  `lastKnownLegPrice` changes.
+- **Reuse, not a new rebasing rule.** `price-operation.ts`'s `valueOneLeg` already detects this
+  same situation for a _fresh_ proposal — a stale market price whose session predates a visible
+  corporate-action ex-date — but only to suppress solving implied volatility from it
+  (`suppressStaleImpliedVolatility`, note `stale_price_across_corporate_action`); it has no held
+  quantity to rebase against and so never rescales the price itself. `runBacktest` has both a held
+  quantity and the exact split-factor machinery (`corporateActionFactorThrough`) the #69 part 2
+  addendum already built for the same underlying's other legs, so the fix calls that, rather than
+  inventing a second way to measure "does a factor fall between these two sessions".
+- **One run-wide note, the same roll-up as the two strike-adjustment notes.** `BacktestState`
+  gains `stalePriceRescaledAcrossCorporateActionNoted`, set the first time
+  `lastKnownLegPrice` actually rescales (a resolved factor product not equal to 1), and rolled up
+  into one `STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE` (`internal/notes.ts`) on
+  `BacktestRun.notes` at the end of the run — reusing the existing `stale_price_across_corporate_action`
+  code (shared with `option-pricing.ts`'s IV-suppression note; a different message, since there the
+  consequence is "the solve was skipped" and here it is "the mark was rescaled"), never a new
+  `NoteCode`.
+- **No change to entry/exit fills or to `legPnlCentavos`'s own `effectiveEntryPrice` rebasing.**
+  Both already compare prices read fresh at their own session (`legFillPrice`'s `rowOnSession`,
+  never `lastKnownLegPrice`) or rebase a recorded `entryPrice`, not a live mark; neither carries
+  the staleness this fix addresses.
+- **Golden fixtures.** None of `backtest-golden.test.ts`'s four scenarios happen to combine an
+  illiquid gap with a corporate action at the exact session a mark would read across it, so no
+  `__golden__/*.json` fixture changed beyond its own `engineVersion` field (regenerated via
+  `vitest run src/invariants/backtest-golden.test.ts -u`, then diffed to confirm).
+- **Review round 1: three findings, all fixed in the same version.**
+  - _Correctness/quant BLOCKING._ The rescaled price was rounded to `PRICE_SCALE` before the
+    caller multiplied it by its own effective quantity (`toDecimalString`), manufacturing or
+    dropping P&L the unrounded multiplication never would (a 10.05 stale close rescaled by 0.5
+    read "5.03", not the exact 5.025). Fixed by keeping the rescaled value at full `decimal.js`
+    precision (`toDecimalStringAtLeastScale`, the same helper `propose-settlement.ts` uses for the
+    same reason) all the way through to the caller's own rounding at the end of its own
+    computation. Pinned by two tests: an odd-centavo stale close under a clean 0.5 factor, and a
+    repeating-decimal factor (`0.333333`) whose mark and `legPnlCentavos`'s own rebased entry price
+    must land on the identical product of the identical stale price and the identical factor.
+  - _Architecture BLOCKING._ ADR-0014 owns Q42/Q51; this ADR's own `runBacktest` section already
+    pointed at them without restating the rule. ADR-0014 now carries the rule itself, under a new
+    bullet amending Q51 (mirroring the #69 part 2 bullet's own shape) and a one-line cross-reference
+    under Q42, and reconciles its own `score.ts` sentence (below).
+  - _Quant/correctness/spec/architecture, in scope now: the pending-settlement residual._
+    `pending.residualQuantity`/`residualAvgCostCentavos` are frozen at the expiry session's own
+    scale (built once, when the exercise/assignment trade happens) and are a held position like
+    any other this file rebases — but neither the residual's own fill
+    (`resolvePendingSettlementResidualFills`), its daily mark (`computeMarkValue`) nor its
+    period-end mark (`closePeriodEnd`) rebased them across a corporate action ex-dated since
+    expiry. Fixed the same two ways every other leg in this file already is: quantity ÷ factor,
+    average cost × factor, over `(pending.expirySession, markOrCloseSession]`
+    (`corporateActionFactorThrough`, unchanged). The real fill floors the rebased quantity to a
+    whole share, cash-settling the fractional residue immediately at that same fill's price
+    (mirroring `resolvePendingExitFills`'s own stock-leg residue), with the pnl computed from the
+    full unrounded rebased quantity, not the floored trade count — the identical pattern Q51
+    already specifies for a stock-leg exit and an exercised option leg. A factor that blows the
+    rebased residual past a safe integer is `invalid_input`, the same guard every other quantity
+    rebase in this file already carries.
+    `resolvePendingSettlementResidualFills` is now `Result<void>` (was `void`) to report it; its
+    one call site checks the result. The daily/period-end mark additionally routes the residual's
+    own price through the same stale-mark rescale above (`lastKnownRescaledPrice`, factored out of
+    `lastKnownLegPrice` so both a leg and a bare underlying ticker can share it) — the in-code
+    comment above `lastKnownLegPrice` previously claimed "a settlement's own residual valuation"
+    already read the same instant through the same mechanism; before this round that was an
+    overclaim (the residual mark went through plain `lastKnownClose`, no rescale), now it is true.
+    Three tests: a residual closed the next session under a clean 0.5 factor ex-dated exactly that
+    session (fill quantity, price and `op.pnl` all land on the rebased scale); a non-whole-reciprocal
+    factor (`0.6666666667`) on the residual leaving a fractional share cash-settled instead of
+    rounded away; and a factor that blows the rebased residual past a safe integer, `invalid_input`,
+    never a thrown exception (surfaced during this round's own TDD pass: the first micro-factor
+    tried, `1e-15`, was itself still a safe integer once inverted and produced an uncaught
+    `toCentavos` invariant failure further downstream — the same `1e-16` magnitude the pre-existing
+    exercised-leg analogue already uses was needed to actually trip the guard before that downstream
+    arithmetic is ever reached).
+  - _`score.ts` has the identical gap in its own horizon mark._ `markLegsToHorizon` and
+    `settlementPnl`'s `"kept"` branch both already flag a stale mark (`staleMarkNote`) but never
+    rescaled it, the same bug as `runBacktest`'s pre-fix `lastKnownLegPrice`, reached from the
+    scoring path ADR-0014 Q54 describes. New helper `rescaleStaleMark` (score.ts), built on the
+    file's own existing `legSplitFactor` (the same `splitFactorProduct` primitive, already shared
+    with `runBacktest`'s `corporateActionFactorThrough` and `mark-to-market.ts`'s own rebasing),
+    anchored at the stale session the same way. One test: an odd-centavo stale close under a 0.5
+    factor, asserting the exact rescaled pnl.
+
+Under the change policy's `0.4.0` case this changes what `runBacktest` marks or closes an open
+position at for a leg whose stale price predates a visible corporate action — a correctness fix to
+a previously disclosed known gap (#69 part 2's own addendum named it directly), not merely an
+additive field — so `ENGINE_VERSION` moves from `"0.9.0"` (the #270 addendum above) to `"0.10.0"`.
