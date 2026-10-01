@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.10.0";
+export const ENGINE_VERSION = "0.11.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2857,3 +2857,67 @@ Under the change policy's `0.4.0` case this changes what `runBacktest` marks or 
 position at for a leg whose stale price predates a visible corporate action — a correctness fix to
 a previously disclosed known gap (#69 part 2's own addendum named it directly), not merely an
 additive field — so `ENGINE_VERSION` moves from `"0.9.0"` (the #270 addendum above) to `"0.10.0"`.
+
+## Addendum: an exit-rule base's own strike-adjustment note rolls up into the run's notes too; `ENGINE_VERSION` bumped to `0.11.0` (2026-10-01, #269)
+
+The #69 part 2 addendum above ("`option_strike_unadjusted_across_corporate_action` is repurposed,
+not legacy") named this gap directly and tracked it as issue #269: `priceOperation`/`markToMarket`
+attach a leg's own strike-adjustment note to its `LegValuation`, `proposeSettlement` attaches it per
+settlement proposal, `score` dedupes it onto its own scored result, and `runBacktest` already rolls
+a settlement-side occurrence up into one run-wide note per code (`optionStrikeDerivedAcrossCorporateActionNoted`
+/ `optionStrikeUnconfirmedAcrossCorporateActionNoted` on its checkpointed `BacktestState`, surfaced
+as `OPTION_STRIKE_DERIVED_NOTE`/`OPTION_STRIKE_UNCONFIRMED_NOTE` on `BacktestRun.notes`) — but an
+exit-rule base or an exit-rule current-side pricing (`evaluate-strategy.ts`'s
+`computeExitRuleBases`/`evaluateNumericExitRule`, both already priced through `price-operation.ts`'s
+`priceLegsAt`) priced the identical adjusted strike on every session an option-legged operation was
+open and simply discarded its own `LegValuation.notes`. A run whose every operation exited by a
+`profit_target`/`stop_loss` exit rule before expiry — never reaching settlement — could therefore
+price every leg on a derived or unconfirmed strike and still report no note at all.
+
+- **The least invasive route, not a frozen-interface change.** `createStrategyEvaluator`'s own
+  return type, `StrategyEvaluator = (call) => Result<Pick<Evaluation, "signals" | "evaluations">>`,
+  is declared in `internal/evaluate-strategy.ts` and never re-exported from `api.ts`: it is private
+  to the engine, not part of the frozen interface this ADR fences. Widening its `Pick` to add
+  `"notes"` — the same key `Evaluation` (a frozen type) already carries — costs nothing against
+  ADR-0013 and needs no superseding ADR of its own; only the addendum the issue itself asked for.
+  `computeExitRuleBases` and `evaluateNumericExitRule` each now return the `OPTION_STRIKE_DERIVED_NOTE`/
+  `OPTION_STRIKE_UNCONFIRMED_NOTE` codes present on their own `priceLegsAt` call's leg valuations
+  (`strikeAdjustmentNotesOf`, deduped by code, mirroring `score.ts`'s own `anyDerived`/`anyUnconfirmed`
+  pattern); the evaluator's closure collects every code it sees across every op and every instant a
+  call visits into one `Set`, and returns at most one note per code, same as every other
+  roll-up site this note pair already has.
+- **The public `evaluateStrategy` gains real notes too, not by a type change.** `Evaluation.notes`
+  already existed on the frozen type but `evaluateStrategy` hard-coded it to `[]`; this addendum
+  replaces that with the notes `createStrategyEvaluator` itself now collects. This is a behavior
+  change — the same session evaluated before and after this fix can now return a non-empty
+  `notes` where it used to return none — not a shape change, so it needs no second ADR entry of its
+  own, but it is exactly the kind of change the `0.4.0` case below tracks.
+- **`runBacktest` reuses its existing two flags, not a third pair.** `queueNextSignals`'s and the
+  final-session catch-up `evaluate()` call's own results now feed their `notes` into a new
+  `rollExitRuleStrikeNotes` helper, which sets the same `optionStrikeDerivedAcrossCorporateActionNoted`
+  / `optionStrikeUnconfirmedAcrossCorporateActionNoted` checkpointed flags the settlement path
+  already sets — the run only needs to know a strike was ever derived or left unconfirmed somewhere
+  in its life, not which caller first noticed it, so one pair of flags and one note per code on
+  `BacktestRun.notes` (unchanged shape) serves every caller. `BacktestCheckpoint`'s own schema is
+  unchanged: no new field, so a resumed chunk started on `"0.10.0"` is still refused by the existing
+  `engineVersion` checkpoint guard, the same way every prior bump in this ADR already is.
+- **`score.ts`/the public `evaluateStrategy`'s sibling checked for the same gap.** `score.ts` already
+  dedupes `OPTION_STRIKE_DERIVED_NOTE`/`OPTION_STRIKE_UNCONFIRMED_NOTE` onto its own scored result
+  (`STRIKE_ADJUSTMENT_CODES`, since the #69 part 2 addendum); it has no exit-rule-base pricing path of
+  its own to leak the note from, so no further change was needed there.
+- **Tests.** Two `run-backtest.test.ts` cases pin the gap directly: an option-legged operation that
+  exits by `profit_target` before its own expiry, with a split ex-dated exactly on the session an
+  exit-rule base is priced at (the `"derived"` case) and, separately, a split ex-dated on an earlier
+  session with no epoch ever confirming it while the operation is still held (the `"unconfirmed"`
+  case) — both assert `BacktestRun.notes` contains the corresponding code; both failed before this
+  fix (the run closed by `exit_rule` with an empty `notes` array) and pass after it.
+- **Golden backtests** move only on `engineVersion` (`vitest run src/invariants/backtest-golden.test.ts
+-u`, diffed to confirm): none of the four fixtures' own scenarios close an option-legged operation by
+  exit rule while a corporate-action-adjusted strike is in play, so no other field in any of the four
+  files changed.
+
+Under the change policy's `0.4.0` case this changes what `runBacktest` and the public
+`evaluateStrategy` report in `notes` for an option-legged operation priced across a corporate action
+while held — a correctness fix to a previously disclosed known gap (#69 part 2's own addendum named
+it directly as issue #269), not merely an additive field — so `ENGINE_VERSION` moves from `"0.10.0"`
+(the #273 addendum above) to `"0.11.0"`.

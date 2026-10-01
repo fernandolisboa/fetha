@@ -22,6 +22,7 @@ import {
   type IndicatorSeries,
   type LegInput,
   type MarketView,
+  type Note,
   type Operation,
   type OperationLeg,
   type Result,
@@ -54,6 +55,7 @@ import type { PriceBar } from "./indicators/atr";
 import { warmUpCandleCount } from "./indicator-warm-up";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
@@ -261,7 +263,7 @@ function validateViewContents(view: MarketView): Result<Evaluation> | null {
   return null;
 }
 
-type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal };
+type ExitRuleBases = { premiumBase: Decimal; maxLossBase: Decimal; notes: Note[] };
 
 const exitRuleProvenanceBase: {
   engineVersion: string;
@@ -309,7 +311,19 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
   const pricing = result.value;
   const premiumBase = new Decimal(Math.abs(pricing.netPremium));
   const maxLossBase = pricing.maxLoss === "unbounded" ? premiumBase : new Decimal(pricing.maxLoss);
-  return { premiumBase, maxLossBase };
+  return { premiumBase, maxLossBase, notes: strikeAdjustmentNotesOf(pricing.legs) };
+}
+
+// The only two note codes a leg's own strike adjustment can ever carry (option-strike.ts):
+// pulled out of an exit-rule base's or an exit-rule current-side pricing's own per-leg
+// `LegValuation.notes` so a run can roll them up (issue #269) the same way `score.ts` already
+// does for its own entry-priced legs.
+function strikeAdjustmentNotesOf(legs: readonly { notes: Note[] }[]): Note[] {
+  const codes = new Set(legs.flatMap((leg) => leg.notes.map((n) => n.code)));
+  const notes: Note[] = [];
+  if (codes.has(OPTION_STRIKE_DERIVED_NOTE.code)) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  if (codes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  return notes;
 }
 
 // The current side of a profit_target/stop_loss comparison prices every leg through the
@@ -329,7 +343,7 @@ function evaluateNumericExitRule(
   at: Instant,
   bases: ExitRuleBases,
   splitFactor: Decimal,
-): { fired: boolean; zeroBase: boolean; unknown: boolean } {
+): { fired: boolean; zeroBase: boolean; unknown: boolean; notes: Note[] } {
   const legs: LegInput[] = op.legs.map((leg) => ({
     role: leg.role,
     side: leg.side,
@@ -355,7 +369,8 @@ function evaluateNumericExitRule(
   // this branch cannot fail once bases has already succeeded for the same op at the same
   // instant.
   /* v8 ignore next */
-  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true };
+  if (!pricingResult.ok) return { fired: false, zeroBase: false, unknown: true, notes: [] };
+  const notes = strikeAdjustmentNotesOf(pricingResult.value.legs);
   let pnlCentavos = new Decimal(0);
   for (const [index, leg] of op.legs.entries()) {
     const valuation = pricingResult.value.legs[index];
@@ -373,7 +388,7 @@ function evaluateNumericExitRule(
         valuation?.fairValue
         ? parseDecimal(valuation.fairValue)
         : null;
-    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true };
+    if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true, notes: [] };
     const currentPremium = rawPremium.div(splitFactor);
     const legSign = leg.side === "buy" ? 1 : -1;
     const entry = parseDecimal(leg.entryPrice);
@@ -382,18 +397,20 @@ function evaluateNumericExitRule(
     );
   }
   if (rule.kind === "profit_target") {
-    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
+    if (bases.premiumBase.lte(0)) return { fired: false, zeroBase: true, unknown: false, notes };
     return {
       fired: pnlCentavos.gte(bases.premiumBase.mul(parseDecimal(rule.fractionOfPremium))),
       zeroBase: false,
       unknown: false,
+      notes,
     };
   }
-  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true, unknown: false };
+  if (bases.maxLossBase.lte(0)) return { fired: false, zeroBase: true, unknown: false, notes };
   return {
     fired: pnlCentavos.lte(bases.maxLossBase.mul(parseDecimal(rule.multipleOfMaxLoss)).neg()),
     zeroBase: false,
     unknown: false,
+    notes,
   };
 }
 
@@ -505,7 +522,7 @@ export type EvaluationCall = Pick<
 >;
 export type StrategyEvaluator = (
   call: EvaluationCall,
-) => Result<Pick<Evaluation, "signals" | "evaluations">>;
+) => Result<Pick<Evaluation, "signals" | "evaluations" | "notes">>;
 
 type Readings = { candle: Candle; values: IndicatorLookup<DecimalString | null> };
 
@@ -823,6 +840,10 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
 
     const signals: Signal[] = [];
     const evaluations: EvaluationRecord[] = [];
+    // Rolled up from every exit-rule base's and current-side pricing's own per-leg strike
+    // adjustment, across every op and every instant this call visits (issue #269) — the same
+    // dedup-by-code `score.ts` already applies to its own entry-priced legs.
+    const exitRuleStrikeCodes = new Set<Note["code"]>();
     const atMs = instantMs(call.at);
 
     for (const ticker of instruments) {
@@ -1090,6 +1111,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             instantUnknown = true;
             continue;
           }
+          for (const note of bases.notes) exitRuleStrikeCodes.add(note.code);
           const visibleFactors = state.view.corporateActions.filter((f) => isAtOrBefore(f.asOf, c));
           const splitFactorResult = splitFactorProduct(
             visibleFactors,
@@ -1105,6 +1127,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               case "profit_target":
               case "stop_loss": {
                 const outcome = evaluateNumericExitRule(rule, op, view, c, bases, splitFactor);
+                for (const note of outcome.notes) exitRuleStrikeCodes.add(note.code);
                 if (outcome.unknown) {
                   instantUnknown = true;
                   break;
@@ -1208,7 +1231,13 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       }
     }
 
-    return { ok: true, value: { signals, evaluations } };
+    const notes: Note[] = [];
+    if (exitRuleStrikeCodes.has(OPTION_STRIKE_DERIVED_NOTE.code))
+      notes.push(OPTION_STRIKE_DERIVED_NOTE);
+    if (exitRuleStrikeCodes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) {
+      notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+    }
+    return { ok: true, value: { signals, evaluations, notes } };
   };
 }
 
@@ -1222,7 +1251,6 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
     ok: true,
     value: {
       ...result.value,
-      notes: [],
       provenance: {
         engineVersion: ENGINE_VERSION,
         pricingModel: "bsm_continuous_yield",

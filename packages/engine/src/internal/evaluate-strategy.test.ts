@@ -2724,7 +2724,11 @@ describe("createStrategyEvaluator (#58)", () => {
       if (!expected.ok) throw new Error("expected an evaluation");
       expect(evaluate({ at, riskProfile })).toEqual({
         ok: true,
-        value: { signals: expected.value.signals, evaluations: expected.value.evaluations },
+        value: {
+          signals: expected.value.signals,
+          evaluations: expected.value.evaluations,
+          notes: expected.value.notes,
+        },
       });
     }
   });
