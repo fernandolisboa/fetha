@@ -175,7 +175,7 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
     covered call). See the ADR-0013 `0.8.0` addendum for the shared `resolveOptionStrike` helper
     and its two notes, `option_strike_derived_across_corporate_action` and
     `option_strike_unadjusted_across_corporate_action`.
-  - **Amended by #273 (ADR-0013 addendum, `ENGINE_VERSION` `0.9.0`): a stale mark rescales across
+  - **Amended by #273 (ADR-0013 addendum, `ENGINE_VERSION` `0.10.0`): a stale mark rescales across
     the corporate action it predates, and so does a pending settlement's residual.** `F` above
     already rebases a held leg's own `quantity`/`entryPrice`; it says nothing about the _mark_
     `runBacktest` reads to value or close that leg, which Q42 lets carry forward from an earlier,
