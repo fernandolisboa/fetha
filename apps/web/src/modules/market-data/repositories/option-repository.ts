@@ -294,24 +294,6 @@ export interface ChainSeries {
 // window, in which case this is `null` and the picker can tell the user the
 // series is unpriceable before they pick it (PETR4 chain vs `option_daily_prices`).
 
-// Epochs sorted ascending by `asOf` for one `(ticker, expiry, right)` cycle: the strike visible
-// at `instant` is the last one whose own `asOf` has not yet arrived, falling back to the
-// series' current strike for a cycle with no epoch rows (a write predating migration 0033).
-function strikeVisibleAt(
-  epochs: readonly { strike: string; asOf: Date }[],
-  instant: Date,
-  fallback: string,
-): string {
-  let visible = fallback;
-  for (const epoch of epochs) {
-    if (epoch.asOf > instant) {
-      break;
-    }
-    visible = epoch.strike;
-  }
-  return visible;
-}
-
 export async function optionChainForUnderlying(
   db: Database,
   underlying: string,
@@ -364,7 +346,6 @@ export async function optionChainForUnderlying(
             strike: optionDailyPrices.strike,
             average: optionDailyPrices.average,
             close: optionDailyPrices.close,
-            asOf: optionDailyPrices.asOf,
           })
           .from(optionDailyPrices)
           .where(
@@ -383,11 +364,11 @@ export async function optionChainForUnderlying(
             expiry: optionSeriesStrikes.expiry,
             right: optionSeriesStrikes.right,
             strike: optionSeriesStrikes.strike,
-            asOf: optionSeriesStrikes.asOf,
           })
           .from(optionSeriesStrikes)
-          .where(inArray(optionSeriesStrikes.ticker, tickers))
-          .orderBy(asc(optionSeriesStrikes.asOf)),
+          .where(
+            and(inArray(optionSeriesStrikes.ticker, tickers), lte(optionSeriesStrikes.asOf, at)),
+          ),
   ]);
 
   const latestPriceByTicker = new Map<string, (typeof priceRows)[number]>();
@@ -395,16 +376,7 @@ export async function optionChainForUnderlying(
     latestPriceByTicker.set(row.ticker, row);
   }
 
-  const epochsByCycle = new Map<string, { strike: string; asOf: Date }[]>();
-  for (const row of epochRows) {
-    const key = `${row.ticker}|${row.expiry}|${row.right}`;
-    const epochs = epochsByCycle.get(key);
-    if (epochs) {
-      epochs.push({ strike: row.strike, asOf: row.asOf });
-    } else {
-      epochsByCycle.set(key, [{ strike: row.strike, asOf: row.asOf }]);
-    }
-  }
+  const epochsByCycle = buildStrikeEpochsByCycle(epochRows);
 
   return series
     .sort((a, b) => a.expiry.localeCompare(b.expiry) || Number(a.strike) - Number(b.strike))
@@ -412,17 +384,17 @@ export async function optionChainForUnderlying(
       const priceRow = latestPriceByTicker.get(ticker);
       // A price row from a listing cycle the ticker has since moved past
       // (ADR-0017) must not surface as this cycle's last price. Within the
-      // current cycle, the price's own strike is compared against the strike
-      // epoch visible at the price row's own `asOf` (ADR-0056), not the
-      // ticker's current registry strike: on a session where the registry
-      // and COTAHIST briefly disagree about the strike, the price's own
-      // instant still resolves to the strike it was actually recorded under.
-      const epochs = priceRow
-        ? (epochsByCycle.get(`${ticker}|${priceRow.expiry}|${right}`) ?? [])
-        : [];
-      const visibleStrike = priceRow ? strikeVisibleAt(epochs, priceRow.asOf, strike) : null;
+      // current cycle, the price's own strike is compared against any strike
+      // epoch of that cycle visible by `at` (ADR-0056, amended by #274), not
+      // the ticker's current registry strike alone: on a session where the
+      // registry and COTAHIST briefly disagree about the strike, the pre-
+      // and post-event epoch can even share the same `as_of` (`ingest.ts`
+      // stamps both writes with the same session close), so `priceMatchesCycle`
+      // checks membership in the whole visible set rather than a single instant.
       const matchesCurrentCycle =
-        priceRow && priceRow.expiry === expiry && priceRow.strike === visibleStrike;
+        priceRow &&
+        priceRow.expiry === expiry &&
+        priceMatchesCycle(epochsByCycle, ticker, expiry, right, priceRow.strike, strike);
       const value = matchesCurrentCycle ? (priceRow.close ?? priceRow.average) : null;
       return {
         ticker,
@@ -751,6 +723,52 @@ function epochJoin() {
 
 function epochAsOfCondition(asOfCeiling: Date) {
   return sql`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf}) <= ${asOfCeiling}`;
+}
+
+function cycleKey(ticker: string, expiry: string, right: string): string {
+  return `${ticker}|${expiry}|${right}`;
+}
+
+// The shared "does this day-price row still belong to this listing cycle" rule (#274, amends
+// ADR-0056): a price row's own strike is compared against *any* strike epoch of the
+// `(ticker, expiry, right)` cycle visible by the query's own ceiling, not against a single
+// instant. The live writers (`ingest.ts`) stamp the registry write and the COTAHIST write for one
+// session with the same `trading.close`, so on a session where they briefly disagree about the
+// strike the pre- and post-event epoch can share the exact same `as_of` — comparing against "the
+// epoch visible at the price row's own instant" is then order-dependent on ties the database does
+// not promise to break any particular way. Membership in the whole visible set has no such tie: a
+// pre-event price keeps matching its series (the engine, not this rule, is what flags a stale
+// price across a corporate action). A cycle with no epoch rows falls back to comparing against the
+// registry's current strike, the same `option_series` fallback `epochColumns` already uses.
+export function buildStrikeEpochsByCycle(
+  epochRows: readonly { ticker: string; expiry: string; right: string; strike: string }[],
+): Map<string, Set<string>> {
+  const byCycle = new Map<string, Set<string>>();
+  for (const row of epochRows) {
+    const key = cycleKey(row.ticker, row.expiry, row.right);
+    const strikes = byCycle.get(key);
+    if (strikes) {
+      strikes.add(row.strike);
+    } else {
+      byCycle.set(key, new Set([row.strike]));
+    }
+  }
+  return byCycle;
+}
+
+export function priceMatchesCycle(
+  epochsByCycle: Map<string, Set<string>>,
+  ticker: string,
+  expiry: string,
+  right: string,
+  priceStrike: string,
+  fallbackStrike: string,
+): boolean {
+  const epochs = epochsByCycle.get(cycleKey(ticker, expiry, right));
+  if (!epochs || epochs.size === 0) {
+    return priceStrike === fallbackStrike;
+  }
+  return epochs.has(priceStrike);
 }
 
 // COALESCEd against `option_series` (ADR-0056) so a series with no epoch row yet

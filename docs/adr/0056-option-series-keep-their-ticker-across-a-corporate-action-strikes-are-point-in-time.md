@@ -135,9 +135,10 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
   - `optionSeriesInWindow` (`loadMarketViewWithCalendarVersion`) and `optionSeriesForUnderlyingAt`
     (`buildOperationMarketView`) both switch to the epoch join. `optionChainForUnderlying`,
     `searchOptionSeries` and `optionSeriesDetail` (the closing chain, the Ctrl K palette, the series
-    page) keep reading `option_series` directly — they show the _current_ strike by design, the same
-    thing the registry already gives them, and multiplying their rows by epoch would only add noise
-    to a UI that has never shown history.
+    page) keep reading `option_series` directly for the strike they **display** — they show the
+    _current_ strike by design, the same thing the registry already gives them, and multiplying
+    their rows by epoch would only add noise to a UI that has never shown history. Matching a
+    day-price row to its listing cycle is a separate concern from display, amended by #274 below.
   - `optionChainTickerCap` (`DEFAULT_OPTION_CHAIN_TICKER_CAP`) now bounds distinct tickers, not
     rows: one series can contribute more than one epoch row, so a row-count cap would refuse a
     universe under the real ticker bound just because a handful of its series each split twice. A
@@ -149,13 +150,29 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
     `DEFAULT_OPTION_PRICE_ROW_CAP` already treats as safe for the heavier follow-on price query,
     which is untouched — `option_daily_prices` is not epoch-joined and its row volume does not
     change.
-  - `buildOperationMarketView`'s price/series match (`optionPricesByTicker`) already compares a
-    day-price row's strike against the _latest series row visible at `at`_ — now that "series row"
-    is the epoch visible at `at`, the match resolves correctly for any strike the backfill or a
-    writer has actually epoched: a pre-event price row matches the pre-event epoch, a post-event
-    one matches the post-event epoch. No change was needed to that comparison itself; it inherits
-    the residuals below (an unepoched strike, an append-only correction) the same as every other
-    loader.
+  - **Amended by #274.** The first cut of this ADR had `buildOperationMarketView`'s price/series
+    match (`optionPricesByTicker`) compare a day-price row's strike against the _latest epoch
+    visible at `at`_ only, and the first cut of the chain's own fix compared it against the epoch
+    visible at the price row's own `as_of`. Both broke on the live writers' own tie: `ingest.ts`
+    (`~419`/`~436`) stamps the registry write and the COTAHIST write for one session with the same
+    `trading.close`, so on the session the two sources disagree the pre- and post-event epoch can
+    share the exact same `as_of` — a day-price row then depends on undefined SQL order among equal
+    `as_of` values, and the chain and `buildOperationMarketView` could disagree about whether that
+    row counts. The rule both now share: a day-price row belongs to a ticker's current listing cycle
+    when its own `expiry` equals the latest-visible series' `expiry` **and** its own `strike` is a
+    member of _any_ strike epoch of that `(ticker, expiry, right)` cycle visible by the query's own
+    ceiling (`option_series_strikes` with `as_of <= ceiling`, falling back to the registry's current
+    strike when the cycle has no epoch rows) — membership in the whole visible set, not a comparison
+    against one instant, so a tie between two epochs never matters and a pre-event price keeps
+    matching its series (the engine, not this rule, is what flags a stale price across a corporate
+    action). `buildStrikeEpochsByCycle`/`priceMatchesCycle` (`option-repository.ts`) implement the
+    shared rule; `buildOperationMarketView` builds its epoch set from `seriesRows` it already
+    fetched (itself bounded by `epochAsOfCondition`), and `optionChainForUnderlying` queries
+    `option_series_strikes` directly for its own tickers, bounded the same way. A cycle whose
+    strike never changed, or that reverted to an earlier strike (`A` → `B` → `A`), resolves
+    correctly either way: the live writers' `LEAST` fold (above) means a recurring strike keeps its
+    _earliest_ epoch row rather than gaining a duplicate, and membership does not care which epoch
+    in the set a price row's strike happens to match.
   - The IV index (`iv-index-compute.ts`) computes through `buildOperationMarketView`, so it reads
     the strike of the epoch visible at its own session close with no change of its own; documented
     here since the ticket called it out explicitly. (Amendment, #270, ADR-0013's 0.9.0 addendum: the

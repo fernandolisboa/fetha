@@ -47,12 +47,14 @@ import {
 import { ivIndexPointsInRange } from "./repositories/iv-index-repository";
 import { latestMacroPointAtOrBefore, macroPointsInRange } from "./repositories/macro-repository";
 import {
+  buildStrikeEpochsByCycle,
   DEFAULT_OPTION_CHAIN_TICKER_CAP,
   DEFAULT_OPTION_PRICE_ROW_CAP,
   latestOptionPricesAt,
   optionPricesInSessionRange,
   optionSeriesForUnderlyingAt,
   optionSeriesInWindow,
+  priceMatchesCycle,
 } from "./repositories/option-repository";
 
 const CANDLE_WINDOW_SESSIONS = 30;
@@ -612,14 +614,34 @@ export async function buildOperationMarketView(
       ? []
       : await latestOptionPricesAt(db, optionTickers, atDate, calendarFloor);
 
-  // The latest visible price row per ticker, but only when its own
-  // expiry/strike still match that ticker's latest visible series: B3
-  // reuses option tickers across listing cycles (ADR-0017), so a price row
-  // from a previous cycle can outlive the cycle it priced.
+  // `seriesRows` already is the full set of strike epochs visible by `atDate`
+  // (`optionSeriesForUnderlyingAt`'s own `epochAsOfCondition`), so it doubles
+  // as the per-cycle strike set `priceMatchesCycle` needs with no extra query.
+  const strikeEpochsByCycle = buildStrikeEpochsByCycle(seriesRows);
+
+  // The latest visible price row per ticker, but only when its own expiry
+  // still matches that ticker's latest visible series (B3 reuses option
+  // tickers across listing cycles, ADR-0017) and its own strike matches any
+  // strike epoch of that cycle visible by `atDate` (ADR-0056, amended by
+  // #274) — not only the latest-visible epoch's strike, which left a price
+  // row dropped whenever the registry and COTAHIST briefly disagreed about a
+  // strike on the same session.
   const optionPricesByTicker = new Map<string, (typeof priceRows)[number]>();
   for (const row of priceRows) {
     const series = latestSeriesByTicker.get(row.ticker);
-    if (!series || row.expiry !== series.expiry || row.strike !== series.strike) {
+    if (!series || row.expiry !== series.expiry) {
+      continue;
+    }
+    if (
+      !priceMatchesCycle(
+        strikeEpochsByCycle,
+        row.ticker,
+        series.expiry,
+        series.right,
+        row.strike,
+        series.strike,
+      )
+    ) {
       continue;
     }
     optionPricesByTicker.set(row.ticker, row);
