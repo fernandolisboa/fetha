@@ -141,6 +141,8 @@ const en = {
       statuses: { open: "open", closed: "closed", expired: "expired" },
       pendingSettlement: "settlement pending",
       ungroup: "Ungroup",
+      corporateActionNotNormalized:
+        "A split or reverse split affects this underlying, but the fill quantities could not be rebased to whole shares; figures below are shown as recorded.",
     },
     fills: {
       title: "Fills",
@@ -383,6 +385,8 @@ const ptBR = {
       statuses: { open: "aberta", closed: "encerrada", expired: "vencida" },
       pendingSettlement: "liquidação pendente",
       ungroup: "Desagrupar",
+      corporateActionNotNormalized:
+        "Houve um desdobramento ou grupamento neste ativo-objeto, mas as quantidades das execuções não puderam ser ajustadas para um número inteiro de ações; os valores abaixo aparecem como foram registrados.",
     },
     fills: {
       title: "Execuções",

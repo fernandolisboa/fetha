@@ -213,6 +213,40 @@ describe("backtestRunSchema", () => {
     expect(backtestRunSchema.parse(withExtra)).toEqual(run);
   });
 
+  // Pre-#271 rows: a settlement entry persisted before LegSettlement.residualValue existed has no
+  // such key, by construction (a run from before the exercise/assignment fill could ever be
+  // rebased across a split). It must still parse, with residualValue read as zero.
+  it("defaults residualValue to 0 on a pre-#271 settlement entry that never had it", () => {
+    const expiredOperation = {
+      id: "op2",
+      underlying: "PETR4",
+      legs: [{ role: "call", side: "buy", ticker: "PETR4C30", quantity: 1, entryPrice: "2" }],
+      expiry: "2024-01-19",
+      openedAt: "2024-01-03",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+      pnl: centavos(100_00),
+      maxLoss: centavos(200_00),
+      status: "expired",
+      closedAt: "2024-01-19",
+      settlement: [
+        {
+          leg: { role: "call", side: "buy", ticker: "PETR4C30", quantity: 1, entryPrice: "2" },
+          outcome: "exercised",
+          intrinsicValue: "5",
+          fills: [],
+        },
+      ],
+      residualSettledBy: null,
+    };
+    const withExpiredOperation = { ...run, operations: [...run.operations, expiredOperation] };
+    const parsed = backtestRunSchema.parse(withExpiredOperation);
+    expect(parsed.operations[1]).toMatchObject({
+      status: "expired",
+      settlement: [{ residualValue: 0 }],
+    });
+  });
+
   it("tolerates an unknown key inside a walk-forward window instead of rejecting the whole row", () => {
     const withWalkForward = {
       ...run,

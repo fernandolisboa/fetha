@@ -25,7 +25,8 @@
               "at": "2024-01-16T20:00:00.000Z",
               "costs": 788
             }
-          ]
+          ],
+          "residualValue": 0
         },
         {
           "leg": {
@@ -37,7 +38,8 @@
           },
           "outcome": "expired_worthless",
           "intrinsicValue": "0.00",
-          "fills": []
+          "fills": [],
+          "residualValue": 0
         }
       ]
     }

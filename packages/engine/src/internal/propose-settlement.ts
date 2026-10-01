@@ -1,5 +1,12 @@
 import Decimal from "decimal.js";
-import type { Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type {
+  Centavos,
+  DecimalString,
+  Instant,
+  Quantity,
+  SessionDate,
+  Ticker,
+} from "@fetha/contracts";
 import type {
   EngineError,
   Fill,
@@ -16,12 +23,15 @@ import type {
 } from "../api";
 import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
 import { invalidInput } from "./errors";
+import { grossCentavos } from "./fill-pricing";
+import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
-import { toCentavos } from "./scalars";
+import { toCentavos, toQuantity } from "./scalars";
+import { splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
@@ -62,7 +72,13 @@ export function settleLeg(
   if (leg.role === "stock") {
     return {
       ok: true,
-      value: { leg: { ...leg, role: "stock" }, outcome: "kept", intrinsicValue: null, fills: [] },
+      value: {
+        leg: { ...leg, role: "stock" },
+        outcome: "kept",
+        intrinsicValue: null,
+        fills: [],
+        residualValue: toCentavos(0),
+      },
       adjustment: "none",
     };
   }
@@ -126,6 +142,7 @@ export function settleLeg(
         outcome: inTheMoney ? "exercised" : "expired_worthless",
         intrinsicValue,
         fills,
+        residualValue: toCentavos(0),
       },
       adjustment,
     };
@@ -143,8 +160,87 @@ export function settleLeg(
       outcome: inTheMoney ? "assigned" : "expired_worthless",
       intrinsicValue,
       fills,
+      residualValue: toCentavos(0),
     },
     adjustment,
+  };
+}
+
+export interface TruncatedUnits {
+  // Signed: a caller whose own quantity can run either long or short (runBacktest's pending-
+  // settlement residual, #273) reads its direction straight off this sign; a caller whose
+  // quantity is always non-negative (an exercise/assignment fill, #271, paired with its own
+  // fixed `Side`) never sees it go negative.
+  units: number;
+  // The fractional remainder's own cash value at `price`, unsigned; zero when the quantity
+  // divided evenly (including the ordinary no-factor case).
+  residualValueCentavos: number;
+  // The remainder's own sign, 0 when there is none at all (`residualValueCentavos` is then
+  // always 0 too).
+  residualSign: -1 | 0 | 1;
+}
+
+// #271/#273: shared by every caller that turns a corporate-action-rebased, not-necessarily-
+// integer quantity into the whole units a real trade can actually move plus the fractional
+// remainder's own cash value — `rebaseExerciseFillUnits` below (an exercise/assignment fill) and
+// `runBacktest`'s own pending-settlement residual (`resolvePendingSettlementResidualFills`,
+// whose residual can run either long or short) — so neither can drift from the other. Truncates
+// toward zero, never rounds: for a non-negative quantity (every `rebaseExerciseFillUnits` call)
+// this is exactly `Math.floor`; a signed residual truncates the same way on either side of zero,
+// never rounding a small short residual away. The caller supplies its own `onUnsafeInteger`
+// error (an adversarial or corrupt factor, e.g. 1e-15, can blow the unit count past what a real
+// count can be) since each names its own ticker and path in its own words.
+export function truncateToWholeUnits(
+  rawQuantity: Decimal,
+  price: DecimalString,
+  onUnsafeInteger: () => EngineError,
+): { ok: true; value: TruncatedUnits } | { ok: false; error: EngineError } {
+  const units = rawQuantity.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
+  if (units !== 0 && !Number.isSafeInteger(units)) {
+    return { ok: false, error: onUnsafeInteger() };
+  }
+  const residue = rawQuantity.sub(units);
+  if (residue.isZero()) {
+    return { ok: true, value: { units, residualValueCentavos: 0, residualSign: 0 } };
+  }
+  const residualValueCentavos = grossCentavos(price, residue.abs()).round().toNumber();
+  return {
+    ok: true,
+    value: { units, residualValueCentavos, residualSign: residue.isPositive() ? 1 : -1 },
+  };
+}
+
+// #271: `settleLeg` reports the exercise/assignment fill at the leg's nominal `quantity`, the
+// count the operation's own ledger was opened with; the real, immediate trade B3 settles only
+// ever moves a whole number of shares at the effective (post-split) count. Shared by
+// `proposeSettlement` and `runBacktest`'s own expiry handling (#72) so neither drifts from the
+// other: a corporate-action factor that does not evenly divide `leg.quantity` leaves a
+// fractional unit that can never actually trade, cash-settled into `residualValue` at this same
+// fill's price rather than rounded away (mirroring a stock leg's own split-residue handling,
+// ADR-0014 Q51).
+export function rebaseExerciseFillUnits(
+  fill: Pick<Fill, "price" | "side">,
+  effectiveQuantity: Decimal,
+  path: string,
+):
+  | { ok: true; value: { quantity: Quantity | null; residualValue: Centavos } }
+  | { ok: false; error: EngineError } {
+  const truncated = truncateToWholeUnits(effectiveQuantity, fill.price, () =>
+    invalidInput(
+      path,
+      "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
+    ),
+  );
+  if (!truncated.ok) return truncated;
+  const { units, residualValueCentavos, residualSign } = truncated.value;
+  return {
+    ok: true,
+    value: {
+      quantity: units > 0 ? toQuantity(units) : null,
+      residualValue: toCentavos(
+        residualSign === 0 ? 0 : (fill.side === "sell" ? 1 : -1) * residualValueCentavos,
+      ),
+    },
   };
 }
 
@@ -194,6 +290,7 @@ export function proposeSettlement(
   const legs: LegSettlement[] = [];
   let anyStrikeDerived = false;
   let anyStrikeUnconfirmed = false;
+  let anyLessThanOneUnit = false;
   for (const [legIndex, leg] of operation.legs.entries()) {
     const settled = settleLeg(
       leg,
@@ -205,9 +302,42 @@ export function proposeSettlement(
       input.view,
     );
     if (!settled.ok) return err(settled.error);
-    legs.push(settled.value);
     if (settled.adjustment === "derived") anyStrikeDerived = true;
     if (settled.adjustment === "unconfirmed") anyStrikeUnconfirmed = true;
+
+    const bareFill = settled.value.fills[0];
+    if (!bareFill) {
+      legs.push(settled.value);
+      continue;
+    }
+
+    // #271: the exercise/assignment fill settleLeg reports is at the leg's nominal `quantity`;
+    // B3 delivers the effective (post-split) count. The factor is the same window
+    // mark-to-market and score rebase an option leg through: every factor visible by the
+    // expiry close, between the operation's own `openedAt` and the leg's own expiry (an option
+    // leg never outlives it).
+    const visibleFactors = input.view.corporateActions.filter(
+      (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, expiryClose),
+    );
+    const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, operation.expiry);
+    if (!factorResult.ok) return err(factorResult.error);
+    const effectiveQuantity = new Decimal(leg.quantity).div(factorResult.value);
+    const rebased = rebaseExerciseFillUnits(
+      bareFill,
+      effectiveQuantity,
+      `operation.legs[${String(legIndex)}]`,
+    );
+    if (!rebased.ok) return err(rebased.error);
+    if (rebased.value.quantity === null) {
+      anyLessThanOneUnit = true;
+      legs.push({ ...settled.value, fills: [], residualValue: rebased.value.residualValue });
+    } else {
+      legs.push({
+        ...settled.value,
+        fills: [{ ...bareFill, quantity: rebased.value.quantity }],
+        residualValue: rebased.value.residualValue,
+      });
+    }
   }
 
   // A settlement proposal is not itself a trade (ADR-0013 #25 addendum): the one fill a
@@ -234,6 +364,17 @@ export function proposeSettlement(
   // already-correct, early-dated epoch (ADR-0056 backfill step 2) — indistinguishable from here,
   // so the strike is kept as read and flagged rather than guessed either way.
   if (anyStrikeUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  // #271: a corporate-action factor leaving at least one leg with less than one effective unit
+  // to actually exercise or assign; its value is folded into that leg's own `residualValue`
+  // instead of a fill that never happened (mirroring mark-to-market's own note of the same
+  // code).
+  if (anyLessThanOneUnit) {
+    notes.push({
+      code: "less_than_one_effective_unit",
+      message:
+        "a corporate-action factor leaves at least one leg with less than one effective unit to settle; its residual value is folded into residualValue instead of a fill",
+    });
+  }
 
   return {
     ok: true,

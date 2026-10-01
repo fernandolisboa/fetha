@@ -7,9 +7,17 @@ import {
   type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
-import type { Fill, Operation, OperationLeg, OptionRight, Side } from "@fetha/engine";
+import type {
+  CorporateActionFactor,
+  Fill,
+  Operation,
+  OperationLeg,
+  OptionRight,
+  Side,
+} from "@fetha/engine";
 
 import { chronological, operationLegs, type LedgerFill } from "./bookkeeping";
+import { normalizeFillsForOperationBasis } from "./corporate-action-basis";
 
 const ENTRY_PRICE_SCALE = 6;
 
@@ -30,10 +38,14 @@ export interface RealizedOperationInput {
   horizonDate: SessionDate;
   closeOf: (session: SessionDate) => Instant | null;
   rightOf: (ticker: Ticker, expiry: SessionDate | null) => OptionRight | null;
+  corporateActions: readonly CorporateActionFactor[];
 }
 
 export type RealizedOperationRefusal =
-  "no_position_at_decision" | "unknown_series" | "unresolvable_fill_session";
+  | "no_position_at_decision"
+  | "unknown_series"
+  | "unresolvable_fill_session"
+  | "corporate_action_normalization_skipped";
 
 export type RealizedOperationResult =
   | { ok: true; operation: Operation; realizedFills: Fill[]; settlementPending: boolean }
@@ -62,9 +74,25 @@ function legKey(ticker: string, side: Side): string {
 // weighted average price, which leaves the P&L unchanged because the P&L
 // of a leg is linear in its fills.
 export function realizedOperation(input: RealizedOperationInput): RealizedOperationResult {
+  // #271 review round 1 item 6: route the held operation's own fills through the same
+  // "each fill is recorded as the broker showed it on its own date" normalization every other
+  // path that nets fills into legs already uses (ADR-0021), closing the gap that ADR named as a
+  // known follow-up. Refuse rather than guess, the same conservative choice ADR-0021 item 2 makes
+  // for every other caller.
+  const normalizedInput = normalizeFillsForOperationBasis(
+    input.fills,
+    input.openedAt,
+    input.corporateActions,
+  );
+  if (normalizedInput.skipped) {
+    return { ok: false, reason: "corporate_action_normalization_skipped" };
+  }
+  const normalizedFills = normalizedInput.fills;
+  const recordedPriceById = new Map(input.fills.map((fill) => [fill.id, fill.price]));
+
   const held: OperationFill[] = [];
   const later: { fill: OperationFill; at: Instant }[] = [];
-  for (const fill of [...input.fills].sort(chronological)) {
+  for (const fill of [...normalizedFills].sort(chronological)) {
     if (input.heldFillIds.has(fill.id) || fill.session < input.decisionDate) {
       held.push(fill);
       continue;
@@ -117,11 +145,16 @@ export function realizedOperation(input: RealizedOperationInput): RealizedOperat
         ? Math.min(Math.abs(position), fill.quantity)
         : 0;
     if (closing > 0) {
+      // The engine's own score (packages/engine/src/score.ts computeOperationPnl) computes
+      // fill.price − entryPrice×F against a nominal entryPrice and the live-session price exactly
+      // as the fill happened: rebasing this price back to the operation's nominal basis as well
+      // would double-count the factor and score a result F times too large (review round 2 item
+      // 2). Only the quantity is nominal here; the price stays the broker-recorded one.
       realizedFills.push({
         ticker: fill.ticker,
         side: fill.side,
         quantity: quantitySchema.parse(closing),
-        price: fill.price,
+        price: recordedPriceById.get(fill.id) ?? fill.price,
         session: fill.session,
         at,
         costs: centavosSchema.parse(

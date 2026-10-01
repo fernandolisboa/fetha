@@ -1,8 +1,24 @@
 import Decimal from "decimal.js";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
-import type { Fill, Operation } from "@fetha/engine";
+import type {
+  Centavos,
+  Confidence,
+  CostModel,
+  DecimalString,
+  Instant,
+  SessionDate,
+  Ticker,
+} from "@fetha/contracts";
+import { engine } from "@fetha/engine";
+import type {
+  Candle,
+  CorporateActionFactor,
+  Fill,
+  MarketView,
+  Operation,
+  TradingSession,
+} from "@fetha/engine";
 
 import {
   realizedOperation,
@@ -50,7 +66,17 @@ function input(overrides: Partial<RealizedOperationInput>): RealizedOperationInp
     horizonDate: "2026-10-16",
     closeOf,
     rightOf: (ticker) => (ticker === PUT ? "put" : ticker === CALL ? "call" : null),
+    corporateActions: [],
     ...overrides,
+  };
+}
+
+function split(exDate: string, factor: string): CorporateActionFactor {
+  return {
+    ticker: "PETR4",
+    exDate: exDate,
+    asOf: `${exDate}T13:00:00.000Z` as never,
+    factor: factor as DecimalString,
   };
 }
 
@@ -77,6 +103,198 @@ describe("realizedOperation", () => {
     expect(operation.expiry).toBeNull();
     expect(operation.openedAt).toBe("2026-09-01");
     expect(realizedFills).toEqual([]);
+  });
+
+  it("#271 review round 1 item 6: normalizes a pre-split and a post-split held fill onto one basis before netting", () => {
+    const preSplit = fill({
+      session: "2026-09-01",
+      quantity: 100,
+      price: "62" as DecimalString,
+    });
+    const postSplit = fill({
+      session: "2026-09-08",
+      quantity: 100,
+      price: "31" as DecimalString,
+    });
+    const { operation } = expectOk(
+      realizedOperation(
+        input({
+          fills: [preSplit, postSplit],
+          heldFillIds: new Set([preSplit.id, postSplit.id]),
+          corporateActions: [split("2026-09-05", "0.5")],
+        }),
+      ),
+    );
+    expect(operation.legs).toEqual([
+      { role: "stock", side: "buy", ticker: "PETR4", quantity: 150, entryPrice: "62.000000" },
+    ]);
+  });
+
+  it("#271 review round 1 item 6: refuses rather than guess on a non-integer rebase", () => {
+    const preSplit = fill({ session: "2026-09-01", quantity: 101, price: "62" as DecimalString });
+    const postSplit = fill({ session: "2026-09-08", quantity: 100, price: "31" as DecimalString });
+    const result = realizedOperation(
+      input({
+        fills: [preSplit, postSplit],
+        heldFillIds: new Set([preSplit.id, postSplit.id]),
+        corporateActions: [split("2026-09-05", "0.6666666667")],
+      }),
+    );
+    expect(result).toEqual({ ok: false, reason: "corporate_action_normalization_skipped" });
+  });
+
+  it("review round 2 item 2: a realized fill keeps its recorded session price, only the quantity rebased to nominal", () => {
+    const opened = fill({
+      session: "2026-09-01",
+      quantity: 100,
+      price: "30" as DecimalString,
+    });
+    const sold = fill({
+      side: "sell",
+      quantity: 200,
+      price: "20" as DecimalString,
+      session: "2026-09-08",
+    });
+    const { operation, realizedFills } = expectOk(
+      realizedOperation(
+        input({
+          openedAt: "2026-09-01",
+          fills: [opened, sold],
+          heldFillIds: new Set([opened.id]),
+          decidedAt: "2026-09-03T15:00:00.000Z",
+          decisionDate: "2026-09-03",
+          horizonClose: closeOf("2026-09-08"),
+          horizonDate: "2026-09-08",
+          corporateActions: [split("2026-09-05", "0.5")],
+        }),
+      ),
+    );
+    expect(operation.legs).toEqual([
+      { role: "stock", side: "buy", ticker: "PETR4", quantity: 100, entryPrice: "30.000000" },
+    ]);
+    expect(realizedFills).toEqual([
+      {
+        ticker: "PETR4",
+        side: "sell",
+        quantity: 100,
+        price: "20",
+        session: "2026-09-08",
+        at: "2026-09-08T20:00:00.000Z",
+        costs: 0,
+      },
+    ]);
+
+    function tradingDay(date: string): TradingSession {
+      return {
+        date: date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      };
+    }
+    const calendar: TradingSession[] = [
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+      "2026-09-05",
+      "2026-09-06",
+      "2026-09-07",
+      "2026-09-08",
+    ].map(tradingDay);
+    const spotCandle: Candle = {
+      ticker: "PETR4",
+      timeframe: "D1",
+      session: "2026-09-08",
+      asOf: "2026-09-08T20:00:00.000Z",
+      open: "20" as DecimalString,
+      high: "20" as DecimalString,
+      low: "20" as DecimalString,
+      close: "20" as DecimalString,
+      tradedQuantity: 1000,
+    };
+    const view: MarketView = {
+      calendar,
+      candles: [spotCandle],
+      corporateActions: [split("2026-09-05", "0.5")],
+      optionSeries: [],
+      optionPrices: [],
+      quotes: [],
+      macro: [],
+      dividendYields: [],
+      impliedVolatilityIndex: [],
+    };
+    const zeroCostModel: CostModel = {
+      b3FeeRate: "0" as DecimalString,
+      brokerage: { stockPerOrder: 0 as Centavos, optionPerOrder: 0 as Centavos },
+      optionSlippageRate: "0" as DecimalString,
+      incomeTaxRate: "0" as DecimalString,
+      monthlyStockSalesExemption: 0 as Centavos,
+    };
+
+    return engine
+      .score({
+        view,
+        subject: "hold",
+        decidedAt: "2026-09-03T15:00:00.000Z",
+        horizon: "2026-09-08",
+        confidence: "0.6" as Confidence,
+        claim: null,
+        realizedFills,
+        origin: { kind: "manual" },
+        costModel: zeroCostModel,
+        operation,
+      })
+      .then((result) => {
+        if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+        // buy 100 @30, a 2:1 split (factor 0.5) between the decision and the sell, sell 200 @20:
+        // the engine's own score rebases the entry (30 × 0.5 = 15) and the fill's quantity
+        // (100 ÷ 0.5 = 200), never the recorded sell price itself: (20 − 15) × 200 = R$1.000, not
+        // the R$5.000 a price rebased a second time would have scored.
+        expect(result.value.pnl).toBe(100_000 as Centavos);
+      });
+  });
+
+  it("review round 2 item 3: a worthless short leg's closing fill sized on the broker basis nets cleanly across a split", () => {
+    const soldCall = fill({
+      ticker: CALL,
+      assetClass: "option",
+      side: "sell",
+      quantity: 100,
+      price: "2" as DecimalString,
+      session: "2026-09-01",
+      expiry: EXPIRY,
+    });
+    // #271 review round 2 item 3: settlement-plan.ts sizes an expired-worthless leg's closing fill
+    // on the broker basis (leg.quantity ÷ F), the same basis every other fill is recorded on —
+    // never the nominal leg.quantity, which normalization would halve again on read-back and
+    // leave a residual net position behind.
+    const closedWorthless = fill({
+      ticker: CALL,
+      assetClass: "option",
+      side: "buy",
+      quantity: 200,
+      price: "0" as DecimalString,
+      session: EXPIRY,
+      expiry: EXPIRY,
+    });
+    const { operation, realizedFills, settlementPending } = expectOk(
+      realizedOperation(
+        input({
+          expiry: EXPIRY,
+          openedAt: "2026-09-01",
+          fills: [soldCall, closedWorthless],
+          heldFillIds: new Set([soldCall.id]),
+          corporateActions: [split("2026-09-05", "0.5")],
+        }),
+      ),
+    );
+    expect(operation.legs).toEqual([
+      { role: "call", side: "sell", ticker: CALL, quantity: 100, entryPrice: "2.000000" },
+    ]);
+    expect(realizedFills).toEqual([
+      expect.objectContaining({ ticker: CALL, side: "buy", quantity: 100, price: "0" }),
+    ]);
+    expect(settlementPending).toBe(false);
   });
 
   it("turns a later closing fill into a realized fill at its session close", () => {

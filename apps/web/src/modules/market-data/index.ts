@@ -31,6 +31,7 @@ export { CandleFormToggle } from "./components/candle-form-toggle";
 export { marketDataStrings, t } from "./strings";
 export {
   buildOperationMarketView,
+  corporateActionFactorsForUnderlying,
   MarketViewTooLargeError,
   MarketViewUnavailableError,
   type BuildOperationMarketViewOptions,

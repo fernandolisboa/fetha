@@ -8,6 +8,7 @@ import {
   quantitySchema,
   sessionDateSchema,
   tickerSchema,
+  type Centavos,
 } from "./scalars";
 import { riskLimits, riskProfileSchema } from "./risk-profile";
 import { costModelSchema } from "./cost-model";
@@ -160,11 +161,15 @@ const closeReasonSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("period_end") }),
 ]);
 
+// residualValue defaults to 0 (ADR-0013 "persisted engine artifacts" addendum): a run persisted
+// before #271 never had a residual by construction, so a stored settlement entry missing the key
+// reads as zero rather than failing `backtestRunSchema.parse` outright.
 const legSettlementSchema = z.strictObject({
   leg: operationLegSchema,
   outcome: z.enum(["kept", "exercised", "assigned", "expired_worthless"]),
   intrinsicValue: decimalStringSchema.nullable(),
   fills: z.array(fillSchema),
+  residualValue: centavosSchema.default(0 as Centavos),
 });
 
 const simulatedOperationSchema = z

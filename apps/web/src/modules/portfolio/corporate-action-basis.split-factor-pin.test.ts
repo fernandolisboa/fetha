@@ -1,15 +1,15 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import type { CorporateActionFactor } from "../api";
-import { decimalString } from "../test/support";
-import { splitFactorProduct } from "./split-factor";
+import type { DecimalString } from "@fetha/contracts";
+import type { CorporateActionFactor } from "@fetha/engine";
 
-// Mirrored by value in apps/web/src/modules/portfolio/corporate-action-basis.split-factor-
-// pin.test.ts, which runs the portfolio edge's own `splitFactorProduct` copy against the
-// identical cases: the engine's interface is frozen (ADR-0013) and this helper is not exported,
-// so apps/web keeps its own copy (CLAUDE.md "never depend on engine internals from outside the
-// package"). Keeping both expectation tables byte-identical means either copy's behavior drifting
-// from the other fails that side's own test, not just review.
+import { splitFactorProduct } from "./corporate-action-basis";
+
+// Mirrored by value in packages/engine/src/internal/split-factor.test.ts, which runs the
+// engine's own `splitFactorProduct` against the identical cases (see that file's comment for
+// why this is a value-mirror, not a shared import: the engine may not import `@fetha/contracts`
+// at runtime, even in a test, ADR-0013). Keeping both expectation tables byte-identical means
+// either copy's behavior drifting from the other fails that side's own test.
 const SHARED_SPLIT_FACTOR_FIXTURE_CASES: {
   name: string;
   factors: { exDate: string; factor: string }[];
@@ -81,54 +81,15 @@ const SHARED_SPLIT_FACTOR_FIXTURE_CASES: {
 ];
 
 function factor(exDate: string, value: string): CorporateActionFactor {
-  return { ticker: "PETR4", exDate, asOf: `${exDate}T13:00:00.000Z`, factor: decimalString(value) };
+  return {
+    ticker: "PETR4",
+    exDate,
+    asOf: `${exDate}T13:00:00.000Z` as never,
+    factor: value as DecimalString,
+  };
 }
 
-describe("splitFactorProduct", () => {
-  it("returns 1 when no factor falls in (openedAt, through]", () => {
-    const result = splitFactorProduct([], "2024-01-01", "2024-01-10");
-    expect(result).toEqual({ ok: true, value: new Decimal(1) });
-  });
-
-  it("multiplies every factor with exDate strictly after openedAt and at or before through", () => {
-    const factors = [
-      factor("2024-01-01", "0.5"),
-      factor("2024-01-05", "0.5"),
-      factor("2024-02-01", "0.5"),
-    ];
-    const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.toNumber()).toBeCloseTo(0.5);
-  });
-
-  it("returns invalid_input for a non-positive factor", () => {
-    const factors = [factor("2024-01-05", "0")];
-    const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
-    expect(result).toEqual({
-      ok: false,
-      error: {
-        code: "invalid_input",
-        path: "corporateActions[].factor",
-        message: "a corporate-action factor must be positive",
-      },
-    });
-  });
-
-  it("returns invalid_input for a negative factor", () => {
-    const factors = [factor("2024-01-05", "-1.00")];
-    const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
-    expect(result.ok).toBe(false);
-  });
-
-  it("ignores a non-positive factor outside the (openedAt, through] window", () => {
-    const factors = [factor("2024-02-01", "0")];
-    const result = splitFactorProduct(factors, "2024-01-01", "2024-01-10");
-    expect(result).toEqual({ ok: true, value: new Decimal(1) });
-  });
-});
-
-describe("splitFactorProduct against the shared fixture pinned with apps/web's own copy", () => {
+describe("splitFactorProduct against the shared fixture pinned with the engine's own copy", () => {
   for (const testCase of SHARED_SPLIT_FACTOR_FIXTURE_CASES) {
     it(testCase.name, () => {
       const result = splitFactorProduct(

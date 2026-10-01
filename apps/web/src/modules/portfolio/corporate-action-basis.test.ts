@@ -1,0 +1,331 @@
+import { describe, expect, it } from "vitest";
+import type { DecimalString, SessionDate } from "@fetha/contracts";
+import type { CorporateActionFactor } from "@fetha/engine";
+
+import type { LedgerFill } from "./bookkeeping";
+import {
+  normalizeFillsForHoldingsBasis,
+  normalizeFillsForOperationBasis,
+  splitFactorProduct,
+} from "./corporate-action-basis";
+
+let seq = 0;
+function fill(overrides: Partial<LedgerFill>): LedgerFill {
+  seq += 1;
+  return {
+    ticker: "PETR4",
+    assetClass: "stock",
+    side: "buy",
+    quantity: 100,
+    price: "10" as DecimalString,
+    session: "2026-09-01",
+    seq,
+    expiry: null,
+    costsCentavos: 0,
+    ...overrides,
+  };
+}
+
+function split(exDate: string, factor: string): CorporateActionFactor {
+  return {
+    ticker: "PETR4",
+    exDate: exDate,
+    asOf: `${exDate}T13:00:00.000Z` as never,
+    factor: factor as DecimalString,
+  };
+}
+
+describe("splitFactorProduct", () => {
+  it("is 1 with no factors in the window", () => {
+    const result = splitFactorProduct([], "2026-09-01", "2026-09-10");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.toString()).toBe("1");
+  });
+
+  it("excludes a factor ex-dated at or before openedAt", () => {
+    const result = splitFactorProduct([split("2026-09-01", "0.5")], "2026-09-01", "2026-09-10");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.toString()).toBe("1");
+  });
+
+  it("includes a factor ex-dated after openedAt and at or before through", () => {
+    const result = splitFactorProduct([split("2026-09-05", "0.5")], "2026-09-01", "2026-09-10");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.toString()).toBe("0.5");
+  });
+
+  it("rejects a non-positive factor", () => {
+    const result = splitFactorProduct([split("2026-09-05", "0")], "2026-09-01", "2026-09-10");
+    expect(result.ok).toBe(false);
+  });
+});
+
+function holdingKeyOf(fill: LedgerFill): string {
+  return `${fill.ticker}|${fill.expiry ?? ""}`;
+}
+
+describe("normalizeFillsForOperationBasis (#271)", () => {
+  it("leaves every fill unchanged with no corporate actions", () => {
+    const fills = [fill({ session: "2026-09-01" })];
+    const result = normalizeFillsForOperationBasis(fills, "2026-09-01", []);
+    expect(result).toEqual({ fills, skipped: false });
+  });
+
+  it("leaves a pre-split fill unchanged: the engine's own forward rebase handles it", () => {
+    const fills = [fill({ session: "2026-09-01", quantity: 100, price: "10" as DecimalString })];
+    const factors = [split("2026-09-10", "0.5")];
+    const result = normalizeFillsForOperationBasis(fills, "2026-09-01", factors);
+    expect(result).toEqual({ fills, skipped: false });
+  });
+
+  it("converts a post-split fill back to the operation's openedAt basis", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const postSplitFill = fill({
+      session: "2026-09-15",
+      quantity: 200,
+      price: "5" as DecimalString,
+    });
+    const factors = [split("2026-09-10", "0.5")];
+    const result = normalizeFillsForOperationBasis([postSplitFill], openedAt, factors);
+    expect(result.skipped).toBe(false);
+    expect(result.fills).toEqual([{ ...postSplitFill, quantity: 100, price: "10.00000000" }]);
+  });
+
+  it("combines a pre-split buy and a post-split buy onto one basis, netting correctly after the engine's own forward rebase", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const preSplitFill = fill({
+      session: "2026-09-01",
+      quantity: 100,
+      price: "10" as DecimalString,
+    });
+    const postSplitFill = fill({
+      session: "2026-09-15",
+      quantity: 100,
+      price: "6" as DecimalString,
+    });
+    const factors = [split("2026-09-10", "0.5")];
+    const result = normalizeFillsForOperationBasis(
+      [preSplitFill, postSplitFill],
+      openedAt,
+      factors,
+    );
+    expect(result.skipped).toBe(false);
+    // The post-split fill nets to 50 nominal shares at R$12.00; summed with the pre-split 100
+    // shares at R$10.00 this is a nominal 150 shares, which the engine's own forward rebase
+    // (÷0.5) turns into the real current 300 shares the broker shows.
+    expect(result.fills).toEqual([
+      preSplitFill,
+      { ...postSplitFill, quantity: 50, price: "12.00000000" },
+    ]);
+  });
+
+  it("does not double-rebase a hand-entered post-split position (its own date is the basis)", () => {
+    const openedAt = "2026-09-15" as SessionDate;
+    const handEntered = fill({
+      session: "2026-09-15",
+      quantity: 200,
+      price: "5" as DecimalString,
+    });
+    const factors = [split("2026-09-10", "0.5")];
+    const result = normalizeFillsForOperationBasis([handEntered], openedAt, factors);
+    expect(result).toEqual({ fills: [handEntered], skipped: false });
+  });
+
+  it("refuses to silently round a non-integer rebase and returns every fill unchanged", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const fills = [
+      fill({ session: "2026-09-01", quantity: 100 }),
+      fill({ session: "2026-09-15", quantity: 101 }),
+    ];
+    // A 3-for-2 bonus: factor 2/3 does not evenly divide 101.
+    const factors = [split("2026-09-10", "0.6666666667")];
+    const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
+    expect(result).toEqual({ fills, skipped: true });
+  });
+
+  it("refuses the whole group, not just the offending fill, on a non-positive factor (review round 1 item 7)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const fills = [
+      fill({ session: "2026-09-01", quantity: 100 }),
+      fill({ session: "2026-09-15", quantity: 100 }),
+    ];
+    const factors = [split("2026-09-10", "0")];
+    const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
+    expect(result).toEqual({ fills, skipped: true });
+  });
+
+  it("refuses a rebase that lands outside Quantity's bounds (review round 1 item 7)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const fills = [fill({ session: "2026-09-15", quantity: 2 })];
+    // 2 ÷ 0.000001 = 2,000,000, past MAX_QUANTITY (1,000,000).
+    const factors = [split("2026-09-10", "0.000001")];
+    const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
+    expect(result).toEqual({ fills, skipped: true });
+  });
+
+  describe("non-terminating-decimal factors (review round 2 item 1)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+
+    it.each([
+      { factor: "3", quantities: [1, 2, 5, 13] },
+      { factor: "6", quantities: [1, 2, 5, 13] },
+      { factor: "7", quantities: [1, 2, 5, 13, 100] },
+      { factor: "9", quantities: [1, 2, 5, 13] },
+    ])("rebases exactly, never refuses, for a 1-for-$factor grouping", ({ factor, quantities }) => {
+      for (const quantity of quantities) {
+        const postGrouping = fill({
+          session: "2026-09-15",
+          quantity,
+          price: "10" as DecimalString,
+        });
+        const factors = [split("2026-09-10", factor)];
+        const result = normalizeFillsForOperationBasis([postGrouping], openedAt, factors);
+        expect(result.skipped).toBe(false);
+        expect(result.fills[0]?.quantity).toBe(quantity * Number(factor));
+      }
+    });
+  });
+});
+
+describe("normalizeFillsForHoldingsBasis (#271, forward to asOf per review round 1 item 3)", () => {
+  it("normalizes a pre-split and a post-split fill forward to today's basis, not back to the earliest session", () => {
+    // 100 @ 30 pre-split, 100 @ 15 post-split (2-for-1, factor 0.5): the broker shows 300 shares
+    // at an average of 15 today, never 150 @ 30 (de-rebasing to a pre-split basis fabricates a
+    // loss since markToMarket never forward-rebases a bare Position of its own).
+    const preSplit = fill({
+      ticker: "PETR4",
+      session: "2026-09-01",
+      quantity: 100,
+      price: "30" as DecimalString,
+    });
+    const postSplit = fill({
+      ticker: "PETR4",
+      session: "2026-09-15",
+      quantity: 100,
+      price: "15" as DecimalString,
+    });
+    const asOf = "2026-10-01" as SessionDate;
+    const factors = new Map([["PETR4", [split("2026-09-10", "0.5")]]]);
+    const result = normalizeFillsForHoldingsBasis(
+      [preSplit, postSplit],
+      asOf,
+      () => "PETR4",
+      factors,
+    );
+    expect(result.skippedHoldingKeys.size).toBe(0);
+    expect(result.fills).toEqual([{ ...preSplit, quantity: 200, price: "15.00000000" }, postSplit]);
+  });
+
+  it("does not rebase a holding whose underlying is unresolved", () => {
+    const unresolved = fill({ ticker: "PETRJ320", session: "2026-09-01" });
+    const result = normalizeFillsForHoldingsBasis(
+      [unresolved],
+      "2026-10-01",
+      () => null,
+      new Map(),
+    );
+    expect(result).toEqual({ fills: [unresolved], skippedHoldingKeys: new Set() });
+  });
+
+  it("surfaces the holding's own key when its forward rebase is refused", () => {
+    const first = fill({ ticker: "PETR4", session: "2026-09-01", quantity: 2 });
+    const fills = [first, fill({ ticker: "PETR4", session: "2026-09-15", quantity: 101 })];
+    // A 3-for-2 bonus: factor 2/3 does not evenly divide 101 shares forward.
+    const factors = new Map([["PETR4", [split("2026-09-10", "1.5")]]]);
+    const result = normalizeFillsForHoldingsBasis(fills, "2026-10-01", () => "PETR4", factors);
+    expect(result.fills).toEqual(fills);
+    expect(result.skippedHoldingKeys).toEqual(new Set([holdingKeyOf(first)]));
+  });
+
+  describe("non-terminating-decimal factors (review round 2 item 1)", () => {
+    it.each([
+      { factor: "3", quantities: [3, 6, 15, 39] },
+      { factor: "6", quantities: [6, 12, 30, 78] },
+      { factor: "7", quantities: [7, 14, 35, 91, 700] },
+      { factor: "9", quantities: [9, 18, 45, 117] },
+    ])(
+      "rebases exactly forward, never refuses, for a 1-for-$factor grouping",
+      ({ factor, quantities }) => {
+        for (const quantity of quantities) {
+          const preGrouping = fill({
+            ticker: "PETR4",
+            session: "2026-09-01",
+            quantity,
+            price: "10" as DecimalString,
+          });
+          const factors = new Map([["PETR4", [split("2026-09-10", factor)]]]);
+          const result = normalizeFillsForHoldingsBasis(
+            [preGrouping],
+            "2026-10-01",
+            () => "PETR4",
+            factors,
+          );
+          expect(result.skippedHoldingKeys.size).toBe(0);
+          expect(result.fills[0]?.quantity).toBe(quantity / Number(factor));
+        }
+      },
+    );
+  });
+
+  it("round-trips: an operation's backward rebase to openedAt and a holding's forward rebase to today land on the same current basis", () => {
+    // A fill recorded on the broker's own, already-grouped basis (quantity 100, a 1-for-7
+    // grouping of a nominal 700) read two ways: as part of an operation (rebased backward to the
+    // operation's own pre-grouping openedAt, nominal 700) and as a bare holding (rebased forward
+    // from its own session to today, unchanged since it is already on today's basis). Both must
+    // agree on what the real, current position is once the engine's own forward rebase (for the
+    // operation) and this module's own forward rebase (for the holding) are applied.
+    const factor = "7";
+    const groupedFill = fill({
+      ticker: "PETR4",
+      session: "2026-09-15",
+      quantity: 100,
+      price: "70" as DecimalString,
+    });
+    const factors = [split("2026-09-10", factor)];
+
+    const operationBasis = normalizeFillsForOperationBasis([groupedFill], "2026-09-01", factors);
+    expect(operationBasis.skipped).toBe(false);
+    const nominal = operationBasis.fills[0];
+    if (!nominal) throw new Error("expected a rebased fill");
+    // The engine's own forward rebase at mark time: nominal quantity ÷ factor.
+    const engineForwardQuantity = nominal.quantity / Number(factor);
+
+    const holdingsBasis = normalizeFillsForHoldingsBasis(
+      [groupedFill],
+      "2026-10-01",
+      () => "PETR4",
+      new Map([["PETR4", factors]]),
+    );
+    expect(holdingsBasis.skippedHoldingKeys.size).toBe(0);
+    const currentHolding = holdingsBasis.fills[0];
+    if (!currentHolding) throw new Error("expected a rebased holding fill");
+
+    expect(engineForwardQuantity).toBe(currentHolding.quantity);
+    expect(engineForwardQuantity).toBe(groupedFill.quantity);
+  });
+
+  it("caps the forward window at an option holding's own expiry (review round 2 item 4)", () => {
+    const preExpiryFill = fill({
+      ticker: "PETRJ320",
+      expiry: "2026-10-10",
+      assetClass: "option",
+      session: "2026-09-01",
+      quantity: 100,
+      price: "2" as DecimalString,
+    });
+    // One factor ex-dated before expiry (inside the capped window) and one after (outside it).
+    const factors = new Map([["PETR4", [split("2026-09-15", "0.5"), split("2026-11-01", "0.5")]]]);
+    const result = normalizeFillsForHoldingsBasis(
+      [preExpiryFill],
+      "2026-12-01",
+      () => "PETR4",
+      factors,
+    );
+    expect(result.skippedHoldingKeys.size).toBe(0);
+    // Only the pre-expiry factor (0.5) applies: quantity ÷ 0.5 = 200, not ÷ 0.25 = 400.
+    expect(result.fills[0]?.quantity).toBe(200);
+  });
+});

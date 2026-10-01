@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.11.0";
+export const ENGINE_VERSION = "0.12.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -607,19 +607,33 @@ export const settlementOutcomes = [
   "expired_worthless",
 ] as const satisfies readonly SettlementOutcome[];
 
+// `residualValue` (#271): a corporate-action factor that does not evenly divide `leg.quantity`
+// leaves a fractional effective unit that can never actually trade; its cash value (signed, a
+// sale positive, a purchase negative) is folded in here instead of being silently rounded away,
+// the same residue a mark-to-market or backtest exit already cash-settles. Zero for a leg whose
+// factor divides evenly (including the common factor-of-1 case) and always zero for a `kept`
+// stock leg, which never settles.
 export type LegSettlement =
-  | { leg: OperationLeg & { role: "stock" }; outcome: "kept"; intrinsicValue: null; fills: Fill[] }
+  | {
+      leg: OperationLeg & { role: "stock" };
+      outcome: "kept";
+      intrinsicValue: null;
+      fills: Fill[];
+      residualValue: Centavos;
+    }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "buy" };
       outcome: "exercised" | "expired_worthless";
       intrinsicValue: DecimalString;
       fills: Fill[];
+      residualValue: Centavos;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "sell" };
       outcome: "assigned" | "expired_worthless";
       intrinsicValue: DecimalString;
       fills: Fill[];
+      residualValue: Centavos;
     };
 
 // residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
@@ -2298,6 +2312,14 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
    rejecting the whole row. That is the honest scope of this relaxation; it does not extend to
    every nested schema (operations, fills, provenance, ...) — only the fields named here — and
    widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
+   A third option sits between a backfill and `.optional()`'s one-release exception: when a
+   field's pre-change value is determined by construction — every row persisted before the field
+   existed is unambiguously zero, empty or otherwise a fixed value, not genuinely missing data —
+   the contracts mirror may give it `.default(<that value>)` instead, as `legSettlementSchema`
+   does for `residualValue` (addendum below): the output type stays required (no `| undefined`
+   leaking into code that reads it), the pin holds exactly as written (a schema with `.default()`
+   still satisfies the same required field the pinned engine type declares), and no backfill
+   migration or `.optional()` exception window is needed at all.
 
 `backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`
@@ -2958,3 +2980,42 @@ Under the change policy's `0.4.0` case this changes what `runBacktest` and the p
 while held — a correctness fix to a previously disclosed known gap (#69 part 2's own addendum named
 it directly as issue #269), not merely an additive field — so `ENGINE_VERSION` moves from `"0.10.0"`
 (the #273 addendum above) to `"0.11.0"`.
+
+## Addendum: `LegSettlement.residualValue` (#271); `ENGINE_VERSION` bumped to `0.12.0`
+
+`proposeSettlement`'s exercise/assignment fill previously moved the leg's nominal `quantity` — the
+count the operation's ledger was opened with — rather than the effective, post-split count a real
+B3 exercise or assignment actually delivers (ADR-0014 Q51 rebases everything else about a leg
+across a corporate action; this one fill was the gap). Fixing that means a corporate-action factor
+that does not evenly divide the nominal quantity leaves a fractional effective unit that can never
+actually trade.
+
+- **`residualValue: Centavos`**, added to all three `LegSettlement` variants (`kept`,
+  `exercised`/`expired_worthless`, `assigned`/`expired_worthless`), carries that fractional unit's
+  own cash value — signed, a sale positive, a purchase negative — cash-settled rather than rounded
+  away, the same residue a stock-leg exit or a backtest exercise/assignment already cash-settles
+  (ADR-0014 Q51). Zero for a leg whose factor divides evenly (including the ordinary factor-of-1
+  case) and always zero for a `kept` stock leg, which never settles.
+- **`less_than_one_effective_unit` is reused, not a new `NoteCode`.** When a factor leaves a leg
+  with less than one effective unit to actually exercise or assign, `fills` comes back empty and
+  the full value lands in `residualValue`; `proposeSettlement` flags this with the same note code
+  `runBacktest`'s own expiry handling already uses for the identical situation, rather than
+  inventing a second code for "a fill that never happened."
+- **Shared truncation core.** `rebaseExerciseFillUnits` (this fill) and `runBacktest`'s
+  pending-settlement residual (`resolvePendingSettlementResidualFills`, #273) both turn a
+  corporate-action-rebased, not-necessarily-integer quantity into whole units plus a fractional
+  remainder's cash value; both now call one `truncateToWholeUnits` (`propose-settlement.ts`) so
+  neither can drift from the other. It truncates toward zero and takes the caller's own
+  `onUnsafeInteger` error, since each caller names its own ticker and path.
+
+Under the change policy, `SimulatedOperation.settlement` is a checkpointed and persisted artifact
+(`BacktestRun.operations[].settlement`, stored `jsonb`) whose shape changed — the same case as
+#23 (`"0.1.0"` to `"0.2.0"` for `residualSettledBy`), not merely an additive field on a type
+nothing persists. `ENGINE_VERSION` moves from `"0.11.0"` (the #269 addendum above) to `"0.12.0"`.
+
+Persisted reads: `packages/contracts`' `legSettlementSchema` mirror (ADR-0013 "persisted engine
+artifacts" addendum) defaults `residualValue` to `0` rather than requiring a backfill migration —
+a run persisted before this change never had a residual by construction, so a stored settlement
+entry missing the key is semantically zero, not missing data. `backtest-run-type-pin.test.ts`'s
+existing `operations` exclusion (an engine-side addition is not pinned bidirectionally) covers
+this without any change to that test.

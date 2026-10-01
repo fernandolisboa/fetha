@@ -15,7 +15,8 @@
           },
           "outcome": "kept",
           "intrinsicValue": null,
-          "fills": []
+          "fills": [],
+          "residualValue": 0
         },
         {
           "leg": {
@@ -37,7 +38,8 @@
               "at": "2024-01-16T20:00:00.000Z",
               "costs": 362
             }
-          ]
+          ],
+          "residualValue": 0
         }
       ]
     }

@@ -40,6 +40,10 @@ function tone(value: number | null): string | undefined {
   return value > 0 ? "var(--up)" : "var(--down)";
 }
 
+export function corporateActionNotice(skipped: boolean | null | undefined): string | null {
+  return skipped ? labels.operations.corporateActionNotNormalized : null;
+}
+
 function instrumentType(row: PositionRow): string {
   if (row.holding.assetClass === "stock") return labels.positions.stock;
   return row.series ? labels.positions[row.series.right] : labels.positions.option;
@@ -87,6 +91,7 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
       <TableBody>
         {rows.map((row) => {
           const quantity = row.holding.position.quantity;
+          const notice = corporateActionNotice(row.corporateActionNormalizationSkipped);
           return (
             <TableRow key={`${row.holding.ticker}-${row.holding.expiry ?? ""}`}>
               <TableCell className="font-mono uppercase">
@@ -94,6 +99,11 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
                 {row.holding.expiry && (
                   <span className="text-muted-foreground ml-2 text-[11px] normal-case">
                     {session(row.holding.expiry)}
+                  </span>
+                )}
+                {notice && (
+                  <span className="text-muted-foreground mt-1 block max-w-[220px] font-sans text-[11px] whitespace-normal normal-case">
+                    {notice}
                   </span>
                 )}
               </TableCell>
@@ -131,19 +141,28 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-function settlementLegs(
+// #271 review round 1 item 5: the dialog must default its price and show its quantity from the
+// engine's own rebased fill, not the leg's nominal `quantity` or its strike — `leg.quantity` is
+// nominal throughout (ADR-0014 Q51) and never what B3 actually delivers across a split. A leg
+// with no fill (expired worthless, or dissolved below one effective unit) falls back to the
+// nominal leg, the only number left to show.
+export function settlementLegs(
   pending: PortfolioReadModel["pendingSettlements"][number],
 ): SettlementLegView[] {
   if (!pending.proposal) return [];
-  return pending.proposal.legs.map((settlement) => ({
-    ticker: settlement.leg.ticker,
-    role: settlement.leg.role,
-    side: settlement.leg.side,
-    quantity: settlement.leg.quantity,
-    strike: (pending.strikes[settlement.leg.ticker] as DecimalString | undefined) ?? null,
-    intrinsicValue: settlement.intrinsicValue,
-    proposed: settlement.outcome,
-  }));
+  return pending.proposal.legs.map((settlement) => {
+    const fill = settlement.fills[0];
+    return {
+      ticker: settlement.leg.ticker,
+      role: settlement.leg.role,
+      side: settlement.leg.side,
+      quantity: fill?.quantity ?? settlement.leg.quantity,
+      price: fill?.price ?? null,
+      strike: (pending.strikes[settlement.leg.ticker] as DecimalString | undefined) ?? null,
+      intrinsicValue: settlement.intrinsicValue,
+      proposed: settlement.outcome,
+    };
+  });
 }
 
 function PendingSettlements({ model }: { model: PortfolioReadModel }) {
@@ -229,48 +248,60 @@ function OperationsTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {model.operations.map(({ operation, state, valuation, pendingSettlement }) => (
-          <TableRow key={operation.id}>
-            <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
-            <TableCell className="text-[12px]">
-              {pendingSettlement ? (
-                <span style={{ color: "var(--warning)" }}>
-                  {labels.operations.pendingSettlement}
-                </span>
-              ) : (
-                labels.operations.statuses[operation.status]
-              )}
-            </TableCell>
-            <TableCell className="font-mono tabular-nums">{session(operation.openedAt)}</TableCell>
-            <TableCell className="font-mono tabular-nums">
-              {operation.expiry ? session(operation.expiry) : "—"}
-            </TableCell>
-            <TableCell className="font-mono text-[12px]">
-              {state && state.legs.length > 0
-                ? state.legs
-                    .map(
-                      (leg) =>
-                        `${leg.side === "buy" ? "+" : "−"}${String(leg.quantity)} ${leg.ticker}`,
-                    )
-                    .join(" · ")
-                : "—"}
-            </TableCell>
-            <TableCell
-              className="text-right font-mono tabular-nums"
-              style={{ color: tone(valuation?.unrealizedPnl ?? null) }}
-            >
-              {signedMoney(valuation?.unrealizedPnl ?? null)}
-            </TableCell>
-            <TableCell className="text-right">
-              {operation.status === "open" && !pendingSettlement && (
-                <span className="inline-flex items-start justify-end gap-2">
-                  {decisionSlot?.(operation.id)}
-                  <UngroupButton operationId={operation.id} />
-                </span>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
+        {model.operations.map(({ operation, state, valuation, pendingSettlement }) => {
+          const notice = corporateActionNotice(state?.corporateActionNormalizationSkipped);
+          return (
+            <TableRow key={operation.id}>
+              <TableCell className="font-mono uppercase">
+                {operation.underlying}
+                {notice && (
+                  <span className="text-muted-foreground mt-1 block max-w-[220px] font-sans text-[11px] whitespace-normal normal-case">
+                    {notice}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="text-[12px]">
+                {pendingSettlement ? (
+                  <span style={{ color: "var(--warning)" }}>
+                    {labels.operations.pendingSettlement}
+                  </span>
+                ) : (
+                  labels.operations.statuses[operation.status]
+                )}
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">
+                {session(operation.openedAt)}
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">
+                {operation.expiry ? session(operation.expiry) : "—"}
+              </TableCell>
+              <TableCell className="font-mono text-[12px]">
+                {state && state.legs.length > 0
+                  ? state.legs
+                      .map(
+                        (leg) =>
+                          `${leg.side === "buy" ? "+" : "−"}${String(leg.quantity)} ${leg.ticker}`,
+                      )
+                      .join(" · ")
+                  : "—"}
+              </TableCell>
+              <TableCell
+                className="text-right font-mono tabular-nums"
+                style={{ color: tone(valuation?.unrealizedPnl ?? null) }}
+              >
+                {signedMoney(valuation?.unrealizedPnl ?? null)}
+              </TableCell>
+              <TableCell className="text-right">
+                {operation.status === "open" && !pendingSettlement && (
+                  <span className="inline-flex items-start justify-end gap-2">
+                    {decisionSlot?.(operation.id)}
+                    <UngroupButton operationId={operation.id} />
+                  </span>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );

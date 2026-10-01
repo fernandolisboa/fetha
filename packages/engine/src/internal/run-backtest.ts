@@ -67,7 +67,7 @@ import {
   strikeAdjustmentNotesOf,
 } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
-import { settleLeg } from "./propose-settlement";
+import { rebaseExerciseFillUnits, settleLeg, truncateToWholeUnits } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -1154,14 +1154,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       const rawEffectiveResidual = new Decimal(pending.residualQuantity).div(residualFactor);
-      const effectiveUnits = rawEffectiveResidual.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
-      if (effectiveUnits !== 0 && !Number.isSafeInteger(effectiveUnits)) {
-        return invalidInput(
-          "view.corporateActions",
-          `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
-        );
-      }
-      const residue = rawEffectiveResidual.sub(effectiveUnits);
+      // #271/#273: the same truncate-toward-zero-and-cash-settle-the-remainder core
+      // `rebaseExerciseFillUnits` uses for an exercise/assignment fill, shared so a split factor
+      // is never floored one way here and another way there.
+      const truncated = truncateToWholeUnits(rawEffectiveResidual, candle.open, () => ({
+        code: "invalid_input",
+        path: "view.corporateActions",
+        message: `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
+      }));
+      if (!truncated.ok) return { ok: false, error: truncated.error };
+      const { units: effectiveUnits, residualValueCentavos, residualSign } = truncated.value;
       const effectiveAvgCostCentavos = new Decimal(pending.residualAvgCostCentavos).mul(
         residualFactor,
       );
@@ -1186,10 +1188,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           source: "next_session_open",
         });
       }
-      if (!residue.isZero()) {
-        const residueGross = grossCentavos(candle.open, residue.abs()).round().toNumber();
-        state.cash += (residue.isPositive() ? 1 : -1) * residueGross;
-        if (residue.isPositive()) state.currentMonthStockSales += residueGross;
+      if (residualSign !== 0) {
+        state.cash += residualSign * residualValueCentavos;
+        if (residualSign > 0) state.currentMonthStockSales += residualValueCentavos;
       }
       const residualPnl = parseDecimal(candle.open)
         .sub(effectiveAvgCostCentavos.div(CENTAVOS_PER_REAL))
@@ -1272,6 +1273,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             outcome: "kept",
             intrinsicValue: null,
             fills: [],
+            residualValue: toCentavos(0),
           });
           const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
           const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
@@ -1337,20 +1339,22 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           settled.value.fills[0],
           "run-backtest: settleLeg reports a non-worthless outcome with no fill",
         );
-        const effectiveUnits = Math.floor(effectiveQuantity.toNumber());
-        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
-          return invalidInput(
-            "view.corporateActions",
-            `split factor produces a non-integer-safe effective unit count for ${leg.ticker}`,
-          );
-        }
-        const residue = effectiveQuantity.sub(effectiveUnits);
+        const rebased = rebaseExerciseFillUnits(
+          bareFill,
+          effectiveQuantity,
+          `view.corporateActions (${leg.ticker})`,
+        );
+        if (!rebased.ok) return { ok: false, error: rebased.error };
         let costs = toCentavos(0);
-        if (effectiveUnits > 0) {
-          const q = toQuantity(effectiveUnits);
+        if (rebased.value.quantity !== null) {
+          const q = rebased.value.quantity;
           costs = fillCosts(config.costModel, bareFill.price, q, "stock");
           const fill: Fill = { ...bareFill, quantity: q, costs };
-          settlement.push({ ...settled.value, fills: [fill] });
+          settlement.push({
+            ...settled.value,
+            fills: [fill],
+            residualValue: rebased.value.residualValue,
+          });
           state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
           settlementCosts = settlementCosts.add(costs);
           const gross = grossCentavos(fill.price, q).round().toNumber();
@@ -1361,12 +1365,17 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           // one whole share to trade): the stored artifact must not report a fill that never
           // happened, so the proposed fill `settleLeg` returned is dropped, never carried
           // through as-is.
-          settlement.push({ ...settled.value, fills: [] });
+          settlement.push({
+            ...settled.value,
+            fills: [],
+            residualValue: rebased.value.residualValue,
+          });
         }
-        if (residue.isPositive()) {
-          const residueGrossCentavos = grossCentavos(bareFill.price, residue).round().toNumber();
-          state.cash += (bareFill.side === "sell" ? 1 : -1) * residueGrossCentavos;
-          if (bareFill.side === "sell") state.currentMonthStockSales += residueGrossCentavos;
+        if (rebased.value.residualValue !== 0) {
+          state.cash += rebased.value.residualValue;
+          if (bareFill.side === "sell") {
+            state.currentMonthStockSales += Math.abs(rebased.value.residualValue);
+          }
         }
         if (bareFill.side === "buy") {
           buyQty = buyQty.add(effectiveQuantity);

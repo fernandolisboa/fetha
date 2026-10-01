@@ -11,6 +11,7 @@ import {
 } from "@fetha/contracts";
 import {
   engine,
+  type CorporateActionFactor,
   type Greeks,
   type LegValuation,
   type MarketView,
@@ -27,6 +28,7 @@ import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   buildOperationMarketView,
   buildPortfolioMarketView,
+  corporateActionFactorsForUnderlying,
   optionSeriesForFills,
   seriesKey,
   tradingSessionForDate,
@@ -39,6 +41,7 @@ import {
   type Holding,
   type LedgerFill,
 } from "./bookkeeping";
+import { normalizeFillsForHoldingsBasis } from "./corporate-action-basis";
 import {
   heldExpiry,
   planOperation,
@@ -55,6 +58,9 @@ export interface PositionRow {
   series: SeriesFacts | null;
   valuation: PortfolioValuation["positions"][number] | null;
   fairValue: LegValuation["fairValue"];
+  // #271 review round 1 item 3: this holding's forward rebase to today's basis was refused (a
+  // non-integer or non-positive factor); the figures above are shown exactly as recorded.
+  corporateActionNormalizationSkipped: boolean;
 }
 
 export interface PendingSettlement {
@@ -157,9 +163,31 @@ export async function hasExpired(db: Database, expiry: SessionDate, at: Instant)
   return (await expiredBy(db, [expiry], at)).has(expiry);
 }
 
-function stateOf(fills: readonly LedgerFill[], series: SeriesByHolding): OperationState | null {
-  const plan = planOperation(fills, series);
+function stateOf(
+  fills: readonly LedgerFill[],
+  series: SeriesByHolding,
+  corporateActionsByUnderlying: ReadonlyMap<string, readonly CorporateActionFactor[]>,
+): OperationState | null {
+  const plan = planOperation(fills, series, corporateActionsByUnderlying);
   return plan.ok ? plan.state : null;
+}
+
+function isDefined<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
+// One batched lookup per distinct underlying (#271), shared by every path that nets fills into
+// legs or holdings (held-operations.ts's own open-operation plans included) so none of them
+// resolves a corporate action's factors a second, possibly inconsistent way.
+export async function corporateActionsByUnderlying(
+  db: Database,
+  underlyings: Iterable<string | null | undefined>,
+): Promise<Map<string, CorporateActionFactor[]>> {
+  const tickers = [...new Set([...underlyings].filter(isDefined))];
+  const lists = await Promise.all(
+    tickers.map((ticker) => corporateActionFactorsForUnderlying(db, ticker)),
+  );
+  return new Map(tickers.map((ticker, index) => [ticker, lists[index] ?? []]));
 }
 
 // The view is built at the expiry session's close, the instant the engine
@@ -238,6 +266,25 @@ export async function loadPortfolio(
     new RiskProfileRepository(db, user).current(),
   ]);
   const series = await seriesByHolding(db, fills);
+  const underlyingOfFill = (fill: LedgerFill): string | null =>
+    fill.assetClass === "stock"
+      ? fill.ticker
+      : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
+  const corporateActions = await corporateActionsByUnderlying(db, [
+    ...operations.map((operation) => operation.underlying),
+    ...fills.map(underlyingOfFill),
+  ]);
+  // #271 review round 1 item 3: a bare position (never grouped into an operation) has no
+  // Operation for the engine to forward-rebase at mark time, so each (ticker, expiry) holding is
+  // rebased forward to today's basis here instead (`normalizeFillsForHoldingsBasis`) — a pre-split
+  // holding combines with a post-split fill of the same series at the real, current quantity.
+  const asOf = todaySaoPauloDate(new Date(at));
+  const { fills: normalizedFills, skippedHoldingKeys } = normalizeFillsForHoldingsBasis(
+    fills,
+    asOf,
+    underlyingOfFill,
+    corporateActions,
+  );
   const expired = await expiredBy(
     db,
     [
@@ -255,7 +302,7 @@ export async function loadPortfolio(
 
   const liveHoldings: Holding[] = [];
   const unknownSeries: Holding[] = [];
-  for (const holding of holdingsFromFills(fills)) {
+  for (const holding of holdingsFromFills(normalizedFills)) {
     if (holding.assetClass === "stock") {
       liveHoldings.push(holding);
     } else if (!holding.expiry || !series.has(holdingKey(holding.ticker, holding.expiry))) {
@@ -268,7 +315,7 @@ export async function loadPortfolio(
   // An expired series still held outside any operation: grouping these fills is the way to
   // its settlement (ADR-0021 item 6). One held inside an operation shows as that
   // operation's pending settlement instead.
-  const unassigned = fills.filter((fill) => fill.operationId === null);
+  const unassigned = normalizedFills.filter((fill) => fill.operationId === null);
   const expiredHoldings: ExpiredHolding[] = holdingsFromFills(unassigned)
     .filter(isExpiredSeries)
     .map((holding) => ({
@@ -283,7 +330,8 @@ export async function loadPortfolio(
   const stateById = new Map<string, OperationState | null>();
   for (const operation of operations) {
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
-    const state = operation.status === "open" ? stateOf(operationFills, series) : null;
+    const state =
+      operation.status === "open" ? stateOf(operationFills, series, corporateActions) : null;
     stateById.set(operation.id, state);
     if (!state) {
       continue;
@@ -372,6 +420,9 @@ export async function loadPortfolio(
       valuation:
         valued?.positions.find((entry) => entry.position.ticker === holding.ticker) ?? null,
       fairValue: fairValues.get(holding.ticker) ?? null,
+      corporateActionNormalizationSkipped: skippedHoldingKeys.has(
+        holdingKey(holding.ticker, holding.expiry),
+      ),
     })),
     unknownSeries,
     expiredHoldings,

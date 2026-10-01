@@ -72,6 +72,8 @@ const en = {
           "the operation held nothing when the decision was made",
         "build_failed:unknown_series": "an option series is unknown to the reference data",
         "build_failed:unresolvable_fill_session": "a fill's date is not on the trading calendar",
+        "build_failed:corporate_action_normalization_skipped":
+          "a corporate action could not be applied to this operation's fills",
         "engine_error:invalid_input": "invalid input",
         "engine_error:missing_instrument": "missing instrument data",
         "engine_error:unsupported": "unsupported by the engine",
@@ -184,6 +186,8 @@ const ptBR = {
         "build_failed:unknown_series": "uma série de opção não está nos dados de referência",
         "build_failed:unresolvable_fill_session":
           "a data de uma execução não está no calendário de pregões",
+        "build_failed:corporate_action_normalization_skipped":
+          "não foi possível aplicar um evento societário às execuções desta operação",
         "engine_error:invalid_input": "entrada inválida",
         "engine_error:missing_instrument": "dados do instrumento ausentes",
         "engine_error:unsupported": "não suportado pelo motor",
