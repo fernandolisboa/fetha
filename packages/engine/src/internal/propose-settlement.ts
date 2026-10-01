@@ -1,5 +1,12 @@
 import Decimal from "decimal.js";
-import type { Centavos, Instant, Quantity, SessionDate, Ticker } from "@fetha/contracts";
+import type {
+  Centavos,
+  DecimalString,
+  Instant,
+  Quantity,
+  SessionDate,
+  Ticker,
+} from "@fetha/contracts";
 import type {
   EngineError,
   Fill,
@@ -159,6 +166,50 @@ export function settleLeg(
   };
 }
 
+export interface TruncatedUnits {
+  // Signed: a caller whose own quantity can run either long or short (runBacktest's pending-
+  // settlement residual, #273) reads its direction straight off this sign; a caller whose
+  // quantity is always non-negative (an exercise/assignment fill, #271, paired with its own
+  // fixed `Side`) never sees it go negative.
+  units: number;
+  // The fractional remainder's own cash value at `price`, unsigned; zero when the quantity
+  // divided evenly (including the ordinary no-factor case).
+  residualValueCentavos: number;
+  // The remainder's own sign, 0 when there is none at all (`residualValueCentavos` is then
+  // always 0 too).
+  residualSign: -1 | 0 | 1;
+}
+
+// #271/#273: shared by every caller that turns a corporate-action-rebased, not-necessarily-
+// integer quantity into the whole units a real trade can actually move plus the fractional
+// remainder's own cash value — `rebaseExerciseFillUnits` below (an exercise/assignment fill) and
+// `runBacktest`'s own pending-settlement residual (`resolvePendingSettlementResidualFills`,
+// whose residual can run either long or short) — so neither can drift from the other. Truncates
+// toward zero, never rounds: for a non-negative quantity (every `rebaseExerciseFillUnits` call)
+// this is exactly `Math.floor`; a signed residual truncates the same way on either side of zero,
+// never rounding a small short residual away. The caller supplies its own `onUnsafeInteger`
+// error (an adversarial or corrupt factor, e.g. 1e-15, can blow the unit count past what a real
+// count can be) since each names its own ticker and path in its own words.
+export function truncateToWholeUnits(
+  rawQuantity: Decimal,
+  price: DecimalString,
+  onUnsafeInteger: () => EngineError,
+): { ok: true; value: TruncatedUnits } | { ok: false; error: EngineError } {
+  const units = rawQuantity.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
+  if (units !== 0 && !Number.isSafeInteger(units)) {
+    return { ok: false, error: onUnsafeInteger() };
+  }
+  const residue = rawQuantity.sub(units);
+  if (residue.isZero()) {
+    return { ok: true, value: { units, residualValueCentavos: 0, residualSign: 0 } };
+  }
+  const residualValueCentavos = grossCentavos(price, residue.abs()).round().toNumber();
+  return {
+    ok: true,
+    value: { units, residualValueCentavos, residualSign: residue.isPositive() ? 1 : -1 },
+  };
+}
+
 // #271: `settleLeg` reports the exercise/assignment fill at the leg's nominal `quantity`, the
 // count the operation's own ledger was opened with; the real, immediate trade B3 settles only
 // ever moves a whole number of shares at the effective (post-split) count. Shared by
@@ -174,26 +225,20 @@ export function rebaseExerciseFillUnits(
 ):
   | { ok: true; value: { quantity: Quantity | null; residualValue: Centavos } }
   | { ok: false; error: EngineError } {
-  const effectiveUnits = Math.floor(effectiveQuantity.toNumber());
-  if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
-    return {
-      ok: false,
-      error: invalidInput(
-        path,
-        "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
-      ),
-    };
-  }
-  const residue = effectiveQuantity.sub(effectiveUnits);
-  const residualValueCentavos = residue.isPositive()
-    ? grossCentavos(fill.price, residue).round().toNumber()
-    : 0;
+  const truncated = truncateToWholeUnits(effectiveQuantity, fill.price, () =>
+    invalidInput(
+      path,
+      "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
+    ),
+  );
+  if (!truncated.ok) return truncated;
+  const { units, residualValueCentavos, residualSign } = truncated.value;
   return {
     ok: true,
     value: {
-      quantity: effectiveUnits > 0 ? toQuantity(effectiveUnits) : null,
+      quantity: units > 0 ? toQuantity(units) : null,
       residualValue: toCentavos(
-        residualValueCentavos === 0 ? 0 : (fill.side === "sell" ? 1 : -1) * residualValueCentavos,
+        residualSign === 0 ? 0 : (fill.side === "sell" ? 1 : -1) * residualValueCentavos,
       ),
     },
   };

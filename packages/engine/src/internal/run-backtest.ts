@@ -67,7 +67,7 @@ import {
   strikeAdjustmentNotesOf,
 } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
-import { rebaseExerciseFillUnits, settleLeg } from "./propose-settlement";
+import { rebaseExerciseFillUnits, settleLeg, truncateToWholeUnits } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -1154,14 +1154,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       const rawEffectiveResidual = new Decimal(pending.residualQuantity).div(residualFactor);
-      const effectiveUnits = rawEffectiveResidual.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
-      if (effectiveUnits !== 0 && !Number.isSafeInteger(effectiveUnits)) {
-        return invalidInput(
-          "view.corporateActions",
-          `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
-        );
-      }
-      const residue = rawEffectiveResidual.sub(effectiveUnits);
+      // #271/#273: the same truncate-toward-zero-and-cash-settle-the-remainder core
+      // `rebaseExerciseFillUnits` uses for an exercise/assignment fill, shared so a split factor
+      // is never floored one way here and another way there.
+      const truncated = truncateToWholeUnits(rawEffectiveResidual, candle.open, () => ({
+        code: "invalid_input",
+        path: "view.corporateActions",
+        message: `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
+      }));
+      if (!truncated.ok) return { ok: false, error: truncated.error };
+      const { units: effectiveUnits, residualValueCentavos, residualSign } = truncated.value;
       const effectiveAvgCostCentavos = new Decimal(pending.residualAvgCostCentavos).mul(
         residualFactor,
       );
@@ -1186,10 +1188,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           source: "next_session_open",
         });
       }
-      if (!residue.isZero()) {
-        const residueGross = grossCentavos(candle.open, residue.abs()).round().toNumber();
-        state.cash += (residue.isPositive() ? 1 : -1) * residueGross;
-        if (residue.isPositive()) state.currentMonthStockSales += residueGross;
+      if (residualSign !== 0) {
+        state.cash += residualSign * residualValueCentavos;
+        if (residualSign > 0) state.currentMonthStockSales += residualValueCentavos;
       }
       const residualPnl = parseDecimal(candle.open)
         .sub(effectiveAvgCostCentavos.div(CENTAVOS_PER_REAL))
