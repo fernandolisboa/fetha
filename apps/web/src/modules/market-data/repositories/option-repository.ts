@@ -273,6 +273,14 @@ export interface ChainSeries {
   expiry: string;
   style: string;
   lastPrice: { value: string; session: string } | null;
+  // The strike `lastPrice` was actually recorded under, set only when it
+  // differs from `strike` (the current registry strike this chain always
+  // displays): on a corporate-action session the registry and COTAHIST can
+  // briefly disagree about the strike (ADR-0056, #274), and a pre-event
+  // trade is still the only visible price even though the series now lists
+  // under a different strike. The picker surfaces this instead of silently
+  // implying the trade happened at today's strike.
+  lastPriceStrike: string | null;
 }
 
 // The closing chain for one underlying (UBIQUITOUS_LANGUAGE.md "closing
@@ -293,6 +301,10 @@ export interface ChainSeries {
 // listed and still never have traded, or its only trade can sit outside the
 // window, in which case this is `null` and the picker can tell the user the
 // series is unpriceable before they pick it (PETR4 chain vs `option_daily_prices`).
+// `strike` always shows the current registry value (display, not a pricing
+// decision); `lastPriceStrike` is set when the matched price's own strike
+// differs from it, so the picker can label a pre-event trade instead of
+// implying it happened under today's strike (#274).
 
 export async function optionChainForUnderlying(
   db: Database,
@@ -396,13 +408,17 @@ export async function optionChainForUnderlying(
         priceRow.expiry === expiry &&
         priceMatchesCycle(epochsByCycle, ticker, expiry, right, priceRow.strike, strike);
       const value = matchesCurrentCycle ? (priceRow.close ?? priceRow.average) : null;
+      if (!matchesCurrentCycle || !value) {
+        return { ticker, right, strike, expiry, style, lastPrice: null, lastPriceStrike: null };
+      }
       return {
         ticker,
         right,
         strike,
         expiry,
         style,
-        lastPrice: matchesCurrentCycle && value ? { value, session: priceRow.session } : null,
+        lastPrice: { value, session: priceRow.session },
+        lastPriceStrike: priceRow.strike !== strike ? priceRow.strike : null,
       };
     });
 }

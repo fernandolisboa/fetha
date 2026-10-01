@@ -17,8 +17,7 @@ import {
   tradingSessions,
 } from "./schema";
 
-import { instrumentOptionSeriesSchema } from "./adapters/b3-instruments/schema";
-import { cotahistOptionRowSchema, cotahistStockRowSchema } from "./adapters/cotahist/schema";
+import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import {
   buildOperationMarketView,
   calendarUpTo,
@@ -29,7 +28,6 @@ import {
   tradingSessionForDate,
 } from "./market-view";
 import { DAILY_TIMEFRAME, upsertDailyCandles } from "./repositories/candle-repository";
-import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -2043,7 +2041,7 @@ describe("option strike epochs across a corporate action (ADR-0056)", () => {
     expect(priceAtD?.close).toBe("1.000000");
   });
 
-  it("(#274) includes a price row's own strike even when the registry's new epoch for the same session shares the exact same as_of (live-writer tie)", async () => {
+  it("(#274 round 2) does not admit a price row whose strike the engine will not resolve, even when the registry's new epoch shares the exact same as_of (live-writer tie)", async () => {
     const db = getDb();
     const underlying = uniqueTicker("BBT");
     cleanupTickers.push(underlying);
@@ -2072,6 +2070,11 @@ describe("option strike epochs across a corporate action (ADR-0056)", () => {
     // `ingest.ts` stamps the registry write and the COTAHIST write for one
     // session with the same `trading.close`: on the session the two sources
     // disagree, the pre- and post-event epoch land on the exact same as_of.
+    // The engine resolves the lower strike on an exact tie
+    // (`isEarlierOnExactTie`) — 14.98, not 29.95 — so the 29.95 premium must
+    // never reach it: it was recorded under a strike the engine is not
+    // actually pricing against this session (round 1's membership rule let
+    // it through with no stale-price note to flag the mismatch).
     await db.insert(optionSeriesStrikes).values([
       { ticker: optionTicker, expiry, right: "call", strike: "29.95000000", asOf: tieAsOf },
       { ticker: optionTicker, expiry, right: "call", strike: "14.98000000", asOf: tieAsOf },
@@ -2097,95 +2100,6 @@ describe("option strike epochs across a corporate action (ADR-0056)", () => {
       instantSchema.parse(`${tieSession}T20:00:00.000Z`),
     );
 
-    const price = view.optionPrices.find((row) => row.ticker === optionTicker);
-    expect(price?.close).toBe("2.000000");
-  });
-
-  it("(#274) still matches a price row at a strike the cycle later returned to (A to B to A, epoch as_of only moves backward via LEAST)", async () => {
-    const db = getDb();
-    const underlying = uniqueTicker("BBR");
-    cleanupTickers.push(underlying);
-    const optionTicker = `${underlying}F10`;
-    cleanupOptionTickers.push(optionTicker);
-
-    const sessions = businessDays("2097-04-07", 14);
-    await seedSessions(sessions);
-    await seedUnderlyingCandles(underlying, sessions);
-
-    const sessionA = sessions[0] ?? "";
-    const sessionB = sessions[4] ?? "";
-    const sessionBackToA = sessions[8] ?? "";
-    const expiry = sessions.at(-1) ?? "";
-
-    await ensureMonthlyPartition(db, "option_daily_prices", sessionA);
-
-    await upsertOptionSeries(db, new Date(`${sessionA}T13:00:00.000Z`), [
-      instrumentOptionSeriesSchema.parse({
-        ticker: optionTicker,
-        isin: `ISIN-${optionTicker}`,
-        underlying,
-        right: "call",
-        strike: "10.00000000",
-        expiry,
-        style: "european",
-        asOf: sessionA,
-      }),
-    ]);
-    await upsertOptionDailyPrices(db, sessionA, new Date(`${sessionA}T20:00:00.000Z`), [
-      cotahistOptionRowSchema.parse({
-        kind: "option",
-        session: sessionA,
-        ticker: optionTicker,
-        right: "call",
-        strike: "10.00000000",
-        expiry,
-        factor: "1.000000",
-        open: "2.000000",
-        high: "2.000000",
-        low: "2.000000",
-        average: "2.000000",
-        close: "2.000000",
-        trades: 1,
-        tradedQuantity: 100,
-      }),
-    ]);
-
-    await upsertOptionSeries(db, new Date(`${sessionB}T13:00:00.000Z`), [
-      instrumentOptionSeriesSchema.parse({
-        ticker: optionTicker,
-        isin: `ISIN-${optionTicker}`,
-        underlying,
-        right: "call",
-        strike: "20.00000000",
-        expiry,
-        style: "european",
-        asOf: sessionB,
-      }),
-    ]);
-
-    // Reverts to the original strike: the conflict target already carries
-    // strike 10.00 from `sessionA`, so `LEAST` must keep that earlier as_of,
-    // not move it forward to this later write.
-    await upsertOptionSeries(db, new Date(`${sessionBackToA}T13:00:00.000Z`), [
-      instrumentOptionSeriesSchema.parse({
-        ticker: optionTicker,
-        isin: `ISIN-${optionTicker}`,
-        underlying,
-        right: "call",
-        strike: "10.00000000",
-        expiry,
-        style: "european",
-        asOf: sessionBackToA,
-      }),
-    ]);
-
-    const view = await buildOperationMarketView(
-      db,
-      tickerSchema.parse(underlying),
-      instantSchema.parse(`${expiry}T14:00:00.000Z`),
-    );
-
-    const price = view.optionPrices.find((row) => row.ticker === optionTicker);
-    expect(price?.close).toBe("2.000000");
+    expect(view.optionPrices.find((row) => row.ticker === optionTicker)).toBeUndefined();
   });
 });

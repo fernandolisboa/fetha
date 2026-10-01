@@ -270,6 +270,7 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toEqual({ value: "1.550000", session: tradedSession });
+    expect(series?.lastPriceStrike).toBeNull();
   });
 
   it("reports a listed but untraded series with no price", async () => {
@@ -481,6 +482,7 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.strike).toBe("14.98000000");
     expect(series?.lastPrice).toEqual({ value: "2.000000", session: oldStrikeSession });
+    expect(series?.lastPriceStrike).toBe("29.95000000");
   });
 
   it("(a) shows a price row's own strike even when the registry's new epoch for the same session shares the exact same as_of (live-writer tie)", async () => {
@@ -537,6 +539,8 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(series?.strike).toBe("14.98000000");
+    expect(series?.lastPriceStrike).toBe("29.95000000");
   });
 
   it("(d) matches whichever of two same-as_of epochs a price row's own strike carries, independent of row order", async () => {
@@ -620,7 +624,9 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
     const oldSeries = chain.find((candidate) => candidate.ticker === oldTicker);
     const newSeries = chain.find((candidate) => candidate.ticker === newTicker);
     expect(oldSeries?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(oldSeries?.lastPriceStrike).toBeNull();
     expect(newSeries?.lastPrice).toEqual({ value: "1.000000", session: tieSession });
+    expect(newSeries?.lastPriceStrike).toBeNull();
   });
 
   it("(c) excludes a price row from a previous listing cycle even though its strike coincides with the current cycle's", async () => {
@@ -766,6 +772,7 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.strike).toBe("10.00000000");
     expect(series?.lastPrice).toEqual({ value: "2.000000", session: sessionA });
+    expect(series?.lastPriceStrike).toBeNull();
   });
 });
 

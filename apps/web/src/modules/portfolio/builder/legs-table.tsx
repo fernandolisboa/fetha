@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 
@@ -128,6 +129,9 @@ export function LegsTable({
                             >
                               {formatDecimal(decimalStringSchema.parse(series.lastPrice.value))} ·{" "}
                               {series.lastPrice.session}
+                              {series.lastPriceStrike
+                                ? ` · ${t.builder.legsTable.previousStrike(formatPriceBRL(decimalStringSchema.parse(series.lastPriceStrike)))}`
+                                : null}
                             </span>
                           ) : (
                             <span className="ml-2 text-[11px]" style={{ color: "var(--faint)" }}>
