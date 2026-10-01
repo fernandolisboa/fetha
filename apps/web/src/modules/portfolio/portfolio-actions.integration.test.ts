@@ -385,19 +385,31 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     expect(
       await confirmSettlementAction({
         operationId: pending.operation.id,
-        choices: [{ ticker: market.call, outcome: "exercised", price: "32,00", costs: "" }],
+        choices: [
+          { ticker: market.call, outcome: "exercised", price: "32,00", costs: "", quantity: 100 },
+        ],
       }),
     ).toEqual({ status: "error", error: "invalid_choice" });
     expect(
       await confirmSettlementAction({
         operationId: pending.operation.id,
-        choices: [{ ticker: market.call, outcome: "assigned", price: "32,00", costs: "2,50" }],
+        choices: [
+          {
+            ticker: market.call,
+            outcome: "assigned",
+            price: "32,00",
+            costs: "2,50",
+            quantity: 100,
+          },
+        ],
       }),
     ).toEqual({ status: "ok" });
     expect(
       await confirmSettlementAction({
         operationId: pending.operation.id,
-        choices: [{ ticker: market.call, outcome: "assigned", price: "32,00", costs: "" }],
+        choices: [
+          { ticker: market.call, outcome: "assigned", price: "32,00", costs: "", quantity: 100 },
+        ],
       }),
     ).toEqual({ status: "error", error: "not_found" });
 
@@ -422,7 +434,13 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       await confirmSettlementAction({
         operationId: worthless.operation.id,
         choices: [
-          { ticker: market.otherCall, outcome: "expired_worthless", price: "40,00", costs: "" },
+          {
+            ticker: market.otherCall,
+            outcome: "expired_worthless",
+            price: "40,00",
+            costs: "",
+            quantity: 100,
+          },
         ],
       }),
     ).toEqual({ status: "ok" });
