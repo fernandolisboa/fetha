@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { DecimalString, SessionDate, Ticker } from "@fetha/contracts";
-import type { Fill, LegSettlement } from "@fetha/engine";
+import type { CorporateActionFactor, Fill, LegSettlement } from "@fetha/engine";
 
 import { planSettlement, type LegChoice } from "./settlement-plan";
 
 const underlying = "PETR4" as Ticker;
+const openedAt = "2026-09-01" as SessionDate;
 const expiry = "2026-10-16" as SessionDate;
+const noActions: CorporateActionFactor[] = [];
+
+function split(exDate: string, factor: string): CorporateActionFactor {
+  return {
+    ticker: underlying,
+    exDate: exDate,
+    asOf: `${exDate}T13:00:00.000Z` as never,
+    factor: factor as DecimalString,
+  };
+}
 
 function exerciseFill(overrides: Partial<Fill> = {}): Fill {
   return {
@@ -61,7 +72,7 @@ describe("planSettlement (#271)", () => {
         fills: [exerciseFill({ quantity: 2 as never })],
       }),
     ];
-    const result = planSettlement(underlying, expiry, proposal, [choice()]);
+    const result = planSettlement(underlying, expiry, openedAt, noActions, proposal, [choice()]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const stockFill = result.fills.find((fill) => fill.assetClass === "stock");
@@ -76,7 +87,7 @@ describe("planSettlement (#271)", () => {
 
   it("closes an expired-worthless or fully-dissolved leg at its nominal quantity (no broker-basis count to use)", () => {
     const proposal = [exercisedLeg({ fills: [], residualValue: -560 as never })];
-    const result = planSettlement(underlying, expiry, proposal, [choice()]);
+    const result = planSettlement(underlying, expiry, openedAt, noActions, proposal, [choice()]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const optionFill = result.fills.find((fill) => fill.assetClass === "option");
@@ -85,7 +96,7 @@ describe("planSettlement (#271)", () => {
 
   it("drops the stock fill when a factor dissolved the leg below one effective unit", () => {
     const proposal = [exercisedLeg({ fills: [], residualValue: -560 as never })];
-    const result = planSettlement(underlying, expiry, proposal, [choice()]);
+    const result = planSettlement(underlying, expiry, openedAt, noActions, proposal, [choice()]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fills.filter((fill) => fill.assetClass === "stock")).toEqual([]);
@@ -100,7 +111,7 @@ describe("planSettlement (#271)", () => {
         fills: [],
       }),
     ];
-    const result = planSettlement(underlying, expiry, proposal, [
+    const result = planSettlement(underlying, expiry, openedAt, noActions, proposal, [
       choice({ outcome: "expired_worthless", price: "0" as DecimalString }),
     ]);
     expect(result.ok).toBe(true);
@@ -111,7 +122,67 @@ describe("planSettlement (#271)", () => {
 
   it("refuses a choice that does not name every option leg exactly once", () => {
     const proposal = [exercisedLeg()];
-    const result = planSettlement(underlying, expiry, proposal, []);
+    const result = planSettlement(underlying, expiry, openedAt, noActions, proposal, []);
     expect(result).toEqual({ ok: false, reason: "invalid_choice" });
+  });
+
+  it("review round 2 item 3: sizes an expired-worthless leg's closing fill on the broker basis across a split", () => {
+    const proposal = [
+      exercisedLeg({
+        outcome: "expired_worthless",
+        intrinsicValue: "0.00" as DecimalString,
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: 100 as never,
+          entryPrice: "2.50" as DecimalString,
+        },
+        fills: [],
+      }),
+    ];
+    const result = planSettlement(
+      underlying,
+      expiry,
+      openedAt,
+      [split("2026-09-15", "0.5")],
+      proposal,
+      [choice({ outcome: "expired_worthless", price: "0" as DecimalString })],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.quantity).toBe(200);
+    expect(result.dissolvedTickers).toEqual([]);
+  });
+
+  it("review round 2 item 3: keeps the nominal quantity, and names the ticker, when the rebase dissolves the leg below one unit", () => {
+    const proposal = [
+      exercisedLeg({
+        outcome: "expired_worthless",
+        intrinsicValue: "0.00" as DecimalString,
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: 1 as never,
+          entryPrice: "2.50" as DecimalString,
+        },
+        fills: [],
+      }),
+    ];
+    const result = planSettlement(
+      underlying,
+      expiry,
+      openedAt,
+      [split("2026-09-15", "10")],
+      proposal,
+      [choice({ outcome: "expired_worthless", price: "0" as DecimalString })],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.quantity).toBe(1);
+    expect(result.dissolvedTickers).toEqual(["PETR4C28"]);
   });
 });

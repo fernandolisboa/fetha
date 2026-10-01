@@ -1,11 +1,13 @@
+import Decimal from "decimal.js";
 import {
   decimalStringSchema,
   type DecimalString,
   type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
-import type { LegSettlement, SettlementOutcome } from "@fetha/engine";
+import type { CorporateActionFactor, LegSettlement, SettlementOutcome } from "@fetha/engine";
 
+import { splitFactorProduct } from "./corporate-action-basis";
 import type { AssetClass, FillSide } from "./schema";
 
 export interface LegChoice {
@@ -27,7 +29,16 @@ export interface SettlementFill {
 }
 
 export type SettlementPlan =
-  { ok: true; fills: SettlementFill[] } | { ok: false; reason: "invalid_choice" };
+  | {
+      ok: true;
+      fills: SettlementFill[];
+      // Review round 2 item 3: every ticker whose option-closing fill fell back to the nominal
+      // `leg.quantity` because there was no broker-basis count to size it on (expired worthless,
+      // or dissolved below one effective unit) — "say so" rather than let the fallback pass as a
+      // confirmed broker count.
+      dissolvedTickers: readonly Ticker[];
+    }
+  | { ok: false; reason: "invalid_choice" };
 
 const ZERO_PRICE = decimalStringSchema.parse("0");
 
@@ -49,6 +60,8 @@ function stockSide(role: "call" | "put", side: FillSide): FillSide {
 export function planSettlement(
   underlying: Ticker,
   expiry: SessionDate,
+  openedAt: SessionDate,
+  corporateActions: readonly CorporateActionFactor[],
   proposal: readonly LegSettlement[],
   choices: readonly LegChoice[],
 ): SettlementPlan {
@@ -63,6 +76,7 @@ export function planSettlement(
   }
 
   const fills: SettlementFill[] = [];
+  const dissolvedTickers: Ticker[] = [];
   for (const settlement of proposal) {
     if (settlement.leg.role === "stock") continue;
     const leg = settlement.leg;
@@ -82,15 +96,35 @@ export function planSettlement(
     // fill at the nominal `leg.quantity` would be inverse-rebased a second time the next time
     // normalization reads it back, whenever a split fell between `openedAt` and expiry. It is
     // written at the engine's own rebased quantity instead, the same quantity the stock delivery
-    // fill below uses, so normalization nets both to zero. A leg with no fill (expired worthless,
-    // or dissolved below one effective unit) has no broker-basis count to use and falls back to
-    // the nominal leg — no corporate action changes what a fill that never happened is worth.
-    const stockQuantity = settlement.fills[0]?.quantity;
+    // fill below uses, so normalization nets both to zero.
+    //
+    // Review round 2 item 3: an expired-worthless (or fully dissolved) leg has no stock delivery
+    // fill to borrow a broker-basis count from, so it is computed the same way the engine itself
+    // would (`leg.quantity ÷ F` over `(openedAt, expiry]`, the same window `buildEntryPricedLegs`
+    // caps an option leg at) rather than defaulting straight to the nominal `leg.quantity` —
+    // writing the nominal count here is exactly what let normalization halve an already-doubled
+    // position on read-back. Only once that rebase itself produces less than one effective unit
+    // (a factor large enough to dissolve the leg) does the nominal quantity stand in, because
+    // there is truly no broker-basis count smaller than one share to use; `dissolvedTickers`
+    // names every leg this fallback applied to, rather than letting it pass as a confirmed count.
+    let optionCloseQuantity: number | undefined = settlement.fills[0]?.quantity;
+    if (optionCloseQuantity === undefined) {
+      const factorResult = splitFactorProduct(corporateActions, openedAt, expiry);
+      const effective = factorResult.ok
+        ? new Decimal(leg.quantity).div(factorResult.value).floor().toNumber()
+        : 0;
+      if (factorResult.ok && effective >= 1) {
+        optionCloseQuantity = effective;
+      } else {
+        optionCloseQuantity = leg.quantity;
+        dissolvedTickers.push(leg.ticker);
+      }
+    }
     fills.push({
       ticker: leg.ticker,
       assetClass: "option",
       side: opposite(leg.side),
-      quantity: stockQuantity ?? leg.quantity,
+      quantity: optionCloseQuantity,
       price: ZERO_PRICE,
       session: expiry,
       costsCentavos: 0,
@@ -101,6 +135,7 @@ export function planSettlement(
     // that dissolved this leg below one effective unit leaves no fill to carry over
     // (`settlement.fills` is empty); its residual value is cash-settled by the engine
     // (`residualValue`), not yet wired into a confirmed fill here (follow-up).
+    const stockQuantity = settlement.fills[0]?.quantity;
     if (choice.outcome !== "expired_worthless" && stockQuantity !== undefined) {
       fills.push({
         ticker: underlying,
@@ -114,5 +149,5 @@ export function planSettlement(
       });
     }
   }
-  return { ok: true, fills };
+  return { ok: true, fills, dissolvedTickers };
 }

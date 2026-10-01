@@ -399,7 +399,14 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     if (quantityMismatch) {
       return { status: "error" as const, error: "conflict" as const };
     }
-    const settlement = planSettlement(operation.underlying, expiry, proposal.legs, choices);
+    const settlement = planSettlement(
+      operation.underlying,
+      expiry,
+      operation.openedAt,
+      corporateActions.get(operation.underlying) ?? [],
+      proposal.legs,
+      choices,
+    );
     if (!settlement.ok) {
       return { status: "error" as const, error: settlement.reason };
     }
