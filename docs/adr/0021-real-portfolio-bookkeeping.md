@@ -290,7 +290,8 @@ render and confirm returns `conflict` for an expired-worthless leg too), and `pl
 writes it. A non-positive factor or one that pushes the count outside `Quantity`'s bounds is
 refused as corrupt data instead of being folded into the dissolved fallback or failing at the
 integer column: the dashboard shows the operation without a proposal, and confirm returns
-`no_proposal`. `dissolvedTickers`, which nothing read, is gone.
+`no_proposal`. That code and its copy were written for "nothing to settle"; a corrupt factor reuses
+them rather than adding a distinct error, worth revisiting if a real case ever needs telling apart. `dissolvedTickers`, which nothing read, is gone.
 
 ## Considered options
 
