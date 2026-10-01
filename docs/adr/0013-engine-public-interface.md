@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.8.0";
+export const ENGINE_VERSION = "0.9.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2682,3 +2682,75 @@ Under the change policy's `0.4.0` case this changes what settlement, mark and sc
 an operation with an option leg across a corporate action — a correctness fix to a previously
 disclosed known gap, not merely an additive field — so `ENGINE_VERSION` moves from `"0.7.0"` to
 `"0.8.0"`.
+
+## Addendum: leg selection and the IV index read the corporate-action-adjusted strike too; `ENGINE_VERSION` bumped to `0.9.0` (2026-10-01, #270)
+
+The 0.8.0 addendum above left two callers on the stock-only-era rule as a disclosed follow-up
+(issue #270): `resolveLegSelection` and `computeImpliedVolatilityIndex` both still read a
+candidate's `series.strike` straight off the latest visible epoch, never through
+`resolveOptionStrike`. On an ex-date session with no new epoch yet (`resolveOptionStrike`'s
+`"derived"` case), a moneyness-, nearest-strike- or delta-based leg selection, and the ATM series a
+30-day IV-index bracket solves against, could pick or weight a series at its pre-event strike —
+the same session a priced leg's own valuation (`price-operation.ts`, `propose-settlement.ts`,
+already routed through `resolveOptionStrike` since 0.8.0) would have used the adjusted one. The
+impact was bounded to that one ex-date session, since ingestion writes a new strike epoch at the
+session's own close (ADR-0056).
+
+- **`internal/option-strike.ts` gains a shared, memoized resolver, `createOptionStrikeResolver(view,
+underlying, atSession, at): StrikeResolver`.** A `StrikeResolver` is `(series: OptionSeries) =>
+ResolveOptionStrikeResult`, the same shape `resolveOptionStrike` already returns, cached per
+  ticker so a caller comparing many candidates of the same underlying at the same read instant
+  resolves each one once rather than once per comparison.
+- **`resolveLegSelection`'s three comparison helpers — `nearestSeriesByStrike`,
+  `nearestSeriesByAbsDelta`, `seriesAtStrike` — take a `StrikeResolver` and compare each
+  candidate's own resolved strike, never `series.strike` directly.** `nearestSeriesByAbsDelta` also
+  passes the resolved strike to `priceOptionLeg`, so the delta a straddle or a delta-targeted leg is
+  selected on matches the strike it will actually be priced at. Each helper's return type changes
+  from a bare `OptionSeries | null` to a result that can carry `resolveOptionStrike`'s own error (an
+  invalid, non-positive corporate-action factor), propagated up through `resolveLegSelection` the
+  same way every other failure path already is. The returned `ResolvedStructureLeg.series` is
+  unchanged — still the listed `OptionSeries` row, raw strike included; only the _comparison_ used
+  to choose it reads the adjusted value, since the leg's own valuation re-resolves the strike anyway
+  the next time `price-operation.ts` or `propose-settlement.ts` reads it.
+- **`computeImpliedVolatilityIndex`'s `nearestByStrike` and `solveAtmVolatility` do the same**:
+  the ATM call/put nearest the forward is chosen by resolved strike, and the implied-volatility
+  solve itself uses the resolved strike as `k`, not the raw listed one. `ImpliedVolatilityIndex`
+  already carries a `notes: Note[]` field (used today for `iv_index_not_bracketed`); no new field or
+  interface is added. Instead, the existing `option_strike_derived_across_corporate_action` /
+  `option_strike_unadjusted_across_corporate_action` notes are reused and deduped by code, the same
+  dedup `score.ts` already applies (`anyDerived`/`anyUnconfirmed` booleans rolled up across both legs
+  of both brackets into at most one note of each code on the point).
+- **Issue #275 (recomputing stored IV index points) is untouched.** This addendum fixes how a point
+  is computed when `computeImpliedVolatilityIndex` runs; it does not recompute or migrate any
+  already-persisted `ImpliedVolatilityIndexPoint` row, and no ingestion code in `apps/web` changed.
+- **The equidistance tie-break moved to the resolved strike too (review round 1 BLOCKING 1).**
+  `resolve-series.ts`'s shared `isEarlierByStrikeThenTicker` took two `OptionSeries` and compared
+  `.strike` directly; every one of its three call sites now resolves each candidate's own strike
+  first and passes the two resolved `DecimalString`s alongside the two series, so a tie on distance
+  breaks on the lower _resolved_ strike, then the lexicographically earlier ticker — not the lower
+  raw one. Repro that failed round 1: a 0.5 factor ex-dated on the evaluation session, `PETR4CA`
+  (raw 90, derived 45) and `PETR4CB` (raw 55, listed that same session already reflecting the
+  split, so `"none"`, 55 as listed) both land exactly 5.00 from a 50.00 nearest-strike target; the
+  raw-strike tie-break picked `PETR4CB` (the lower _raw_ number) in both array orders, when the
+  lower _resolved_ strike, and therefore the correct pick, is `PETR4CA`.
+- **`degenerate_strikes` is evaluated on the resolved strikes, by construction of the fix above —
+  two legs can collapse onto one _effective_ strike even when their raw listed ones differ.** A
+  1.01/1.02 penny pair, both halved by the same 0.5 factor, both round half-up to 0.51: before this
+  addendum this would have resolved as two distinct strikes (1.01, 1.02) and priced as a spread with
+  a one-cent edge that does not actually exist once the factor is read; after it, the same pair is
+  refused as `degenerate_strikes`, matching how a true one-strike duplicate was always refused.
+- **`seriesAtStrike`'s fallback path (the second leg of a shared-rank straddle, resolved after the
+  first leg's own delta or nearest-strike pick) already compared each candidate's own resolved
+  strike from this addendum's first pass; review round 1 (BLOCKING 2) added a straddle-shaped test
+  pinning it** (`PETR4CALL`/`PETR4PUT`, same raw strike, same factor, the losing right resolved
+  through the fallback against the winning right's own resolved target).
+- **Golden backtests** move only on `engineVersion` (`vitest run
+src/invariants/backtest-golden.test.ts -u`, diffed to confirm): none of the four fixtures'
+  scenarios exercise leg selection or the IV index across an epoch-less post-split option, so no
+  other field in any of the four files changed.
+
+Under the change policy's `0.4.0` case this changes what a leg-selection rule or the IV index
+computes for a series with no listed epoch yet reflecting a corporate action ex-dated on the read
+session — a correctness fix to a previously disclosed known gap (`ENGINE_VERSION` `0.8.0`'s own
+addendum, "Further follow-ups, not made here"), not merely an additive field — so `ENGINE_VERSION`
+moves from `"0.8.0"` to `"0.9.0"`.

@@ -1,4 +1,4 @@
-import type { Instant, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, Ticker } from "@fetha/contracts";
 import type { MarketView, OptionSeries } from "../api";
 import { parseDecimal } from "./decimal";
 import { compareInstants, isAtOrBefore } from "./instant";
@@ -9,9 +9,17 @@ const seriesTickerOf = (series: OptionSeries): string => series.ticker;
 // Order-invariance (I3): candidates come from filtering MarketView.optionSeries, whose row
 // order is not meaningful, so a tie on distance must resolve to the same series regardless of
 // array order: the lower strike, then the lexicographically earlier ticker (shared with
-// resolve-leg-selection.ts and implied-volatility-index.ts).
-export function isEarlierByStrikeThenTicker(a: OptionSeries, b: OptionSeries): boolean {
-  const strikeCompare = parseDecimal(a.strike).cmp(parseDecimal(b.strike));
+// resolve-leg-selection.ts and implied-volatility-index.ts). The strikes compared here are each
+// candidate's own corporate-action-adjusted strike (`resolveOptionStrike`), not `series.strike`
+// directly - two series' raw listed strikes can tie or order differently than their resolved
+// ones on an ex-date session with no new epoch yet (#270).
+export function isEarlierByStrikeThenTicker(
+  aStrike: DecimalString,
+  a: OptionSeries,
+  bStrike: DecimalString,
+  b: OptionSeries,
+): boolean {
+  const strikeCompare = parseDecimal(aStrike).cmp(parseDecimal(bStrike));
   if (strikeCompare !== 0) return strikeCompare < 0;
   return a.ticker < b.ticker;
 }

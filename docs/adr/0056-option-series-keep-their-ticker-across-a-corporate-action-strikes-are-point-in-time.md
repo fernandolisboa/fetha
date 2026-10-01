@@ -158,7 +158,10 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
     loader.
   - The IV index (`iv-index-compute.ts`) computes through `buildOperationMarketView`, so it reads
     the strike of the epoch visible at its own session close with no change of its own; documented
-    here since the ticket called it out explicitly.
+    here since the ticket called it out explicitly. (Amendment, #270, ADR-0013's 0.9.0 addendum: the
+    engine's own `computeImpliedVolatilityIndex` additionally resolves that strike through
+    `resolveOptionStrike` before using it, so an ex-date session with no new epoch yet still reads
+    the derived strike, not the latest visible epoch's raw one.)
   - `mergeMarketViews` (`portfolio-view.ts`) already deduplicates `optionSeries` on
     `ticker|expiry|strike|asOf`, so several epochs per ticker across merged views collapse
     correctly with no change.

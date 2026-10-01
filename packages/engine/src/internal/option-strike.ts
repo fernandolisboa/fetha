@@ -17,6 +17,24 @@ export type ResolvedOptionStrike = {
 export type ResolveOptionStrikeResult =
   { ok: true; value: ResolvedOptionStrike } | { ok: false; error: EngineError };
 
+export type StrikeResolver = (series: OptionSeries) => ResolveOptionStrikeResult;
+
+export function createOptionStrikeResolver(
+  view: MarketView,
+  underlying: Ticker,
+  atSession: SessionDate | null,
+  at: Instant,
+): StrikeResolver {
+  const cache = new Map<Ticker, ResolveOptionStrikeResult>();
+  return (series: OptionSeries) => {
+    const cached = cache.get(series.ticker);
+    if (cached) return cached;
+    const result = resolveOptionStrike(view, series.ticker, underlying, atSession, at);
+    cache.set(series.ticker, result);
+    return result;
+  };
+}
+
 function minSession(a: SessionDate, b: SessionDate): SessionDate {
   return a < b ? a : b;
 }

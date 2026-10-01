@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type {
   EngineError,
   ImpliedVolatilityIndex,
@@ -12,6 +12,8 @@ import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import { calendarIntegrityError } from "./validate-view-integrity";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
+import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
@@ -35,28 +37,46 @@ function addCalendarDays(date: SessionDate, days: number): string {
 }
 
 type AtmBracket = { expiry: SessionDate; years: number };
-type AtmSolution = { volatility: number; seriesUsed: Ticker[] };
+type AtmSolution = {
+  volatility: number;
+  seriesUsed: Ticker[];
+  anyDerived: boolean;
+  anyUnconfirmed: boolean;
+};
+type AtmOutcome = Result<AtmSolution | null>;
 
 // Order-invariance (I3): `candidates` comes from filtering MarketView.optionSeries, whose row
 // order is not meaningful. Reuses the shared strike-then-ticker tie-break so two tickers at
 // one strike, or two equidistant strikes, resolve the same series regardless of array order.
+// #270: compares each candidate's own corporate-action-adjusted strike, not the raw listed one -
+// a factor ex-dated on the evaluation session itself (`resolveOptionStrike`'s "derived" case)
+// moves which series is actually nearest the forward before a new epoch ever lists it.
 function nearestByStrike(
   candidates: readonly OptionSeries[],
   forward: number,
-): OptionSeries | null {
+  strikeOf: StrikeResolver,
+): { ok: true; series: OptionSeries | null } | { ok: false; error: EngineError } {
   let best: OptionSeries | null = null;
+  let bestStrike: DecimalString | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const series of candidates) {
-    const distance = Math.abs(Number(series.strike) - forward);
+    const resolved = strikeOf(series);
+    if (!resolved.ok) return resolved;
+    const strike = resolved.value.strike;
+    const distance = Math.abs(Number(strike) - forward);
     const isBetter =
       distance < bestDistance ||
-      (distance === bestDistance && best !== null && isEarlierByStrikeThenTicker(series, best));
+      (distance === bestDistance &&
+        best !== null &&
+        bestStrike !== null &&
+        isEarlierByStrikeThenTicker(strike, series, bestStrike, best));
     if (isBetter) {
       best = series;
+      bestStrike = strike;
       bestDistance = distance;
     }
   }
-  return best;
+  return { ok: true, series: best };
 }
 
 function solveAtmVolatility(
@@ -69,29 +89,38 @@ function solveAtmVolatility(
   spot: number,
   riskFreeRate: number,
   dividendYield: number,
-): AtmSolution | null {
+  strikeOf: StrikeResolver,
+): AtmOutcome {
   const listed = collapsedSeries.filter(
     (series) => series.underlying === underlying && series.expiry === expiry,
   );
   const forward = spot * Math.exp((riskFreeRate - dividendYield) * years);
-  const call = nearestByStrike(
+  const callResult = nearestByStrike(
     listed.filter((series) => series.right === "call"),
     forward,
+    strikeOf,
   );
-  const put = nearestByStrike(
+  if (!callResult.ok) return callResult;
+  const putResult = nearestByStrike(
     listed.filter((series) => series.right === "put"),
     forward,
+    strikeOf,
   );
+  if (!putResult.ok) return putResult;
 
   const samples: number[] = [];
   const seriesUsed: Ticker[] = [];
-  for (const series of [call, put]) {
+  let anyDerived = false;
+  let anyUnconfirmed = false;
+  for (const series of [callResult.series, putResult.series]) {
     if (!series) continue;
     const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
+    const resolvedStrike = strikeOf(series);
+    if (!resolvedStrike.ok) return resolvedStrike;
     const solved = solveImpliedVolatilityRaw({
       s: spot,
-      k: Number(series.strike),
+      k: Number(resolvedStrike.value.strike),
       t: years,
       r: riskFreeRate,
       q: dividendYield,
@@ -101,12 +130,14 @@ function solveAtmVolatility(
     if (solved.ok) {
       samples.push(solved.sigma);
       seriesUsed.push(series.ticker);
+      if (resolvedStrike.value.adjustment === "derived") anyDerived = true;
+      if (resolvedStrike.value.adjustment === "unconfirmed") anyUnconfirmed = true;
     }
   }
 
-  if (samples.length === 0) return null;
+  if (samples.length === 0) return { ok: true, value: null };
   const volatility = samples.reduce((a, b) => a + b, 0) / samples.length;
-  return { volatility, seriesUsed };
+  return { ok: true, value: { volatility, seriesUsed, anyDerived, anyUnconfirmed } };
 }
 
 function notBracketed(
@@ -139,7 +170,12 @@ function toResult(
   volatility: number,
   seriesUsed: Ticker[],
   provenanceBase: ProvenanceBase,
+  anyDerived: boolean,
+  anyUnconfirmed: boolean,
 ): Result<ImpliedVolatilityIndex> {
+  const notes = [];
+  if (anyDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
+  if (anyUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
   return {
     ok: true,
     value: {
@@ -148,7 +184,7 @@ function toResult(
       impliedVolatility: toDecimalString(new Decimal(volatility), RATIO_SCALE),
       method: "atm_30d_variance_interpolated",
       seriesUsed,
-      notes: [],
+      notes,
       provenance: { ...provenanceBase, truncated: [] },
     },
   };
@@ -217,7 +253,8 @@ export function computeImpliedVolatilityIndex(
   }
   brackets.sort((a, b) => a.years - b.years);
 
-  const solve = (bracket: AtmBracket): AtmSolution | null =>
+  const strikeOf = createOptionStrikeResolver(view, underlying, atSession.date, at);
+  const solve = (bracket: AtmBracket): AtmOutcome =>
     solveAtmVolatility(
       view,
       collapsedSeries,
@@ -228,18 +265,22 @@ export function computeImpliedVolatilityIndex(
       spot,
       riskFreeRate,
       dividendYield,
+      strikeOf,
     );
 
   const exact = brackets.find((b) => Math.abs(b.years - t30) < 1e-12);
   if (exact) {
     const solved = solve(exact);
-    if (!solved) return notBracketed(underlying, atSession.date, provenanceBase);
+    if (!solved.ok) return err(solved.error);
+    if (!solved.value) return notBracketed(underlying, atSession.date, provenanceBase);
     return toResult(
       underlying,
       atSession.date,
-      solved.volatility,
-      solved.seriesUsed,
+      solved.value.volatility,
+      solved.value.seriesUsed,
       provenanceBase,
+      solved.value.anyDerived,
+      solved.value.anyUnconfirmed,
     );
   }
 
@@ -252,20 +293,26 @@ export function computeImpliedVolatilityIndex(
   if (!lower || !upper) return notBracketed(underlying, atSession.date, provenanceBase);
 
   const solvedLower = solve(lower);
+  if (!solvedLower.ok) return err(solvedLower.error);
   const solvedUpper = solve(upper);
-  if (!solvedLower || !solvedUpper) return notBracketed(underlying, atSession.date, provenanceBase);
+  if (!solvedUpper.ok) return err(solvedUpper.error);
+  if (!solvedLower.value || !solvedUpper.value) {
+    return notBracketed(underlying, atSession.date, provenanceBase);
+  }
 
   const w = (upper.years - t30) / (upper.years - lower.years);
   const variance =
-    (w * solvedLower.volatility ** 2 * lower.years +
-      (1 - w) * solvedUpper.volatility ** 2 * upper.years) /
+    (w * solvedLower.value.volatility ** 2 * lower.years +
+      (1 - w) * solvedUpper.value.volatility ** 2 * upper.years) /
     t30;
 
   return toResult(
     underlying,
     atSession.date,
     Math.sqrt(variance),
-    [...solvedLower.seriesUsed, ...solvedUpper.seriesUsed],
+    [...solvedLower.value.seriesUsed, ...solvedUpper.value.seriesUsed],
     provenanceBase,
+    solvedLower.value.anyDerived || solvedUpper.value.anyDerived,
+    solvedLower.value.anyUnconfirmed || solvedUpper.value.anyUnconfirmed,
   );
 }
