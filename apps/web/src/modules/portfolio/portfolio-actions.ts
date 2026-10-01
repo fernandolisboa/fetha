@@ -15,6 +15,7 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
+  corporateActionFactorsForUnderlying,
   latestCandle,
   optionSeriesForFills,
   seriesKey,
@@ -349,7 +350,11 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
       return { status: "error" as const, error: "not_found" as const };
     }
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
-    const plan = planOperation(operationFills, await seriesByHolding(db, operationFills));
+    const [series, corporateActions] = await Promise.all([
+      seriesByHolding(db, operationFills),
+      corporateActionFactorsForUnderlying(db, operation.underlying),
+    ]);
+    const plan = planOperation(operationFills, series, corporateActions);
     const expiry = plan.ok ? plan.state.expiry : null;
     if (!plan.ok || !expiry) {
       return { status: "error" as const, error: "no_proposal" as const };

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Candle, MarketView, Operation, OptionSeries, TradingSession } from "../api";
+import type {
+  Candle,
+  CorporateActionFactor,
+  MarketView,
+  Operation,
+  OptionSeries,
+  TradingSession,
+} from "../api";
 import { dailyCalendar, decimalString, quantity } from "../test/support";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import { proposeSettlement } from "./propose-settlement";
@@ -99,6 +106,7 @@ describe("proposeSettlement", () => {
           costs: 0,
         },
       ],
+      residualValue: 0,
     });
   });
 
@@ -170,6 +178,7 @@ describe("proposeSettlement", () => {
       outcome: "expired_worthless",
       intrinsicValue: decimalString("0.00"),
       fills: [],
+      residualValue: 0,
     });
   });
 
@@ -207,6 +216,7 @@ describe("proposeSettlement", () => {
           costs: 0,
         },
       ],
+      residualValue: 0,
     });
   });
 
@@ -267,6 +277,7 @@ describe("proposeSettlement", () => {
           costs: 0,
         },
       ],
+      residualValue: 0,
     });
   });
 
@@ -304,6 +315,7 @@ describe("proposeSettlement", () => {
           costs: 0,
         },
       ],
+      residualValue: 0,
     });
   });
 
@@ -379,6 +391,7 @@ describe("proposeSettlement", () => {
       outcome: "kept",
       intrinsicValue: null,
       fills: [],
+      residualValue: 0,
     });
     expect(result.value.legs[1]?.outcome).toBe("assigned");
   });
@@ -889,5 +902,147 @@ describe("proposeSettlement", () => {
       intrinsicValue: decimalString("0.00"),
     });
     expect(result.value.notes).toContainEqual(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  });
+
+  describe("#271: the exercise/assignment fill follows a split, not the nominal leg quantity", () => {
+    const splitFactor = (): CorporateActionFactor => ({
+      ticker: "PETR4",
+      exDate: "2024-01-08",
+      asOf: "2024-01-08T13:00:00.000Z",
+      factor: decimalString("0.5"),
+    });
+
+    it("doubles the exercise fill's quantity across a 2:1 split and leaves no residue", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: [optionSeries("PETR4C28", "call", "14.00")],
+        corporateActions: [splitFactor()],
+      };
+      const op = operation({
+        openedAt: "2024-01-01",
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            entryPrice: decimalString("2.50"),
+          },
+        ],
+      });
+      const result = proposeSettlement({ view, operation: op }, provenanceBase);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.legs[0]?.fills[0]).toMatchObject({
+        quantity: quantity(2),
+        price: decimalString("14.00"),
+      });
+      expect(result.value.legs[0]?.residualValue).toBe(0);
+    });
+
+    it("floors a factor that leaves a fractional unit and cash-settles the residue", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+        corporateActions: [
+          {
+            ticker: "PETR4",
+            exDate: "2024-01-08",
+            asOf: "2024-01-08T13:00:00.000Z",
+            factor: decimalString("1.5"),
+          },
+        ],
+      };
+      const op = operation({
+        openedAt: "2024-01-01",
+        legs: [
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C28",
+            quantity: quantity(5),
+            entryPrice: decimalString("2.50"),
+          },
+        ],
+      });
+      const result = proposeSettlement({ view, operation: op }, provenanceBase);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // 5 / 1.5 = 3.333...; floors to 3 whole shares, 0.333... left over at R$28.00.
+      expect(result.value.legs[0]?.fills[0]).toMatchObject({ quantity: quantity(3) });
+      expect(result.value.legs[0]?.residualValue).toBe(933);
+      expect(result.value.notes).not.toContainEqual(
+        expect.objectContaining({ code: "less_than_one_effective_unit" }),
+      );
+    });
+
+    it("drops the fill entirely when the factor leaves less than one effective unit", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
+        corporateActions: [
+          {
+            ticker: "PETR4",
+            exDate: "2024-01-08",
+            asOf: "2024-01-08T13:00:00.000Z",
+            factor: decimalString("5"),
+          },
+        ],
+      };
+      const op = operation({
+        openedAt: "2024-01-01",
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            entryPrice: decimalString("2.50"),
+          },
+        ],
+      });
+      const result = proposeSettlement({ view, operation: op }, provenanceBase);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.legs[0]?.fills).toEqual([]);
+      expect(result.value.legs[0]?.outcome).toBe("exercised");
+      expect(result.value.legs[0]?.residualValue).toBe(-560);
+      expect(result.value.notes).toContainEqual({
+        code: "less_than_one_effective_unit",
+        message:
+          "a corporate-action factor leaves at least one leg with less than one effective unit to settle; its residual value is folded into residualValue instead of a fill",
+      });
+    });
+
+    it("returns invalid_input when a split factor produces a non-integer-safe effective quantity", () => {
+      const view: MarketView = {
+        ...baseView,
+        optionSeries: [optionSeries("PETR4C28", "call", "14.00")],
+        corporateActions: [
+          {
+            ticker: "PETR4",
+            exDate: "2024-01-08",
+            asOf: "2024-01-08T13:00:00.000Z",
+            factor: decimalString("0.00000000000000000001"),
+          },
+        ],
+      };
+      const op = operation({
+        openedAt: "2024-01-01",
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "PETR4C28",
+            quantity: quantity(1),
+            entryPrice: decimalString("2.50"),
+          },
+        ],
+      });
+      const result = proposeSettlement({ view, operation: op }, provenanceBase);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("invalid_input");
+    });
   });
 });

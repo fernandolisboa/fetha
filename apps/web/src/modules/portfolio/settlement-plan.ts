@@ -63,7 +63,9 @@ export function planSettlement(
   }
 
   const fills: SettlementFill[] = [];
-  for (const leg of optionLegs) {
+  for (const settlement of proposal) {
+    if (settlement.leg.role === "stock") continue;
+    const leg = settlement.leg;
     const choice = choices.find((candidate) => candidate.ticker === leg.ticker);
     const allowed = leg.side === "buy" ? "exercised" : "assigned";
     if (
@@ -75,6 +77,9 @@ export function planSettlement(
     ) {
       return { ok: false, reason: "invalid_choice" };
     }
+    // The closing fill nets the ledger's own internal, nominal-basis tracking of this series to
+    // zero (ADR-0021 item 2: a fill is the only stored fact); `leg.quantity` is always on that
+    // same basis, regardless of any corporate-action factor.
     fills.push({
       ticker: leg.ticker,
       assetClass: "option",
@@ -85,12 +90,18 @@ export function planSettlement(
       costsCentavos: 0,
       expiry,
     });
-    if (choice.outcome !== "expired_worthless") {
+    // #271: the real, immediate stock delivery is sized at the engine's own rebased exercise
+    // fill, never the leg's nominal quantity — B3 delivers the effective (post-split) count.
+    // A factor that dissolved this leg below one effective unit leaves no fill to carry over
+    // (`settlement.fills` is empty); its residual value is cash-settled by the engine
+    // (`residualValue`), not yet wired into a confirmed fill here (follow-up).
+    const stockQuantity = settlement.fills[0]?.quantity;
+    if (choice.outcome !== "expired_worthless" && stockQuantity !== undefined) {
       fills.push({
         ticker: underlying,
         assetClass: "stock",
         side: stockSide(leg.role, leg.side),
-        quantity: leg.quantity,
+        quantity: stockQuantity,
         price: choice.price,
         session: expiry,
         costsCentavos: choice.costsCentavos,

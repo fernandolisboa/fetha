@@ -135,6 +135,17 @@ export function toEngineCorporateActions(
     }));
 }
 
+// A shared entry point for callers outside this module that need an underlying's own
+// corporate-action factors in engine shape without building a whole `MarketView` (ADR-0021
+// amendment #271, portfolio's own fill-normalization seam): keeps the row-to-engine mapping in
+// one place rather than duplicated at each caller.
+export async function corporateActionFactorsForUnderlying(
+  db: Database,
+  underlying: Ticker,
+): Promise<CorporateActionFactor[]> {
+  return toEngineCorporateActions(await corporateActionsForTicker(db, underlying));
+}
+
 export function toEngineCandle(row: CandleRow): Candle {
   return {
     ticker: row.ticker,

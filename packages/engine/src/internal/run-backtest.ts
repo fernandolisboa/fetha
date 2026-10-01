@@ -67,7 +67,7 @@ import {
   strikeAdjustmentNotesOf,
 } from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
-import { settleLeg } from "./propose-settlement";
+import { rebaseExerciseFillUnits, settleLeg } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
@@ -1272,6 +1272,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             outcome: "kept",
             intrinsicValue: null,
             fills: [],
+            residualValue: toCentavos(0),
           });
           const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
           const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
@@ -1337,20 +1338,22 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           settled.value.fills[0],
           "run-backtest: settleLeg reports a non-worthless outcome with no fill",
         );
-        const effectiveUnits = Math.floor(effectiveQuantity.toNumber());
-        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
-          return invalidInput(
-            "view.corporateActions",
-            `split factor produces a non-integer-safe effective unit count for ${leg.ticker}`,
-          );
-        }
-        const residue = effectiveQuantity.sub(effectiveUnits);
+        const rebased = rebaseExerciseFillUnits(
+          bareFill,
+          effectiveQuantity,
+          `view.corporateActions (${leg.ticker})`,
+        );
+        if (!rebased.ok) return { ok: false, error: rebased.error };
         let costs = toCentavos(0);
-        if (effectiveUnits > 0) {
-          const q = toQuantity(effectiveUnits);
+        if (rebased.value.quantity !== null) {
+          const q = rebased.value.quantity;
           costs = fillCosts(config.costModel, bareFill.price, q, "stock");
           const fill: Fill = { ...bareFill, quantity: q, costs };
-          settlement.push({ ...settled.value, fills: [fill] });
+          settlement.push({
+            ...settled.value,
+            fills: [fill],
+            residualValue: rebased.value.residualValue,
+          });
           state.fills.push({ ...fill, operationId: op.id, source: "settlement" });
           settlementCosts = settlementCosts.add(costs);
           const gross = grossCentavos(fill.price, q).round().toNumber();
@@ -1361,12 +1364,17 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           // one whole share to trade): the stored artifact must not report a fill that never
           // happened, so the proposed fill `settleLeg` returned is dropped, never carried
           // through as-is.
-          settlement.push({ ...settled.value, fills: [] });
+          settlement.push({
+            ...settled.value,
+            fills: [],
+            residualValue: rebased.value.residualValue,
+          });
         }
-        if (residue.isPositive()) {
-          const residueGrossCentavos = grossCentavos(bareFill.price, residue).round().toNumber();
-          state.cash += (bareFill.side === "sell" ? 1 : -1) * residueGrossCentavos;
-          if (bareFill.side === "sell") state.currentMonthStockSales += residueGrossCentavos;
+        if (rebased.value.residualValue !== 0) {
+          state.cash += rebased.value.residualValue;
+          if (bareFill.side === "sell") {
+            state.currentMonthStockSales += Math.abs(rebased.value.residualValue);
+          }
         }
         if (bareFill.side === "buy") {
           buyQty = buyQty.add(effectiveQuantity);

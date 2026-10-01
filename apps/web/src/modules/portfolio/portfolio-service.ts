@@ -11,6 +11,7 @@ import {
 } from "@fetha/contracts";
 import {
   engine,
+  type CorporateActionFactor,
   type Greeks,
   type LegValuation,
   type MarketView,
@@ -27,6 +28,7 @@ import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
   buildOperationMarketView,
   buildPortfolioMarketView,
+  corporateActionFactorsForUnderlying,
   optionSeriesForFills,
   seriesKey,
   tradingSessionForDate,
@@ -39,6 +41,7 @@ import {
   type Holding,
   type LedgerFill,
 } from "./bookkeeping";
+import { normalizeFillsForHoldingsBasis } from "./corporate-action-basis";
 import {
   heldExpiry,
   planOperation,
@@ -157,9 +160,26 @@ export async function hasExpired(db: Database, expiry: SessionDate, at: Instant)
   return (await expiredBy(db, [expiry], at)).has(expiry);
 }
 
-function stateOf(fills: readonly LedgerFill[], series: SeriesByHolding): OperationState | null {
-  const plan = planOperation(fills, series);
+function stateOf(
+  fills: readonly LedgerFill[],
+  series: SeriesByHolding,
+  corporateActions: readonly CorporateActionFactor[],
+): OperationState | null {
+  const plan = planOperation(fills, series, corporateActions);
   return plan.ok ? plan.state : null;
+}
+
+// One batched lookup per distinct underlying (#271): every operation's own fills are normalized
+// against its own underlying's factors before the engine ever sees them.
+async function corporateActionsByUnderlying(
+  db: Database,
+  underlyings: Iterable<string>,
+): Promise<Map<string, CorporateActionFactor[]>> {
+  const tickers = [...new Set(underlyings)];
+  const lists = await Promise.all(
+    tickers.map((ticker) => corporateActionFactorsForUnderlying(db, ticker)),
+  );
+  return new Map(tickers.map((ticker, index) => [ticker, lists[index] ?? []]));
 }
 
 // The view is built at the expiry session's close, the instant the engine
@@ -238,6 +258,22 @@ export async function loadPortfolio(
     new RiskProfileRepository(db, user).current(),
   ]);
   const series = await seriesByHolding(db, fills);
+  const underlyingOfFill = (fill: LedgerFill): string | null =>
+    fill.assetClass === "stock"
+      ? fill.ticker
+      : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
+  const corporateActions = await corporateActionsByUnderlying(db, [
+    ...operations.map((operation) => operation.underlying),
+    ...fills.flatMap((fill) => {
+      const underlying = underlyingOfFill(fill);
+      return underlying ? [underlying] : [];
+    }),
+  ]);
+  // #271: a bare position (never grouped into an operation) has no shared `openedAt` to rebase
+  // against; each (ticker, expiry) holding is normalized against its own earliest fill's session
+  // instead (`normalizeFillsForHoldingsBasis`), so a pre-split holding and a post-split fill of
+  // the same series combine correctly below.
+  const normalizedFills = normalizeFillsForHoldingsBasis(fills, underlyingOfFill, corporateActions);
   const expired = await expiredBy(
     db,
     [
@@ -255,7 +291,7 @@ export async function loadPortfolio(
 
   const liveHoldings: Holding[] = [];
   const unknownSeries: Holding[] = [];
-  for (const holding of holdingsFromFills(fills)) {
+  for (const holding of holdingsFromFills(normalizedFills)) {
     if (holding.assetClass === "stock") {
       liveHoldings.push(holding);
     } else if (!holding.expiry || !series.has(holdingKey(holding.ticker, holding.expiry))) {
@@ -268,7 +304,7 @@ export async function loadPortfolio(
   // An expired series still held outside any operation: grouping these fills is the way to
   // its settlement (ADR-0021 item 6). One held inside an operation shows as that
   // operation's pending settlement instead.
-  const unassigned = fills.filter((fill) => fill.operationId === null);
+  const unassigned = normalizedFills.filter((fill) => fill.operationId === null);
   const expiredHoldings: ExpiredHolding[] = holdingsFromFills(unassigned)
     .filter(isExpiredSeries)
     .map((holding) => ({
@@ -283,7 +319,10 @@ export async function loadPortfolio(
   const stateById = new Map<string, OperationState | null>();
   for (const operation of operations) {
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
-    const state = operation.status === "open" ? stateOf(operationFills, series) : null;
+    const state =
+      operation.status === "open"
+        ? stateOf(operationFills, series, corporateActions.get(operation.underlying) ?? [])
+        : null;
     stateById.set(operation.id, state);
     if (!state) {
       continue;

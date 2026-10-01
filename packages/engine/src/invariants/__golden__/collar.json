@@ -15,7 +15,8 @@
           },
           "outcome": "kept",
           "intrinsicValue": null,
-          "fills": []
+          "fills": [],
+          "residualValue": 0
         },
         {
           "leg": {
@@ -27,7 +28,8 @@
           },
           "outcome": "expired_worthless",
           "intrinsicValue": "0.00",
-          "fills": []
+          "fills": [],
+          "residualValue": 0
         },
         {
           "leg": {
@@ -39,7 +41,8 @@
           },
           "outcome": "expired_worthless",
           "intrinsicValue": "0.00",
-          "fills": []
+          "fills": [],
+          "residualValue": 0
         }
       ]
     }

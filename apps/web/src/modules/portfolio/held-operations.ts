@@ -8,7 +8,7 @@ import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { recordAccess } from "@/modules/audit";
 import { requireUser } from "@/modules/auth";
-import { tradingSessionForDate } from "@/modules/market-data";
+import { corporateActionFactorsForUnderlying, tradingSessionForDate } from "@/modules/market-data";
 
 import { holdingKey } from "./bookkeeping";
 import { heldExpiry, planOperation, type OperationPlan } from "./operation-plan";
@@ -62,11 +62,28 @@ async function planMyOpenOperations(
       fillsById.get(fill.operationId)?.push(fill);
     }
   }
-  const series = await seriesByHolding(db, [...fillsById.values()].flat());
+  const underlyingById = new Map(
+    operations.map((operation) => [operation.id, operation.underlying]),
+  );
+  const [series, corporateActions] = await Promise.all([
+    seriesByHolding(db, [...fillsById.values()].flat()),
+    (async () => {
+      const tickers = [
+        ...new Set([...openIds].map((id) => underlyingById.get(id)).filter(Boolean)),
+      ];
+      const lists = await Promise.all(
+        tickers.map((ticker) => corporateActionFactorsForUnderlying(db, ticker as string)),
+      );
+      return new Map(tickers.map((ticker, index) => [ticker, lists[index] ?? []]));
+    })(),
+  ]);
   return new Map(
     [...fillsById].map(([id, own]) => [
       id,
-      { fillIds: own.map((fill) => fill.id), plan: planOperation(own, series) },
+      {
+        fillIds: own.map((fill) => fill.id),
+        plan: planOperation(own, series, corporateActions.get(underlyingById.get(id) ?? "") ?? []),
+      },
     ]),
   );
 }

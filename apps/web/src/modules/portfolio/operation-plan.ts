@@ -1,7 +1,8 @@
 import type { SessionDate, Ticker } from "@fetha/contracts";
-import type { Operation, OperationLeg, OptionRight } from "@fetha/engine";
+import type { CorporateActionFactor, Operation, OperationLeg, OptionRight } from "@fetha/engine";
 
 import { holdingKey, operationLegs, type LedgerFill } from "./bookkeeping";
+import { normalizeFillsForOperationBasis } from "./corporate-action-basis";
 import type { OperationStatus } from "./schema";
 
 export interface SeriesFacts {
@@ -24,6 +25,10 @@ export interface OperationState {
   status: Exclude<OperationStatus, "expired">;
   closedAt: SessionDate | null;
   legs: OperationLeg[];
+  // #271: at least one fill's corporate-action rebase (broker-recorded quantity converted back
+  // to the operation's own `openedAt` basis) did not land on a whole share; every fill was kept
+  // exactly as recorded instead, so this operation's legs may not reflect the corporate action.
+  corporateActionNormalizationSkipped?: boolean;
 }
 
 export type OperationPlan =
@@ -34,6 +39,7 @@ export type OperationPlan =
 export function planOperation(
   fills: readonly LedgerFill[],
   series: SeriesByHolding,
+  corporateActions: readonly CorporateActionFactor[] = [],
 ): OperationPlan {
   if (fills.length === 0) {
     return { ok: false, reason: "empty" };
@@ -59,12 +65,6 @@ export function planOperation(
     return { ok: false, reason: "mixed_expiries" };
   }
 
-  const legs =
-    operationLegs(fills, (holding) =>
-      holding.expiry
-        ? (series.get(holdingKey(holding.ticker, holding.expiry))?.right ?? null)
-        : null,
-    ) ?? [];
   const [underlying] = underlyings;
   const [expiry = null] = expiries;
   const sessions = fills.map((fill) => fill.session).sort();
@@ -73,6 +73,18 @@ export function planOperation(
   if (!underlying || !openedAt || !lastSession) {
     return { ok: false, reason: "empty" };
   }
+
+  // #271: "each fill is recorded as the broker showed it on its own date." Every fill is put on
+  // the operation's own `openedAt` basis before it is netted into legs, so a fill entered
+  // post-split nets correctly against one entered pre-split; the engine's own forward rebase
+  // (ADR-0014 Q51) then reproduces the real, current quantity from that nominal basis.
+  const normalized = normalizeFillsForOperationBasis(fills, openedAt, corporateActions);
+  const legs =
+    operationLegs(normalized.fills, (holding) =>
+      holding.expiry
+        ? (series.get(holdingKey(holding.ticker, holding.expiry))?.right ?? null)
+        : null,
+    ) ?? [];
   const open = legs.length > 0;
   return {
     ok: true,
@@ -83,6 +95,7 @@ export function planOperation(
       status: open ? "open" : "closed",
       closedAt: open ? null : lastSession,
       legs,
+      corporateActionNormalizationSkipped: normalized.skipped,
     },
   };
 }

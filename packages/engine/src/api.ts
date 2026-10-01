@@ -550,19 +550,33 @@ export const settlementOutcomes = [
   "expired_worthless",
 ] as const satisfies readonly SettlementOutcome[];
 
+// `residualValue` (#271): a corporate-action factor that does not evenly divide `leg.quantity`
+// leaves a fractional effective unit that can never actually trade; its cash value (signed, a
+// sale positive, a purchase negative) is folded in here instead of being silently rounded away,
+// the same residue a mark-to-market or backtest exit already cash-settles. Zero for a leg whose
+// factor divides evenly (including the common factor-of-1 case) and always zero for a `kept`
+// stock leg, which never settles.
 export type LegSettlement =
-  | { leg: OperationLeg & { role: "stock" }; outcome: "kept"; intrinsicValue: null; fills: Fill[] }
+  | {
+      leg: OperationLeg & { role: "stock" };
+      outcome: "kept";
+      intrinsicValue: null;
+      fills: Fill[];
+      residualValue: Centavos;
+    }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "buy" };
       outcome: "exercised" | "expired_worthless";
       intrinsicValue: DecimalString;
       fills: Fill[];
+      residualValue: Centavos;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "sell" };
       outcome: "assigned" | "expired_worthless";
       intrinsicValue: DecimalString;
       fills: Fill[];
+      residualValue: Centavos;
     };
 
 // residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
