@@ -40,7 +40,7 @@ const en = {
       pickInstrument: "Pick an instrument",
       stale: "stale",
       noTrades: "no trades",
-      previousStrike: (strike: string) => `previous strike (${strike})`,
+      tradedAtStrike: (strike: string) => `traded at strike ${strike}`,
     },
     statBlocks: {
       title: "Result",
@@ -282,7 +282,7 @@ const ptBR = {
       pickInstrument: "Escolha um instrumento",
       stale: "atrasado",
       noTrades: "sem negócios",
-      previousStrike: (strike: string) => `no strike anterior (${strike})`,
+      tradedAtStrike: (strike: string) => `negociado no strike ${strike}`,
     },
     statBlocks: {
       title: "Resultado",
