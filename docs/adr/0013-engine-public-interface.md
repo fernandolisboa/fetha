@@ -924,7 +924,6 @@ export interface Engine {
     input: ImpliedVolatilityIndexInput,
   ): Promise<Result<ImpliedVolatilityIndex>>;
 }
-
 ```
 
 ### Semantics
@@ -2313,6 +2312,14 @@ Two obligations come with owning that mirror, both closed by #18 rounds 5–6:
    rejecting the whole row. That is the honest scope of this relaxation; it does not extend to
    every nested schema (operations, fills, provenance, ...) — only the fields named here — and
    widening it further is a decision for whoever hits the next concrete case, not a blanket rule.
+   A third option sits between a backfill and `.optional()`'s one-release exception: when a
+   field's pre-change value is determined by construction — every row persisted before the field
+   existed is unambiguously zero, empty or otherwise a fixed value, not genuinely missing data —
+   the contracts mirror may give it `.default(<that value>)` instead, as `legSettlementSchema`
+   does for `residualValue` (addendum below): the output type stays required (no `| undefined`
+   leaking into code that reads it), the pin holds exactly as written (a schema with `.default()`
+   still satisfies the same required field the pinned engine type declares), and no backfill
+   migration or `.optional()` exception window is needed at all.
 
 `backtestCheckpointSchema` keeps `z.strictObject`: a checkpoint is round-tripped within a single
 run's own lifetime, resumed by the same or a very close engine version (`checkpoint_mismatch`

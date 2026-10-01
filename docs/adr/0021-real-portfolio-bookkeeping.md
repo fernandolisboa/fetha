@@ -207,8 +207,9 @@ internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBackt
    the nominal count rather than the broker-basis count at expiry would be inverse-rebased a
    second time the next time normalization reads it back, whenever a split fell between
    `openedAt` and expiry). A leg with no fill (expired worthless, or dissolved below one effective
-   unit) still closes at the leg's nominal quantity — no corporate action changes what a fill that
-   never happened is worth.
+   unit) closes at its own broker-basis quantity instead (review round 2: `leg.quantity ÷ F` over
+   `(openedAt, expiry]`), with the nominal `leg.quantity` as a fallback only once that rebase
+   itself dissolves the leg below one effective unit.
 6. **Every path that nets fills into legs shares one basis.** `groupFillsAction` (forming a new
    operation, or adding fills to one) now resolves corporate-action factors the same way
    `confirmSettlementAction`, `loadPortfolio` and the held-operation planner already do, via the
@@ -236,6 +237,40 @@ a `BasisFactorResult` check in both normalization directions). `confirmSettlemen
 checks the delivered quantity the user's dialog showed against what it recomputes server-side,
 refusing a mismatch (a factor ingested between render and confirm) rather than settling against
 stale figures.
+
+### Review round 2
+
+Three more findings, fixed in the same change. The backward and forward rebases in
+`corporate-action-basis.ts` were one function that inverted the factor (`1 ÷ F`) before dividing;
+`decimal.js` division is only exact when it terminates, so a factor like 7, 3, 6 or 9 landed one
+unit of precision off (`700.00000000000000001`, not `700`) and wrongly refused an exact rebase.
+Split into two direction-explicit functions, each one exact multiplication and one exact division
+on the factor itself, never its inverse. `realized-operation.ts`'s later-fills branch was
+rebasing a realized fill's price as well as its quantity before handing it to the engine's own
+`score`; the engine's `computeOperationPnl` already rebases the fill's entry side itself
+(`fill.price − entryPrice×F`) against the fill's own recorded, live-session price, so rebasing the
+price a second time here scored a result `F` times too large. Only the quantity is normalized to
+nominal now; the recorded price passes through unchanged. And item 5's fallback above is narrower
+than it reads: an expired-worthless or dissolved leg's closing fill is now sized on the broker
+basis too (`leg.quantity ÷ F` over `(openedAt, expiry]`, the same window an option leg's own
+rebase caps at), with the nominal `leg.quantity` as a fallback only once that rebase itself
+dissolves the leg below one effective unit — `planSettlement`'s new `dissolvedTickers` names every
+leg the fallback applied to, rather than letting it pass as a confirmed broker count.
+
+Two notes, not code changes: a stale installed PWA sending `confirmSettlementAction` the
+pre-item-8 payload (no delivered `quantity` per choice) fails `settlementInputSchema`'s parse and
+gets back `invalid_input`, the same as any other malformed submission — never a silent settle
+against a quantity the server never checked. And `corporateActionsByUnderlying` (`portfolio-
+service.ts`) reads every factor ever ingested for a ticker with no `asOf` filter of its own, unlike
+the engine's own `view.corporateActions`, which the engine itself filters to
+`isAtOrBefore(f.asOf, at)` once handed a `MarketView`. This module never marks a point in the
+past with it — `groupFillsAction`, `confirmSettlementAction` and `loadPortfolio` all net and
+rebase fills against "every corporate action known right now," the real-time view ADR-0021 scopes
+this whole feature to (item 2: no broker connection, no historical replay) — so every factor in the
+table is already visible by the time any of these reads it; `asOf` only records when B3 disclosed
+the factor, not a window to filter by. A future backtest-style "portfolio as of a past date" would
+need the same `isAtOrBefore(f.asOf, at)` filter the engine already applies; this module does not
+do that today.
 
 ### Known follow-up
 
