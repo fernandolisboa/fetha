@@ -135,9 +135,10 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
   - `optionSeriesInWindow` (`loadMarketViewWithCalendarVersion`) and `optionSeriesForUnderlyingAt`
     (`buildOperationMarketView`) both switch to the epoch join. `optionChainForUnderlying`,
     `searchOptionSeries` and `optionSeriesDetail` (the closing chain, the Ctrl K palette, the series
-    page) keep reading `option_series` directly — they show the _current_ strike by design, the same
-    thing the registry already gives them, and multiplying their rows by epoch would only add noise
-    to a UI that has never shown history.
+    page) keep reading `option_series` directly for the strike they **display** — they show the
+    _current_ strike by design, the same thing the registry already gives them, and multiplying
+    their rows by epoch would only add noise to a UI that has never shown history. Matching a
+    day-price row to its listing cycle is a separate concern from display, amended by #274 below.
   - `optionChainTickerCap` (`DEFAULT_OPTION_CHAIN_TICKER_CAP`) now bounds distinct tickers, not
     rows: one series can contribute more than one epoch row, so a row-count cap would refuse a
     universe under the real ticker bound just because a handful of its series each split twice. A
@@ -149,19 +150,46 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
     `DEFAULT_OPTION_PRICE_ROW_CAP` already treats as safe for the heavier follow-on price query,
     which is untouched — `option_daily_prices` is not epoch-joined and its row volume does not
     change.
-  - `buildOperationMarketView`'s price/series match (`optionPricesByTicker`) already compares a
-    day-price row's strike against the _latest series row visible at `at`_ — now that "series row"
-    is the epoch visible at `at`, the match resolves correctly for any strike the backfill or a
-    writer has actually epoched: a pre-event price row matches the pre-event epoch, a post-event
-    one matches the post-event epoch. No change was needed to that comparison itself; it inherits
-    the residuals below (an unepoched strike, an append-only correction) the same as every other
-    loader.
-  - The IV index (`iv-index-compute.ts`) computes through `buildOperationMarketView`, so it reads
-    the strike of the epoch visible at its own session close with no change of its own; documented
-    here since the ticket called it out explicitly. (Amendment, #270, ADR-0013's 0.9.0 addendum: the
-    engine's own `computeImpliedVolatilityIndex` additionally resolves that strike through
-    `resolveOptionStrike` before using it, so an ex-date session with no new epoch yet still reads
-    the derived strike, not the latest visible epoch's raw one.)
+  - **Amended by #274.** The first cut of this ADR had `buildOperationMarketView`'s price/series
+    match (`optionPricesByTicker`) compare a day-price row's strike against the _latest epoch
+    visible at `at`_ only, and the chain's own fix compared it against the epoch visible at the
+    price row's own `as_of`. Both broke on the live writers' own tie: `ingest.ts` (`~419`/`~436`)
+    stamps the registry write and the COTAHIST write for one session with the same `trading.close`,
+    so on the session the two sources disagree the pre- and post-event epoch can share the exact
+    same `as_of` — a day-price row then depended on undefined SQL order among equal `as_of` values.
+    A second cut shared one membership rule (`buildStrikeEpochsByCycle`/`priceMatchesCycle`,
+    `option-repository.ts`: a day-price row belongs to a cycle when its strike is a member of _any_
+    visible strike epoch of that `(ticker, expiry, right)` cycle, not just the one the engine
+    resolves) between the chain and `buildOperationMarketView`; a correctness review caught that
+    this let `buildOperationMarketView` hand the engine a premium recorded under a strike different
+    from the one `resolveSeries`/`isEarlierOnExactTie` actually resolves for that session, with
+    nothing downstream to flag it — `resolveLegMarketPrice` only marks a price stale by session
+    mismatch, never by strike mismatch, so a disagreement session would silently feed the IV index
+    and operation pricing a premium under the wrong strike. The two call sites now follow different
+    rules, split by what consumes them:
+    - **`buildOperationMarketView` (engine-facing) matches strictly.** A day-price row is admitted
+      only when its own `expiry` and `strike` equal the series row `latestSeriesByTicker` resolves
+      at `at` — the same latest-visible epoch, `isEarlierOnExactTie` included — so the engine never
+      receives a premium recorded under a strike it is not actually pricing against. On the live
+      writers' tie session this excludes the old-strike price entirely rather than admitting it
+      against the wrong resolved strike; the IV index (`iv-index-compute.ts`, which reads through
+      `buildOperationMarketView`) then sees an incomplete bracket for that leg and skips the session
+      for that series rather than persisting a wrong point.
+    - **`optionChainForUnderlying` (display-only) keeps the membership rule**, since nothing
+      downstream prices against what the chain shows — it only informs what the user picks next.
+      `ChainSeries` carries the always-current registry strike in `strike` plus a `lastPriceStrike`,
+      set only when the matched price's own strike differs from it, so the picker
+      (`apps/web/src/modules/portfolio/builder/legs-table.tsx`) can label a pre-event trade instead
+      of silently implying it happened at today's strike or silently hiding it.
+    - A cycle whose strike never changed, or that reverted to an earlier strike (`A` → `B` → `A`),
+      resolves correctly under either rule: the live writers' `LEAST` fold (above) means a
+      recurring strike keeps its _earliest_ epoch row rather than gaining a duplicate.
+  - The IV index (`iv-index-compute.ts`) computes through `buildOperationMarketView`, so it
+    inherits the strict match above with no change of its own; documented here since the ticket
+    called it out explicitly. (Amendment, #270, ADR-0013's 0.9.0 addendum: the engine's own
+    `computeImpliedVolatilityIndex` additionally resolves that strike through `resolveOptionStrike`
+    before using it, so an ex-date session with no new epoch yet still reads the derived strike,
+    not the latest visible epoch's raw one.)
   - `mergeMarketViews` (`portfolio-view.ts`) already deduplicates `optionSeries` on
     `ticker|expiry|strike|asOf`, so several epochs per ticker across merged views collapse
     correctly with no change.

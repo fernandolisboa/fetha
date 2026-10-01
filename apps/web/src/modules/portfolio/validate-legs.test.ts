@@ -44,6 +44,7 @@ function chainSeries(overrides: Partial<ChainSeries> = {}): ChainSeries {
     expiry: "2099-01-16",
     style: "european",
     lastPrice: null,
+    lastPriceStrike: null,
     ...overrides,
   };
 }

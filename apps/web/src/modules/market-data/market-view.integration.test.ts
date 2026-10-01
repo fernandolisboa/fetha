@@ -2040,4 +2040,66 @@ describe("option strike epochs across a corporate action (ADR-0056)", () => {
     const priceAtD = viewAtD.optionPrices.find((price) => price.ticker === optionTicker);
     expect(priceAtD?.close).toBe("1.000000");
   });
+
+  it("(#274 round 2) does not admit a price row whose strike the engine will not resolve, even when the registry's new epoch shares the exact same as_of (live-writer tie)", async () => {
+    const db = getDb();
+    const underlying = uniqueTicker("BBT");
+    cleanupTickers.push(underlying);
+    const optionTicker = `${underlying}B310`;
+    cleanupOptionTickers.push(optionTicker);
+
+    const sessions = businessDays("2097-03-03", 12);
+    await seedSessions(sessions);
+    await seedUnderlyingCandles(underlying, sessions);
+
+    const tieSession = sessions[5] ?? "";
+    const expiry = sessions.at(-1) ?? "";
+    const firstSession = sessions[0] ?? "";
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "14.98000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    const tieAsOf = new Date(`${tieSession}T20:00:00.000Z`);
+    // `ingest.ts` stamps the registry write and the COTAHIST write for one
+    // session with the same `trading.close`: on the session the two sources
+    // disagree, the pre- and post-event epoch land on the exact same as_of.
+    // The engine resolves the lower strike on an exact tie
+    // (`isEarlierOnExactTie`) — 14.98, not 29.95 — so the 29.95 premium must
+    // never reach it: it was recorded under a strike the engine is not
+    // actually pricing against this session (round 1's membership rule let
+    // it through with no stale-price note to flag the mismatch).
+    await db.insert(optionSeriesStrikes).values([
+      { ticker: optionTicker, expiry, right: "call", strike: "29.95000000", asOf: tieAsOf },
+      { ticker: optionTicker, expiry, right: "call", strike: "14.98000000", asOf: tieAsOf },
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", tieSession);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: tieSession,
+      asOf: tieAsOf,
+      right: "call",
+      strike: "29.95000000",
+      expiry,
+      average: "2.000000",
+      close: "2.000000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const view = await buildOperationMarketView(
+      db,
+      tickerSchema.parse(underlying),
+      instantSchema.parse(`${tieSession}T20:00:00.000Z`),
+    );
+
+    expect(view.optionPrices.find((row) => row.ticker === optionTicker)).toBeUndefined();
+  });
 });

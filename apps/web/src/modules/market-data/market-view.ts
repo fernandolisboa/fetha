@@ -612,10 +612,16 @@ export async function buildOperationMarketView(
       ? []
       : await latestOptionPricesAt(db, optionTickers, atDate, calendarFloor);
 
-  // The latest visible price row per ticker, but only when its own
-  // expiry/strike still match that ticker's latest visible series: B3
-  // reuses option tickers across listing cycles (ADR-0017), so a price row
-  // from a previous cycle can outlive the cycle it priced.
+  // The latest visible price row per ticker, admitted only when its own
+  // expiry and strike match the series row the engine will actually resolve
+  // at `atDate` — the same latest-visible epoch `latestSeriesByTicker` picks
+  // above, `isEarlierOnExactTie` included (#274 round 2: a membership rule
+  // against *any* visible epoch was tried and reverted — it let the engine
+  // price a leg against a premium recorded under a strike it was not
+  // actually pricing against, with no stale-price note to flag it, since
+  // `resolveLegMarketPrice` only flags staleness by session, not by a
+  // strike mismatch). B3 reuses option tickers across listing cycles
+  // (ADR-0017), so the expiry check still matters on its own.
   const optionPricesByTicker = new Map<string, (typeof priceRows)[number]>();
   for (const row of priceRows) {
     const series = latestSeriesByTicker.get(row.ticker);

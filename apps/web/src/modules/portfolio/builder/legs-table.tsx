@@ -128,6 +128,9 @@ export function LegsTable({
                             >
                               {formatDecimal(decimalStringSchema.parse(series.lastPrice.value))} ·{" "}
                               {series.lastPrice.session}
+                              {series.lastPriceStrike
+                                ? ` · ${t.builder.legsTable.tradedAtStrike(formatDecimal(decimalStringSchema.parse(series.lastPriceStrike)))}`
+                                : null}
                             </span>
                           ) : (
                             <span className="ml-2 text-[11px]" style={{ color: "var(--faint)" }}>

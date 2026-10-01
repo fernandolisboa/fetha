@@ -4,7 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
-import { candles, macroPoints, optionDailyPrices, optionSeries, tradingSessions } from "./schema";
+import {
+  candles,
+  macroPoints,
+  optionDailyPrices,
+  optionSeries,
+  optionSeriesStrikes,
+  tradingSessions,
+} from "./schema";
 
 import { computeIvIndexForSession } from "./iv-index-compute";
 import { buildOperationMarketView } from "./market-view";
@@ -162,6 +169,9 @@ describe("computeIvIndexForSession", () => {
     const optionTickers = cleanupOptionTickers.splice(0);
     if (optionTickers.length > 0) {
       await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, optionTickers));
+      await db
+        .delete(optionSeriesStrikes)
+        .where(inArray(optionSeriesStrikes.ticker, optionTickers));
     }
     const sessionDates = cleanupSessionDates.splice(0);
     if (sessionDates.length > 0) {
@@ -399,6 +409,97 @@ describe("computeIvIndexForSession", () => {
       farOtmExpiry,
       "5.00000000",
       "45.000000",
+    );
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 0, pending: false });
+
+    const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
+    expect(points).toEqual([]);
+  });
+
+  it("skips a bracket leg whose price the live writers' same-session tie recorded under a strike the engine does not resolve (#274 round 2)", async () => {
+    const db = getDb();
+    const sessions = dailySessions(45);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[0] ?? "";
+    const expiryLower = sessions[20] ?? "";
+    const expiryUpper = sessions[40] ?? "";
+
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+      annualRate: "0.00000000",
+    });
+
+    const underlying = uniqueTicker("TIE");
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = `${underlying}CH`;
+    cleanupOptionTickers.push(tickerLower, tickerUpper);
+
+    // The registry's new epoch (14.98) and COTAHIST's old-strike price row
+    // (29.95) share the exact same as_of this session — `ingest.ts` stamps
+    // both writes with the session's own close, so a corporate-action
+    // session where the two sources disagree lands exactly here (ADR-0056's
+    // #274 amendment). The engine resolves the lower strike on an exact tie
+    // (`isEarlierOnExactTie`), so this leg's premium must never reach it:
+    // it was recorded under 29.95, not the 14.98 the engine prices against.
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${tickerLower}`,
+      ticker: tickerLower,
+      underlying,
+      right: "call",
+      strike: "14.98000000",
+      expiry: expiryLower,
+      style: "european",
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+    });
+    const tieAsOf = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    await db.insert(optionSeriesStrikes).values([
+      {
+        ticker: tickerLower,
+        expiry: expiryLower,
+        right: "call",
+        strike: "29.95000000",
+        asOf: tieAsOf,
+      },
+      {
+        ticker: tickerLower,
+        expiry: expiryLower,
+        right: "call",
+        strike: "14.98000000",
+        asOf: tieAsOf,
+      },
+    ]);
+    await ensureMonthlyPartition(db, "option_daily_prices", session0);
+    const oldStrikePremium = bsCall(50, 50, 20 / 252, 0.2).toFixed(6);
+    await db.insert(optionDailyPrices).values({
+      ticker: tickerLower,
+      session: session0,
+      asOf: tieAsOf,
+      right: "call",
+      strike: "29.95000000",
+      expiry: expiryLower,
+      average: oldStrikePremium,
+      close: oldStrikePremium,
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    await seedCallSeries(
+      underlying,
+      tickerUpper,
+      session0,
+      expiryUpper,
+      "50.00000000",
+      bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
     );
 
     const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);

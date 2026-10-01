@@ -2,7 +2,15 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
-import { candles, optionDailyPrices, optionSeries, tradingSessions } from "../schema";
+import { instrumentOptionSeriesSchema } from "../adapters/b3-instruments/schema";
+import { cotahistOptionRowSchema } from "../adapters/cotahist/schema";
+import {
+  candles,
+  optionDailyPrices,
+  optionSeries,
+  optionSeriesStrikes,
+  tradingSessions,
+} from "../schema";
 
 import { ensureMonthlyPartition } from "./partitions";
 import {
@@ -14,6 +22,8 @@ import {
   optionSeriesInWindow,
   searchOptionSeries,
   seriesKey,
+  upsertOptionDailyPrices,
+  upsertOptionSeries,
 } from "./option-repository";
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
@@ -66,6 +76,7 @@ describe("optionChainForUnderlying", () => {
     const priced = pricedTickers.splice(0);
     if (priced.length > 0) {
       await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, priced));
+      await db.delete(optionSeriesStrikes).where(inArray(optionSeriesStrikes.ticker, priced));
     }
     const dates = seededSessionDates.splice(0);
     if (dates.length > 0) {
@@ -259,6 +270,7 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toEqual({ value: "1.550000", session: tradedSession });
+    expect(series?.lastPriceStrike).toBeNull();
   });
 
   it("reports a listed but untraded series with no price", async () => {
@@ -338,6 +350,429 @@ describe("optionChainForUnderlying", () => {
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.lastPrice).toBeNull();
+  });
+});
+
+describe("optionChainForUnderlying price matching against strike epochs (#274, ADR-0056)", () => {
+  const cleanupTickers: string[] = [];
+
+  afterEach(async () => {
+    const db = getDb();
+    for (const ticker of cleanupTickers.splice(0)) {
+      await db.delete(optionSeries).where(eq(optionSeries.underlying, ticker));
+    }
+    const priced = pricedTickers.splice(0);
+    if (priced.length > 0) {
+      await db.delete(optionDailyPrices).where(inArray(optionDailyPrices.ticker, priced));
+      await db.delete(optionSeriesStrikes).where(inArray(optionSeriesStrikes.ticker, priced));
+    }
+    const dates = seededSessionDates.splice(0);
+    if (dates.length > 0) {
+      await db.delete(tradingSessions).where(inArray(tradingSessions.date, dates));
+    }
+  });
+
+  function seriesRow(fields: {
+    ticker: string;
+    isin: string;
+    underlying: string;
+    strike: string;
+    expiry: string;
+    asOf: string;
+  }) {
+    return instrumentOptionSeriesSchema.parse({
+      ticker: fields.ticker,
+      isin: fields.isin,
+      underlying: fields.underlying,
+      right: "call",
+      strike: fields.strike,
+      expiry: fields.expiry,
+      style: "european",
+      asOf: fields.asOf,
+    });
+  }
+
+  function priceRow(fields: {
+    ticker: string;
+    session: string;
+    strike: string;
+    expiry: string;
+    close: string;
+  }) {
+    return cotahistOptionRowSchema.parse({
+      kind: "option",
+      session: fields.session,
+      ticker: fields.ticker,
+      right: "call",
+      strike: fields.strike,
+      expiry: fields.expiry,
+      factor: "1.000000",
+      open: fields.close,
+      high: fields.close,
+      low: fields.close,
+      average: fields.close,
+      close: fields.close,
+      trades: 1,
+      tradedQuantity: 100,
+    });
+  }
+
+  it("(b) shows a strike-change session's last price one session later, after the registry has already moved the strike", async () => {
+    const underlying = uniqueTicker("CRP");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}B310`;
+    const isin = `ISIN-${optionTicker}`;
+    const sessions = businessDays("2099-08-02", 6);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const oldStrikeSession = sessions[1];
+    const strikeChangeSession = sessions[2];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !oldStrikeSession || !strikeChangeSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await upsertOptionSeries(db, new Date(`${firstSession}T13:00:00.000Z`), [
+      seriesRow({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        strike: "29.95000000",
+        expiry,
+        asOf: firstSession,
+      }),
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", oldStrikeSession);
+    pricedTickers.push(optionTicker);
+    await upsertOptionDailyPrices(
+      db,
+      oldStrikeSession,
+      new Date(`${oldStrikeSession}T20:00:00.000Z`),
+      [
+        priceRow({
+          ticker: optionTicker,
+          session: oldStrikeSession,
+          strike: "29.95000000",
+          expiry,
+          close: "2.000000",
+        }),
+      ],
+    );
+
+    // The registry adjusts the strike for the corporate action one session
+    // later, with no new COTAHIST price row ingested for that ticker yet:
+    // the latest visible price row still carries the pre-event strike.
+    await upsertOptionSeries(db, new Date(`${strikeChangeSession}T13:00:00.000Z`), [
+      seriesRow({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        strike: "14.98000000",
+        expiry,
+        asOf: strikeChangeSession,
+      }),
+    ]);
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.strike).toBe("14.98000000");
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: oldStrikeSession });
+    expect(series?.lastPriceStrike).toBe("29.95000000");
+  });
+
+  it("(a) shows a price row's own strike even when the registry's new epoch for the same session shares the exact same as_of (live-writer tie)", async () => {
+    const underlying = uniqueTicker("TIE");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}B310`;
+    const sessions = businessDays("2099-09-02", 6);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const tieSession = sessions[1];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !tieSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying,
+      right: "call",
+      strike: "14.98000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    const tieAsOf = new Date(`${tieSession}T20:00:00.000Z`);
+    pricedTickers.push(optionTicker);
+    // `ingest.ts` stamps the registry write and the COTAHIST write for one
+    // session with the same `trading.close`: on the session the two sources
+    // disagree, the pre- and post-event epoch land on the exact same as_of.
+    await db.insert(optionSeriesStrikes).values([
+      { ticker: optionTicker, expiry, right: "call", strike: "29.95000000", asOf: tieAsOf },
+      { ticker: optionTicker, expiry, right: "call", strike: "14.98000000", asOf: tieAsOf },
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", tieSession);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: tieSession,
+      asOf: tieAsOf,
+      right: "call",
+      strike: "29.95000000",
+      expiry,
+      average: "2.000000",
+      close: "2.000000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(series?.strike).toBe("14.98000000");
+    expect(series?.lastPriceStrike).toBe("29.95000000");
+  });
+
+  it("(d) matches whichever of two same-as_of epochs a price row's own strike carries, independent of row order", async () => {
+    const underlying = uniqueTicker("ORD");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const oldTicker = `${underlying}C10`;
+    const newTicker = `${underlying}D20`;
+    const sessions = businessDays("2099-09-16", 6);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const tieSession = sessions[1];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !tieSession || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${oldTicker}`,
+        ticker: oldTicker,
+        underlying,
+        right: "call",
+        strike: "29.95000000",
+        expiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+      {
+        isin: `ISIN-${newTicker}`,
+        ticker: newTicker,
+        underlying,
+        right: "call",
+        strike: "14.98000000",
+        expiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+    ]);
+    const tieAsOf = new Date(`${tieSession}T20:00:00.000Z`);
+    pricedTickers.push(oldTicker, newTicker);
+    for (const ticker of [oldTicker, newTicker]) {
+      await db.insert(optionSeriesStrikes).values([
+        { ticker, expiry, right: "call", strike: "29.95000000", asOf: tieAsOf },
+        { ticker, expiry, right: "call", strike: "14.98000000", asOf: tieAsOf },
+      ]);
+    }
+
+    await ensureMonthlyPartition(db, "option_daily_prices", tieSession);
+    await db.insert(optionDailyPrices).values([
+      {
+        ticker: oldTicker,
+        session: tieSession,
+        asOf: tieAsOf,
+        right: "call",
+        strike: "29.95000000",
+        expiry,
+        average: "2.000000",
+        close: "2.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+      {
+        ticker: newTicker,
+        session: tieSession,
+        asOf: tieAsOf,
+        right: "call",
+        strike: "14.98000000",
+        expiry,
+        average: "1.000000",
+        close: "1.000000",
+        trades: 1,
+        tradedQuantity: 100,
+      },
+    ]);
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const oldSeries = chain.find((candidate) => candidate.ticker === oldTicker);
+    const newSeries = chain.find((candidate) => candidate.ticker === newTicker);
+    expect(oldSeries?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(oldSeries?.lastPriceStrike).toBeNull();
+    expect(newSeries?.lastPrice).toEqual({ value: "1.000000", session: tieSession });
+    expect(newSeries?.lastPriceStrike).toBeNull();
+  });
+
+  it("(c) excludes a price row from a previous listing cycle even though its strike coincides with the current cycle's", async () => {
+    const underlying = uniqueTicker("STL");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}E10`;
+    const sessions = businessDays("2099-10-05", 10);
+    const currentSession = sessions[sessions.length - 1];
+    const firstSession = sessions[0];
+    const oldSession = sessions[1];
+    const oldExpiry = sessions[2];
+    const newExpiry = sessions[sessions.length - 1];
+    if (!currentSession || !firstSession || !oldSession || !oldExpiry || !newExpiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    // Both cycles carry the same numeric strike on purpose: only the expiry
+    // mismatch must exclude the old cycle's price, not a strike difference.
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${optionTicker}-OLD`,
+        ticker: optionTicker,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry: oldExpiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+      {
+        isin: `ISIN-${optionTicker}-NEW`,
+        ticker: optionTicker,
+        underlying,
+        right: "call",
+        strike: "10.00000000",
+        expiry: newExpiry,
+        style: "european",
+        asOf: new Date(`${firstSession}T13:00:00.000Z`),
+      },
+    ]);
+
+    await ensureMonthlyPartition(db, "option_daily_prices", oldSession);
+    pricedTickers.push(optionTicker);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: oldSession,
+      asOf: new Date(`${oldSession}T20:00:00.000Z`),
+      right: "call",
+      strike: "10.00000000",
+      expiry: oldExpiry,
+      average: "0.500000",
+      close: "0.500000",
+      trades: 1,
+      tradedQuantity: 100,
+    });
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.strike).toBe("10.00000000");
+    expect(series?.expiry).toBe(newExpiry);
+    expect(series?.lastPrice).toBeNull();
+  });
+
+  it("(e) still matches a price row at a strike the cycle later returned to (A to B to A, epoch as_of only moves backward via LEAST)", async () => {
+    const underlying = uniqueTicker("REC");
+    cleanupTickers.push(underlying);
+    const db = getDb();
+    const optionTicker = `${underlying}F10`;
+    const isin = `ISIN-${optionTicker}`;
+    const sessions = businessDays("2099-10-19", 8);
+    const currentSession = sessions[sessions.length - 1];
+    const sessionA = sessions[0];
+    const sessionB = sessions[2];
+    const sessionBackToA = sessions[4];
+    const expiry = sessions[sessions.length - 1];
+    if (!currentSession || !sessionA || !sessionB || !sessionBackToA || !expiry) {
+      throw new Error("fixture setup failed");
+    }
+    await seedSessions(sessions);
+
+    await upsertOptionSeries(db, new Date(`${sessionA}T13:00:00.000Z`), [
+      seriesRow({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        strike: "10.00000000",
+        expiry,
+        asOf: sessionA,
+      }),
+    ]);
+    await ensureMonthlyPartition(db, "option_daily_prices", sessionA);
+    pricedTickers.push(optionTicker);
+    await upsertOptionDailyPrices(db, sessionA, new Date(`${sessionA}T20:00:00.000Z`), [
+      priceRow({
+        ticker: optionTicker,
+        session: sessionA,
+        strike: "10.00000000",
+        expiry,
+        close: "2.000000",
+      }),
+    ]);
+
+    await upsertOptionSeries(db, new Date(`${sessionB}T13:00:00.000Z`), [
+      seriesRow({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        strike: "20.00000000",
+        expiry,
+        asOf: sessionB,
+      }),
+    ]);
+
+    // Reverts to the original strike: the conflict target already carries
+    // strike 10.00 from `sessionA`, so `LEAST` must keep that earlier as_of,
+    // not move it forward to this later write.
+    await upsertOptionSeries(db, new Date(`${sessionBackToA}T13:00:00.000Z`), [
+      seriesRow({
+        ticker: optionTicker,
+        isin,
+        underlying,
+        strike: "10.00000000",
+        expiry,
+        asOf: sessionBackToA,
+      }),
+    ]);
+
+    const epochs = await db
+      .select()
+      .from(optionSeriesStrikes)
+      .where(eq(optionSeriesStrikes.ticker, optionTicker));
+    expect(epochs).toHaveLength(2);
+    const epochA = epochs.find((epoch) => epoch.strike === "10.00000000");
+    expect(epochA?.asOf).toEqual(new Date(`${sessionA}T13:00:00.000Z`));
+
+    const at = new Date(`${currentSession}T14:00:00.000Z`);
+    const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
+
+    const series = chain.find((candidate) => candidate.ticker === optionTicker);
+    expect(series?.strike).toBe("10.00000000");
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: sessionA });
+    expect(series?.lastPriceStrike).toBeNull();
   });
 });
 
