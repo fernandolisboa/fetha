@@ -165,6 +165,7 @@ const legSettlementSchema = z.strictObject({
   outcome: z.enum(["kept", "exercised", "assigned", "expired_worthless"]),
   intrinsicValue: decimalStringSchema.nullable(),
   fills: z.array(fillSchema),
+  residualValue: centavosSchema,
 });
 
 const simulatedOperationSchema = z
