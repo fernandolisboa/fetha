@@ -39,7 +39,7 @@ export type OperationPlan =
 export function planOperation(
   fills: readonly LedgerFill[],
   series: SeriesByHolding,
-  corporateActions: readonly CorporateActionFactor[] = [],
+  corporateActionsByUnderlying: ReadonlyMap<string, readonly CorporateActionFactor[]> = new Map(),
 ): OperationPlan {
   if (fills.length === 0) {
     return { ok: false, reason: "empty" };
@@ -78,7 +78,11 @@ export function planOperation(
   // the operation's own `openedAt` basis before it is netted into legs, so a fill entered
   // post-split nets correctly against one entered pre-split; the engine's own forward rebase
   // (ADR-0014 Q51) then reproduces the real, current quantity from that nominal basis.
-  const normalized = normalizeFillsForOperationBasis(fills, openedAt, corporateActions);
+  const normalized = normalizeFillsForOperationBasis(
+    fills,
+    openedAt,
+    corporateActionsByUnderlying.get(underlying) ?? [],
+  );
   const legs =
     operationLegs(normalized.fills, (holding) =>
       holding.expiry

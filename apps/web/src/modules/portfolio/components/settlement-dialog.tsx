@@ -34,6 +34,7 @@ export interface SettlementLegView {
   role: "stock" | "call" | "put";
   side: "buy" | "sell";
   quantity: number;
+  price: DecimalString | null;
   strike: DecimalString | null;
   intrinsicValue: DecimalString | null;
   proposed: OptionOutcome | "kept";
@@ -68,7 +69,7 @@ export function SettlementDialog({
         leg.ticker,
         {
           outcome: leg.proposed as OptionOutcome,
-          price: leg.strike ? formatDecimal(leg.strike) : "",
+          price: leg.price ? formatDecimal(leg.price) : leg.strike ? formatDecimal(leg.strike) : "",
           costs: "",
         },
       ]),
@@ -96,6 +97,9 @@ export function SettlementDialog({
           outcome: choices[leg.ticker]?.outcome ?? "expired_worthless",
           price: choices[leg.ticker]?.price ?? "",
           costs: choices[leg.ticker]?.costs ?? "",
+          // #271 review round 1 item 8: the delivered quantity this dialog showed, so the server
+          // can refuse rather than settle against a figure a factor ingested since render.
+          quantity: leg.quantity,
         })),
       })
         .then((result) => {

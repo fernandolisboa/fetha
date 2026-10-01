@@ -15,20 +15,31 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
-  corporateActionFactorsForUnderlying,
   latestCandle,
   optionSeriesForFills,
   seriesKey,
   tradingSessionForDate,
 } from "@/modules/market-data";
 
+import { holdingKey, type LedgerFill } from "./bookkeeping";
 import { parseNegotiationRows, type SkipReason } from "./b3-import/parse-negotiation";
 import { readFirstSheet } from "./b3-import/read-xlsx";
-import { planOperation } from "./operation-plan";
+import { planOperation, type SeriesByHolding } from "./operation-plan";
 import { parsePriceInput } from "./parse-price";
 import { PortfolioRepository, type NewFill } from "./portfolio-repository";
-import { hasExpired, proposeSettlementFor, seriesByHolding } from "./portfolio-service";
+import {
+  corporateActionsByUnderlying,
+  hasExpired,
+  proposeSettlementFor,
+  seriesByHolding,
+} from "./portfolio-service";
 import { planSettlement, type LegChoice } from "./settlement-plan";
+
+function underlyingOfFill(fill: LedgerFill, series: SeriesByHolding): string | null {
+  return fill.assetClass === "stock"
+    ? fill.ticker
+    : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
+}
 
 // ADR-0021 item 7: a year of B3 trades is a few dozen kilobytes.
 const MAX_IMPORT_BYTES = 1024 * 1024;
@@ -267,9 +278,17 @@ export async function groupFillsAction(input: unknown): Promise<PortfolioActionR
     }
     const db = getDb();
     const repository = new PortfolioRepository(db, user);
-    const series = await seriesByHolding(db, await repository.listFills());
+    const ownFills = await repository.listFills();
+    const series = await seriesByHolding(db, ownFills);
+    // #271 review round 1 item 4: every path that nets fills into legs resolves its
+    // corporate-action factors the same way; a new grouping does not know its underlying until
+    // `planOperation` itself resolves it, so the whole map is batched up front.
+    const corporateActions = await corporateActionsByUnderlying(
+      db,
+      ownFills.map((fill) => underlyingOfFill(fill, series)),
+    );
     const result = await repository.group(parsed.data.operationId, parsed.data.fillIds, (fills) => {
-      const plan = planOperation(fills, series);
+      const plan = planOperation(fills, series, corporateActions);
       if (!plan.ok) {
         return plan;
       }
@@ -310,6 +329,9 @@ const settlementInputSchema = z.strictObject({
         outcome: z.enum(["exercised", "assigned", "expired_worthless"]),
         price: z.string(),
         costs: z.string(),
+        // #271 review round 1 item 8: the delivered quantity the dialog showed, checked against
+        // what the server recomputes before settling.
+        quantity: z.int().positive(),
       }),
     )
     .max(8),
@@ -352,7 +374,7 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
     const [series, corporateActions] = await Promise.all([
       seriesByHolding(db, operationFills),
-      corporateActionFactorsForUnderlying(db, operation.underlying),
+      corporateActionsByUnderlying(db, [operation.underlying]),
     ]);
     const plan = planOperation(operationFills, series, corporateActions);
     const expiry = plan.ok ? plan.state.expiry : null;
@@ -362,6 +384,20 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     const proposal = await proposeSettlementFor(db, operation.id, plan.state, expiry);
     if (!proposal || !(await hasExpired(db, expiry, nowInstant()))) {
       return { status: "error" as const, error: "no_proposal" as const };
+    }
+    // #271 review round 1 item 8: refuse rather than settle against a quantity the dialog showed
+    // before a corporate action was ingested between render and confirm.
+    const deliveredQuantityByTicker = new Map(
+      parsed.data.choices.map((choice) => [choice.ticker, choice.quantity]),
+    );
+    const quantityMismatch = proposal.legs.some((settlement) => {
+      const seen = deliveredQuantityByTicker.get(settlement.leg.ticker);
+      if (seen === undefined) return false;
+      const expected = settlement.fills[0]?.quantity ?? settlement.leg.quantity;
+      return seen !== expected;
+    });
+    if (quantityMismatch) {
+      return { status: "error" as const, error: "conflict" as const };
     }
     const settlement = planSettlement(operation.underlying, expiry, proposal.legs, choices);
     if (!settlement.ok) {

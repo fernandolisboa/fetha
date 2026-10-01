@@ -63,6 +63,10 @@ describe("splitFactorProduct", () => {
   });
 });
 
+function holdingKeyOf(fill: LedgerFill): string {
+  return `${fill.ticker}|${fill.expiry ?? ""}`;
+}
+
 describe("normalizeFillsForOperationBasis (#271)", () => {
   it("leaves every fill unchanged with no corporate actions", () => {
     const fills = [fill({ session: "2026-09-01" })];
@@ -141,30 +145,75 @@ describe("normalizeFillsForOperationBasis (#271)", () => {
     const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
     expect(result).toEqual({ fills, skipped: true });
   });
+
+  it("refuses the whole group, not just the offending fill, on a non-positive factor (review round 1 item 7)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const fills = [
+      fill({ session: "2026-09-01", quantity: 100 }),
+      fill({ session: "2026-09-15", quantity: 100 }),
+    ];
+    const factors = [split("2026-09-10", "0")];
+    const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
+    expect(result).toEqual({ fills, skipped: true });
+  });
+
+  it("refuses a rebase that lands outside Quantity's bounds (review round 1 item 7)", () => {
+    const openedAt = "2026-09-01" as SessionDate;
+    const fills = [fill({ session: "2026-09-15", quantity: 2 })];
+    // 2 ÷ 0.000001 = 2,000,000, past MAX_QUANTITY (1,000,000).
+    const factors = [split("2026-09-10", "0.000001")];
+    const result = normalizeFillsForOperationBasis(fills, openedAt, factors);
+    expect(result).toEqual({ fills, skipped: true });
+  });
 });
 
-describe("normalizeFillsForHoldingsBasis (#271)", () => {
-  it("normalizes each (ticker, expiry) holding against its own earliest fill's session", () => {
+describe("normalizeFillsForHoldingsBasis (#271, forward to asOf per review round 1 item 3)", () => {
+  it("normalizes a pre-split and a post-split fill forward to today's basis, not back to the earliest session", () => {
+    // 100 @ 30 pre-split, 100 @ 15 post-split (2-for-1, factor 0.5): the broker shows 300 shares
+    // at an average of 15 today, never 150 @ 30 (de-rebasing to a pre-split basis fabricates a
+    // loss since markToMarket never forward-rebases a bare Position of its own).
     const preSplit = fill({
       ticker: "PETR4",
       session: "2026-09-01",
-      quantity: 50,
-      price: "20" as DecimalString,
+      quantity: 100,
+      price: "30" as DecimalString,
     });
     const postSplit = fill({
       ticker: "PETR4",
       session: "2026-09-15",
       quantity: 100,
-      price: "10" as DecimalString,
+      price: "15" as DecimalString,
     });
+    const asOf = "2026-10-01" as SessionDate;
     const factors = new Map([["PETR4", [split("2026-09-10", "0.5")]]]);
-    const result = normalizeFillsForHoldingsBasis([preSplit, postSplit], () => "PETR4", factors);
-    expect(result).toEqual([preSplit, { ...postSplit, quantity: 50, price: "20.00000000" }]);
+    const result = normalizeFillsForHoldingsBasis(
+      [preSplit, postSplit],
+      asOf,
+      () => "PETR4",
+      factors,
+    );
+    expect(result.skippedHoldingKeys.size).toBe(0);
+    expect(result.fills).toEqual([{ ...preSplit, quantity: 200, price: "15.00000000" }, postSplit]);
   });
 
   it("does not rebase a holding whose underlying is unresolved", () => {
     const unresolved = fill({ ticker: "PETRJ320", session: "2026-09-01" });
-    const result = normalizeFillsForHoldingsBasis([unresolved], () => null, new Map());
-    expect(result).toEqual([unresolved]);
+    const result = normalizeFillsForHoldingsBasis(
+      [unresolved],
+      "2026-10-01",
+      () => null,
+      new Map(),
+    );
+    expect(result).toEqual({ fills: [unresolved], skippedHoldingKeys: new Set() });
+  });
+
+  it("surfaces the holding's own key when its forward rebase is refused", () => {
+    const first = fill({ ticker: "PETR4", session: "2026-09-01", quantity: 2 });
+    const fills = [first, fill({ ticker: "PETR4", session: "2026-09-15", quantity: 101 })];
+    // A 3-for-2 bonus: factor 2/3 does not evenly divide 101 shares forward.
+    const factors = new Map([["PETR4", [split("2026-09-10", "1.5")]]]);
+    const result = normalizeFillsForHoldingsBasis(fills, "2026-10-01", () => "PETR4", factors);
+    expect(result.fills).toEqual(fills);
+    expect(result.skippedHoldingKeys).toEqual(new Set([holdingKeyOf(first)]));
   });
 });

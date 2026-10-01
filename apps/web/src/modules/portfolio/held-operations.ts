@@ -13,7 +13,7 @@ import { corporateActionFactorsForUnderlying, tradingSessionForDate } from "@/mo
 import { holdingKey } from "./bookkeeping";
 import { heldExpiry, planOperation, type OperationPlan } from "./operation-plan";
 import { PortfolioRepository, type FillRecord } from "./portfolio-repository";
-import { hasExpired, seriesByHolding } from "./portfolio-service";
+import { corporateActionsByUnderlying, hasExpired, seriesByHolding } from "./portfolio-service";
 import { realizedOperation, type RealizedOperationResult } from "./realized-operation";
 
 export interface HeldOperation {
@@ -67,22 +67,17 @@ async function planMyOpenOperations(
   );
   const [series, corporateActions] = await Promise.all([
     seriesByHolding(db, [...fillsById.values()].flat()),
-    (async () => {
-      const tickers = [
-        ...new Set([...openIds].map((id) => underlyingById.get(id)).filter(Boolean)),
-      ];
-      const lists = await Promise.all(
-        tickers.map((ticker) => corporateActionFactorsForUnderlying(db, ticker as string)),
-      );
-      return new Map(tickers.map((ticker, index) => [ticker, lists[index] ?? []]));
-    })(),
+    corporateActionsByUnderlying(
+      db,
+      [...openIds].map((id) => underlyingById.get(id)),
+    ),
   ]);
   return new Map(
     [...fillsById].map(([id, own]) => [
       id,
       {
         fillIds: own.map((fill) => fill.id),
-        plan: planOperation(own, series, corporateActions.get(underlyingById.get(id) ?? "") ?? []),
+        plan: planOperation(own, series, corporateActions),
       },
     ]),
   );
@@ -154,7 +149,10 @@ export async function heldOperationForScoring(
     return { ok: false, reason: "operation_not_found" };
   }
   const operationFills = fills.filter((fill) => fill.operationId === operation.id);
-  const series = await seriesByHolding(db, operationFills);
+  const [series, corporateActions] = await Promise.all([
+    seriesByHolding(db, operationFills),
+    corporateActionFactorsForUnderlying(db, operation.underlying),
+  ]);
   const decisionDate = todaySaoPauloDate(new Date(request.decidedAt));
   const closes = new Map<SessionDate, Instant>();
   await Promise.all(
@@ -181,5 +179,6 @@ export async function heldOperationForScoring(
     closeOf: (session) => closes.get(session) ?? null,
     rightOf: (ticker, expiry) =>
       expiry ? (series.get(holdingKey(ticker, expiry))?.right ?? null) : null,
+    corporateActions,
   });
 }

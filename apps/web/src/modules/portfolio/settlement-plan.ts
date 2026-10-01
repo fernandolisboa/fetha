@@ -77,25 +77,30 @@ export function planSettlement(
     ) {
       return { ok: false, reason: "invalid_choice" };
     }
-    // The closing fill nets the ledger's own internal, nominal-basis tracking of this series to
-    // zero (ADR-0021 item 2: a fill is the only stored fact); `leg.quantity` is always on that
-    // same basis, regardless of any corporate-action factor.
+    // #271 review round 1 item 6: every stored fill is read back on the assumption that it is
+    // recorded "as the broker showed it on its own date" (ADR-0021 item 1); writing this closing
+    // fill at the nominal `leg.quantity` would be inverse-rebased a second time the next time
+    // normalization reads it back, whenever a split fell between `openedAt` and expiry. It is
+    // written at the engine's own rebased quantity instead, the same quantity the stock delivery
+    // fill below uses, so normalization nets both to zero. A leg with no fill (expired worthless,
+    // or dissolved below one effective unit) has no broker-basis count to use and falls back to
+    // the nominal leg — no corporate action changes what a fill that never happened is worth.
+    const stockQuantity = settlement.fills[0]?.quantity;
     fills.push({
       ticker: leg.ticker,
       assetClass: "option",
       side: opposite(leg.side),
-      quantity: leg.quantity,
+      quantity: stockQuantity ?? leg.quantity,
       price: ZERO_PRICE,
       session: expiry,
       costsCentavos: 0,
       expiry,
     });
-    // #271: the real, immediate stock delivery is sized at the engine's own rebased exercise
-    // fill, never the leg's nominal quantity — B3 delivers the effective (post-split) count.
-    // A factor that dissolved this leg below one effective unit leaves no fill to carry over
+    // The real, immediate stock delivery is sized at the engine's own rebased exercise fill,
+    // never the leg's nominal quantity — B3 delivers the effective (post-split) count. A factor
+    // that dissolved this leg below one effective unit leaves no fill to carry over
     // (`settlement.fills` is empty); its residual value is cash-settled by the engine
     // (`residualValue`), not yet wired into a confirmed fill here (follow-up).
-    const stockQuantity = settlement.fills[0]?.quantity;
     if (choice.outcome !== "expired_worthless" && stockQuantity !== undefined) {
       fills.push({
         ticker: underlying,

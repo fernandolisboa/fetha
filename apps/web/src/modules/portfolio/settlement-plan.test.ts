@@ -67,8 +67,19 @@ describe("planSettlement (#271)", () => {
     const stockFill = result.fills.find((fill) => fill.assetClass === "stock");
     expect(stockFill?.quantity).toBe(2);
     const optionFill = result.fills.find((fill) => fill.assetClass === "option");
-    // The closing option fill stays on the ledger's own nominal basis (1), not the rebased
-    // delivery count: it only nets the internal ledger tracking to zero.
+    // #271 review round 1 item 6: the closing option fill is sized at the same rebased quantity,
+    // not the leg's nominal 1 — every stored fill is read back on the "broker's own basis"
+    // assumption (ADR-0021 item 1), so writing it at the nominal count would be inverse-rebased a
+    // second time the next time normalization reads it.
+    expect(optionFill?.quantity).toBe(2);
+  });
+
+  it("closes an expired-worthless or fully-dissolved leg at its nominal quantity (no broker-basis count to use)", () => {
+    const proposal = [exercisedLeg({ fills: [], residualValue: -560 as never })];
+    const result = planSettlement(underlying, expiry, proposal, [choice()]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
     expect(optionFill?.quantity).toBe(1);
   });
 

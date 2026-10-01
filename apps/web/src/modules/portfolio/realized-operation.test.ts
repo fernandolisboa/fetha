@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
-import type { Fill, Operation } from "@fetha/engine";
+import type { CorporateActionFactor, Fill, Operation } from "@fetha/engine";
 
 import {
   realizedOperation,
@@ -50,7 +50,17 @@ function input(overrides: Partial<RealizedOperationInput>): RealizedOperationInp
     horizonDate: "2026-10-16",
     closeOf,
     rightOf: (ticker) => (ticker === PUT ? "put" : ticker === CALL ? "call" : null),
+    corporateActions: [],
     ...overrides,
+  };
+}
+
+function split(exDate: string, factor: string): CorporateActionFactor {
+  return {
+    ticker: "PETR4",
+    exDate: exDate,
+    asOf: `${exDate}T13:00:00.000Z` as never,
+    factor: factor as DecimalString,
   };
 }
 
@@ -77,6 +87,44 @@ describe("realizedOperation", () => {
     expect(operation.expiry).toBeNull();
     expect(operation.openedAt).toBe("2026-09-01");
     expect(realizedFills).toEqual([]);
+  });
+
+  it("#271 review round 1 item 6: normalizes a pre-split and a post-split held fill onto one basis before netting", () => {
+    const preSplit = fill({
+      session: "2026-09-01",
+      quantity: 100,
+      price: "62" as DecimalString,
+    });
+    const postSplit = fill({
+      session: "2026-09-08",
+      quantity: 100,
+      price: "31" as DecimalString,
+    });
+    const { operation } = expectOk(
+      realizedOperation(
+        input({
+          fills: [preSplit, postSplit],
+          heldFillIds: new Set([preSplit.id, postSplit.id]),
+          corporateActions: [split("2026-09-05", "0.5")],
+        }),
+      ),
+    );
+    expect(operation.legs).toEqual([
+      { role: "stock", side: "buy", ticker: "PETR4", quantity: 150, entryPrice: "62.000000" },
+    ]);
+  });
+
+  it("#271 review round 1 item 6: refuses rather than guess on a non-integer rebase", () => {
+    const preSplit = fill({ session: "2026-09-01", quantity: 101, price: "62" as DecimalString });
+    const postSplit = fill({ session: "2026-09-08", quantity: 100, price: "31" as DecimalString });
+    const result = realizedOperation(
+      input({
+        fills: [preSplit, postSplit],
+        heldFillIds: new Set([preSplit.id, postSplit.id]),
+        corporateActions: [split("2026-09-05", "0.6666666667")],
+      }),
+    );
+    expect(result).toEqual({ ok: false, reason: "corporate_action_normalization_skipped" });
   });
 
   it("turns a later closing fill into a realized fill at its session close", () => {

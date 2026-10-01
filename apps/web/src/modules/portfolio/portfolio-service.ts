@@ -58,6 +58,9 @@ export interface PositionRow {
   series: SeriesFacts | null;
   valuation: PortfolioValuation["positions"][number] | null;
   fairValue: LegValuation["fairValue"];
+  // #271 review round 1 item 3: this holding's forward rebase to today's basis was refused (a
+  // non-integer or non-positive factor); the figures above are shown exactly as recorded.
+  corporateActionNormalizationSkipped: boolean;
 }
 
 export interface PendingSettlement {
@@ -163,19 +166,24 @@ export async function hasExpired(db: Database, expiry: SessionDate, at: Instant)
 function stateOf(
   fills: readonly LedgerFill[],
   series: SeriesByHolding,
-  corporateActions: readonly CorporateActionFactor[],
+  corporateActionsByUnderlying: ReadonlyMap<string, readonly CorporateActionFactor[]>,
 ): OperationState | null {
-  const plan = planOperation(fills, series, corporateActions);
+  const plan = planOperation(fills, series, corporateActionsByUnderlying);
   return plan.ok ? plan.state : null;
 }
 
-// One batched lookup per distinct underlying (#271): every operation's own fills are normalized
-// against its own underlying's factors before the engine ever sees them.
-async function corporateActionsByUnderlying(
+function isDefined<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
+// One batched lookup per distinct underlying (#271), shared by every path that nets fills into
+// legs or holdings (held-operations.ts's own open-operation plans included) so none of them
+// resolves a corporate action's factors a second, possibly inconsistent way.
+export async function corporateActionsByUnderlying(
   db: Database,
-  underlyings: Iterable<string>,
+  underlyings: Iterable<string | null | undefined>,
 ): Promise<Map<string, CorporateActionFactor[]>> {
-  const tickers = [...new Set(underlyings)];
+  const tickers = [...new Set([...underlyings].filter(isDefined))];
   const lists = await Promise.all(
     tickers.map((ticker) => corporateActionFactorsForUnderlying(db, ticker)),
   );
@@ -264,16 +272,19 @@ export async function loadPortfolio(
       : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
   const corporateActions = await corporateActionsByUnderlying(db, [
     ...operations.map((operation) => operation.underlying),
-    ...fills.flatMap((fill) => {
-      const underlying = underlyingOfFill(fill);
-      return underlying ? [underlying] : [];
-    }),
+    ...fills.map(underlyingOfFill),
   ]);
-  // #271: a bare position (never grouped into an operation) has no shared `openedAt` to rebase
-  // against; each (ticker, expiry) holding is normalized against its own earliest fill's session
-  // instead (`normalizeFillsForHoldingsBasis`), so a pre-split holding and a post-split fill of
-  // the same series combine correctly below.
-  const normalizedFills = normalizeFillsForHoldingsBasis(fills, underlyingOfFill, corporateActions);
+  // #271 review round 1 item 3: a bare position (never grouped into an operation) has no
+  // Operation for the engine to forward-rebase at mark time, so each (ticker, expiry) holding is
+  // rebased forward to today's basis here instead (`normalizeFillsForHoldingsBasis`) — a pre-split
+  // holding combines with a post-split fill of the same series at the real, current quantity.
+  const asOf = todaySaoPauloDate(new Date(at));
+  const { fills: normalizedFills, skippedHoldingKeys } = normalizeFillsForHoldingsBasis(
+    fills,
+    asOf,
+    underlyingOfFill,
+    corporateActions,
+  );
   const expired = await expiredBy(
     db,
     [
@@ -320,9 +331,7 @@ export async function loadPortfolio(
   for (const operation of operations) {
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
     const state =
-      operation.status === "open"
-        ? stateOf(operationFills, series, corporateActions.get(operation.underlying) ?? [])
-        : null;
+      operation.status === "open" ? stateOf(operationFills, series, corporateActions) : null;
     stateById.set(operation.id, state);
     if (!state) {
       continue;
@@ -411,6 +420,9 @@ export async function loadPortfolio(
       valuation:
         valued?.positions.find((entry) => entry.position.ticker === holding.ticker) ?? null,
       fairValue: fairValues.get(holding.ticker) ?? null,
+      corporateActionNormalizationSkipped: skippedHoldingKeys.has(
+        holdingKey(holding.ticker, holding.expiry),
+      ),
     })),
     unknownSeries,
     expiredHoldings,

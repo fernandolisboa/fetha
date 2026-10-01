@@ -178,30 +178,64 @@ contracts`); a factor that does not evenly divide a particular fill's quantity (
    is set so a caller can surface it. This is the conservative option named in "Considered
    options" below; a future ticket may instead let the user confirm a hand override for this one
    remaining case.
-3. **Bare positions normalize independently of operations.** A stock or option holding never
-   grouped into an operation (ADR item 5's `Position[]`) has no operation to share an `openedAt`
-   with: `normalizeFillsForHoldingsBasis` groups fills by `(ticker, expiry)` and normalizes each
-   group against its own earliest fill's session. Average cost is computed from the same
-   normalized fills, so it is consistent with the normalized quantity.
+3. **Bare positions normalize forward to today, not backward to their own earliest fill.** A stock
+   or option holding never grouped into an operation (ADR item 5's `Position[]`) has no operation
+   for the engine to forward-rebase at mark time — `markToMarket` takes `Position.quantity` and
+   `averageCost` as given, with no corporate-action awareness of its own, unlike an `Operation`'s
+   legs (which the engine itself rebases forward from `openedAt` on every read). Rebasing a bare
+   holding's fills backward to their own earliest session, the way an operation's fills are
+   rebased backward to its `openedAt`, would therefore leave the holding on a stale, pre-split
+   basis forever — fabricating a loss (review round 1 caught this with a concrete case: 100 @ 30
+   pre-split plus 100 @ 15 post-split under a 2-for-1 split must read 300 shares at an average of
+   15, the real position today, not 150 @ 30). `normalizeFillsForHoldingsBasis` instead rebases
+   each `(ticker, expiry)` group's fills forward, straight to the mark date: quantity ÷ factor,
+   price × factor, factor over `(fill.session, asOf]` — the per-fill formula is identical to an
+   operation's own backward rebase, only the direction and the shared point (a target instead of
+   an origin) differ. Average cost is computed from the same normalized fills.
 4. **`proposeSettlement`'s exercise/assignment fill is rebased the same way the backtester already
    does.** The floor-to-whole-shares-and-cash-settle-the-residue logic the backtester's own expiry
    handling used inline is now the shared `rebaseExerciseFillUnits` (`packages/engine/src/
-internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBacktest`. Every
-   `LegSettlement` gains a `residualValue: Centavos` (signed: positive for a sale, negative for a
-   purchase) carrying the cash value of a fractional effective unit that can never actually trade;
-   zero for a factor that divides evenly (including the ordinary factor-of-1 case) and for a
-   `kept` stock leg. This is a backward-compatible, additive change to a type outside the engine's
-   method surface (ADR-0013's frozen interface guards the five computation entry points, not every
-   field of every artifact they return); `ENGINE_VERSION` is unchanged because the change does not
-   alter any existing backtest's computed values (confirmed by the updated golden fixtures, which
-   differ only by the new, always-zero `residualValue` field for every case they cover).
-5. **The confirmed settlement's stock fill is sized at the engine's own rebased quantity.**
+internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBacktest`. See
+   ADR-0013's `LegSettlement.residualValue` addendum for the field's semantics and the
+   `ENGINE_VERSION` bump it required.
+5. **The confirmed settlement's fills are sized at the engine's own rebased quantity.**
    `settlement-plan.ts`'s `planSettlement` now reads the real delivery quantity from
-   `LegSettlement.fills[0].quantity` (the engine's already-rebased count) rather than the leg's
-   nominal `quantity`. The closing fill for the option series itself stays at the nominal quantity
-   — it only nets the ledger's own internal, nominal-basis tracking of that series to zero
-   (ADR item 2: a fill is the only stored fact), never a quantity a broker statement needs to
-   reconcile against.
+   `LegSettlement.fills[0].quantity` (the engine's already-rebased count) for both the stock
+   delivery and the option-closing fill (review round 1: the closing fill at the nominal
+   `leg.quantity` was itself a latent bug — every stored fill is read back on the assumption that
+   it is "recorded as the broker showed it on its own date" [item 1], so a closing fill written at
+   the nominal count rather than the broker-basis count at expiry would be inverse-rebased a
+   second time the next time normalization reads it back, whenever a split fell between
+   `openedAt` and expiry). A leg with no fill (expired worthless, or dissolved below one effective
+   unit) still closes at the leg's nominal quantity — no corporate action changes what a fill that
+   never happened is worth.
+6. **Every path that nets fills into legs shares one basis.** `groupFillsAction` (forming a new
+   operation, or adding fills to one) now resolves corporate-action factors the same way
+   `confirmSettlementAction`, `loadPortfolio` and the held-operation planner already do, via the
+   one shared `corporateActionsByUnderlying` (`portfolio-service.ts`); `planOperation` takes the
+   whole map (keyed by underlying) rather than one caller-resolved array, since a new grouping
+   does not know its operation's underlying until `planOperation` itself resolves it.
+7. **Scoring a held operation is normalized too.** `realized-operation.ts`'s `realizedOperation`
+   now takes `corporateActions` and routes every fill — held and later — through
+   `normalizeFillsForOperationBasis` before netting, the same seam every other path uses; a
+   rebase it refuses is a new `RealizedOperationRefusal`, `corporate_action_normalization_skipped`,
+   never a silently wrong score. Closes the gap this ADR previously disclosed as a known
+   follow-up.
+
+### Review round 1
+
+Four more findings, fixed in the same change: bare holdings were de-rebasing backward instead of
+normalizing forward (item 3, the `30`/`15` example above); `groupFillsAction` was the one path that
+planned an operation without its corporate-action factors (item 6); the confirmed settlement's
+option-closing fill and the settlement dialog's default price and shown quantity were still reading
+the nominal leg instead of the engine's own rebased fill (item 5, and `settlement-dialog.tsx`'s
+`SettlementLegView.price`/`quantity`, now sourced from `settlement.fills[0]`); and a non-positive or
+out-of-bounds factor in `corporate-action-basis.ts` was previously treated the same as "no rebase
+needed" for that one fill instead of refusing its whole group (now guarded by `quantitySchema` and
+a `BasisFactorResult` check in both normalization directions). `confirmSettlementAction` also now
+checks the delivered quantity the user's dialog showed against what it recomputes server-side,
+refusing a mismatch (a factor ingested between render and confirm) rather than settling against
+stale figures.
 
 ### Known follow-up
 
@@ -210,9 +244,6 @@ internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBackt
   `planSettlement` drops the stock delivery for that leg entirely rather than fabricate one. A
   dedicated cash-adjustment fill is a follow-up once a real case surfaces (B3 factors that do not
   evenly divide a share count are uncommon).
-- Scoring a held operation (`realized-operation.ts`, ADR-0022) still builds its legs directly from
-  raw fills, not through this normalization seam; a held operation that straddles a corporate
-  action can still misprice its own decision score. Out of scope for #271; tracked as a follow-up.
 
 ## Considered options
 
