@@ -37,6 +37,7 @@ import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
 import { invalidInput } from "./errors";
 import { assertPresent, invariant } from "./invariant";
 import { isAfter, isAtOrBefore } from "./instant";
+import type { ResolvedMarketPrice } from "./option-pricing";
 import { resolveOptionStrike } from "./option-strike";
 import { computePayoffProfile, type PricedLeg } from "./price-operation";
 import type { ProvenanceBase } from "./provenance";
@@ -141,6 +142,29 @@ function legSplitFactor(
     (f) => f.ticker === underlying && isAtOrBefore(f.asOf, at),
   );
   return splitFactorProduct(factors, openedAt, through);
+}
+
+// Issue #273's same gap, in this file's own horizon-mark path (`markLegsToHorizon`,
+// `settlementPnl`'s "kept" branch): `resolveLegMarketPrice`'s `stale` flag names the session a
+// carried-forward mark actually traded on, which can predate a corporate-action ex-date the
+// leg's own `effectiveEntry`/`effectiveQuantity` above already rebase across. The raw `mark`
+// would then sit on a scale `effectiveQuantity` no longer shares, the same off-by-the-factor bug
+// `runBacktest`'s `lastKnownLegPrice` had. Rescale by the factor product over
+// `(stale.session, through]`, the same window and the same shared `splitFactorProduct` (via
+// `legSplitFactor`) `runBacktest` uses, never a second way to measure it. A fresh mark (not
+// stale) is returned as-is.
+function rescaleStaleMark(
+  view: MarketView,
+  underlying: string,
+  resolved: ResolvedMarketPrice,
+  through: SessionDate,
+  at: Instant,
+): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
+  const mark = parseDecimal(resolved.value);
+  if (!resolved.stale) return { ok: true, value: mark };
+  const factorResult = legSplitFactor(view, underlying, resolved.stale.session, through, at);
+  if (!factorResult.ok) return factorResult;
+  return { ok: true, value: mark.mul(factorResult.value) };
 }
 
 function dummyValuation(leg: OperationLeg): LegValuation {
@@ -408,7 +432,9 @@ function settlementPnl(
       }
       /* v8 ignore stop */
       if (resolved.stale) notes.push(staleMarkNote(leg.ticker, resolved.stale.session));
-      const mark = parseDecimal(resolved.value);
+      const rescaled = rescaleStaleMark(view, underlying, resolved, through, horizonSession.close);
+      if (!rescaled.ok) return rescaled;
+      const mark = rescaled.value;
       pnl = pnl.add(
         mark.sub(effectiveEntry).mul(sign(leg.side)).mul(CENTAVOS_PER_REAL).mul(effectiveQuantity),
       );
@@ -611,8 +637,16 @@ function markLegsToHorizon(
       return { ok: false, error: noMarketPriceError(leg.ticker, kind, horizonSession) };
     }
     if (resolved.stale) notes.push(staleMarkNote(leg.ticker, resolved.stale.session));
+    const rescaled = rescaleStaleMark(
+      view,
+      underlying,
+      resolved,
+      horizonSession.date,
+      horizonSession.close,
+    );
+    if (!rescaled.ok) return rescaled;
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
-    const mark = parseDecimal(resolved.value);
+    const mark = rescaled.value;
     pnl = pnl.add(
       mark
         .sub(effectiveEntry)

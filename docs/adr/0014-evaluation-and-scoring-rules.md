@@ -65,7 +65,9 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
 - **Mark to market of an untraded series (Q42).** When an option series has no trade in the
   session being valued, its mark is the last traded price, flagged `stale` with the session of
   that trade, and the model fair value is reported alongside on the same leg. Totals use the
-  stale mark; the UI shows both.
+  stale mark; the UI shows both. In `runBacktest`, a stale mark whose session predates a visible
+  corporate-action ex-date is rescaled by the factor(s) since its own session before use — see
+  the #273 amendment under Q51.
 - **Single expiry per structure (Q43; sharpens ADR-0008).** Every leg of a structure shares one
   expiry; the `Structure` schema encodes it (`expiry: "shared"`). Calendars and diagonals are out
   of the v1 catalog. Payoff is therefore always computed at that one expiry; a payoff surface for
@@ -173,6 +175,31 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
     covered call). See the ADR-0013 `0.8.0` addendum for the shared `resolveOptionStrike` helper
     and its two notes, `option_strike_derived_across_corporate_action` and
     `option_strike_unadjusted_across_corporate_action`.
+  - **Amended by #273 (ADR-0013 addendum, `ENGINE_VERSION` `0.9.0`): a stale mark rescales across
+    the corporate action it predates, and so does a pending settlement's residual.** `F` above
+    already rebases a held leg's own `quantity`/`entryPrice`; it says nothing about the _mark_
+    `runBacktest` reads to value or close that leg, which Q42 lets carry forward from an earlier,
+    untraded session. When that carried-forward session falls before a visible ex-date and the
+    mark session falls at or after it, the mark sits on a scale the already-rebased `quantity` no
+    longer shares. `lastKnownLegPrice` (`computeMarkValue`, `closePeriodEnd`) now rescales such a
+    mark by the factor product over `(row.session, markSession]` — the same `corporateActionFactorThrough`
+    window shape as `F` itself, just anchored at the stale row's own session instead of the
+    operation's `openedAt` — before any quantity multiplies it, kept at full `decimal.js`
+    precision rather than rounded to `PRICE_SCALE` first (a round-then-multiply order would
+    manufacture or drop P&L the unrounded multiplication never would). A pending settlement's own
+    residual stock (built at the expiry session's scale, held until a later fill or the period-end
+    sweep closes it) rebases the same two ways: its quantity and average cost by the factor
+    product over `(expirySession, closeSession]`, floored to a whole share for the real residual
+    fill with the fractional remainder cash-settled immediately (mirroring the stock-leg exit
+    residue Q51 already specifies), and its own mark through the identical stale-mark rescale. One
+    run-wide note, `stale_price_across_corporate_action` (`STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE`,
+    reusing the code `option-pricing.ts`'s IV-suppression note already uses for the same
+    underlying situation, with its own message), is rolled onto `BacktestRun.notes` the first time
+    any leg or residual is actually rescaled. `score.ts`'s own horizon mark (`markLegsToHorizon`,
+    `settlementPnl`'s `"kept"` branch) had the identical gap — `resolveLegMarketPrice`'s `stale`
+    flag already named the carried-forward session, but the mark itself was never rescaled against
+    it — and is fixed the same way, sharing `legSplitFactor` rather than inventing a second
+    calculation.
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same
@@ -201,7 +228,9 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   - _P&L of a taken operation_ (enter, hold, adjust, exit) runs from the legs' entry prices to the
     horizon close, net of entry costs from the stored cost model, the same fill-cost model the
     counterfactual uses. Quantity closed by `realizedFills` realizes at the fill price net of its
-    costs; the rest is marked at the horizon close with Q42's stale mark and Q51's split factors.
+    costs; the rest is marked at the horizon close with Q42's stale mark and Q51's split factors —
+    amended by #273: the stale mark itself is rescaled by the factor(s) since its own session, the
+    same gap and the same fix as `runBacktest`'s own mark, since `score.ts` had it too.
     Option legs whose expiry is on or before the horizon are valued at intrinsic value at the
     expiry close, as `proposeSettlement` would settle them. A leg with no visible price is
     `insufficient_data`, never a silent zero. Income tax is not modeled in a score on either path:

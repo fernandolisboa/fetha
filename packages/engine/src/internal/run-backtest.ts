@@ -50,6 +50,7 @@ import {
   PRICE_SCALE,
   RATIO_SCALE,
   toDecimalString,
+  toDecimalStringAtLeastScale,
 } from "./decimal";
 import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
@@ -399,8 +400,8 @@ type KnownPrice = { price: DecimalString; session: SessionDate };
 // exist because a fill found a candle for it on or before this same session in an
 // uninterrupted run — but a resumed run's view can legitimately lack that history if the
 // caller didn't carry it over, so both callers turn a null into insufficient_data. The row's own
-// session is exposed alongside its price so a caller (lastKnownLegPrice) can tell a genuinely
-// stale mark from a fresh one, rather than only the price itself.
+// session is exposed alongside its price so a caller (lastKnownRescaledPrice) can tell a
+// genuinely stale mark from a fresh one, rather than only the price itself.
 function lastKnownCloseRow(
   candlesByTicker: Map<Ticker, SessionRows<Candle>>,
   ticker: Ticker,
@@ -409,15 +410,6 @@ function lastKnownCloseRow(
 ): KnownPrice | null {
   const row = lastKnownRow(candlesByTicker.get(ticker), uptoSession, visibleAt);
   return row ? { price: row.close, session: row.session } : null;
-}
-
-function lastKnownClose(
-  candlesByTicker: Map<Ticker, SessionRows<Candle>>,
-  ticker: Ticker,
-  uptoSession: SessionDate,
-  visibleAt: Instant,
-): DecimalString | null {
-  return lastKnownCloseRow(candlesByTicker, ticker, uptoSession, visibleAt)?.price ?? null;
 }
 
 // The option-leg mirror of lastKnownCloseRow (ADR-0014 Q42, a stale mark carried forward from
@@ -695,31 +687,51 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return result.value;
   }
 
-  // A leg's own current mark: a stock leg reads the underlying's last known close, an
-  // option leg its own series' last known day price (ADR-0014 Q42). Every mark — the daily
-  // equity mark, the period-end sweep and a settlement's own residual valuation — reads the
-  // same instant (I1). Issue #273: a stale row — one whose own session predates `uptoSession` —
-  // sits on whatever price scale its own session had, which a corporate action ex-dated since
-  // then has already moved the leg's effective quantity away from (`corporateActionFactorThrough`,
-  // keyed by `operation.underlying` the same way every other leg rebase above is). Rescaling by
-  // that same factor keeps the mark on the scale `effectiveQuantity` expects; a fresh row (its own
-  // session already `uptoSession`) is never stale by definition and skips this.
+  // A leg's or a pending settlement residual's own current mark: a stock reads the underlying's
+  // last known close, an option leg its own series' last known day price (ADR-0014 Q42). The
+  // daily equity mark, the period-end sweep and a settlement's own residual valuation each call
+  // this, every one of them at the same reading instant (I1). Issue #273: a stale row — one
+  // whose own session predates `uptoSession` — sits on whatever price scale its own session had,
+  // which a corporate action ex-dated since then has already moved the held quantity away from
+  // (`corporateActionFactorThrough`, keyed by the operation's own underlying the same way every
+  // other leg rebase in this file is). Rescaling by that same factor keeps the mark on the scale
+  // the caller's own effective quantity expects; a fresh row (its own session already
+  // `uptoSession`) is never stale by definition and skips this. The rescaled value is kept at
+  // full decimal.js precision (`toDecimalStringAtLeastScale`, never rounded to `PRICE_SCALE`
+  // here): rounding before the caller multiplies by its own effective quantity would manufacture
+  // or drop P&L the unrounded multiplication never would (correctness round 1, #273 follow-up).
+  function lastKnownRescaledPrice(
+    role: "stock" | "option",
+    ticker: Ticker,
+    underlying: Ticker,
+    uptoSession: SessionDate,
+    visibleAt: Instant,
+  ): DecimalString | null {
+    const known =
+      role === "stock"
+        ? lastKnownCloseRow(candlesByTicker, ticker, uptoSession, visibleAt)
+        : lastKnownOptionPriceRow(optionPricesByTicker, ticker, uptoSession, visibleAt);
+    if (known === null) return null;
+    if (known.session === uptoSession) return known.price;
+    const rescale = corporateActionFactorThrough(underlying, known.session, uptoSession, visibleAt);
+    if (rescale.eq(1)) return known.price;
+    state.stalePriceRescaledAcrossCorporateActionNoted = true;
+    return toDecimalStringAtLeastScale(parseDecimal(known.price).mul(rescale), PRICE_SCALE);
+  }
+
   function lastKnownLegPrice(
     leg: Leg,
     underlying: Ticker,
     uptoSession: SessionDate,
     visibleAt: Instant,
   ): DecimalString | null {
-    const known =
-      leg.role === "stock"
-        ? lastKnownCloseRow(candlesByTicker, leg.ticker, uptoSession, visibleAt)
-        : lastKnownOptionPriceRow(optionPricesByTicker, leg.ticker, uptoSession, visibleAt);
-    if (known === null) return null;
-    if (known.session === uptoSession) return known.price;
-    const rescale = corporateActionFactorThrough(underlying, known.session, uptoSession, visibleAt);
-    if (rescale.eq(1)) return known.price;
-    state.stalePriceRescaledAcrossCorporateActionNoted = true;
-    return toDecimalString(parseDecimal(known.price).mul(rescale), PRICE_SCALE);
+    return lastKnownRescaledPrice(
+      leg.role === "stock" ? "stock" : "option",
+      leg.ticker,
+      underlying,
+      uptoSession,
+      visibleAt,
+    );
   }
 
   const cdiByAsOf = view.macro.filter((m) => m.series === "cdi");
@@ -1120,32 +1132,68 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // session's own open (ADR-0013 "Settlement in a run"). Retried indefinitely like a
   // pending exit (ADR-0014 Q52's hygiene-first reading extends naturally here) until the
   // period-end sweep marks it instead.
-  function resolvePendingSettlementResidualFills(session: TradingSession): void {
+  //
+  // `pending.residualQuantity`/`residualAvgCostCentavos` are frozen at the expiry session's own
+  // scale (ADR-0013 "Settlement in a run" built them from that session's fills): like any other
+  // held position this file rebases (Q51), a split ex-dated between expiry and this later fill
+  // session moves them, same direction as `legPnlCentavos` (cost ×factor, quantity ÷factor). The
+  // real trade can only execute a whole number of shares, so the rebased quantity floors toward
+  // zero the same way an exercised/assigned leg's own fill does, with the fractional residue
+  // cash-settled immediately at this same fill's price (mirroring `resolvePendingExitFills`); the
+  // pnl below still uses the full unrounded rebased quantity, not the floored trade count.
+  function resolvePendingSettlementResidualFills(session: TradingSession): Result<void> {
     for (const [opId, pending] of Object.entries(state.pendingSettlements)) {
       const candle = candleFor(candlesByTicker, pending.op.underlying, session.date, session.close);
       if (!candle || candle.tradedQuantity <= 0) continue;
-      const side: "buy" | "sell" = pending.residualQuantity > 0 ? "sell" : "buy";
-      const q = toQuantity(Math.abs(pending.residualQuantity));
-      const costs = fillCosts(config.costModel, candle.open, q, "stock");
-      const gross = grossCentavos(candle.open, q).round().toNumber();
-      state.cash += (side === "sell" ? 1 : -1) * gross - costs;
-      if (side === "sell") state.currentMonthStockSales += gross;
-      state.fills.push({
-        ticker: pending.op.underlying,
-        side,
-        quantity: q,
-        price: candle.open,
-        session: session.date,
-        at: session.open,
-        costs,
-        operationId: opId,
-        source: "next_session_open",
-      });
+      const residualFactor = corporateActionFactorThrough(
+        pending.op.underlying,
+        pending.expirySession,
+        session.date,
+        session.close,
+      );
+      const rawEffectiveResidual = new Decimal(pending.residualQuantity).div(residualFactor);
+      const effectiveUnits = rawEffectiveResidual.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
+      if (effectiveUnits !== 0 && !Number.isSafeInteger(effectiveUnits)) {
+        return invalidInput(
+          "view.corporateActions",
+          `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
+        );
+      }
+      const residue = rawEffectiveResidual.sub(effectiveUnits);
+      const effectiveAvgCostCentavos = new Decimal(pending.residualAvgCostCentavos).mul(
+        residualFactor,
+      );
+
+      let costs = toCentavos(0);
+      if (effectiveUnits !== 0) {
+        const side: "buy" | "sell" = effectiveUnits > 0 ? "sell" : "buy";
+        const q = toQuantity(Math.abs(effectiveUnits));
+        costs = fillCosts(config.costModel, candle.open, q, "stock");
+        const gross = grossCentavos(candle.open, q).round().toNumber();
+        state.cash += (side === "sell" ? 1 : -1) * gross - costs;
+        if (side === "sell") state.currentMonthStockSales += gross;
+        state.fills.push({
+          ticker: pending.op.underlying,
+          side,
+          quantity: q,
+          price: candle.open,
+          session: session.date,
+          at: session.open,
+          costs,
+          operationId: opId,
+          source: "next_session_open",
+        });
+      }
+      if (!residue.isZero()) {
+        const residueGross = grossCentavos(candle.open, residue.abs()).round().toNumber();
+        state.cash += (residue.isPositive() ? 1 : -1) * residueGross;
+        if (residue.isPositive()) state.currentMonthStockSales += residueGross;
+      }
       const residualPnl = parseDecimal(candle.open)
-        .sub(new Decimal(pending.residualAvgCostCentavos).div(CENTAVOS_PER_REAL))
-        .mul(pending.residualQuantity > 0 ? 1 : -1)
+        .sub(effectiveAvgCostCentavos.div(CENTAVOS_PER_REAL))
+        .mul(rawEffectiveResidual.isNeg() ? -1 : 1)
         .mul(CENTAVOS_PER_REAL)
-        .mul(Math.abs(pending.residualQuantity))
+        .mul(rawEffectiveResidual.abs())
         .sub(costs)
         .add(pending.pnlSoFar)
         .round()
@@ -1158,6 +1206,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       finalizeSettlement(pending, residualPnl, pending.expirySession, "trade");
       Reflect.deleteProperty(state.pendingSettlements, opId);
     }
+    return { ok: true, value: undefined };
   }
 
   // Step 1d: settle every open operation reaching its own expiry this session (ADR-0013
@@ -1486,8 +1535,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     let hasPendingSettlementResidual = false;
     for (const pending of Object.values(state.pendingSettlements)) {
       hasPendingSettlementResidual = true;
-      const markPriceOrNull = lastKnownClose(
-        candlesByTicker,
+      const markPriceOrNull = lastKnownRescaledPrice(
+        "stock",
+        pending.op.underlying,
         pending.op.underlying,
         session.date,
         session.close,
@@ -1500,7 +1550,16 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           session.close,
         );
       }
-      markValue += grossCentavos(markPriceOrNull, pending.residualQuantity).round().toNumber();
+      // The residual itself, like the pending-settlement fill above, is frozen at the expiry
+      // session's scale and rebases the same way (Q51) for a split ex-dated since then.
+      const residualFactor = corporateActionFactorThrough(
+        pending.op.underlying,
+        pending.expirySession,
+        session.date,
+        session.close,
+      );
+      const effectiveResidualQuantity = new Decimal(pending.residualQuantity).div(residualFactor);
+      markValue += grossCentavos(markPriceOrNull, effectiveResidualQuantity).round().toNumber();
     }
     return { ok: true, value: { markValue, hasPendingSettlementResidual } };
   }
@@ -1615,13 +1674,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // is marked at this same close instead, under the period_end rule (ADR-0013
     // "Settlement in a run").
     for (const [opId, pending] of Object.entries(state.pendingSettlements)) {
-      const markPrice = lastKnownClose(
-        candlesByTicker,
+      const markPrice = lastKnownRescaledPrice(
+        "stock",
+        pending.op.underlying,
         pending.op.underlying,
         session.date,
         session.close,
       );
-      // lastKnownClose only requires a candle at or before this session; the settlement
+      // lastKnownRescaledPrice only requires a candle at or before this session; the settlement
       // that produced this pending residual already found one, on or before its own
       // (earlier or equal) expiry session, so this same lookup at this later session can
       // never come back empty — the earlier candle stays "last known" forever after.
@@ -1635,11 +1695,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         );
       }
       /* v8 ignore stop */
+      // Frozen at the expiry session's scale, like the pending-settlement fill and mark above;
+      // rebases the same way (Q51) for a split ex-dated since then.
+      const residualFactor = corporateActionFactorThrough(
+        pending.op.underlying,
+        pending.expirySession,
+        session.date,
+        session.close,
+      );
+      const effectiveResidualQuantity = new Decimal(pending.residualQuantity).div(residualFactor);
+      const effectiveResidualAvgCostCentavos = new Decimal(pending.residualAvgCostCentavos).mul(
+        residualFactor,
+      );
       const residualPnl = parseDecimal(markPrice)
-        .sub(new Decimal(pending.residualAvgCostCentavos).div(CENTAVOS_PER_REAL))
-        .mul(pending.residualQuantity > 0 ? 1 : -1)
+        .sub(effectiveResidualAvgCostCentavos.div(CENTAVOS_PER_REAL))
+        .mul(effectiveResidualQuantity.isNeg() ? -1 : 1)
         .mul(CENTAVOS_PER_REAL)
-        .mul(Math.abs(pending.residualQuantity))
+        .mul(effectiveResidualQuantity.abs())
         .add(pending.pnlSoFar)
         .round()
         .toNumber();
@@ -1772,7 +1844,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const failedEntryTickers = entryFillsResult.value;
     const exitFillsResult = resolvePendingExitFills(session);
     if (!exitFillsResult.ok) return { ok: false, error: exitFillsResult.error };
-    resolvePendingSettlementResidualFills(session);
+    const residualFillsResult = resolvePendingSettlementResidualFills(session);
+    if (!residualFillsResult.ok) return { ok: false, error: residualFillsResult.error };
     deductPendingTax(monthKey, i);
 
     const expiringResult = resolveExpiringOperations(session);

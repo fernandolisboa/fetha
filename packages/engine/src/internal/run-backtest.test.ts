@@ -1201,6 +1201,73 @@ describe("runBacktest — corporate actions across an open position", () => {
       expect.objectContaining({ code: "stale_price_across_corporate_action" }),
     );
   });
+
+  it("rescales an odd-centavo stale close exactly, never rounding the mark before the quantity multiplies it (#273)", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [split],
+      candles: [
+        // Sizing reads this session's own close (the signal session, Q38): floor(10 000.00 ×
+        // 0.5 / 10.00) = 500 shares, filled the next session at that session's own open, 10.05.
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        // No candle on the ex-date session (2024-01-04): the period-end mark reads this same
+        // stale 10.05 close.
+        candle("PETR4", "2024-01-03", "10.05", "10.05"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    expect(result.value.run.fills[0]).toMatchObject({
+      quantity: quantity(500),
+      price: decimalString("10.05"),
+    });
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    // Rescaled mark: 10.05 × 0.5 = 5.025 exactly. effectiveEntryPrice: 10.05 (the fill's own
+    // entry price) × 0.5 = 5.025 exactly too — the same price, the same factor, so the price
+    // diff is exactly zero and pnl is exactly the entry's own costs (500 × 10.05 = 5 025.00
+    // gross; b3Fee 251.25 → 251 centavos + 100 brokerage = 351). Rounding the rescaled mark to
+    // PRICE_SCALE first (10.05 × 0.5 → "5.03", ROUND_HALF_UP) would manufacture a 0.005/share
+    // phantom gain over 1 000 effective shares — 500 centavos — landing pnl at +149 instead of
+    // -351.
+    expect(op.pnl).toBe(centavos(-351));
+  });
+
+  it("rescales a mark exactly under a non-terminating split factor, no rounding drift against the identically-rebased entry (#273)", () => {
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const repeatingFactor: CorporateActionFactor = { ...split, factor: decimalString("0.333333") };
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [repeatingFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        // No candle on the ex-date session: the period-end mark reads the stale 10.00 close,
+        // the same value and the same session the entry's own rebase starts from.
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete")
+      throw new Error("expected a complete run");
+    const op = result.value.run.operations[0];
+    expect(op?.status).toBe("closed");
+    if (op?.status !== "closed") throw new Error("expected a closed operation");
+    // The rescaled mark (10.00 × 0.333333) and legPnlCentavos's own effectiveEntryPrice
+    // (10.00 × 0.333333) are the identical product of the identical stale session's price and
+    // the identical factor: exactly equal, however many decimal places the multiplication
+    // carries, so the price diff is exactly zero and pnl is exactly the entry's own costs
+    // (500 × 10.00 = 5 000.00 gross; 250 b3Fee + 100 brokerage = 350).
+    expect(op.pnl).toBe(centavos(-350));
+  });
 });
 
 describe("runBacktest — corporate actions on entry fills", () => {
@@ -3160,6 +3227,187 @@ describe("runBacktest — option structures (#23)", () => {
     const finalCash = run.equityCurve.at(-1)?.cash;
     if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
     expect(totalPnl).toBe(finalCash - config.initialCapital);
+  });
+
+  it("rebases a pending settlement's residual by a split ex-dated the session it is closed on (#273): the residual fill, its pnl and stockGain all land on the post-split scale", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const residualCloseSession = days[11] as string;
+    const split: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: residualCloseSession,
+      asOf: `${residualCloseSession}T13:00:00.000Z`,
+      factor: decimalString("0.5"),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      // A tiny initial capital against a ~R$1.00 premium buys exactly one contract.
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [split],
+      // ITM at expiry (20.00 > strike 5.00): the bare long call, no stock leg to net
+      // against, leaves its whole exercised quantity as a pending residual (ADR-0013
+      // "Settlement in a run"), closed the next session at that session's own open — the
+      // same session the split's own ex-date falls on.
+      candles: days.map((d, i) => {
+        if (d === residualCloseSession) return candle("PETR4", d, "12.00", "12.00");
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    // The exercise buys 1 share at the 5.00 strike (effective quantity 1, factor still 1 at
+    // expiry); the residual (1 share long, avg cost 500 centavos/share) closes the next
+    // session, rebased by the 0.5 factor ex-dated exactly there: effective quantity 1 / 0.5 =
+    // 2, effective avg cost 500 × 0.5 = 250 centavos/share.
+    const residualFill = run.fills.find(
+      (f) => f.operationId === op.id && f.session === residualCloseSession,
+    );
+    expect(residualFill).toMatchObject({
+      side: "sell",
+      quantity: quantity(2),
+      price: decimalString("12.00"),
+      source: "next_session_open",
+    });
+    // residual pnl = (12.00 − 2.50) × 100 × 2 = 1 900; sell costs (gross 2 400, b3Fee 1 +
+    // brokerage 100) = 101; pnlSoFar (entry premium −100, settlement costs −100) = −200.
+    // op.pnl = 1 900 − 101 − 200 = 1 599. An unrebased residual (the pre-fix bug: 1 share at
+    // the raw 500-centavo avg cost) would instead read (12.00 − 5.00) × 100 × 1 − 101 − 200 =
+    // 399 — off by exactly the factor this fix applies.
+    expect(op.pnl).toBe(centavos(1599));
+    const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
+    const finalCash = run.equityCurve.at(-1)?.cash;
+    if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
+    expect(totalPnl).toBe(finalCash - config.initialCapital);
+  });
+
+  it("cash-settles a fractional residue left by a non-whole-reciprocal factor on a pending settlement's residual, instead of rounding it away", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const residualCloseSession = days[11] as string;
+    const groupingFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: residualCloseSession,
+      asOf: `${residualCloseSession}T13:00:00.000Z`,
+      factor: decimalString("0.6666666667"),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [groupingFactor],
+      candles: days.map((d, i) => {
+        if (d === residualCloseSession) return candle("PETR4", d, "12.00", "12.00");
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    // 1 / 0.6666666667 ≈ 1.499999999925 effective shares: 1 whole share trades, the
+    // ≈0.5-share residue is cash-settled at the same session's open rather than rounded away
+    // or dropped.
+    const residualFill = run.fills.find(
+      (f) => f.operationId === op.id && f.session === residualCloseSession,
+    );
+    expect(residualFill).toMatchObject({ side: "sell", quantity: quantity(1) });
+    expect(op.pnl).toBe(centavos(999));
+    const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
+    const finalCash = run.equityCurve.at(-1)?.cash;
+    if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
+    expect(totalPnl).toBe(finalCash - config.initialCapital);
+  });
+
+  it("returns invalid_input, never throwing, when a split factor blows a pending settlement residual's effective unit count past a safe integer", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const residualCloseSession = days[11] as string;
+    const microFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: residualCloseSession,
+      asOf: `${residualCloseSession}T13:00:00.000Z`,
+      factor: decimalString("0.0000000000000001"),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [microFactor],
+      candles: days.map((d, i) => {
+        if (d === residualCloseSession) return candle("PETR4", d, "12.00", "12.00");
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 
   const bullCallSpread: Structure = {
