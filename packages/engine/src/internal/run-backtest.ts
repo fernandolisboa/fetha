@@ -1804,9 +1804,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           finalizeMissedEntry(signal.ticker, signal.at, "no_trades");
           continue;
         }
-        // Rolled up only once the proposal is actually accepted into a pending entry, never for
-        // one `finalizeMissedEntry` above just refused: a rejected proposal's strike adjustment
-        // never prices anything the run's own notes should speak for (issue #269).
+        // Rolled up here, on acceptance into a pending entry (queued into state.pendingEntries
+        // right below) — not on an actual fill, which `resolvePendingEntryFills` only resolves a
+        // session later. A limit-breached proposal never reaches this line at all (refused above,
+        // before ever being priced into anything the run goes on to hold), but a proposal that
+        // does clear that gate still rolls its note up here even if it is queued, retried and
+        // finally abandoned (`finalizeMissedEntry("no_trades")`, once retryCount reaches 3) without
+        // ever filling: deliberately conservative, since the earlier attempts that queued it were
+        // priced on the same derived/unconfirmed strike, and over-warning on an attempt that never
+        // filled is safer than risking a silent drop on one that did (issue #269).
         rollExitRuleStrikeNotes(strikeAdjustmentNotesOf(signal.proposal.pricing.legs));
         state.pendingEntries[signal.ticker] = {
           legs: signal.proposal.legs,

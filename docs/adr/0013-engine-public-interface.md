@@ -2910,13 +2910,19 @@ price every leg on a derived or unconfirmed strike and still report no note at a
   final-session catch-up `evaluate()` call's own exit-rule-base `notes` feed into a new
   `rollExitRuleStrikeNotes` helper, which sets the same `optionStrikeDerivedAcrossCorporateActionNoted`
   / `optionStrikeUnconfirmedAcrossCorporateActionNoted` checkpointed flags the settlement path
-  already sets; the same helper is called a second time, per accepted entry signal only — after the
-  limit-breach and exhausted-retry refusals above it, right where the proposal is actually written
-  into `state.pendingEntries` — over `strikeAdjustmentNotesOf(signal.proposal.pricing.legs)`. A
-  refused proposal (either path) never reaches either call, so it never prices anything the run's own
-  notes speak for. The run only needs to know a strike was ever derived or left unconfirmed somewhere
-  in its life, not which caller first noticed it, so one pair of flags and one note per code on
-  `BacktestRun.notes` (unchanged shape) serves every caller. `BacktestCheckpoint`'s own schema is
+  already sets; the same helper is called a second time, on acceptance into a pending entry — right
+  where the proposal is actually written into `state.pendingEntries`, over
+  `strikeAdjustmentNotesOf(signal.proposal.pricing.legs)`, after the limit-breach refusal above it (a
+  limit-breached proposal is never priced into anything the run goes on to hold, so it never reaches
+  this line at all). This is acceptance into the queue, not a confirmed fill:
+  `resolvePendingEntryFills` only resolves the actual fill a session later, and a queued proposal that
+  is retried and finally abandoned (`finalizeMissedEntry("no_trades")`, once `retryCount` reaches 3)
+  without ever filling still left its note rolled up on an earlier, accepted attempt — deliberately
+  conservative (over-warning on an attempt that never filled, rather than risk a silent drop on one
+  that did), not tightened to "only once filled" here. The run only needs to know a strike was ever
+  derived or left unconfirmed somewhere in its life, not which caller first noticed it, so one pair of
+  flags and one note per code on `BacktestRun.notes` (unchanged shape) serves every caller.
+  `BacktestCheckpoint`'s own schema is
   unchanged: no new field, so a resumed chunk started on `"0.10.0"` is still refused by the existing
   `engineVersion` checkpoint guard, the same way every prior bump in this ADR already is.
 - **`runBacktest`'s own daily mark and period-end sweep need no roll-up at all.** `computeMarkValue`

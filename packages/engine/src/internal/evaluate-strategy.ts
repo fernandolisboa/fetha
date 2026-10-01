@@ -1250,14 +1250,18 @@ export function evaluateStrategy(input: EvaluateStrategyInput): Result<Evaluatio
   // Every proposed entry's own strike-adjustment notes roll up here, unconditionally — unlike
   // `runBacktest`'s own internal use of `createStrategyEvaluator`, this function has no later
   // step that could still refuse the signal, so there is no "rejected proposal" to exclude
-  // (issue #269).
+  // (issue #269). Concatenated with `createStrategyEvaluator`'s own exit-rule-base notes and
+  // deduped by code, not filtered through `strikeAdjustmentNotesOf`'s own two-code whitelist a
+  // second time: `result.value.notes` happens to carry only those two codes today, but this
+  // merge must survive a future note type joining it there unfiltered.
   const entryLegs = result.value.signals
     .filter((signal): signal is Extract<Signal, { kind: "entry" }> => signal.kind === "entry")
     .flatMap((signal) => signal.proposal.pricing.legs);
-  const notes = strikeAdjustmentNotesOf([
-    ...result.value.notes.map((note) => ({ notes: [note] })),
-    ...entryLegs,
-  ]);
+  const notesByCode = new Map<Note["code"], Note>();
+  for (const note of [...result.value.notes, ...strikeAdjustmentNotesOf(entryLegs)]) {
+    notesByCode.set(note.code, note);
+  }
+  const notes = [...notesByCode.values()];
   return {
     ok: true,
     value: {
