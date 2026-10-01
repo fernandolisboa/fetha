@@ -461,6 +461,104 @@ describe("markToMarket", () => {
     expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(2_200_00));
   });
 
+  function preSplitCandle(close: string) {
+    return {
+      ticker: "PETR4",
+      timeframe: "D1" as const,
+      session: "2024-01-01",
+      asOf: "2024-01-01T21:00:00.000Z",
+      open: decimalString(close),
+      high: decimalString(close),
+      low: decimalString(close),
+      close: decimalString(close),
+      tradedQuantity: 1000,
+    };
+  }
+
+  it("rescales a stale pre-split mark onto the post-split scale before computing unrealized P&L (#279)", () => {
+    const view: MarketView = {
+      ...baseView,
+      // PETR4 does not trade on the ex-date session: the mark is carried forward from
+      // 2024-01-01, on the pre-split scale the rebased quantity no longer shares.
+      candles: [preSplitCandle("20.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [stockOperation()], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 100 shares bought at 10.00 and worth 20.00 the last time they traded: R$1000.00. The
+    // unrescaled mark read 20.00 against 200 effective shares at 5.00, R$3000.00.
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(1_000_00));
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("rescales a residue-only leg's stale pre-grouping mark too (#279)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [preSplitCandle("10.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("1000"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [stockOperation()], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 100 shares at 10.00, last traded at 10.00: no gain. Unrescaled, the 10.00 mark sat
+    // against a 10,000.00 effective entry on 0.1 effective shares, −R$99,900.00.
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(0));
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("refuses a non-positive factor between a stale mark and the operation's own opening (#279)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [preSplitCandle("20.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [],
+        operations: [stockOperation({ openedAt: "2024-01-02" })],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("rebases a covered call's stock leg quantity across a 2:1 split (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...baseView,

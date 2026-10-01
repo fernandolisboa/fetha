@@ -28,6 +28,7 @@ import {
   type Operation,
   type OperationLeg,
   type OptionDayPrice,
+  type ResidualSettledBy,
   type Result,
   type RunBacktestInput,
   type SessionLimitBreach,
@@ -358,6 +359,22 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
 
 function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
+}
+
+// Issue #279: the mark rebases a held quantity the same way a fill does, so it refuses the same
+// unit counts the fill path's `truncateToWholeUnits` refuses, on a zero-volume session where no
+// fill ran first. `closePeriodEnd` reads the same legs and residuals right after
+// `computeMarkValue` on the same session, so this guard covers it too. Like the fill path, it
+// bounds the unit count, not the centavos that count times a price can reach.
+function isSafeUnitCount(quantity: Decimal): boolean {
+  return Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber());
+}
+
+function unsafeMarkQuantity<T>(underlying: Ticker): Result<T> {
+  return invalidInput(
+    "view.corporateActions",
+    `split factor produces a non-integer-safe effective unit count for ${underlying}`,
+  );
 }
 
 function checkpointMismatch(
@@ -1099,7 +1116,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     pending: PendingSettlement,
     pnl: number,
     closedAt: SessionDate,
-    residualSettledBy: "trade" | "period_end" | null,
+    residualSettledBy: ResidualSettledBy,
   ): void {
     state.operations.push({
       id: pending.op.id,
@@ -1206,7 +1223,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // already isolated at settlement time, is optionGain.
       state.currentMonthStockGain += residualPnl - pending.optionGainSoFarCentavos;
       state.currentMonthOptionGain += pending.optionGainSoFarCentavos;
-      finalizeSettlement(pending, residualPnl, pending.expirySession, "trade");
+      // Issue #279: a factor that dissolves the residual below one share leaves nothing to trade;
+      // the whole residual was cash-settled above, and the artifact says so.
+      finalizeSettlement(
+        pending,
+        residualPnl,
+        pending.expirySession,
+        effectiveUnits === 0 ? "cash" : "trade",
+      );
       Reflect.deleteProperty(state.pendingSettlements, opId);
     }
     return { ok: true, value: undefined };
@@ -1535,6 +1559,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const markPrice = markPriceOrNull;
         const sign = leg.side === "buy" ? 1 : -1;
         const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
+        if (!isSafeUnitCount(effectiveQuantity)) return unsafeMarkQuantity(op.underlying);
         markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
@@ -1570,6 +1595,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       const effectiveResidualQuantity = new Decimal(pending.residualQuantity).div(residualFactor);
+      if (!isSafeUnitCount(effectiveResidualQuantity)) {
+        return unsafeMarkQuantity(pending.op.underlying);
+      }
       markValue += grossCentavos(markPriceOrNull, effectiveResidualQuantity).round().toNumber();
     }
     return { ok: true, value: { markValue, hasPendingSettlementResidual } };

@@ -280,6 +280,15 @@ do that today.
   dedicated cash-adjustment fill is a follow-up once a real case surfaces (B3 factors that do not
   evenly divide a share count are uncommon).
 
+### Addendum: stale marks across a split (#279)
+
+`markToMarket` rescales a leg's carried-forward price (one whose session predates a factor inside
+the leg's own rebase window) by the factors since that session before computing
+`unrealizedPnl`, so an operation held across a split is no longer marked off by the factor when
+the underlying or the series did not trade on the ex-date. The mechanism is in the ADR-0013 #279
+addendum (`ENGINE_VERSION` 0.13.0); the operation's notes carry
+`stale_price_across_corporate_action` when it applies.
+
 ### Addendum: one closing count per option leg (#282)
 
 `closingQuantities` (`settlement-plan.ts`) computes the count each option leg closes at: the
