@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.12.0";
+export const ENGINE_VERSION = "0.13.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -640,7 +640,7 @@ export type LegSettlement =
 // residual was actually traded (a real result, counted in winRate/profitFactor) from one whose
 // residual was only marked at period_end (a valuation, excluded the same way a period_end
 // close already is, ADR-0013 "Equity and metrics").
-export type ResidualSettledBy = "trade" | "period_end" | null;
+export type ResidualSettledBy = "trade" | "cash" | "period_end" | null;
 
 export type SimulatedOperation = Operation & {
   pnl: Centavos;
@@ -3019,3 +3019,27 @@ a run persisted before this change never had a residual by construction, so a st
 entry missing the key is semantically zero, not missing data. `backtest-run-type-pin.test.ts`'s
 existing `operations` exclusion (an engine-side addition is not pinned bidirectionally) covers
 this without any change to that test.
+
+## Addendum: stale marks across a split, remaining paths (#279); `ENGINE_VERSION` bumped to `0.13.0`
+
+#273 rescaled a carried-forward, pre-ex-date price in `runBacktest`'s mark and `score`'s horizon
+mark. #279 closes the remaining paths:
+
+- **`markToMarket`** rescales a leg's stale market price (`LegValuation.stale`, or a residue-only
+  leg's own resolved price) by the factors over `(stale session, through]`, where `through` is
+  the leg's own rebase window (the mark session, capped at the option's expiry). The rescale is
+  shared with `score` through `rescaleStalePrice` (`split-factor.ts`). Only `unrealizedPnl`
+  changes; `pricing.legs[].price` still reports the price as it traded. The operation's notes
+  carry `stale_price_across_corporate_action` once when a rescale happened.
+- **`score`** now emits `stale_price_across_corporate_action` (deduplicated) when it rescales a
+  horizon mark, beside the per-leg `stale_price` note.
+- **`runBacktest`'s mark** (open legs and a pending settlement's residual) refuses a factor that
+  blows the effective unit count past a safe integer with `invalid_input`, the same refusal the
+  fill path already returns, instead of throwing in `toCentavos` on a zero-volume session.
+- **`ResidualSettledBy` gains `"cash"`**: a pending residual a later grouping dissolves below one
+  share writes no fill and is wholly cash-settled; it was labelled `"trade"`. It still counts as
+  a settled result in the metrics. Persisted runs keep opening: `packages/contracts` widens the
+  enum, and stored `"trade"`, `"period_end"` and `null` values parse unchanged.
+
+The marks and a persisted artifact's value set changed, so `ENGINE_VERSION` moves from `"0.12.0"`
+to `"0.13.0"`.

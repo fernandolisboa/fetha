@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.12.0";
+export const ENGINE_VERSION = "0.13.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -582,8 +582,9 @@ export type LegSettlement =
 // residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
 // residual was actually traded (a real result, counted in winRate/profitFactor) from one whose
 // residual was only marked at period_end (a valuation, excluded the same way a period_end
-// close already is, ADR-0013 "Equity and metrics").
-export type ResidualSettledBy = "trade" | "period_end" | null;
+// close already is, ADR-0013 "Equity and metrics"). "cash" is a residual a corporate action
+// dissolved below one share before it could trade: wholly cash-settled, still a real result.
+export type ResidualSettledBy = "trade" | "cash" | "period_end" | null;
 
 export type SimulatedOperation = Operation & {
   pnl: Centavos;

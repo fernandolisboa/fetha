@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import type { DecimalString, Instant, RiskProfile, SessionDate } from "@fetha/contracts";
 import type {
+  CorporateActionFactor,
   EngineError,
   Greeks,
   LegInput,
@@ -18,7 +19,11 @@ import { invalidInput } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
-import { NO_RISK_PROFILE_NOTE, STALE_PRICE_NOTE } from "./notes";
+import {
+  NO_RISK_PROFILE_NOTE,
+  STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
+  STALE_PRICE_NOTE,
+} from "./notes";
 import { codeUnitCompare, sortUnique } from "./order";
 import { validateOperationCoherence } from "./operation-coherence";
 import { priceLegsAt } from "./price-operation";
@@ -27,7 +32,7 @@ import { resolveExpiryClose } from "./resolve-expiry-close";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
@@ -118,6 +123,8 @@ function priceExistingOperation(
     legIndex: number;
     factor: Decimal;
     rawEffectiveQuantity: Decimal;
+    visibleFactors: CorporateActionFactor[];
+    through: SessionDate;
   }[] = [];
   for (const [legIndex, leg] of operation.legs.entries()) {
     const visibleFactors = view.corporateActions.filter(
@@ -134,7 +141,14 @@ function priceExistingOperation(
     const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, through);
     if (!factorResult.ok) return { ok: false, error: factorResult.error };
     const rawEffectiveQuantity = new Decimal(leg.quantity).div(factorResult.value);
-    rebasedLegs.push({ leg, legIndex, factor: factorResult.value, rawEffectiveQuantity });
+    rebasedLegs.push({
+      leg,
+      legIndex,
+      factor: factorResult.value,
+      rawEffectiveQuantity,
+      visibleFactors,
+      through,
+    });
   }
 
   // `toQuantity` throws for a floored effective count of zero (an odd lot dissolved below one
@@ -213,15 +227,25 @@ function priceExistingOperation(
   const pricing = pricingResult.value;
 
   let unrealizedPnl = new Decimal(0);
-  for (const { leg, legIndex, factor, rawEffectiveQuantity } of rebasedLegs) {
+  let anyStaleMarkRescaled = false;
+  for (const {
+    leg,
+    legIndex,
+    factor,
+    rawEffectiveQuantity,
+    visibleFactors,
+    through,
+  } of rebasedLegs) {
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
     let mark: DecimalString | null;
+    let staleSession: SessionDate | null = null;
     if (residueOnlyLegIndexes.has(legIndex)) {
       // A residue-only leg's mark is resolved from its own ticker directly, never through
       // `pricing.legs` since it was excluded from `legInputs` above.
       const kind = leg.role === "stock" ? "stock" : "option";
       const resolved = resolveLegMarketPrice(view, leg.ticker, at, undefined, markSession, kind);
       mark = resolved?.value ?? null;
+      staleSession = resolved?.stale?.session ?? null;
     } else if (unpricedExpiredLegIndexes.has(legIndex)) {
       // No expiry candle exists to resolve intrinsic value from and no time-to-expiry is left
       // to price this leg any other way; `null` folds through the same zero
@@ -234,14 +258,22 @@ function priceExistingOperation(
       );
       const valuation = pricing.legs[legInputIndex];
       mark = valuation?.price ?? valuation?.fairValue ?? null;
+      staleSession = valuation?.price ? (valuation.stale?.session ?? null) : null;
     }
 
     // A leg with neither a market price nor a solvable fair value (`no_market_price` /
     // `iv_not_converged`, already noted on `pricing`) contributes zero unrealized P&L rather
     // than an unknown or fabricated one, since `OperationValuation.unrealizedPnl` is a plain
-    // `Centavos`, never `null` (ADR-0013 #25 addendum). Both the mark and `effectiveEntry` sit
-    // on the same post-factor scale as `rawEffectiveQuantity`.
-    const markOnEffectiveScale = mark === null ? effectiveEntry : parseDecimal(mark);
+    // `Centavos`, never `null` (ADR-0013 #25 addendum). Issue #279: a carried-forward mark from
+    // before an ex-date inside `(openedAt, through]` sits on the pre-factor scale, so it is
+    // rescaled onto the post-factor scale `effectiveEntry` and `rawEffectiveQuantity` share.
+    let markOnEffectiveScale = effectiveEntry;
+    if (mark !== null) {
+      const rescaled = rescaleStalePrice(visibleFactors, parseDecimal(mark), staleSession, through);
+      if (!rescaled.ok) return { ok: false, error: rescaled.error };
+      markOnEffectiveScale = rescaled.value.price;
+      anyStaleMarkRescaled ||= rescaled.value.rescaled;
+    }
 
     unrealizedPnl = unrealizedPnl.add(
       markOnEffectiveScale
@@ -259,6 +291,14 @@ function priceExistingOperation(
       message:
         "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
     });
+  }
+  // `priceLegsAt` can already carry this code (its IV-suppression note, same situation): the
+  // web reads notes by code, so one is enough.
+  if (
+    anyStaleMarkRescaled &&
+    !notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
+  ) {
+    notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   }
   if (unpricedExpiredLegIndexes.size > 0) {
     notes.push({

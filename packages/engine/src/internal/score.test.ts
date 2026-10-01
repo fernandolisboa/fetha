@@ -1795,6 +1795,10 @@ describe("score — stale mark note names the ticker and session (ADR-0014 Q42/Q
     // mark (the pre-fix bug) would read (10.05 − 5.00) × 100 × 200 = 101 000 — more than 200×
     // the correct figure.
     expect(result.value.pnl).toBe(centavos(500));
+    // #279: the rescale itself is named, once, beside the per-leg stale note.
+    expect(
+      result.value.notes.filter((n) => n.code === "stale_price_across_corporate_action"),
+    ).toHaveLength(1);
   });
 
   it("notes a kept stock leg settled alongside an expiring option leg when its own mark is stale", () => {

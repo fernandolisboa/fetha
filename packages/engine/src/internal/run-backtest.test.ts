@@ -1168,6 +1168,33 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("returns invalid_input, never throws, when a near-zero factor reaches the mark on a zero-volume ex-date (#279)", () => {
+    const microFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-04",
+      asOf: "2024-01-04T13:00:00.000Z",
+      factor: decimalString("0.000000000000001"),
+    };
+    const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [microFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        // No volume on the ex-date: no fill runs first to refuse the factor, so the mark
+        // multiplies a fresh price by the blown-up effective count.
+        candle("PETR4", "2024-01-04", "10.00", "10.00", 0),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("rescales a stale pre-split mark read from before the ex-date to the post-split scale (#273), no phantom gain", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
@@ -3502,6 +3529,62 @@ describe("runBacktest — option structures (#23)", () => {
     );
     expect(residualFill).toMatchObject({ side: "sell", quantity: quantity(1) });
     expect(op.pnl).toBe(centavos(999));
+    const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
+    const finalCash = run.equityCurve.at(-1)?.cash;
+    if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
+    expect(totalPnl).toBe(finalCash - config.initialCapital);
+  });
+
+  it("labels a pending residual a grouping dissolves below one share as cash-settled, not traded (#279)", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const residualCloseSession = days[11] as string;
+    const grouping: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: residualCloseSession,
+      asOf: `${residualCloseSession}T13:00:00.000Z`,
+      factor: decimalString("2"),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [grouping],
+      candles: days.map((d, i) => {
+        if (d === residualCloseSession) return candle("PETR4", d, "40.00", "40.00");
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    if (op?.status !== "expired") throw new Error("expected an expired operation");
+    // 1 share / 2 = 0.5 effective shares: nothing trades, the half share is cash-settled.
+    expect(
+      run.fills.filter((f) => f.operationId === op.id && f.session === residualCloseSession),
+    ).toHaveLength(0);
+    expect(op.residualSettledBy).toBe("cash");
     const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
     const finalCash = run.equityCurve.at(-1)?.cash;
     if (finalCash === undefined) throw new Error("expected a non-empty equity curve");

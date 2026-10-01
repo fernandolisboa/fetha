@@ -45,11 +45,12 @@ import { proposeSettlement as computeProposeSettlement } from "./propose-settlem
 import {
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STRIKE_ADJUSTMENT_CODES,
 } from "./notes";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
@@ -145,26 +146,35 @@ function legSplitFactor(
 }
 
 // Issue #273's same gap, in this file's own horizon-mark path (`markLegsToHorizon`,
-// `settlementPnl`'s "kept" branch): `resolveLegMarketPrice`'s `stale` flag names the session a
-// carried-forward mark actually traded on, which can predate a corporate-action ex-date the
-// leg's own `effectiveEntry`/`effectiveQuantity` above already rebase across. The raw `mark`
-// would then sit on a scale `effectiveQuantity` no longer shares, the same off-by-the-factor bug
-// `runBacktest`'s `lastKnownLegPrice` had. Rescale by the factor product over
-// `(stale.session, through]`, the same window and the same shared `splitFactorProduct` (via
-// `legSplitFactor`) `runBacktest` uses, never a second way to measure it. A fresh mark (not
-// stale) is returned as-is.
+// `settlementPnl`'s "kept" branch): a carried-forward mark can predate a corporate-action ex-date
+// the leg's own `effectiveEntry`/`effectiveQuantity` already rebase across, so it is rescaled by
+// the shared `rescaleStalePrice` over the same visible factors `legSplitFactor` reads. Issue #279:
+// a rescale is reported with the same note `runBacktest` emits, not only the generic stale one.
 function rescaleStaleMark(
   view: MarketView,
   underlying: string,
   resolved: ResolvedMarketPrice,
   through: SessionDate,
   at: Instant,
+  notes: Note[],
 ): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
-  const mark = parseDecimal(resolved.value);
-  if (!resolved.stale) return { ok: true, value: mark };
-  const factorResult = legSplitFactor(view, underlying, resolved.stale.session, through, at);
-  if (!factorResult.ok) return factorResult;
-  return { ok: true, value: mark.mul(factorResult.value) };
+  const factors = view.corporateActions.filter(
+    (f) => f.ticker === underlying && isAtOrBefore(f.asOf, at),
+  );
+  const rescaled = rescaleStalePrice(
+    factors,
+    parseDecimal(resolved.value),
+    resolved.stale?.session ?? null,
+    through,
+  );
+  if (!rescaled.ok) return rescaled;
+  if (
+    rescaled.value.rescaled &&
+    !notes.includes(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE)
+  ) {
+    notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
+  }
+  return { ok: true, value: rescaled.value.price };
 }
 
 function dummyValuation(leg: OperationLeg): LegValuation {
@@ -432,7 +442,14 @@ function settlementPnl(
       }
       /* v8 ignore stop */
       if (resolved.stale) notes.push(staleMarkNote(leg.ticker, resolved.stale.session));
-      const rescaled = rescaleStaleMark(view, underlying, resolved, through, horizonSession.close);
+      const rescaled = rescaleStaleMark(
+        view,
+        underlying,
+        resolved,
+        through,
+        horizonSession.close,
+        notes,
+      );
       if (!rescaled.ok) return rescaled;
       const mark = rescaled.value;
       pnl = pnl.add(
@@ -643,6 +660,7 @@ function markLegsToHorizon(
       resolved,
       horizonSession.date,
       horizonSession.close,
+      notes,
     );
     if (!rescaled.ok) return rescaled;
     const effectiveEntry = parseDecimal(leg.entryPrice).mul(factor);
@@ -1005,7 +1023,8 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       // first in a multi-leg operation.
       for (const note of pnlResult.notes) {
         const alreadyNoted =
-          STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code);
+          (STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code)) ||
+          (note === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE && notes.includes(note));
         if (!alreadyNoted) notes.push(note);
       }
     }
@@ -1032,7 +1051,8 @@ export function score(input: ScoreInput, provenanceBase: ProvenanceBase): Result
       // `maxLossResult` already pushed for the (never-taken) operation's own max loss.
       for (const note of counterfactual.notes) {
         const alreadyNoted =
-          STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code);
+          (STRIKE_ADJUSTMENT_CODES.has(note.code) && notes.some((n) => n.code === note.code)) ||
+          (note === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE && notes.includes(note));
         if (!alreadyNoted) notes.push(note);
       }
     }
