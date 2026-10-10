@@ -5,6 +5,7 @@ export {
   type PriceOperationActionResult,
   type SaveOperationActionResult,
 } from "./operations-actions";
+export { priceOperationNow } from "./price-now";
 export {
   ContemplatedOperationNotFoundError,
   OperationsRepository,

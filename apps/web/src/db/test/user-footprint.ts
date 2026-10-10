@@ -5,7 +5,12 @@ import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { accessLog } from "@/modules/audit/schema";
 import { account, invites, session, termsAcceptances, user } from "@/modules/auth/schema";
 import { backtestRuns } from "@/modules/backtests/schema";
-import { decisions, decisionScores } from "@/modules/decisions/schema";
+import {
+  analysisRequests,
+  analysisResults,
+  decisions,
+  decisionScores,
+} from "@/modules/decisions/schema";
 import {
   contemplatedOperations,
   fills,
@@ -235,6 +240,25 @@ export async function seedUserFootprint(
     decisionId: signalDecision.id,
     unscorableReason: "footprint",
     engineVersion: "footprint",
+  });
+  const analysisRequest = only(
+    await db
+      .insert(analysisRequests)
+      .values({
+        userId,
+        subjectKind: "signal",
+        subjectId: signal.id,
+        inputs: { subject: "signal", facts: {} },
+        promptVersion: "footprint",
+        model: "footprint",
+      })
+      .returning({ id: analysisRequests.id }),
+  );
+  await db.insert(analysisResults).values({
+    userId,
+    requestId: analysisRequest.id,
+    outcome: "failed",
+    reason: { kind: "api_error", status: null },
   });
 
   return { strategyId, strategyVersionId };

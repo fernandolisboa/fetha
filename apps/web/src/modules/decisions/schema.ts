@@ -7,6 +7,7 @@ import {
   numeric,
   bigint,
   boolean,
+  integer,
   uniqueIndex,
   index,
   check,
@@ -21,7 +22,10 @@ import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
 import { contemplatedOperations, operations } from "../portfolio/schema";
 
+import { analysisSubjectKinds, type AnalysisInputs, type AnalysisOutput } from "@fetha/contracts";
+
 import { journalOriginKinds } from "./allowed-kinds";
+import type { AnalysisReason } from "./analysis-reason";
 import type { DecisionInputs } from "./inputs";
 
 // A user's explicit record about a signal, a contemplated operation or a
@@ -181,6 +185,95 @@ export const decisionScores = pgTable(
       "decision_scores_score_xor_unscorable_check",
       sql`(${table.score} is not null and ${table.unscorableReason} is null)
         or (${table.score} is null and ${table.unscorableReason} is not null)`,
+    ),
+  ],
+);
+
+// One request for an AI analysis (ADR-0057, #28): user-scoped, append-only
+// (enforced by `analysis_requests_no_update`, the same hand-appended
+// pattern `decisions_no_update` uses). `subject_id` carries no foreign key:
+// the four possible subjects (signals, contemplated operations, operations,
+// backtest runs) live in four different tables, and ownership is already
+// checked at request time through each owning module's own user-scoped
+// query (`analysis-inputs.ts`) before this row is ever inserted — a second,
+// unscoped FK here would add nothing a cross-table constraint could
+// enforce anyway. The unique `(id, user_id)` index exists only so
+// `analysis_results`' composite foreign key below can bind a result to
+// this row's own user at the database level.
+export const analysisRequests = pgTable(
+  "analysis_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subjectKind: text("subject_kind").notNull(),
+    subjectId: text("subject_id").notNull(),
+    inputs: jsonb("inputs").$type<AnalysisInputs>().notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    model: text("model").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("analysis_requests_user_id_requested_at_idx").on(table.userId, table.requestedAt),
+    index("analysis_requests_user_id_subject_idx").on(
+      table.userId,
+      table.subjectKind,
+      table.subjectId,
+    ),
+    uniqueIndex("analysis_requests_id_user_id_idx").on(table.id, table.userId),
+    check(
+      "analysis_requests_subject_kind_check",
+      sql`${table.subjectKind} in (${sql.raw(analysisSubjectKinds.map((kind) => `'${kind}'`).join(", "))})`,
+    ),
+  ],
+);
+
+// The outcome of one request (ADR-0057): user-scoped, append-only (same
+// `_no_update` trigger pattern), exactly one row per request (`request_id`
+// unique). The composite foreign key binds this row's own `user_id` to the
+// `user_id` of the request it answers, over `analysis_requests_id_user_id_idx`
+// above, so a result can never be attached to another user's request even
+// if a caller passed a foreign `requestId` by mistake. `output`/`reason`
+// are mutually exclusive: `accepted` always carries an output and no
+// reason, `rejected`/`failed` always carry a reason and no output — a
+// rejected reply's text is never stored (docs/adr/0057), only why it was
+// discarded. `model` is nullable: a `failed` call (refusal, truncation, API
+// error) may never have reached a model that answered.
+export const analysisResults = pgTable(
+  "analysis_results",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requestId: text("request_id").notNull().unique(),
+    outcome: text("outcome").notNull(),
+    output: jsonb("output").$type<AnalysisOutput | null>(),
+    reason: jsonb("reason").$type<AnalysisReason | null>(),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("analysis_results_user_id_completed_at_idx").on(table.userId, table.completedAt),
+    foreignKey({
+      columns: [table.requestId, table.userId],
+      foreignColumns: [analysisRequests.id, analysisRequests.userId],
+    }),
+    check(
+      "analysis_results_outcome_check",
+      sql`${table.outcome} in ('accepted', 'rejected', 'failed')`,
+    ),
+    check(
+      "analysis_results_output_xor_reason_check",
+      sql`(${table.outcome} = 'accepted' and ${table.output} is not null and ${table.reason} is null)
+        or (${table.outcome} <> 'accepted' and ${table.output} is null and ${table.reason} is not null)`,
     ),
   ],
 );

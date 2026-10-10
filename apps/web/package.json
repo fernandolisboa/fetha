@@ -25,6 +25,7 @@
     "@better-auth/core": "1.7.3",
     "@fetha/contracts": "workspace:*",
     "@fetha/engine": "workspace:*",
+    "@fetha/prompts": "workspace:*",
     "@neondatabase/serverless": "1.1.0",
     "@serwist/next": "9.5.12",
     "@vercel/global-config": "1.5.1",

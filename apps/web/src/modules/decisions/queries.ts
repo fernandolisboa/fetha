@@ -1,9 +1,16 @@
 import { cache } from "react";
+import type { AnalysisSubjectKind } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { recordAccess } from "@/modules/audit";
 import { forCurrentUser } from "@/modules/auth";
 
+import {
+  AnalysesRepository,
+  type AnalysisUsage,
+  type LatestAcceptedAnalysis,
+} from "./analyses-repository";
+import { readAnthropicApiKey } from "./analysis-model";
 import {
   DecisionScoresRepository,
   type DecisionScoreRow,
@@ -64,4 +71,29 @@ export async function getMyDecisionsByHeldOperationId(
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
   await recordAccess("decisions_read");
   return repository.findLatestForHeldOperations(operationIds);
+}
+
+// The latest accepted AI analysis per subject of one kind, batched over a
+// page of ids (docs/adr/0057): a subject with none yet is simply absent
+// from the map.
+export async function getMyLatestAnalyses(
+  subjectKind: AnalysisSubjectKind,
+  subjectIds: readonly string[],
+): Promise<Map<string, LatestAcceptedAnalysis>> {
+  const repository = await forCurrentUser(getDb(), AnalysesRepository);
+  await recordAccess("decisions_read");
+  return repository.latestAccepted(subjectKind, subjectIds);
+}
+
+export const getMyAnalysisUsage = cache(async (): Promise<AnalysisUsage> => {
+  const repository = await forCurrentUser(getDb(), AnalysesRepository);
+  await recordAccess("decisions_read");
+  return repository.usageThisMonth();
+});
+
+// Whether `ANTHROPIC_API_KEY` is configured at all (docs/adr/0057): the
+// screen shows the analysis feature as unavailable rather than offering an
+// action that would always answer `unavailable`.
+export function isAnalysisAvailable(): boolean {
+  return readAnthropicApiKey() !== undefined;
 }

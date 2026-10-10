@@ -55,8 +55,9 @@ exposing module's interface, never through its tables.
    never in the inbox). The same run then scores every decision whose horizon has arrived
    (#29): `decisions/scoring-service.ts` scores every user's due decisions with the engine's
    `score()`, one append-only row per decision (`decision_scores`), never blocking or failing the
-   ingestion response on a scoring error. Analyses aren't scored yet — that table doesn't exist
-   until #28. `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
+   ingestion response on a scoring error. AI analyses (#28, ADR-0057) are requested on demand, not
+   by this job, and are not scored yet: that needs a horizon and a claim the analysis contract
+   does not carry (follow-up issue). `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
    `api/cron/ingest` (bearer `CRON_SECRET`) is the only automated trigger. The owner's manual
    re-run of a session is a session-authenticated Server Action gated on `isOwner()`
    (`OWNER_EMAILS`, ADR-0042), never `CRON_SECRET` — that secret never reaches a human. Every run,
@@ -77,13 +78,17 @@ exposing module's interface, never through its tables.
    curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
    or the next candle of the strategy timeframe in an intraday run (ADR-0011, as sharpened by
    ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
-5. **Decide and journal.** From a signal, an operation or a structure, the user requests an
-   analysis (on demand, capped) and records a decision (enter, do not enter, hold, adjust, exit)
-   with a thesis and horizon; an open operation of the real portfolio takes hold, adjust or exit
-   decisions, scored on the position held and its own fills once any expired option is settled
-   (ADR-0022). At the horizon the engine scores the decision (#29); the analysis is scored the
-   same way once #28 lands (ADR-0005). The journal shows the user's track record today; the AI
-   calibration slot stays an empty state until #28 gives it analyses to score.
+5. **Decide and journal.** From a signal, a contemplated operation, a held operation or a
+   complete backtest run, the user may request one AI analysis (on demand, a monthly cap per
+   user, ADR-0057): the engine's own computed facts go in as a checked `AnalysisInputs` tree, the
+   model's reply is validated against the output contract and a citation check before it is ever
+   stored, and the request and its outcome (`accepted`, `rejected` or `failed`) are kept
+   append-only (`decisions/analyses-repository.ts`). The user then records a decision (enter, do
+   not enter, hold, adjust, exit) with a thesis and horizon; an open operation of the real
+   portfolio takes hold, adjust or exit decisions, scored on the position held and its own fills
+   once any expired option is settled (ADR-0022). At the horizon the engine scores the decision
+   (#29, ADR-0005). Scoring an analysis against its own outcome is not part of ADR-0057 and stays
+   a follow-up issue; the journal shows the user's decision track record today.
 6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user

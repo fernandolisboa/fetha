@@ -27,7 +27,7 @@
           "kind": "price",
           "field": "close"
         },
-        "comparator": "gt",
+        "comparator": ">",
         "right": {
           "kind": "indicator",
           "indicator": {
@@ -38,15 +38,14 @@
       },
       "structureId": "stock_long",
       "strikes": [],
-      "expiry": null,
       "sizing": {
         "kind": "fixed_fractional",
-        "fraction": "10,00%"
+        "fraction": "10%"
       },
       "exit": [
         {
           "kind": "stop_loss",
-          "threshold": "8,00%"
+          "multipleOfMaxLoss": "2,00"
         }
       ],
       "adjustments": []
