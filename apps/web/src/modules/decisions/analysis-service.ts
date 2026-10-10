@@ -1,8 +1,4 @@
-import {
-  analysisOutputSchema,
-  checkAnalysisCitations,
-  type AnalysisOutput,
-} from "@fetha/contracts";
+import { analysisOutputSchema, checkAnalysisCitations } from "@fetha/contracts";
 import { analysisModels, analysisPrompt } from "@fetha/prompts";
 
 import type { Database } from "@/db/client";
@@ -14,15 +10,11 @@ import {
   AnalysesRepository,
   AnalysisCapReachedError,
   type CompleteAnalysisInput,
+  type LatestAcceptedAnalysis,
   type ReserveAnalysisInput,
 } from "./analyses-repository";
 
-export interface AcceptedAnalysisView {
-  id: string;
-  output: AnalysisOutput;
-  model: string;
-  promptVersion: string;
-}
+export type AcceptedAnalysisView = LatestAcceptedAnalysis;
 
 export type RequestAnalysisResult =
   | { status: "unavailable" }
@@ -34,7 +26,7 @@ export type RequestAnalysisResult =
   | { status: "failed" };
 
 interface AnalysisRepositoryPort {
-  reserve: (input: ReserveAnalysisInput) => Promise<{ id: string }>;
+  reserve: (input: ReserveAnalysisInput) => Promise<{ id: string; requestedAt: Date }>;
   complete: (requestId: string, result: CompleteAnalysisInput) => Promise<void>;
 }
 
@@ -115,6 +107,7 @@ export async function requestAnalysis(
   const model = analysisModels[input.subjectKind];
 
   let requestId: string;
+  let requestedAt: Date;
   try {
     const reserved = await repository.reserve({
       subjectKind: input.subjectKind,
@@ -124,6 +117,7 @@ export async function requestAnalysis(
       model,
     });
     requestId = reserved.id;
+    requestedAt = reserved.requestedAt;
   } catch (error) {
     if (error instanceof AnalysisCapReachedError) {
       return { status: "cap_reached" };
@@ -184,9 +178,11 @@ export async function requestAnalysis(
     status: "accepted",
     analysis: {
       id: requestId,
-      output: parsed.data,
-      model: reply.model,
+      requestedAt,
       promptVersion: analysisPrompt.version,
+      model: reply.model,
+      output: parsed.data,
+      inputs: assembled.inputs,
     },
   };
 }

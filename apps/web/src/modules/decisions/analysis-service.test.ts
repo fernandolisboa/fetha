@@ -17,6 +17,8 @@ const inputs: AnalysisInputs = {
   },
 };
 
+const REQUESTED_AT = new Date("2026-10-10T15:00:00Z");
+
 const acceptedOutput: AnalysisOutput = {
   thesis: "O sinal aponta para VALE3 na sessão de 09/10/2026.",
   counterThesis: "Sem indicadores, a leitura é frágil.",
@@ -38,7 +40,10 @@ function baseDeps(overrides: Partial<RequestAnalysisDeps> = {}): RequestAnalysis
     user: { id: "user-1" },
     client: fakeClient({ kind: "refusal" }),
     assemble: vi.fn().mockResolvedValue({ ok: true, inputs }),
-    repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete: vi.fn() },
+    repository: {
+      reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+      complete: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -93,7 +98,10 @@ describe("requestAnalysis", () => {
     const result = await requestAnalysis(
       baseDeps({
         client: fakeClient({ kind: "refusal" }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -109,7 +117,10 @@ describe("requestAnalysis", () => {
     const result = await requestAnalysis(
       baseDeps({
         client: fakeClient({ kind: "max_tokens" }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -125,7 +136,10 @@ describe("requestAnalysis", () => {
     const result = await requestAnalysis(
       baseDeps({
         client: fakeClient({ kind: "api_error", status: 503 }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -146,7 +160,10 @@ describe("requestAnalysis", () => {
           model: "claude-sonnet-5-5",
           usage: { inputTokens: 10, outputTokens: 20 },
         }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -171,7 +188,10 @@ describe("requestAnalysis", () => {
           model: "claude-sonnet-5-5",
           usage: { inputTokens: 10, outputTokens: 20 },
         }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -194,7 +214,10 @@ describe("requestAnalysis", () => {
           model: "claude-sonnet-5-5",
           usage: { inputTokens: 10, outputTokens: 20 },
         }),
-        repository: { reserve: vi.fn().mockResolvedValue({ id: "req-1" }), complete },
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
       }),
       requestInput,
     );
@@ -202,9 +225,11 @@ describe("requestAnalysis", () => {
       status: "accepted",
       analysis: {
         id: "req-1",
-        output: acceptedOutput,
-        model: "claude-sonnet-5-5",
+        requestedAt: REQUESTED_AT,
         promptVersion: "analysis@1",
+        model: "claude-sonnet-5-5",
+        output: acceptedOutput,
+        inputs,
       },
     });
     expect(complete).toHaveBeenCalledWith(

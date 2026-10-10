@@ -87,7 +87,7 @@ function toLatestAccepted(row: {
 // pattern `BacktestRunRepository.enforceActiveCap` uses (ADR-0032), so two
 // concurrent requests at the cap can never both pass.
 export class AnalysesRepository extends UserScopedRepository {
-  async reserve(input: ReserveAnalysisInput): Promise<{ id: string }> {
+  async reserve(input: ReserveAnalysisInput): Promise<{ id: string; requestedAt: Date }> {
     const inputs = analysisInputsSchema.parse(input.inputs);
     return this.db.transaction(async (tx) => {
       await this.lockUserScope(tx, "analysis_requests");
@@ -109,7 +109,7 @@ export class AnalysesRepository extends UserScopedRepository {
       if (!row) {
         throw new Error("failed to reserve analysis request");
       }
-      return { id: row.id };
+      return { id: row.id, requestedAt: row.requestedAt };
     });
   }
 

@@ -13,11 +13,20 @@ import {
 } from "@/modules/backtests";
 import { DiscardRunButton, RunBacktestButton } from "@/modules/backtests/client";
 import { ErrorNotice } from "@/components/error-notice";
+import {
+  AnalysisPanel,
+  getMyAnalysisUsage,
+  getMyLatestAnalyses,
+  isAnalysisAvailable,
+  t as decisionsT,
+} from "@/modules/decisions";
+import { RequestAnalysisButton } from "@/modules/decisions/client";
 import { formatDate } from "@/lib/format/date-time";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { PageHeader, Panel } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${t.report.overline}` };
+export const maxDuration = 120;
 
 export default async function BacktestReportPage({
   params,
@@ -36,6 +45,14 @@ export default async function BacktestReportPage({
     notFound();
   }
 
+  const isComplete = run.status === "complete" && run.result !== null;
+  const [latestAnalyses, analysisUsage] = await Promise.all([
+    getMyLatestAnalyses("backtest_run", isComplete ? [run.id] : []),
+    getMyAnalysisUsage(),
+  ]);
+  const latest = latestAnalyses.get(run.id) ?? null;
+  const analysisAvailable = isAnalysisAvailable();
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-5 py-8">
       <PageHeader
@@ -51,10 +68,30 @@ export default async function BacktestReportPage({
             </span>
           </>
         }
+        actions={
+          isComplete ? (
+            <RequestAnalysisButton
+              subjectKind="backtest_run"
+              subjectId={run.id}
+              hasExistingAnalysis={latest !== null}
+              usage={analysisUsage}
+              available={analysisAvailable}
+            />
+          ) : undefined
+        }
       />
 
       {run.status === "complete" && run.result ? (
-        <ReportPanel run={run.result} />
+        <>
+          <ReportPanel run={run.result} />
+          <Panel title={decisionsT.analysis.report.title}>
+            {latest ? (
+              <AnalysisPanel analysis={latest} />
+            ) : (
+              <p className="text-muted-foreground text-sm">{decisionsT.analysis.report.empty}</p>
+            )}
+          </Panel>
+        </>
       ) : isDiscardedRun(run) ? (
         <Panel>
           <p className="text-muted-foreground text-sm">{t.discard.reason}</p>

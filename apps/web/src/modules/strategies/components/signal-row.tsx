@@ -42,17 +42,20 @@ function proposalSummary(signal: SignalListItem): ReactNode {
 // time, late flag, proposal summary. `late` is always false until intraday
 // catch-up evaluation ships (#19 only evaluates daily strategies; the chip
 // itself is ADR-0010's, kept here so the intraday ticket only has to pass
-// `true`). `decisionSlot` is composed by the caller (the `/sinais` page,
-// which alone may depend on both this module and `decisions`): the
-// recorded-decision label or the DecisionBar trigger, per DESIGN.md's
-// DecisionBar and #27's "answering a signal marks it read" rule.
+// `true`). `decisionSlot` and `analysisSlot` are composed by the caller
+// (the `/sinais` page, which alone may depend on both this module and
+// `decisions`): the recorded-decision label or the DecisionBar trigger
+// (DESIGN.md's DecisionBar and #27's "answering a signal marks it read"
+// rule), and the AnalysisDialog trigger (#28).
 export function SignalRow({
   signal,
   decisionSlot,
+  analysisSlot,
   late = false,
 }: {
   signal: SignalListItem;
   decisionSlot: ReactNode;
+  analysisSlot?: ReactNode;
   late?: boolean;
 }) {
   return (
@@ -71,7 +74,12 @@ export function SignalRow({
         )}
       </td>
       <td className="text-muted-foreground py-2">{proposalSummary(signal)}</td>
-      <td className="py-2 text-right">{decisionSlot}</td>
+      <td className="py-2 text-right">
+        <span className="inline-flex items-center justify-end gap-2">
+          {analysisSlot}
+          {decisionSlot}
+        </span>
+      </td>
     </tr>
   );
 }
