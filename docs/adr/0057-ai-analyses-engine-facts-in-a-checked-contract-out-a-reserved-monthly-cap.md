@@ -94,7 +94,7 @@ were left out.
 
 **Fact depth.** `analysisFactsSchema` caps nesting at `MAX_FACT_DEPTH` (20 in `packages/contracts`):
 deep enough for the deepest tree assembly can produce for a legal strategy (a condition at
-`MAX_CONDITION_DEPTH`, inside an exit rule, inside a `roll` adjustment's `when`, measuring 17 by
+`MAX_CONDITION_DEPTH`, inside an exit rule, inside a `roll` adjustment's `when`, measuring 18 by
 this module's own depth count), kept with margin above that.
 
 **Storage and cap.** `analysis_requests` (the inputs, subject, prompt version, requested model,

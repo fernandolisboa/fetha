@@ -226,6 +226,7 @@ const MAX_WALK_FORWARD_WINDOWS = 12;
 // below says how many were left out (docs/adr/0057).
 function walkForwardOmittedFact(totalWindows: number): string {
   const omitted = Math.max(0, totalWindows - MAX_WALK_FORWARD_WINDOWS);
+  if (omitted === 0) return "nenhuma janela de walk-forward omitida";
   return omitted === 1
     ? "1 janela de walk-forward omitida"
     : `${String(omitted)} janelas de walk-forward omitidas`;

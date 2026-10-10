@@ -151,11 +151,11 @@ const en = {
     errors: {
       invalid: "Some fields are invalid.",
       not_found: "This signal, operation or backtest run no longer exists.",
-      not_ready: "The backtest hasn't finished running yet.",
+      not_ready: "There is not enough data to analyze this yet.",
       unavailable: "AI analysis is not available in this environment.",
       rate_limited: "Too many requests recently. Try again in a moment.",
       rejected:
-        "The reply cited a number outside the engine's data and was discarded. It still counted toward the monthly limit.",
+        "The reply did not pass Fetha's checks and was discarded. It still counted toward the monthly limit.",
       failed: "The AI didn't answer. Try again — this attempt did not count toward the limit.",
       cap_reached: (cap: number) => `This month's limit of ${String(cap)} analyses is used up.`,
     },
@@ -312,11 +312,11 @@ const ptBR = {
     errors: {
       invalid: "Alguns campos estão inválidos.",
       not_found: "Esse sinal, operação ou backtest não existe mais.",
-      not_ready: "O backtest ainda não terminou de rodar.",
+      not_ready: "Ainda não há dados suficientes para analisar isso.",
       unavailable: "A análise de IA não está disponível neste ambiente.",
       rate_limited: "Muitos pedidos em pouco tempo. Tente novamente em instantes.",
       rejected:
-        "A resposta citou um número fora dos dados do motor e foi descartada. Ainda assim, contou no limite mensal.",
+        "A resposta não passou nas verificações do Fetha e foi descartada. Ainda assim, contou no limite mensal.",
       failed: "A IA não respondeu. Tente novamente — essa tentativa não contou no limite.",
       cap_reached: (cap: number) => `Você já usou as ${String(cap)} análises deste mês.`,
     },

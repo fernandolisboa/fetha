@@ -19,7 +19,7 @@ const FACT_KEY = /^[a-z][a-zA-Z0-9]*$/;
 // Deep enough for the deepest tree assembly can produce for a legal
 // strategy: a condition at `MAX_CONDITION_DEPTH` (6), inside an exit rule,
 // inside a `roll` adjustment's `when`, inside the strategy, inside a
-// backtest run's facts, measures 17 by this module's own `factDepth`; kept
+// backtest run's facts, measures 18 by this module's own `factDepth`; kept
 // with margin above that so a slightly different assembly shape never
 // trips the cap by accident.
 const MAX_FACT_DEPTH = 20;

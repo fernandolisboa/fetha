@@ -260,7 +260,7 @@ describe("backtestRunFacts", () => {
   });
 
   it("says no window was omitted when there are 12 or fewer", () => {
-    expect(facts.walkForwardOmitted).toBe("0 janelas de walk-forward omitidas");
+    expect(facts.walkForwardOmitted).toBe("nenhuma janela de walk-forward omitida");
   });
 });
 
