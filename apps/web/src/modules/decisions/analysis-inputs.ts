@@ -1,4 +1,4 @@
-import { analysisInputsSchema, type AnalysisInputs } from "@fetha/contracts";
+import { analysisInputsSchema, type AnalysisFacts, type AnalysisInputs } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { BacktestRunNotFoundError, getMyBacktestRun } from "@/modules/backtests";
@@ -27,6 +27,18 @@ async function currentSession(): Promise<string | null> {
   return session?.date ?? null;
 }
 
+// A subject whose assembled facts fail `analysisInputsSchema` (an
+// unexpectedly deep tree, a key the schema rejects) is not analyzable yet,
+// the same as a missing session or pricing: never an unhandled error the
+// route handler would surface as a 500 (docs/adr/0057).
+export function toAssembleResult(
+  subject: AnalysisInputs["subject"],
+  facts: AnalysisFacts,
+): AssembleAnalysisInputsResult {
+  const parsed = analysisInputsSchema.safeParse({ subject, facts });
+  return parsed.success ? { ok: true, inputs: parsed.data } : { ok: false, reason: "not_ready" };
+}
+
 async function assembleSignalInputs(subjectId: string): Promise<AssembleAnalysisInputsResult> {
   const signal = await getMySignal(subjectId);
   const facts = signalFacts({
@@ -38,7 +50,7 @@ async function assembleSignalInputs(subjectId: string): Promise<AssembleAnalysis
     rule: signal.rule,
     proposal: signal.proposal,
   });
-  return { ok: true, inputs: analysisInputsSchema.parse({ subject: "signal", facts }) };
+  return toAssembleResult("signal", facts);
 }
 
 async function assembleContemplatedOperationInputs(
@@ -60,10 +72,7 @@ async function assembleContemplatedOperationInputs(
     underlying: operation.underlying,
     pricing,
   });
-  return {
-    ok: true,
-    inputs: analysisInputsSchema.parse({ subject: "contemplated_operation", facts }),
-  };
+  return toAssembleResult("contemplated_operation", facts);
 }
 
 async function assembleHeldOperationInputs(
@@ -80,6 +89,7 @@ async function assembleHeldOperationInputs(
         ticker: leg.ticker,
         quantity: leg.quantity,
       })),
+      { excludeOperationId: held.id },
     ),
   ]);
   if (!session || !pricing) {
@@ -93,7 +103,7 @@ async function assembleHeldOperationInputs(
     legs: held.legs,
     pricing,
   });
-  return { ok: true, inputs: analysisInputsSchema.parse({ subject: "held_operation", facts }) };
+  return toAssembleResult("held_operation", facts);
 }
 
 async function assembleBacktestRunInputs(subjectId: string): Promise<AssembleAnalysisInputsResult> {
@@ -118,7 +128,7 @@ async function assembleBacktestRunInputs(subjectId: string): Promise<AssembleAna
     },
     notes: result.notes.map((note) => note.code),
   });
-  return { ok: true, inputs: analysisInputsSchema.parse({ subject: "backtest_run", facts }) };
+  return toAssembleResult("backtest_run", facts);
 }
 
 // Ownership of every subject is enforced here, through each owning

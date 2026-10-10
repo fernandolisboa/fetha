@@ -102,6 +102,7 @@ export {
   analysisOutputSchema,
   analysisSubjectKinds,
   analysisSubjectKindSchema,
+  factAt,
   checkAnalysisCitations,
   type AnalysisCitationCheck,
   type AnalysisConfidenceLevel,

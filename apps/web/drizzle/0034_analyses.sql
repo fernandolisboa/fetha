@@ -30,7 +30,7 @@ CREATE TABLE "analysis_results" (
 CREATE UNIQUE INDEX "analysis_requests_id_user_id_idx" ON "analysis_requests" USING btree ("id","user_id");--> statement-breakpoint
 ALTER TABLE "analysis_requests" ADD CONSTRAINT "analysis_requests_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analysis_results" ADD CONSTRAINT "analysis_results_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "analysis_results" ADD CONSTRAINT "analysis_results_request_id_user_id_analysis_requests_id_user_id_fk" FOREIGN KEY ("request_id","user_id") REFERENCES "public"."analysis_requests"("id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analysis_results" ADD CONSTRAINT "analysis_results_request_id_user_id_fk" FOREIGN KEY ("request_id","user_id") REFERENCES "public"."analysis_requests"("id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "analysis_requests_user_id_requested_at_idx" ON "analysis_requests" USING btree ("user_id","requested_at");--> statement-breakpoint
 CREATE INDEX "analysis_requests_user_id_subject_idx" ON "analysis_requests" USING btree ("user_id","subject_kind","subject_id");--> statement-breakpoint
 CREATE INDEX "analysis_results_user_id_completed_at_idx" ON "analysis_results" USING btree ("user_id","completed_at");--> statement-breakpoint

@@ -221,6 +221,16 @@ function costModelFacts(costModel: CostModel): AnalysisFacts {
 
 const MAX_WALK_FORWARD_WINDOWS = 12;
 
+// The most recent windows are the ones closest to the current regime, so a
+// run with more than the cap keeps its tail, not its head, and the fact
+// below says how many were left out (docs/adr/0057).
+function walkForwardOmittedFact(totalWindows: number): string {
+  const omitted = Math.max(0, totalWindows - MAX_WALK_FORWARD_WINDOWS);
+  return omitted === 1
+    ? "1 janela de walk-forward omitida"
+    : `${String(omitted)} janelas de walk-forward omitidas`;
+}
+
 export interface BacktestRunFactsInput {
   period: { from: SessionDate; to: SessionDate };
   timeframe: string;
@@ -245,11 +255,12 @@ export function backtestRunFacts(input: BacktestRunFactsInput): AnalysisFacts {
     costModel: costModelFacts(input.costModel),
     strategy: genericFact(strategyWithoutName),
     metrics: metricsFacts(input.metrics),
-    walkForward: input.walkForward.slice(0, MAX_WALK_FORWARD_WINDOWS).map((window) => ({
+    walkForward: input.walkForward.slice(-MAX_WALK_FORWARD_WINDOWS).map((window) => ({
       from: session(window.from),
       to: session(window.to),
       metrics: metricsFacts(window.metrics),
     })),
+    walkForwardOmitted: walkForwardOmittedFact(input.walkForward.length),
     counts: {
       operations: String(input.counts.operations),
       missedEntries: String(input.counts.missedEntries),

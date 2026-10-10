@@ -16,7 +16,13 @@ export type AnalysisFact =
   string | null | readonly AnalysisFact[] | { readonly [key: string]: AnalysisFact };
 
 const FACT_KEY = /^[a-z][a-zA-Z0-9]*$/;
-const MAX_FACT_DEPTH = 12;
+// Deep enough for the deepest tree assembly can produce for a legal
+// strategy: a condition at `MAX_CONDITION_DEPTH` (6), inside an exit rule,
+// inside a `roll` adjustment's `when`, inside the strategy, inside a
+// backtest run's facts, measures 17 by this module's own `factDepth`; kept
+// with margin above that so a slightly different assembly shape never
+// trips the cap by accident.
+const MAX_FACT_DEPTH = 20;
 
 export const analysisFactSchema: z.ZodType<AnalysisFact> = z.lazy(() =>
   z.union([
@@ -79,7 +85,9 @@ export function checkAnalysisCitations(
       .filter((figure) => !figure.keys.some((key) => known.has(key)))
       .map((figure) => figure.text),
   );
-  const unknownPaths = unique(output.inputsCited.filter((path) => !hasFactAt(inputs.facts, path)));
+  const unknownPaths = unique(
+    output.inputsCited.filter((path) => factAt(inputs.facts, path) === undefined),
+  );
   return uncitedFigures.length === 0 && unknownPaths.length === 0
     ? { ok: true }
     : { ok: false, uncitedFigures, unknownPaths };
@@ -178,20 +186,20 @@ function collectFactStrings(fact: AnalysisFact): string[] {
 }
 
 // A path is dot-separated keys and list indices: "pricing.legs.0.strike".
-function hasFactAt(facts: AnalysisFacts, path: string): boolean {
+export function factAt(facts: AnalysisFacts, path: string): AnalysisFact | undefined {
   let node: AnalysisFact | undefined = facts;
   for (const segment of path.split(".")) {
     if (node === null || node === undefined || typeof node === "string") {
-      return false;
+      return undefined;
     }
     if (isFactList(node)) {
-      if (!/^(0|[1-9]\d*)$/.test(segment)) return false;
+      if (!/^(0|[1-9]\d*)$/.test(segment)) return undefined;
       node = node[Number(segment)];
     } else {
       node = Object.hasOwn(node, segment) ? node[segment] : undefined;
     }
   }
-  return node !== undefined;
+  return node;
 }
 
 function isFactList(fact: AnalysisFact): fact is readonly AnalysisFact[] {

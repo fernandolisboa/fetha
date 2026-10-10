@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   analysisInputsSchema,
   analysisOutputSchema,
@@ -130,6 +130,11 @@ export class AnalysesRepository extends UserScopedRepository {
     return this.usageThisMonthLocked(this.db);
   }
 
+  // A request with no result yet (the model call is still in flight, or was
+  // killed by the platform before it could complete) counts only for its
+  // first 5 minutes (docs/adr/0057): past that, it ages out of the count so
+  // an orphaned reservation never holds a cap slot forever. A request with
+  // a stored result counts exactly when that result is not `failed`.
   private async usageThisMonthLocked(executor: Database | Transaction): Promise<AnalysisUsage> {
     const [row] = await executor
       .select({ count: sql<number>`count(*)::int` })
@@ -140,7 +145,11 @@ export class AnalysesRepository extends UserScopedRepository {
           eq(analysisRequests.userId, this.userId),
           sql`date_trunc('month', ${analysisRequests.requestedAt} at time zone 'America/Sao_Paulo')
             = date_trunc('month', now() at time zone 'America/Sao_Paulo')`,
-          sql`${analysisResults.outcome} is distinct from 'failed'`,
+          or(
+            sql`${analysisResults.outcome} is not null and ${analysisResults.outcome} <> 'failed'`,
+            sql`${analysisResults.outcome} is null
+              and ${analysisRequests.requestedAt} > now() - interval '5 minutes'`,
+          ),
         ),
       );
     return { used: row?.count ?? 0, cap: MONTHLY_ANALYSIS_CAP };

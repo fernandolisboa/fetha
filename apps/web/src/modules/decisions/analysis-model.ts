@@ -12,8 +12,8 @@ export interface AnalysisModelRequest {
 
 export type AnalysisModelReply =
   | { kind: "parsed"; output: unknown; model: string; usage: AnalysisUsage }
-  | { kind: "refusal" }
-  | { kind: "max_tokens" }
+  | { kind: "refusal"; model: string; usage: AnalysisUsage }
+  | { kind: "incomplete"; stopReason: string; model: string; usage: AnalysisUsage }
   | { kind: "api_error"; status: number | null };
 
 export interface AnalysisUsage {
@@ -39,36 +39,42 @@ export function readAnthropicApiKey(env: AnthropicEnv = process.env): string | u
 }
 
 const MAX_OUTPUT_TOKENS = 8000;
-const REQUEST_TIMEOUT_MS = 120_000;
+// The pages that host the action run with `maxDuration = 120` (ADR-0057):
+// one attempt of at most 100s leaves time to store the result, so a slow
+// call ends as `api_error` instead of the platform killing the function.
+const REQUEST_TIMEOUT_MS = 100_000;
 const outputFormat = betaZodOutputFormat(analysisOutputSchema);
+const END_TURN_STOP_REASONS = new Set(["end_turn", "stop_sequence"]);
 
 // Reads the reply by hand instead of through the SDK's `parse()`, which
 // throws on a reply that misses the schema before `stop_reason` can be
-// read: a refusal or a truncated reply must stay a `failed` request (not
-// counted), and a paid reply that misses the schema must stay a `rejected`
-// one (counted), never an unhandled error with no result row. Only the text
+// read: a reply that came back but is unusable (refusal, truncation, any
+// other non-`end_turn`/`stop_sequence` stop reason, or a reply that misses
+// the schema) must stay `rejected` (counted, the call was paid); only no
+// reply at all (`api_error`) stays `failed` (docs/adr/0057). Only the text
 // after the last fallback block is the answering model's own.
 export function replyFromMessage(message: BetaMessage): AnalysisModelReply {
+  const usage = {
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  };
   if (message.stop_reason === "refusal") {
-    return { kind: "refusal" };
+    return { kind: "refusal", model: message.model, usage };
   }
-  if (message.stop_reason === "max_tokens") {
-    return { kind: "max_tokens" };
+  if (message.stop_reason === null || !END_TURN_STOP_REASONS.has(message.stop_reason)) {
+    return {
+      kind: "incomplete",
+      stopReason: message.stop_reason ?? "unknown",
+      model: message.model,
+      usage,
+    };
   }
   const lastFallback = message.content.findLastIndex((block) => block.type === "fallback");
   const text = message.content
     .slice(lastFallback + 1)
     .flatMap((block) => (block.type === "text" ? [block.text] : []))
     .join("");
-  return {
-    kind: "parsed",
-    output: parseJson(text),
-    model: message.model,
-    usage: {
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-    },
-  };
+  return { kind: "parsed", output: parseJson(text), model: message.model, usage };
 }
 
 function parseJson(text: string): unknown {
@@ -101,7 +107,7 @@ export function createAnthropicAnalysisClient(apiKey: string): AnalysisModelClie
             betas: ["server-side-fallback-2026-07-01"],
             fallbacks: "default",
           },
-          { timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 },
+          { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
         );
         return replyFromMessage(message);
       } catch (error) {

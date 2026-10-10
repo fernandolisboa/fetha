@@ -1,11 +1,10 @@
-import type { AnalysisInputs, AnalysisOutput } from "@fetha/contracts";
+import { factAt, type AnalysisInputs, type AnalysisOutput } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format/date-time";
 
 import { t } from "../strings";
 
-import { resolveFactAtPath } from "./analysis-fact-path";
 import { analysisModelDisplayName } from "./analysis-model-name";
 
 export interface AnalysisPanelData {
@@ -17,7 +16,7 @@ export interface AnalysisPanelData {
 }
 
 function citedFactValue(inputs: AnalysisInputs, path: string): string | null {
-  const fact = resolveFactAtPath(inputs.facts, path);
+  const fact = factAt(inputs.facts, path);
   return typeof fact === "string" ? fact : null;
 }
 
@@ -81,7 +80,7 @@ export function AnalysisPanel({ analysis }: { analysis: AnalysisPanelData }) {
       <section className="border-line-soft flex flex-col gap-1 border-t pt-3">
         <h3 className="text-muted-foreground text-[11px] uppercase">{labels.inputsCited}</h3>
         <ul className="flex flex-col gap-1">
-          {analysis.output.inputsCited.map((path) => {
+          {[...new Set(analysis.output.inputsCited)].map((path) => {
             const value = citedFactValue(analysis.inputs, path);
             return (
               <li key={path} className="flex items-baseline justify-between gap-3 text-[12px]">

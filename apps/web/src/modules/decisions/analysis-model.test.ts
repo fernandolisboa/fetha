@@ -44,13 +44,43 @@ describe("replyFromMessage", () => {
   it("reads a refusal as a refusal, whatever text came with it", () => {
     expect(replyFromMessage(message("refusal", [{ type: "text", text: "{}" }]))).toEqual({
       kind: "refusal",
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1200, outputTokens: 300 },
     });
   });
 
-  it("reads a truncated reply as max_tokens", () => {
+  it("reads a truncated reply as incomplete with its stop reason", () => {
     expect(replyFromMessage(message("max_tokens", [{ type: "text", text: '{"thesis":' }]))).toEqual(
-      { kind: "max_tokens" },
+      {
+        kind: "incomplete",
+        stopReason: "max_tokens",
+        model: "claude-opus-5-5",
+        usage: { inputTokens: 1200, outputTokens: 300 },
+      },
     );
+  });
+
+  it.each(["pause_turn", "model_context_window_exceeded", "tool_use", "compaction"])(
+    "reads stop reason %s as incomplete",
+    (stopReason) => {
+      expect(replyFromMessage(message(stopReason, [{ type: "text", text: "{}" }]))).toEqual({
+        kind: "incomplete",
+        stopReason,
+        model: "claude-opus-5-5",
+        usage: { inputTokens: 1200, outputTokens: 300 },
+      });
+    },
+  );
+
+  it("reads a stop_sequence stop reason as a parsed reply", () => {
+    expect(
+      replyFromMessage(message("stop_sequence", [{ type: "text", text: '{"thesis":"a"}' }])),
+    ).toEqual({
+      kind: "parsed",
+      output: { thesis: "a" },
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1200, outputTokens: 300 },
+    });
   });
 
   it("parses the JSON text with the serving model and its usage", () => {

@@ -15,12 +15,13 @@ import { RiskProfileRepository } from "./risk-profile-repository";
 export async function priceOperationNow(
   underlying: string,
   legs: ContemplatedLeg[],
+  options?: { excludeOperationId?: string },
 ): Promise<OperationPricing | null> {
   const user = await requireUser();
   const riskProfiles = await forCurrentUser(getDb(), RiskProfileRepository);
   const [riskProfile, openOperationCount] = await Promise.all([
     riskProfiles.current(),
-    countLiveOpenOperations(getDb(), user, nowInstant()),
+    countLiveOpenOperations(getDb(), user, nowInstant(), options?.excludeOperationId),
   ]);
   const result = await priceOperationLegs(underlying, legs, riskProfile, openOperationCount);
   return result.ok ? result.value : null;

@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-10
 ---
 
-# AI analyses: engine facts in, a checked contract out, a reserved monthly cap (#28, sharpens 0009)
+# AI analyses: engine facts in, a checked contract out, a reserved monthly cap (#28, sharpens 0009, amends 0005 and 0006)
 
 ## Context
 
@@ -70,21 +70,47 @@ rejected text is never shown or stored.
 version (`analysis@1`); a change to its text is a new version, and the version is stored with
 every request. Fixture tests hold recorded inputs and golden outputs that must pass the schema
 and the citation check, plus adversarial fixtures (an injection inside a fact, replies that cite
-figures or paths outside the inputs) that must be neutralized or rejected.
+figures or paths outside the inputs) that must be neutralized or rejected. This amends ADR-0006's
+"prompts live in `apps/web`": a prompt is pure text and fixtures over a frozen version, the same
+kind of seam `packages/engine` and `packages/contracts` already carve out, so it lives in its own
+package instead.
+
+**Outcome and the time budget.** `failed` means no reply ever came back: any `Anthropic.APIError`
+(including a connection or timeout error). `rejected` means some reply came back but was unusable:
+a refusal, a schema failure, a citation failure, or any `stop_reason` other than `end_turn` or
+`stop_sequence` (`max_tokens`, `model_context_window_exceeded`, `pause_turn`...) — the call was
+paid, so it counts toward the cap; a `failed` one does not. The SDK call itself runs with
+`timeout: 100_000` and `maxRetries: 0`: the route handlers' own `maxDuration` is 120s, so the model
+call leaves headroom to classify the reply and write the result row within that budget, and a
+retried call that still failed would leave none. A request with no result row yet (the model call
+is still in flight, or the handler was killed by the platform before it could write one) counts
+toward the cap only for its first 5 minutes; past that it ages out, so an orphaned reservation
+never holds a slot forever. A request with a stored result counts exactly when that result is not
+`failed`.
+
+**Walk-forward windows.** A backtest run's facts keep at most the 12 most recent walk-forward
+windows (the ones closest to the current regime), not the oldest 12, plus a fact stating how many
+were left out.
+
+**Fact depth.** `analysisFactsSchema` caps nesting at `MAX_FACT_DEPTH` (20 in `packages/contracts`):
+deep enough for the deepest tree assembly can produce for a legal strategy (a condition at
+`MAX_CONDITION_DEPTH`, inside an exit rule, inside a `roll` adjustment's `when`, measuring 17 by
+this module's own depth count), kept with margin above that.
 
 **Storage and cap.** `analysis_requests` (the inputs, subject, prompt version, requested model,
 time) and `analysis_results` (outcome `accepted`, `rejected` or `failed`, the output when
 accepted, the reason otherwise, the answering model and token usage), both user-scoped,
 append-only and in the account export. A request row is inserted before the model is called,
 inside a transaction under the per-user advisory lock of ADR-0032 (`analysis_requests` scope),
-after counting this calendar month's (America/Sao_Paulo) requests whose result is not `failed`.
-At 50 the action answers `cap_reached`. A rejected reply counts, because the call was paid; a
-`failed` one (API error, refusal, truncated reply) does not. Requests are also limited to 3 a
-minute per account. Without `ANTHROPIC_API_KEY` the action answers `unavailable` before
-reserving anything, and the screen says the analysis is unavailable.
+after counting this calendar month's (America/Sao_Paulo) requests under the rule above. At 50 the
+action answers `cap_reached`. Requests are also limited to 3 a minute per account. Without
+`ANTHROPIC_API_KEY` the action answers `unavailable` before reserving anything, and the screen
+says the analysis is unavailable.
 
-**Scoring** of analyses (ADR-0005) and their place in the journal are not part of this decision;
-they need a horizon and a claim the contract does not carry yet (follow-up issue).
+**Scoring** of analyses and their place in the journal are not part of this decision; they need
+a horizon and a claim the contract does not carry yet (follow-up issue). This amends ADR-0005's
+"every AI analysis is scored" and ADR-0009's "scored like decisions": until that follow-up
+lands, only decisions are scored.
 
 ## Considered options
 

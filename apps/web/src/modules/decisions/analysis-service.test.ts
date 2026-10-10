@@ -38,7 +38,11 @@ function baseDeps(overrides: Partial<RequestAnalysisDeps> = {}): RequestAnalysis
   return {
     db: {} as RequestAnalysisDeps["db"],
     user: { id: "user-1" },
-    client: fakeClient({ kind: "refusal" }),
+    client: fakeClient({
+      kind: "refusal",
+      model: "claude-sonnet-5-5",
+      usage: { inputTokens: 10, outputTokens: 0 },
+    }),
     assemble: vi.fn().mockResolvedValue({ ok: true, inputs }),
     repository: {
       reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
@@ -93,11 +97,15 @@ describe("requestAnalysis", () => {
     expect(result).toEqual({ status: "cap_reached" });
   });
 
-  it("completes as failed on a refusal and never stores an output", async () => {
+  it("rejects a refusal, counted because the call was paid", async () => {
     const complete = vi.fn();
     const result = await requestAnalysis(
       baseDeps({
-        client: fakeClient({ kind: "refusal" }),
+        client: fakeClient({
+          kind: "refusal",
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 0 },
+        }),
         repository: {
           reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
           complete,
@@ -105,18 +113,23 @@ describe("requestAnalysis", () => {
       }),
       requestInput,
     );
-    expect(result).toEqual({ status: "failed" });
+    expect(result).toEqual({ status: "rejected" });
     expect(complete).toHaveBeenCalledWith(
       "req-1",
-      expect.objectContaining({ outcome: "failed", reason: { kind: "refusal" } }),
+      expect.objectContaining({ outcome: "rejected", reason: { kind: "refusal" } }),
     );
   });
 
-  it("completes as failed on a truncated reply", async () => {
+  it("rejects an incomplete reply (any stop reason other than end_turn or stop_sequence)", async () => {
     const complete = vi.fn();
     const result = await requestAnalysis(
       baseDeps({
-        client: fakeClient({ kind: "max_tokens" }),
+        client: fakeClient({
+          kind: "incomplete",
+          stopReason: "model_context_window_exceeded",
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
         repository: {
           reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
           complete,
@@ -124,10 +137,13 @@ describe("requestAnalysis", () => {
       }),
       requestInput,
     );
-    expect(result).toEqual({ status: "failed" });
+    expect(result).toEqual({ status: "rejected" });
     expect(complete).toHaveBeenCalledWith(
       "req-1",
-      expect.objectContaining({ reason: { kind: "max_tokens" } }),
+      expect.objectContaining({
+        outcome: "rejected",
+        reason: { kind: "incomplete", stopReason: "model_context_window_exceeded" },
+      }),
     );
   });
 

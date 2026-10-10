@@ -318,7 +318,7 @@ const ptBR = {
       rejected:
         "A resposta citou um número fora dos dados do motor e foi descartada. Ainda assim, contou no limite mensal.",
       failed: "A IA não respondeu. Tente novamente — essa tentativa não contou no limite.",
-      cap_reached: (cap: number) => `O limite deste mês de ${String(cap)} análises já foi usado.`,
+      cap_reached: (cap: number) => `Você já usou as ${String(cap)} análises deste mês.`,
     },
   },
 };

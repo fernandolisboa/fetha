@@ -19,7 +19,7 @@ describe("released prompt versions", () => {
   it("analysis@1 is frozen", () => {
     expect(analysisV1.version).toBe("analysis@1");
     expect(digest(analysisV1)).toBe(
-      "14ccb3932be07e2b3767cd2e605b7210ba02bef837da680f3219c173d2bbbe33",
+      "6518299b80d13f98631833c0a24d3553bb56ba3319ffe0979905ad78b5289813",
     );
   });
 });

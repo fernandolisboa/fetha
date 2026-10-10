@@ -23,6 +23,7 @@ import { getStructures } from "@/modules/strategies";
 
 import { priceOperationLegs } from "./engine-client";
 import { OperationsRepository } from "./operations-repository";
+import { priceOperationNow } from "./price-now";
 import { countLiveOpenOperations } from "./portfolio-service";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { validateLegsAgainstStructure } from "./validate-legs";
@@ -120,20 +121,11 @@ export async function priceOperationAction(input: {
       throw error;
     }
 
-    const [riskProfile, openOperationCount] = await Promise.all([
-      currentRiskProfile(),
-      countLiveOpenOperations(getDb(), user, nowInstant()),
-    ]);
-    const result = await priceOperationLegs(
-      parsed.data.underlying,
-      parsed.data.legs,
-      riskProfile,
-      openOperationCount,
-    );
-    if (!result.ok) {
+    const pricing = await priceOperationNow(parsed.data.underlying, parsed.data.legs);
+    if (!pricing) {
       return { status: "error", error: "unpriceable" };
     }
-    return { status: "ok", pricing: result.value };
+    return { status: "ok", pricing };
   });
 }
 

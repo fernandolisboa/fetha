@@ -443,8 +443,8 @@ is not part of this yet (follow-up issue).
 _Avoid_: recommendation, report, insight, opinion
 
 **Journal**:
-The chronological record of a user's decisions and analyses, each later scored against realized
-outcomes.
+The chronological record of a user's decisions, each later scored against realized outcomes. AI
+analyses are stored alongside but not yet scored or shown in it (ADR-0057).
 _Avoid_: history, log, diary
 
 **Horizon**:

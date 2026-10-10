@@ -4,6 +4,7 @@ import {
   analysisInputsSchema,
   analysisOutputSchema,
   checkAnalysisCitations,
+  factAt,
   figuresIn,
   type AnalysisFact,
   type AnalysisInputs,
@@ -60,6 +61,24 @@ describe("figuresIn", () => {
 
   it("splits a partial date into its parts", () => {
     expect(figuresIn("em 17/10").map((figure) => figure.text)).toEqual(["17", "10"]);
+  });
+});
+
+describe("factAt", () => {
+  it("resolves a leaf, a list index and an inner node", () => {
+    expect(factAt(inputs.facts, "pricing.legs.0.strike")).toBe("R$ 32,00");
+    expect(factAt(inputs.facts, "pricing.breakEvens")).toEqual(["R$ 30,15"]);
+  });
+
+  it("resolves a null fact as null, not as missing", () => {
+    expect(factAt({ rule: null }, "rule")).toBeNull();
+    expect(factAt({ rule: null }, "rule.kind")).toBeUndefined();
+  });
+
+  it("does not resolve past a string, out of range or by a non-numeric index", () => {
+    expect(factAt(inputs.facts, "underlying.length")).toBeUndefined();
+    expect(factAt(inputs.facts, "pricing.legs.9")).toBeUndefined();
+    expect(factAt(inputs.facts, "pricing.legs.first")).toBeUndefined();
   });
 });
 
@@ -185,9 +204,9 @@ describe("analysisInputsSchema", () => {
     ).toBe(false);
   });
 
-  it("refuses facts nested deeper than twelve levels", () => {
+  it("refuses facts nested deeper than MAX_FACT_DEPTH", () => {
     let deep: AnalysisFact = "1";
-    for (let level = 0; level < 13; level += 1) deep = { a: deep };
+    for (let level = 0; level < 21; level += 1) deep = { a: deep };
     expect(analysisInputsSchema.safeParse({ subject: "signal", facts: deep }).success).toBe(false);
     expect(analysisInputsSchema.safeParse({ subject: "signal", facts: { a: "1" } }).success).toBe(
       true,

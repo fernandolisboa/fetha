@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-import { analysisInputsSchema, type CostModel, type StrategyDefinition } from "@fetha/contracts";
+import {
+  analysisInputsSchema,
+  MAX_CONDITION_DEPTH,
+  type Condition,
+  type CostModel,
+  type DecimalString,
+  type StrategyDefinition,
+} from "@fetha/contracts";
 import type {
   BacktestMetrics,
   IndicatorReading,
@@ -250,5 +257,130 @@ describe("backtestRunFacts", () => {
 
   it("never sends the strategy's name", () => {
     expect(JSON.stringify(facts.strategy)).not.toContain("Golden cross");
+  });
+
+  it("says no window was omitted when there are 12 or fewer", () => {
+    expect(facts.walkForwardOmitted).toBe("0 janelas de walk-forward omitidas");
+  });
+});
+
+describe("backtestRunFacts walk-forward window cap", () => {
+  const manyWindows = Array.from({ length: 15 }, (_, index) => {
+    const year = 2010 + index;
+    return {
+      from: `${String(year)}-01-02`,
+      to: `${String(year)}-12-29`,
+      metrics,
+    };
+  }) as unknown as WalkForwardWindow[];
+
+  const facts = backtestRunFacts({
+    period: { from: "2023-01-02", to: "2026-09-30" },
+    timeframe: "D1",
+    universe: ["PETR4"],
+    initialCapital: 10000000 as unknown as BacktestRunFactsInput["initialCapital"],
+    costModel: {
+      b3FeeRate: "0.0003",
+      b3OptionFeeRate: "0.0004",
+      brokerage: { stockPerOrder: 0, optionPerOrder: 0 },
+      optionSlippageRate: "0.005",
+      incomeTaxRate: "0.15",
+      monthlyStockSalesExemption: 2000000,
+    } as unknown as CostModel,
+    strategy: {
+      name: "Golden cross",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: ">",
+        right: { kind: "indicator", indicator: { kind: "sma", length: 50 } },
+      },
+      structureId: "stock_long",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: "0.1" },
+      exit: [{ kind: "stop_loss", multipleOfMaxLoss: "0.08" }],
+      adjustments: [],
+    } as unknown as StrategyDefinition,
+    metrics,
+    walkForward: manyWindows,
+    counts: { operations: 42, missedEntries: 3, limitBreaches: 0 },
+    notes: [],
+  });
+
+  it("keeps the 12 most recent windows, not the oldest 12", () => {
+    const kept = facts.walkForward as readonly { from: string }[];
+    expect(kept).toHaveLength(12);
+    // The three oldest windows (2010-2012) are dropped; 2013 is the first
+    // window kept.
+    expect(kept[0]?.from).toBe("02/01/2013");
+    expect(kept[kept.length - 1]?.from).toBe("02/01/2024");
+  });
+
+  it("states how many windows were left out", () => {
+    expect(facts.walkForwardOmitted).toBe("3 janelas de walk-forward omitidas");
+  });
+});
+
+function deepestCondition(): Condition {
+  let condition: Condition = {
+    kind: "compare",
+    left: { kind: "price", field: "close" },
+    comparator: ">",
+    right: { kind: "constant", value: "1" as DecimalString },
+  };
+  for (let level = 1; level < MAX_CONDITION_DEPTH; level += 1) {
+    condition = { kind: "and", conditions: [condition] };
+  }
+  return condition;
+}
+
+describe("backtestRunFacts at the deepest legal fact tree", () => {
+  it("passes analysisInputsSchema for a strategy nesting a condition at MAX_CONDITION_DEPTH inside an exit rule and inside a roll adjustment's when", () => {
+    const condition = deepestCondition();
+    const strategy = {
+      name: "Deep strategy",
+      timeframe: "D1",
+      entry: {
+        kind: "compare",
+        left: { kind: "price", field: "close" },
+        comparator: ">",
+        right: { kind: "constant", value: "1" },
+      },
+      structureId: "stock_long",
+      strikes: [],
+      sizing: { kind: "fixed_fractional", fraction: "0.1" },
+      exit: [{ kind: "condition", condition }],
+      adjustments: [
+        {
+          kind: "roll",
+          when: { kind: "condition", condition },
+          expiry: { kind: "business_days", min: 1, max: 5 },
+          strikes: [{ kind: "nearest", price: "1" }],
+        },
+      ],
+    } as unknown as StrategyDefinition;
+
+    const facts = backtestRunFacts({
+      period: { from: "2023-01-02", to: "2026-09-30" },
+      timeframe: "D1",
+      universe: ["PETR4"],
+      initialCapital: 10000000 as unknown as BacktestRunFactsInput["initialCapital"],
+      costModel: {
+        b3FeeRate: "0.0003",
+        b3OptionFeeRate: "0.0004",
+        brokerage: { stockPerOrder: 0, optionPerOrder: 0 },
+        optionSlippageRate: "0.005",
+        incomeTaxRate: "0.15",
+        monthlyStockSalesExemption: 2000000,
+      } as unknown as CostModel,
+      strategy,
+      metrics,
+      walkForward: [],
+      counts: { operations: 1, missedEntries: 0, limitBreaches: 0 },
+      notes: [],
+    });
+
+    expect(analysisInputsSchema.safeParse({ subject: "backtest_run", facts }).success).toBe(true);
   });
 });

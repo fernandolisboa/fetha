@@ -120,6 +120,7 @@
         }
       }
     ],
+    "walkForwardOmitted": "0 janelas de walk-forward omitidas",
     "counts": {
       "operations": "42",
       "missedEntries": "3",

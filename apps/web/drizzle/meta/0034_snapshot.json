@@ -1243,8 +1243,8 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "analysis_results_request_id_user_id_analysis_requests_id_user_id_fk": {
-          "name": "analysis_results_request_id_user_id_analysis_requests_id_user_id_fk",
+        "analysis_results_request_id_user_id_fk": {
+          "name": "analysis_results_request_id_user_id_fk",
           "tableFrom": "analysis_results",
           "tableTo": "analysis_requests",
           "columnsFrom": [

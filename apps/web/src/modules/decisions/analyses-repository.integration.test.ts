@@ -67,6 +67,17 @@ afterEach(async () => {
   }
 });
 
+const ACCEPTED_OUTPUT = {
+  thesis: "thesis",
+  counterThesis: "counter-thesis",
+  keyRisks: ["risk"],
+  maxLoss: "R$ 500,00",
+  breakEvens: "R$ 10,00",
+  invalidation: ["condition"],
+  confidence: { level: "medium" as const, justification: "justification" },
+  inputsCited: ["session"],
+};
+
 describe("AnalysesRepository isolation", () => {
   it("user A cannot read user B's analysis requests or usage", async () => {
     const db = getDb();
@@ -77,14 +88,26 @@ describe("AnalysesRepository isolation", () => {
     const userB = await insertBareUser(emailB);
 
     const repoB = new AnalysesRepository(db, userB);
-    await repoB.reserve(reserveInput());
+    const subjectId = crypto.randomUUID();
+    const { id: requestId } = await repoB.reserve(reserveInput(subjectId));
+    await repoB.complete(requestId, {
+      outcome: "accepted",
+      output: ACCEPTED_OUTPUT,
+      reason: null,
+      model: "claude-sonnet-5-5",
+      inputTokens: 10,
+      outputTokens: 20,
+    });
 
     const repoA = new AnalysesRepository(db, userA);
     const usageA = await repoA.usageThisMonth();
     expect(usageA.used).toBe(0);
 
-    const latestForB = await repoA.latestAccepted("signal", ["does-not-matter"]);
-    expect(latestForB.size).toBe(0);
+    const latestForA = await repoA.latestAccepted("signal", [subjectId]);
+    expect(latestForA.size).toBe(0);
+
+    const latestForB = await repoB.latestAccepted("signal", [subjectId]);
+    expect(latestForB.size).toBe(1);
   });
 
   it("user A cannot complete user B's analysis request", async () => {
@@ -185,6 +208,40 @@ describe("AnalysesRepository monthly cap (docs/adr/0057)", () => {
 
     const usage = await repository.usageThisMonth();
     expect(usage.used).toBe(1);
+  });
+
+  it("counts a request with no result less than 5 minutes old", async () => {
+    const db = getDb();
+    const email = uniqueEmail("cap-orphan-fresh");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new AnalysesRepository(db, owner);
+
+    await db.insert(analysisRequests).values({
+      ...reserveInput(),
+      userId: owner.id,
+      requestedAt: sql`now() - interval '4 minutes'`,
+    });
+
+    const usage = await repository.usageThisMonth();
+    expect(usage.used).toBe(1);
+  });
+
+  it("ages a request with no result out of the cap after 5 minutes", async () => {
+    const db = getDb();
+    const email = uniqueEmail("cap-orphan-stale");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const repository = new AnalysesRepository(db, owner);
+
+    await db.insert(analysisRequests).values({
+      ...reserveInput(),
+      userId: owner.id,
+      requestedAt: sql`now() - interval '6 minutes'`,
+    });
+
+    const usage = await repository.usageThisMonth();
+    expect(usage.used).toBe(0);
   });
 
   it("does not count last month's requests", async () => {

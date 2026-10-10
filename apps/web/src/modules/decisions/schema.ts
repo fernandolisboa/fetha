@@ -240,8 +240,8 @@ export const analysisRequests = pgTable(
 // are mutually exclusive: `accepted` always carries an output and no
 // reason, `rejected`/`failed` always carry a reason and no output — a
 // rejected reply's text is never stored (docs/adr/0057), only why it was
-// discarded. `model` is nullable: a `failed` call (refusal, truncation, API
-// error) may never have reached a model that answered.
+// discarded. `model` is nullable: a `failed` call (no reply at all, an API
+// error) never reached a model that answered.
 export const analysisResults = pgTable(
   "analysis_results",
   {
@@ -263,6 +263,7 @@ export const analysisResults = pgTable(
   (table) => [
     index("analysis_results_user_id_completed_at_idx").on(table.userId, table.completedAt),
     foreignKey({
+      name: "analysis_results_request_id_user_id_fk",
       columns: [table.requestId, table.userId],
       foreignColumns: [analysisRequests.id, analysisRequests.userId],
     }),

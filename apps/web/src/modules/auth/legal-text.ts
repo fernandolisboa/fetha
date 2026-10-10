@@ -96,7 +96,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         heading: "Who else processes it",
         paragraphs: [
           "Four providers run the service on Fetha's behalf: Vercel (hosting), Neon (the Postgres database), Resend (sending email) and Anthropic (the AI model behind the analyses you request). All four process data in the United States, so your data is transferred abroad under LGPD art. 33. No one else receives it.",
-          "Anthropic receives only what an analysis you request needs: the market figures, prices, greeks and backtest results the engine computed for that one object. It never receives your name, your email, your declared capital or any text you wrote, such as a strategy's name or a decision's rationale.",
+          "Anthropic receives only what an analysis you request needs: the market figures, prices, greeks and backtest results the engine computed for that one object. For an operation you hold or are studying, it also receives each leg's quantity and entry price; for a backtest, its starting capital. It never receives your name, your email, your declared capital or any text you wrote, such as a strategy's name or a decision's rationale.",
         ],
       },
       {
@@ -214,7 +214,7 @@ const ptBR: typeof en = {
         heading: "Quem mais trata os dados",
         paragraphs: [
           "Quatro fornecedores operam o serviço em nome do Fetha: Vercel (hospedagem), Neon (banco de dados Postgres), Resend (envio de e-mails) e Anthropic (o modelo de IA das análises que você pede). Os quatro tratam dados nos Estados Unidos, o que configura transferência internacional nos termos do art. 33 da LGPD. Ninguém mais recebe seus dados.",
-          "A Anthropic recebe só o que a análise pedida precisa: os números de mercado, preços, gregas e resultados de backtest que o motor calculou para aquele objeto. Ela nunca recebe seu nome, seu e-mail, seu capital declarado nem nenhum texto escrito por você, como o nome de uma estratégia ou a justificativa de uma decisão.",
+          "A Anthropic recebe só o que a análise pedida precisa: os números de mercado, preços, gregas e resultados de backtest que o motor calculou para aquele objeto. Para uma operação que você mantém ou está estudando, ela também recebe a quantidade e o preço de entrada de cada perna; para um backtest, o capital inicial. Ela nunca recebe seu nome, seu e-mail, seu capital declarado nem nenhum texto escrito por você, como o nome de uma estratégia ou a justificativa de uma decisão.",
         ],
       },
       {
@@ -265,8 +265,8 @@ interface TermsChangeSummary {
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
   "2026-10-10.1": {
-    en: "This version covers the AI analyses you can now request: Anthropic joins the providers that process data on Fetha's behalf, receiving only the engine's figures for the object you ask about and never your name, email, declared capital or any text you wrote; and an analysis is a model's reading of those figures, not a recommendation.",
-    ptBR: "Esta versão trata das análises por IA que você agora pode pedir: a Anthropic passa a tratar dados em nome do Fetha, recebendo só os números do motor para o objeto analisado e nunca seu nome, seu e-mail, seu capital declarado nem texto escrito por você; e uma análise é a leitura de um modelo sobre esses números, não uma recomendação.",
+    en: "This version covers the AI analyses you can now request: Anthropic joins the providers that process data on Fetha's behalf, receiving only the engine's figures for the object you ask about — including each leg's quantity and entry price for an operation you hold or are studying, and the starting capital for a backtest — and never your name, email, declared capital or any text you wrote; and an analysis is a model's reading of those figures, not a recommendation.",
+    ptBR: "Esta versão trata das análises por IA que você agora pode pedir: a Anthropic passa a tratar dados em nome do Fetha, recebendo só os números do motor para o objeto analisado — incluindo a quantidade e o preço de entrada de cada perna, para uma operação que você mantém ou está estudando, e o capital inicial, para um backtest — e nunca seu nome, seu e-mail, seu capital declarado nem texto escrito por você; e uma análise é a leitura de um modelo sobre esses números, não uma recomendação.",
   },
   "2026-09-27.3": {
     en: "This version adds the full text of the terms of use and the privacy policy: what Fetha is and is not, where its market data comes from, who processes your data and in which country, how long each kind of data is kept, your rights under the LGPD and the contact fetha@miolos.app.",

@@ -132,12 +132,18 @@ export async function requestAnalysis(
   });
 
   if (reply.kind === "refusal") {
-    await completeFailed(repository, requestId, { kind: "refusal" });
-    return { status: "failed" };
+    await completeRejected(repository, requestId, { kind: "refusal" }, reply.model, reply.usage);
+    return { status: "rejected" };
   }
-  if (reply.kind === "max_tokens") {
-    await completeFailed(repository, requestId, { kind: "max_tokens" });
-    return { status: "failed" };
+  if (reply.kind === "incomplete") {
+    await completeRejected(
+      repository,
+      requestId,
+      { kind: "incomplete", stopReason: reply.stopReason },
+      reply.model,
+      reply.usage,
+    );
+    return { status: "rejected" };
   }
   if (reply.kind === "api_error") {
     await completeFailed(repository, requestId, { kind: "api_error", status: reply.status });
