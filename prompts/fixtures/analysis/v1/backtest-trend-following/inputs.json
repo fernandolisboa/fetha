@@ -1,0 +1,131 @@
+{
+  "subject": "backtest_run",
+  "facts": {
+    "period": {
+      "from": "02/01/2023",
+      "to": "30/09/2026"
+    },
+    "timeframe": "D1",
+    "universe": ["PETR4", "VALE3"],
+    "initialCapital": "R$ 100.000,00",
+    "costModel": {
+      "b3FeeRate": "0,03%",
+      "b3OptionFeeRate": "0,04%",
+      "brokerage": {
+        "stockPerOrder": "R$ 0,00",
+        "optionPerOrder": "R$ 0,00"
+      },
+      "optionSlippageRate": "0,50%",
+      "incomeTaxRate": "15,00%",
+      "monthlyStockSalesExemption": "R$ 20.000,00"
+    },
+    "strategy": {
+      "timeframe": "D1",
+      "entry": {
+        "kind": "compare",
+        "left": {
+          "kind": "price",
+          "field": "close"
+        },
+        "comparator": "gt",
+        "right": {
+          "kind": "indicator",
+          "indicator": {
+            "kind": "sma",
+            "length": "50"
+          }
+        }
+      },
+      "structureId": "stock_long",
+      "strikes": [],
+      "expiry": null,
+      "sizing": {
+        "kind": "fixed_fractional",
+        "fraction": "10,00%"
+      },
+      "exit": [
+        {
+          "kind": "stop_loss",
+          "threshold": "8,00%"
+        }
+      ],
+      "adjustments": []
+    },
+    "metrics": {
+      "sessions": "935",
+      "operations": "42",
+      "totalReturn": "18,40%",
+      "cagr": "4,62%",
+      "maxDrawdown": "−21,30%",
+      "sharpe": "0,38",
+      "winRate": "42,86%",
+      "profitFactor": "1,21",
+      "exposure": "38,50%",
+      "fees": "R$ 1.240,00",
+      "taxes": "R$ 2.310,00",
+      "slippage": "R$ 0,00"
+    },
+    "walkForward": [
+      {
+        "from": "02/01/2023",
+        "to": "29/12/2023",
+        "metrics": {
+          "sessions": "248",
+          "operations": "14",
+          "totalReturn": "9,10%",
+          "cagr": "9,10%",
+          "maxDrawdown": "−8,20%",
+          "sharpe": "0,91",
+          "winRate": "50,00%",
+          "profitFactor": "1,62",
+          "exposure": "41,00%",
+          "fees": "R$ 410,00",
+          "taxes": "R$ 980,00",
+          "slippage": "R$ 0,00"
+        }
+      },
+      {
+        "from": "02/01/2024",
+        "to": "30/12/2024",
+        "metrics": {
+          "sessions": "251",
+          "operations": "15",
+          "totalReturn": "−6,40%",
+          "cagr": "−6,40%",
+          "maxDrawdown": "−21,30%",
+          "sharpe": "−0,52",
+          "winRate": "33,33%",
+          "profitFactor": "0,74",
+          "exposure": "39,20%",
+          "fees": "R$ 450,00",
+          "taxes": "R$ 0,00",
+          "slippage": "R$ 0,00"
+        }
+      },
+      {
+        "from": "02/01/2025",
+        "to": "30/09/2026",
+        "metrics": {
+          "sessions": "436",
+          "operations": "13",
+          "totalReturn": "15,20%",
+          "cagr": "8,52%",
+          "maxDrawdown": "−11,70%",
+          "sharpe": "0,77",
+          "winRate": "46,15%",
+          "profitFactor": "1,48",
+          "exposure": "35,60%",
+          "fees": "R$ 380,00",
+          "taxes": "R$ 1.330,00",
+          "slippage": "R$ 0,00"
+        }
+      }
+    ],
+    "counts": {
+      "operations": "42",
+      "missedEntries": "3",
+      "limitBreaches": "0"
+    },
+    "notes": []
+  }
+}

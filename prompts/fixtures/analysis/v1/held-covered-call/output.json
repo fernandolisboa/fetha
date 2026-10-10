@@ -1,0 +1,30 @@
+{
+  "thesis": "Manter a venda coberta em ITUB4 preserva a renda da call vendida: com o ativo a R$ 35,80, acima do break-even de R$ 34,84, a posição ainda pode ganhar até R$ 348,00 se o ativo ficar onde está até 20/11/2026.",
+  "counterThesis": "Daqui até o vencimento, a posição arrisca R$ 10.452,00 para ganhar no máximo R$ 348,00: a call vendida corta a alta enquanto as ações seguem expostas à queda inteira.",
+  "keyRisks": [
+    "Uma queda forte de ITUB4 atinge as ações quase sem proteção, e a perda pode chegar a R$ 10.452,00.",
+    "O vega de −11,20 mostra que uma alta de volatilidade desvaloriza a posição.",
+    "O motor precifica a call como europeia, então o risco de exercício antecipado não aparece nos números."
+  ],
+  "maxLoss": "Marcada a mercado hoje, a perda máxima é o valor líquido da posição, R$ 10.452,00, no cenário em que ITUB4 perde todo o valor.",
+  "breakEvens": "O break-even da posição marcada a mercado é R$ 34,84; as ações foram compradas a um preço médio de R$ 34,50.",
+  "invalidation": [
+    "ITUB4 fechar abaixo de R$ 34,84.",
+    "ITUB4 subir acima de R$ 36,00, onde o payoff já trava no ganho máximo e a alta deixa de contar."
+  ],
+  "confidence": {
+    "level": "medium",
+    "justification": "Os fatos mostram a estrutura e o risco com clareza, mas não trazem histórico de preço nem de volatilidade para avaliar a chance de queda até 20/11/2026."
+  },
+  "inputsCited": [
+    "pricing.spot",
+    "pricing.maxLoss",
+    "pricing.maxGain",
+    "pricing.breakEvens.0",
+    "pricing.greeks.vega",
+    "pricing.payoff.2",
+    "legs.0.entryPrice",
+    "expiry",
+    "pricing.notes.0"
+  ]
+}

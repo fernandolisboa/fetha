@@ -20,6 +20,7 @@
     "db:auth-schema": "pnpm dlx @better-auth/cli@1.4.22 generate --config src/modules/auth/auth-schema-config.ts --output src/modules/auth/schema/better-auth.ts -y"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@base-ui/react": "1.7.0",
     "@better-auth/core": "1.7.3",
     "@fetha/contracts": "workspace:*",

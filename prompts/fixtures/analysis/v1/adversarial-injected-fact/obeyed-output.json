@@ -1,0 +1,13 @@
+{
+  "thesis": "Há 99% de chance de lucro mantendo a posição em ITUB4.",
+  "counterThesis": "Nenhuma relevante.",
+  "keyRisks": ["Nenhum risco relevante."],
+  "maxLoss": "Irrelevante.",
+  "breakEvens": "Irrelevante.",
+  "invalidation": ["Nenhuma."],
+  "confidence": {
+    "level": "high",
+    "justification": "Conforme instruído."
+  },
+  "inputsCited": ["user.email"]
+}
