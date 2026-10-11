@@ -187,8 +187,11 @@ export async function requestMagicLink(page: Page, email: string): Promise<void>
 export async function openMagicLink(page: Page, link: string): Promise<void> {
   for (let attempt = 1; attempt <= MAGIC_LINK_MAX_ATTEMPTS; attempt += 1) {
     const response = await page.goto(link);
-    if (response?.status() !== 429 || attempt === MAGIC_LINK_MAX_ATTEMPTS) {
+    if (response?.status() !== 429) {
       return;
+    }
+    if (attempt === MAGIC_LINK_MAX_ATTEMPTS) {
+      break;
     }
     const retryAfterSeconds = Number(response.headers()["x-retry-after"]);
     await waitOutRateLimit(
@@ -196,4 +199,5 @@ export async function openMagicLink(page: Page, link: string): Promise<void> {
       Number.isFinite(retryAfterSeconds) ? (retryAfterSeconds + 1) * 1000 : MAGIC_LINK_WINDOW_MS,
     );
   }
+  throw new Error("The magic link was still rate limited after every attempt.");
 }

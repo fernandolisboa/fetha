@@ -1,7 +1,7 @@
 import { expect, skipTourWhenShown, test as setup } from "./tour";
 
 import { ownerEmail, ownerStorageState, runIngestion, TEST_TIMEOUT_MS } from "./helpers";
-import { FIXED_SESSIONS, recentSession } from "./sessions";
+import { FIXED_SESSIONS } from "./sessions";
 import { openMagicLink, requestMagicLink, tryReadLatestLink } from "./support";
 
 // Runs before every other project (playwright.config.ts). CI resets the
@@ -15,6 +15,7 @@ const e2eSecret = process.env.E2E_SECRET;
 setup.skip(!e2eSecret, "E2E_SECRET is not set; no owner session or market data to set up.");
 
 setup("sign the owner in", async ({ page, request, baseURL }) => {
+  setup.setTimeout(TEST_TIMEOUT_MS);
   const secret = e2eSecret ?? "";
   // Reading a captured link also deletes it, so this first read drains a
   // link an earlier run left behind, and the poll then waits for this run's
@@ -33,8 +34,8 @@ setup("sign the owner in", async ({ page, request, baseURL }) => {
   await page.context().storageState({ path: ownerStorageState });
 });
 
-setup("ingest the sessions the suite reads", async ({ browser, baseURL, request }) => {
-  setup.setTimeout(TEST_TIMEOUT_MS * (FIXED_SESSIONS.length + 1));
+setup("ingest the fixed sessions the suite reads", async ({ browser, baseURL }) => {
+  setup.setTimeout(TEST_TIMEOUT_MS * FIXED_SESSIONS.length);
 
   const context = await browser.newContext({
     baseURL,
@@ -46,7 +47,5 @@ setup("ingest the sessions the suite reads", async ({ browser, baseURL, request 
   for (const session of FIXED_SESSIONS) {
     await runIngestion(page, session);
   }
-  // Asked only now: the calendar it reads is stored by the runs above.
-  await runIngestion(page, await recentSession(request, e2eSecret ?? ""));
   await context.close();
 });

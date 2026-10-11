@@ -4,9 +4,9 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 import { recentSession } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
-// owner.setup.ts has already ingested PETR4 for the recent session this
-// spec evaluates (the inbox only takes entries from its newest few closed
-// sessions, docs/adr/0044). This spec declares a risk profile (a signal without one only reaches the
+// The inbox only takes entries from its newest few closed sessions
+// (docs/adr/0044), so this spec evaluates a recent session from the app's
+// own calendar instead of a fixed date. It declares a risk profile (a signal without one only reaches the
 // evaluation log as `unsizeable`, never the inbox), creates a strategy
 // whose entry condition ("close > 0") always holds once a candle exists,
 // activates it, triggers the owner's manual ingestion trigger for that

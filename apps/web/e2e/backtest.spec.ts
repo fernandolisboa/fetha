@@ -1,6 +1,6 @@
 import { expect, test } from "./tour";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, TEST_TIMEOUT_MS } from "./helpers";
 import { FROM_SESSION, TO_SESSION } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
@@ -12,6 +12,7 @@ const TICKER = "PETR4";
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the backtest run-and-report flow.");
 
 test("run a backtest and open its report", async ({ page, baseURL, request }) => {
+  test.setTimeout(TEST_TIMEOUT_MS);
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   // A backtest run refuses to create without a declared risk profile (its

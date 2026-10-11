@@ -126,7 +126,9 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
 Point 6's per-spec sign-in tripped the owner's magic-link limits (3 per 60 s per account and per
 IP) once the suite ran in CI. A Playwright `setup` project (`apps/web/e2e/owner.setup.ts`), which
 every other project depends on, now signs the owner in through one magic link, saves that session
-as Playwright storage state, and drives the manual trigger for every session the suite reads.
+as Playwright storage state, and drives the manual trigger for the fixed past sessions the suite
+reads. The e2e helpers assert only the sources the specs read (calendar, cotahist, instruments),
+not the run's overall status, so a Bacen SGS outage does not fail the suite.
 `triggerIngestionAsOwner` opens its context from that saved session instead of signing in again.
 `backtest.spec.ts` and `compare.spec.ts` no longer trigger the job at all: they read sessions the
 setup project ingested. The `owner` project keeps `ingestion-trigger`, `signals`, `decisions` and

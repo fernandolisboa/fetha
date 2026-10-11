@@ -40,6 +40,7 @@ export async function registerAndSignIn(
 // test timeout and 5s expect timeout are both too short for it.
 const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
 export const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
+const SUITE_SOURCES = ["calendar", "cotahist", "instruments"];
 
 // The owner signs in once per run, in owner.setup.ts, and every spec that
 // needs the nightly job re-run opens a context from that saved session: one
@@ -79,13 +80,20 @@ export async function triggerIngestionAsOwner(
 
 export async function runIngestion(page: Page, session: string): Promise<void> {
   await page.goto("/configuracoes");
+  await expect(page.getByRole("heading", { name: "Disparo manual da ingestão" })).toBeVisible();
   await page.getByLabel("Sessão (opcional)").fill(session);
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
-  // Waits on the result panel itself, not the "Concluída" text: that text
-  // only ever renders on the ok status, so a failed/busy/forbidden run would
-  // otherwise burn the full 300s budget before failing.
+  // Waits on the result panel itself first, so a failed/busy/forbidden run
+  // fails here instead of burning the full 300s budget on a missing source.
   await expect(page.getByRole("heading", { name: "Última execução" })).toBeVisible({
     timeout: NIGHTLY_JOB_TIMEOUT_MS,
   });
-  await expect(page.getByText("Concluída")).toBeVisible();
+  // Asserts the sources the suite reads, not the whole run's "Concluída": the
+  // Bacen SGS and IV index sources feed no spec, and SGS often fails on
+  // Bacen's side (#289). The job itself gates evaluation on cotahist alone.
+  for (const source of SUITE_SOURCES) {
+    await expect(
+      page.getByRole("listitem").filter({ hasText: new RegExp(`^${source}:`) }),
+    ).toHaveText(new RegExp(`^${source}: (ok|pulada)$`));
+  }
 }

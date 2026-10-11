@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./tour";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, TEST_TIMEOUT_MS } from "./helpers";
 import { FROM_SESSION, TO_SESSION } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md. Like
@@ -26,6 +26,7 @@ async function runBacktestOfLatestVersion(page: Page, strategyUrl: string): Prom
 }
 
 test("compare the backtests of two versions of a strategy", async ({ page, baseURL, request }) => {
+  test.setTimeout(TEST_TIMEOUT_MS);
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.goto("/configuracoes");
