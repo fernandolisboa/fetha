@@ -3,8 +3,8 @@ import { expect, test } from "./tour";
 import { registerAndSignIn } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
-// PETR4 is one of B3's most liquid tickers and is expected to be present in
-// every ingested session, so it stands in for "any instrument the nightly
+// PETR4 is one of B3's most liquid tickers and trades in every session
+// owner.setup.ts ingests, so it stands in for "any instrument the nightly
 // job (#12) has already loaded" without this spec seeding its own candles.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";

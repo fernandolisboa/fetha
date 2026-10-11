@@ -8,6 +8,7 @@ dist
 *.tsbuildinfo
 playwright-report
 test-results
+apps/web/e2e/.auth
 .impeccable/
 apps/web/public/sw.js
 docs/design/workstation/fetha-workstation.html

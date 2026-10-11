@@ -1,6 +1,7 @@
 import { expect, test } from "./tour";
 
 import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { TO_SESSION } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // Seeds a thesis-only decision through the E2E-only `/api/e2e/seed-decision`
@@ -12,7 +13,6 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // already scored, with its components (#29 acceptance criterion b), not
 // "pendente".
 const e2eSecret = process.env.E2E_SECRET;
-const SESSION = "2026-09-09";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision scoring flow.");
 
@@ -29,11 +29,11 @@ test("a seeded decision is scored by the nightly job and shows its components on
   });
   expect(seeded.ok()).toBe(true);
 
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
+  await triggerIngestionAsOwner(browser, baseURL, TO_SESSION);
 
   await page.goto("/diario");
   await expect(page.getByText("Não entrar", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Tese confirmada", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Escore de Brier/)).toBeVisible();
+  await expect(page.getByText(/^Escore de Brier: \d+,\d{4}$/)).toBeVisible();
   await expect(page.getByText("sem pontuação ainda")).not.toBeVisible();
 });

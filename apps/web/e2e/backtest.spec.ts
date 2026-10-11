@@ -1,23 +1,17 @@
 import { expect, test } from "./tour";
 
-import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { registerAndSignIn } from "./helpers";
+import { FROM_SESSION, TO_SESSION } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
-// PETR4 is expected to have a candle for session 2026-09-09 already ingested
-// (the nightly job, #12); this spec triggers a manual re-ingestion of that
-// session first, through the owner's own session (#51) the same way
-// ingestion-trigger.spec.ts does, so the run
-// below always has real data to simulate against instead of depending on
-// when the preview was last seeded.
+// owner.setup.ts ingests PETR4's candles for both sessions of the window
+// below before this spec runs.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const SESSION = "2026-09-09";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the backtest run-and-report flow.");
 
-test("run a backtest and open its report", async ({ page, baseURL, request, browser }) => {
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
-
+test("run a backtest and open its report", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   // A backtest run refuses to create without a declared risk profile (its
@@ -60,8 +54,8 @@ test("run a backtest and open its report", async ({ page, baseURL, request, brow
   // word away from the same fate the moment a label containing "até"
   // appears. Exact keeps both queries tied to their own date input instead
   // of Playwright's strict-mode check picking that ambiguity up first.
-  await page.getByLabel("De", { exact: true }).fill("2026-09-08");
-  await page.getByLabel("Até", { exact: true }).fill(SESSION);
+  await page.getByLabel("De", { exact: true }).fill(FROM_SESSION);
+  await page.getByLabel("Até", { exact: true }).fill(TO_SESSION);
   await page.getByRole("button", { name: "Rodar backtest" }).click();
 
   await expect(page).toHaveURL(/\/backtests\/(?!novo$)[^/]+$/);

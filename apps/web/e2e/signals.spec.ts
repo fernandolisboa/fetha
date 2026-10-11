@@ -1,6 +1,7 @@
 import { expect, test } from "./tour";
 
 import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { recentSession } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // PETR4 is expected to already be ingested for session 2026-09-09 in the
@@ -13,7 +14,7 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // inbox as a SignalRow.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const SESSION = "2026-09-09";
+const SESSION = recentSession();
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the signal inbox flow.");
 
@@ -62,7 +63,7 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
+  await triggerIngestionAsOwner(browser, baseURL, SESSION);
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

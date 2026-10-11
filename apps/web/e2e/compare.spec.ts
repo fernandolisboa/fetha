@@ -2,15 +2,13 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./tour";
 
-import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { registerAndSignIn } from "./helpers";
+import { FROM_SESSION, TO_SESSION } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md. Like
-// backtest.spec.ts, it expects PETR4 candles for the two sessions below to be ingested already,
-// and re-ingests the second one first, through the owner's own session (#51).
+// backtest.spec.ts, it reads the PETR4 candles owner.setup.ts ingests for the two sessions below.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const FROM = "2026-09-08";
-const SESSION = "2026-09-09";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the strategy comparison flow.");
 
@@ -19,22 +17,15 @@ async function runBacktestOfLatestVersion(page: Page, strategyUrl: string): Prom
   await page.getByRole("link", { name: "Rodar backtest" }).click();
   await expect(page).toHaveURL(/\/backtests\/novo$/);
   await page.locator("label", { hasText: TICKER }).getByRole("checkbox").check();
-  await page.getByLabel("De", { exact: true }).fill(FROM);
-  await page.getByLabel("Até", { exact: true }).fill(SESSION);
+  await page.getByLabel("De", { exact: true }).fill(FROM_SESSION);
+  await page.getByLabel("Até", { exact: true }).fill(TO_SESSION);
   await page.getByRole("button", { name: "Rodar backtest" }).click();
   await expect(page).toHaveURL(/\/backtests\/(?!novo$)[^/]+$/);
   await page.getByRole("button", { name: /Executar|Continuar/ }).click();
   await expect(page.getByText("Janelas de walk-forward")).toBeVisible();
 }
 
-test("compare the backtests of two versions of a strategy", async ({
-  page,
-  baseURL,
-  request,
-  browser,
-}) => {
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
-
+test("compare the backtests of two versions of a strategy", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.goto("/configuracoes");

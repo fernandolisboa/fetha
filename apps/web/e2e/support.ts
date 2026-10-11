@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 // `/sign-up/email` is rate-limited to 3 per 10s per IP, and the window
 // restarts from the *last allowed* request rather than the first
@@ -133,4 +133,52 @@ export async function readLatestLink(
   expect(linkResponse.ok()).toBe(true);
   const { link } = (await linkResponse.json()) as { link: string };
   return link;
+}
+
+// `/sign-in/magic-link` and `/magic-link/verify` each allow 3 requests per
+// 60s per IP (auth/options.ts, the magicLink plugin's rateLimit), counted
+// from the last allowed request, and the whole suite shares one IP. Rather
+// than raising the limit, a rate-limited step waits the window out and
+// retries, extending the test's own timeout by exactly that wait.
+const MAGIC_LINK_WINDOW_MS = 61_000;
+const MAGIC_LINK_MAX_ATTEMPTS = 3;
+
+async function waitOutRateLimit(page: Page, waitMs: number): Promise<void> {
+  test.info().setTimeout(test.info().timeout + waitMs);
+  await page.waitForTimeout(waitMs);
+}
+
+export async function requestMagicLink(page: Page, email: string): Promise<void> {
+  const verifyPage = /\/link-magico\/verifique\?email=/;
+  const rateLimitedAlert = page.getByText("Muitas tentativas seguidas", { exact: false });
+
+  for (let attempt = 1; attempt <= MAGIC_LINK_MAX_ATTEMPTS; attempt += 1) {
+    await page.goto("/link-magico");
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByRole("button", { name: "Enviar link mágico" }).click();
+    await Promise.race([
+      page.waitForURL(verifyPage, { timeout: 15_000 }).catch(() => undefined),
+      rateLimitedAlert.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined),
+    ]);
+    if (verifyPage.test(page.url()) || attempt === MAGIC_LINK_MAX_ATTEMPTS) {
+      break;
+    }
+    await waitOutRateLimit(page, MAGIC_LINK_WINDOW_MS);
+  }
+
+  await expect(page).toHaveURL(verifyPage);
+}
+
+export async function openMagicLink(page: Page, link: string): Promise<void> {
+  for (let attempt = 1; attempt <= MAGIC_LINK_MAX_ATTEMPTS; attempt += 1) {
+    const response = await page.goto(link);
+    if (response?.status() !== 429 || attempt === MAGIC_LINK_MAX_ATTEMPTS) {
+      return;
+    }
+    const retryAfterSeconds = Number(response.headers()["x-retry-after"]);
+    await waitOutRateLimit(
+      page,
+      Number.isFinite(retryAfterSeconds) ? (retryAfterSeconds + 1) * 1000 : MAGIC_LINK_WINDOW_MS,
+    );
+  }
 }
