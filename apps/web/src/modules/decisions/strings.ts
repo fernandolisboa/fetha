@@ -114,6 +114,52 @@ const en = {
     aiCalibrationTitle: "AI calibration",
     aiCalibrationEmpty: "No AI analyses yet",
   },
+  analysis: {
+    dialog: {
+      trigger: "Analysis",
+      title: "AI analysis",
+    },
+    panel: {
+      thesis: "Thesis",
+      counterThesis: "Counter-thesis",
+      keyRisks: "Key risks",
+      maxLoss: "Max loss",
+      breakEvens: "Break-evens",
+      invalidation: "Invalidation conditions",
+      confidence: "Confidence",
+      inputsCited: "Inputs cited",
+      metadata: (requestedAt: string, promptVersion: string, model: string) =>
+        `Requested ${requestedAt} · prompt ${promptVersion} · ${model}`,
+      disclaimer:
+        "This is a model's reading of the engine's computed numbers, not a recommendation.",
+    },
+    confidenceLevel: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+    },
+    request: {
+      trigger: "Request analysis",
+      triggerAgain: "Request new analysis",
+      pending: "Analyzing…",
+      usage: (used: number, cap: number) => `${String(used)} of ${String(cap)} analyses this month`,
+    },
+    report: {
+      title: "Analysis",
+      empty: "Request an analysis to see this strategy's thesis, counter-thesis and risks.",
+    },
+    errors: {
+      invalid: "Some fields are invalid.",
+      not_found: "This signal, operation or backtest run no longer exists.",
+      not_ready: "There is not enough data to analyze this yet.",
+      unavailable: "AI analysis is not available in this environment.",
+      rate_limited: "Too many requests recently. Try again in a moment.",
+      rejected:
+        "The reply did not pass Fetha's checks and was discarded. It still counted toward the monthly limit.",
+      failed: "The AI didn't answer. Try again — this attempt did not count toward the limit.",
+      cap_reached: (cap: number) => `This month's limit of ${String(cap)} analyses is used up.`,
+    },
+  },
 } as const;
 
 const ptBR = {
@@ -228,6 +274,52 @@ const ptBR = {
     pnlOverTimeEmpty: "Nenhuma decisão pontuada ainda",
     aiCalibrationTitle: "Calibração da IA",
     aiCalibrationEmpty: "Ainda não há análises de IA",
+  },
+  analysis: {
+    dialog: {
+      trigger: "Análise",
+      title: "Análise de IA",
+    },
+    panel: {
+      thesis: "Tese",
+      counterThesis: "Contratese",
+      keyRisks: "Principais riscos",
+      maxLoss: "Perda máxima",
+      breakEvens: "Pontos de equilíbrio",
+      invalidation: "Condições de invalidação",
+      confidence: "Confiança",
+      inputsCited: "Dados citados",
+      metadata: (requestedAt: string, promptVersion: string, model: string) =>
+        `Pedida em ${requestedAt} · prompt ${promptVersion} · ${model}`,
+      disclaimer:
+        "Esta é a leitura de um modelo sobre os números já calculados pelo motor, não uma recomendação.",
+    },
+    confidenceLevel: {
+      low: "Baixa",
+      medium: "Média",
+      high: "Alta",
+    },
+    request: {
+      trigger: "Pedir análise",
+      triggerAgain: "Pedir nova análise",
+      pending: "Analisando…",
+      usage: (used: number, cap: number) => `${String(used)} de ${String(cap)} análises este mês`,
+    },
+    report: {
+      title: "Análise",
+      empty: "Peça uma análise para ver tese, contratese e riscos desta estratégia.",
+    },
+    errors: {
+      invalid: "Alguns campos estão inválidos.",
+      not_found: "Esse sinal, operação ou backtest não existe mais.",
+      not_ready: "Ainda não há dados suficientes para analisar isso.",
+      unavailable: "A análise de IA não está disponível neste ambiente.",
+      rate_limited: "Muitos pedidos em pouco tempo. Tente novamente em instantes.",
+      rejected:
+        "A resposta não passou nas verificações do Fetha e foi descartada. Ainda assim, contou no limite mensal.",
+      failed: "A IA não respondeu. Tente novamente — essa tentativa não contou no limite.",
+      cap_reached: (cap: number) => `Você já usou as ${String(cap)} análises deste mês.`,
+    },
   },
 };
 

@@ -1,0 +1,33 @@
+{
+  "thesis": "Em 935 sessões a estratégia teve retorno total de 18,40% com 42 operações e fator de lucro de 1,21: ganha mais do que perde mesmo acertando 42,86% das vezes, o perfil típico de quem segue tendência.",
+  "counterThesis": "O CAGR de 4,62% é modesto diante de um drawdown máximo de −21,30%, e o Sharpe de 0,38 sugere que o retorno mal compensa a oscilação. Com 42 operações, a amostra é pequena para separar vantagem de sorte.",
+  "keyRisks": [
+    "Resultado instável entre janelas: o walk-forward vai de 9,10% numa janela a −6,40% em outra.",
+    "Amostra pequena: 42 operações em 935 sessões.",
+    "Custos relevantes: R$ 1.240,00 em taxas e R$ 2.310,00 em impostos consumiram parte do retorno."
+  ],
+  "maxLoss": "Num backtest a medida de perda é o drawdown máximo: −21,30% do pico ao vale da curva de capital, que começou em R$ 100.000,00.",
+  "breakEvens": "Break-evens são de operações, não de estratégias; os fatos do backtest não trazem nenhum.",
+  "invalidation": [
+    "Uma nova janela de walk-forward com retorno negativo, como a de 02/01/2024 a 30/12/2024.",
+    "Um drawdown maior que os −21,30% já vistos."
+  ],
+  "confidence": {
+    "level": "low",
+    "justification": "São 42 operações e uma das janelas do walk-forward teve retorno de −6,40%, o que não sustenta uma conclusão firme."
+  },
+  "inputsCited": [
+    "metrics.totalReturn",
+    "metrics.cagr",
+    "metrics.maxDrawdown",
+    "metrics.sharpe",
+    "metrics.winRate",
+    "metrics.profitFactor",
+    "metrics.fees",
+    "metrics.taxes",
+    "walkForward.0.metrics.totalReturn",
+    "walkForward.1.metrics.totalReturn",
+    "counts.operations",
+    "initialCapital"
+  ]
+}

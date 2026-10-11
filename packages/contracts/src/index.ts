@@ -94,3 +94,21 @@ export {
   type LimitMode,
 } from "./backtest-report";
 export { catalogEntrySchema, catalogSchema, type CatalogEntry } from "./catalog-entry";
+export {
+  analysisConfidenceLevels,
+  analysisFactSchema,
+  analysisFactsSchema,
+  analysisInputsSchema,
+  analysisOutputSchema,
+  analysisSubjectKinds,
+  analysisSubjectKindSchema,
+  factAt,
+  checkAnalysisCitations,
+  type AnalysisCitationCheck,
+  type AnalysisConfidenceLevel,
+  type AnalysisFact,
+  type AnalysisFacts,
+  type AnalysisInputs,
+  type AnalysisOutput,
+  type AnalysisSubjectKind,
+} from "./analysis";

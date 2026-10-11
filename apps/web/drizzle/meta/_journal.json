@@ -239,6 +239,13 @@
       "when": 1790805246380,
       "tag": "0033_option_series_strikes",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791668526260,
+      "tag": "0034_analyses",
+      "breakpoints": true
     }
   ]
 }

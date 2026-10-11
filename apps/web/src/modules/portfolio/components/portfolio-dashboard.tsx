@@ -230,9 +230,11 @@ export type OperationDecisionSlot = (operationId: string) => ReactNode;
 function OperationsTable({
   model,
   decisionSlot,
+  analysisSlot,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
+  analysisSlot?: OperationDecisionSlot;
 }) {
   if (model.operations.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.operations.empty}</p>;
@@ -297,6 +299,7 @@ function OperationsTable({
               <TableCell className="text-right">
                 {operation.status === "open" && !pendingSettlement && (
                   <span className="inline-flex items-start justify-end gap-2">
+                    {analysisSlot?.(operation.id)}
                     {decisionSlot?.(operation.id)}
                     <UngroupButton operationId={operation.id} />
                   </span>
@@ -367,9 +370,11 @@ function Summary({ model }: { model: PortfolioReadModel }) {
 export function PortfolioDashboard({
   model,
   decisionSlot,
+  analysisSlot,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
+  analysisSlot?: OperationDecisionSlot;
 }) {
   const labelOf = new Map(
     model.operations.map(({ operation }) => [
@@ -411,7 +416,7 @@ export function PortfolioDashboard({
           )}
         </Panel>
         <Panel title={labels.operations.title}>
-          <OperationsTable model={model} decisionSlot={decisionSlot} />
+          <OperationsTable model={model} decisionSlot={decisionSlot} analysisSlot={analysisSlot} />
         </Panel>
         <Panel title={labels.fills.title}>
           <FillsPanel fills={fills} openOperations={openOperations} />

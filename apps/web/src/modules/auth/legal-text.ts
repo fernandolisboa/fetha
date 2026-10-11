@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 27/09/2026, revision 3",
+    updated: "Version of 10/10/2026, revision 1",
     sections: [
       {
         heading: "What Fetha is",
@@ -27,7 +27,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         heading: "Every decision is your own",
         paragraphs: [
           "Fetha is not a broker, does not place or automate orders and does not connect to any broker. It is not investment advice, a recommendation or securities analysis in the sense of CVM rules.",
-          "Every figure is an estimate from models and past data (for example, Black-Scholes prices and closing quotes) and can differ from the market. A backtest shows how a rule would have behaved in the past and promises nothing about the future. Every decision you take, in Fetha or outside it, is yours alone, and so are its results.",
+          "Every figure is an estimate from models and past data (for example, Black-Scholes prices and closing quotes) and can differ from the market. A backtest shows how a rule would have behaved in the past and promises nothing about the future. An AI analysis is a model's reading of those figures: it can be wrong and is not a recommendation. Every decision you take, in Fetha or outside it, is yours alone, and so are its results.",
         ],
       },
       {
@@ -66,7 +66,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 27/09/2026, revision 3",
+    updated: "Version of 10/10/2026, revision 1",
     sections: [
       {
         heading: "Who handles your data",
@@ -81,7 +81,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
           "Sessions: when you signed in, the IP address and the browser. Sign-in attempt limits: the IP address of each call to sign-in, sign-up and the other account actions.",
           "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, and your theme and layout preferences.",
           "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted. If that account is deleted because its email was never confirmed, the invitation stays open for a new registration.",
-          "What Fetha computes for you: signals, strategy evaluations and decision scores.",
+          "What Fetha computes for you: signals, strategy evaluations, decision scores and the AI analyses you request.",
           "Access log: each opening of a portfolio or decisions page and each data export, with the date, the IP address and the browser.",
         ],
       },
@@ -95,7 +95,8 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
       {
         heading: "Who else processes it",
         paragraphs: [
-          "Three providers run the service on Fetha's behalf: Vercel (hosting), Neon (the Postgres database) and Resend (sending email). All three store data in the United States, so your data is transferred abroad under LGPD art. 33. No one else receives it.",
+          "Four providers run the service on Fetha's behalf: Vercel (hosting), Neon (the Postgres database), Resend (sending email) and Anthropic (the AI model behind the analyses you request). All four process data in the United States, so your data is transferred abroad under LGPD art. 33. No one else receives it.",
+          "Anthropic receives only what an analysis you request needs: the market figures, prices, greeks and backtest results the engine computed for that one object. For an operation you hold or are studying, it also receives each leg's quantity and entry price; for a backtest, its starting capital. It never receives your name, your email, your declared capital or any text you wrote, such as a strategy's name or a decision's rationale.",
         ],
       },
       {
@@ -132,7 +133,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 27/09/2026, revisão 3",
+    updated: "Versão de 10/10/2026, revisão 1",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -144,7 +145,7 @@ const ptBR: typeof en = {
         heading: "Toda decisão é sua",
         paragraphs: [
           "O Fetha não é corretora, não envia nem automatiza ordens e não se conecta a nenhuma corretora. Também não é consultoria, recomendação de investimento ou análise de valores mobiliários nos termos das normas da CVM.",
-          "Todo número exibido é uma estimativa feita com modelos e dados passados (por exemplo, preços pelo modelo de Black-Scholes e cotações de fechamento) e pode ser diferente do mercado. Um backtest mostra como uma regra teria se comportado no passado e não garante nada sobre o futuro. Toda decisão que você tomar, dentro ou fora do Fetha, é só sua, assim como os resultados dela.",
+          "Todo número exibido é uma estimativa feita com modelos e dados passados (por exemplo, preços pelo modelo de Black-Scholes e cotações de fechamento) e pode ser diferente do mercado. Um backtest mostra como uma regra teria se comportado no passado e não garante nada sobre o futuro. Uma análise por IA é a leitura que um modelo faz desses números: pode estar errada e não é recomendação. Toda decisão que você tomar, dentro ou fora do Fetha, é só sua, assim como os resultados dela.",
         ],
       },
       {
@@ -183,7 +184,7 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 27/09/2026, revisão 3",
+    updated: "Versão de 10/10/2026, revisão 1",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
@@ -198,7 +199,7 @@ const ptBR: typeof en = {
           "Sessões: quando você entrou, o endereço IP e o navegador. Limite de tentativas: o endereço IP de cada chamada de login, cadastro e demais ações da conta.",
           "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses e suas preferências de tema e de layout.",
           "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída. Se essa conta for apagada por nunca ter confirmado o e-mail, o convite continua valendo para um novo cadastro.",
-          "O que o Fetha calcula para você: sinais, avaliações de estratégias e pontuações de decisões.",
+          "O que o Fetha calcula para você: sinais, avaliações de estratégias, pontuações de decisões e as análises por IA que você pedir.",
           "Registro de acesso: cada abertura de uma tela da sua carteira ou das suas decisões e cada exportação de dados, com data, endereço IP e navegador.",
         ],
       },
@@ -212,7 +213,8 @@ const ptBR: typeof en = {
       {
         heading: "Quem mais trata os dados",
         paragraphs: [
-          "Três fornecedores operam o serviço em nome do Fetha: Vercel (hospedagem), Neon (banco de dados Postgres) e Resend (envio de e-mails). Os três guardam dados nos Estados Unidos, o que configura transferência internacional nos termos do art. 33 da LGPD. Ninguém mais recebe seus dados.",
+          "Quatro fornecedores operam o serviço em nome do Fetha: Vercel (hospedagem), Neon (banco de dados Postgres), Resend (envio de e-mails) e Anthropic (o modelo de IA das análises que você pede). Os quatro tratam dados nos Estados Unidos, o que configura transferência internacional nos termos do art. 33 da LGPD. Ninguém mais recebe seus dados.",
+          "A Anthropic recebe só o que a análise pedida precisa: os números de mercado, preços, gregas e resultados de backtest que o motor calculou para aquele objeto. Para uma operação que você mantém ou está estudando, ela também recebe a quantidade e o preço de entrada de cada perna; para um backtest, o capital inicial. Ela nunca recebe seu nome, seu e-mail, seu capital declarado nem nenhum texto escrito por você, como o nome de uma estratégia ou a justificativa de uma decisão.",
         ],
       },
       {
@@ -262,6 +264,10 @@ interface TermsChangeSummary {
 // `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-10-10.1": {
+    en: "This version covers the AI analyses you can now request: Anthropic joins the providers that process data on Fetha's behalf, receiving only the engine's figures for the object you ask about — including each leg's quantity and entry price for an operation you hold or are studying, and the starting capital for a backtest — and never your name, email, declared capital or any text you wrote; and an analysis is a model's reading of those figures, not a recommendation.",
+    ptBR: "Esta versão trata das análises por IA que você agora pode pedir: a Anthropic passa a tratar dados em nome do Fetha, recebendo só os números do motor para o objeto analisado — incluindo a quantidade e o preço de entrada de cada perna, para uma operação que você mantém ou está estudando, e o capital inicial, para um backtest — e nunca seu nome, seu e-mail, seu capital declarado nem texto escrito por você; e uma análise é a leitura de um modelo sobre esses números, não uma recomendação.",
+  },
   "2026-09-27.3": {
     en: "This version adds the full text of the terms of use and the privacy policy: what Fetha is and is not, where its market data comes from, who processes your data and in which country, how long each kind of data is kept, your rights under the LGPD and the contact fetha@miolos.app.",
     ptBR: "Esta versão traz o texto completo dos termos de uso e da política de privacidade: o que é e o que não é o Fetha, de onde vêm os dados de mercado, quem trata os seus dados e em qual país, por quanto tempo cada tipo de dado fica guardado, os seus direitos pela LGPD e o contato fetha@miolos.app.",

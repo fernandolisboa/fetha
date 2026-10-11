@@ -146,14 +146,18 @@ async function expiredBy(
 
 // The open operations `maxOpenOperations` counts, the same set the dashboard
 // marks: one whose expiry session has closed is pending settlement, not open
-// risk (ADR-0021 item 5).
+// risk (ADR-0021 item 5). `excludeOperationId` leaves a held operation being
+// re-priced out of its own count: `priceOperation` already adds the priced
+// operation on top of this count (packages/engine/src/internal/price-operation.ts),
+// so counting it twice would reach a false `maxOpenOperations` breach.
 export async function countLiveOpenOperations(
   db: Database,
   user: ScopedUser,
   at: Instant,
+  excludeOperationId?: string,
 ): Promise<number> {
   const open = (await new PortfolioRepository(db, user).listOperations()).filter(
-    (operation) => operation.status === "open",
+    (operation) => operation.status === "open" && operation.id !== excludeOperationId,
   );
   const expired = await expiredBy(
     db,

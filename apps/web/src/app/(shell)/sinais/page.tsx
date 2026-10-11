@@ -5,10 +5,13 @@ import { requireUser } from "@/modules/auth";
 import {
   allowedDecisionKinds,
   defaultHorizonsForSignals,
+  getMyAnalysisUsage,
   getMyDecisionsBySignalId,
+  getMyLatestAnalyses,
+  isAnalysisAvailable,
   t as decisionsT,
 } from "@/modules/decisions";
-import { DecisionBar } from "@/modules/decisions/client";
+import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import {
@@ -22,6 +25,7 @@ import {
 import { ReevaluateSessionButton } from "@/modules/strategies/client";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.signals}` };
+export const maxDuration = 120;
 
 export default async function SignalsPage() {
   await requireUser();
@@ -33,9 +37,12 @@ export default async function SignalsPage() {
 
   const signalIds = signals.map((signal) => signal.id);
   const anchors = reevaluationAnchors(evaluationLog);
-  const [decisionsBySignal, defaultHorizons] = await Promise.all([
+  const analysisAvailable = isAnalysisAvailable();
+  const [decisionsBySignal, defaultHorizons, latestAnalyses, analysisUsage] = await Promise.all([
     getMyDecisionsBySignalId(signalIds),
     defaultHorizonsForSignals(getDb(), signals),
+    getMyLatestAnalyses("signal", signalIds),
+    getMyAnalysisUsage(),
   ]);
 
   return (
@@ -75,7 +82,24 @@ export default async function SignalsPage() {
                     defaultInstrument={signal.ticker}
                   />
                 );
-                return <SignalRow key={signal.id} signal={signal} decisionSlot={decisionSlot} />;
+                const latest = latestAnalyses.get(signal.id) ?? null;
+                const analysisSlot = (
+                  <AnalysisDialog
+                    subjectKind="signal"
+                    subjectId={signal.id}
+                    latest={latest}
+                    usage={analysisUsage}
+                    available={analysisAvailable}
+                  />
+                );
+                return (
+                  <SignalRow
+                    key={signal.id}
+                    signal={signal}
+                    decisionSlot={decisionSlot}
+                    analysisSlot={analysisSlot}
+                  />
+                );
               })}
             </tbody>
           </table>

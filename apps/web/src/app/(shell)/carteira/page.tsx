@@ -16,12 +16,15 @@ import {
   allowedDecisionKinds,
   defaultHorizonsForHeldOperations,
   defaultHorizonsForOperations,
+  getMyAnalysisUsage,
   getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
+  getMyLatestAnalyses,
+  isAnalysisAvailable,
   t as decisionsT,
   type DecisionListItem,
 } from "@/modules/decisions";
-import { DecisionBar } from "@/modules/decisions/client";
+import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
@@ -38,6 +41,7 @@ function LatestDecision({ decision }: { decision: DecisionListItem }) {
 }
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.portfolio}` };
+export const maxDuration = 120;
 
 export default async function PortfolioPage() {
   await requireUser();
@@ -51,13 +55,24 @@ export default async function PortfolioPage() {
       )
       .map(({ operation, heldExpiry }) => [operation.id, { ...operation, expiry: heldExpiry }]),
   );
-  const [decisionsByOperation, defaultHorizons, decisionsByHeldOperation, heldDefaultHorizons] =
-    await Promise.all([
-      getMyDecisionsByOperationId(operationIds),
-      defaultHorizonsForOperations(getDb(), operations),
-      getMyDecisionsByHeldOperationId([...heldOperations.keys()]),
-      defaultHorizonsForHeldOperations(getDb(), [...heldOperations.values()]),
-    ]);
+  const analysisAvailable = isAnalysisAvailable();
+  const [
+    decisionsByOperation,
+    defaultHorizons,
+    decisionsByHeldOperation,
+    heldDefaultHorizons,
+    latestOperationAnalyses,
+    latestHeldOperationAnalyses,
+    analysisUsage,
+  ] = await Promise.all([
+    getMyDecisionsByOperationId(operationIds),
+    defaultHorizonsForOperations(getDb(), operations),
+    getMyDecisionsByHeldOperationId([...heldOperations.keys()]),
+    defaultHorizonsForHeldOperations(getDb(), [...heldOperations.values()]),
+    getMyLatestAnalyses("contemplated_operation", operationIds),
+    getMyLatestAnalyses("held_operation", [...heldOperations.keys()]),
+    getMyAnalysisUsage(),
+  ]);
 
   const heldOperationDecision = (operationId: string) => {
     const operation = heldOperations.get(operationId);
@@ -76,6 +91,16 @@ export default async function PortfolioPage() {
       </span>
     );
   };
+
+  const heldOperationAnalysis = (operationId: string) => (
+    <AnalysisDialog
+      subjectKind="held_operation"
+      subjectId={operationId}
+      latest={latestHeldOperationAnalyses.get(operationId) ?? null}
+      usage={analysisUsage}
+      available={analysisAvailable}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6 px-5 py-8">
@@ -99,7 +124,11 @@ export default async function PortfolioPage() {
         }
       />
 
-      <PortfolioDashboard model={portfolio} decisionSlot={heldOperationDecision} />
+      <PortfolioDashboard
+        model={portfolio}
+        decisionSlot={heldOperationDecision}
+        analysisSlot={heldOperationAnalysis}
+      />
 
       <Panel title={t.list.title}>
         {operations.length === 0 ? (
@@ -146,17 +175,26 @@ export default async function PortfolioPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {decision ? (
-                        <LatestDecision decision={decision} />
-                      ) : (
-                        <DecisionBar
-                          originKind="contemplated_operation"
-                          targetId={operation.id}
-                          allowedKinds={allowedDecisionKinds({ kind: "contemplated_operation" })}
-                          defaultHorizon={defaultHorizons.get(operation.id) ?? null}
-                          defaultInstrument={operation.underlying}
+                      <span className="inline-flex items-center justify-end gap-2">
+                        <AnalysisDialog
+                          subjectKind="contemplated_operation"
+                          subjectId={operation.id}
+                          latest={latestOperationAnalyses.get(operation.id) ?? null}
+                          usage={analysisUsage}
+                          available={analysisAvailable}
                         />
-                      )}
+                        {decision ? (
+                          <LatestDecision decision={decision} />
+                        ) : (
+                          <DecisionBar
+                            originKind="contemplated_operation"
+                            targetId={operation.id}
+                            allowedKinds={allowedDecisionKinds({ kind: "contemplated_operation" })}
+                            defaultHorizon={defaultHorizons.get(operation.id) ?? null}
+                            defaultInstrument={operation.underlying}
+                          />
+                        )}
+                      </span>
                     </TableCell>
                   </TableRow>
                 );

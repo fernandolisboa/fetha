@@ -433,14 +433,18 @@ engine decides whether it held; a thesis without a claim is scored on P&L only.
 _Avoid_: prediction, target, condition (reserved for strategy rules)
 
 **Analysis**:
-One AI-produced reasoning artifact over engine output for a structure, operation or signal:
-thesis, counter-thesis, key risks, max loss, break-evens, invalidation conditions and confidence
-with justification, always citing the engine inputs it used.
+One AI-produced reasoning artifact over engine output for a signal, a contemplated operation, a
+held operation or a backtest run: thesis, counter-thesis, key risks, max loss, break-evens,
+invalidation conditions and confidence with justification, always citing the engine inputs it
+used (ADR-0057). Requested on demand, never automatically, up to a monthly cap per user (default
+50); every request and its outcome (`accepted`, `rejected` or `failed`) is stored append-only
+with the prompt version and the model that answered. Scoring an analysis against its own outcome
+is not part of this yet (follow-up issue).
 _Avoid_: recommendation, report, insight, opinion
 
 **Journal**:
-The chronological record of a user's decisions and analyses, each later scored against realized
-outcomes.
+The chronological record of a user's decisions, each later scored against realized outcomes. AI
+analyses are stored alongside but not yet scored or shown in it (ADR-0057).
 _Avoid_: history, log, diary
 
 **Horizon**:
