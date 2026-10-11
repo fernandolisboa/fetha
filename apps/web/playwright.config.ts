@@ -43,8 +43,6 @@ const ownerSpecs = [
   "signals.spec.ts",
   "decisions.spec.ts",
   "scoring.spec.ts",
-  "backtest.spec.ts",
-  "compare.spec.ts",
 ];
 
 // Signs the owner in once and ingests every session the suite reads

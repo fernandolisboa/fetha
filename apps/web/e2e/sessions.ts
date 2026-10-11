@@ -1,4 +1,5 @@
-import { tradingSessionsForYear } from "../src/modules/market-data/adapters/anbima-calendar/source";
+import type { APIRequestContext } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 // Fixed past sessions whose real B3 data never changes: the backtest and
 // comparison window, and the scoring fixture's decided session and horizon
@@ -10,21 +11,14 @@ export const TO_SESSION = "2026-09-09";
 // finds an expired series for portfolio.spec.ts.
 export const EXPIRY_SESSION = "2026-09-18";
 
-// The signal inbox only takes entries from its newest few closed sessions
-// (INBOX_ENTRY_SESSION_HORIZON), so a fixed session ages out of it. The
-// second newest closed session stays inside that horizon and B3 has always
-// published its COTAHIST file by then, even right after today's close.
-// Same pure calendar the app ingests with, so a holiday is never picked.
-export function recentSession(now: Date = new Date()): string {
-  const year = now.getUTCFullYear();
-  const closed = [...tradingSessionsForYear(year - 1), ...tradingSessionsForYear(year)].filter(
-    (session) => new Date(session.close) <= now,
-  );
-  const session = closed.at(-2);
-  if (!session) {
-    throw new Error("no closed trading session found in the calendar");
-  }
-  return session.date;
-}
+export const FIXED_SESSIONS = [FROM_SESSION, TO_SESSION, EXPIRY_SESSION];
 
-export const REFERENCE_SESSIONS = [FROM_SESSION, TO_SESSION, EXPIRY_SESSION, recentSession()];
+// A session inside the signal inbox's horizon, from the app's own ingested
+// calendar (`/api/e2e/recent-session`), so it is never a holiday.
+export async function recentSession(request: APIRequestContext, secret: string): Promise<string> {
+  const response = await request.get("/api/e2e/recent-session", {
+    headers: { "x-e2e-secret": secret },
+  });
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as { session: string }).session;
+}

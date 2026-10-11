@@ -10,7 +10,6 @@ import { recentSession } from "./sessions";
 // the resulting signal and confirms the journal shows it.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const SESSION = recentSession();
 const RATIONALE = "Sem margem de segurança suficiente para entrar agora.";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision journal flow.");
@@ -56,7 +55,7 @@ test('recording "não entrar" on a signal shows it in the journal', async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  await triggerIngestionAsOwner(browser, baseURL, SESSION);
+  await triggerIngestionAsOwner(browser, baseURL, await recentSession(request, e2eSecret ?? ""));
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

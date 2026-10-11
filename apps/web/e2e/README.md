@@ -55,9 +55,11 @@ Every project depends on `setup` (`owner.setup.ts`), which runs first and does t
 - It drives the owner's manual trigger for every session the suite reads (`e2e/sessions.ts`):
   `2026-09-08` and `2026-09-09` (backtest and comparison window, scoring fixture), `2026-09-18`
   (the monthly expiry that gives `portfolio.spec.ts` an expired PETR4 series) and the second newest
-  closed B3 session (signals and decisions; the inbox only takes entries from its newest few
-  sessions, so a fixed date would age out). A fresh preview database therefore holds the same
-  market data on every run, and no spec relies on another one having ingested first.
+  closed B3 session, which the E2E-only route `/api/e2e/recent-session` reads from the ingested
+  calendar (signals and decisions; the inbox only takes entries from its newest few sessions, so a
+  fixed date would age out). No spec relies on another one having ingested first. If a run crosses
+  a session close (20:00 UTC), signals and decisions may ask for the next session, which their own
+  trigger then ingests.
 
 The whole suite runs from one IP, and every auth endpoint keeps its real rate limits. Sign-ups are
 spaced by `throttleSignUp` and retried after the window (`e2e/support.ts`); a magic-link send or

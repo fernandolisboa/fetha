@@ -118,21 +118,36 @@ export async function confirmEmailAndSetPassword(
 }
 
 // The one place that reads a captured link back from the E2E-only route
-// (docs/adr/0016): registration, magic-link and password-reset specs all
-// need this, so it lives here instead of three near-identical copies.
+// (docs/adr/0016). A read also deletes the link (auth/verification-link.ts).
+// 404 means no link is waiting for that address (or the route is off); any
+// other status fails at once rather than being polled on.
+export async function tryReadLatestLink(
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  email: string,
+  secret: string,
+): Promise<string | undefined> {
+  const linkResponse = await request.get(
+    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
+    { headers: { "x-e2e-secret": secret } },
+  );
+  if (linkResponse.status() === 404) {
+    return undefined;
+  }
+  expect(linkResponse.ok()).toBe(true);
+  const { link } = (await linkResponse.json()) as { link: string };
+  return link;
+}
+
 export async function readLatestLink(
   request: APIRequestContext,
   baseURL: string | undefined,
   email: string,
   secret: string,
 ): Promise<string> {
-  const linkResponse = await request.get(
-    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
-    { headers: { "x-e2e-secret": secret } },
-  );
-  expect(linkResponse.ok()).toBe(true);
-  const { link } = (await linkResponse.json()) as { link: string };
-  return link;
+  const link = await tryReadLatestLink(request, baseURL, email, secret);
+  expect(link).toBeDefined();
+  return link ?? "";
 }
 
 // `/sign-in/magic-link` and `/magic-link/verify` each allow 3 requests per

@@ -120,3 +120,16 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
   the preview's `OWNER_EMAILS` names it. `disableSignUp` (ADR-0018) stays on.
 - A migration ships with this ADR: `apps/web/drizzle/0023_access_log_nightly_triggered.sql` adds
   `nightly_triggered` to `access_log`'s event check constraint.
+
+## Addendum 2026-10-11 (#291): one owner sign-in per run
+
+Point 6's per-spec sign-in tripped the owner's magic-link limits (3 per 60 s per account and per
+IP) once the suite ran in CI. A Playwright `setup` project (`apps/web/e2e/owner.setup.ts`), which
+every other project depends on, now signs the owner in through one magic link, saves that session
+as Playwright storage state, and drives the manual trigger for every session the suite reads.
+`triggerIngestionAsOwner` opens its context from that saved session instead of signing in again.
+`backtest.spec.ts` and `compare.spec.ts` no longer trigger the job at all: they read sessions the
+setup project ingested. The `owner` project keeps `ingestion-trigger`, `signals`, `decisions` and
+`scoring` one at a time because of point 8's `busy` guard, not because of a shared mailbox. A new
+E2E-only route, `/api/e2e/recent-session` (same guard as the other `/api/e2e/*` routes), gives
+`signals` and `decisions` a session inside the inbox horizon (ADR-0044).
