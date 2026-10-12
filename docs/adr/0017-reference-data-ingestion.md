@@ -509,3 +509,32 @@ corporate action changes the strike alone, in place). `option_series.strike` is 
 the current strike for search and the series page; every loader that feeds the engine now resolves
 a series to its strike history instead of its single current row. See ADR-0056 for the table, the
 writers and the loader rule.
+
+## Addendum: SGS answers are classified by body, and a network failure gets one retry (2026-10-12, #289)
+
+**Context.** Production's `nightly_runs` (ADR-0045), read on 2026-10-10, held 36 runs since
+2026-09-29; 19 failed on the `sgs` source alone, in four shapes: a 2xx with a JSON object body (Zod
+"expected array, received object", mostly the 01:00Z run, before Bacen publishes), a non-JSON body
+that starts `<?xml` (the JSON parser's message then quoted the body), a non-ok status, and a bare
+`fetch failed`. Every one of those sessions filled on a later run.
+
+**Decision.** `fetchSgsSeries` reads each answer's body as text once and classifies it:
+
+- A body matching `sgsNotFoundBodySchema` is `SgsNotPublishedError` on a 2xx as well as on a 404. On
+  a 5xx it stays a failure, so an outage is never reported as pending. Everything else in the #216
+  addendum (pending only for the newest session) holds.
+- A non-ok status, a non-JSON body or a JSON body that is not an array is a `SgsFetchError` that
+  carries `status` and `contentType`. Its message names the series, the HTTP status and the media
+  type (only a well-formed `type/subtype`, else `unknown`) and never any part of the body, which is
+  server-controlled text that would land in the nightly report. The parser likewise rejects a
+  non-numeric `valor` with its own message instead of `decimal.js`'s, which quotes the value.
+- Each request carries a 15-second timeout, well under the cron's `maxDuration`, and the body is
+  read inside the same attempt. A network failure (a `TypeError` from fetch or from the body
+  read, such as `fetch failed` or `terminated`), a timeout or a 5xx is retried once after one
+  second. A second network failure or timeout becomes `SgsFetchError` "network error"; a second
+  5xx goes through the classification above. A 4xx and a not-published body are never retried.
+
+These remain failures, so a real Bacen outage still turns the run red; it now does so with a message
+the report can show. Fixtures: `sgs-not-found.json` and `sgs-window-too-wide.json` were recorded
+from api.bcb.gov.br on 2026-10-12; `sgs-error-page.xml` is representative, since the report only
+kept that body's first bytes.

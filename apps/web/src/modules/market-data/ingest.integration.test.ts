@@ -386,6 +386,39 @@ describe("ingest", () => {
     expect(cdi).toBeDefined();
   });
 
+  it("reports sgs pending, not failed, when Bacen sends its not-found body with a 200 (#289)", async () => {
+    const db = getDb();
+    await db
+      .delete(macroPoints)
+      .where(and(eq(macroPoints.series, "cdi"), eq(macroPoints.date, TEST_SESSION)));
+    await db
+      .delete(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "sgs"), eq(ingestionRuns.session, TEST_SESSION)));
+    const published = fakeFetch(TEST_SESSION);
+    const notFoundWithOk = ((input: string) =>
+      input.includes("bcdata.sgs.12/")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                erro: { statusCode: 404, detail: "SGSNegocioException: Value(s) not found" },
+              }),
+              { status: 200 },
+            ),
+          )
+        : published(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: notFoundWithOk,
+    });
+
+    expect(result.ok).toBe(true);
+    const sgs = result.sources.find((source) => source.source === "sgs");
+    expect(sgs).toMatchObject({ pending: true, skipped: false });
+    expect(sgs?.error).toBeUndefined();
+  });
+
   it("keeps only the newest gap pending: an older session whose CDI is still unpublished fails", async () => {
     const db = getDb();
     await db

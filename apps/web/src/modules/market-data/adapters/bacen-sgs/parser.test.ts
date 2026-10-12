@@ -57,6 +57,14 @@ const ipcaSessions = [
 ];
 
 describe("parseSgsResponse", () => {
+  it("rejects a non-numeric valor without quoting it", () => {
+    const body = [{ data: "01/09/2026", valor: "<b>indisponivel</b>" }];
+
+    expect(() => parseSgsResponse("cdi", body, septemberSessions)).toThrow(
+      new Error("SGS returned a non-numeric value for series cdi on 01/09/2026"),
+    );
+  });
+
   it("cdi: asOf is the next session's open after the reference date", () => {
     const points = parseSgsResponse("cdi", cdiFixture, septemberSessions);
     expect(points[0]).toMatchObject({ date: "2026-09-01", asOf: "2026-09-02T13:00:00.000Z" });

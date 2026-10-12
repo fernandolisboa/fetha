@@ -1,3 +1,4 @@
+import { decimalStringSchema } from "@fetha/contracts";
 import Decimal from "decimal.js";
 
 import type { MacroPoint, MacroSeriesKind } from "./schema";
@@ -127,6 +128,11 @@ export function parseSgsResponse(
     // already give and is dropped rather than treated as a calendar gap.
     .filter((point) => series !== "selic" || sessionDates.has(toIsoDate(point.data)));
   return points.map((point) => {
+    // Decimal's own error quotes its input, and this message reaches the
+    // nightly report, which must never carry provider text (#289).
+    if (!decimalStringSchema.safeParse(point.valor).success) {
+      throw new Error(`SGS returned a non-numeric value for series ${series} on ${point.data}`);
+    }
     const date = toIsoDate(point.data);
     return macroPointSchema.parse({
       series,

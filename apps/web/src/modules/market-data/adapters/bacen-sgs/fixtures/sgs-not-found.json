@@ -1,0 +1,6 @@
+{
+  "erro": {
+    "statusCode": 404,
+    "detail": "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found"
+  }
+}
