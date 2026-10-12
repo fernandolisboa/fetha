@@ -1,11 +1,12 @@
 import { expect, test } from "./tour";
 
 import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { recentSession } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
-// PETR4 is expected to already be ingested for session 2026-09-09 in the
-// preview database (the same assumption watchlist.spec.ts makes). This spec
-// declares a risk profile (a signal without one only reaches the
+// The inbox only takes entries from its newest few closed sessions
+// (docs/adr/0044), so this spec evaluates a recent session from the app's
+// own calendar instead of a fixed date. It declares a risk profile (a signal without one only reaches the
 // evaluation log as `unsizeable`, never the inbox), creates a strategy
 // whose entry condition ("close > 0") always holds once a candle exists,
 // activates it, triggers the owner's manual ingestion trigger for that
@@ -13,7 +14,6 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // inbox as a SignalRow.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const SESSION = "2026-09-09";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the signal inbox flow.");
 
@@ -62,7 +62,7 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
+  await triggerIngestionAsOwner(browser, baseURL, await recentSession(request, e2eSecret ?? ""));
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

@@ -35,42 +35,48 @@ const authSpecs = [
   "shell.spec.ts",
 ];
 
-// Every one of these signs the same pre-provisioned E2E_OWNER_EMAIL account
-// in through a magic link (helpers.ts's triggerIngestionAsOwner, or
-// ingestion-trigger.spec.ts's own inline flow, #51). readLatestLink reads
-// back the *latest* link for that mailbox, so two of these running at once
-// (the "default" project's fullyParallel) could each read the other's link
-// mid-flight; serializing them the same way authSpecs already are is the
-// smallest fix.
+// Every one of these re-runs the nightly job through the owner's single
+// manual trigger (helpers.ts's triggerIngestionAsOwner, #51), which answers
+// "busy" while another run is in flight, so they run one at a time.
 const ownerSpecs = [
   "ingestion-trigger.spec.ts",
   "signals.spec.ts",
   "decisions.spec.ts",
   "scoring.spec.ts",
-  "backtest.spec.ts",
-  "compare.spec.ts",
 ];
+
+// Signs the owner in once and ingests every session the suite reads
+// (e2e/owner.setup.ts), so no spec depends on another one's ingestion and
+// the owner's own magic links stay under their rate limit.
+const setup = "setup";
 
 export default defineConfig({
   testDir: "./e2e",
   projects: [
     {
+      name: setup,
+      testMatch: "owner.setup.ts",
+    },
+    {
       name: "auth",
       testMatch: authSpecs,
       fullyParallel: false,
       workers: 1,
+      dependencies: [setup],
     },
     {
       name: "owner",
       testMatch: ownerSpecs,
       fullyParallel: false,
       workers: 1,
+      dependencies: [setup],
     },
     {
       name: "default",
       testMatch: /.*\.spec\.ts/,
       testIgnore: [...authSpecs, ...ownerSpecs],
       fullyParallel: true,
+      dependencies: [setup],
     },
   ],
   use: {

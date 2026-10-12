@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
@@ -37,86 +39,22 @@ export async function registerAndSignIn(
 // cron route and /configuracoes's own `maxDuration` share); the default 30s
 // test timeout and 5s expect timeout are both too short for it.
 const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
-const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
+export const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
+const SUITE_SOURCES = ["calendar", "cotahist", "instruments"];
 
-// Owner magic-link requests share a per-account rate limit (3 per 60s,
-// auth/options.ts's "/sign-in/magic-link" rule), but a 429 never reaches this
-// helper: the sign-in form stays on `/link-magico` on a rate-limited submit,
-// so the caller's own `toHaveURL(/\/link-magico\/verifique/)` assertion
-// fails first. What this guards against instead is mail-outbox lag: sending
-// succeeded and a new row is on its way into `mail_outbox`, but reading the
-// "latest" link right after the click can still race that write and return
-// the *previous* email actually delivered — either a stale one this process
-// already consumed, or a leftover one that predates this whole test run.
-// Seeding the memo from the pre-click state (`seedMagicLinkBaseline`, a read
-// only, never another send) and polling until it changes makes the guard
-// correct even on a caller's first-ever read for an email, not just its own
-// second one. Exported so every owner magic-link read in the suite shares
-// the one memo.
-const lastMagicLinkByEmail = new Map<string, string>();
-const MAGIC_LINK_RETRY_TIMEOUT_MS = 20_000;
-const MAGIC_LINK_RETRY_INTERVAL_MS = 1_000;
-
-async function tryReadLatestLink(
-  request: APIRequestContext,
-  baseURL: string | undefined,
-  email: string,
-  secret: string,
-): Promise<string | undefined> {
-  const response = await request.get(
-    `${baseURL ?? ""}/api/e2e/verification-link?email=${encodeURIComponent(email)}`,
-    { headers: { "x-e2e-secret": secret } },
-  );
-  if (!response.ok()) {
-    return undefined;
-  }
-  const { link } = (await response.json()) as { link: string };
-  return link;
-}
-
-export async function seedMagicLinkBaseline(
-  request: APIRequestContext,
-  baseURL: string | undefined,
-  email: string,
-  secret: string,
-): Promise<void> {
-  const current = await tryReadLatestLink(request, baseURL, email, secret);
-  if (current !== undefined) {
-    lastMagicLinkByEmail.set(email, current);
-  }
-}
-
-export async function readNewMagicLink(
-  request: APIRequestContext,
-  baseURL: string | undefined,
-  email: string,
-  secret: string,
-): Promise<string> {
-  const previous = lastMagicLinkByEmail.get(email);
-  const deadline = Date.now() + MAGIC_LINK_RETRY_TIMEOUT_MS;
-  let link = await readLatestLink(request, baseURL, email, secret);
-  while (link === previous && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, MAGIC_LINK_RETRY_INTERVAL_MS));
-    link = await readLatestLink(request, baseURL, email, secret);
-  }
-  if (link === previous) {
-    throw new Error(`magic link for ${email} did not arrive; mail-outbox lag exceeded 20s`);
-  }
-  lastMagicLinkByEmail.set(email, link);
-  return link;
-}
+// The owner signs in once per run, in owner.setup.ts, and every spec that
+// needs the nightly job re-run opens a context from that saved session: one
+// owner magic link per run instead of one per spec keeps the suite under the
+// per-account limit on `/sign-in/magic-link` (3 per 60s, auth/options.ts).
+export const ownerStorageState = path.join(__dirname, ".auth", "owner.json");
 
 // The nightly job's manual trigger moved from a `CRON_SECRET` bearer to the
-// owner's own session (#51, docs/adr/0042): specs that only need a session
-// re-ingested before their own flow (signals, decisions, scoring, backtest,
-// compare) open a separate browser context, sign the pre-provisioned owner
-// account in through a magic link (never a password this spec doesn't know)
-// and drive `/configuracoes`'s trigger form, so the caller's own context and
-// session are left untouched.
+// owner's own session (#51, docs/adr/0042). This drives `/configuracoes`'s
+// trigger form in a separate browser context, so the caller's own context
+// and session are left untouched.
 export async function triggerIngestionAsOwner(
   browser: Browser,
   baseURL: string | undefined,
-  e2eSecret: string,
   session: string,
 ): Promise<void> {
   test.setTimeout(TEST_TIMEOUT_MS);
@@ -127,30 +65,35 @@ export async function triggerIngestionAsOwner(
   // this separate context too, or it hits the SSO challenge page instead of
   // the app.
   const extraHTTPHeaders = test.info().project.use.extraHTTPHeaders;
-  const context = await browser.newContext({ baseURL, extraHTTPHeaders });
+  const context = await browser.newContext({
+    baseURL,
+    extraHTTPHeaders,
+    storageState: ownerStorageState,
+  });
   const page = await context.newPage();
   await skipTourWhenShown(page);
 
-  await page.goto(`${baseURL ?? ""}/link-magico`);
-  await seedMagicLinkBaseline(context.request, baseURL, ownerEmail, e2eSecret);
-  await page.getByLabel("E-mail").fill(ownerEmail);
-  await page.getByRole("button", { name: "Enviar link mágico" }).click();
-  await expect(page).toHaveURL(/\/link-magico\/verifique\?email=/);
+  await runIngestion(page, session);
 
-  const magicLink = await readNewMagicLink(context.request, baseURL, ownerEmail, e2eSecret);
-  await page.goto(magicLink);
-  await expect(page).toHaveURL(baseURL ?? "/");
+  await context.close();
+}
 
-  await page.goto(`${baseURL ?? ""}/configuracoes`);
+export async function runIngestion(page: Page, session: string): Promise<void> {
+  await page.goto("/configuracoes");
+  await expect(page.getByRole("heading", { name: "Disparo manual da ingestão" })).toBeVisible();
   await page.getByLabel("Sessão (opcional)").fill(session);
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();
-  // Waits on the result panel itself, not the "Concluída" text: that text
-  // only ever renders on the ok status, so a failed/busy/forbidden run would
-  // otherwise burn the full 300s budget before failing.
+  // Waits on the result panel itself first, so a failed/busy/forbidden run
+  // fails here instead of burning the full 300s budget on a missing source.
   await expect(page.getByRole("heading", { name: "Última execução" })).toBeVisible({
     timeout: NIGHTLY_JOB_TIMEOUT_MS,
   });
-  await expect(page.getByText("Concluída")).toBeVisible();
-
-  await context.close();
+  // Asserts the sources the suite reads, not the whole run's "Concluída": the
+  // Bacen SGS and IV index sources feed no spec, and SGS often fails on
+  // Bacen's side (#289). The job itself gates evaluation on cotahist alone.
+  for (const source of SUITE_SOURCES) {
+    await expect(
+      page.getByRole("listitem").filter({ hasText: new RegExp(`^${source}:`) }),
+    ).toHaveText(new RegExp(`^${source}: (ok|pulada)$`));
+  }
 }

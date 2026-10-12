@@ -1,6 +1,7 @@
 import { expect, test } from "./tour";
 
 import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
+import { recentSession } from "./sessions";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 // Extends signals.spec.ts's own flow (declares a risk profile, creates and
@@ -9,7 +10,6 @@ import { registerAndSignIn, triggerIngestionAsOwner } from "./helpers";
 // the resulting signal and confirms the journal shows it.
 const e2eSecret = process.env.E2E_SECRET;
 const TICKER = "PETR4";
-const SESSION = "2026-09-09";
 const RATIONALE = "Sem margem de segurança suficiente para entrar agora.";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision journal flow.");
@@ -55,7 +55,7 @@ test('recording "não entrar" on a signal shows it in the journal', async ({
   await page.getByRole("switch", { name: "Ativa" }).click();
   await expect(page.getByRole("switch", { name: "Ativa" })).toBeChecked();
 
-  await triggerIngestionAsOwner(browser, baseURL, e2eSecret ?? "", SESSION);
+  await triggerIngestionAsOwner(browser, baseURL, await recentSession(request, e2eSecret ?? ""));
 
   await page.goto("/sinais");
   const inbox = page.getByRole("table", { name: "Caixa de entrada" });

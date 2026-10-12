@@ -41,9 +41,32 @@ would otherwise have come up — see docs/adr/0016's 2026-09-28 addendum.
 
 CI does not set `E2E_OWNER_EMAIL`: the helpers default to `dono-e2e@example.com`, the same account
 the "Seed the e2e owner account" step (`db:seed-e2e-owner`) re-creates after every reset of
-`fetha-preview`, so `ingestion-trigger.spec.ts`, `signals.spec.ts`, `decisions.spec.ts`,
-`scoring.spec.ts`, `backtest.spec.ts` and `compare.spec.ts` (docs/adr/0042) find it already
-provisioned and verified.
+`fetha-preview` (docs/adr/0042), so it is already provisioned and verified.
+
+## Setup project
+
+Every project depends on `setup` (`owner.setup.ts`), which runs first and does two things:
+
+- It signs the owner in through one magic link and saves that session to `e2e/.auth/owner.json`
+  (git-ignored). Specs that re-run the nightly job (`signals.spec.ts`, `decisions.spec.ts`,
+  `scoring.spec.ts`, `ingestion-trigger.spec.ts`) open a context from that file instead of signing
+  in again, so the owner sends one magic link per run, well under the per-account limit of 3 per
+  60 s.
+- It drives the owner's manual trigger for the fixed sessions the suite reads (`e2e/sessions.ts`):
+  `2026-09-08` and `2026-09-09` (backtest and comparison window, scoring fixture) and `2026-09-18`
+  (the monthly expiry that gives `portfolio.spec.ts` an expired PETR4 series). No spec relies on
+  another one having ingested first. Signals and decisions ingest their own session: the second
+  newest closed B3 session, which the E2E-only route `/api/e2e/recent-session` reads from the
+  ingested calendar (the inbox only takes entries from its newest few sessions, so a fixed date
+  would age out).
+- Each run must end with `calendar`, `cotahist` and `instruments` ok or skipped. The `sgs` and
+  `iv_index` sources feed no spec and are not asserted, so a Bacen outage (#289) does not fail the
+  suite.
+
+The whole suite runs from one IP, and every auth endpoint keeps its real rate limits. Sign-ups are
+spaced by `throttleSignUp` and retried after the window (`e2e/support.ts`); a magic-link send or
+open that is answered with a rate limit waits the window out and retries (`requestMagicLink`,
+`openMagicLink`).
 
 ## Manual run
 
@@ -67,11 +90,10 @@ Environment variables:
   when this is not set.
 - `E2E_OWNER_EMAIL`: optional, defaults to `dono-e2e@example.com`. The account on the preview's
   own `OWNER_EMAILS` allowlist (docs/adr/0042) that CI re-creates after every reset of
-  `fetha-preview` (`db:seed-e2e-owner`), so nobody registers it by hand. Specs that need the
-  nightly job re-run for a session (`ingestion-trigger.spec.ts`, `signals.spec.ts`,
-  `decisions.spec.ts`, `scoring.spec.ts`, `backtest.spec.ts`, `compare.spec.ts`) sign this account in through a magic link and drive
-  `/configuracoes`'s manual trigger form instead of holding `CRON_SECRET`; no spec needs
-  `CRON_SECRET` anymore, since the manual trigger moved off it (#51).
+  `fetha-preview` (`db:seed-e2e-owner`), so nobody registers it by hand. The setup project signs
+  this account in through a magic link, and every run of the nightly job drives
+  `/configuracoes`'s manual trigger form with that session instead of holding `CRON_SECRET`; no
+  spec needs `CRON_SECRET` anymore, since the manual trigger moved off it (#51).
 - `VERCEL_PROTECTION_BYPASS`: Vercel Deployment Protection (SSO) sits in front of every preview
   deployment, so every Playwright request needs the bypass header or it hits the SSO challenge
   page instead of the app. When set, `playwright.config.ts` sends
@@ -95,10 +117,9 @@ the reset link back through the same E2E-only route, sets a new password, and co
 password no longer works while the new one signs in.
 
 `signals.spec.ts` declares a risk profile, creates and activates a stock-only "always fires"
-strategy, triggers the owner's manual ingestion trigger for a fixed session through
-`triggerIngestionAsOwner` (#51), and confirms the resulting signal shows up in the `/sinais`
-inbox. It signs in the CI-seeded owner account (`E2E_OWNER_EMAIL`) and assumes PETR4 is already
-ingested for session `2026-09-09` in the preview database.
+strategy, triggers the owner's manual ingestion trigger for the second newest closed session
+through `triggerIngestionAsOwner` (#51), and confirms the resulting signal shows up in the
+`/sinais` inbox. It uses the owner session the setup project saved.
 
 `decisions.spec.ts` extends that same flow one step further: on the resulting signal's row it
 opens the DecisionBar dialog, records "Não entrar" with a rationale, confirms the row now shows the
@@ -114,8 +135,8 @@ backdated to `decided_at` on the already-ingested session `2026-09-08` with `hor
 ingested session `2026-09-09` (no look-ahead, #29 fix-web item 3), then triggers the owner's
 manual ingestion trigger and confirms `/diario` shows the decision already scored — "Tese
 confirmada" and a Brier score, not "sem pontuação ainda" — proving the scoring job (#29) ran in
-the same run. Needs the same `E2E_SECRET` and owner account as `signals.spec.ts`, and the
-same PETR4/`2026-09-08`+`2026-09-09` ingestion precondition.
+the same run. Needs the same `E2E_SECRET` and owner session as `signals.spec.ts`; the setup project
+ingests both sessions.
 
 `portfolio.spec.ts` covers the real portfolio (#26): it imports the synthetic B3 "Negociação"
 fixture (`src/modules/portfolio/b3-import/fixtures/negociacao.xlsx`) through the import dialog and
@@ -124,7 +145,7 @@ groups it into an operation, confirms the proposed settlement and checks the ope
 "vencida". The series comes from the E2E-only route `/api/e2e/expired-series` (404 in production
 or when `E2E_SECRET` is unset, same guard as `/api/e2e/verification-link`), which reads shared
 reference data only: the latest expired PETR4 series that traded before expiry and whose expiry
-close is ingested. Needs `E2E_SECRET` and ingested PETR4 option data in the preview database.
+close is ingested; the setup project ingests `2026-09-18` for that. Needs `E2E_SECRET`.
 
 `pwa-cache.spec.ts` covers the service worker's cache policy (#43, ADR-0025): it registers and
 signs in, waits until the worker controls the page, opens `/carteira` and fetches the session,
