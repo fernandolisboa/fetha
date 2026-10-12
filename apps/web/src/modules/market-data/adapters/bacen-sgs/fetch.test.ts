@@ -240,16 +240,21 @@ describe("fetchSgsSeries", () => {
     expect(calls()).toBe(2);
   });
 
-  it("sends every request with a timeout signal", async () => {
-    let signal: AbortSignal | null | undefined;
+  it("gives each attempt its own timeout signal", async () => {
+    const signals: Array<AbortSignal | null | undefined> = [];
     const capturingFetch: typeof fetch = (_input, init) => {
-      signal = init?.signal;
-      return Promise.resolve(new Response(fixture, { status: 200 }));
+      signals.push(init?.signal);
+      const status = signals.length === 1 ? 503 : 200;
+      return Promise.resolve(new Response(status === 200 ? fixture : "", { status }));
     };
 
     await fetchSgsSeries("cdi", "2026-01-01", "2026-09-08", sessions, capturingFetch, 0);
 
-    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).not.toBe(signals[0]);
+    expect(signals[1]?.aborted).toBe(false);
   });
 
   it("fails as a typed network error after the one retry also fails", async () => {
