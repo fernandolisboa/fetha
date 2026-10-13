@@ -40,17 +40,20 @@ export type TriggerNightlyJobResult =
 // `ok`, docs/adr/0054) or an evaluated session left without its IV index.
 // None of these flip `outcome.ok` or the summary's error counts, so without
 // this check they would silently stop showing up anywhere but the cron's
-// own logs. iv_index's and ptax's own `deferred` are not trouble: both
-// backfill from 2024 and defer older sessions every night until they drain
-// (#264, docs/adr/0059). Any other source's is: sgs defers only when Bacen
-// ate its start budget (#298).
+// own logs. Only iv_index's own `deferred` is not trouble: it backfills from
+// 2024 and defers older sessions every night until it drains (#264). Every
+// other source's `deferred` is: `ptax` has no such nightly-draining backfill
+// queue — its gaps are only the ordinary ten-session recent window, and the
+// first gap's own cumulative fetch brings in all of history at once
+// (docs/adr/0059) — so a `ptax` deferral means its own start budget was
+// starved, the same trouble an `sgs` deferral already surfaces (#298).
 function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
   if (
     outcome.sources.some(
       (source) =>
         source.error !== undefined ||
         source.newestSessionComputed === false ||
-        (source.source !== "iv_index" && source.source !== "ptax" && source.deferred !== undefined),
+        (source.source !== "iv_index" && source.deferred !== undefined),
     )
   ) {
     return true;

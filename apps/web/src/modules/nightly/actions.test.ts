@@ -504,6 +504,24 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  it("logs the full outcome server-side when ptax deferred sessions past its own start budget (#305)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sources: [
+        ...(run.sources as unknown[]),
+        { source: "ptax", skipped: false, rowCount: 0, pending: true, deferred: 2 },
+      ],
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
   it("rejects a second call while a run is already in progress", async () => {
     isOwnerMock.mockResolvedValue(true);
     let resolveJob: (() => void) | undefined;
