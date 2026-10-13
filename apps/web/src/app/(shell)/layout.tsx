@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
-import { latestExchangeRate, searchOptionSeriesAction } from "@/modules/market-data";
+import {
+  latestExchangeRate,
+  searchOptionSeriesAction,
+  type ExchangeRateRow,
+} from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
@@ -34,7 +38,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const [preferences, unreadSignalCount, usdBrl] = await Promise.all([
     getPreferences(),
     getMyUnreadSignalCount(),
-    latestExchangeRate(getDb(), "USDBRL"),
+    readLatestUsdBrl(),
   ]);
 
   return (
@@ -48,10 +52,22 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           optionSeries: searchOptionSeriesAction,
           strategies: searchMyStrategiesAction,
         }}
-        usdBrl={usdBrl ?? null}
+        usdBrl={usdBrl}
       >
         {children}
       </AppShell>
     </TourProvider>
   );
+}
+
+// A cosmetic shell fixture (the market bar chip, docs/adr/0059), not a
+// dependency every signed-in page should 500 on: a migration not yet
+// applied to this environment or a transient read failure just hides the
+// chip instead of taking down the whole workstation shell.
+async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
+  try {
+    return (await latestExchangeRate(getDb(), "USDBRL")) ?? null;
+  } catch {
+    return null;
+  }
 }
