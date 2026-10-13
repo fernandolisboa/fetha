@@ -9,8 +9,12 @@ import { requireUser } from "@/modules/auth";
 import {
   CandleChart,
   CandleFormToggle,
+  CompanyFilingsList,
+  companyFilingsFreshness,
   latestCandle,
+  latestFilingDeliveredOn,
   loadCandleSeries,
+  recentCompanyFilings,
   t,
 } from "@/modules/market-data";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
@@ -47,10 +51,13 @@ export default async function InstrumentPage({
   const form = resolveForm(rawForm);
 
   const db = getDb();
-  const [lastClose, seriesResult] = await Promise.all([
+  const [lastClose, seriesResult, filings, filingsLatestDelivery] = await Promise.all([
     latestCandle(db, ticker),
     loadCandleSeries(db, ticker, form),
+    recentCompanyFilings(db, ticker),
+    latestFilingDeliveredOn(db),
   ]);
+  const filingsFreshness = companyFilingsFreshness(filingsLatestDelivery, new Date());
 
   if (!seriesResult.ok) {
     console.error("loadCandleSeries failed", {
@@ -89,6 +96,17 @@ export default async function InstrumentPage({
         ) : (
           <CandleChart candles={seriesResult.value.candles} />
         )}
+      </Panel>
+
+      <Panel
+        title={t.companyFilings.title}
+        subtitle={
+          filingsFreshness
+            ? `${t.companyFilings.subtitle} ${filingsFreshness}`
+            : t.companyFilings.subtitle
+        }
+      >
+        <CompanyFilingsList recent={filings} loaded={filingsLatestDelivery !== undefined} />
       </Panel>
     </div>
   );

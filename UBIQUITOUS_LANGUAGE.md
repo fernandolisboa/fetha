@@ -17,6 +17,13 @@ _Avoid_: asset, paper, security, symbol
 The stock or ETF an option series is written on.
 _Avoid_: base asset, spot
 
+**Company filing**:
+A document a listed company delivered to the CVM in one of four categories (material fact,
+market notice, shareholder notice, shareholder meeting), identified by its protocol and version
+and reached from an instrument through the company's CNPJ (ADR-0060). Shown as "Eventos
+recentes" on the asset page.
+_Avoid_: news, event, announcement
+
 **Option series**:
 One listed option contract on an underlying: call or put, strike, expiry, exercise style. B3
 reuses a ticker across listing cycles (ADR-0017), so a lookup by ticker alone (the Ctrl K search

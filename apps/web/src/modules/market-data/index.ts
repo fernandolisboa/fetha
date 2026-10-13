@@ -63,3 +63,10 @@ export {
   type RecentCorporateActionFactor,
 } from "./corporate-action-queries";
 export { CorporateActionPanel } from "./components/corporate-action-panel";
+export {
+  latestFilingDeliveredOn,
+  recentCompanyFilings,
+  type CompanyFilingRow,
+  type RecentCompanyFilings,
+} from "./repositories/company-filing-repository";
+export { CompanyFilingsList, companyFilingsFreshness } from "./components/company-filings-list";
