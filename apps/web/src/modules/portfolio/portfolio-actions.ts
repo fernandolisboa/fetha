@@ -25,6 +25,7 @@ import {
 import { holdingKey, type LedgerFill } from "./bookkeeping";
 import { parseNegotiationRows, type SkipReason } from "./b3-import/parse-negotiation";
 import { readFirstSheet } from "./b3-import/read-xlsx";
+import { removeIndexStockLegs } from "./import-index-refusal";
 import { planOperation, type SeriesByHolding } from "./operation-plan";
 import { parsePriceInput } from "./parse-price";
 import { PortfolioRepository, type NewFill } from "./portfolio-repository";
@@ -144,8 +145,12 @@ export async function importFillsAction(formData: FormData): Promise<ImportFills
         : { status: "error" as const, error: "missing_columns" as const };
     }
 
-    const expiries = await optionExpiries(parsed.fills);
-    const newFills: NewFill[] = parsed.fills.map((fill) => ({
+    const { importable: importableFills, indexStockLegSkipped } = removeIndexStockLegs(
+      parsed.fills,
+    );
+
+    const expiries = await optionExpiries(importableFills);
+    const newFills: NewFill[] = importableFills.map((fill) => ({
       ticker: fill.ticker,
       assetClass: fill.assetClass,
       side: fill.side,
@@ -177,7 +182,7 @@ export async function importFillsAction(formData: FormData): Promise<ImportFills
       status: "ok" as const,
       inserted,
       alreadyImported: newFills.length - inserted,
-      skipped: parsed.skipped,
+      skipped: { ...parsed.skipped, index_stock_leg: indexStockLegSkipped },
     };
   });
 }

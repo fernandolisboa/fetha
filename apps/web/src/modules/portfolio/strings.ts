@@ -177,8 +177,8 @@ const en = {
       submit: "Import",
       result: (inserted: number, already: number) =>
         `${String(inserted)} fills imported, ${String(already)} already imported.`,
-      skipped: (exercise: number, unsupported: number) =>
-        `Skipped: ${String(exercise)} exercise rows (confirm them as settlements), ${String(unsupported)} rows from other markets.`,
+      skipped: (exercise: number, unsupported: number, indexStockLeg: number) =>
+        `Skipped: ${String(exercise)} exercise rows (confirm them as settlements), ${String(unsupported)} rows from other markets, ${String(indexStockLeg)} market-index rows (a market index has no shares to hold).`,
     },
     recordDialog: {
       title: "Record fill",
@@ -425,8 +425,8 @@ const ptBR = {
       submit: "Importar",
       result: (inserted: number, already: number) =>
         `${String(inserted)} execuções importadas, ${String(already)} já estavam na carteira.`,
-      skipped: (exercise: number, unsupported: number) =>
-        `Ignoradas: ${String(exercise)} linhas de exercício (confirme-as na liquidação pendente) e ${String(unsupported)} de outros mercados.`,
+      skipped: (exercise: number, unsupported: number, indexStockLeg: number) =>
+        `Ignoradas: ${String(exercise)} linhas de exercício (confirme-as na liquidação pendente), ${String(unsupported)} de outros mercados e ${String(indexStockLeg)} de índices de mercado (um índice não tem ações para ter em carteira).`,
     },
     recordDialog: {
       title: "Registrar execução",

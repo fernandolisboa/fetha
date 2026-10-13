@@ -150,7 +150,7 @@ describe("parseNegotiationRows", () => {
     const result = parseNegotiationRows(sheet.rows);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.skipped).toEqual({ exercise: 1, unsupported_market: 1 });
+    expect(result.skipped).toEqual({ exercise: 1, unsupported_market: 1, index_stock_leg: 0 });
     expect(
       result.fills.map((fill) => [
         fill.session,

@@ -230,7 +230,7 @@ describe("importFillsAction", () => {
       status: "ok",
       inserted: 6,
       alreadyImported: 0,
-      skipped: { exercise: 1, unsupported_market: 1 },
+      skipped: { exercise: 1, unsupported_market: 1, index_stock_leg: 0 },
     });
     expect(await importFillsAction(form)).toMatchObject({
       status: "ok",

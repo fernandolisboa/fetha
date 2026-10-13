@@ -22,11 +22,15 @@ import { t } from "../strings";
 function describe(result: ImportFillsResult): { tone: "ok" | "error"; lines: string[] } {
   if (result.status === "ok") {
     const lines = [t.dashboard.importDialog.result(result.inserted, result.alreadyImported)];
-    if (result.skipped.exercise + result.skipped.unsupported_market > 0) {
+    if (
+      result.skipped.exercise + result.skipped.unsupported_market + result.skipped.index_stock_leg >
+      0
+    ) {
       lines.push(
         t.dashboard.importDialog.skipped(
           result.skipped.exercise,
           result.skipped.unsupported_market,
+          result.skipped.index_stock_leg,
         ),
       );
     }
