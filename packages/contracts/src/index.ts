@@ -14,6 +14,7 @@ export {
   quantitySchema,
   rightOpenUnitIntervalSchema,
   sessionDateSchema,
+  settlementStyleSchema,
   signedQuantitySchema,
   tickerPrefixQuerySchema,
   tickerSchema,
@@ -26,6 +27,7 @@ export {
   type OptionRight,
   type Quantity,
   type SessionDate,
+  type SettlementStyle,
   type SignedQuantity,
   type Ticker,
 } from "./scalars";

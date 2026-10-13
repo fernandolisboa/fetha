@@ -1287,6 +1287,108 @@ describe("score — settlement at expiry for the taken-operation path (ADR-0014 
   });
 });
 
+// ADR-0063 / #307: settlement at an index close of 185 000 against a 183 000 strike pays
+// R$ 20,00 per contract (2 000 points x R$ 0,01/point), not 2 000 reais.
+describe("score — settlement at expiry for an index option's priceFactor (#307)", () => {
+  // Real B3 index options are always cash-settled (ADR-0063, #307 review round 2): a
+  // priceFactor other than 1 on a physically-settled series is now a named invalid_input.
+  const ibovaSeries: OptionSeries = {
+    ticker: "IBOVA183",
+    underlying: "IBOV",
+    right: "call",
+    strike: decimalString("183000"),
+    expiry: "2024-01-05",
+    style: "european",
+    asOf: "2024-01-01T00:00:00.000Z",
+    priceFactor: decimalString("100"),
+    settlementStyle: "cash",
+  };
+
+  function ibovCandle(session: string, close: string): Candle {
+    return {
+      ticker: "IBOV",
+      timeframe: "D1",
+      session,
+      asOf: `${session}T21:00:00.000Z`,
+      open: decimalString(close),
+      high: decimalString(close),
+      low: decimalString(close),
+      close: decimalString(close),
+      tradedQuantity: 1,
+    };
+  }
+
+  function longIbovaOperation(entryPrice: string): Operation {
+    return {
+      id: "op-ibova",
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString(entryPrice),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-01",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+  }
+
+  it("settles a long index-option call at expiry at R$ 20,00 intrinsic, not 2 000 points", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [ibovaSeries],
+      quotes: [
+        {
+          ticker: "IBOV",
+          asOf: "2024-01-05T21:00:00.000Z",
+          last: decimalString("185000"),
+          bid: null,
+          ask: null,
+        },
+      ],
+      candles: [ibovCandle("2024-01-05", "185000")],
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: longIbovaOperation("193.05") },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Intrinsic = (185000 - 183000) / 100 = 20.00; (20.00 - 193.05) * 100 * 1
+    expect(result.value.pnl).toBe(centavos(-17305));
+  });
+
+  it("rejects a non-positive series priceFactor as invalid_input (max-loss computation)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      optionSeries: [{ ...ibovaSeries, priceFactor: decimalString("0") }],
+      quotes: [
+        {
+          ticker: "IBOV",
+          asOf: "2024-01-05T21:00:00.000Z",
+          last: decimalString("185000"),
+          bid: null,
+          ask: null,
+        },
+      ],
+      candles: [ibovCandle("2024-01-05", "185000")],
+    };
+    const result = score(
+      { ...baseInput, view, horizon: "2024-01-05", operation: longIbovaOperation("193.05") },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});
+
 describe("score — a stock leg left once realized fills close every option leg (ADR-0022)", () => {
   it("marks the stock leg to the horizon close instead of settling a stock-only remainder", () => {
     const putSeries: OptionSeries = {

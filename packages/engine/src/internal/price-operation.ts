@@ -36,6 +36,7 @@ import {
 } from "./notes";
 import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLeg } from "./option-pricing";
+import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
@@ -68,6 +69,11 @@ export type PricedLeg = {
   valuation: LegValuation;
   strike: DecimalString | null;
   premiumPerUnit: Decimal;
+  // ADR-0063: the series' own `priceFactor` (1 for a stock leg and for every equity option).
+  // `strike` above stays in the series' quotation unit; only `payoffAt` below needs this, to
+  // scale the intrinsic value it derives from `strike` back down to the same reais
+  // `premiumPerUnit` is already on before the two are combined.
+  priceFactor: Decimal;
 };
 
 // `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
@@ -114,6 +120,7 @@ function valueOneLeg(
         valuation,
         strike: null,
         premiumPerUnit: price ? parseDecimal(price) : new Decimal(0),
+        priceFactor: new Decimal(1),
       },
     };
   }
@@ -133,6 +140,9 @@ function valueOneLeg(
       error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
+  const priceFactorResult = resolvePriceFactor(series.priceFactor, `${legPath}.priceFactor`);
+  if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
+  const priceFactor = priceFactorResult.value;
   const strikeAdjustmentNote: Note | null =
     adjustment === "derived"
       ? OPTION_STRIKE_DERIVED_NOTE
@@ -143,8 +153,11 @@ function valueOneLeg(
   if (expiredIntrinsicBasis !== null) {
     const strike = parseDecimal(strikeString);
     const basis = parseDecimal(expiredIntrinsicBasis);
-    const intrinsic =
-      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
+    // `strike` and `basis` are both on the series' quotation unit; scaled down to reais per
+    // contract (ADR-0063) before this intrinsic value becomes a fair value.
+    const intrinsic = (
+      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0)
+    ).div(priceFactor);
     const fairValue = toDecimalString(intrinsic, PRICE_SCALE);
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
@@ -165,7 +178,10 @@ function valueOneLeg(
       ],
     };
     if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
-    return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic } };
+    return {
+      ok: true,
+      leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic, priceFactor },
+    };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -228,6 +244,7 @@ function valueOneLeg(
     marketPrice,
     givenVolatility: leg.volatility ?? null,
     suppressStaleImpliedVolatility,
+    priceFactor: series.priceFactor,
   });
   if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
   const premiumPerUnit = valuation.price
@@ -236,22 +253,35 @@ function valueOneLeg(
       ? parseDecimal(valuation.fairValue)
       : new Decimal(0);
 
-  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit } };
+  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor } };
 }
 
-function legIntrinsicSlopeAtInfinity(role: "stock" | "call" | "put"): number {
-  return role === "put" ? 0 : 1;
+// A leg's payoff slope as the underlying goes to infinity, in reais per point of the
+// underlying's own quotation unit: a put's intrinsic value is capped (slope 0); a stock
+// leg's price factor is always 1 (slope 1); an index call's intrinsic value is itself in
+// points, divided down to reais by its price factor (ADR-0063) before it meets the
+// leg's premium, so its slope is `1 / priceFactor` reais per point, not 1.
+function legIntrinsicSlopeAtInfinity(
+  role: "stock" | "call" | "put",
+  priceFactor: Decimal,
+): Decimal {
+  if (role === "put") return new Decimal(0);
+  if (role === "stock") return new Decimal(1);
+  return new Decimal(1).div(priceFactor);
 }
 
 function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
   return legs.reduce((acc, leg) => {
     const role = leg.valuation.leg.role;
+    // `underlying` and `leg.strike` are both on the series' quotation unit; an option leg's
+    // intrinsic value is scaled down to reais (ADR-0063) before it meets `premiumPerUnit`,
+    // which is already on that scale. A stock leg's own price factor is always 1.
     const value =
       role === "stock"
         ? underlying
         : role === "call"
-          ? Decimal.max(underlying.sub(leg.strike ?? "0"), 0)
-          : Decimal.max(new Decimal(leg.strike ?? "0").sub(underlying), 0);
+          ? Decimal.max(underlying.sub(leg.strike ?? "0"), 0).div(leg.priceFactor)
+          : Decimal.max(new Decimal(leg.strike ?? "0").sub(underlying), 0).div(leg.priceFactor);
     const legSign = sign(leg.valuation.leg.side);
     const pnlPerUnit = value.sub(leg.premiumPerUnit).mul(legSign);
     return acc.add(pnlPerUnit.mul(leg.valuation.leg.quantity));
@@ -276,11 +306,12 @@ export function computePayoffProfile(
 
   const slopeAtInfinity = legs.reduce(
     (acc, leg) =>
-      acc +
-      sign(leg.valuation.leg.side) *
-        legIntrinsicSlopeAtInfinity(leg.valuation.leg.role) *
-        leg.valuation.leg.quantity,
-    0,
+      acc.add(
+        legIntrinsicSlopeAtInfinity(leg.valuation.leg.role, leg.priceFactor).mul(
+          sign(leg.valuation.leg.side) * leg.valuation.leg.quantity,
+        ),
+      ),
+    new Decimal(0),
   );
 
   const evaluated = points.map((p) => ({ point: p, value: payoffAt(legs, p) }));
@@ -299,7 +330,7 @@ export function computePayoffProfile(
       while (runEnd + 1 < n && evaluated[runEnd + 1]?.value.isZero()) runEnd += 1;
       const hasLeftNeighbour = runStart > 0;
       const hasRightSample = runEnd + 1 < n;
-      const hasRightInfinity = !hasRightSample && slopeAtInfinity !== 0;
+      const hasRightInfinity = !hasRightSample && !slopeAtInfinity.isZero();
       if (hasLeftNeighbour) {
         rawBreakEvens.push(toDecimalString(point.point, PRICE_SCALE));
       }
@@ -324,9 +355,9 @@ export function computePayoffProfile(
   const last = evaluated.at(-1);
   if (
     last &&
-    slopeAtInfinity !== 0 &&
+    !slopeAtInfinity.isZero() &&
     !last.value.isZero() &&
-    last.value.isNeg() !== slopeAtInfinity < 0
+    last.value.isNeg() !== slopeAtInfinity.lt(0)
   ) {
     const crossing = last.point.sub(last.value.div(slopeAtInfinity));
     rawBreakEvens.push(toDecimalString(crossing, PRICE_SCALE));
@@ -342,12 +373,12 @@ export function computePayoffProfile(
 
   let maxLoss: Centavos | "unbounded";
   let maxGain: Centavos | "unbounded";
-  if (slopeAtInfinity > 0) {
+  if (slopeAtInfinity.gt(0)) {
     maxGain = "unbounded";
     maxLoss = toCentavos(
       minValue.isNegative() ? minValue.neg().mul(CENTAVOS_PER_REAL).round().toNumber() : 0,
     );
-  } else if (slopeAtInfinity < 0) {
+  } else if (slopeAtInfinity.lt(0)) {
     maxLoss = "unbounded";
     maxGain = toCentavos(
       maxValue.isPositive() ? maxValue.mul(CENTAVOS_PER_REAL).round().toNumber() : 0,
