@@ -128,13 +128,6 @@ export async function upsertDailyCandles(
   return deduped.length;
 }
 
-export interface IndexCandleRow {
-  ticker: Ticker;
-  session: string;
-  asOf: Date;
-  close: DecimalString;
-}
-
 // A market index's level, O=H=L=C and zero traded quantity (ADR-0062): the four
 // equal prices are a close repeated, not fabricated highs and lows, and nothing that reads
 // `high`, `low` or `tradedQuantity` ever sees this row (indexes never enter an evaluated

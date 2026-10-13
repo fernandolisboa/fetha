@@ -1,3 +1,4 @@
+import { ibovespa } from "../../market-index";
 import { parseIndexYear } from "./parser";
 import type { IndexClosePoint } from "./schema";
 
@@ -17,8 +18,6 @@ const RETRY_DELAY_MS = 1_000;
 // maxDuration, so a stalled connection still leaves time for the retry and every source after
 // this one.
 const REQUEST_TIMEOUT_MS = 15_000;
-
-const B3_INDEX_CODE = "IBOV";
 
 function mediaTypeOf(response: Response): string {
   const mediaType = (response.headers.get("content-type") ?? "")
@@ -94,7 +93,7 @@ function jsonBodyOf(text: string): unknown {
 // (ADR-0062): the service's own request code `IBOV` is never the registry's
 // join key `IBOV11`, which is only assigned once a row is written to `candles`.
 export function indexStatisticsUrl(year: number): string {
-  const payload = JSON.stringify({ index: B3_INDEX_CODE, language: "pt-br", year: String(year) });
+  const payload = JSON.stringify({ index: ibovespa.b3Code, language: "pt-br", year: String(year) });
   const encoded = Buffer.from(payload, "utf8").toString("base64");
   return `https://sistemaswebb3-listados.b3.com.br/indexStatisticsProxy/IndexCall/GetPortfolioDay/${encoded}`;
 }

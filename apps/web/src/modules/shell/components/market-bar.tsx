@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/format/date-time";
 import {
   closeFreshnessKind,
   exchangeRateHref,
+  ibovespa,
   sessionDateToDisplayDate,
 } from "@/modules/market-data/client";
 
@@ -86,12 +87,12 @@ function IbovChip({ ibov }: { ibov: IbovMarketBarQuote }) {
   return (
     <>
       <Link
-        href="/ativos/IBOV11"
+        href={`/ativos/${ibovespa.ticker}`}
         title={t.marketBar.ibovAsOf(dateLabel)}
         // Same breakpoint budget as UsdBrlChip below (e2e/shell.spec.ts, 360/390px).
         className="text-foreground hidden shrink-0 font-medium sm:inline"
       >
-        IBOV {formatDecimal(ibov.close)}
+        {ibovespa.shortLabel} {formatDecimal(ibov.close)}
       </Link>
       <span className="text-faint hidden shrink-0 lg:inline">{dateLabel}</span>
     </>

@@ -10,7 +10,7 @@ import { fetchIndexYear } from "./adapters/b3-indexes/fetch";
 import type { IndexClosePoint } from "./adapters/b3-indexes/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
 import { gaps, latestSession } from "./freshness";
-import { marketIndexes } from "./market-index";
+import { ibovespa } from "./market-index";
 import { withSourceLock } from "./repositories/advisory-lock";
 import {
   latestCandle,
@@ -514,7 +514,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
 
   const indexesSessions = await resolveSessions("indexes");
   const indexesRun = async (session: string): Promise<RunResult> => {
-    const latest = await latestCandle(db, marketIndexes[0].ticker);
+    const latest = await latestCandle(db, ibovespa.ticker);
     const from = resolveSgsFromDate(latest?.session);
     if (from > session) {
       return 0;
@@ -547,7 +547,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     }
 
     const rowCount = await withSourceLock(db, "cotahist", (tx) =>
-      upsertIndexCandles(tx, writable, marketIndexes[0].ticker, asOfBySession),
+      upsertIndexCandles(tx, writable, ibovespa.ticker, asOfBySession),
     );
 
     const published = points.some((point) => point.date === session);
@@ -664,11 +664,12 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const ivIndexRestSessions = [
     ...new Set([...ivIndexRecentSessions.slice(0, -1)].reverse().concat(ivIndexBackfillCandidates)),
   ];
-  // A session `indexes` attempted this run and did not succeed on leaves `iv_index` pending for
-  // it (docs/adr/0054 addendum): otherwise a late B3 index document would silently lose
-  // `IBOV11`'s point for that session rather than delaying it by one cron, like the CDI gate
-  // already does. Sessions `indexes` never attempted this run (older backfill, outside its
-  // own window) are unaffected and keep draining on their own schedule.
+  // Every session `indexes` has outstanding (`indexesSessions`, the full gap list, not only the
+  // ones this run's own start budget got around to starting) that has not succeeded this run
+  // pends `iv_index` for it (docs/adr/0054/0062 addendum): a session `indexes` never even
+  // attempted this run pends exactly like one it attempted and failed, so a late or
+  // never-started B3 index document delays every underlying's point by one cron rather than
+  // silently losing `IBOV11`'s, like the CDI gate already does.
   const indexesMissing = new Set(
     indexesSessions.filter((session) => !indexesResult.okSessions.includes(session)),
   );

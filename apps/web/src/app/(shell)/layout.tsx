@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
 import {
+  ibovespa,
   latestCandle,
   latestExchangeRate,
   searchOptionSeriesAction,
@@ -83,7 +84,7 @@ async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
 // transient read failure just hides the IBOV chip instead of taking down the shell.
 async function readLatestIbov(): Promise<CandleRow | null> {
   try {
-    return await latestCandle(getDb(), "IBOV11");
+    return await latestCandle(getDb(), ibovespa.ticker);
   } catch {
     console.error("shell: latest IBOV11 read failed; market bar chip hidden");
     return null;

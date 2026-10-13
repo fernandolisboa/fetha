@@ -3,7 +3,6 @@ import type { Ticker } from "@fetha/contracts";
 export interface MarketIndex {
   ticker: Ticker;
   b3Code: string;
-  label: string;
   shortLabel: string;
   aliases: readonly string[];
 }
@@ -16,20 +15,20 @@ export const marketIndexes = [
   {
     ticker: "IBOV11",
     b3Code: "IBOV",
-    label: "Ibovespa",
     shortLabel: "IBOV",
     aliases: ["ibov", "ibovespa"],
   },
 ] as const satisfies readonly MarketIndex[];
 
+// The one entry above, named: every reader outside the search/membership helpers below wants
+// "the Ibovespa itself" (the fetch adapter's own request code, the shell's market bar, the
+// nightly ingest's candle writer), not a position in an array that happens to hold one row.
+export const ibovespa = marketIndexes[0];
+
 const byTicker = new Map<string, MarketIndex>(marketIndexes.map((index) => [index.ticker, index]));
 
 export function isMarketIndex(ticker: string): boolean {
   return byTicker.has(ticker);
-}
-
-export function marketIndexOf(ticker: string): MarketIndex | null {
-  return byTicker.get(ticker) ?? null;
 }
 
 function stripDiacritics(value: string): string {

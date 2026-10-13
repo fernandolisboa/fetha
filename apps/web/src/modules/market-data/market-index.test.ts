@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isMarketIndex, marketIndexOf, marketIndexTickersForQuery } from "./market-index";
+import { ibovespa, isMarketIndex, marketIndexTickersForQuery } from "./market-index";
 
 describe("isMarketIndex", () => {
   it("is true for IBOV11", () => {
@@ -12,13 +12,11 @@ describe("isMarketIndex", () => {
   });
 });
 
-describe("marketIndexOf", () => {
-  it("resolves IBOV11 to its label", () => {
-    expect(marketIndexOf("IBOV11")?.label).toBe("Ibovespa");
-  });
-
-  it("returns null for an ordinary ticker", () => {
-    expect(marketIndexOf("PETR4")).toBeNull();
+describe("ibovespa", () => {
+  it("is the registry's own join key, IBOV11, under B3's request code IBOV", () => {
+    expect(ibovespa.ticker).toBe("IBOV11");
+    expect(ibovespa.b3Code).toBe("IBOV");
+    expect(ibovespa.shortLabel).toBe("IBOV");
   });
 });
 
