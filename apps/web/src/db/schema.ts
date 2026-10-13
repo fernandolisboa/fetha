@@ -7,5 +7,6 @@ export * from "../modules/nightly/schema";
 export * from "../modules/portfolio/schema";
 export * from "../modules/preferences/schema";
 export * from "../modules/sentiment/schema";
+export * from "../modules/radar/schema";
 export * from "../modules/strategies/schema";
 export * from "../modules/watchlist/schema";

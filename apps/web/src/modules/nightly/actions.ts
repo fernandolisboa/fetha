@@ -23,6 +23,7 @@ export interface TriggerNightlyJobSummary {
   signalsWritten: number | null;
   decisionsScored: number;
   analysesScored: number;
+  radar: { read: number; universe: number; matches: number } | null;
   evaluationErrorCount: number;
   scoringErrorCount: number;
 }
@@ -83,6 +84,9 @@ function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRe
   ) {
     return true;
   }
+  if (outcome.radar !== null && (outcome.radar.status === "failed" || outcome.radar.errors > 0)) {
+    return true;
+  }
   return (
     outcome.scoring.usersSkipped > 0 ||
     outcome.scoring.decisionsSkipped > 0 ||
@@ -104,6 +108,13 @@ function summarize(
     signalsWritten: outcome.evaluation ? outcome.evaluation.signalsWritten : null,
     decisionsScored: outcome.scoring.decisionsScored,
     analysesScored: outcome.analysisScoring.analysesScored,
+    radar: outcome.radar
+      ? {
+          read: outcome.radar.universe - outcome.radar.pending,
+          universe: outcome.radar.universe,
+          matches: outcome.radar.matches,
+        }
+      : null,
     evaluationErrorCount: outcome.evaluation ? outcome.evaluation.errors.length : 0,
     scoringErrorCount: outcome.scoring.errors.length + outcome.analysisScoring.errors.length,
   };

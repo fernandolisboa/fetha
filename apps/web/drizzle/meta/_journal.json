@@ -278,8 +278,15 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1791912990471,
-      "tag": "0039_sentiment",
+      "when": 1791912322998,
+      "tag": "0039_radar",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791916380233,
+      "tag": "0040_sentiment",
       "breakpoints": true
     }
   ]

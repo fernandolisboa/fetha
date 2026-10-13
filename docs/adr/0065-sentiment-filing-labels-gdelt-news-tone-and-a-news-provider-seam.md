@@ -172,8 +172,8 @@ the owner's alone, and it disappears once the radar universe covers the whole ma
 
 ### Schedule and budget
 
-The sentiment step runs last in the nightly job (ADR-0017), after the analysis scoring, under the
-same deadline (start + 285 s). Labels, GDELT and the provider talk to three different hosts, so
+The sentiment step runs last in the nightly job (ADR-0017), after the analysis scoring and the
+radar (ADR-0066), under the same deadline (start + 285 s). Labels, GDELT and the provider talk to three different hosts, so
 they run side by side, each with its own spacing and per-item budget. One source failing is
 reported next to the others and never thrown into the run. A failed source shows in the nightly
 report and the owner's manual run (ADR-0045); rate limited and deferred do not, since the next run
@@ -196,7 +196,7 @@ updated nightly for the assets on a watchlist.
 
 ## Consequences
 
-- Migration 0039 creates four shared reference tables (CLAUDE.md principle 5), written only by
+- Migration 0040 creates four shared reference tables (CLAUDE.md principle 5), written only by
   the nightly job and read by every user: `filing_labels`, `news_tone_points`,
   `sentiment_fetches` and `news_articles`. They hold no user data, so they need no isolation
   test and no LGPD export or deletion.

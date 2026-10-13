@@ -65,6 +65,15 @@ const sentimentReportSchema = z.object({
   }),
 });
 
+const radarReportSchema = z.object({
+  status: z.enum(["ok", "pending", "failed"]),
+  universe: z.number().int().nonnegative(),
+  readThisRun: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  matches: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+});
+
 // A completed run's report: every field is a count or a closed-vocabulary
 // status, never an id, email or the raw error string evaluation/scoring
 // themselves produce (those can carry a decisionId or an engine detail
@@ -83,6 +92,7 @@ const completedReportSchema = z.object({
   analysisScoring: analysisScoringReportSchema,
   // Absent from runs recorded before #310.
   sentiment: sentimentReportSchema.optional(),
+  radar: radarReportSchema.nullable(),
 });
 
 // A run that threw before it could produce a NightlyJobOutcome at all: the
@@ -151,6 +161,16 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       newsTone: { ...outcome.sentiment.newsTone },
       provider: { ...outcome.sentiment.provider },
     },
+    radar: outcome.radar
+      ? {
+          status: outcome.radar.status,
+          universe: outcome.radar.universe,
+          readThisRun: outcome.radar.readThisRun,
+          pending: outcome.radar.pending,
+          matches: outcome.radar.matches,
+          errorCount: outcome.radar.errors,
+        }
+      : null,
   };
 }
 

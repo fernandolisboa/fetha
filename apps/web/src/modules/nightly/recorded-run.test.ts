@@ -28,6 +28,7 @@ function baseOutcome() {
       decisionsSkipped: 0,
       errors: [],
     },
+    radar: null,
     analysisScoring: {
       asOfSession: "2026-09-08",
       usersScored: 0,

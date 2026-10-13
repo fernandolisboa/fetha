@@ -67,6 +67,15 @@ function ResultBody({ result }: { result: PanelResult }) {
           </p>
           <p>{t.panel.decisionsScored(result.summary.decisionsScored)}</p>
           <p>{t.panel.analysesScored(result.summary.analysesScored)}</p>
+          <p>
+            {result.summary.radar
+              ? t.panel.radar(
+                  result.summary.radar.read,
+                  result.summary.radar.universe,
+                  result.summary.radar.matches,
+                )
+              : t.panel.radarSkipped}
+          </p>
           {result.summary.evaluationErrorCount > 0 ? (
             <p role="alert" style={{ color: "var(--danger)" }}>
               {t.panel.evaluationErrors(result.summary.evaluationErrorCount)}
