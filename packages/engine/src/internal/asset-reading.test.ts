@@ -225,6 +225,26 @@ describe("computeAssetReading — trend over a monotonic rising series (#304)", 
   });
 });
 
+describe("computeAssetReading — window anchored at the session read, not at `at` (quant review, #304)", () => {
+  it("still reads SMA50/SMA200 when the calendar already holds closed sessions after the last candle", () => {
+    const count = 210;
+    const closes = Array.from({ length: count }, (_, i) => (100 + i * 0.01).toFixed(2));
+    const candles = closes.map((close, i) => dailyCandle("PETR4", i, close));
+    // The calendar reaches two sessions past the last candle (B3 closed today and yesterday, but
+    // the nightly ingestion that publishes the candle has not run yet for either).
+    const calendar = calendarSessions(count + 2);
+    const view: MarketView = { ...emptyView, calendar, candles };
+    const at = calendar[count + 1]?.close ?? "";
+
+    const result = computeAssetReading(view, "PETR4", at, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.trend.smaLong).toBe("101.10");
+    expect(result.value.trend.smaShort).toBe("101.85");
+    expect(result.value.trend.label).toBe("up");
+  });
+});
+
 describe("computeAssetReading — short history (#304)", () => {
   it("nulls trend, momentum and range when there are too few candles for any of them", () => {
     const candles = Array.from({ length: 10 }, (_, i) => dailyCandle("PETR4", i, "40.00"));
@@ -332,6 +352,23 @@ describe("computeAssetReading — implied volatility (#304)", () => {
     if (!result.ok) return;
     // Strictly increasing values over the whole window: every earlier point is below the latest,
     // so iv_rank is 100 (ivRank's own formula, reference-tested in iv-rank.test.ts).
+    expect(result.value.impliedVolatility.ivRank).toBe("100.000000");
+    expect(result.value.impliedVolatility.label).toBe("high");
+  });
+
+  it("still ranks the latest point when the calendar already holds closed sessions after it (quant review, #304)", () => {
+    const count = 252;
+    const points = Array.from({ length: count }, (_, i) =>
+      ivPoint(i, (0.2 + (i / count) * 0.2).toFixed(4)),
+    );
+    // Two sessions have closed since the last IV point was published (the nightly job that
+    // computes it is late, or simply has not run yet tonight).
+    const calendar = calendarSessions(count + 2);
+    const view: MarketView = { ...emptyView, calendar, impliedVolatilityIndex: points };
+    const at = calendar[count + 1]?.close ?? "";
+    const result = computeAssetReading(view, "PETR4", at, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.value.impliedVolatility.ivRank).toBe("100.000000");
     expect(result.value.impliedVolatility.label).toBe("high");
   });

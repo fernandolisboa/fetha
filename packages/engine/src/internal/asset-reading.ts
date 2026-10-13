@@ -3,7 +3,6 @@ import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contrac
 import {
   assetReadingThresholds,
   type AssetReading,
-  type EngineError,
   type ImpliedVolatilityLabel,
   type MarketView,
   type MomentumLabel,
@@ -14,11 +13,11 @@ import {
   type TruncationReport,
   type TrendLabel,
 } from "../api";
-import { sessionAtOrBefore, sortedCalendar } from "./calendar";
+import { sessionAtOrBefore, sessionByDate, sortedCalendar } from "./calendar";
 import { buildCandleSeries } from "./candle-series";
-import { earliestIvSession, tradingCalendar } from "./data-window";
+import { tradingCalendar } from "./data-window";
 import { PRICE_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
-import { invalidInput } from "./errors";
+import { invalidInput, err } from "./errors";
 import { ivRank } from "./indicators/iv-rank";
 import { sma } from "./indicators/sma";
 import { isAfter, isAtOrBefore } from "./instant";
@@ -29,10 +28,6 @@ import { readingAt } from "./reading-at";
 import { collapseSeriesByTicker } from "./resolve-series";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { rowsWithKey } from "./view-index";
-
-function err(error: EngineError): Result<AssetReading> {
-  return { ok: false, error };
-}
 
 // `readingAt`'s `rankedIvSessions` callback is only ever invoked for an `iv_rank` indicator
 // (ADR-0059's own iv_rank handling never goes through `readingAt`, see
@@ -102,6 +97,20 @@ function hasTrade(
     if (latest === null || isAfter(p.asOf, latest.asOf)) latest = p;
   }
   return latest !== null && latest.trades > 0;
+}
+
+// The strict session-gap checks `readingAt` applies (ADR-0050 for `sma`, ADR-0051 for `iv_rank`,
+// both reused here for every candle- and IV-based reading) are anchored at the instant the window
+// ends: reading them off `at` directly (now, in
+// production) rather than off the session actually being read lets the gap between that
+// session's own close and the nightly ingestion that publishes its candle/IV point look like a
+// missing session every single day, nulling SMA 50/200, trend and IV rank for a ticker with years
+// of uninterrupted history. Anchored instead at that session's own close - the instant it was
+// itself read at - when the calendar carries it and that close is not itself after `at` (a
+// session the calendar has not closed yet cannot anchor anything); `at` otherwise, unchanged.
+function windowEndFor(view: MarketView, session: SessionDate, at: Instant): Instant {
+  const calendarSession = sessionByDate(view.calendar, session);
+  return calendarSession && isAtOrBefore(calendarSession.close, at) ? calendarSession.close : at;
 }
 
 function readingSessionFor(
@@ -186,6 +195,7 @@ function computeCandleReading(
   const latest = candles[position];
   if (!latest) return { ok: true, value: empty };
   const calendar = tradingCalendar(view.calendar);
+  const windowEnd = windowEndFor(view, latest.session, at);
   const closes = candles.map((c) => parseDecimal(c.close));
 
   const smaShortSeries = sma(closes, assetReadingThresholds.smaShortLength).map((v) =>
@@ -201,7 +211,7 @@ function computeCandleReading(
     position,
     calendar,
     "D1",
-    at,
+    windowEnd,
     neverRankedIvSessions,
   );
   const smaLong = readingAt(
@@ -211,7 +221,7 @@ function computeCandleReading(
     position,
     calendar,
     "D1",
-    at,
+    windowEnd,
     neverRankedIvSessions,
   );
   const rsiValue = readingAt(
@@ -221,7 +231,7 @@ function computeCandleReading(
     position,
     calendar,
     "D1",
-    at,
+    windowEnd,
     neverRankedIvSessions,
   );
   const atrValue = readingAt(
@@ -231,7 +241,7 @@ function computeCandleReading(
     position,
     calendar,
     "D1",
-    at,
+    windowEnd,
     neverRankedIvSessions,
   );
   const atrShare =
@@ -283,14 +293,21 @@ function computeImpliedVolatilityReading(
 
   const lookback = assetReadingThresholds.ivRankLookbackSessions;
   const values = points.map((p) => parseDecimal(p.impliedVolatility));
-  const rawRank = ivRank(values, lookback).at(-1) ?? null;
+  const rankSeries = ivRank(values, lookback).map((v) =>
+    v ? toDecimalString(v, RATIO_SCALE) : null,
+  );
   const sessions = points.map((p) => p.session);
-  const earliest = earliestIvSession(tradingCalendar(view.calendar), at, lookback);
-  const first = sessions[sessions.length - lookback];
-  const withinWindow =
-    earliest === null || (first !== undefined && codeUnitCompare(first, earliest) >= 0);
-  const ivRankValue =
-    withinWindow && rawRank !== null ? toDecimalString(rawRank, RATIO_SCALE) : null;
+  const windowEnd = windowEndFor(view, latestPoint.session, at);
+  const ivRankValue = readingAt(
+    { kind: "iv_rank", lookbackSessions: lookback },
+    rankSeries,
+    [],
+    points.length - 1,
+    tradingCalendar(view.calendar),
+    "D1",
+    windowEnd,
+    () => sessions,
+  );
 
   return {
     ok: true,

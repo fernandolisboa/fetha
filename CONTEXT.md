@@ -95,6 +95,12 @@ exposing module's interface, never through its tables.
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
    confirms or corrects. Only fills and operations are stored; positions and cash are derived
    from fills, and cash starts from the declared capital (ADR-0021).
+7. **Read an asset without a strategy.** The watchlist and the asset page show the engine's
+   reading of each asset (trend, RSI, daily range, implied volatility, option liquidity) with a
+   closed label and a templated sentence, computed on each request, never stored, no AI
+   (ADR-0059). The asset page lists the next steps: keep following, study an operation in the
+   builder pre-filled with the ticker, or a starter recipe. A strategy stays optional; an active
+   one adds the nightly evaluation and its signals.
 
 ## Invariants
 

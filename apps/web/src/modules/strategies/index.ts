@@ -37,6 +37,7 @@ export {
   type StrategyVisibility,
   type StrategyWithVersions,
 } from "./strategies-repository";
+export { catalog } from "./catalog";
 export { StructuresRepository } from "./structures-repository";
 export { evaluationLabel, strategiesStrings, t } from "./strings";
 export { StrategiesDataExport } from "./data-export";

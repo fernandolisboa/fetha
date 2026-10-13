@@ -16,7 +16,7 @@ const en = {
         sideways:
           "Price and its 50- and 200-session averages don't line up in one direction: the asset is moving sideways or changing course.",
       },
-      missing: "There aren't 200 sessions of history yet to read the trend.",
+      missing: "The trend needs a candle in each of the last 200 sessions, and some are missing.",
       detail: (smaShort: string, smaLong: string) => `SMA 50 ${smaShort} · SMA 200 ${smaLong}`,
     },
     momentum: {
@@ -58,7 +58,7 @@ const en = {
           `Implied volatility is ${iv}, IV rank ${rank}: among the highest of the last year. Options are relatively expensive, which favors selling options or credit spreads.`,
       },
       noRank: (iv: string) =>
-        `Implied volatility is ${iv}; it takes 252 sessions of history to say whether that is high or low.`,
+        `Implied volatility is ${iv}; saying whether that is high or low takes a point in each of the last 252 sessions, and some are missing.`,
       missing: "No implied-volatility index for this asset yet: it needs traded options.",
     },
     options: {
@@ -154,7 +154,7 @@ const ptBR = {
         sideways:
           "O preço e as médias de 50 e de 200 pregões não apontam para o mesmo lado: o ativo está andando de lado ou mudando de rumo.",
       },
-      missing: "Ainda não há 200 pregões de histórico para ler a tendência.",
+      missing: "A tendência precisa do preço de cada um dos últimos 200 pregões, e falta algum.",
       detail: (smaShort: string, smaLong: string) => `Média 50 ${smaShort} · Média 200 ${smaLong}`,
     },
     momentum: {
@@ -196,7 +196,7 @@ const ptBR = {
           `A volatilidade implícita está em ${iv}, com IV rank ${rank}: entre as mais altas do último ano. As opções estão relativamente caras, o que favorece vender opções ou montar travas vendidas.`,
       },
       noRank: (iv: string) =>
-        `A volatilidade implícita está em ${iv}. São precisos 252 pregões de histórico para dizer se isso é alto ou baixo.`,
+        `A volatilidade implícita está em ${iv}. Para dizer se isso é alto ou baixo, é preciso um valor em cada um dos últimos 252 pregões, e falta algum.`,
       missing:
         "Ainda não há índice de volatilidade implícita para este ativo: ele depende de opções negociadas.",
     },

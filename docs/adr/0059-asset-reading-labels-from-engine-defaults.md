@@ -56,6 +56,15 @@ default** (a common convention in retail options literature, but not sourced to 
 RSI/ATR are) and the 252-session lookback is one trading year, not a reference value either. Null
 label when `ivRank` is null.
 
+**The ADR-0050/0051 strict-window check is anchored at the session actually being read, not at
+`at`.** `at` is "now" in production, and the calendar is ingested through the close of every
+session that has happened, including today's, ahead of the nightly job that publishes its candle
+or IV point; anchoring the window at `at` directly would read that ordinary ingestion lag as a
+missing session on every call made before the nightly job runs, nulling SMA 50/200, trend and IV
+rank for a ticker with years of uninterrupted history. The window ends instead at the close of the
+session actually read (the latest candle's or the latest IV point's own session), falling back to
+`at` when the calendar does not carry that session or has not closed it yet.
+
 **`options`** (`OptionLiquidityLabel`: `liquid` | `thin` | `none`): the series in `optionSeries`
 whose `underlying` is this ticker, visible at `at`, not yet expired at the reading session
 (`expiry >= session`; `session` falls back to the calendar session at or before `at` when there is

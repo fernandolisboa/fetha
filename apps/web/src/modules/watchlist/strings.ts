@@ -36,7 +36,7 @@ const en = {
     study: {
       title: "Study an operation",
       body: (ticker: string) =>
-        `Open the builder with ${ticker} filled in, pick a structure and see max loss, max gain and break-even before deciding.`,
+        `Open the builder with ${ticker} filled in, pick a structure and see max loss, max gain and break-evens before deciding.`,
       action: "Open the builder",
     },
     recipe: {
@@ -98,7 +98,7 @@ const ptBR = {
     study: {
       title: "Estudar uma operação",
       body: (ticker: string) =>
-        `Abra o montador já com ${ticker} preenchido, escolha uma estrutura e veja perda máxima, ganho máximo e break-even antes de decidir.`,
+        `Abra o montador já com ${ticker} preenchido, escolha uma estrutura e veja perda máxima, ganho máximo e pontos de equilíbrio antes de decidir.`,
       action: "Abrir o montador",
     },
     recipe: {

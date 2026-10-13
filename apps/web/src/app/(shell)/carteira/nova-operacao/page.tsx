@@ -12,11 +12,13 @@ export const metadata: Metadata = { title: `Fetha · ${t.builder.title}` };
 export default async function NewOperationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ticker?: string }>;
+  searchParams: Promise<{ ticker?: string | string[] }>;
 }) {
   await requireUser();
   const { ticker: rawTicker } = await searchParams;
-  const ticker = tickerSchema.safeParse(rawTicker?.toUpperCase());
+  const ticker = tickerSchema.safeParse(
+    typeof rawTicker === "string" ? rawTicker.toUpperCase() : undefined,
+  );
   const [structures, riskProfile] = await Promise.all([getStructures(), getCurrentRiskProfile()]);
 
   if (structures.length === 0) {

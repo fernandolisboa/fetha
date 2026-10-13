@@ -23,7 +23,7 @@ import {
 // examples below are deterministic across runs.
 export const ILLUSTRATIVE_UNDERLYING: Ticker = tickerSchema.parse("EXMP3");
 export const ILLUSTRATIVE_SPOT: DecimalString = decimalStringSchema.parse("20.00");
-export const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
+const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
 export const ILLUSTRATIVE_LOWER_STRIKE: DecimalString = decimalStringSchema.parse("20.00");
 export const ILLUSTRATIVE_HIGHER_STRIKE: DecimalString = decimalStringSchema.parse("22.00");
 export const ILLUSTRATIVE_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.50");
@@ -132,6 +132,12 @@ const bullCallSpreadLegs: LegInput[] = [
   },
 ];
 
+export const illustrativeLegs: Record<StructureId, readonly LegInput[]> = {
+  "long-call": longCallLegs,
+  "long-put": longPutLegs,
+  "bull-call-spread": bullCallSpreadLegs,
+};
+
 async function priceIllustrative(legs: LegInput[]): Promise<OperationPricing> {
   const result = await engine.priceOperation({ view: ILLUSTRATIVE_VIEW, at: AT, legs });
   if (!result.ok) {
@@ -142,18 +148,12 @@ async function priceIllustrative(legs: LegInput[]): Promise<OperationPricing> {
 
 export type StructureId = "long-call" | "long-put" | "bull-call-spread";
 
-export interface Options101Example {
-  structureId: StructureId;
-  pricing: OperationPricing;
-}
-
 export interface Options101Examples {
   underlying: Ticker;
   spot: DecimalString;
-  expiry: SessionDate;
-  longCall: Options101Example;
-  longPut: Options101Example;
-  bullCallSpread: Options101Example;
+  longCall: OperationPricing;
+  longPut: OperationPricing;
+  bullCallSpread: OperationPricing;
 }
 
 // Server-side, deterministic, no DB: called once per render of the "Opções
@@ -168,9 +168,8 @@ export async function loadOptions101Examples(): Promise<Options101Examples> {
   return {
     underlying: ILLUSTRATIVE_UNDERLYING,
     spot: ILLUSTRATIVE_SPOT,
-    expiry: ILLUSTRATIVE_EXPIRY,
-    longCall: { structureId: "long-call", pricing: longCall },
-    longPut: { structureId: "long-put", pricing: longPut },
-    bullCallSpread: { structureId: "bull-call-spread", pricing: bullCallSpread },
+    longCall,
+    longPut,
+    bullCallSpread,
   };
 }

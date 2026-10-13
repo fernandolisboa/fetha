@@ -4,7 +4,7 @@ import { tickerSchema } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 
-import { buildAssetReadingView, loadAssetReading } from "./asset-reading";
+import { ASSET_READING_SESSIONS, buildAssetReadingView, loadAssetReading } from "./asset-reading";
 import { DAILY_TIMEFRAME } from "./repositories/candle-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 import {
@@ -27,8 +27,7 @@ function uniqueTicker(): string {
 
 // Consecutive days in a year no other fixture reserves (iv-index-compute uses 2086-2089).
 function dailySessions(count: number): string[] {
-  const month = 1 + Math.floor(Math.random() * 6);
-  const cursor = new Date(Date.UTC(2095, month - 1, 1));
+  const cursor = new Date(Date.UTC(2095, 0, 1));
   return Array.from({ length: count }, (_, index) => {
     const date = new Date(cursor);
     date.setUTCDate(date.getUTCDate() + index);
@@ -169,5 +168,60 @@ describe("buildAssetReadingView and loadAssetReading", () => {
       tradedSeries: 1,
       nextExpiries: [{ expiry: "2095-12-15", series: 2, tradedSeries: 1 }],
     });
+  });
+
+  it("still reads trend and IV rank while the newest candle and IV point trail the calendar", async () => {
+    const db = getDb();
+    const sessions = dailySessions(ASSET_READING_SESSIONS);
+    cleanupSessions.push(...sessions);
+    await db
+      .insert(tradingSessions)
+      .values(
+        sessions.map((date) => ({
+          date,
+          open: new Date(`${date}T${SESSION_OPEN_UTC}`),
+          close: new Date(`${date}T${SESSION_CLOSE_UTC}`),
+        })),
+      )
+      .onConflictDoNothing();
+
+    const underlying = uniqueTicker();
+    cleanupTickers.push(underlying);
+    const ingested = sessions.slice(0, -2);
+    for (const session of new Set(ingested.map((date) => `${date.slice(0, 7)}-01`))) {
+      await ensureMonthlyPartition(db, "candles", session);
+    }
+    await db.insert(candles).values(
+      ingested.map((session, index) => {
+        const close = (20 + index * 0.01).toFixed(6);
+        return {
+          ticker: underlying,
+          timeframe: DAILY_TIMEFRAME,
+          session,
+          asOf: new Date(`${session}T${SESSION_CLOSE_UTC}`),
+          open: close,
+          high: close,
+          low: close,
+          close,
+          tradedQuantity: 1000,
+        };
+      }),
+    );
+    await db.insert(impliedVolatilityIndexPoints).values(
+      ingested.map((session, index) => ({
+        underlying,
+        session,
+        asOf: new Date(`${session}T${SESSION_CLOSE_UTC}`),
+        impliedVolatility: (0.2 + index * 0.0001).toFixed(8),
+        method: "atm_30d_variance_interpolated" as const,
+      })),
+    );
+
+    const at = new Date(`${sessions.at(-1) ?? ""}T23:00:00.000Z`);
+    const reading = await loadAssetReading(db, underlying, at);
+
+    expect(reading?.session).toBe(ingested.at(-1));
+    expect(reading?.trend.label).toBe("up");
+    expect(reading?.impliedVolatility.label).toBe("high");
   });
 });

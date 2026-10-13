@@ -3,7 +3,7 @@ status: accepted
 date: 2026-09-09
 ---
 
-# The engine public interface: ten methods over one market view, frozen
+# The engine public interface: eleven methods over one market view, frozen
 
 ## Context
 
@@ -18,7 +18,8 @@ tickets.
 
 ## Decision
 
-The engine exposes one `Engine` interface with exactly ten methods, one constant
+The engine exposes one `Engine` interface with exactly ten methods (eleven since the `assetReading`
+addendum below), one constant
 (`ENGINE_VERSION`), one `as const` array per closed vocabulary it declares (`noteCodes`,
 `engineErrorCodes`, `settlementOutcomes`, ...) and the types they use. Every input and every
 artifact is plain JSON: decimals travel as `DecimalString`, money as integer `Centavos` (BRL,

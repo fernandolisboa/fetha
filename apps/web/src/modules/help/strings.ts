@@ -106,11 +106,6 @@ const en = {
         body: "Buy a call at the lower strike and sell a call at the higher strike, same expiry. The premium received from the short call lowers the cost of the long one, at the price of a capped gain: both the loss and the gain are bounded.",
       },
     },
-    chartLabels: {
-      spot: "Underlying price",
-      strike: (value: string) => `Strike ${value}`,
-      premium: (value: string) => `Premium ${value}`,
-    },
   },
   guide: {
     title: "How to use Fetha",
@@ -304,11 +299,6 @@ const ptBR = {
         title: "Trava de alta com calls",
         body: "Compre uma call no strike mais baixo e venda uma call no strike mais alto, no mesmo vencimento. O prêmio recebido pela call vendida reduz o custo da comprada, ao preço de um ganho limitado: tanto a perda quanto o ganho ficam travados.",
       },
-    },
-    chartLabels: {
-      spot: "Preço do ativo-objeto",
-      strike: (value: string) => `Strike ${value}`,
-      premium: (value: string) => `Prêmio ${value}`,
     },
   },
   guide: {

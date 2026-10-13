@@ -22,14 +22,20 @@ import {
   optionSeriesForUnderlyingAt,
 } from "./repositories/option-repository";
 
+// Sessions the newest candle or IV point may trail the calendar by (the nightly ingestion runs
+// hours after the B3 close, and a failed run adds a day): the engine anchors each window at the
+// session it reads, so the view must still reach that many sessions further back.
+const INGESTION_LAG_SESSIONS = 5;
+
 // The longest window any reading needs (ADR-0059): SMA 200 over candles, IV rank over 252
-// sessions of IV points, Wilder RSI and ATR over 6 x 14 candles (ADR-0048).
-export const ASSET_READING_SESSIONS = Math.max(
-  assetReadingThresholds.smaLongLength,
-  assetReadingThresholds.ivRankLookbackSessions,
-  assetReadingThresholds.rsiLength * 6,
-  assetReadingThresholds.atrLength * 6,
-);
+// sessions of IV points, Wilder RSI and ATR over 6 x 14 candles (ADR-0048), plus the lag above.
+export const ASSET_READING_SESSIONS =
+  Math.max(
+    assetReadingThresholds.smaLongLength,
+    assetReadingThresholds.ivRankLookbackSessions,
+    assetReadingThresholds.rsiLength * 6,
+    assetReadingThresholds.atrLength * 6,
+  ) + INGESTION_LAG_SESSIONS;
 
 // One ticker's view for `engine.assetReading`: the calendar and candles of the last
 // ASSET_READING_SESSIONS sessions, the IV index points over the same sessions, and the option
@@ -115,14 +121,21 @@ export async function buildAssetReadingView(
   };
 }
 
-// The engine's reading of `ticker` with everything ingested so far, or null when the engine
-// refuses the view; a page renders the asset without its reading rather than failing.
+// The engine's reading of `ticker` with everything ingested so far, or null when a stored row
+// fails its schema or the engine refuses the view; a page renders the asset without its reading
+// rather than failing.
 export async function loadAssetReading(
   db: Database,
   ticker: Ticker,
   at: Date = new Date(),
 ): Promise<AssetReading | null> {
-  const view = await buildAssetReadingView(db, ticker, at);
+  let view: MarketView;
+  try {
+    view = await buildAssetReadingView(db, ticker, at);
+  } catch (error) {
+    console.error("assetReading view failed", { ticker, error });
+    return null;
+  }
   const result = await engine.assetReading({
     view,
     ticker,

@@ -1,6 +1,8 @@
+import type { OperationPricing } from "@fetha/engine";
+
 import { PayoffChart, StatBlocks } from "@/modules/portfolio/client";
 
-import { loadOptions101Examples, type Options101Example } from "../options-101";
+import { loadOptions101Examples } from "../options-101";
 import { t } from "../strings";
 
 function Concept({ title, body }: { title: string; body: string }) {
@@ -15,15 +17,14 @@ function Concept({ title, body }: { title: string; body: string }) {
 function ExampleDiagram({
   title,
   body,
-  example,
+  pricing,
   spot,
 }: {
   title: string;
   body: string;
-  example: Options101Example;
+  pricing: OperationPricing;
   spot: string;
 }) {
-  const { pricing } = example;
   return (
     <div className="flex flex-col gap-3">
       <Concept title={title} body={body} />
@@ -67,19 +68,19 @@ export async function Options101Section() {
       <ExampleDiagram
         title={t.optionsBasics.structures.longCall.title}
         body={t.optionsBasics.structures.longCall.body}
-        example={examples.longCall}
+        pricing={examples.longCall}
         spot={spot}
       />
       <ExampleDiagram
         title={t.optionsBasics.structures.longPut.title}
         body={t.optionsBasics.structures.longPut.body}
-        example={examples.longPut}
+        pricing={examples.longPut}
         spot={spot}
       />
       <ExampleDiagram
         title={t.optionsBasics.structures.bullCallSpread.title}
         body={t.optionsBasics.structures.bullCallSpread.body}
-        example={examples.bullCallSpread}
+        pricing={examples.bullCallSpread}
         spot={spot}
       />
     </div>
