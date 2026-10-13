@@ -106,7 +106,7 @@ describe("validateLegsAgainstStructure", () => {
     });
   });
 
-  it("ADR-0063/design-307: rejects a collar whose stock leg names IBOV11", () => {
+  it("ADR-0062/0063: rejects a collar whose stock leg names IBOV11", () => {
     const chain = [
       chainSeries({ ticker: "IBOVP183", right: "put", strike: "183000.00000000" }),
       chainSeries({ ticker: "IBOVA185", right: "call", strike: "185000.00000000" }),
@@ -123,7 +123,7 @@ describe("validateLegsAgainstStructure", () => {
     });
   });
 
-  it("ADR-0063/design-307: accepts a long call naming IBOV11 as its underlying", () => {
+  it("ADR-0062/0063: accepts a long call naming IBOV11 as its underlying", () => {
     const longCall: Structure = {
       id: "long-call",
       name: "Call comprada",

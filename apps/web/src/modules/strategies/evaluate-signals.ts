@@ -252,7 +252,7 @@ export async function evaluateSignalsForSession(
       }
 
       const watchlist = await new WatchlistRepository(db, scopedUser).list();
-      // A market index is never evaluated (design-307.md section 1 rule 2): ATR, high/low
+      // A market index is never evaluated (ADR-0062): ATR, high/low
       // and tradedQuantity conditions must never read its synthetic candle.
       const tickers = watchlist
         .map((item) => item.ticker)

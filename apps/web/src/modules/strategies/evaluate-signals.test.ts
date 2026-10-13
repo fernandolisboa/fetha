@@ -133,7 +133,7 @@ describe("evaluateSignalsForSession", () => {
     expect(JSON.stringify(outcome)).not.toContain("user-b");
   });
 
-  it("design-307 section 1 rule 2: evaluates a watchlist's ordinary tickers only, dropping a market index", async () => {
+  it("ADR-0062: evaluates a watchlist's ordinary tickers only, dropping a market index", async () => {
     activeStrategyUserIds.mockResolvedValueOnce(["user-a"]);
     listActiveDaily.mockResolvedValueOnce([
       { strategyId: "strategy-1", version: { id: "v1", definition: { structureId: "stock" } } },

@@ -123,7 +123,7 @@ export async function startBacktestRun(
   if (!parsed.universe.every((ticker) => watchlistTickers.has(ticker))) {
     return { status: "error", error: "invalid" };
   }
-  // A market index cannot reach a backtest (design-307.md section 1 rule 2): ATR, high/low
+  // A market index cannot reach a backtest (ADR-0062): ATR, high/low
   // and tradedQuantity conditions must never read its synthetic candle.
   if (parsed.universe.some((ticker) => isMarketIndex(ticker))) {
     return { status: "error", error: "index_in_universe" };

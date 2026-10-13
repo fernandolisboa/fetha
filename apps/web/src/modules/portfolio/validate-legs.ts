@@ -55,7 +55,7 @@ export function validateLegsAgainstStructure(
 
     if (template.role === "stock") {
       // A stock leg on a market index is impossible: there is nothing to deliver, and B3's
-      // own export can never produce one (design-307.md section 1 rule 1).
+      // own export can never produce one (ADR-0062).
       if (isMarketIndex(leg.ticker)) {
         return { ok: false, reason: "index_stock_leg" };
       }

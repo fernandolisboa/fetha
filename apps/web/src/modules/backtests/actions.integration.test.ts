@@ -289,7 +289,7 @@ describe("createBacktestRunAction", () => {
     expect(runs[0]?.riskProfile).toEqual(declaredProfile);
   });
 
-  it("design-307 section 1 rule 2: refuses a universe naming a market index with index_in_universe", async () => {
+  it("ADR-0062: refuses a universe naming a market index with index_in_universe", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");
     const { RiskProfileRepository } = await import("@/modules/portfolio");
