@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   analysisInputsSchema,
   analysisOutputSchema,
+  analysisOutputV2Schema,
   checkAnalysisCitations,
   factAt,
   figuresIn,
+  outlookOf,
+  resolveAnalysisOutlook,
+  storedAnalysisOutputSchema,
   type AnalysisFact,
   type AnalysisInputs,
+  type AnalysisOutlook,
   type AnalysisOutput,
 } from "./analysis";
 
@@ -211,5 +216,156 @@ describe("analysisInputsSchema", () => {
     expect(analysisInputsSchema.safeParse({ subject: "signal", facts: { a: "1" } }).success).toBe(
       true,
     );
+  });
+});
+
+const heldInputs: AnalysisInputs = {
+  subject: "held_operation",
+  facts: {
+    session: "09/10/2026",
+    underlying: "ITUB4",
+    expiry: "20/11/2026",
+    legs: [{ ticker: "ITUBK360", entryPrice: "R$ 0,95" }],
+    pricing: {
+      spot: "R$ 35,80",
+      maxLoss: "−R$ 10.452,00",
+      breakEvens: ["R$ 34,84"],
+      payoff: [{ underlying: "R$ 1.030,00", pnl: "R$ 0,00" }],
+      riskFreeRate: "10,65% a.a.",
+    },
+  },
+};
+
+function outlookWith(overrides: Partial<AnalysisOutlook> = {}): AnalysisOutlook {
+  return {
+    instrumentFact: "underlying",
+    direction: "above",
+    levelFact: "pricing.breakEvens.0",
+    horizon: "one_month",
+    likelihood: "likely",
+    ...overrides,
+  };
+}
+
+describe("analysisOutputV2Schema", () => {
+  it("accepts an outlook or null, and requires the field", () => {
+    expect(
+      analysisOutputV2Schema.safeParse({ ...outputWith(), outlook: outlookWith() }).success,
+    ).toBe(true);
+    expect(analysisOutputV2Schema.safeParse({ ...outputWith(), outlook: null }).success).toBe(true);
+    expect(analysisOutputV2Schema.safeParse(outputWith()).success).toBe(false);
+  });
+
+  it("rejects a numeric likelihood and an unknown horizon", () => {
+    expect(
+      analysisOutputV2Schema.safeParse({
+        ...outputWith(),
+        outlook: { ...outlookWith(), likelihood: 0.8 },
+      }).success,
+    ).toBe(false);
+    expect(
+      analysisOutputV2Schema.safeParse({
+        ...outputWith(),
+        outlook: { ...outlookWith(), horizon: "2026-12-01" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an outlook that writes its level instead of naming a fact", () => {
+    expect(
+      analysisOutputV2Schema.safeParse({
+        ...outputWith(),
+        outlook: { ...outlookWith(), level: "34.84" },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("storedAnalysisOutputSchema and outlookOf", () => {
+  it("reads both released contracts back", () => {
+    const v1 = storedAnalysisOutputSchema.parse(outputWith());
+    const v2 = storedAnalysisOutputSchema.parse({ ...outputWith(), outlook: outlookWith() });
+    expect(outlookOf(v1)).toBeNull();
+    expect(outlookOf(v2)).toEqual(outlookWith());
+  });
+});
+
+describe("resolveAnalysisOutlook", () => {
+  it("turns the named facts into a claim, a fixed confidence and a session count", () => {
+    expect(resolveAnalysisOutlook(heldInputs, outlookWith())).toEqual({
+      ok: true,
+      claim: { kind: "close_above", instrument: "ITUB4", level: "34.84" },
+      confidence: "0.75",
+      horizon: { kind: "sessions", count: 21 },
+    });
+  });
+
+  it("maps every horizon and likelihood by its table", () => {
+    const week = resolveAnalysisOutlook(
+      heldInputs,
+      outlookWith({ horizon: "one_week", likelihood: "somewhat_likely", direction: "below" }),
+    );
+    expect(week).toMatchObject({
+      claim: { kind: "close_below" },
+      confidence: "0.6",
+      horizon: { kind: "sessions", count: 5 },
+    });
+    expect(
+      resolveAnalysisOutlook(
+        heldInputs,
+        outlookWith({ horizon: "three_months", likelihood: "very_likely" }),
+      ),
+    ).toMatchObject({ confidence: "0.9", horizon: { kind: "sessions", count: 63 } });
+  });
+
+  it("reads a thousands-separated price and an expiry after the session", () => {
+    expect(
+      resolveAnalysisOutlook(
+        heldInputs,
+        outlookWith({ levelFact: "pricing.payoff.0.underlying", horizon: "expiry" }),
+      ),
+    ).toMatchObject({
+      claim: { level: "1030" },
+      horizon: { kind: "expiry", expiry: "2026-11-20" },
+    });
+  });
+
+  it.each([
+    ["a missing path", { instrumentFact: "user.email" }],
+    ["a price, not a ticker", { instrumentFact: "pricing.spot" }],
+    ["a ticker list, not a ticker", { instrumentFact: "legs" }],
+  ])("refuses an instrument fact that is %s", (_, overrides) => {
+    expect(resolveAnalysisOutlook(heldInputs, outlookWith(overrides))).toEqual({
+      ok: false,
+      problem: "instrument_fact",
+    });
+  });
+
+  it.each([
+    ["a missing path", "pricing.target"],
+    ["a negative amount", "pricing.maxLoss"],
+    ["a rate", "pricing.riskFreeRate"],
+    ["a zero amount", "pricing.payoff.0.pnl"],
+    ["a ticker", "underlying"],
+  ])("refuses a level fact that is %s", (_, levelFact) => {
+    expect(resolveAnalysisOutlook(heldInputs, outlookWith({ levelFact }))).toEqual({
+      ok: false,
+      problem: "level_fact",
+    });
+  });
+
+  it("refuses expiry when the facts hold none, or none after their session", () => {
+    expect(resolveAnalysisOutlook(inputs, outlookWith({ horizon: "expiry" }))).toEqual({
+      ok: false,
+      problem: "expiry_fact",
+    });
+    const expired: AnalysisInputs = {
+      ...heldInputs,
+      facts: { ...heldInputs.facts, expiry: "09/10/2026" },
+    };
+    expect(resolveAnalysisOutlook(expired, outlookWith({ horizon: "expiry" }))).toEqual({
+      ok: false,
+      problem: "expiry_fact",
+    });
   });
 });
