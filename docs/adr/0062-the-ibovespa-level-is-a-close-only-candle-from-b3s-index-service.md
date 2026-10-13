@@ -67,7 +67,9 @@ Three refusals read `isMarketIndex`, all in `apps/web`, none in the engine:
    strategy is a later product decision, not a side effect of this one. The radar (ADR-0066)
    excludes `IBOV11` from its universe the same way, once it has a candle: `radarUniverse`
    (`modules/market-data/radar-view.ts`) filters `isMarketIndex` so the index itself, which
-   trades no options on itself, never occupies a radar slot.
+   trades no options on itself, never occupies a radar slot. The sentiment universe
+   (`modules/sentiment/universe.ts`) filters it the same way: an index's page shows no sentiment
+   panel, so the nightly provider job never fetches or stores articles for it.
 3. **The level is shown in points (`209.066,90`), never with `R$`**: the instrument page, the
    watchlist, the market bar. The page draws a line (`RateLineChart`, ADR-0061) instead of
    candles, hides the nominal/adjusted toggle, the recipes panel and the CVM filings and sentiment
