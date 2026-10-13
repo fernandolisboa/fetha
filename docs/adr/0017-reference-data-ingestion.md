@@ -581,3 +581,15 @@ stays out of `ingest().ok`. ADR-0060 has the details.
 
 A new, separate ingestion source, `ptax`, not folded into `sgs`'s own loop: see ADR-0061 for why
 (different failure budget, no trading-session dependency) and for the full decision.
+
+## Addendum: an eighth source, `indexes` (2026-10-13, #307, ADR-0062)
+
+| source              | adapter (`apps/web/src/modules/market-data/adapters/`) | natural key                | cadence                                                                                  |
+| ------------------- | ------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------- |
+| B3 index statistics | `b3-indexes` (`fetch.ts`, `parser.ts`)                 | `(ticker, session)` candle | incremental since the last stored `IBOV11` candle, one request per calendar year touched |
+
+`indexes` runs after `instruments` and before `sgs` — not last, like `ptax` — because `iv_index`
+decides its universe from the candles present on a session and never revisits one it skipped; a
+level landing after `iv_index` would lose `IBOV11`'s point for that session for good. It writes
+into `candles` under `IBOV11`, through the same `cotahist` write lock every other candle writer
+uses. ADR-0062 has the full decision, including the `iv_index` gate addendum on ADR-0054.
