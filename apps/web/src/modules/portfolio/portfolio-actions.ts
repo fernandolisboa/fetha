@@ -51,7 +51,7 @@ export type ImportFillsResult =
       status: "ok";
       inserted: number;
       alreadyImported: number;
-      skipped: Record<SkipReason, number>;
+      skipped: Record<SkipReason | "index_stock_leg", number>;
     }
   | {
       status: "error";

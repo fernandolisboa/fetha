@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { strToU8, zipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import type { CurrentUser } from "@/modules/auth";
@@ -220,6 +221,52 @@ function fixtureFile(): File {
   });
 }
 
+function inlineStr(value: string): string {
+  return `<is><t>${value}</t></is>`;
+}
+
+// Minimal OOXML a single B3 "Negociação" row for a stock leg on IBOV11, built inline
+// (no sharedStrings) rather than editing the recorded fixture.
+function indexStockLegFile(): File {
+  const header = [
+    "Data do Negocio",
+    "Tipo de Movimentacao",
+    "Mercado",
+    "Instituicao",
+    "Codigo de Negociacao",
+    "Quantidade",
+    "Preco",
+  ];
+  const headerRow = header
+    .map(
+      (value, index) =>
+        `<c r="${String.fromCharCode(65 + index)}1" t="inlineStr">${inlineStr(value)}</c>`,
+    )
+    .join("");
+  const data = ["15/09/2026", "Compra", "Mercado a Vista", "XP", "IBOV11"];
+  const dataRow =
+    data
+      .map(
+        (value, index) =>
+          `<c r="${String.fromCharCode(65 + index)}2" t="inlineStr">${inlineStr(value)}</c>`,
+      )
+      .join("") + '<c r="F2"><v>1</v></c><c r="G2"><v>100000</v></c>';
+  const bytes = zipSync({
+    "xl/workbook.xml": strToU8(
+      '<workbook><sheets><sheet name="a" r:id="rId1"/></sheets></workbook>',
+    ),
+    "xl/_rels/workbook.xml.rels": strToU8(
+      '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+    ),
+    "xl/worksheets/sheet1.xml": strToU8(
+      `<worksheet><sheetData><row r="1">${headerRow}</row><row r="2">${dataRow}</row></sheetData></worksheet>`,
+    ),
+  });
+  return new File([bytes], "negociacao-ibov.xlsx", {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 describe("importFillsAction", () => {
   it("imports the recorded export once and reports a re-import as already imported", async () => {
     await signIn("import");
@@ -268,6 +315,19 @@ describe("importFillsAction", () => {
     } finally {
       await getDb().delete(optionSeries).where(eq(optionSeries.isin, isin));
     }
+  });
+
+  it("ADR-0062: imports zero fills for a stock leg on a market index, counted as skipped", async () => {
+    await signIn("import-index");
+    const form = new FormData();
+    form.set("file", indexStockLegFile());
+
+    expect(await importFillsAction(form)).toEqual({
+      status: "ok",
+      inserted: 0,
+      alreadyImported: 0,
+      skipped: { exercise: 0, unsupported_market: 0, index_stock_leg: 1 },
+    });
   });
 
   it("refuses a file that is not a workbook", async () => {

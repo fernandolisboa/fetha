@@ -25,11 +25,7 @@ export interface ImportedFill {
   importKey: string;
 }
 
-// `index_stock_leg` is never produced here: B3's own investor-area export cannot name a market
-// index's shares (ADR-0062), so nothing in this file ever detects it. It is part of the shared
-// `SkipReason` vocabulary only because `importFillsAction` (portfolio-actions.ts) folds its own
-// post-parse index refusal into the same `skipped` record this module returns.
-export const skipReasons = ["exercise", "unsupported_market", "index_stock_leg"] as const;
+export const skipReasons = ["exercise", "unsupported_market"] as const;
 export type SkipReason = (typeof skipReasons)[number];
 
 export type ParseNegotiationResult =
@@ -170,7 +166,6 @@ export function parseNegotiationRows(rows: readonly Cell[][]): ParseNegotiationR
   const skipped: Record<SkipReason, number> = {
     exercise: 0,
     unsupported_market: 0,
-    index_stock_leg: 0,
   };
   const occurrences = new Map<string, number>();
 
