@@ -169,11 +169,13 @@ Domain components (custom): AppShell (grid, rail, header), MarketBar, PageHeader
 StatBlock, LegsTable (side, quantity, instrument, type, strike, expiry, price, delta, IV),
 PayoffChart, GreeksPanel, ErrorNotice (the Error state over the shadcn Alert; field validation
 stays a plain inline message), RiskNotice (warning with the breached limit and the "record anyway"
-rule), DecisionBar, AnalysisPanel (thesis, counter-thesis, risks, invalidation, confidence, inputs
-cited, prompt version and model), CandleChart (`lightweight-charts`), SignalRow (strategy,
+rule), DecisionBar, AnalysisPanel (thesis, counter-thesis, risks, invalidation, confidence,
+outlook, inputs cited, prompt version and model), CandleChart (`lightweight-charts`), SignalRow (strategy,
 instrument, evaluation time, late flag, proposal summary), StrategyEditor (closed vocabulary
 forms), BacktestReport (equity, drawdown, distribution, metrics table, walk-forward windows,
-declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score), ThemePicker,
+declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score, and under it the
+AI analyses that informed it; an analysis with no decision is its own entry: subject, thesis,
+outlook with its horizon date, likelihood, outlook score), ThemePicker,
 GuidedTour (a dim layer with a hairline `--accent` cutout around one element and a Popover step
 card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0046).
 

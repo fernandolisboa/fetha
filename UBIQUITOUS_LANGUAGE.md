@@ -438,13 +438,22 @@ held operation or a backtest run: thesis, counter-thesis, key risks, max loss, b
 invalidation conditions and confidence with justification, always citing the engine inputs it
 used (ADR-0057). Requested on demand, never automatically, up to a monthly cap per user (default
 50); every request and its outcome (`accepted`, `rejected` or `failed`) is stored append-only
-with the prompt version and the model that answered. Scoring an analysis against its own outcome
-is not part of this yet (follow-up issue).
+with the prompt version and the model that answered. From `analysis@2` on, an analysis may carry
+an outlook, scored at its horizon (ADR-0058).
 _Avoid_: recommendation, report, insight, opinion
 
+**Outlook**:
+The verifiable part of an analysis (ADR-0058): a ticker closing above or below a price level at a
+horizon (one week, one month or three months of sessions, or the expiry), with a likelihood
+(`somewhat_likely`, `likely`, `very_likely`) that a fixed table turns into the claim's confidence.
+The model names the ticker and the level by fact path and writes no figure; the app turns the
+outlook into a thesis claim, and the engine scores it like a decision's, on the claim alone.
+_Avoid_: forecast, target, prediction (in code)
+
 **Journal**:
-The chronological record of a user's decisions, each later scored against realized outcomes. AI
-analyses are stored alongside but not yet scored or shown in it (ADR-0057).
+The chronological record of a user's decisions and accepted AI analyses, each later scored against
+realized outcomes. An analysis sits under the decision it informed; the track record keeps
+decision scores and analysis scores apart (ADR-0058).
 _Avoid_: history, log, diary
 
 **Horizon**:
