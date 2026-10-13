@@ -54,6 +54,11 @@ describe("formatExchangeRateBRL", () => {
   it("pads to four decimals", () => {
     expect(formatExchangeRateBRL(decimalStringSchema.parse("5.6"))).toBe("R$ 5,6000");
   });
+
+  it("rounds half up at the fifth decimal", () => {
+    expect(formatExchangeRateBRL(decimalStringSchema.parse("4.98925"))).toBe("R$ 4,9893");
+    expect(formatExchangeRateBRL(decimalStringSchema.parse("4.98924"))).toBe("R$ 4,9892");
+  });
 });
 
 describe("parseBRLToCentavos", () => {

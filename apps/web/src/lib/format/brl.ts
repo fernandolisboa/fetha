@@ -32,7 +32,7 @@ export function formatExchangeRateBRL(rate: DecimalString): string {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   });
-  return `R$ ${formatter.format(decimal.toDecimalPlaces(4).toNumber())}`;
+  return `R$ ${formatter.format(decimal.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toNumber())}`;
 }
 
 // Parses a pt-BR money input ("1.234,56" or "1234,56" or "1234") into

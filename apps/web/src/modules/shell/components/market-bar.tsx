@@ -52,18 +52,24 @@ function useNow(intervalMs: number): Date {
 // everywhere in the shell. The session date lives only in the link's title
 // (narrow widths already truncate this bar, #305).
 function UsdBrlChip({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote }) {
+  const dateLabel = formatDate(sessionDateToDisplayDate(usdBrl.date));
   return (
-    <Link
-      href={exchangeRateHref("USDBRL")}
-      title={t.marketBar.usdBrlAsOf(formatDate(sessionDateToDisplayDate(usdBrl.date)))}
-      // Hidden below the width the header's own overflow budget was tested
-      // at (360/390px, e2e/shell.spec.ts): the bar is already tight there
-      // with just the focused instrument, so this fixture only grows the
-      // bar from a width with room to spare.
-      className="text-foreground hidden shrink-0 font-medium sm:inline"
-    >
-      USD/BRL {formatExchangeRateBRL(usdBrl.rate)}
-    </Link>
+    <>
+      <Link
+        href={exchangeRateHref("USDBRL")}
+        title={t.marketBar.usdBrlAsOf(dateLabel)}
+        // Hidden below the width the header's own overflow budget was tested
+        // at (360/390px, e2e/shell.spec.ts): the bar is already tight there
+        // with just the focused instrument, so this fixture only grows the
+        // bar from a width with room to spare.
+        className="text-foreground hidden shrink-0 font-medium sm:inline"
+      >
+        USD/BRL {formatExchangeRateBRL(usdBrl.rate)}
+      </Link>
+      {/* Same breakpoint the focused instrument's own freshness uses below:
+          the PTAX date as visible muted text, not only in the link's title. */}
+      <span className="text-faint hidden shrink-0 lg:inline">{dateLabel}</span>
+    </>
   );
 }
 
