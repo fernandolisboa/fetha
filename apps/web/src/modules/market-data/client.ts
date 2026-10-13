@@ -14,7 +14,6 @@ export {
   matchExchangeRates,
   type ExchangeRateSearchHit,
 } from "./exchange-rate-match";
-// marketDataStrings is plain data, no server imports: safe for a client
-// component (command-search.tsx) that needs exchangeRate.pairLabel without
-// duplicating it (#305 review).
-export { marketDataStrings } from "./strings";
+// The module's own locale choice (`t`), plain data with no server imports:
+// safe for a client component that needs exchangeRate.pairLabel (#305).
+export { t as marketDataT } from "./strings";

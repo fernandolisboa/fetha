@@ -49,8 +49,7 @@ function useNow(intervalMs: number): Date {
 // The latest USDBRL PTAX (docs/adr/0059), loaded server-side in the shell
 // layout and passed down as a prop: unlike the instrument slot below, it is
 // not published by whatever page happens to be open, so it stays visible
-// everywhere in the shell. The session date lives only in the link's title
-// (narrow widths already truncate this bar, #305).
+// everywhere in the shell.
 function UsdBrlChip({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote }) {
   const dateLabel = formatDate(sessionDateToDisplayDate(usdBrl.date));
   return (
@@ -82,9 +81,15 @@ export function MarketBar({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote | null }) {
 
   if (!instrument) {
     return (
-      <div className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums">
-        {usdBrl && <UsdBrlChip usdBrl={usdBrl} />}
-        <span className="min-w-0 truncate">{t.marketBar.noData}</span>
+      <div
+        data-testid="market-bar"
+        className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums"
+      >
+        {usdBrl ? (
+          <UsdBrlChip usdBrl={usdBrl} />
+        ) : (
+          <span className="min-w-0 truncate">{t.marketBar.noData}</span>
+        )}
       </div>
     );
   }
@@ -92,7 +97,10 @@ export function MarketBar({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote | null }) {
   const freshness = closeFreshnessPhrase(closeFreshnessKind(instrument.session, now));
 
   return (
-    <div className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums">
+    <div
+      data-testid="market-bar"
+      className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums"
+    >
       {usdBrl && <UsdBrlChip usdBrl={usdBrl} />}
       <span className="text-foreground shrink-0 font-medium">{instrument.ticker}</span>
       <span className="shrink-0">{instrument.lastClose}</span>

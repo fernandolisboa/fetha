@@ -28,7 +28,7 @@ export function exchangeRateHref(pair: ExchangeRatePair): string {
 // is two static pairs, so matching a typed query is a prefix check over the
 // pair code and its aliases, both accent- and case-insensitive. Returns the
 // pair only; the one label shown for it (search result, page chip) comes
-// from `marketDataStrings.exchangeRate.pairLabel`, not from here.
+// from the module strings (`t.exchangeRate.pairLabel`), not from here.
 export function matchExchangeRates(query: string): ExchangeRateSearchHit[] {
   const needle = normalize(query);
   if (needle === "") {

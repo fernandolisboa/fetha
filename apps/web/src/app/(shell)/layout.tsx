@@ -68,6 +68,9 @@ async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
   try {
     return (await latestExchangeRate(getDb(), "USDBRL")) ?? null;
   } catch {
+    // A fixed marker, never the driver's message: it would carry database
+    // text into the logs (docs/adr/0059).
+    console.error("shell: latest USD/BRL PTAX read failed; market bar chip hidden");
     return null;
   }
 }

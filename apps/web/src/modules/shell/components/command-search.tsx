@@ -15,11 +15,7 @@ import {
   CommandStatus,
 } from "@/components/ui/command";
 import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
-import {
-  exchangeRateHref,
-  marketDataStrings,
-  matchExchangeRates,
-} from "@/modules/market-data/client";
+import { exchangeRateHref, marketDataT, matchExchangeRates } from "@/modules/market-data/client";
 
 import {
   instrumentHref,
@@ -135,15 +131,13 @@ export function CommandSearch({ search }: { search: SearchSources }) {
   // `pending`/`searchFailed`/`rateLimited` the way the async ones are.
   const exchangeRateResults = matchExchangeRates(trimmedQuery);
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
-  const hasResults =
-    instrumentResults.length > 0 ||
-    optionSeriesResults.length > 0 ||
-    strategyResults.length > 0 ||
-    exchangeRateResults.length > 0;
+  const hasServerResults =
+    instrumentResults.length > 0 || optionSeriesResults.length > 0 || strategyResults.length > 0;
+  const hasResults = hasServerResults || exchangeRateResults.length > 0;
   const rateLimited =
     trimmedQuery.length > 0 &&
     (currentOutcome?.kind === "rate_limited" ||
-      (currentOutcome?.kind === "ok" && currentOutcome.throttled && !hasResults));
+      (currentOutcome?.kind === "ok" && currentOutcome.throttled && !hasServerResults));
 
   const message = deriveSearchMessage(
     { pending, rateLimited, searchFailed },
@@ -154,14 +148,13 @@ export function CommandSearch({ search }: { search: SearchSources }) {
       empty: t.search.empty,
     },
   );
-  // While the async sources are still in flight, the live region keeps
-  // announcing "Buscando…" even if the local exchange-rate match already
-  // has a hit — pending is only ever true before any async result exists,
-  // so `hasResults` here is forced false rather than reflecting the
-  // exchange-rate group's own, unrelated readiness.
+  // A local exchange-rate hit must not silence the server search's own
+  // state: "Buscando…" while it is in flight, and the rate-limit or failure
+  // notice once it answers, are still announced next to a Câmbio row.
+  const serverSearchUnsettled = pending || rateLimited || searchFailed;
   const statusText = deriveSearchStatusText(message, {
     trimmedQueryLength: trimmedQuery.length,
-    hasResults: !pending && hasResults,
+    hasResults: !serverSearchUnsettled && hasResults,
   });
 
   function navigate(href: string) {
@@ -206,6 +199,10 @@ export function CommandSearch({ search }: { search: SearchSources }) {
           {trimmedQuery.length > 0 &&
             (pending ? (
               <CommandLoading label={message}>{message}</CommandLoading>
+            ) : rateLimited || searchFailed ? (
+              // Not CommandEmpty: cmdk hides it as soon as any item (a
+              // Câmbio row) is mounted, which would hide this notice too.
+              <p className="py-6 text-center text-sm">{message}</p>
             ) : (
               <CommandEmpty>{message}</CommandEmpty>
             ))}
@@ -221,7 +218,7 @@ export function CommandSearch({ search }: { search: SearchSources }) {
                 >
                   <span className="font-mono uppercase">{result.pair}</span>
                   <span className="text-muted-foreground ml-auto min-w-0 truncate font-mono text-[12px]">
-                    {marketDataStrings.ptBR.exchangeRate.pairLabel[result.pair]}
+                    {marketDataT.exchangeRate.pairLabel[result.pair]}
                   </span>
                 </CommandItem>
               ))}

@@ -130,7 +130,7 @@ focused (an instrument, an option series) to publish its own last price, while t
 is a shell-wide fixture visible on every screen, the same distinction the bar's own existing comment
 already draws for IBOV/CDI (out of this ticket's scope). That read is wrapped in its own try/catch,
 collapsing any failure (a migration not yet applied to an environment, a transient database error)
-to `null` — a hidden chip, not a 500 on every signed-in page; nothing from the error is logged.
+to `null` — a hidden chip, not a 500 on every signed-in page; only a fixed marker is logged, never the error text, so a missing migration in some environment still shows up in its logs.
 
 ## Consequences
 
