@@ -52,11 +52,19 @@ const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 // time to record itself, and the next run retries both.
 const SGS_START_BUDGET_FRACTION = 0.4;
 // ptax runs last, after iv_index, so it never costs cotahist/sgs/instruments
-// or tonight's iv_index point any of their own budget (docs/adr/0059): a
+// or tonight's iv_index point any of their own budget (docs/adr/0059). Split
+// the same way sgs is (#298): starting an older gap session is gated at 70%
+// of maxDurationMs, counted from ingest()'s own start, and the newest one —
+// the only session allowed to report `pending` on a not-yet-published value
+// — gets its own later deadline, 80%, so older gaps can never starve it. A
 // stalled Bacen costs about 31s per series per session (mirroring sgs), two
-// series about 62s, so starting as late as 70% of maxDurationMs still leaves
-// time to finish before the route's own 300s deadline.
+// series about 62s worst case: a session starting right at 80% of a 300s
+// maxDurationMs (240s) and running that full 62s ends around the route's own
+// 300s deadline, the same shape sgs's own 93s-worst-case-at-60%-start
+// already accepts (docs/adr/0017's sgs addendum) — that run still ends in
+// time to record itself, and the next run retries whatever it missed.
 const PTAX_START_BUDGET_FRACTION = 0.7;
+const PTAX_NEWEST_START_BUDGET_FRACTION = 0.8;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -595,7 +603,10 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   // their own start budget (docs/adr/0059). Oldest gap session first, each
   // session fetching cumulatively from (latest stored date for the pair + 1
   // day) to the session, exactly like sgsRun; the only session allowed to
-  // report `pending` on a not-yet-published value is the newest.
+  // report `pending` on a not-yet-published value is the newest, which is
+  // why it is split out below with its own, later start deadline — an
+  // older gap stalling Bacen must never starve the one session this run
+  // most needs a fresh attempt at.
   const ptaxSessions = await resolveSessions("ptax");
   const ptaxRun = async (session: string): Promise<RunResult> => {
     let total = 0;
@@ -624,14 +635,26 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     }
     return { rowCount: total, pending: true };
   };
-  const ptaxResult = await runSessionBoundSource(
+  const ptaxOlderResult = await runSessionBoundSource(
     db,
     "ptax",
-    ptaxSessions,
+    ptaxSessions.slice(0, -1),
     maxDurationMs,
     ptaxRun,
     startedAt + (options.ptaxBudgetMs ?? maxDurationMs * PTAX_START_BUDGET_FRACTION),
   );
+  const ptaxNewestSession = ptaxSessions.at(-1);
+  const ptaxNewestResult = await runSessionBoundSource(
+    db,
+    "ptax",
+    ptaxNewestSession ? [ptaxNewestSession] : [],
+    maxDurationMs,
+    ptaxRun,
+    startedAt + maxDurationMs * PTAX_NEWEST_START_BUDGET_FRACTION,
+  );
+  const ptaxResult = {
+    outcome: mergeOutcomes("ptax", [ptaxOlderResult.outcome, ptaxNewestResult.outcome]),
+  };
 
   // A source that is fully caught up drains no gaps this invocation
   // (`cotahistSessions` is empty), so `okSessions` is empty too even though a

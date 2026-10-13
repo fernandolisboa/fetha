@@ -742,9 +742,9 @@ describe("ingest", () => {
     const db = getDb();
     const sgsFinalDates: string[] = [];
     const base = fakeFetchAnySession();
-    // Only the macro SGS codes (12/432/13522), not PTAX's (1/21619): ptax
-    // has its own, much later start budget (70%, docs/adr/0059) and is left
-    // free to run its own full gap window in this test.
+    // Only the macro SGS codes (12/432/13522), not PTAX's (1/21619): ptaxBudgetMs
+    // below defers ptax's own older gaps too (docs/adr/0059), so this test
+    // only needs to track the macro codes this assertion is actually about.
     const fetchImpl = ((input: string) => {
       if (/bcdata\.sgs\.(12|432|13522)\//.test(input)) {
         sgsFinalDates.push(new URL(input).searchParams.get("dataFinal") ?? "");
@@ -788,6 +788,45 @@ describe("ingest", () => {
       expect.anything(),
       expect.anything(),
     );
+  }, 120_000);
+
+  it("defers older ptax gaps once their own start budget has elapsed but still ingests the newest session under its own later deadline", async () => {
+    const db = getDb();
+    const ptaxFinalDates: string[] = [];
+    const base = fakeFetchAnySession();
+    const fetchImpl = ((input: string) => {
+      if (/bcdata\.sgs\.(1|21619)\//.test(input)) {
+        ptaxFinalDates.push(new URL(input).searchParams.get("dataFinal") ?? "");
+      }
+      return base(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl,
+      ptaxBudgetMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(ptaxFinalDates.length).toBeGreaterThan(0);
+    expect(new Set(ptaxFinalDates)).toEqual(new Set([TEST_SESSION.split("-").reverse().join("/")]));
+
+    const ptax = result.sources.find((s) => s.source === "ptax");
+    expect(ptax?.error).toBeUndefined();
+    expect(ptax).toMatchObject({ skipped: false, pending: true });
+    expect(ptax?.deferred).toBeGreaterThan(0);
+
+    const ptaxRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "ptax"),
+          gte(ingestionRuns.session, WINDOW_FLOOR),
+          lte(ingestionRuns.session, TEST_SESSION),
+        ),
+      );
+    expect(ptaxRuns.map((run) => [run.session, run.status])).toEqual([[TEST_SESSION, "succeeded"]]);
   }, 120_000);
 
   it("defers every session left unattempted once a source's start deadline has already elapsed, without attempting or recording them", async () => {
