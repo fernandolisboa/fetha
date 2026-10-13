@@ -30,10 +30,11 @@ async function captureMagicLinkUrl(email: string): Promise<URL> {
   return new URL(link);
 }
 
-// The plugin hashes the token (`storeToken: "hashed"`) and the verification
-// store hashes that again (`storeIdentifier: "hashed"`).
+// The plugin hashes the token (`storeToken: "hashed"`), prefixes it with
+// `magic-link:` (better-auth 1.7.7), and the verification store hashes that
+// again (`storeIdentifier: "hashed"`).
 function magicLinkStoredIdentifier(token: string): string {
-  return storedIdentifier(storedIdentifier(token));
+  return storedIdentifier(`magic-link:${storedIdentifier(token)}`);
 }
 
 async function expireMagicLinkToken(token: string): Promise<void> {

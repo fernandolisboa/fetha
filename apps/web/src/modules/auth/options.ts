@@ -164,7 +164,7 @@ export function buildUserCreateOverrides(
 // mailbox by flipping `emailVerified` through `updateUser`
 // (docs/adr/0036): the verification link and a magic-link sign-in of an
 // unverified account. Read from `node_modules/better-auth/dist` at the
-// pinned 1.7.3: `createAuthEndpoint("/verify-email", …)`
+// pinned 1.7.7: `createAuthEndpoint("/verify-email", …)`
 // (api/routes/email-verification.mjs) and
 // `createAuthEndpoint("/magic-link/verify", …)` (plugins/magic-link/index.mjs).
 const TERMS_CLEARING_PATHS: ReadonlySet<string> = new Set(["/verify-email", "/magic-link/verify"]);
