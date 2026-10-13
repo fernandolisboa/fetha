@@ -392,11 +392,13 @@ test("rail and header stay put while a long page scrolls", async ({ page, baseUR
   await expect(rail).toBeInViewport({ ratio: 1 });
   await expect(rail.getByText("Capital declarado")).toBeInViewport();
 
+  // Sub-pixel slack: at the very bottom the page's fractional height can
+  // nudge the sticky rail by half a pixel.
   const headerBox = await header.boundingBox();
   const railBox = await rail.boundingBox();
   expect(headerBox?.y).toBe(0);
-  expect(railBox?.y).toBe(48);
-  expect((railBox?.y ?? 0) + (railBox?.height ?? 0)).toBe(600);
+  expect(Math.abs((railBox?.y ?? 0) - 48)).toBeLessThanOrEqual(1);
+  expect(Math.abs((railBox?.y ?? 0) + (railBox?.height ?? 0) - 600)).toBeLessThanOrEqual(1);
 });
 
 test("collapsed rail keeps its foot inside its width", async ({ page, baseURL, request }) => {
