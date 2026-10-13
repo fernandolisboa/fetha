@@ -538,3 +538,30 @@ These remain failures, so a real Bacen outage still turns the run red; it now do
 the report can show. Fixtures: `sgs-not-found.json` and `sgs-window-too-wide.json` were recorded
 from api.bcb.gov.br on 2026-10-12; `sgs-error-page.xml` is representative, since the report only
 kept that body's first bytes.
+
+## Addendum: the sgs source has a start deadline (2026-10-13, #298)
+
+**Context.** After the #289 addendum each SGS request times out at 15 seconds and is retried once,
+so a stalled Bacen costs about 31 seconds per session before the first series fails and aborts the
+other two. `ingest()` ran `sgs` with no start deadline, and session selection can hand it up to
+ten gap sessions, about 310 seconds, past the cron's `maxDuration` of 300. That run would never
+start `iv_index` and would be killed before it wrote its `nightly_runs` row (ADR-0045).
+
+**Decision.** `sgs` gets the same split `iv_index` has (ADR-0054). The older gap sessions run first,
+oldest first, and no new one starts once 40% of `maxDurationMs` has passed since `ingest()`
+started. The newest gap session runs last and may start until `iv_index`'s 60% hard stop, because
+it carries the CDI tonight's IV index needs; its fetch covers every day since the last stored
+point, so it also fills the older gaps deferred before it, and those succeed with no request on
+the next run. Oldest-first order stays because the "only the newest session may be pending" rule
+(#216 addendum) and the cumulative fetch rely on it. Sessions left unstarted are reported as
+`deferred` with `pending`, write no run row and stay gaps the next run retries. The 15-second
+timeout and the single retry are unchanged.
+
+A Bacen that is slow on all three series, rather than stalled on the first, can hold one session
+for about 93 seconds, which can push tonight's `iv_index` session past its own hard stop. The run
+still ends inside `maxDuration` (about 273 seconds into `ingest()` at worst) and records itself,
+and the next run retries both.
+
+A deferred `sgs` session is not an error and does not flip `ok`, but unlike `iv_index`'s nightly
+backfill it is never routine, so the manual trigger logs the full outcome when it happens, and the
+nightly report keeps its `deferred` count (ADR-0045 addendum).

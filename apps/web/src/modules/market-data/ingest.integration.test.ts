@@ -659,6 +659,54 @@ describe("ingest", () => {
     expect(ivIndexRuns[0]?.status).toBe("succeeded");
   });
 
+  it("defers older sgs gaps once their start budget has elapsed but still ingests the newest session, and iv_index runs after it (#298)", async () => {
+    const db = getDb();
+    const sgsFinalDates: string[] = [];
+    const base = fakeFetchAnySession();
+    const fetchImpl = ((input: string) => {
+      if (input.includes("bcdata.sgs")) {
+        sgsFinalDates.push(new URL(input).searchParams.get("dataFinal") ?? "");
+      }
+      return base(input as unknown as RequestInfo);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl,
+      sgsBudgetMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(sgsFinalDates.length).toBeGreaterThan(0);
+    expect(new Set(sgsFinalDates)).toEqual(new Set(["15/06/2026"]));
+
+    const sgs = result.sources.find((s) => s.source === "sgs");
+    expect(sgs?.error).toBeUndefined();
+    expect(sgs).toMatchObject({ skipped: false, pending: true });
+    expect(sgs?.deferred).toBeGreaterThan(0);
+
+    const sgsRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "sgs"),
+          gte(ingestionRuns.session, WINDOW_FLOOR),
+          lte(ingestionRuns.session, TEST_SESSION),
+        ),
+      );
+    expect(sgsRuns.map((run) => [run.session, run.status])).toEqual([[TEST_SESSION, "succeeded"]]);
+
+    const ivIndex = result.sources.find((s) => s.source === "iv_index");
+    expect(ivIndex?.error).toBeUndefined();
+    expect(computeIvIndexForSessionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      TEST_SESSION,
+      expect.anything(),
+      expect.anything(),
+    );
+  }, 120_000);
+
   it("defers every session left unattempted once a source's start deadline has already elapsed, without attempting or recording them", async () => {
     const db = getDb();
     let calls = 0;

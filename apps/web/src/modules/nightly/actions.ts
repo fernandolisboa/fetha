@@ -41,11 +41,15 @@ export type TriggerNightlyJobResult =
 // None of these flip `outcome.ok` or the summary's error counts, so without
 // this check they would silently stop showing up anywhere but the cron's
 // own logs. iv_index's `deferred` is not trouble: the backfill defers
-// sessions every night until it drains (#264).
+// sessions every night until it drains (#264). Any other source's is: sgs
+// defers only when Bacen ate its start budget (#298).
 function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
   if (
     outcome.sources.some(
-      (source) => source.error !== undefined || source.newestSessionComputed === false,
+      (source) =>
+        source.error !== undefined ||
+        source.newestSessionComputed === false ||
+        (source.source !== "iv_index" && source.deferred !== undefined),
     )
   ) {
     return true;

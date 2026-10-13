@@ -122,3 +122,9 @@ roles create`, the API) always create a role as a member of `neon_superuser`, wh
 - A missing row for a given night does not by itself mean the job never ran: it can also mean the
   platform killed it past `maxDuration`, or (logged, not stored) `recordNightlyRun`'s own insert
   failed.
+
+## Addendum: `deferred` is no longer `iv_index` only (2026-10-13, #298)
+
+`sgs` now has a start deadline (ADR-0017 addendum, #298), so its source entry can carry `deferred`
+too. A deferred `sgs` session is not routine the way `iv_index`'s backfill is: the manual trigger
+logs the full outcome when it happens. `newestSessionComputed` stays `iv_index` only.

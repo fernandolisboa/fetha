@@ -45,7 +45,7 @@ click, not their own.
    sign-in of an unverified account (`/magic-link/verify`'s `revokeUnprovenAccountAccess` in
    `db/revoke-unproven-account-access.mjs`) go through, and both call sites read the current row
    first and return early when it is already verified — confirmed by reading both call sites in
-   `node_modules/better-auth` at the pinned 1.7.3, not assumed. `options.ts` adds a pure,
+   `node_modules/better-auth` at the pinned 1.7.3 and re-verified at 1.7.7, not assumed. `options.ts` adds a pure,
    unit-tested `clearTermsOnVerifiedFlip(data, path)` (`databaseHooks.user.update.before`) that
    nulls the pair only when `data.emailVerified === true` **and** `path` is one of those two exact
    strings, read via `tryGetCurrentAuthEndpointContext()` from `@better-auth/core/context` (added
