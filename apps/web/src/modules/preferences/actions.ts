@@ -48,3 +48,12 @@ export async function dismissTourAction(): Promise<PreferencesActionResult> {
 
   return { status: "ok" };
 }
+
+export async function dismissAssetTourAction(): Promise<PreferencesActionResult> {
+  await withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), PreferencesRepository);
+    await repository.dismissAssetTour();
+  });
+
+  return { status: "ok" };
+}

@@ -18,6 +18,13 @@ export const getMyStrategies = cache(async (): Promise<StrategySummary[]> => {
   return repository.listMine();
 });
 
+// Whether the nightly evaluation looks at this user's watchlist at all: it evaluates every
+// watchlist ticker against each active daily strategy (evaluate-signals.ts), never a subset.
+export const hasMyActiveDailyStrategy = cache(async (): Promise<boolean> => {
+  const repository = await forCurrentUser(getDb(), StrategiesRepository);
+  return (await repository.listActiveDaily()).length > 0;
+});
+
 export const getMyArchivedStrategies = cache(async (): Promise<StrategySummary[]> => {
   const repository = await forCurrentUser(getDb(), StrategiesRepository);
   return repository.listMineArchived();

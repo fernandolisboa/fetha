@@ -21,21 +21,27 @@ import {
   exerciseStyles,
   fillSources,
   impliedVolatilityIndexMethods,
+  impliedVolatilityLabels,
   limitModes,
   macroSeriesKinds,
   marketViewCollections,
   missedEntryReasons,
+  momentumLabels,
   noteCodes,
+  optionLiquidityLabels,
   optionRights,
   priceSources,
   pricingModels,
+  rangeLabels,
   scoreSubjects,
   settlementOutcomes,
   signalKinds,
   simulatedOperationStatuses,
+  trendLabels,
   truncationReasons,
   unsizeableReasons,
   volatilitySources,
+  type AssetReading,
   type BacktestProgress,
   type BacktestProgressStatus,
   type Capabilities,
@@ -55,6 +61,7 @@ import {
   type FillSource,
   type ImpliedVolatilityIndex,
   type ImpliedVolatilityIndexMethod,
+  type ImpliedVolatilityLabel,
   type IndicatorSeries,
   type LegRole,
   type LegSettlement,
@@ -63,15 +70,18 @@ import {
   type MarketView,
   type MarketViewCollection,
   type MissedEntryReason,
+  type MomentumLabel,
   type NoteCode,
   type Operation,
   type OperationPricing,
+  type OptionLiquidityLabel,
   type OptionRight,
   type PortfolioValuation,
   type Position,
   type PriceSource,
   type PricingModel,
   type ProposeSettlementInput,
+  type RangeLabel,
   type Result,
   type Score,
   type ScoreInput,
@@ -82,6 +92,7 @@ import {
   type SignalKind,
   type SimulatedOperation,
   type SimulatedOperationStatus,
+  type TrendLabel,
   type TruncationReason,
   type UnsizeableReason,
   type VolatilitySource,
@@ -94,7 +105,7 @@ describe("engine public interface", () => {
     expect(ENGINE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("exposes exactly the ten frozen methods", () => {
+  it("exposes exactly the eleven frozen methods", () => {
     expectTypeOf<EngineMethod>().toEqualTypeOf<
       | "capabilities"
       | "dataWindow"
@@ -106,6 +117,7 @@ describe("engine public interface", () => {
       | "proposeSettlement"
       | "score"
       | "impliedVolatilityIndex"
+      | "assetReading"
     >();
   });
 
@@ -136,6 +148,9 @@ describe("engine public interface", () => {
     expectTypeOf<ReturnType<Engine["score"]>>().toEqualTypeOf<Promise<Result<Score>>>();
     expectTypeOf<ReturnType<Engine["impliedVolatilityIndex"]>>().toEqualTypeOf<
       Promise<Result<ImpliedVolatilityIndex>>
+    >();
+    expectTypeOf<ReturnType<Engine["assetReading"]>>().toEqualTypeOf<
+      Promise<Result<AssetReading>>
     >();
   });
 
@@ -418,6 +433,21 @@ describe("closed vocabularies", () => {
     ]);
   });
 
+  it("enumerates the asset reading's label vocabularies (ADR-0059)", () => {
+    expectTypeOf<(typeof trendLabels)[number]>().toEqualTypeOf<TrendLabel>();
+    expect(trendLabels).toEqual(["up", "down", "sideways"]);
+    expectTypeOf<(typeof momentumLabels)[number]>().toEqualTypeOf<MomentumLabel>();
+    expect(momentumLabels).toEqual(["oversold", "neutral", "overbought"]);
+    expectTypeOf<(typeof rangeLabels)[number]>().toEqualTypeOf<RangeLabel>();
+    expect(rangeLabels).toEqual(["calm", "normal", "wide"]);
+    expectTypeOf<
+      (typeof impliedVolatilityLabels)[number]
+    >().toEqualTypeOf<ImpliedVolatilityLabel>();
+    expect(impliedVolatilityLabels).toEqual(["low", "normal", "high"]);
+    expectTypeOf<(typeof optionLiquidityLabels)[number]>().toEqualTypeOf<OptionLiquidityLabel>();
+    expect(optionLiquidityLabels).toEqual(["liquid", "thin", "none"]);
+  });
+
   it.each([
     ["engineErrorCodes", engineErrorCodes],
     ["unsizeableReasons", unsizeableReasons],
@@ -446,6 +476,11 @@ describe("closed vocabularies", () => {
     ["decisionOriginKinds", decisionOriginKinds],
     ["impliedVolatilityIndexMethods", impliedVolatilityIndexMethods],
     ["capabilityVocabularies", capabilityVocabularies],
+    ["trendLabels", trendLabels],
+    ["momentumLabels", momentumLabels],
+    ["rangeLabels", rangeLabels],
+    ["impliedVolatilityLabels", impliedVolatilityLabels],
+    ["optionLiquidityLabels", optionLiquidityLabels],
   ] as const)("%s has no duplicate members", (_name, members) => {
     expect(new Set(members).size).toBe(members.length);
   });

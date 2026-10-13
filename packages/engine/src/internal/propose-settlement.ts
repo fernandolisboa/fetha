@@ -22,7 +22,7 @@ import type {
   TradingSession,
 } from "../api";
 import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
-import { invalidInput } from "./errors";
+import { invalidInput, err } from "./errors";
 import { grossCentavos } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
@@ -34,10 +34,6 @@ import { toCentavos, toQuantity } from "./scalars";
 import { splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
-
-function err(error: EngineError): Result<SettlementProposal> {
-  return { ok: false, error };
-}
 
 // The calendar-gap case (no `TradingSession` at all for the expiry date) is `resolveExpiryClose`
 // (shared with markToMarket). Distinct from `insufficientCandlesForSession`

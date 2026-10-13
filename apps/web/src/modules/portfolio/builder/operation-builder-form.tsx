@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -84,16 +84,20 @@ function breachSignature(breaches: LimitBreach[]): string {
 export function OperationBuilderForm({
   structures,
   hasRiskProfile,
+  initialUnderlying = "",
 }: {
   structures: Structure[];
   hasRiskProfile: boolean;
+  initialUnderlying?: string;
 }) {
   const router = useRouter();
   const [structureId, setStructureId] = useState(structures[0]?.id ?? "");
   const structure = structures.find((candidate) => candidate.id === structureId) ?? structures[0];
-  const [underlying, setUnderlying] = useState("");
+  const [underlying, setUnderlying] = useState(initialUnderlying);
   const [chain, setChain] = useState<ChainSeries[]>([]);
-  const [legs, setLegs] = useState<BuilderLeg[]>(structure ? legsForStructure(structure, "") : []);
+  const [legs, setLegs] = useState<BuilderLeg[]>(
+    structure ? legsForStructure(structure, initialUnderlying) : [],
+  );
   const [pricing, setPricing] = useState<OperationPricing | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -101,6 +105,17 @@ export function OperationBuilderForm({
   const [pending, setPending] = useState(false);
   const pricingRequestId = useRef(0);
   const chainRequestId = useRef(0);
+
+  // A builder opened from an asset page (`?ticker=`) starts with that underlying's chain, the
+  // same load a blur on the field triggers.
+  useEffect(() => {
+    if (!tickerSchema.safeParse(initialUnderlying).success) return;
+    const requestId = chainRequestId.current + 1;
+    chainRequestId.current = requestId;
+    void loadChainAction(initialUnderlying).then((series) => {
+      if (chainRequestId.current === requestId) setChain(series);
+    });
+  }, [initialUnderlying]);
 
   // Any edit invalidates whatever pricing request is still in flight:
   // without this, a slow response from a leg set the user has

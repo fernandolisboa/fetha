@@ -25,6 +25,7 @@ export {
   getMyUnreadSignalCount,
   getSharedStrategies,
   getStructures,
+  hasMyActiveDailyStrategy,
 } from "./queries";
 export { SignalNotFoundError, type SignalListItem } from "./signals-repository";
 export {
