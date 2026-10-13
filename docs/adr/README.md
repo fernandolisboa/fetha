@@ -65,3 +65,4 @@ supersedes or amends them and says so.
 | 0057 | AI analyses: engine facts in, a checked contract out, a reserved monthly cap (#28, sharpens 0009, amends 0005 and 0006) |
 | 0058 | AI analyses carry an outlook, scored by the engine at its horizon (#292, amends 0057, restores 0005)                    |
 | 0060 | Company filings come from CVM open data, mapped to tickers by CNPJ (#309, amends 0007, 0017, 0045, 0054)                |
+| 0064 | Recipes are shared, read-only strategy definitions chosen by expected move (#306, amends 0053)                          |

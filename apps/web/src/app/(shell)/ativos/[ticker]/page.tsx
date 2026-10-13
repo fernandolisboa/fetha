@@ -15,6 +15,7 @@ import {
   loadCandleSeries,
   t,
 } from "@/modules/market-data";
+import { RecipePanel } from "@/modules/recipes";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
 import { ErrorNotice } from "@/components/error-notice";
 
@@ -93,6 +94,8 @@ export default async function InstrumentPage({
           <CandleChart candles={seriesResult.value.candles} />
         )}
       </Panel>
+
+      {lastClose && <RecipePanel ticker={ticker} />}
 
       <Panel
         title={t.companyFilings.title}

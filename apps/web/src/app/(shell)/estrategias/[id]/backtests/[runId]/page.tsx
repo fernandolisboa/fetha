@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/modules/auth";
 import {
+  AUTO_RUN_PARAM,
   BacktestRunNotFoundError,
   runErrorMessage,
   getMyBacktestRun,
   isDiscardedRun,
   isResumableRunError,
+  ReadingNotes,
   ReportPanel,
   t,
 } from "@/modules/backtests";
@@ -30,11 +32,14 @@ export const maxDuration = 120;
 
 export default async function BacktestReportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; runId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireUser();
   const { runId } = await params;
+  const autoRun = (await searchParams)[AUTO_RUN_PARAM] === "1";
 
   const run = await getMyBacktestRun(runId).catch((error: unknown) => {
     if (error instanceof BacktestRunNotFoundError) return null;
@@ -84,6 +89,7 @@ export default async function BacktestReportPage({
       {run.status === "complete" && run.result ? (
         <>
           <ReportPanel run={run.result} />
+          <ReadingNotes strategyId={run.strategyId} />
           <Panel title={decisionsT.analysis.report.title}>
             {latest ? (
               <AnalysisPanel analysis={latest} />
@@ -120,6 +126,7 @@ export default async function BacktestReportPage({
             <RunBacktestButton
               runId={run.id}
               label={run.status === "paused" ? t.report.resume : t.report.run}
+              autoStart={autoRun && run.status === "pending"}
             />
             <DiscardRunButton
               runId={run.id}
