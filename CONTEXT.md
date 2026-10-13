@@ -45,7 +45,10 @@ exposing module's interface, never through its tables.
    have both succeeded for the session, with a time-budgeted backfill for sessions that predate
    it) (corporate-action factors are entered by the owner on `/configuracoes`, not this job, #50,
    ADR-0052; the engine derives adjusted series point in time from whatever factors exist,
-   ADR-0013), then evaluates every active daily
+   ADR-0013). USD/BRL and EUR/BRL PTAX (`ptax`, ADR-0059) ingest last, after `iv_index`, so a slow
+   or down Bacen PTAX endpoint never costs any other source its own start budget; it has its own
+   two start deadlines (an older gap session, then the newest gap session later still) mirroring
+   `sgs`'s own split (#298). Then the job evaluates every active daily
    strategy over each user's watchlist and deposits signals in their inbox (a catch-up logs up to
    21 sessions but sends only the last five sessions' entries to the inbox, ADR-0044; a user
    can re-evaluate one strategy on one session after a data correction, append-only and audited,
