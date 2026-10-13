@@ -110,7 +110,8 @@ says the analysis is unavailable.
 **Scoring** of analyses and their place in the journal are not part of this decision; they need
 a horizon and a claim the contract does not carry yet (follow-up issue). This amends ADR-0005's
 "every AI analysis is scored" and ADR-0009's "scored like decisions": until that follow-up
-lands, only decisions are scored.
+lands, only decisions are scored. (Superseded by ADR-0058: from `analysis@2` on, an analysis is
+scored on its outlook and shown in the journal.)
 
 ## Considered options
 

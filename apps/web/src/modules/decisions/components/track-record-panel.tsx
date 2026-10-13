@@ -6,7 +6,11 @@ import { LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
 import { Circle } from "@visx/shape";
-import { decimalStringSchema, type DecimalString } from "@fetha/contracts";
+import {
+  analysisLikelihoodConfidence,
+  decimalStringSchema,
+  type DecimalString,
+} from "@fetha/contracts";
 
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
@@ -20,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import type { AnalysisTrackRecordStats } from "../analysis-scores-repository";
 import type { TrackRecordStats } from "../decision-scores-repository";
 import { t } from "../strings";
 
@@ -154,9 +159,16 @@ function PnlOverTimeChart({
 // The track record's own panel (brief item 4): hit rate, calibration (mean
 // Brier and stated-confidence buckets against realized hit rate), and
 // normalized P&L over time as a `visx` line — `--chart-stroke`, no dual
-// axes, no pies (DESIGN.md). The AI calibration slot stays an empty state
-// until analyses exist (#28).
-export function TrackRecordPanel({ stats }: { stats: TrackRecordStats }) {
+// axes, no pies (DESIGN.md). Those three panels are decisions only; the AI
+// calibration panel holds the analyses' own outlook scores, kept apart
+// (docs/adr/0058).
+export function TrackRecordPanel({
+  stats,
+  analysisStats,
+}: {
+  stats: TrackRecordStats;
+  analysisStats: AnalysisTrackRecordStats;
+}) {
   return (
     <div className="flex flex-col gap-[14px]">
       <Panel title={t.trackRecord.hitRateLabel}>
@@ -224,8 +236,54 @@ export function TrackRecordPanel({ stats }: { stats: TrackRecordStats }) {
       </Panel>
 
       <Panel title={t.trackRecord.aiCalibrationTitle}>
-        <p className="text-muted-foreground text-sm">{t.trackRecord.aiCalibrationEmpty}</p>
+        <AiCalibration stats={analysisStats} />
       </Panel>
+    </div>
+  );
+}
+
+function AiCalibration({ stats }: { stats: AnalysisTrackRecordStats }) {
+  if (stats.scoredCount === 0) {
+    return <p className="text-muted-foreground text-sm">{t.trackRecord.aiCalibrationEmpty}</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="font-mono text-[22px] tabular-nums">
+        {formatPercent(ratio(stats.claimsHeldCount, stats.scoredCount))}
+      </p>
+      <p className="text-muted-foreground text-[12px]">
+        {t.trackRecord.aiHitRateSentence(stats.claimsHeldCount, stats.scoredCount)}
+      </p>
+      {stats.meanBrier !== null ? (
+        <p className="text-[12px]">
+          {t.trackRecord.meanBrierLabel}:{" "}
+          <span className="font-mono tabular-nums">{formatDecimal(stats.meanBrier, 4)}</span>
+        </p>
+      ) : null}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t.trackRecord.aiLikelihoodHeader}</TableHead>
+            <TableHead className="text-right">{t.trackRecord.aiNominalHeader}</TableHead>
+            <TableHead className="text-right">{t.trackRecord.aiCountHeader}</TableHead>
+            <TableHead className="text-right">{t.trackRecord.calibrationHitRateHeader}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {stats.likelihoodBuckets.map((bucket) => (
+            <TableRow key={bucket.likelihood}>
+              <TableCell>{t.analysis.likelihood[bucket.likelihood]}</TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {formatPercent(analysisLikelihoodConfidence[bucket.likelihood])}
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums">{bucket.count}</TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {formatPercent(ratio(bucket.heldCount, bucket.count))}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

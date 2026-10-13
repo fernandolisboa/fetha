@@ -34,6 +34,13 @@ const scoringReportSchema = z.object({
   errorCount: z.number().int().nonnegative(),
 });
 
+const analysisScoringReportSchema = z.object({
+  analysesScored: z.number().int().nonnegative(),
+  usersSkipped: z.number().int().nonnegative(),
+  analysesSkipped: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+});
+
 // A completed run's report: every field is a count or a closed-vocabulary
 // status, never an id, email or the raw error string evaluation/scoring
 // themselves produce (those can carry a decisionId or an engine detail
@@ -49,6 +56,7 @@ const completedReportSchema = z.object({
   nightlyRunPurge: purgeReportSchema,
   evaluation: evaluationReportSchema.nullable(),
   scoring: scoringReportSchema,
+  analysisScoring: analysisScoringReportSchema,
 });
 
 // A run that threw before it could produce a NightlyJobOutcome at all: the
@@ -105,6 +113,12 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       usersSkipped: outcome.scoring.usersSkipped,
       decisionsSkipped: outcome.scoring.decisionsSkipped,
       errorCount: outcome.scoring.errors.length,
+    },
+    analysisScoring: {
+      analysesScored: outcome.analysisScoring.analysesScored,
+      usersSkipped: outcome.analysisScoring.usersSkipped,
+      analysesSkipped: outcome.analysisScoring.analysesSkipped,
+      errorCount: outcome.analysisScoring.errors.length,
     },
   };
 }

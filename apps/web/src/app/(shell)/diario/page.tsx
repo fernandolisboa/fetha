@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 
 import { requireUser } from "@/modules/auth";
 import {
+  getMyAnalysisScores,
+  getMyAnalysisTrackRecordStats,
   getMyDecisionScores,
   getMyDecisions,
+  getMyJournalAnalyses,
   getMyTrackRecordStats,
-  JournalEntry,
+  JournalTimeline,
   TrackRecordPanel,
   t,
 } from "@/modules/decisions";
@@ -15,15 +18,17 @@ export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations
 
 export default async function JournalPage() {
   await requireUser();
-  const decisions = await getMyDecisions();
+  const [decisions, analyses] = await Promise.all([getMyDecisions(), getMyJournalAnalyses()]);
 
-  if (decisions.length === 0) {
+  if (decisions.length === 0 && analyses.length === 0) {
     return <EmptyState sentence={shellStrings.emptyStates.journal.sentence} />;
   }
 
-  const [scores, trackRecordStats] = await Promise.all([
+  const [scores, trackRecordStats, analysisScores, analysisTrackRecordStats] = await Promise.all([
     getMyDecisionScores(decisions.map((decision) => decision.id)),
     getMyTrackRecordStats(),
+    getMyAnalysisScores(analyses.map((analysis) => analysis.id)),
+    getMyAnalysisTrackRecordStats(),
   ]);
 
   return (
@@ -32,14 +37,15 @@ export default async function JournalPage() {
 
       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
         <Panel>
-          <ul>
-            {decisions.map((decision) => (
-              <JournalEntry key={decision.id} decision={decision} score={scores.get(decision.id)} />
-            ))}
-          </ul>
+          <JournalTimeline
+            decisions={decisions}
+            analyses={analyses}
+            scores={scores}
+            analysisScores={analysisScores}
+          />
         </Panel>
 
-        <TrackRecordPanel stats={trackRecordStats} />
+        <TrackRecordPanel stats={trackRecordStats} analysisStats={analysisTrackRecordStats} />
       </div>
     </div>
   );

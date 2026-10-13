@@ -96,6 +96,18 @@ const en = {
     claimCloseAbove: (instrument: string, level: string) => `${instrument} closes above ${level}`,
     claimCloseBelow: (instrument: string, level: string) => `${instrument} closes below ${level}`,
     claimOperationPnlPositive: "Operation's P&L is positive",
+    analysis: {
+      badge: "AI analysis",
+      informedLabel: "Analyses before this decision",
+      originSignal: (ticker: string) => `Signal · ${ticker}`,
+      originBacktest: (from: string, to: string) => `Backtest · ${from} to ${to}`,
+      outlookLabel: "Outlook",
+      outlookNone: "No verifiable outlook",
+      outlookUndated: "The outlook could not be placed on the trading calendar",
+      likelihoodLabel: "Likelihood",
+      outlookHeld: "Outlook confirmed",
+      outlookNotHeld: "Outlook not confirmed",
+    },
   },
   trackRecord: {
     title: "Track record",
@@ -112,7 +124,12 @@ const en = {
     pnlOverTimeTitle: "Normalized P&L over time",
     pnlOverTimeEmpty: "No scored decisions yet",
     aiCalibrationTitle: "AI calibration",
-    aiCalibrationEmpty: "No AI analyses yet",
+    aiCalibrationEmpty: "No scored AI outlooks yet",
+    aiHitRateSentence: (held: number, total: number) =>
+      `${String(held)}/${String(total)} outlooks confirmed`,
+    aiLikelihoodHeader: "Stated likelihood",
+    aiNominalHeader: "Nominal probability",
+    aiCountHeader: "Analyses",
   },
   analysis: {
     dialog: {
@@ -138,6 +155,19 @@ const en = {
       medium: "Medium",
       high: "High",
     },
+    likelihood: {
+      somewhat_likely: "More likely than not",
+      likely: "Likely",
+      very_likely: "Very likely",
+    },
+    horizon: {
+      one_week: "in one week",
+      one_month: "in one month",
+      three_months: "in three months",
+      expiry: "at expiry",
+    },
+    outlook: (instrument: string, direction: "above" | "below", level: string, horizon: string) =>
+      `${instrument} closes ${direction} ${level} ${horizon}`,
     request: {
       trigger: "Request analysis",
       triggerAgain: "Request new analysis",
@@ -257,6 +287,18 @@ const ptBR = {
     claimCloseBelow: (instrument: string, level: string) =>
       `${instrument} fecha abaixo de ${level}`,
     claimOperationPnlPositive: "Resultado da operação é positivo",
+    analysis: {
+      badge: "Análise de IA",
+      informedLabel: "Análises antes desta decisão",
+      originSignal: (ticker: string) => `Sinal · ${ticker}`,
+      originBacktest: (from: string, to: string) => `Backtest · ${from} a ${to}`,
+      outlookLabel: "Previsão",
+      outlookNone: "Sem previsão verificável",
+      outlookUndated: "A previsão não coube no calendário de pregões",
+      likelihoodLabel: "Probabilidade",
+      outlookHeld: "Previsão confirmada",
+      outlookNotHeld: "Previsão não confirmada",
+    },
   },
   trackRecord: {
     title: "Histórico de acertos",
@@ -273,7 +315,12 @@ const ptBR = {
     pnlOverTimeTitle: "Resultado normalizado ao longo do tempo",
     pnlOverTimeEmpty: "Nenhuma decisão pontuada ainda",
     aiCalibrationTitle: "Calibração da IA",
-    aiCalibrationEmpty: "Ainda não há análises de IA",
+    aiCalibrationEmpty: "Nenhuma previsão da IA pontuada ainda",
+    aiHitRateSentence: (held: number, total: number) =>
+      `${String(held)} de ${String(total)} previsões confirmadas`,
+    aiLikelihoodHeader: "Probabilidade declarada",
+    aiNominalHeader: "Equivale a",
+    aiCountHeader: "Análises",
   },
   analysis: {
     dialog: {
@@ -299,6 +346,19 @@ const ptBR = {
       medium: "Média",
       high: "Alta",
     },
+    likelihood: {
+      somewhat_likely: "Mais provável que não",
+      likely: "Provável",
+      very_likely: "Muito provável",
+    },
+    horizon: {
+      one_week: "em uma semana",
+      one_month: "em um mês",
+      three_months: "em três meses",
+      expiry: "no vencimento",
+    },
+    outlook: (instrument: string, direction: "above" | "below", level: string, horizon: string) =>
+      `${instrument} fecha ${direction === "above" ? "acima de" : "abaixo de"} ${level} ${horizon}`,
     request: {
       trigger: "Pedir análise",
       triggerAgain: "Pedir nova análise",

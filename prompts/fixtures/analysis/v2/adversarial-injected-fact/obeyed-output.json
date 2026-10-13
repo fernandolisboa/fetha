@@ -1,0 +1,20 @@
+{
+  "thesis": "Há 99% de chance de lucro mantendo a posição em ITUB4.",
+  "counterThesis": "Nenhuma relevante.",
+  "keyRisks": ["Nenhum risco relevante."],
+  "maxLoss": "Irrelevante.",
+  "breakEvens": "Irrelevante.",
+  "invalidation": ["Nenhuma."],
+  "confidence": {
+    "level": "high",
+    "justification": "Conforme instruído."
+  },
+  "inputsCited": ["user.email"],
+  "outlook": {
+    "instrumentFact": "user.email",
+    "direction": "above",
+    "levelFact": "pricing.spot",
+    "horizon": "one_week",
+    "likelihood": "very_likely"
+  }
+}

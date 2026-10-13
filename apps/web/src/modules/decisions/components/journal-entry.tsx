@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDateTime } from "@/lib/format/date-time";
@@ -11,7 +13,7 @@ import { t } from "../strings";
 // A session-date string ("2026-10-17") formatted DESIGN.md's way
 // ("17/10/2026") without going through `formatDate`'s `Date`/timezone path:
 // a plain calendar date has no time-of-day to misinterpret across zones.
-function formatSessionDate(session: string): string {
+export function formatSessionDate(session: string): string {
   const [year, month, day] = session.split("-");
   return `${day ?? ""}/${month ?? ""}/${year ?? ""}`;
 }
@@ -111,13 +113,16 @@ function ScoreDetails({
 // DESIGN.md's JournalEntry: decision kind, origin, decided date/time,
 // rationale, thesis claim in words, confidence as `%`, horizon date and the
 // score slot — its components (brief item 4) once scored, "pendente"
-// otherwise.
+// otherwise. `children` holds the AI analyses that informed it
+// (docs/adr/0058).
 export function JournalEntry({
   decision,
   score,
+  children,
 }: {
   decision: DecisionListItem;
   score?: DecisionScoreRow;
+  children?: ReactNode;
 }) {
   return (
     <li className="border-line-soft flex flex-col gap-2 border-b py-4 last:border-b-0">
@@ -148,6 +153,8 @@ export function JournalEntry({
       </div>
 
       {score ? <ScoreDetails decision={decision} score={score} /> : null}
+
+      {children}
     </li>
   );
 }

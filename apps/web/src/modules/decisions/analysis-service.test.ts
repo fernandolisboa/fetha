@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AnalysisInputs, AnalysisOutput } from "@fetha/contracts";
+import type { AnalysisInputs, AnalysisOutputV2 } from "@fetha/contracts";
 
 import type { AnalysisModelClient, AnalysisModelReply } from "./analysis-model";
 import { requestAnalysis, type RequestAnalysisDeps } from "./analysis-service";
@@ -13,13 +13,13 @@ const inputs: AnalysisInputs = {
     timeframe: "D1",
     indicators: [],
     rule: null,
-    proposal: null,
+    proposal: { pricing: { spot: "R$ 59,10", breakEvens: ["R$ 59,10"] } },
   },
 };
 
 const REQUESTED_AT = new Date("2026-10-10T15:00:00Z");
 
-const acceptedOutput: AnalysisOutput = {
+const acceptedOutput: AnalysisOutputV2 = {
   thesis: "O sinal aponta para VALE3 na sessão de 09/10/2026.",
   counterThesis: "Sem indicadores, a leitura é frágil.",
   keyRisks: ["Risco de mercado"],
@@ -28,6 +28,7 @@ const acceptedOutput: AnalysisOutput = {
   invalidation: ["Uma reversão clara da tendência"],
   confidence: { level: "low", justification: "Poucos fatos disponíveis." },
   inputsCited: ["ticker"],
+  outlook: null,
 };
 
 function fakeClient(reply: AnalysisModelReply): AnalysisModelClient {
@@ -192,7 +193,7 @@ describe("requestAnalysis", () => {
 
   it("rejects a reply that cites a figure outside the facts", async () => {
     const complete = vi.fn();
-    const output: AnalysisOutput = {
+    const output: AnalysisOutputV2 = {
       ...acceptedOutput,
       thesis: "O preço alvo é R$ 99,00.",
     };
@@ -242,7 +243,7 @@ describe("requestAnalysis", () => {
       analysis: {
         id: "req-1",
         requestedAt: REQUESTED_AT,
-        promptVersion: "analysis@1",
+        promptVersion: "analysis@2",
         model: "claude-sonnet-5-5",
         output: acceptedOutput,
         inputs,
@@ -251,6 +252,155 @@ describe("requestAnalysis", () => {
     expect(complete).toHaveBeenCalledWith(
       "req-1",
       expect.objectContaining({ outcome: "accepted", output: acceptedOutput }),
+    );
+  });
+
+  it("rejects an analysis@1-shaped reply, which lacks the outlook field", async () => {
+    const complete = vi.fn();
+    const v1Output: Record<string, unknown> = { ...acceptedOutput };
+    delete v1Output.outlook;
+    const result = await requestAnalysis(
+      baseDeps({
+        client: fakeClient({
+          kind: "parsed",
+          output: v1Output,
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
+      }),
+      requestInput,
+    );
+    expect(result).toEqual({ status: "rejected" });
+    expect(complete).toHaveBeenCalledWith(
+      "req-1",
+      expect.objectContaining({ reason: { kind: "schema" } }),
+    );
+  });
+
+  it("stores the outlook as an engine claim with its resolved horizon", async () => {
+    const complete = vi.fn();
+    const resolveHorizon = vi.fn().mockResolvedValue("2026-11-09");
+    const output: AnalysisOutputV2 = {
+      ...acceptedOutput,
+      outlook: {
+        instrumentFact: "ticker",
+        direction: "above",
+        levelFact: "proposal.pricing.breakEvens.0",
+        horizon: "one_month",
+        likelihood: "very_likely",
+      },
+    };
+    const result = await requestAnalysis(
+      baseDeps({
+        client: fakeClient({
+          kind: "parsed",
+          output,
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
+        resolveHorizon,
+      }),
+      requestInput,
+    );
+    expect(result).toMatchObject({ status: "accepted" });
+    expect(resolveHorizon).toHaveBeenCalledWith({ kind: "sessions", count: 21 }, REQUESTED_AT);
+    expect(complete).toHaveBeenCalledWith(
+      "req-1",
+      expect.objectContaining({
+        outcome: "accepted",
+        claim: {
+          claim: { kind: "close_above", instrument: "VALE3", level: "59.1" },
+          confidence: "0.9",
+          horizon: "2026-11-09",
+        },
+      }),
+    );
+  });
+
+  it.each([
+    ["the calendar cannot place its horizon", () => Promise.resolve(null)],
+    ["the calendar lookup fails", () => Promise.reject(new Error("connection reset"))],
+  ])("accepts the analysis without a claim when %s", async (_, horizonLookup) => {
+    const complete = vi.fn();
+    const output: AnalysisOutputV2 = {
+      ...acceptedOutput,
+      outlook: {
+        instrumentFact: "ticker",
+        direction: "below",
+        levelFact: "proposal.pricing.spot",
+        horizon: "three_months",
+        likelihood: "likely",
+      },
+    };
+    const result = await requestAnalysis(
+      baseDeps({
+        client: fakeClient({
+          kind: "parsed",
+          output,
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
+        resolveHorizon: vi.fn(horizonLookup),
+      }),
+      requestInput,
+    );
+    expect(result).toMatchObject({ status: "accepted" });
+    expect(complete).toHaveBeenCalledWith(
+      "req-1",
+      expect.objectContaining({ outcome: "accepted", output, claim: null }),
+    );
+  });
+
+  it("rejects, counted, an outlook whose level names no price fact", async () => {
+    const complete = vi.fn();
+    const resolveHorizon = vi.fn();
+    const output: AnalysisOutputV2 = {
+      ...acceptedOutput,
+      outlook: {
+        instrumentFact: "ticker",
+        direction: "above",
+        levelFact: "session",
+        horizon: "one_week",
+        likelihood: "likely",
+      },
+    };
+    const result = await requestAnalysis(
+      baseDeps({
+        client: fakeClient({
+          kind: "parsed",
+          output,
+          model: "claude-sonnet-5-5",
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+        repository: {
+          reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+          complete,
+        },
+        resolveHorizon,
+      }),
+      requestInput,
+    );
+    expect(result).toEqual({ status: "rejected" });
+    expect(resolveHorizon).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledWith(
+      "req-1",
+      expect.objectContaining({
+        outcome: "rejected",
+        output: null,
+        reason: { kind: "outlook", problem: "level_fact" },
+      }),
     );
   });
 });

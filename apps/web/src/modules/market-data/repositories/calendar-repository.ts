@@ -165,6 +165,24 @@ export async function sessionOnOrAfter(
   return row;
 }
 
+// The `count`-th trading session strictly after `date` (count >= 1), or
+// undefined when the calendar does not reach that far: an analysis
+// outlook's horizon (docs/adr/0058) counts sessions forward from its anchor.
+export async function nthSessionAfter(
+  db: Database,
+  date: string,
+  count: number,
+): Promise<{ date: string; open: Date; close: Date } | undefined> {
+  const [row] = await db
+    .select()
+    .from(tradingSessions)
+    .where(gt(tradingSessions.date, date))
+    .orderBy(asc(tradingSessions.date))
+    .offset(count - 1)
+    .limit(1);
+  return row;
+}
+
 export async function sessionByDate(
   db: Database,
   date: string,

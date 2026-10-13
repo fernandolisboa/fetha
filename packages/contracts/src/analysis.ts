@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+import {
+  confidenceSchema,
+  decimalStringSchema,
+  sessionDateSchema,
+  tickerSchema,
+  type Confidence,
+  type SessionDate,
+} from "./scalars";
+import type { AnalysisOutlookClaim } from "./thesis-claim";
+
 export const analysisSubjectKinds = [
   "signal",
   "contemplated_operation",
@@ -67,6 +77,145 @@ export const analysisOutputSchema = z.strictObject({
   inputsCited: z.array(z.string().min(1).max(120)).min(1).max(40),
 });
 export type AnalysisOutput = z.infer<typeof analysisOutputSchema>;
+
+export const analysisHorizons = ["one_week", "one_month", "three_months", "expiry"] as const;
+export type AnalysisHorizon = (typeof analysisHorizons)[number];
+
+// Sessions after the request's anchor session (docs/adr/0058): a trading
+// week, month and quarter of B3 sessions.
+export const analysisHorizonSessions: Record<Exclude<AnalysisHorizon, "expiry">, number> = {
+  one_week: 5,
+  one_month: 21,
+  three_months: 63,
+};
+
+export const analysisLikelihoods = ["somewhat_likely", "likely", "very_likely"] as const;
+export type AnalysisLikelihood = (typeof analysisLikelihoods)[number];
+
+// docs/adr/0058: the model picks a word, never a number; this table is the
+// claim's confidence for the Brier term. It starts above even odds because
+// the model always states the outcome it finds more likely.
+export const analysisLikelihoodConfidence: Record<AnalysisLikelihood, Confidence> = {
+  somewhat_likely: confidenceSchema.parse("0.6"),
+  likely: confidenceSchema.parse("0.75"),
+  very_likely: confidenceSchema.parse("0.9"),
+};
+
+const factPath = z.string().min(1).max(120);
+
+export const analysisOutlookSchema = z.strictObject({
+  instrumentFact: factPath,
+  direction: z.enum(["above", "below"]),
+  levelFact: factPath,
+  horizon: z.enum(analysisHorizons),
+  likelihood: z.enum(analysisLikelihoods),
+});
+export type AnalysisOutlook = z.infer<typeof analysisOutlookSchema>;
+
+// The `analysis@2` contract (docs/adr/0058): `analysis@1`'s fields plus the
+// outlook that makes an analysis scorable, null when the facts support no
+// verifiable claim.
+export const analysisOutputV2Schema = analysisOutputSchema.extend({
+  outlook: analysisOutlookSchema.nullable(),
+});
+export type AnalysisOutputV2 = z.infer<typeof analysisOutputV2Schema>;
+
+// What an accepted row may hold: a reply to either released version.
+export const storedAnalysisOutputSchema = z.union([analysisOutputV2Schema, analysisOutputSchema]);
+export type StoredAnalysisOutput = AnalysisOutput | AnalysisOutputV2;
+
+export function outlookOf(output: StoredAnalysisOutput): AnalysisOutlook | null {
+  return "outlook" in output ? output.outlook : null;
+}
+
+export type AnalysisOutlookHorizon =
+  { kind: "sessions"; count: number } | { kind: "expiry"; expiry: SessionDate };
+
+export type AnalysisOutlookProblem = "instrument_fact" | "level_fact" | "expiry_fact";
+
+export type ResolvedAnalysisOutlook =
+  | {
+      ok: true;
+      claim: AnalysisOutlookClaim;
+      confidence: Confidence;
+      horizon: AnalysisOutlookHorizon;
+    }
+  | { ok: false; problem: AnalysisOutlookProblem };
+
+const PRICE_FACT = /^R\$ (\d{1,3}(?:\.\d{3})*|\d+),(\d{2})$/;
+
+// The subject's own ticker, and only a per-share price of it: a money amount
+// (max gain, net premium) or an option premium is also written in reais but
+// is no level for the underlying, and would make a claim hold trivially
+// (docs/adr/0058).
+const INSTRUMENT_FACT_PATHS = new Set(["underlying", "ticker"]);
+const LEVEL_FACT_PATH =
+  /^(?:proposal\.)?pricing\.(?:spot|breakEvens\.\d+|payoff\.\d+\.underlying)$/;
+
+// A positive price in reais exactly as `formatPriceBRL` writes it
+// ("R$ 1.234,56"); anything else (a percentage, a negative amount, a count)
+// is not a level.
+function priceFromFact(fact: string): string | null {
+  const match = PRICE_FACT.exec(fact);
+  if (!match) return null;
+  const decimal = `${(match[1] ?? "").replaceAll(".", "")}.${match[2] ?? ""}`;
+  const parsed = decimalStringSchema.safeParse(canonical(decimal));
+  if (!parsed.success || /^0(\.0+)?$/.test(parsed.data)) return null;
+  return parsed.data;
+}
+
+function sessionFromFact(fact: AnalysisFact | undefined): SessionDate | null {
+  if (typeof fact !== "string" || !DATE.test(fact)) return null;
+  const [day, month, year] = fact.split("/");
+  const parsed = sessionDateSchema.safeParse(`${year ?? ""}-${month ?? ""}-${day ?? ""}`);
+  return parsed.success ? parsed.data : null;
+}
+
+// docs/adr/0058: turns the model's outlook into the engine's claim. The
+// instrument and the level are read from the facts the paths name, never
+// from anything the model wrote, so the claim holds no figure the facts do
+// not.
+export function resolveAnalysisOutlook(
+  inputs: AnalysisInputs,
+  outlook: AnalysisOutlook,
+): ResolvedAnalysisOutlook {
+  const instrument = INSTRUMENT_FACT_PATHS.has(outlook.instrumentFact)
+    ? tickerSchema.safeParse(factAt(inputs.facts, outlook.instrumentFact))
+    : null;
+  if (!instrument?.success) {
+    return { ok: false, problem: "instrument_fact" };
+  }
+  const levelFact = LEVEL_FACT_PATH.test(outlook.levelFact)
+    ? factAt(inputs.facts, outlook.levelFact)
+    : undefined;
+  const level = typeof levelFact === "string" ? priceFromFact(levelFact) : null;
+  if (level === null) {
+    return { ok: false, problem: "level_fact" };
+  }
+
+  let horizon: AnalysisOutlookHorizon;
+  if (outlook.horizon === "expiry") {
+    const expiry = sessionFromFact(factAt(inputs.facts, "expiry"));
+    const session = sessionFromFact(factAt(inputs.facts, "session"));
+    if (expiry === null || session === null || expiry <= session) {
+      return { ok: false, problem: "expiry_fact" };
+    }
+    horizon = { kind: "expiry", expiry };
+  } else {
+    horizon = { kind: "sessions", count: analysisHorizonSessions[outlook.horizon] };
+  }
+
+  return {
+    ok: true,
+    claim: {
+      kind: outlook.direction === "above" ? "close_above" : "close_below",
+      instrument: instrument.data,
+      level: decimalStringSchema.parse(level),
+    },
+    confidence: analysisLikelihoodConfidence[outlook.likelihood],
+    horizon,
+  };
+}
 
 export type AnalysisCitationCheck =
   { ok: true } | { ok: false; uncitedFigures: string[]; unknownPaths: string[] };

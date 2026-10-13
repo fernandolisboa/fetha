@@ -43,6 +43,12 @@ describe("recordNightlyRun", () => {
           nightlyRunPurge: { ok: false },
           evaluation: null,
           scoring: { decisionsScored: 0, usersSkipped: 0, decisionsSkipped: 0, errorCount: 0 },
+          analysisScoring: {
+            analysesScored: 0,
+            usersSkipped: 0,
+            analysesSkipped: 0,
+            errorCount: 0,
+          },
         },
       }),
     ).resolves.toBeUndefined();

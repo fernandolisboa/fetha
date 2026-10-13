@@ -33,7 +33,7 @@ const UNDERLYING = tickerSchema.parse("PETR4");
 // E2E-only, mirroring `/api/e2e/verification-link` exactly (404 in
 // production or with no `E2E_SECRET` configured, constant-time header
 // compare): seeds a decision the nightly scoring job (#29) can pick up on
-// its very next run, without going through the UI form `decisions.spec.ts`
+// its very next run, with the AI analysis that informed it (docs/adr/0058), without going through the UI form `decisions.spec.ts`
 // already covers. Every write goes through `seedE2EDecision`
 // (`@/modules/decisions`) — no `@/modules/*/schema` import and no direct
 // table write here: this route only assembles the
@@ -74,6 +74,11 @@ export async function POST(request: Request): Promise<Response> {
     claim: { kind: "close_above", instrument: UNDERLYING, level: decimalStringSchema.parse("1") },
     confidence: confidenceSchema.parse("0.7"),
     rationale: "Seeded by the E2E scoring flow (seed-decision route).",
+    analysis: {
+      requestedAt: new Date(`${DECIDED_SESSION}T21:04:00.000Z`),
+      claim: { kind: "close_above", instrument: UNDERLYING, level: decimalStringSchema.parse("1") },
+      claimConfidence: confidenceSchema.parse("0.75"),
+    },
   });
 
   if (!result.ok) {

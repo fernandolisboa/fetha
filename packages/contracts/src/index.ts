@@ -78,7 +78,13 @@ export {
 } from "./strategy-definition";
 export { contemplatedLegSchema, type ContemplatedLeg } from "./contemplated-leg";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
-export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";
+export {
+  analysisOutlookClaimSchema,
+  thesisClaimKinds,
+  thesisClaimSchema,
+  type AnalysisOutlookClaim,
+  type ThesisClaim,
+} from "./thesis-claim";
 export {
   backtestCheckpointSchema,
   backtestConfigSchema,
@@ -97,6 +103,15 @@ export { catalogEntrySchema, catalogSchema, type CatalogEntry } from "./catalog-
 export {
   analysisConfidenceLevels,
   analysisFactSchema,
+  analysisHorizons,
+  analysisHorizonSessions,
+  analysisLikelihoodConfidence,
+  analysisLikelihoods,
+  analysisOutlookSchema,
+  analysisOutputV2Schema,
+  outlookOf,
+  resolveAnalysisOutlook,
+  storedAnalysisOutputSchema,
   analysisFactsSchema,
   analysisInputsSchema,
   analysisOutputSchema,
@@ -108,7 +123,15 @@ export {
   type AnalysisConfidenceLevel,
   type AnalysisFact,
   type AnalysisFacts,
+  type AnalysisHorizon,
   type AnalysisInputs,
+  type AnalysisLikelihood,
+  type AnalysisOutlook,
+  type AnalysisOutlookHorizon,
+  type AnalysisOutlookProblem,
   type AnalysisOutput,
+  type AnalysisOutputV2,
+  type ResolvedAnalysisOutlook,
+  type StoredAnalysisOutput,
   type AnalysisSubjectKind,
 } from "./analysis";

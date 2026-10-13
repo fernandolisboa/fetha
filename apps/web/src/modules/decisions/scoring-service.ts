@@ -54,7 +54,7 @@ export interface ScoreDecisionsOutcome {
 // `checkpoint_mismatch`) describes a condition tomorrow's run cannot fix on
 // its own, so it becomes an unscorable row on first sight instead of
 // retrying forever.
-const RETRIABLE_ERROR_CODE = "insufficient_data";
+export const RETRIABLE_ERROR_CODE = "insufficient_data";
 
 // `insufficient_data` stops being retried once the as-of session has moved
 // this many trading sessions past the decision's own resolved horizon:
@@ -91,7 +91,7 @@ function newestSession(sessions: readonly string[]): string | undefined {
 // latest run regardless of outcome — a run that failed leaves the previous
 // night's succeeded session as the correct fallback, not "no session at
 // all".
-async function resolveAsOfSession(
+export async function resolveAsOfSession(
   db: Database,
   input: ScoreDueDecisionsInput,
 ): Promise<string | undefined> {
@@ -143,7 +143,7 @@ function unscorableNewDecisionScore(
 // `asOfSession` is fixed for the whole run, so every
 // decision's own exhaustion check reads the same trailing calendar instead
 // of re-querying it on every retriable `insufficient_data` result.
-function insufficientDataExhausted(
+export function insufficientDataExhausted(
   calendar: readonly TradingSession[],
   resolvedHorizon: string,
 ): boolean {

@@ -1,16 +1,25 @@
-import type { AnalysisInputs, AnalysisSubjectKind } from "@fetha/contracts";
+import {
+  analysisOutputV2Schema,
+  type AnalysisInputs,
+  type AnalysisSubjectKind,
+} from "@fetha/contracts";
 
-import * as analysisV1 from "./analysis/v1";
+import * as analysisV2 from "./analysis/v2";
 
 export interface AnalysisPrompt {
   version: string;
   system: string;
   render: (inputs: AnalysisInputs) => string;
+  // The contract a reply to this version is checked against (docs/adr/0058).
+  outputSchema: typeof analysisOutputV2Schema;
 }
 
-// The prompt every new request uses; older versions stay importable so a
-// stored request always names text that still exists in the repository.
-export const analysisPrompt: AnalysisPrompt = analysisV1;
+// The prompt every new request uses; older versions stay in `./analysis/`
+// so a stored request always names text that still exists in the repository.
+export const analysisPrompt: AnalysisPrompt = {
+  ...analysisV2,
+  outputSchema: analysisOutputV2Schema,
+};
 
 export type AnalysisModel = "claude-opus-5-5" | "claude-sonnet-5-5";
 

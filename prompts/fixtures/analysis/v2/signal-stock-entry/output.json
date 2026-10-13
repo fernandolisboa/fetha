@@ -1,0 +1,33 @@
+{
+  "thesis": "VALE3 fechou a R$ 59,10, acima da média de 20 sessões em 58,40, e o RSI de 14 sessões em 62,10 mostra força sem extremo: é o tipo de entrada que a estratégia procura.",
+  "counterThesis": "Um RSI de 62,10 está mais perto de sobrecompra do que de neutro, e a compra à vista expõe a posição inteira de R$ 11.820,00 a uma queda sem nenhuma proteção.",
+  "keyRisks": [
+    "Uma queda forte atinge a posição inteira de R$ 11.820,00, sem limite além do valor investido.",
+    "Um único fechamento acima da média pode ser ruído; os fatos não mostram a tendência das sessões anteriores."
+  ],
+  "maxLoss": "O motor calcula a perda máxima como o valor investido, R$ 11.820,00, porque a posição é só de ações compradas.",
+  "breakEvens": "O break-even é o próprio preço de entrada, R$ 59,10; qualquer fechamento abaixo dele é prejuízo.",
+  "invalidation": [
+    "VALE3 fechar abaixo da média de 20 sessões, hoje em 58,40.",
+    "O RSI de 14 sessões perder força e voltar para a zona neutra."
+  ],
+  "confidence": {
+    "level": "medium",
+    "justification": "O sinal segue a regra da estratégia e os dois indicadores apontam na mesma direção, mas os fatos cobrem só a sessão de 09/10/2026."
+  },
+  "inputsCited": [
+    "indicators.0.value",
+    "indicators.1.value",
+    "proposal.pricing.spot",
+    "proposal.pricing.maxLoss",
+    "proposal.pricing.breakEvens.0",
+    "session"
+  ],
+  "outlook": {
+    "instrumentFact": "ticker",
+    "direction": "above",
+    "levelFact": "proposal.pricing.breakEvens.0",
+    "horizon": "one_month",
+    "likelihood": "somewhat_likely"
+  }
+}

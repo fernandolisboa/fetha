@@ -1,10 +1,16 @@
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   analysisInputsSchema,
-  analysisOutputSchema,
+  analysisSubjectKindSchema,
+  confidenceSchema,
+  storedAnalysisOutputSchema,
+  analysisOutlookClaimSchema,
   type AnalysisInputs,
-  type AnalysisOutput,
   type AnalysisSubjectKind,
+  type Confidence,
+  type SessionDate,
+  type StoredAnalysisOutput,
+  type AnalysisOutlookClaim,
 } from "@fetha/contracts";
 
 import type { Database, Transaction } from "@/db/client";
@@ -35,13 +41,22 @@ export interface ReserveAnalysisInput {
 
 export type AnalysisOutcome = "accepted" | "rejected" | "failed";
 
+// An accepted outlook in the engine's own terms (docs/adr/0058), resolved
+// before the result row is written.
+export interface AnalysisClaim {
+  claim: AnalysisOutlookClaim;
+  confidence: Confidence;
+  horizon: SessionDate;
+}
+
 export interface CompleteAnalysisInput {
   outcome: AnalysisOutcome;
-  output: AnalysisOutput | null;
+  output: StoredAnalysisOutput | null;
   reason: AnalysisReason | null;
   model: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  claim?: AnalysisClaim | null;
 }
 
 export interface LatestAcceptedAnalysis {
@@ -49,9 +64,18 @@ export interface LatestAcceptedAnalysis {
   requestedAt: Date;
   promptVersion: string;
   model: string;
-  output: AnalysisOutput;
+  output: StoredAnalysisOutput;
   inputs: AnalysisInputs;
 }
+
+// An accepted analysis as the journal lists it (docs/adr/0058).
+export interface JournalAnalysis extends LatestAcceptedAnalysis {
+  subjectKind: AnalysisSubjectKind;
+  subjectId: string;
+  claim: AnalysisClaim | null;
+}
+
+const JOURNAL_ANALYSIS_LIMIT = 500;
 
 export interface AnalysisUsage {
   used: number;
@@ -77,8 +101,23 @@ function toLatestAccepted(row: {
     // `failed` rows, so this reads the answering model back as a plain
     // string rather than re-deriving a non-null type at the schema level.
     model: row.model ?? "",
-    output: analysisOutputSchema.parse(row.output),
+    output: storedAnalysisOutputSchema.parse(row.output),
     inputs: analysisInputsSchema.parse(row.inputs),
+  };
+}
+
+function toAnalysisClaim(row: {
+  claim: unknown;
+  claimConfidence: string | null;
+  horizon: string | null;
+}): AnalysisClaim | null {
+  if (row.claim === null || row.claimConfidence === null || row.horizon === null) {
+    return null;
+  }
+  return {
+    claim: analysisOutlookClaimSchema.parse(row.claim),
+    confidence: confidenceSchema.parse(row.claimConfidence),
+    horizon: row.horizon,
   };
 }
 
@@ -123,6 +162,9 @@ export class AnalysesRepository extends UserScopedRepository {
       model: result.model,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
+      claim: result.claim?.claim ?? null,
+      claimConfidence: result.claim?.confidence ?? null,
+      horizon: result.claim?.horizon ?? null,
     });
   }
 
@@ -188,5 +230,42 @@ export class AnalysesRepository extends UserScopedRepository {
       map.set(row.subjectId, toLatestAccepted(row));
     }
     return map;
+  }
+
+  // Every accepted analysis of this user, newest first, for the journal
+  // (docs/adr/0058); rejected and failed requests are not analyses.
+  async listAcceptedForJournal(): Promise<JournalAnalysis[]> {
+    const rows = await this.db
+      .select({
+        id: analysisRequests.id,
+        subjectKind: analysisRequests.subjectKind,
+        subjectId: analysisRequests.subjectId,
+        requestedAt: analysisRequests.requestedAt,
+        promptVersion: analysisRequests.promptVersion,
+        inputs: analysisRequests.inputs,
+        model: analysisResults.model,
+        output: analysisResults.output,
+        claim: analysisResults.claim,
+        claimConfidence: analysisResults.claimConfidence,
+        horizon: analysisResults.horizon,
+      })
+      .from(analysisRequests)
+      .innerJoin(
+        analysisResults,
+        and(
+          eq(analysisResults.requestId, analysisRequests.id),
+          eq(analysisResults.userId, this.userId),
+        ),
+      )
+      .where(and(eq(analysisRequests.userId, this.userId), eq(analysisResults.outcome, "accepted")))
+      .orderBy(desc(analysisRequests.requestedAt))
+      .limit(JOURNAL_ANALYSIS_LIMIT);
+
+    return rows.map((row) => ({
+      ...toLatestAccepted(row),
+      subjectKind: analysisSubjectKindSchema.parse(row.subjectKind),
+      subjectId: row.subjectId,
+      claim: toAnalysisClaim(row),
+    }));
   }
 }

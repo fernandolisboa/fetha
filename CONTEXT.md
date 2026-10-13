@@ -56,8 +56,9 @@ exposing module's interface, never through its tables.
    (#29): `decisions/scoring-service.ts` scores every user's due decisions with the engine's
    `score()`, one append-only row per decision (`decision_scores`), never blocking or failing the
    ingestion response on a scoring error. AI analyses (#28, ADR-0057) are requested on demand, not
-   by this job, and are not scored yet: that needs a horizon and a claim the analysis contract
-   does not carry (follow-up issue). `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
+   by this job; right after the decisions, `decisions/analysis-scoring-service.ts` scores every
+   accepted analysis whose outlook's horizon has arrived, on its claim alone, one append-only row
+   per analysis (`analysis_scores`, ADR-0058). `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
    `api/cron/ingest` (bearer `CRON_SECRET`) is the only automated trigger. The owner's manual
    re-run of a session is a session-authenticated Server Action gated on `isOwner()`
    (`OWNER_EMAILS`, ADR-0042), never `CRON_SECRET` — that secret never reaches a human. Every run,
@@ -87,8 +88,8 @@ exposing module's interface, never through its tables.
    not enter, hold, adjust, exit) with a thesis and horizon; an open operation of the real
    portfolio takes hold, adjust or exit decisions, scored on the position held and its own fills
    once any expired option is settled (ADR-0022). At the horizon the engine scores the decision
-   (#29, ADR-0005). Scoring an analysis against its own outcome is not part of ADR-0057 and stays
-   a follow-up issue; the journal shows the user's decision track record today.
+   (#29, ADR-0005), and each analysis's outlook the same way (ADR-0058); the journal shows
+   analyses under the decisions they informed, and the track record keeps the two apart.
 6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user

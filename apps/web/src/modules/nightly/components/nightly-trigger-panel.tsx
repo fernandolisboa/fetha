@@ -66,6 +66,7 @@ function ResultBody({ result }: { result: PanelResult }) {
               : t.panel.signalsWritten(result.summary.signalsWritten)}
           </p>
           <p>{t.panel.decisionsScored(result.summary.decisionsScored)}</p>
+          <p>{t.panel.analysesScored(result.summary.analysesScored)}</p>
           {result.summary.evaluationErrorCount > 0 ? (
             <p role="alert" style={{ color: "var(--danger)" }}>
               {t.panel.evaluationErrors(result.summary.evaluationErrorCount)}

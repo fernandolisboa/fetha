@@ -11,7 +11,7 @@ import { TO_SESSION } from "./sessions";
 // ingestion trigger (#51) — same one `signals.spec.ts` and
 // `decisions.spec.ts` use — and confirms `/diario` shows the decision
 // already scored, with its components (#29 acceptance criterion b), not
-// "pendente".
+// "pendente", and the AI analysis seeded with it scored too (#292).
 const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the decision scoring flow.");
@@ -34,6 +34,12 @@ test("a seeded decision is scored by the nightly job and shows its components on
   await page.goto("/diario");
   await expect(page.getByText("Não entrar", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Tese confirmada", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^Escore de Brier: \d+,\d{4}$/)).toBeVisible();
+  // The seeded AI analysis sits under the decision it informed, its outlook
+  // scored by the same run, apart from the decision's own score (#292).
+  const informed = page.getByRole("list", { name: "Análises antes desta decisão" });
+  await expect(informed.getByText("Análise de IA", { exact: true })).toBeVisible();
+  await expect(informed.getByText("Previsão confirmada", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Escore de Brier: \d+,\d{4}$/)).toHaveCount(2);
+  await expect(page.getByText("1 de 1 previsões confirmadas")).toBeVisible();
   await expect(page.getByText("sem pontuação ainda")).not.toBeVisible();
 });

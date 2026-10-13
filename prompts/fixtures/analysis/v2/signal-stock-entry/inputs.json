@@ -1,0 +1,74 @@
+{
+  "subject": "signal",
+  "facts": {
+    "session": "09/10/2026",
+    "kind": "entry",
+    "ticker": "VALE3",
+    "timeframe": "D1",
+    "indicators": [
+      {
+        "indicator": {
+          "kind": "sma",
+          "length": "20"
+        },
+        "value": "58,40"
+      },
+      {
+        "indicator": {
+          "kind": "rsi",
+          "length": "14"
+        },
+        "value": "62,10"
+      }
+    ],
+    "rule": null,
+    "proposal": {
+      "pricing": {
+        "spot": "R$ 59,10",
+        "riskFreeRate": "10,65% a.a.",
+        "dividendYield": "0,00% a.a.",
+        "netPremium": "−R$ 11.820,00",
+        "maxLoss": "−R$ 11.820,00",
+        "maxGain": "ilimitado",
+        "breakEvens": ["R$ 59,10"],
+        "greeks": {
+          "delta": "200,00",
+          "gamma": "0,00",
+          "theta": "0,00",
+          "vega": "0,00",
+          "rho": "0,00"
+        },
+        "legs": [
+          {
+            "role": "stock",
+            "side": "buy",
+            "ticker": "VALE3",
+            "quantity": "200",
+            "price": "R$ 59,10",
+            "priceSource": "close",
+            "stale": null,
+            "fairValue": null,
+            "impliedVolatility": null,
+            "greeks": null
+          }
+        ],
+        "payoff": [
+          {
+            "underlying": "R$ 50,00",
+            "pnl": "−R$ 1.820,00"
+          },
+          {
+            "underlying": "R$ 59,10",
+            "pnl": "R$ 0,00"
+          },
+          {
+            "underlying": "R$ 65,00",
+            "pnl": "R$ 1.180,00"
+          }
+        ],
+        "limitBreaches": [],
+        "notes": []
+      }
+    }
+  }
+}
