@@ -36,6 +36,7 @@ import {
 } from "./notes";
 import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLeg } from "./option-pricing";
+import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
@@ -72,6 +73,11 @@ export type PricedLeg = {
   valuation: LegValuation;
   strike: DecimalString | null;
   premiumPerUnit: Decimal;
+  // ADR-0063: the series' own `priceFactor` (1 for a stock leg and for every equity option).
+  // `strike` above stays in the series' quotation unit; only `payoffAt` below needs this, to
+  // scale the intrinsic value it derives from `strike` back down to the same reais
+  // `premiumPerUnit` is already on before the two are combined.
+  priceFactor: Decimal;
 };
 
 // `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
@@ -118,6 +124,7 @@ function valueOneLeg(
         valuation,
         strike: null,
         premiumPerUnit: price ? parseDecimal(price) : new Decimal(0),
+        priceFactor: new Decimal(1),
       },
     };
   }
@@ -137,6 +144,9 @@ function valueOneLeg(
       error: invalidInput(`${legPath}.strike`, "a listed strike must be positive"),
     };
   }
+  const priceFactorResult = resolvePriceFactor(series.priceFactor, `${legPath}.priceFactor`);
+  if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
+  const priceFactor = priceFactorResult.value;
   const strikeAdjustmentNote: Note | null =
     adjustment === "derived"
       ? OPTION_STRIKE_DERIVED_NOTE
@@ -147,8 +157,11 @@ function valueOneLeg(
   if (expiredIntrinsicBasis !== null) {
     const strike = parseDecimal(strikeString);
     const basis = parseDecimal(expiredIntrinsicBasis);
-    const intrinsic =
-      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0);
+    // `strike` and `basis` are both on the series' quotation unit; scaled down to reais per
+    // contract (ADR-0063) before this intrinsic value becomes a fair value.
+    const intrinsic = (
+      leg.role === "call" ? Decimal.max(basis.sub(strike), 0) : Decimal.max(strike.sub(basis), 0)
+    ).div(priceFactor);
     const fairValue = toDecimalString(intrinsic, PRICE_SCALE);
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
@@ -169,7 +182,10 @@ function valueOneLeg(
       ],
     };
     if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
-    return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic } };
+    return {
+      ok: true,
+      leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic, priceFactor },
+    };
   }
 
   const tte = resolveTimeToExpiryYears(view.calendar, at, series.expiry);
@@ -232,6 +248,7 @@ function valueOneLeg(
     marketPrice,
     givenVolatility: leg.volatility ?? null,
     suppressStaleImpliedVolatility,
+    priceFactor: series.priceFactor,
   });
   if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
   const premiumPerUnit = valuation.price
@@ -240,7 +257,7 @@ function valueOneLeg(
       ? parseDecimal(valuation.fairValue)
       : new Decimal(0);
 
-  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit } };
+  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor } };
 }
 
 function legIntrinsicSlopeAtInfinity(role: "stock" | "call" | "put"): number {
@@ -250,12 +267,15 @@ function legIntrinsicSlopeAtInfinity(role: "stock" | "call" | "put"): number {
 function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
   return legs.reduce((acc, leg) => {
     const role = leg.valuation.leg.role;
+    // `underlying` and `leg.strike` are both on the series' quotation unit; an option leg's
+    // intrinsic value is scaled down to reais (ADR-0063) before it meets `premiumPerUnit`,
+    // which is already on that scale. A stock leg's own price factor is always 1.
     const value =
       role === "stock"
         ? underlying
         : role === "call"
-          ? Decimal.max(underlying.sub(leg.strike ?? "0"), 0)
-          : Decimal.max(new Decimal(leg.strike ?? "0").sub(underlying), 0);
+          ? Decimal.max(underlying.sub(leg.strike ?? "0"), 0).div(leg.priceFactor)
+          : Decimal.max(new Decimal(leg.strike ?? "0").sub(underlying), 0).div(leg.priceFactor);
     const legSign = sign(leg.valuation.leg.side);
     const pnlPerUnit = value.sub(leg.premiumPerUnit).mul(legSign);
     return acc.add(pnlPerUnit.mul(leg.valuation.leg.quantity));

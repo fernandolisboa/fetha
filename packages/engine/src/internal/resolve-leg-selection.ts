@@ -99,6 +99,9 @@ function nearestSeriesByAbsDelta(
     const strike = resolved.value.strike;
     const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
+    // Delta is unit-free and crosses the priceFactor seam unchanged (ADR-0063); `priceFactor`
+    // is still threaded through so the market price behind it solves implied volatility
+    // against the right scale for an index option, the same as every other IV solve site.
     const valuation = priceOptionLeg({
       leg: { role: series.right, side: "buy", ticker: series.ticker, quantity: toQuantity(1) },
       strike,
@@ -108,6 +111,7 @@ function nearestSeriesByAbsDelta(
       timeToExpiryYears,
       marketPrice,
       givenVolatility: null,
+      priceFactor: series.priceFactor,
     });
     if (!valuation.greeks) continue;
     const distance = new Decimal(valuation.greeks.delta).abs().sub(target).abs();

@@ -211,6 +211,11 @@ export type OptionSeries = {
   expiry: SessionDate;
   style: ExerciseStyle;
   asOf: Instant;
+  // B3's registry PricFctr (ADR-0063): index options (e.g. Ibovespa) are quoted in index
+  // points at this many points per real of premium (Ibovespa: 100, i.e. R$ 0,01 per point).
+  // Absent for every equity option, which is priced and quoted in reais directly (factor 1,
+  // the pre-existing behaviour).
+  priceFactor?: DecimalString | undefined;
 };
 
 export type OptionDayPrice = {

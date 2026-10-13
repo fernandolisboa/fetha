@@ -314,3 +314,64 @@ describe("priceOptionLeg (Hull S0=42, K=40, r=10%, sigma=20%, T=0.5)", () => {
     expect(valuation.greeks).toBeNull();
   });
 });
+
+// ADR-0063 / #307: B3's real IBOVA183 row (spot and strike in index points, premium already
+// stored as reais per contract at the registry's PricFctr 100 — "PREULT 19 305 points" ->
+// stored close 193.05).
+describe("priceOptionLeg with an index option's priceFactor (IBOVA183 fixture)", () => {
+  const ibova183Leg = {
+    role: "call" as const,
+    side: "buy" as const,
+    ticker: "IBOVA183" as const,
+    quantity: quantity(1),
+  };
+  const ibova183Base = {
+    leg: ibova183Leg,
+    strike: decimalString("183000"),
+    spot: decimalString("180000"),
+    riskFreeRate: decimalString("0.10"),
+    dividendYield: decimalString("0.00"),
+    timeToExpiryYears: 0.0833,
+    marketPrice: null,
+    givenVolatility: null,
+    priceFactor: decimalString("100"),
+  };
+
+  it("solves a plausible implied volatility and reprices near the stored 193.05 premium", () => {
+    const valuation = priceOptionLeg({
+      ...ibova183Base,
+      marketPrice: { value: decimalString("193.05"), source: "close", stale: null },
+    });
+    expect(valuation.impliedVolatility).not.toBeNull();
+    expect(Number(valuation.impliedVolatility)).toBeGreaterThan(0);
+    expect(Number(valuation.fairValue)).toBeCloseTo(193.05, 1);
+  });
+
+  it("reports a delta between 0 and 1 for the long call", () => {
+    const valuation = priceOptionLeg({
+      ...ibova183Base,
+      marketPrice: { value: decimalString("193.05"), source: "close", stale: null },
+    });
+    const delta = Number(valuation.greeks?.delta);
+    expect(delta).toBeGreaterThan(0);
+    expect(delta).toBeLessThan(1);
+  });
+
+  it("leaves delta unscaled but divides gamma/theta/vega/rho by the price factor", () => {
+    const factored = priceOptionLeg({ ...ibova183Base, givenVolatility: decimalString("0.25") });
+    const unfactored = priceOptionLeg({
+      ...ibova183Base,
+      givenVolatility: decimalString("0.25"),
+      priceFactor: undefined,
+    });
+    expect(factored.greeks).not.toBeNull();
+    expect(unfactored.greeks).not.toBeNull();
+    if (!factored.greeks || !unfactored.greeks) return;
+    expect(Number(factored.greeks.delta)).toBeCloseTo(Number(unfactored.greeks.delta), 10);
+    expect(Number(factored.greeks.gamma)).toBeCloseTo(Number(unfactored.greeks.gamma) / 100, 6);
+    expect(Number(factored.greeks.theta)).toBeCloseTo(Number(unfactored.greeks.theta) / 100, 6);
+    expect(Number(factored.greeks.vega)).toBeCloseTo(Number(unfactored.greeks.vega) / 100, 6);
+    expect(Number(factored.greeks.rho)).toBeCloseTo(Number(unfactored.greeks.rho) / 100, 6);
+    expect(Number(factored.fairValue)).toBeCloseTo(Number(unfactored.fairValue) / 100, 2);
+  });
+});

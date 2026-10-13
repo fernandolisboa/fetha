@@ -960,3 +960,87 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.value.notes).toContainEqual(OPTION_STRIKE_UNCONFIRMED_NOTE);
   });
 });
+
+// ADR-0063 / #307: an index option's stored (reais) premium must be scaled up to the index's
+// own quotation unit (points) before the ATM solve, the same seam every other IV solve uses.
+describe("computeImpliedVolatilityIndex with an index option's priceFactor (#307)", () => {
+  function ibovaSeries(ticker: string, strike: string, expiry: string): OptionSeries {
+    return {
+      ticker,
+      underlying: "IBOV",
+      right: "call",
+      strike: decimalString(strike),
+      expiry,
+      style: "european",
+      asOf: at,
+      priceFactor: decimalString("100"),
+    };
+  }
+
+  it("solves a plausible ATM volatility from a stored reais premium against an index spot in points", () => {
+    const expiry = sessionAt(30).date;
+    const trueSigma = 0.3;
+    const factor = 100;
+    const pointsPrice = bsmPriceRaw({
+      s: 180000,
+      k: 180000,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: trueSigma,
+      right: "call",
+    });
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "IBOV", asOf: at, last: decimalString("180000.00"), bid: null, ask: null },
+      ],
+      optionSeries: [ibovaSeries("IBOVA18", "180000", expiry)],
+      optionPrices: [
+        {
+          ticker: "IBOVA18",
+          session: sessionAt(0).date,
+          asOf: at,
+          average: null,
+          close: decimalString((pointsPrice / factor).toFixed(2)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "IBOV", at, testProvenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.impliedVolatility).not.toBeNull();
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+  });
+
+  it("rejects a non-positive series priceFactor as invalid_input", () => {
+    const expiry = sessionAt(30).date;
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "IBOV", asOf: at, last: decimalString("180000.00"), bid: null, ask: null },
+      ],
+      optionSeries: [
+        { ...ibovaSeries("IBOVA18", "180000", expiry), priceFactor: decimalString("0") },
+      ],
+      optionPrices: [
+        {
+          ticker: "IBOVA18",
+          session: sessionAt(0).date,
+          asOf: at,
+          average: null,
+          close: decimalString("1000.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "IBOV", at, testProvenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});

@@ -37,6 +37,14 @@ been ingested (ADR-0056's trade-offs): a strike never traded and never re-fetche
 before an event has no epoch to recover it from.
 _Avoid_: option contract, series code, option ticker (that is its identifier, not the concept)
 
+**Price factor**:
+An index option's own quotation unit (index points, e.g. Ibovespa) per real of premium as
+stored (B3's registry `PricFctr`; ADR-0063) — absent for every equity option, which is quoted
+and priced in reais directly. Spot and strike stay in points regardless; the price factor
+converts only where a premium or a model value meets them, never the strike or spot themselves.
+_Avoid_: quotation factor (that is COTAHIST's own `FATCOT`, a distinct, row-level lot-grouping
+divisor applied to a price field at ingestion, not this series-level field)
+
 **Chain**:
 The set of option series listed on one underlying on a given day, with their quotes.
 _Avoid_: option board, grade de opções

@@ -3370,3 +3370,76 @@ describe("priceOperation (selection: quantity resolution)", () => {
     );
   });
 });
+
+// ADR-0063 / #307: the real IBOVA183 row — spot and strike in index points, premium already
+// stored as reais per contract (PricFctr 100, "PREULT 19 305 points" -> stored close 193.05).
+describe("priceOperation with an index option's priceFactor (IBOVA183 fixture, #307)", () => {
+  const ibovView: MarketView = {
+    ...baseView,
+    quotes: [{ ticker: "IBOV", asOf: at, last: decimalString("180000.00"), bid: null, ask: null }],
+    optionSeries: [
+      {
+        ticker: "IBOVA183",
+        underlying: "IBOV",
+        right: "call",
+        strike: decimalString("183000"),
+        expiry: "2024-01-21",
+        style: "european",
+        asOf: at,
+        priceFactor: decimalString("100"),
+      },
+    ],
+  };
+
+  it("reports the leg's per-contract premium as the stored 193.05 reais, not 19 305 points", () => {
+    const result = priceOperation(
+      {
+        view: ibovView,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.price).toBe(decimalString("193.05"));
+    expect(result.value.netPremium).toBe(centavos(-193_05));
+  });
+
+  it("rejects a non-positive series priceFactor as invalid_input", () => {
+    const view: MarketView = {
+      ...ibovView,
+      optionSeries: [
+        { ...(ibovView.optionSeries[0] as OptionSeries), priceFactor: decimalString("0") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});

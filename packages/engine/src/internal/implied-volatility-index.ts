@@ -14,6 +14,7 @@ import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
 import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
+import { resolvePriceFactor } from "./price-factor";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
@@ -118,6 +119,13 @@ function solveAtmVolatility(
     if (!marketPrice) continue;
     const resolvedStrike = strikeOf(series);
     if (!resolvedStrike.ok) return resolvedStrike;
+    const priceFactorResult = resolvePriceFactor(
+      series.priceFactor,
+      `optionSeries[${series.ticker}].priceFactor`,
+    );
+    if (!priceFactorResult.ok) return priceFactorResult;
+    // `spot`/`k` are on the series' quotation unit; the premium is already in reais per
+    // contract (ADR-0063), scaled up to that same unit before the solve.
     const solved = solveImpliedVolatilityRaw({
       s: spot,
       k: Number(resolvedStrike.value.strike),
@@ -125,7 +133,7 @@ function solveAtmVolatility(
       r: riskFreeRate,
       q: dividendYield,
       right: series.right,
-      price: Number(marketPrice.value),
+      price: Number(marketPrice.value) * priceFactorResult.value.toNumber(),
     });
     if (solved.ok) {
       samples.push(solved.sigma);

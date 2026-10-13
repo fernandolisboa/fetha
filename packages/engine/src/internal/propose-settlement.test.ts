@@ -1046,3 +1046,78 @@ describe("proposeSettlement", () => {
     });
   });
 });
+
+// ADR-0063 / #307: the real IBOVA183 row — settlement at a 185 000 index close against a
+// 183 000 strike pays 2 000 points x R$ 0,01/point = R$ 20,00 per contract.
+describe("proposeSettlement with an index option's priceFactor (#307)", () => {
+  const ibovCandle: Candle = {
+    ticker: "IBOV",
+    timeframe: "D1",
+    session: expiry,
+    asOf: expiryClose,
+    open: decimalString("185000"),
+    high: decimalString("185000"),
+    low: decimalString("185000"),
+    close: decimalString("185000"),
+    tradedQuantity: 1,
+  };
+  const ibovaSeries: OptionSeries = {
+    ticker: "IBOVA183",
+    underlying: "IBOV",
+    right: "call",
+    strike: decimalString("183000"),
+    expiry,
+    style: "european",
+    asOf: expiryClose,
+    priceFactor: decimalString("100"),
+  };
+
+  it("settles a long call's intrinsic at R$ 20,00 per contract, not 2 000 points", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [ibovaSeries],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.intrinsicValue).toBe(decimalString("20.00"));
+  });
+
+  it("rejects a non-positive series priceFactor as invalid_input", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, priceFactor: decimalString("-1") }],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});

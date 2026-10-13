@@ -892,3 +892,80 @@ describe("resolveLegSelection", () => {
     });
   });
 });
+
+// ADR-0063 / #307: delta is unit-free and crosses the priceFactor seam unchanged, so
+// delta-target selection over index options must still pick the near-the-money series
+// (highest delta) once the market price behind it is read on the right scale.
+describe("resolveLegSelection delta-target selection over an index option's priceFactor (#307)", () => {
+  const singleCall: Structure = {
+    id: "single-call",
+    name: "single call",
+    expiry: "shared",
+    legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+  };
+  const spot = 180000;
+  const t = 0.1;
+  const sigma = 0.3;
+  const factor = 100;
+  const priceAt = (k: number): string =>
+    (bsmPriceRaw({ s: spot, k, t, r: 0, q: 0, sigma, right: "call" }) / factor).toFixed(2);
+
+  function ibovaSeries(ticker: string, strike: number): OptionSeries {
+    return {
+      ticker,
+      underlying: "IBOV",
+      right: "call",
+      strike: decimalString(String(strike)),
+      expiry: "2024-01-21",
+      style: "european",
+      asOf: at,
+      priceFactor: decimalString(String(factor)),
+    };
+  }
+
+  it("picks a deep-in-the-money series (delta near the 0.9 target) over a far out-of-the-money one", () => {
+    // Without converting the stored (reais) premium up to the series' own quotation unit
+    // before the IV solve, IBOVC150's tiny reais premium reads as far below the model's
+    // points-scale intrinsic floor: `iv_not_converged` / `below_intrinsic`, no greeks, so it
+    // would be skipped entirely and IBOVC200 (delta ~0.01, nowhere near the 0.9 target) would
+    // be picked instead.
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [ibovaSeries("IBOVC150", 150000), ibovaSeries("IBOVC200", 200000)],
+      optionPrices: [
+        {
+          ticker: "IBOVC150",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString(priceAt(150000)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "IBOVC200",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString(priceAt(200000)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = resolveLegSelection({
+      structure: singleCall,
+      underlying: "IBOV",
+      strikes: [{ kind: "delta", target: decimalString("0.9") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString(String(spot)),
+      riskFreeRate: decimalString("0"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "IBOVC150" } });
+  });
+});

@@ -28,6 +28,7 @@ import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
 import { toCentavos, toQuantity } from "./scalars";
@@ -95,12 +96,22 @@ export function settleLeg(
       ),
     };
   }
+  const priceFactorResult = resolvePriceFactor(
+    series.priceFactor,
+    `legs[${String(legIndex)}].priceFactor`,
+  );
+  if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
+  const priceFactor = priceFactorResult.value;
 
   const strike = parseDecimal(strikeString);
-  const intrinsic =
+  // `strike` and `underlyingClose` are both on the series' quotation unit; scaled down to
+  // reais per contract (ADR-0063) before this intrinsic value is reported or compared against
+  // a reais-denominated entry price.
+  const intrinsic = (
     leg.role === "call"
       ? Decimal.max(underlyingClose.sub(strike), 0)
-      : Decimal.max(strike.sub(underlyingClose), 0);
+      : Decimal.max(strike.sub(underlyingClose), 0)
+  ).div(priceFactor);
   const inTheMoney = intrinsic.gt(0);
   const intrinsicValue = toDecimalString(intrinsic, PRICE_SCALE);
 

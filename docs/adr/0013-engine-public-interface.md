@@ -3044,3 +3044,12 @@ mark. #279 closes the remaining paths:
 
 The marks and a persisted artifact's value set changed, so `ENGINE_VERSION` moves from `"0.12.0"`
 to `"0.13.0"`.
+
+## Addendum: index options carry a price factor (2026-10-13, #307, see ADR-0063)
+
+An index option (B3 quotes it in index points, not reais) is priced on the same model, but its
+stored premium is already reais per contract while spot/strike stay in points. `OptionSeries`
+gains an optional `priceFactor`, absent (= 1) for every equity option, converting only at the
+seam where a premium or a model value meets spot/strike: unconverted spot/strike/delta, divided
+money outputs otherwise. See ADR-0063 for the full rule and the rejected alternative. No
+`ENGINE_VERSION` bump: the field is optional and defaults to the pre-existing behavior.
