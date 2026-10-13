@@ -43,6 +43,7 @@ describe("recordNightlyRun", () => {
           nightlyRunPurge: { ok: false },
           evaluation: null,
           scoring: { decisionsScored: 0, usersSkipped: 0, decisionsSkipped: 0, errorCount: 0 },
+          radar: null,
           analysisScoring: {
             analysesScored: 0,
             usersSkipped: 0,

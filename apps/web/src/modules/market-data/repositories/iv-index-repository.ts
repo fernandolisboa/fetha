@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { candles, impliedVolatilityIndexPoints, optionDailyPrices, optionSeries } from "../schema";
@@ -92,6 +92,41 @@ export async function underlyingsWithPointOnSession(
     .select({ underlying: impliedVolatilityIndexPoints.underlying })
     .from(impliedVolatilityIndexPoints)
     .where(eq(impliedVolatilityIndexPoints.session, session));
+
+  return rows.map((row) => row.underlying);
+}
+
+// The radar's universe (docs/adr/0066): every underlying with an IV index point on `session`
+// whose options traded (`trades > 0` on any series) on at least `minTradedSessions` of the
+// sessions from `fromSession` through `session`.
+export async function liquidOptionableUnderlyings(
+  db: Database,
+  session: string,
+  fromSession: string,
+  minTradedSessions: number,
+): Promise<string[]> {
+  const tradedSessions = sql<number>`count(distinct ${optionDailyPrices.session})`;
+  const rows = await db
+    .select({ underlying: optionSeries.underlying })
+    .from(optionDailyPrices)
+    .innerJoin(optionSeries, eq(optionSeries.ticker, optionDailyPrices.ticker))
+    .innerJoin(
+      impliedVolatilityIndexPoints,
+      and(
+        eq(impliedVolatilityIndexPoints.underlying, optionSeries.underlying),
+        eq(impliedVolatilityIndexPoints.session, session),
+      ),
+    )
+    .where(
+      and(
+        gte(optionDailyPrices.session, fromSession),
+        lte(optionDailyPrices.session, session),
+        gt(optionDailyPrices.trades, 0),
+      ),
+    )
+    .groupBy(optionSeries.underlying)
+    .having(gte(tradedSessions, minTradedSessions))
+    .orderBy(optionSeries.underlying);
 
   return rows.map((row) => row.underlying);
 }

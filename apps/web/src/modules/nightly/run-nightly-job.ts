@@ -4,11 +4,13 @@ import type { ExpiredSessionPurgeOutcome, UnverifiedAccountPurgeOutcome } from "
 import type { EvaluateSignalsOutcome } from "@/modules/strategies";
 import type { ScoreAnalysesOutcome, ScoreDecisionsOutcome } from "@/modules/decisions";
 import type { IngestOutcome, SourceOutcome } from "@/modules/market-data";
+import type { RadarScanOutcome } from "@/modules/radar";
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
 import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
+import { scanRadar } from "@/modules/radar";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 import { purgeExpiredNightlyRuns, type NightlyRunPurgeOutcome } from "./nightly-runs-repository";
@@ -25,6 +27,7 @@ export interface NightlyJobOutcome {
   evaluation: EvaluateSignalsOutcome | null;
   scoring: ScoreDecisionsOutcome;
   analysisScoring: ScoreAnalysesOutcome;
+  radar: RadarScanOutcome | null;
   accessLogPurge: AccessLogPurgeOutcome;
   unverifiedAccountPurge: UnverifiedAccountPurgeOutcome;
   sessionPurge: ExpiredSessionPurgeOutcome;
@@ -51,8 +54,14 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
   return cotahist !== undefined && cotahist.error === undefined;
 }
 
+function ivIndexComputed(result: IngestOutcome): boolean {
+  return (
+    result.sources.find((source) => source.source === "iv_index")?.newestSessionComputed === true
+  );
+}
+
 // Shared by the cron GET handler and the owner's manual Server Action
-// (#51): both need the exact same purge -> ingest -> evaluate -> score
+// (#51): both need the exact same purge -> ingest -> evaluate -> score -> radar
 // sequence and response shape, only the caller and its authorization differ.
 export async function runNightlyJob(
   db: Database,
@@ -81,12 +90,23 @@ export async function runNightlyJob(
   // AI analyses' outlooks are scored right after decisions, on the same
   // as-of session and deadline (docs/adr/0058).
   const analysisScoring = await scoreDueAnalyses(db, scoringInput, { deadlineAt });
+  // The radar reads the newest session's close after everything a user's own data depends on
+  // (docs/adr/0066): it is resumable, so whatever the deadline leaves the next run reads.
+  const radar =
+    cotahistSucceeded(result) && result.session
+      ? await scanRadar(db, {
+          session: result.session,
+          ivIndexComputed: ivIndexComputed(result),
+          deadlineAt,
+        })
+      : null;
 
   return {
     ...result,
     evaluation,
     scoring,
     analysisScoring,
+    radar,
     accessLogPurge,
     unverifiedAccountPurge,
     sessionPurge,
