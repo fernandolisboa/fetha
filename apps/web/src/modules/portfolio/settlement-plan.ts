@@ -117,16 +117,34 @@ export function planSettlement(
     const choice = choices.find((candidate) => candidate.ticker === leg.ticker);
     const allowed = leg.side === "buy" ? "exercised" : "assigned";
     const optionCloseQuantity = closing.get(leg.ticker);
+    const cashValue = settlement.cashSettlementValue;
+    // ADR-0062: a cash-settled leg's own cash flow is non-zero exactly when it is in the money,
+    // so it can never be legitimately closed `expired_worthless`; and the engine's own sign
+    // convention (a long leg's gain positive, a short leg's loss negative) must agree with the
+    // side the choice is closing, or the plan would book the cash flow backwards.
+    const cashSignDisagrees =
+      cashValue !== null &&
+      cashValue !== 0 &&
+      Math.sign(cashValue) !== (leg.side === "buy" ? 1 : -1);
+    const cashWorthlessDisagrees =
+      cashValue !== null && cashValue !== 0 && choice?.outcome === "expired_worthless";
     if (
       !choice ||
       optionCloseQuantity === undefined ||
       (choice.outcome !== allowed && choice.outcome !== "expired_worthless") ||
       !Number.isSafeInteger(choice.costsCentavos) ||
       choice.costsCentavos < 0 ||
-      choice.price.startsWith("-")
+      choice.price.startsWith("-") ||
+      cashSignDisagrees ||
+      cashWorthlessDisagrees
     ) {
       return { ok: false, reason: "invalid_choice" };
     }
+    // A cash-settled leg never produces the stock fill below, so the user's own costs for this
+    // settlement have nowhere else to land: they belong on the closing option fill itself
+    // (ADR-0062), not discarded after validation. A physically-settled leg's costs stay on the
+    // stock delivery alone, as before.
+    const closingCostsCentavos = settlement.cashSettlementValue !== null ? choice.costsCentavos : 0;
     fills.push({
       ticker: leg.ticker,
       assetClass: "option",
@@ -134,7 +152,7 @@ export function planSettlement(
       quantity: optionCloseQuantity,
       price: cashSettlementClosePrice(settlement.cashSettlementValue, optionCloseQuantity),
       session: expiry,
-      costsCentavos: 0,
+      costsCentavos: closingCostsCentavos,
       expiry,
     });
     // The real, immediate stock delivery is sized at the engine's own rebased exercise fill,

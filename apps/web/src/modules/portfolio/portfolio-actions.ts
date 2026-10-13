@@ -224,7 +224,7 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
     if (!series && !(await latestCandle(db, ticker))) {
       return { status: "error" as const, error: "unknown_instrument" as const };
     }
-    // A stock fill on a market index is never a real B3 fill (design-307.md section 1 rule 1):
+    // A stock fill on a market index is never a real B3 fill (ADR-0062):
     // B3's own investor-area export cannot produce one.
     if (!series && isMarketIndex(ticker)) {
       return { status: "error" as const, error: "index_stock_leg" as const };
@@ -339,6 +339,10 @@ const settlementInputSchema = z.strictObject({
         // #271 review round 1 item 8: the delivered quantity the dialog showed, checked against
         // what the server recomputes before settling.
         quantity: z.int().positive(),
+        // ADR-0062: the cash-settled leg's own cash flow the dialog showed, checked against the
+        // recomputed proposal below, the same guard the quantity above already has. Null for a
+        // physically-settled leg.
+        cashSettlementValue: z.int().nullable(),
       }),
     )
     .max(8),
@@ -409,7 +413,15 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
       const expected = closing.get(choice.ticker);
       return expected !== undefined && expected !== choice.quantity;
     });
-    if (quantityMismatch) {
+    // ADR-0062: the same guard as the quantity one above, for a cash-settled leg's own cash
+    // flow, recomputed here from the freshly built proposal rather than taken from the client.
+    const cashSettlementMismatch = parsed.data.choices.some((choice) => {
+      const settlement = proposal.legs.find((leg) => leg.leg.ticker === choice.ticker);
+      return (
+        settlement !== undefined && settlement.cashSettlementValue !== choice.cashSettlementValue
+      );
+    });
+    if (quantityMismatch || cashSettlementMismatch) {
       return { status: "error" as const, error: "conflict" as const };
     }
     const settlement = planSettlement(

@@ -314,7 +314,7 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       }),
     ).toEqual({ status: "error", error: "not_a_session" });
 
-    // design-307.md section 1 rule 1: a stock fill on a market index is never a real B3
+    // ADR-0062: a stock fill on a market index is never a real B3
     // fill, even once the index itself has an ingested candle (#307a, not shipped by this
     // PR; seeded here directly to exercise the refusal ahead of that).
     seededUnderlyings.push("IBOV11");
@@ -415,7 +415,14 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       await confirmSettlementAction({
         operationId: pending.operation.id,
         choices: [
-          { ticker: market.call, outcome: "exercised", price: "32,00", costs: "", quantity: 100 },
+          {
+            ticker: market.call,
+            outcome: "exercised",
+            price: "32,00",
+            costs: "",
+            quantity: 100,
+            cashSettlementValue: null,
+          },
         ],
       }),
     ).toEqual({ status: "error", error: "invalid_choice" });
@@ -429,6 +436,7 @@ describe("the portfolio from fills to a confirmed settlement", () => {
             price: "32,00",
             costs: "2,50",
             quantity: 100,
+            cashSettlementValue: null,
           },
         ],
       }),
@@ -437,7 +445,14 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       await confirmSettlementAction({
         operationId: pending.operation.id,
         choices: [
-          { ticker: market.call, outcome: "assigned", price: "32,00", costs: "", quantity: 100 },
+          {
+            ticker: market.call,
+            outcome: "assigned",
+            price: "32,00",
+            costs: "",
+            quantity: 100,
+            cashSettlementValue: null,
+          },
         ],
       }),
     ).toEqual({ status: "error", error: "not_found" });
@@ -469,6 +484,7 @@ describe("the portfolio from fills to a confirmed settlement", () => {
             price: "40,00",
             costs: "",
             quantity: 100,
+            cashSettlementValue: null,
           },
         ],
       }),
@@ -582,11 +598,36 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     expect(leg?.fills).toEqual([]);
 
     const beforeCash = (await loadPortfolio(db, owner, closeOf(expiry))).cash;
+    // ADR-0062: the same conflict guard as the quantity one (#271 review round 1 item 8), for a
+    // cash-settled leg's own cash flow: a stale figure (as if the dialog read a different
+    // close) is refused rather than settled against.
     expect(
       await confirmSettlementAction({
         operationId: pending.operation.id,
         choices: [
-          { ticker: optionTicker, outcome: "exercised", price: "0", costs: "", quantity: 1 },
+          {
+            ticker: optionTicker,
+            outcome: "exercised",
+            price: "0",
+            costs: "",
+            quantity: 1,
+            cashSettlementValue: 1500,
+          },
+        ],
+      }),
+    ).toEqual({ status: "error", error: "conflict" });
+    expect(
+      await confirmSettlementAction({
+        operationId: pending.operation.id,
+        choices: [
+          {
+            ticker: optionTicker,
+            outcome: "exercised",
+            price: "0",
+            costs: "",
+            quantity: 1,
+            cashSettlementValue: 2000,
+          },
         ],
       }),
     ).toEqual({ status: "ok" });

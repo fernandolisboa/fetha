@@ -371,7 +371,13 @@ describe("real positions follow a split as the broker records it (#271)", () => 
     expect(pending.proposal.legs[0]?.outcome).toBe("expired_worthless");
     expect(pending.closingQuantities).toEqual({ [put]: 200 });
 
-    const choice = { ticker: put, outcome: "expired_worthless" as const, price: "0", costs: "" };
+    const choice = {
+      ticker: put,
+      outcome: "expired_worthless" as const,
+      price: "0",
+      costs: "",
+      cashSettlementValue: null,
+    };
     expect(
       await confirmSettlementAction({
         operationId: pending.operation.id,
@@ -432,7 +438,14 @@ describe("real positions follow a split as the broker records it (#271)", () => 
       await confirmSettlementAction({
         operationId: pending?.operation.id,
         choices: [
-          { ticker: put, outcome: "expired_worthless", price: "0", costs: "", quantity: 100 },
+          {
+            ticker: put,
+            outcome: "expired_worthless",
+            price: "0",
+            costs: "",
+            quantity: 100,
+            cashSettlementValue: null,
+          },
         ],
       }),
     ).toEqual({ status: "error", error: "no_proposal" });
