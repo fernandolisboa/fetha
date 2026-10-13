@@ -2,15 +2,9 @@ import { exchangeRatePairValues, type ExchangeRatePair } from "./adapters/bacen-
 
 export interface ExchangeRateSearchHit {
   pair: ExchangeRatePair;
-  label: string;
 }
 
-const EXCHANGE_RATE_LABELS: Record<ExchangeRatePair, string> = {
-  USDBRL: "Dólar americano",
-  EURBRL: "Euro",
-};
-
-// Accent-insensitive aliases a user types for a pair, lowercased, no
+// Accent-insensitive aliases a user typed to find a pair, lowercased, no
 // diacritics (docs/adr/0059): matched the same way the pair code itself is,
 // by prefix, so "dol" already finds USDBRL.
 const EXCHANGE_RATE_ALIASES: Record<ExchangeRatePair, string[]> = {
@@ -32,7 +26,9 @@ export function exchangeRateHref(pair: ExchangeRatePair): string {
 
 // Pure and client-safe (no server action, no DB query, #305): the universe
 // is two static pairs, so matching a typed query is a prefix check over the
-// pair code and its aliases, both accent- and case-insensitive.
+// pair code and its aliases, both accent- and case-insensitive. Returns the
+// pair only; the one label shown for it (search result, page chip) comes
+// from `marketDataStrings.exchangeRate.pairLabel`, not from here.
 export function matchExchangeRates(query: string): ExchangeRateSearchHit[] {
   const needle = normalize(query);
   if (needle === "") {
@@ -45,5 +41,5 @@ export function matchExchangeRates(query: string): ExchangeRateSearchHit[] {
       }
       return EXCHANGE_RATE_ALIASES[pair].some((alias) => alias.startsWith(needle));
     })
-    .map((pair) => ({ pair, label: EXCHANGE_RATE_LABELS[pair] }));
+    .map((pair) => ({ pair }));
 }

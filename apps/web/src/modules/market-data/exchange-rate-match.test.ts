@@ -4,20 +4,20 @@ import { exchangeRateHref, matchExchangeRates } from "./exchange-rate-match";
 
 describe("matchExchangeRates", () => {
   it("matches the pair code by prefix, case-insensitively", () => {
-    expect(matchExchangeRates("usd")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
-    expect(matchExchangeRates("USDBRL")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
-    expect(matchExchangeRates("eur")).toEqual([{ pair: "EURBRL", label: "Euro" }]);
+    expect(matchExchangeRates("usd")).toEqual([{ pair: "USDBRL" }]);
+    expect(matchExchangeRates("USDBRL")).toEqual([{ pair: "USDBRL" }]);
+    expect(matchExchangeRates("eur")).toEqual([{ pair: "EURBRL" }]);
   });
 
   it("matches the Portuguese alias, accent-insensitively", () => {
-    expect(matchExchangeRates("dólar")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
-    expect(matchExchangeRates("dolar")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
-    expect(matchExchangeRates("DOLAR")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
-    expect(matchExchangeRates("euro")).toEqual([{ pair: "EURBRL", label: "Euro" }]);
+    expect(matchExchangeRates("dólar")).toEqual([{ pair: "USDBRL" }]);
+    expect(matchExchangeRates("dolar")).toEqual([{ pair: "USDBRL" }]);
+    expect(matchExchangeRates("DOLAR")).toEqual([{ pair: "USDBRL" }]);
+    expect(matchExchangeRates("euro")).toEqual([{ pair: "EURBRL" }]);
   });
 
   it("matches a short alias prefix", () => {
-    expect(matchExchangeRates("dol")).toEqual([{ pair: "USDBRL", label: "Dólar americano" }]);
+    expect(matchExchangeRates("dol")).toEqual([{ pair: "USDBRL" }]);
   });
 
   it("returns nothing for an unrelated query", () => {

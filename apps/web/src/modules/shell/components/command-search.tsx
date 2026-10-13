@@ -15,7 +15,11 @@ import {
   CommandStatus,
 } from "@/components/ui/command";
 import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
-import { exchangeRateHref, matchExchangeRates } from "@/modules/market-data/client";
+import {
+  exchangeRateHref,
+  marketDataStrings,
+  matchExchangeRates,
+} from "@/modules/market-data/client";
 
 import {
   instrumentHref,
@@ -127,7 +131,8 @@ export function CommandSearch({ search }: { search: SearchSources }) {
   const strategyResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.strategies : [];
   // Pure and local (#305), unlike the three above: no server action, no
-  // debounce, no "in flight" state of its own.
+  // debounce, no "in flight" state of its own, so it is never gated on
+  // `pending`/`searchFailed`/`rateLimited` the way the async ones are.
   const exchangeRateResults = matchExchangeRates(trimmedQuery);
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
   const hasResults =
@@ -149,9 +154,14 @@ export function CommandSearch({ search }: { search: SearchSources }) {
       empty: t.search.empty,
     },
   );
+  // While the async sources are still in flight, the live region keeps
+  // announcing "Buscando…" even if the local exchange-rate match already
+  // has a hit — pending is only ever true before any async result exists,
+  // so `hasResults` here is forced false rather than reflecting the
+  // exchange-rate group's own, unrelated readiness.
   const statusText = deriveSearchStatusText(message, {
     trimmedQueryLength: trimmedQuery.length,
-    hasResults,
+    hasResults: !pending && hasResults,
   });
 
   function navigate(href: string) {
@@ -199,7 +209,7 @@ export function CommandSearch({ search }: { search: SearchSources }) {
             ) : (
               <CommandEmpty>{message}</CommandEmpty>
             ))}
-          {showResults && exchangeRateResults.length > 0 && (
+          {exchangeRateResults.length > 0 && (
             <CommandGroup heading={t.search.groups.exchangeRates}>
               {exchangeRateResults.map((result) => (
                 <CommandItem
@@ -211,7 +221,7 @@ export function CommandSearch({ search }: { search: SearchSources }) {
                 >
                   <span className="font-mono uppercase">{result.pair}</span>
                   <span className="text-muted-foreground ml-auto min-w-0 truncate font-mono text-[12px]">
-                    {result.label}
+                    {marketDataStrings.ptBR.exchangeRate.pairLabel[result.pair]}
                   </span>
                 </CommandItem>
               ))}
