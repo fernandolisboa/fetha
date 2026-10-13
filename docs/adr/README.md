@@ -63,3 +63,4 @@ supersedes or amends them and says so.
 | 0055 | A daily candle is its session, read at its latest visible version (#38, amends 0013)                                    |
 | 0056 | Option series keep their ticker across a corporate action; strikes are point-in-time (#69, amends 0014, 0017)           |
 | 0057 | AI analyses: engine facts in, a checked contract out, a reserved monthly cap (#28, sharpens 0009, amends 0005 and 0006) |
+| 0058 | AI analyses carry an outlook, scored by the engine at its horizon (#292, amends 0057, restores 0005)                    |
