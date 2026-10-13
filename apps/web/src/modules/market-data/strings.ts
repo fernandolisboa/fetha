@@ -93,7 +93,7 @@ const ptBR = {
     pairLabel: { USDBRL: "Dólar", EURBRL: "Euro" },
     chipPtax: "PTAX de venda",
     chipSource: "Banco Central (Bacen)",
-    note: "A PTAX é a cotação de fechamento do Banco Central, divulgada por volta das 13h no calendário de dias úteis do próprio Bacen; não é um fechamento de mercado.",
+    note: "A PTAX é a taxa de referência do Banco Central, divulgada por volta das 13h no calendário de dias úteis do próprio Bacen; não é um fechamento de mercado.",
     lastRate: (date: string) => `Última PTAX, ${date}`,
     noData: "Ainda não há cotação PTAX para este par.",
   },

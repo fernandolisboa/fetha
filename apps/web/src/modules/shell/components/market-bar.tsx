@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { DecimalString, SessionDate } from "@fetha/contracts";
 
+import { formatExchangeRateBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { formatDecimal } from "@/lib/format/decimal";
 import {
   closeFreshnessKind,
   exchangeRateHref,
@@ -17,7 +17,6 @@ import { t } from "../strings";
 import { useMarketBarInstrument } from "./market-bar-context";
 
 const FRESHNESS_REFRESH_MS = 60_000;
-const EXCHANGE_RATE_DECIMALS = 4;
 
 export interface UsdBrlMarketBarQuote {
   rate: DecimalString;
@@ -63,7 +62,7 @@ function UsdBrlChip({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote }) {
       // bar from a width with room to spare.
       className="text-foreground hidden shrink-0 font-medium sm:inline"
     >
-      USD/BRL {formatDecimal(usdBrl.rate, EXCHANGE_RATE_DECIMALS)}
+      USD/BRL {formatExchangeRateBRL(usdBrl.rate)}
     </Link>
   );
 }
