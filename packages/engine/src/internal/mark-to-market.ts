@@ -495,6 +495,13 @@ export function markToMarket(
         : sum,
     new Decimal(0),
   );
+  // ADR-0063 / #307 review item 7: delta and gamma stay in each leg's own quotation unit
+  // (points for an index option, reais for everything else, option-pricing.ts's
+  // toReportedGreeks). This sum mixes units whenever a portfolio holds both an equity
+  // position/leg and an index-option leg: the total is only meaningful within one quotation
+  // unit at a time. An index-option leg's own money exposure per point of the underlying is
+  // its reported delta divided by its series' priceFactor, read off the operation's own leg
+  // valuation, never off this aggregate.
   const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
       const operationsOptionLegsTotal = operationValuations.reduce((sum, ov) => {

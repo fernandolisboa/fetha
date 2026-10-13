@@ -146,6 +146,11 @@ describe("computeImpliedVolatilityIndex", () => {
     );
   });
 
+  // Review round 1, item 5: a flat `toBeCloseTo(trueSigma, 1)` (0.05 tolerance) across this
+  // file's `trueSigma` fixtures accepted far more drift than the solver actually has — every
+  // fixture's `price` is rounded to PRICE_SCALE (cents) before the solve, which alone bounds
+  // the achievable precision to ~5.5e-4 here; 2 digits (0.005) leaves headroom above that
+  // without being able to hide a real regression the way 0.05 could.
   it("solves the index alone from a single listed expiry that lands exactly at 30 calendar days", () => {
     const expiry = sessionAt(30).date;
     const trueSigma = 0.3;
@@ -177,7 +182,7 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
-    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 2);
     expect(result.value.method).toBe("atm_30d_variance_interpolated");
     expect(result.value.seriesUsed).toEqual(["PETR4C50"]);
   });
@@ -218,7 +223,7 @@ describe("computeImpliedVolatilityIndex", () => {
     if (!result.ok) return;
     expect(result.value.notes).toEqual([]);
     expect(result.value.impliedVolatility).not.toBeNull();
-    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 2);
   });
 
   it("interpolates linearly in total variance between two bracketing expiries", () => {
@@ -748,7 +753,7 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
-    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 2);
     expect(result.value.seriesUsed).toEqual(["PETR4C100"]);
     expect(result.value.notes).toContainEqual(OPTION_STRIKE_DERIVED_NOTE);
   });
@@ -955,7 +960,7 @@ describe("computeImpliedVolatilityIndex", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
-    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 2);
     expect(result.value.seriesUsed).toEqual(["PETR4C50"]);
     expect(result.value.notes).toContainEqual(OPTION_STRIKE_UNCONFIRMED_NOTE);
   });
@@ -1012,7 +1017,7 @@ describe("computeImpliedVolatilityIndex with an index option's priceFactor (#307
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.impliedVolatility).not.toBeNull();
-    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 1);
+    expect(Number(result.value.impliedVolatility)).toBeCloseTo(trueSigma, 2);
   });
 
   it("rejects a non-positive series priceFactor as invalid_input", () => {

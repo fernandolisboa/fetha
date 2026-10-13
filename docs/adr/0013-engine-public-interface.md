@@ -268,6 +268,18 @@ export type OptionSeries = {
   expiry: SessionDate;
   style: ExerciseStyle;
   asOf: Instant;
+  // B3's registry PricFctr (ADR-0063): index options (e.g. Ibovespa) are quoted in index
+  // points at this many points per real of premium (Ibovespa: 100, i.e. R$ 0,01 per point).
+  // Absent for every equity option, which is priced and quoted in reais directly (factor 1,
+  // the pre-existing behaviour).
+  priceFactor?: DecimalString | undefined;
+  // ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
+  // equity option's pre-existing behaviour: the underlying changes hands at the strike.
+  // "cash" is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to
+  // deliver, so the leg settles for its intrinsic value in cash instead of a fill on the
+  // index itself. Never inferred from `priceFactor` (a priceFactor is only a quotation-unit
+  // conversion; settlement is the registry's own, separate `TpMerc`/instrument-category fact).
+  settlement?: "physical" | "cash" | undefined;
 };
 
 export type OptionDayPrice = {
@@ -613,6 +625,11 @@ export const settlementOutcomes = [
 // the same residue a mark-to-market or backtest exit already cash-settles. Zero for a leg whose
 // factor divides evenly (including the common factor-of-1 case) and always zero for a `kept`
 // stock leg, which never settles.
+// `cashSettlementValue` (ADR-0063, #307 review): the signed cash flow (a long leg's gain
+// positive, a short leg's loss negative) an in-the-money leg on a cash-settled series (e.g. an
+// Ibovespa option) pays or receives in lieu of a fill on the underlying. Null for every
+// physically-settled leg (every equity option, the pre-existing behaviour) and for a `kept`
+// stock leg, which never settles either way.
 export type LegSettlement =
   | {
       leg: OperationLeg & { role: "stock" };
@@ -620,6 +637,7 @@ export type LegSettlement =
       intrinsicValue: null;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: null;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "buy" };
@@ -627,6 +645,7 @@ export type LegSettlement =
       intrinsicValue: DecimalString;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: Centavos | null;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "sell" };
@@ -634,6 +653,7 @@ export type LegSettlement =
       intrinsicValue: DecimalString;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: Centavos | null;
     };
 
 // residualSettledBy distinguishes an expired operation whose settlement fully netted or whose

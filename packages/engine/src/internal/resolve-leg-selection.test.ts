@@ -968,4 +968,53 @@ describe("resolveLegSelection delta-target selection over an index option's pric
     if (!result.ok) return;
     expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "IBOVC150" } });
   });
+
+  // Review round 1, item 4: nearestSeriesByAbsDelta priced every candidate's delta without
+  // validating the series' own priceFactor first, unlike every other priceFactor seam
+  // (price-operation.ts, propose-settlement.ts). A non-positive factor must surface as the
+  // same invalid_input it does everywhere else, not silently reach priceOptionLeg.
+  it("rejects a non-positive series priceFactor on a delta-target candidate as invalid_input", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [
+        { ...ibovaSeries("IBOVC150", 150000), priceFactor: decimalString("0") },
+        ibovaSeries("IBOVC200", 200000),
+      ],
+      optionPrices: [
+        {
+          ticker: "IBOVC150",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString(priceAt(150000)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+        {
+          ticker: "IBOVC200",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString(priceAt(200000)),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const result = resolveLegSelection({
+      structure: singleCall,
+      underlying: "IBOV",
+      strikes: [{ kind: "delta", target: decimalString("0.9") }],
+      expiry: { kind: "business_days", min: 1, max: 30 },
+      view,
+      at,
+      spot: decimalString(String(spot)),
+      riskFreeRate: decimalString("0"),
+      dividendYield: decimalString("0"),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
 });

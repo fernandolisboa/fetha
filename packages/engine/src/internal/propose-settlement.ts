@@ -21,7 +21,13 @@ import type {
   Side,
   TradingSession,
 } from "../api";
-import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
+import {
+  CENTAVOS_PER_REAL,
+  PRICE_SCALE,
+  parseDecimal,
+  toDecimalString,
+  toDecimalStringAtLeastScale,
+} from "./decimal";
 import { invalidInput } from "./errors";
 import { grossCentavos } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
@@ -79,6 +85,7 @@ export function settleLeg(
         intrinsicValue: null,
         fills: [],
         residualValue: toCentavos(0),
+        cashSettlementValue: null,
       },
       adjustment: "none",
     };
@@ -114,9 +121,12 @@ export function settleLeg(
   ).div(priceFactor);
   const inTheMoney = intrinsic.gt(0);
   const intrinsicValue = toDecimalString(intrinsic, PRICE_SCALE);
+  const isCashSettled = series.settlement === "cash";
 
   // B3's automatic exercise mirrors ADR-0014 Q41: exercise buys the underlying for a long
-  // call and sells it for a long put; assignment is the writer's mirror image.
+  // call and sells it for a long put; assignment is the writer's mirror image. B3 cash-settles
+  // every index option instead (ADR-0063): there is no underlying to deliver, so a
+  // cash-settled leg never produces a fill, in or out of the money.
   const fillSide: Side =
     leg.side === "buy"
       ? leg.role === "call"
@@ -125,19 +135,30 @@ export function settleLeg(
       : leg.role === "call"
         ? "sell"
         : "buy";
-  const fills: Fill[] = inTheMoney
-    ? [
-        {
-          ticker: underlying,
-          side: fillSide,
-          quantity: leg.quantity,
-          price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
-          session,
-          at,
-          costs: toCentavos(0),
-        },
-      ]
-    : [];
+  const fills: Fill[] =
+    inTheMoney && !isCashSettled
+      ? [
+          {
+            ticker: underlying,
+            side: fillSide,
+            quantity: leg.quantity,
+            price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
+            session,
+            at,
+            costs: toCentavos(0),
+          },
+        ]
+      : [];
+  const cashSettlementValue: Centavos | null = isCashSettled
+    ? toCentavos(
+        intrinsic
+          .mul(leg.quantity)
+          .mul(CENTAVOS_PER_REAL)
+          .mul(leg.side === "buy" ? 1 : -1)
+          .round()
+          .toNumber(),
+      )
+    : null;
 
   if (leg.side === "buy") {
     return {
@@ -154,6 +175,7 @@ export function settleLeg(
         intrinsicValue,
         fills,
         residualValue: toCentavos(0),
+        cashSettlementValue,
       },
       adjustment,
     };
@@ -172,6 +194,7 @@ export function settleLeg(
       intrinsicValue,
       fills,
       residualValue: toCentavos(0),
+      cashSettlementValue,
     },
     adjustment,
   };

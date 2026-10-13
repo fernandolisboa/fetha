@@ -36,23 +36,49 @@ would fail every solve the moment IBOV11 gets a candle and the nightly `iv_index
     solves, and delta-target strike selection's own IV read in `resolve-leg-selection.ts`);
   - a model fair value, an intrinsic value (an expired leg's basis in `price-operation.ts`, a
     settlement's intrinsic in `propose-settlement.ts`'s `settleLeg`, read unchanged by `score.ts`
-    and `mark-to-market.ts`) and a payoff P&L/max-loss/max-gain (`price-operation.ts`'s
-    `payoffAt`, carrying the factor per leg on `PricedLeg`) are divided by `priceFactor` before
-    they become a reais-denominated output. A market premium read straight from storage (an
-    `average`/`close` fill reference, ADR-0011's `fill-pricing.ts`; a mark read from a stored
-    price) needs no conversion: it is already reais.
-  - Every money-valued greek but delta follows the same division: gamma, theta, vega and rho are
-    all homogeneous of degree one in (spot, strike) jointly, the same degree as fair value itself
-    (gamma is technically degree -1 in spot alone, but the division here is a pure output-unit
-    rescaling, not a re-differentiation, so the same `/priceFactor` applies uniformly to every
-    model output). Delta (`∂V/∂S`) is kept as the model's own unit-free ratio in the series'
-    quotation unit, unconverted: it is a hedge/selection ratio, not a money figure, and
-    delta-target strike selection (`resolve-leg-selection.ts`) depends on comparing it the same
-    way for every series regardless of `priceFactor` — pinned by a test that a deep-in-the-money
-    index-option series is still correctly selected over a far out-of-the-money one.
-- No `ENGINE_VERSION` bump (ADR-0040's own precedent): `priceFactor` is an optional field that
-  defaults to the pre-existing behaviour, absent from every checkpoint and config stored before
-  this change, and every existing fixture and golden file is unaffected bit-for-bit.
+    and `mark-to-market.ts`), a payoff P&L/max-loss/max-gain (`price-operation.ts`'s `payoffAt`,
+    carrying the factor per leg on `PricedLeg`) and the payoff's own slope at infinity (the same
+    `payoffAt` module's `legIntrinsicSlopeAtInfinity`, which the break-even/max-loss/max-gain
+    extrapolation for an unbounded leg reads instead of a sampled point) are divided by
+    `priceFactor` before they become a reais-denominated output. A market premium read straight
+    from storage (an `average`/`close` fill reference, ADR-0011's `fill-pricing.ts`; a mark read
+    from a stored price) needs no conversion: it is already reais.
+  - Delta and gamma are both derivatives with respect to the underlying, so both stay unconverted,
+    in the series' own quotation unit: delta (`∂V/∂S`) is homogeneous of degree 0 in (S, K) and
+    already unit-free; gamma (`∂²V/∂S²`) is homogeneous of degree -1, not +1 like fair value
+    (dividing it by `priceFactor` as if it were a money greek — round 1 of this ticket's own
+    review — silently rounds an index option's already-small gamma to zero at the reported
+    scale). Neither is a money figure: both are hedge/selection ratios, and delta-target strike
+    selection (`resolve-leg-selection.ts`) depends on comparing delta the same way for every
+    series regardless of `priceFactor` — pinned by a test that a deep-in-the-money index-option
+    series is still correctly selected over a far out-of-the-money one. Theta, vega and rho stay
+    money greeks, homogeneous of degree one in (spot, strike) jointly like fair value itself, so
+    they are divided by `priceFactor` the same way fair value is.
+  - A portfolio-level aggregate that sums delta or gamma across legs (`mark-to-market.ts`'s
+    `totals.greeks`) is therefore only meaningful within one quotation unit at a time: it mixes
+    an equity leg's per-share delta with an index-option leg's per-point delta the moment a
+    portfolio holds both. An index-option leg's own money exposure per point of the underlying is
+    its reported delta divided by its series' `priceFactor`, read off the operation's own leg
+    valuation, never off the portfolio aggregate.
+  - `OptionSeries` also gains an optional `settlement: "physical" | "cash"`. Absent means
+    "physical", the pre-existing behaviour for every equity option: an in-the-money leg settles
+    by a fill on the underlying at the strike. B3 cash-settles every index option instead — there
+    is no Ibovespa to deliver — so a `"cash"` series' leg never produces that fill, in or out of
+    the money; `settleLeg` (`propose-settlement.ts`) instead carries the leg's signed cash flow
+    (`intrinsic × quantity`, sign by side) on a new `LegSettlement.cashSettlementValue`, null for
+    every physically-settled leg. `runBacktest` books it as option P&L the same way a worthless
+    leg's premium already is: never folded into a stock trade, never counted toward
+    `currentMonthStockSales` or its R$ 20k exemption, no stock fees. `settlement` is never
+    inferred from `priceFactor` — a priceFactor is only a quotation-unit conversion, settlement is
+    the registry's own, separate fact (B3's `TpMerc`/instrument category) — so `apps/web` fills it
+    independently from the registry when it starts ingesting an index option's chain (the same
+    follow-up `priceFactor` itself is waiting on, below). Index options never reach a backtest
+    through the web today (they are excluded from universes before that), but the engine is
+    correct for the day they are not.
+- No `ENGINE_VERSION` bump (ADR-0040's own precedent): `priceFactor`, `settlement` and
+  `LegSettlement.cashSettlementValue` are all optional/nullable fields that default to the
+  pre-existing behaviour, absent (or null) from every checkpoint and config stored before this
+  change, and every existing fixture and golden file is unaffected bit-for-bit.
 - ADR-0040's `b3OptionFeeRate` is the equity-option tariff (B3's "Opções de Ações" page); B3's own
   index-option tariff is a separate schedule this ADR does not model. `fillCosts` keeps charging
   `b3OptionFeeRate` (or `b3FeeRate`, absent that) on every option fill regardless of
@@ -69,10 +95,11 @@ would fail every solve the moment IBOV11 gets a candle and the nightly `iv_index
 
 ## Consequences
 
-- `apps/web` must populate `OptionSeries.priceFactor` from the instruments registry's `PricFctr`
-  when it starts ingesting IBOV11 and its option chain; absent that, every index option continues
-  to default to factor 1 and fails its own IV solve the same way it does today (a known, now-named
-  gap, not a silent wrong number).
+- `apps/web` must populate `OptionSeries.priceFactor` and `OptionSeries.settlement` ("cash" for
+  registry category OPTION ON INDEX) from the instruments registry when it starts ingesting
+  IBOV11 and its option chain; absent that, every index option continues to default to factor 1
+  and physical settlement and fails its own IV solve the same way it does today (a known,
+  now-named gap, not a silent wrong number).
 - Every existing equity-option fixture, checkpoint and golden file is untouched: `priceFactor`
   absent is bit-identical to today's behaviour by construction.
 - A future second index product (if B3 ever quotes one with a different points-per-real ratio)

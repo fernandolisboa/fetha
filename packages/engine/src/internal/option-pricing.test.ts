@@ -357,7 +357,7 @@ describe("priceOptionLeg with an index option's priceFactor (IBOVA183 fixture)",
     expect(delta).toBeLessThan(1);
   });
 
-  it("leaves delta unscaled but divides gamma/theta/vega/rho by the price factor", () => {
+  it("leaves delta AND gamma unscaled (both derivatives w.r.t. S stay in the quotation unit) but divides theta/vega/rho by the price factor", () => {
     const factored = priceOptionLeg({ ...ibova183Base, givenVolatility: decimalString("0.25") });
     const unfactored = priceOptionLeg({
       ...ibova183Base,
@@ -367,11 +367,26 @@ describe("priceOptionLeg with an index option's priceFactor (IBOVA183 fixture)",
     expect(factored.greeks).not.toBeNull();
     expect(unfactored.greeks).not.toBeNull();
     if (!factored.greeks || !unfactored.greeks) return;
+    // Review round 1, item 3: gamma is homogeneous of degree -1 in (S, K), not +1 like fair
+    // value — dividing it by the factor (as a prior version of this test asserted) rounds an
+    // index option's already-small gamma to "0.000000" at RATIO_SCALE on real B3 numbers; both
+    // sides must agree, and neither may be the degenerate zero a wrong division would produce.
+    expect(Number(unfactored.greeks.gamma)).toBeGreaterThan(1e-6);
     expect(Number(factored.greeks.delta)).toBeCloseTo(Number(unfactored.greeks.delta), 10);
-    expect(Number(factored.greeks.gamma)).toBeCloseTo(Number(unfactored.greeks.gamma) / 100, 6);
+    expect(Number(factored.greeks.gamma)).toBeCloseTo(Number(unfactored.greeks.gamma), 10);
     expect(Number(factored.greeks.theta)).toBeCloseTo(Number(unfactored.greeks.theta) / 100, 6);
     expect(Number(factored.greeks.vega)).toBeCloseTo(Number(unfactored.greeks.vega) / 100, 6);
     expect(Number(factored.greeks.rho)).toBeCloseTo(Number(unfactored.greeks.rho) / 100, 6);
     expect(Number(factored.fairValue)).toBeCloseTo(Number(unfactored.fairValue) / 100, 2);
+  });
+
+  it("never throws for a non-positive series price factor plus a given volatility (#307 review item 8)", () => {
+    const valuation = priceOptionLeg({
+      ...ibova183Base,
+      givenVolatility: decimalString("0.25"),
+      priceFactor: decimalString("0"),
+    });
+    expect(valuation.fairValue).toBeNull();
+    expect(valuation.greeks).toBeNull();
   });
 });

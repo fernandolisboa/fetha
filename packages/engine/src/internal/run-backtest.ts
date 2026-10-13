@@ -1298,6 +1298,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             intrinsicValue: null,
             fills: [],
             residualValue: toCentavos(0),
+            cashSettlementValue: null,
           });
           const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
           const effectiveEntryPrice = parseDecimal(leg.entryPrice).mul(splitFactor);
@@ -1343,6 +1344,20 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           .mul(effectiveQuantity)
           .neg();
         optionsPnl = optionsPnl.add(legPremiumPnl);
+
+        // A cash-settled leg (ADR-0063, #307 review item 2) never produces a fill on the
+        // underlying even when in the money, so it must be branched on before the
+        // worthless-leg check below, which would otherwise read its empty `fills` the same
+        // way. Its cash flow is option P&L, never a stock trade: no stock fees, never counted
+        // toward currentMonthStockSales or the R$ 20k exemption.
+        if (settled.value.cashSettlementValue !== null) {
+          const cashValue = new Decimal(settled.value.cashSettlementValue);
+          state.cash += settled.value.cashSettlementValue;
+          optionsPnl = optionsPnl.add(cashValue);
+          worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl).add(cashValue);
+          settlement.push(settled.value);
+          continue;
+        }
 
         if (settled.value.fills.length === 0) {
           worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl);

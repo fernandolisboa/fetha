@@ -107,6 +107,7 @@ describe("proposeSettlement", () => {
         },
       ],
       residualValue: 0,
+      cashSettlementValue: null,
     });
   });
 
@@ -179,6 +180,7 @@ describe("proposeSettlement", () => {
       intrinsicValue: decimalString("0.00"),
       fills: [],
       residualValue: 0,
+      cashSettlementValue: null,
     });
   });
 
@@ -217,6 +219,7 @@ describe("proposeSettlement", () => {
         },
       ],
       residualValue: 0,
+      cashSettlementValue: null,
     });
   });
 
@@ -278,6 +281,7 @@ describe("proposeSettlement", () => {
         },
       ],
       residualValue: 0,
+      cashSettlementValue: null,
     });
   });
 
@@ -316,6 +320,7 @@ describe("proposeSettlement", () => {
         },
       ],
       residualValue: 0,
+      cashSettlementValue: null,
     });
   });
 
@@ -392,6 +397,7 @@ describe("proposeSettlement", () => {
       intrinsicValue: null,
       fills: [],
       residualValue: 0,
+      cashSettlementValue: null,
     });
     expect(result.value.legs[1]?.outcome).toBe("assigned");
   });
@@ -1119,5 +1125,87 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
     expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+
+  // Review round 1, item 2: B3 cash-settles every index option (there is no IBOV to deliver),
+  // so a cash-settled leg must never carry a stock fill, in or out of the money.
+  it("cash-settles a long call's intrinsic value instead of filling the underlying, when the series is cash-settled", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, settlement: "cash" }],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const settled = result.value.legs[0];
+    expect(settled?.outcome).toBe("exercised");
+    expect(settled?.intrinsicValue).toBe(decimalString("20.00"));
+    expect(settled?.fills).toEqual([]);
+    expect(settled?.cashSettlementValue).toBe(2000);
+  });
+
+  it("cash-settles a short call's loss as a negative cash flow, with no stock fill", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, settlement: "cash" }],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "sell",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const settled = result.value.legs[0];
+    expect(settled?.outcome).toBe("assigned");
+    expect(settled?.fills).toEqual([]);
+    expect(settled?.cashSettlementValue).toBe(-2000);
+  });
+
+  it("leaves a physically-settled (default) leg's cashSettlementValue null", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [ibovaSeries],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.cashSettlementValue).toBeNull();
+    expect(result.value.legs[0]?.fills).not.toEqual([]);
   });
 });

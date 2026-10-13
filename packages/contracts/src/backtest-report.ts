@@ -164,12 +164,15 @@ const closeReasonSchema = z.discriminatedUnion("kind", [
 // residualValue defaults to 0 (ADR-0013 "persisted engine artifacts" addendum): a run persisted
 // before #271 never had a residual by construction, so a stored settlement entry missing the key
 // reads as zero rather than failing `backtestRunSchema.parse` outright.
+// cashSettlementValue defaults to null by the same addendum: a run persisted before #307's
+// cash-settlement support never had one, and every leg it ever settled was physical.
 const legSettlementSchema = z.strictObject({
   leg: operationLegSchema,
   outcome: z.enum(["kept", "exercised", "assigned", "expired_worthless"]),
   intrinsicValue: decimalStringSchema.nullable(),
   fills: z.array(fillSchema),
   residualValue: centavosSchema.default(0 as Centavos),
+  cashSettlementValue: centavosSchema.nullable().default(null),
 });
 
 const simulatedOperationSchema = z

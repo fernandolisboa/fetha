@@ -10,10 +10,12 @@ import { priceOptionLeg } from "../internal/option-pricing";
 // untouched) rather than a second pricing model. Two independent checks of that, both from
 // the ticket's own wording: (1) the same market read on a rescaled (spot/f, strike/f) solves
 // the same implied volatility and delta as the unscaled run at factor f, since both are
-// unit-free under a joint (S, K) rescaling; (2) every money-valued output but gamma (fairValue,
-// theta, vega, rho) at factor f equals the factor-less run on the same (unscaled) spot/strike,
-// divided by f — gamma is homogeneous of degree -1, not +1, so it is excluded here (pinned by
-// its own fixed-number test in option-pricing.test.ts instead).
+// unit-free under a joint (S, K) rescaling — gamma is also checked there, scaled by `factor`
+// rather than left unscaled, since it is homogeneous of degree -1, not 0 like delta; (2) every
+// money-valued output but gamma (fairValue, theta, vega, rho) at factor f equals the
+// factor-less run on the same (unscaled) spot/strike, divided by f — gamma stays excluded from
+// this second check (pinned by its own fixed-number test in option-pricing.test.ts instead),
+// since it is also homogeneous of degree -1, not +1.
 //
 // Check (2)'s tolerance is a worst-case bound on rounding noise, not a guess: each side rounds
 // independently to the reported scale (PRICE_SCALE 2 for fairValue, RATIO_SCALE 6 for a greek,
@@ -73,10 +75,19 @@ describe("priceFactor homogeneity (property, #307)", () => {
         fc.pre(runFactor.impliedVolatility !== null && runRescaled.impliedVolatility !== null);
         expect(
           Math.abs(Number(runFactor.impliedVolatility) - Number(runRescaled.impliedVolatility)),
-        ).toBeLessThanOrEqual(1e-3);
+        ).toBeLessThanOrEqual(5e-5);
         expect(
           Math.abs(Number(runFactor.greeks?.delta) - Number(runRescaled.greeks?.delta)),
-        ).toBeLessThanOrEqual(1e-3);
+        ).toBeLessThanOrEqual(5e-5);
+        // Gamma (d(delta)/dS, homogeneous of degree -1): scaling (S, K) down by `factor`
+        // scales gamma up by `factor` (review round 1, item 3). Both sides round their own
+        // gamma to RATIO_SCALE independently before this test sees them, and the factor-run's
+        // rounding error is amplified by `factor` once multiplied through, so the tolerance
+        // grows with it rather than staying fixed.
+        fc.pre(runFactor.greeks?.gamma !== undefined && runRescaled.greeks?.gamma !== undefined);
+        expect(
+          Math.abs(Number(runFactor.greeks.gamma) * factor - Number(runRescaled.greeks.gamma)),
+        ).toBeLessThanOrEqual(RATIO_SCALE_TOLERANCE * (1 + factor));
       }),
       { numRuns: 200 },
     );

@@ -14,6 +14,7 @@ import { parseDecimal } from "./decimal";
 import { assertDefined, invariant } from "./invariant";
 import { priceOptionLeg } from "./option-pricing";
 import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
+import { resolvePriceFactor } from "./price-factor";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { toQuantity } from "./scalars";
@@ -89,6 +90,7 @@ function nearestSeriesByAbsDelta(
   dividendYield: DecimalString,
   timeToExpiryYears: number,
   strikeOf: StrikeResolver,
+  priceFactorPath: string,
 ): SeriesSelectionResult {
   let best: OptionSeries | null = null;
   let bestStrike: DecimalString | null = null;
@@ -97,6 +99,8 @@ function nearestSeriesByAbsDelta(
     const resolved = strikeOf(series);
     if (!resolved.ok) return resolved;
     const strike = resolved.value.strike;
+    const priceFactorResult = resolvePriceFactor(series.priceFactor, priceFactorPath);
+    if (!priceFactorResult.ok) return priceFactorResult;
     const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
     if (!marketPrice) continue;
     // Delta is unit-free and crosses the priceFactor seam unchanged (ADR-0063); `priceFactor`
@@ -285,6 +289,7 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
         input.dividendYield,
         timeToExpiryYears,
         strikeOf,
+        `legs.strikes[${String(i)}].priceFactor`,
       );
     }
     if (!selection.ok) return { ok: false, error: selection.error };

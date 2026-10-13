@@ -4904,4 +4904,86 @@ describe("runBacktest — option structures (#23)", () => {
     if (resumed.ok) return;
     expect(resumed.error.code).toBe("insufficient_data");
   });
+
+  // ADR-0063 / #307 review item 2: B3 cash-settles every index option. A long IBOVA183 call
+  // held through expiry must book its intrinsic value as cash, never a fill on IBOV itself,
+  // and that cash must never count toward a stock sale or its R$ 20k exemption.
+  it("cash-settles a long index call at expiry instead of filling the index, with no stock-sales/tax effect", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const zeroFeeCostModel = {
+      b3FeeRate: decimalString("0"),
+      brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    // Sized to buy exactly one contract: declaredCapital equals the premium's own reais value
+    // in centavos, fraction 1.
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("183000") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      universe: ["IBOV"],
+      period: { from: days[0] as string, to: days[11] as string },
+      costModel: zeroFeeCostModel,
+      riskProfile: { ...generousRiskProfile, declaredCapital: centavos(193_05) },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d, i) =>
+        candle("IBOV", d, i < 10 ? "180000" : "185000", i < 10 ? "180000" : "185000"),
+      ),
+      optionSeries: [
+        {
+          ticker: "IBOVA183",
+          underlying: "IBOV",
+          right: "call",
+          strike: decimalString("183000"),
+          expiry,
+          style: "european",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          priceFactor: decimalString("100"),
+          settlement: "cash",
+        },
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("IBOVA183", d, "193.05")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const op = run.operations.find((o) => o.status === "expired");
+    expect(op).toBeDefined();
+    if (op?.status !== "expired") return;
+    expect(op.legs).toHaveLength(1);
+    const qty = Number(op.legs[0]?.quantity);
+    expect(qty).toBeGreaterThan(0);
+
+    const settledLeg = op.settlement[0];
+    expect(settledLeg?.outcome).toBe("exercised");
+    expect(settledLeg?.fills).toEqual([]);
+    expect(settledLeg?.cashSettlementValue).toBe(centavos(20_00 * qty));
+
+    expect(op.pnl).toBe(centavos((20_00 - 193_05) * qty));
+
+    const ibovFills = run.fills.filter((f) => f.ticker === "IBOV");
+    expect(ibovFills).toEqual([]);
+
+    const totalPnl = run.operations.reduce((sum, o) => sum + o.pnl, 0);
+    const finalCash = run.equityCurve.at(-1)?.cash;
+    if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
+    expect(totalPnl).toBe(finalCash - config.initialCapital);
+    expect(run.taxes.every((t) => t.stockSales === 0)).toBe(true);
+  });
 });

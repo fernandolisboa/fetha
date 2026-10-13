@@ -40,8 +40,9 @@ _Avoid_: option contract, series code, option ticker (that is its identifier, no
 **Price factor**:
 An index option's own quotation unit (index points, e.g. Ibovespa) per real of premium as
 stored (B3's registry `PricFctr`; ADR-0063) — absent for every equity option, which is quoted
-and priced in reais directly. Spot and strike stay in points regardless; the price factor
-converts only where a premium or a model value meets them, never the strike or spot themselves.
+and priced in reais directly. Spot and strike stay in the series' own quotation unit (points
+for an index option, reais for an equity option) regardless; the price factor converts only
+where a premium or a model value meets them, never the strike or spot themselves.
 _Avoid_: quotation factor (that is COTAHIST's own `FATCOT`, a distinct, row-level lot-grouping
 divisor applied to a price field at ingestion, not this series-level field)
 
