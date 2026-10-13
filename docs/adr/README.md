@@ -66,3 +66,4 @@ supersedes or amends them and says so.
 | 0058 | AI analyses carry an outlook, scored by the engine at its horizon (#292, amends 0057, restores 0005)                    |
 | 0059 | The asset reading: engine labels from project-default thresholds (#304, amends 0013)                                    |
 | 0060 | Company filings come from CVM open data, mapped to tickers by CNPJ (#309, amends 0007, 0017, 0045, 0054)                |
+| 0065 | Sentiment: filing labels, GDELT tone, a news-provider seam (#310, sharpens 0009, amends 0007, 0016, 0017, 0045, 0060)   |

@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { filingCategories } from "@fetha/contracts";
 import {
   bigint,
   date,
@@ -175,12 +176,7 @@ export const impliedVolatilityIndexPoints = pgTable(
   ],
 );
 
-export const companyFilingCategoryValues = [
-  "material_fact",
-  "market_notice",
-  "shareholder_notice",
-  "shareholder_meeting",
-] as const;
+export const companyFilingCategoryValues = filingCategories;
 export type CompanyFilingCategory = (typeof companyFilingCategoryValues)[number];
 
 // Filings listed companies deliver to the CVM (docs/adr/0060), one row per

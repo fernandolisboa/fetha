@@ -36,6 +36,18 @@ function baseOutcome() {
       analysesSkipped: 0,
       errors: [],
     },
+    sentiment: {
+      labels: {
+        status: "ran",
+        labelled: 2,
+        rejected: 0,
+        unreadable: 0,
+        retryLater: 0,
+        deferred: 0,
+      },
+      newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+      provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+    },
     accessLogPurge: { ok: true, deleted: 0 },
     unverifiedAccountPurge: { ok: true, deleted: 0 },
     sessionPurge: { ok: true, deleted: 0 },

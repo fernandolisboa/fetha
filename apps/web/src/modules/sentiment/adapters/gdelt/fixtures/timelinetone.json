@@ -1,0 +1,18 @@
+{
+  "query_details": {
+    "title": "(\"petrobras\" OR petr3 OR petr4) sourcelang:portuguese",
+    "date_resolution": "day"
+  },
+  "timeline": [
+    {
+      "series": "Average Tone",
+      "data": [
+        { "date": "20261006T000000Z", "value": -1.2873 },
+        { "date": "20261007T000000Z", "value": 0.4512 },
+        { "date": "20261008T000000Z", "value": 0 },
+        { "date": "20261009T000000Z", "value": -3.0021 },
+        { "date": "20261010T000000Z", "value": 2.15 }
+      ]
+    }
+  ]
+}

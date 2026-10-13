@@ -67,3 +67,9 @@ export {
 export { CorporateActionPanel } from "./components/corporate-action-panel";
 export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-filing-queries";
 export { CompanyFilingsList } from "./components/company-filings-list";
+export {
+  companiesOfTickers,
+  filingsOfCompaniesSince,
+  type CompanyFilingOfCompany,
+  type CompanyOfTicker,
+} from "./repositories/company-filing-repository";

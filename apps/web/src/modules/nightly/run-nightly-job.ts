@@ -9,6 +9,7 @@ import { purgeExpiredAccessLog } from "@/modules/audit";
 import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
+import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 import { purgeExpiredNightlyRuns, type NightlyRunPurgeOutcome } from "./nightly-runs-repository";
@@ -25,6 +26,7 @@ export interface NightlyJobOutcome {
   evaluation: EvaluateSignalsOutcome | null;
   scoring: ScoreDecisionsOutcome;
   analysisScoring: ScoreAnalysesOutcome;
+  sentiment: SentimentJobOutcome;
   accessLogPurge: AccessLogPurgeOutcome;
   unverifiedAccountPurge: UnverifiedAccountPurgeOutcome;
   sessionPurge: ExpiredSessionPurgeOutcome;
@@ -81,12 +83,16 @@ export async function runNightlyJob(
   // AI analyses' outlooks are scored right after decisions, on the same
   // as-of session and deadline (docs/adr/0058).
   const analysisScoring = await scoreDueAnalyses(db, scoringInput, { deadlineAt });
+  // Sentiment runs last, in whatever time the run has left (docs/adr/0065):
+  // nothing else reads it, and its own failures never fail the run.
+  const sentiment = await runSentimentJob(db, { deadlineAt });
 
   return {
     ...result,
     evaluation,
     scoring,
     analysisScoring,
+    sentiment,
     accessLogPurge,
     unverifiedAccountPurge,
     sessionPurge,

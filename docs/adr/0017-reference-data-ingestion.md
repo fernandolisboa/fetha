@@ -572,3 +572,9 @@ The CVM's company filings (IPE) and its FCA securities table are a sixth source,
 `company_filings (protocol, version)` (insert-only) and `company_tickers (ticker)`. It is
 session-bound like the others, but one download serves every gap session of an invocation, and it
 stays out of `ingest().ok`. ADR-0060 has the details.
+
+## Addendum: sentiment is a nightly step, not a source (2026-10-13, #310, ADR-0065)
+
+The nightly job ends with a sentiment step (filing labels, GDELT news tone, an optional paid news
+provider) under the same deadline. It is not an `ingest()` source and never affects `ingest().ok`:
+it is not session-bound, and each sub-step paces itself by when each subject was last fetched.

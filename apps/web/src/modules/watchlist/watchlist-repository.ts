@@ -60,3 +60,13 @@ export class WatchlistRepository extends UserScopedRepository {
       });
   }
 }
+
+// A system read for the nightly sentiment job (docs/adr/0065): which
+// tickers anyone follows, never who follows them.
+export async function watchedTickersOfAnyUser(db: Database): Promise<Ticker[]> {
+  const rows = await db
+    .selectDistinct({ ticker: watchlistItems.ticker })
+    .from(watchlistItems)
+    .orderBy(watchlistItems.ticker);
+  return rows.map((row) => row.ticker);
+}

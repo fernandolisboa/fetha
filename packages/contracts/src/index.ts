@@ -135,3 +135,18 @@ export {
   type StoredAnalysisOutput,
   type AnalysisSubjectKind,
 } from "./analysis";
+export {
+  checkFilingLabel,
+  filingCategories,
+  filingLabelInputsSchema,
+  filingLabelOutputSchema,
+  filingTones,
+  filingTopics,
+  summaryHoldsFigure,
+  type FilingCategory,
+  type FilingLabelCheck,
+  type FilingLabelInputs,
+  type FilingLabelOutput,
+  type FilingTone,
+  type FilingTopic,
+} from "./filing-label";

@@ -41,6 +41,30 @@ const analysisScoringReportSchema = z.object({
   errorCount: z.number().int().nonnegative(),
 });
 
+const sentimentReportSchema = z.object({
+  labels: z.object({
+    status: z.enum(["off", "ran", "failed"]),
+    labelled: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+    unreadable: z.number().int().nonnegative(),
+    retryLater: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+  newsTone: z.object({
+    status: z.enum(["ran", "rate_limited", "failed"]),
+    refreshed: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+  provider: z.object({
+    status: z.enum(["off", "ran", "rate_limited", "failed"]),
+    refreshed: z.number().int().nonnegative(),
+    articles: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+});
+
 // A completed run's report: every field is a count or a closed-vocabulary
 // status, never an id, email or the raw error string evaluation/scoring
 // themselves produce (those can carry a decisionId or an engine detail
@@ -57,6 +81,8 @@ const completedReportSchema = z.object({
   evaluation: evaluationReportSchema.nullable(),
   scoring: scoringReportSchema,
   analysisScoring: analysisScoringReportSchema,
+  // Absent from runs recorded before #310.
+  sentiment: sentimentReportSchema.optional(),
 });
 
 // A run that threw before it could produce a NightlyJobOutcome at all: the
@@ -119,6 +145,11 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       usersSkipped: outcome.analysisScoring.usersSkipped,
       analysesSkipped: outcome.analysisScoring.analysesSkipped,
       errorCount: outcome.analysisScoring.errors.length,
+    },
+    sentiment: {
+      labels: { ...outcome.sentiment.labels },
+      newsTone: { ...outcome.sentiment.newsTone },
+      provider: { ...outcome.sentiment.provider },
     },
   };
 }
