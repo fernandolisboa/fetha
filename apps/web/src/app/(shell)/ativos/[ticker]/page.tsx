@@ -21,10 +21,16 @@ import {
   loadCandleSeries,
   RateLineChart,
   t,
+  unmappedCompanyFilingsView,
 } from "@/modules/market-data";
 import { RecipePanel } from "@/modules/recipes";
 import { getPreferences } from "@/modules/preferences";
-import { SentimentPanel, sentimentForInstrument, t as sentimentStrings } from "@/modules/sentiment";
+import {
+  SentimentPanel,
+  sentimentForInstrument,
+  t as sentimentStrings,
+  unmappedSentimentView,
+} from "@/modules/sentiment";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
 import { hasMyActiveDailyStrategy } from "@/modules/strategies";
 import { AssetNextSteps, isOnMyWatchlist, t as watchlistStrings } from "@/modules/watchlist";
@@ -62,15 +68,20 @@ export default async function InstrumentPage({
   const isIndex = isMarketIndex(ticker);
 
   const db = getDb();
+  // An index maps to no company and can hold no strategy (ADR-0062): these three
+  // never have anything to show on its page, so the index branch skips the round
+  // trip rather than discarding a real result.
   const [lastClose, seriesResult, filings, reading, sentiment, onWatchlist, hasActiveStrategy] =
     await Promise.all([
       latestCandle(db, ticker),
       loadCandleSeries(db, ticker, form),
-      companyFilingsForInstrument(db, ticker),
+      isIndex
+        ? Promise.resolve(unmappedCompanyFilingsView)
+        : companyFilingsForInstrument(db, ticker),
       loadAssetReading(db, ticker),
-      sentimentForInstrument(db, ticker),
+      isIndex ? Promise.resolve(unmappedSentimentView) : sentimentForInstrument(db, ticker),
       isOnMyWatchlist(ticker),
-      hasMyActiveDailyStrategy(),
+      isIndex ? Promise.resolve(false) : hasMyActiveDailyStrategy(),
     ]);
   const preferences = await getPreferences();
 
@@ -142,10 +153,10 @@ export default async function InstrumentPage({
           </div>
           <div data-tour="asset-reading">
             <Panel title={t.reading.title}>
-              <AssetReadingPanel reading={reading} />
+              <AssetReadingPanel reading={reading} isIndex={isIndex} />
             </Panel>
           </div>
-          {lastClose && (
+          {lastClose && !isIndex && (
             <div id="receitas" className="scroll-mt-16">
               <RecipePanel ticker={ticker} />
             </div>

@@ -59,6 +59,23 @@ export interface SentimentView {
   };
 }
 
+// A market index never maps to a listed company (ADR-0062): the asset page uses this instead of
+// calling `sentimentForInstrument`, which would spend a round trip only to rediscover the same
+// "not mapped" shape below.
+export const unmappedSentimentView: SentimentView = {
+  mapped: false,
+  filings: {
+    enabled: false,
+    counts: toneCounts([]),
+    labelled: 0,
+    waiting: 0,
+    unlabelled: 0,
+    latest: [],
+  },
+  newsTone: { query: null, status: null, fetchedAt: null, points: [], average: null },
+  provider: { enabled: false, articles: [] },
+};
+
 function daysBefore(now: Date, days: number): string {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }

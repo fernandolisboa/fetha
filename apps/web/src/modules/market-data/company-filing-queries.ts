@@ -16,6 +16,16 @@ export interface CompanyFilingsView {
   filings: CompanyFilingRow[];
 }
 
+// A market index never maps to a CVM filer (ADR-0062): the asset page uses
+// this instead of calling `companyFilingsForInstrument`, which would spend a
+// round trip only to rediscover the same "not mapped" shape.
+export const unmappedCompanyFilingsView: CompanyFilingsView = {
+  loaded: false,
+  freshness: null,
+  mapped: false,
+  filings: [],
+};
+
 // The asset page's "Eventos recentes" read model (docs/adr/0060).
 export async function companyFilingsForInstrument(
   db: Database,
