@@ -107,6 +107,15 @@ const en = {
       empty: "No session recorded for this series yet.",
     },
   },
+  exchangeRate: {
+    overline: "Exchange rate",
+    pairLabel: { USDBRL: "Dollar", EURBRL: "Euro" },
+    chipPtax: "PTAX selling rate",
+    chipSource: "Banco Central (Bacen)",
+    note: "PTAX is the Central Bank's daily fixing, published around 1pm on Bacen's own business-day calendar; it is not a market close.",
+    lastRate: (date: string) => `Last PTAX, ${date}`,
+    noData: "No PTAX point for this pair yet.",
+  },
   corporateActionPanel: {
     title: "Corporate-action factors",
     subtitle:
@@ -271,6 +280,15 @@ const ptBR = {
       noTrades: "sem negócios",
       empty: "Ainda não há pregão registrado para esta série.",
     },
+  },
+  exchangeRate: {
+    overline: "Câmbio",
+    pairLabel: { USDBRL: "Dólar", EURBRL: "Euro" },
+    chipPtax: "PTAX de venda",
+    chipSource: "Banco Central (Bacen)",
+    note: "A PTAX é a taxa de referência do Banco Central, divulgada por volta das 13h no calendário de dias úteis do próprio Bacen; não é um fechamento de mercado.",
+    lastRate: (date: string) => `Última PTAX, ${date}`,
+    noData: "Ainda não há cotação PTAX para este par.",
   },
   corporateActionPanel: {
     title: "Fatores de evento corporativo",

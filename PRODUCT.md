@@ -14,10 +14,10 @@ decisions age. No fees, no plans, no order execution. Every decision is the user
 
 ### 1. Market data
 
-Daily candles, option series and prices, macro series (CDI/Selic/IPCA) and the trading calendar
-from public B3 and Bacen sources, ingested nightly as shared reference data. An optional intraday
-tier per user (live quotes, chain, 15/30/60-minute candles) fetched with the user's own provider
-token, refreshed only while the app is in use.
+Daily candles, option series and prices, macro series (CDI/Selic/IPCA), USD/BRL and EUR/BRL PTAX
+and the trading calendar from public B3 and Bacen sources, ingested nightly as shared reference
+data. An optional intraday tier per user (live quotes, chain, 15/30/60-minute candles) fetched with
+the user's own provider token, refreshed only while the app is in use.
 
 ### 2. Engine
 

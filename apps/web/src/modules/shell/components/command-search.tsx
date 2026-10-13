@@ -15,6 +15,7 @@ import {
   CommandStatus,
 } from "@/components/ui/command";
 import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
+import { exchangeRateHref, marketDataT, matchExchangeRates } from "@/modules/market-data/client";
 
 import {
   instrumentHref,
@@ -125,13 +126,18 @@ export function CommandSearch({ search }: { search: SearchSources }) {
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.optionSeries : [];
   const strategyResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.strategies : [];
+  // Pure and local (#305), unlike the three above: no server action, no
+  // debounce, no "in flight" state of its own, so it is never gated on
+  // `pending`/`searchFailed`/`rateLimited` the way the async ones are.
+  const exchangeRateResults = matchExchangeRates(trimmedQuery);
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
-  const hasResults =
+  const hasServerResults =
     instrumentResults.length > 0 || optionSeriesResults.length > 0 || strategyResults.length > 0;
+  const hasResults = hasServerResults || exchangeRateResults.length > 0;
   const rateLimited =
     trimmedQuery.length > 0 &&
     (currentOutcome?.kind === "rate_limited" ||
-      (currentOutcome?.kind === "ok" && currentOutcome.throttled && !hasResults));
+      (currentOutcome?.kind === "ok" && currentOutcome.throttled && !hasServerResults));
 
   const message = deriveSearchMessage(
     { pending, rateLimited, searchFailed },
@@ -142,9 +148,13 @@ export function CommandSearch({ search }: { search: SearchSources }) {
       empty: t.search.empty,
     },
   );
+  // A local exchange-rate hit must not silence the server search's own
+  // state: "Buscando…" while it is in flight, and the rate-limit or failure
+  // notice once it answers, are still announced next to a Câmbio row.
+  const serverSearchUnsettled = pending || rateLimited || searchFailed;
   const statusText = deriveSearchStatusText(message, {
     trimmedQueryLength: trimmedQuery.length,
-    hasResults,
+    hasResults: !serverSearchUnsettled && hasResults,
   });
 
   function navigate(href: string) {
@@ -189,9 +199,31 @@ export function CommandSearch({ search }: { search: SearchSources }) {
           {trimmedQuery.length > 0 &&
             (pending ? (
               <CommandLoading label={message}>{message}</CommandLoading>
+            ) : rateLimited || searchFailed ? (
+              // Not CommandEmpty: cmdk hides it as soon as any item (a
+              // Câmbio row) is mounted, which would hide this notice too.
+              <p className="py-6 text-center text-sm">{message}</p>
             ) : (
               <CommandEmpty>{message}</CommandEmpty>
             ))}
+          {exchangeRateResults.length > 0 && (
+            <CommandGroup heading={t.search.groups.exchangeRates}>
+              {exchangeRateResults.map((result) => (
+                <CommandItem
+                  key={result.pair}
+                  value={`exchange-rate:${result.pair}`}
+                  onSelect={() => {
+                    navigate(exchangeRateHref(result.pair));
+                  }}
+                >
+                  <span className="font-mono uppercase">{result.pair}</span>
+                  <span className="text-muted-foreground ml-auto min-w-0 truncate font-mono text-[12px]">
+                    {marketDataT.exchangeRate.pairLabel[result.pair]}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           {showResults && instrumentResults.length > 0 && (
             <CommandGroup heading={t.search.groups.instruments}>
               {instrumentResults.map((result) => (

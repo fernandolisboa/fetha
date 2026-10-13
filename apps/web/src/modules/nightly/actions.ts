@@ -42,8 +42,10 @@ export type TriggerNightlyJobResult =
 // this check they would silently stop showing up anywhere but the cron's
 // own logs. iv_index's `deferred` is not trouble: the backfill defers
 // sessions every night until it drains (#264). Any other source's is: sgs
-// defers only when Bacen ate its start budget (#298). cvm_filings' is not
-// either: it is the least urgent source and the asset page shows its
+// defers only when Bacen ate its start budget (#298), and so does ptax,
+// which has no nightly-draining backfill queue (its first gap's cumulative
+// fetch brings in all of history at once, docs/adr/0061). cvm_filings' is
+// not either: it is the least urgent source and the asset page shows its
 // freshness (docs/adr/0060).
 function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
   if (
