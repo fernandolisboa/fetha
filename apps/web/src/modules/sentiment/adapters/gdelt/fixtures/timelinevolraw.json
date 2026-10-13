@@ -1,0 +1,18 @@
+{
+  "query_details": {
+    "title": "(\"petrobras\" OR petr3 OR petr4) sourcelang:portuguese",
+    "date_resolution": "day"
+  },
+  "timeline": [
+    {
+      "series": "Article Count",
+      "data": [
+        { "date": "20261006T000000Z", "value": 42, "norm": 61234 },
+        { "date": "20261007T000000Z", "value": 37, "norm": 59870 },
+        { "date": "20261008T000000Z", "value": 0, "norm": 40122 },
+        { "date": "20261009T000000Z", "value": 18, "norm": 60511 },
+        { "date": "20261010T000000Z", "value": 5, "norm": 38770 }
+      ]
+    }
+  ]
+}

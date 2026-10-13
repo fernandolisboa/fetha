@@ -133,3 +133,10 @@ logs the full outcome when it happens. `newestSessionComputed` stays `iv_index` 
 
 `cvm_filings` can carry `deferred` when it misses its start budget. Like `iv_index`'s backfill, that
 is not logged as trouble by the manual trigger: the next run reads the same cumulative file.
+
+## Addendum: a `sentiment` entry (2026-10-13, #310, ADR-0065)
+
+The report gains an optional `sentiment` object with three closed-status counts: `labels`
+(`off|ran|failed`), `newsTone` (`ran|rate_limited|failed`) and `provider`
+(`off|ran|rate_limited|failed`). The manual trigger logs a `failed` sub-step as trouble; being rate
+limited or deferred is routine, since the next run picks it up.

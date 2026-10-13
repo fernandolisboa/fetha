@@ -24,6 +24,7 @@ import {
 } from "@/modules/market-data";
 import { RecipePanel } from "@/modules/recipes";
 import { getPreferences } from "@/modules/preferences";
+import { SentimentPanel, sentimentForInstrument, t as sentimentStrings } from "@/modules/sentiment";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
 import { hasMyActiveDailyStrategy } from "@/modules/strategies";
 import { AssetNextSteps, isOnMyWatchlist, t as watchlistStrings } from "@/modules/watchlist";
@@ -61,12 +62,13 @@ export default async function InstrumentPage({
   const isIndex = isMarketIndex(ticker);
 
   const db = getDb();
-  const [lastClose, seriesResult, filings, reading, onWatchlist, hasActiveStrategy] =
+  const [lastClose, seriesResult, filings, reading, sentiment, onWatchlist, hasActiveStrategy] =
     await Promise.all([
       latestCandle(db, ticker),
       loadCandleSeries(db, ticker, form),
       companyFilingsForInstrument(db, ticker),
       loadAssetReading(db, ticker),
+      sentimentForInstrument(db, ticker),
       isOnMyWatchlist(ticker),
       hasMyActiveDailyStrategy(),
     ]);
@@ -149,16 +151,24 @@ export default async function InstrumentPage({
             </div>
           )}
           {!isIndex && (
-            <Panel
-              title={t.companyFilings.title}
-              subtitle={
-                filings.freshness
-                  ? `${t.companyFilings.subtitle} ${filings.freshness}`
-                  : t.companyFilings.subtitle
-              }
-            >
-              <CompanyFilingsList view={filings} />
-            </Panel>
+            <>
+              <Panel
+                title={t.companyFilings.title}
+                subtitle={
+                  filings.freshness
+                    ? `${t.companyFilings.subtitle} ${filings.freshness}`
+                    : t.companyFilings.subtitle
+                }
+              >
+                <CompanyFilingsList view={filings} />
+              </Panel>
+              <Panel
+                title={sentimentStrings.panel.title}
+                subtitle={sentimentStrings.panel.subtitle}
+              >
+                <SentimentPanel view={sentiment} onWatchlist={onWatchlist} />
+              </Panel>
+            </>
           )}
         </div>
         <div data-tour="asset-next-steps">

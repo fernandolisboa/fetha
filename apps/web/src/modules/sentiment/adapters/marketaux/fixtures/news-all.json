@@ -1,0 +1,107 @@
+{
+  "meta": { "found": 214, "returned": 3, "limit": 3, "page": 1 },
+  "data": [
+    {
+      "uuid": "6f2c1a90-3b7e-4c1d-9a55-0e1f2a3b4c5d",
+      "title": "Petrobras anuncia nova descoberta no pré-sal",
+      "description": "A estatal informou a descoberta de um novo reservatório na Bacia de Santos.",
+      "keywords": "",
+      "snippet": "A Petrobras informou nesta terça-feira a descoberta de um novo reservatório...",
+      "url": "https://www.exemplo-noticias.com.br/petrobras-descoberta-pre-sal",
+      "image_url": "https://www.exemplo-noticias.com.br/img/petrobras.jpg",
+      "language": "pt",
+      "published_at": "2026-10-12T14:05:00.000000Z",
+      "source": "exemplo-noticias.com.br",
+      "relevance_score": null,
+      "entities": [
+        {
+          "symbol": "PETR4.SA",
+          "name": "Petróleo Brasileiro S.A. - Petrobras",
+          "exchange": null,
+          "exchange_long": null,
+          "country": "br",
+          "type": "equity",
+          "industry": "Energy",
+          "match_score": 41.2,
+          "sentiment_score": 0.6124,
+          "highlights": [
+            {
+              "highlight": "A <em>Petrobras</em> informou a descoberta...",
+              "sentiment": 0.6124,
+              "highlighted_in": "main_text"
+            }
+          ]
+        },
+        {
+          "symbol": "PBR",
+          "name": "Petróleo Brasileiro S.A. - Petrobras",
+          "exchange": "NYSE",
+          "exchange_long": "New York Stock Exchange",
+          "country": "us",
+          "type": "equity",
+          "industry": "Energy",
+          "match_score": 38.0,
+          "sentiment_score": 0.6124,
+          "highlights": []
+        }
+      ],
+      "similar": []
+    },
+    {
+      "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5e",
+      "title": "Petrobras faces lawsuit over fuel pricing",
+      "description": "Shareholders filed a class action in New York.",
+      "keywords": "",
+      "snippet": "Shareholders of Petrobras filed...",
+      "url": "https://www.example-news.com/petrobras-lawsuit",
+      "image_url": null,
+      "language": "en",
+      "published_at": "2026-10-11T09:30:00.000000Z",
+      "source": "example-news.com",
+      "relevance_score": null,
+      "entities": [
+        {
+          "symbol": "PETR4.SA",
+          "name": "Petróleo Brasileiro S.A. - Petrobras",
+          "exchange": null,
+          "exchange_long": null,
+          "country": "br",
+          "type": "equity",
+          "industry": "Energy",
+          "match_score": 22.5,
+          "sentiment_score": -0.4519,
+          "highlights": []
+        }
+      ],
+      "similar": []
+    },
+    {
+      "uuid": "9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b",
+      "title": "Ibovespa fecha estável com petroleiras",
+      "description": "O índice terminou o dia perto da estabilidade.",
+      "keywords": "",
+      "snippet": "O Ibovespa fechou...",
+      "url": "https://www.exemplo-noticias.com.br/ibovespa-fecha",
+      "image_url": null,
+      "language": "pt",
+      "published_at": "2026-10-10T20:10:00.000000Z",
+      "source": "exemplo-noticias.com.br",
+      "relevance_score": null,
+      "entities": [
+        {
+          "symbol": "PETR4.SA",
+          "name": "Petróleo Brasileiro S.A. - Petrobras",
+          "exchange": null,
+          "exchange_long": null,
+          "country": "br",
+          "type": "equity",
+          "industry": "Energy",
+          "match_score": 10.1,
+          "sentiment_score": null,
+          "highlights": []
+        }
+      ],
+      "similar": []
+    }
+  ]
+}

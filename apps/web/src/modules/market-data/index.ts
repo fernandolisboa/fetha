@@ -84,3 +84,9 @@ export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-
 // (`ingest.ts`, `candle-repository.ts`), through a direct relative import, not this barrel.
 export { isMarketIndex } from "./market-index";
 export { CompanyFilingsList } from "./components/company-filings-list";
+export {
+  companiesOfTickers,
+  filingsOfCompaniesSince,
+  type CompanyFilingOfCompany,
+  type CompanyOfTicker,
+} from "./repositories/company-filing-repository";

@@ -582,6 +582,12 @@ stays out of `ingest().ok`. ADR-0060 has the details.
 A new, separate ingestion source, `ptax`, not folded into `sgs`'s own loop: see ADR-0061 for why
 (different failure budget, no trading-session dependency) and for the full decision.
 
+## Addendum: sentiment is a nightly step, not a source (2026-10-13, #310, ADR-0065)
+
+The nightly job ends with a sentiment step (filing labels, GDELT news tone, an optional paid news
+provider) under the same deadline. It is not an `ingest()` source and never affects `ingest().ok`:
+it is not session-bound, and each sub-step paces itself by when each subject was last fetched.
+
 ## Addendum: an eighth source, `indexes` (2026-10-13, #307, ADR-0062)
 
 | source              | adapter (`apps/web/src/modules/market-data/adapters/`) | natural key                | cadence                                                                                  |

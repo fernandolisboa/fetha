@@ -41,6 +41,30 @@ const analysisScoringReportSchema = z.object({
   errorCount: z.number().int().nonnegative(),
 });
 
+const sentimentReportSchema = z.object({
+  labels: z.object({
+    status: z.enum(["off", "ran", "failed"]),
+    labelled: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+    unreadable: z.number().int().nonnegative(),
+    retryLater: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+  newsTone: z.object({
+    status: z.enum(["ran", "rate_limited", "failed"]),
+    refreshed: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+  provider: z.object({
+    status: z.enum(["off", "ran", "rate_limited", "failed"]),
+    refreshed: z.number().int().nonnegative(),
+    articles: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    deferred: z.number().int().nonnegative(),
+  }),
+});
+
 const radarReportSchema = z.object({
   status: z.enum(["ok", "pending", "failed"]),
   universe: z.number().int().nonnegative(),
@@ -66,6 +90,8 @@ const completedReportSchema = z.object({
   evaluation: evaluationReportSchema.nullable(),
   scoring: scoringReportSchema,
   analysisScoring: analysisScoringReportSchema,
+  // Absent from runs recorded before #310.
+  sentiment: sentimentReportSchema.optional(),
   radar: radarReportSchema.nullable(),
 });
 
@@ -129,6 +155,11 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       usersSkipped: outcome.analysisScoring.usersSkipped,
       analysesSkipped: outcome.analysisScoring.analysesSkipped,
       errorCount: outcome.analysisScoring.errors.length,
+    },
+    sentiment: {
+      labels: { ...outcome.sentiment.labels },
+      newsTone: { ...outcome.sentiment.newsTone },
+      provider: { ...outcome.sentiment.provider },
     },
     radar: outcome.radar
       ? {

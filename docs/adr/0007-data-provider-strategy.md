@@ -52,6 +52,13 @@ Besides B3 and Bacen, the reference backbone now reads the CVM's open data (ODbL
 companies' filings and the FCA's ticker-to-CNPJ table, fetched and parsed by `market-data` like the
 other reference sources, not behind `MarketDataProvider`.
 
+## Addendum: GDELT and a news-provider seam (2026-10-13, #310, ADR-0065)
+
+Sentiment adds two news sources outside `MarketDataProvider`, both read by the `sentiment` module:
+GDELT's DOC 2.0 API (free, no key, news tone per company) and a `NewsSentimentProvider` interface
+for paid news feeds, selected by which key is set (Marketaux first, Economatica later). Neither is
+scraped.
+
 ## Amendment (2026-10-13, #307, ADR-0062): B3's public JSON data services, narrowed
 
 "Scraping broker or B3 web pages" above excluded HTML-page scraping and intraday displays, not

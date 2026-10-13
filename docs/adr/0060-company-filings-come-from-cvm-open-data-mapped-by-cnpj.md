@@ -90,3 +90,8 @@ garbled row cannot become the newest filing the cutoff and the freshness line re
   only, not the document's text.
 - A company that changes CNPJ (a merger) keeps its old filings under the old CNPJ; the panel
   shows the new company's from the day the FCA maps the code to it.
+
+## Addendum: the document is downloaded to label it (2026-10-13, #310, ADR-0065)
+
+The sentiment step downloads the filing's document from the same RAD host to have it labelled
+(topic, tone, a one-sentence summary). The document is never stored, only the label.

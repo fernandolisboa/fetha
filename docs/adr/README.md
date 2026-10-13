@@ -70,4 +70,5 @@ supersedes or amends them and says so.
 | 0062 | The Ibovespa level is a close-only candle under IBOV11, read nightly from B3's index service, with cash settlement wired into the portfolio (#307, amends 0007, 0017, 0054) |
 | 0063 | Index options carry a price factor; premiums are reais per contract, strikes and spot stay in points (#307, amends 0013; notes 0040)                                        |
 | 0064 | Recipes are shared, read-only strategy definitions chosen by expected move (#306, amends 0053)                                                                              |
+| 0065 | Sentiment: filing labels, GDELT tone, a news-provider seam (#310, sharpens 0009, amends 0007, 0016, 0017, 0045, 0060)                                                       |
 | 0066 | The radar reads every liquid optionable underlying against the recipes, nightly (#308, amends 0042, 0045)                                                                   |

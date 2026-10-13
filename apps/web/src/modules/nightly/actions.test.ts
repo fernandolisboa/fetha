@@ -41,6 +41,18 @@ describe("triggerNightlyJobAction", () => {
         analysesSkipped: 0,
         errors: [],
       },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -155,6 +167,18 @@ describe("triggerNightlyJobAction", () => {
         analysesSkipped: 0,
         errors: [],
       },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -204,6 +228,18 @@ describe("triggerNightlyJobAction", () => {
         analysesScored: 0,
         analysesSkipped: 0,
         errors: [],
+      },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
       },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
@@ -256,6 +292,18 @@ describe("triggerNightlyJobAction", () => {
         analysesSkipped: 0,
         errors: [],
       },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -292,6 +340,18 @@ describe("triggerNightlyJobAction", () => {
         analysesScored: 4,
         analysesSkipped: 1,
         errors: [{ requestId: "someone-elses-request", kind: "engine_error:invalid_input" }],
+      },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
       },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
@@ -335,6 +395,18 @@ describe("triggerNightlyJobAction", () => {
         analysesSkipped: 0,
         errors: [],
       },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: false },
       sessionPurge: { ok: true, deleted: 0 },
@@ -373,6 +445,18 @@ describe("triggerNightlyJobAction", () => {
         analysesSkipped: 0,
         errors: [],
       },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -410,6 +494,18 @@ describe("triggerNightlyJobAction", () => {
         analysesScored: 0,
         analysesSkipped: 0,
         errors: [],
+      },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
       },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
@@ -451,6 +547,18 @@ describe("triggerNightlyJobAction", () => {
         analysesScored: 0,
         analysesSkipped: 0,
         errors: [],
+      },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
       },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
@@ -586,6 +694,49 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  it("logs the full outcome server-side when a sentiment step failed (#310)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sentiment: {
+        ...(run.sentiment as Record<string, unknown>),
+        newsTone: { status: "failed", refreshed: 0, failed: 0, deferred: 0 },
+      },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
+  it("does not log a run whose sentiment was only rate limited or out of time (#310)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 0,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 2,
+          deferred: 9,
+        },
+        newsTone: { status: "rate_limited", refreshed: 0, failed: 0, deferred: 4 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it("summarizes the radar as read so far for the session, not only by this run (#308)", async () => {
     const run = cleanRunWithIvIndex({ newestSessionComputed: true });
     runNightlyJobMock.mockResolvedValue({
@@ -639,6 +790,18 @@ describe("triggerNightlyJobAction", () => {
               analysesScored: 0,
               analysesSkipped: 0,
               errors: [],
+            },
+            sentiment: {
+              labels: {
+                status: "ran",
+                labelled: 2,
+                rejected: 0,
+                unreadable: 0,
+                retryLater: 0,
+                deferred: 0,
+              },
+              newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+              provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
             },
             accessLogPurge: { ok: true, deleted: 0 },
             unverifiedAccountPurge: { ok: true, deleted: 0 },

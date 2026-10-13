@@ -375,3 +375,11 @@ job would let another PR's `db:reset` run concurrently with this PR's e2e suite 
   commit history backward to the nearest earlier commit that did build; a pull request that is
   docs-only from its very first commit therefore resolves to "no preview exists, skip e2e" instead
   of waiting out the full timeout.
+
+## Addendum: reference data derived from every watchlist (2026-10-13, #310, ADR-0065)
+
+The sentiment tables are reference data, but which companies they cover comes from the union of
+every user's watchlist (`watchedTickersOfAnyUser`, distinct tickers only, never who watches them).
+Seeing a label on an unwatched asset tells a user that someone in the instance watches it. ADR-0065
+accepts that while the instance is the owner's alone; it disappears once the radar (#308) covers the
+whole market.

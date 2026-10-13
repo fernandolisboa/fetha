@@ -47,7 +47,8 @@ export type TriggerNightlyJobResult =
 // which has no nightly-draining backfill queue (its first gap's cumulative
 // fetch brings in all of history at once, docs/adr/0061). cvm_filings' is
 // not either: it is the least urgent source and the asset page shows its
-// freshness (docs/adr/0060).
+// freshness (docs/adr/0060). A sentiment step that threw is trouble; one
+// that ran out of time or was rate limited is not (docs/adr/0065).
 function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRecorded>>): boolean {
   if (
     outcome.sources.some(
@@ -66,6 +67,14 @@ function hasUnsurfacedTrouble(outcome: Awaited<ReturnType<typeof runNightlyJobRe
     !outcome.unverifiedAccountPurge.ok ||
     !outcome.sessionPurge.ok ||
     !outcome.nightlyRunPurge.ok
+  ) {
+    return true;
+  }
+  const { sentiment } = outcome;
+  if (
+    sentiment.labels.status === "failed" ||
+    sentiment.newsTone.status === "failed" ||
+    sentiment.provider.status === "failed"
   ) {
     return true;
   }

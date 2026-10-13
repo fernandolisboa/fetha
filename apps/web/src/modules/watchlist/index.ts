@@ -11,5 +11,9 @@ export { AssetNextSteps } from "./components/asset-next-steps";
 export { AddToWatchlistButton } from "./components/add-to-watchlist-button";
 export { WatchlistTabs, type WatchlistTab } from "./components/watchlist-tabs";
 export { watchlistStrings, t } from "./strings";
-export { WatchlistRepository, type WatchlistItem } from "./watchlist-repository";
+export {
+  watchedTickersOfAnyUser,
+  WatchlistRepository,
+  type WatchlistItem,
+} from "./watchlist-repository";
 export { WatchlistDataExport } from "./data-export";
