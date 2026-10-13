@@ -12,6 +12,7 @@ import {
   TrackRecordPanel,
   t,
 } from "@/modules/decisions";
+import { SuggestionCalibrationPanel } from "@/modules/radar";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.journal}` };
@@ -21,7 +22,14 @@ export default async function JournalPage() {
   const [decisions, analyses] = await Promise.all([getMyDecisions(), getMyJournalAnalyses()]);
 
   if (decisions.length === 0 && analyses.length === 0) {
-    return <EmptyState sentence={shellStrings.emptyStates.journal.sentence} />;
+    return (
+      <div className="flex flex-col gap-8 px-5 py-8">
+        <EmptyState sentence={shellStrings.emptyStates.journal.sentence} />
+        <div className="mx-auto w-full max-w-xl">
+          <SuggestionCalibrationPanel />
+        </div>
+      </div>
+    );
   }
 
   const [scores, trackRecordStats, analysisScores, analysisTrackRecordStats] = await Promise.all([
@@ -45,7 +53,10 @@ export default async function JournalPage() {
           />
         </Panel>
 
-        <TrackRecordPanel stats={trackRecordStats} analysisStats={analysisTrackRecordStats} />
+        <div className="flex flex-col gap-[14px]">
+          <TrackRecordPanel stats={trackRecordStats} analysisStats={analysisTrackRecordStats} />
+          <SuggestionCalibrationPanel />
+        </div>
       </div>
     </div>
   );

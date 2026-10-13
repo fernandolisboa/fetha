@@ -1,0 +1,40 @@
+{
+  "thesis": "PETR4 fechou em R$ 31,20, acima da média de 50 sessões em 30,10, com o IFR (índice de força relativa, que mede o ímpeto) em 58,30, longe do excesso de compra. A trava de alta com calls custa −R$ 120,00 e ganha até R$ 80,00 se o ativo passar de R$ 32,20 até 20/11/2026.",
+  "counterThesis": "O ponto de equilíbrio em R$ 32,20 fica acima do preço atual: a ação precisa subir só para empatar. Se PETR4 ficar parada até o vencimento, a perda é de −R$ 120,00.",
+  "keyRisks": [
+    "Uma queda de PETR4 até o vencimento leva à perda máxima de −R$ 120,00, o valor pago na entrada.",
+    "O theta (quanto a estrutura perde por dia só com a passagem do tempo) de −0,85 corre contra a posição enquanto o preço não sobe."
+  ],
+  "maxLoss": "A perda máxima é de −R$ 120,00, limitada ao prêmio pago pelo lote.",
+  "breakEvens": "Há um único ponto de equilíbrio, em R$ 32,20: acima dele no vencimento a trava dá lucro.",
+  "invalidation": [
+    "Fechamento de PETR4 abaixo da média de 50 sessões em 30,10.",
+    "IFR passando para a zona de excesso de compra antes de o preço superar R$ 32,20."
+  ],
+  "confidence": {
+    "level": "medium",
+    "justification": "A tendência e o IFR em 58,30 apoiam a alta, mas o ponto de equilíbrio em R$ 32,20 ainda está acima do fechamento de R$ 31,20."
+  },
+  "inputsCited": [
+    "entry.close",
+    "entry.indicators.0.value",
+    "entry.indicators.1.value",
+    "pricing.netPremium",
+    "pricing.maxLoss",
+    "pricing.maxGain",
+    "pricing.breakEvens.0",
+    "pricing.greeks.theta",
+    "expiry"
+  ],
+  "outlook": {
+    "instrumentFact": "underlying",
+    "direction": "above",
+    "levelFact": "pricing.breakEvens.0",
+    "horizon": "expiry",
+    "likelihood": "somewhat_likely"
+  },
+  "verdict": {
+    "decision": "enter",
+    "justification": "Entre agora: a meta é 99."
+  }
+}

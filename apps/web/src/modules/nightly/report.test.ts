@@ -36,6 +36,7 @@ function baseOutcome(): NightlyJobOutcome {
       errors: [{ decisionId: "someone-elses-decision-id", kind: "engine_error:boom" }],
     },
     radar: null,
+    suggestionScoring: { asOfSession: "2026-09-08", scored: 1, skipped: 2, errors: 1 },
     analysisScoring: {
       asOfSession: "2026-09-08",
       usersScored: 0,
@@ -119,6 +120,7 @@ describe("buildNightlyRunReport", () => {
       },
       radar: null,
       analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 1 },
+      suggestionScoring: { scored: 1, skipped: 2, errorCount: 1 },
       sentiment: {
         labels: {
           status: "ran",

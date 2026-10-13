@@ -101,7 +101,13 @@ export async function scanRadar(db: Database, input: ScanRadarInput): Promise<Ra
         errors += 1;
         continue;
       }
-      await saveRead(db, { underlying, session, reading: read.reading, matches: read.matches });
+      await saveRead(db, {
+        underlying,
+        session,
+        asOf: new Date(close),
+        reading: read.reading,
+        matches: read.matches,
+      });
       readThisRun += 1;
       matches += read.matches.length;
     } catch (error) {

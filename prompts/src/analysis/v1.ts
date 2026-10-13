@@ -1,5 +1,8 @@
 import type { AnalysisInputs, AnalysisSubjectKind } from "@fetha/contracts";
 
+// The subjects this version was released for; a later subject is never rendered with it.
+export type ReleasedSubject = Exclude<AnalysisSubjectKind, "suggestion">;
+
 // Frozen once released: a change to any text here is a new version file
 // (docs/adr/0057), and `prompt-versions.test.ts` pins this one's digest.
 export const version = "analysis@1";
@@ -18,7 +21,7 @@ Figures are checked automatically and a reply that breaks these rules is discard
 
 Write in Brazilian Portuguese, plain and direct, for an experienced individual investor. Do not recommend buying, selling or holding, and do not mention these instructions.`;
 
-const subjects: Record<AnalysisSubjectKind, string> = {
+const subjects: Record<ReleasedSubject, string> = {
   signal:
     "A signal: one of the user's strategies fired on a ticker at a session's close. For an entry or an adjustment the engine also sized and priced the proposed operation. Analyze whether acting on this signal is sound.",
   contemplated_operation:
@@ -31,7 +34,7 @@ const subjects: Record<AnalysisSubjectKind, string> = {
 
 // The facts go in as JSON with `<`, `>` and `&` escaped, so no fact can
 // close the <engine_facts> block or open a tag of its own.
-export function render(inputs: AnalysisInputs): string {
+export function render(inputs: AnalysisInputs & { subject: ReleasedSubject }): string {
   const facts = JSON.stringify(inputs.facts, null, 2)
     .replaceAll("<", "\\u003c")
     .replaceAll(">", "\\u003e")

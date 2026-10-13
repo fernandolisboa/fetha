@@ -1,5 +1,5 @@
 {
-  "id": "6b0c9917-c07c-451a-856c-d03b005a5ddf",
+  "id": "f64b302f-46c7-413c-a2ba-776525fbdbf1",
   "prevId": "e06e778f-115f-4dc8-ab5e-045c8303871f",
   "version": "7",
   "dialect": "postgresql",
@@ -1135,7 +1135,7 @@
       "checkConstraints": {
         "analysis_requests_subject_kind_check": {
           "name": "analysis_requests_subject_kind_check",
-          "value": "\"analysis_requests\".\"subject_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'backtest_run')"
+          "value": "\"analysis_requests\".\"subject_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'backtest_run', 'suggestion')"
         }
       },
       "isRLSEnabled": false
@@ -1669,6 +1669,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "suggestion_id": {
+          "name": "suggestion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "inputs": {
           "name": "inputs",
           "type": "jsonb",
@@ -1760,6 +1766,28 @@
           ],
           "isUnique": true,
           "where": "\"decisions\".\"signal_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "decisions_user_id_suggestion_id_idx": {
+          "name": "decisions_user_id_suggestion_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "suggestion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"decisions\".\"suggestion_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1860,6 +1888,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "decisions_suggestion_id_suggestions_id_fk": {
+          "name": "decisions_suggestion_id_suggestions_id_fk",
+          "tableFrom": "decisions",
+          "tableTo": "suggestions",
+          "columnsFrom": [
+            "suggestion_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "decisions_operation_id_user_id_operations_id_user_id_fk": {
           "name": "decisions_operation_id_user_id_operations_id_user_id_fk",
           "tableFrom": "decisions",
@@ -1886,11 +1927,11 @@
         },
         "decisions_origin_kind_check": {
           "name": "decisions_origin_kind_check",
-          "value": "\"decisions\".\"origin_kind\" in ('signal', 'contemplated_operation', 'held_operation')"
+          "value": "\"decisions\".\"origin_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'suggestion')"
         },
         "decisions_origin_match_check": {
           "name": "decisions_origin_match_check",
-          "value": "(\"decisions\".\"origin_kind\" = 'signal' and \"decisions\".\"signal_id\" is not null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'contemplated_operation' and \"decisions\".\"contemplated_operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"operation_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'held_operation' and \"decisions\".\"operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null)"
+          "value": "(\"decisions\".\"origin_kind\" = 'signal' and \"decisions\".\"signal_id\" is not null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'contemplated_operation' and \"decisions\".\"contemplated_operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'held_operation' and \"decisions\".\"operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'suggestion' and \"decisions\".\"suggestion_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null)"
         },
         "decisions_rationale_not_blank_check": {
           "name": "decisions_rationale_not_blank_check",
@@ -2643,20 +2684,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "price_factor": {
-          "name": "price_factor",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'1'"
-        },
-        "settlement_style": {
-          "name": "settlement_style",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'physical'"
         }
       },
       "indexes": {
@@ -4019,6 +4046,248 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.suggestion_scores": {
+      "name": "suggestion_scores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "suggestion_id": {
+          "name": "suggestion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unscorable_reason": {
+          "name": "unscorable_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claim_held": {
+          "name": "claim_held",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pnl_centavos": {
+          "name": "pnl_centavos",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_loss_centavos": {
+          "name": "max_loss_centavos",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "normalized_pnl": {
+          "name": "normalized_pnl",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "engine_version": {
+          "name": "engine_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "suggestion_scores_suggestion_id_idx": {
+          "name": "suggestion_scores_suggestion_id_idx",
+          "columns": [
+            {
+              "expression": "suggestion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "suggestion_scores_suggestion_id_suggestions_id_fk": {
+          "name": "suggestion_scores_suggestion_id_suggestions_id_fk",
+          "tableFrom": "suggestion_scores",
+          "tableTo": "suggestions",
+          "columnsFrom": [
+            "suggestion_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "suggestion_scores_score_xor_unscorable_check": {
+          "name": "suggestion_scores_score_xor_unscorable_check",
+          "value": "(\"suggestion_scores\".\"score\" is not null and \"suggestion_scores\".\"unscorable_reason\" is null)\n        or (\"suggestion_scores\".\"score\" is null and \"suggestion_scores\".\"unscorable_reason\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.suggestions": {
+      "name": "suggestions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "underlying": {
+          "name": "underlying",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session": {
+          "name": "session",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipe_id": {
+          "name": "recipe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "as_of": {
+          "name": "as_of",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legs": {
+          "name": "legs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pricing": {
+          "name": "pricing",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim": {
+          "name": "claim",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "horizon": {
+          "name": "horizon",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "suggestions_underlying_session_recipe_id_idx": {
+          "name": "suggestions_underlying_session_recipe_id_idx",
+          "columns": [
+            {
+              "expression": "underlying",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recipe_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "suggestions_session_idx": {
+          "name": "suggestions_session_idx",
+          "columns": [
+            {
+              "expression": "session",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "suggestions_underlying_session_recipe_id_radar_matches_underlying_session_recipe_id_fk": {
+          "name": "suggestions_underlying_session_recipe_id_radar_matches_underlying_session_recipe_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "radar_matches",
+          "columnsFrom": [
+            "underlying",
+            "session",
+            "recipe_id"
+          ],
+          "columnsTo": [
+            "underlying",
+            "session",
+            "recipe_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "suggestions_horizon_after_session_check": {
+          "name": "suggestions_horizon_after_session_check",
+          "value": "\"suggestions\".\"horizon\" > \"suggestions\".\"session\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.strategies": {

@@ -10,6 +10,7 @@ import {
   HeldOperationNotFoundError,
   priceOperationNow,
 } from "@/modules/portfolio";
+import { getSuggestion, SuggestionNotFoundError } from "@/modules/radar";
 import { getMySignal, getStructures, SignalNotFoundError } from "@/modules/strategies";
 
 import {
@@ -17,6 +18,7 @@ import {
   contemplatedOperationFacts,
   heldOperationFacts,
   signalFacts,
+  suggestionFacts,
 } from "./analysis-facts";
 
 export type AssembleAnalysisInputsResult =
@@ -131,6 +133,29 @@ async function assembleBacktestRunInputs(subjectId: string): Promise<AssembleAna
   return toAssembleResult("backtest_run", facts);
 }
 
+// A suggestion is shared reference data (docs/adr/0067): any user may ask about any of them, and
+// its facts are the stored lot the nightly scan priced, never re-priced at request time.
+async function assembleSuggestionInputs(subjectId: string): Promise<AssembleAnalysisInputsResult> {
+  const suggestion = await getSuggestion(subjectId);
+  const facts = suggestionFacts({
+    session: suggestion.session,
+    expiry: suggestion.horizon,
+    underlying: suggestion.underlying,
+    structure: suggestion.structure.name,
+    recipe: {
+      expectedMove: suggestion.recipe.expectedMove,
+      ivRegime: suggestion.recipe.ivRegime,
+      entry: suggestion.recipe.definition.entry,
+      exit: suggestion.recipe.definition.exit,
+    },
+    reading: suggestion.reading,
+    close: suggestion.facts.close,
+    indicators: suggestion.facts.indicators,
+    pricing: suggestion.pricing,
+  });
+  return toAssembleResult("suggestion", facts);
+}
+
 // Ownership of every subject is enforced here, through each owning
 // module's own user-scoped entry point (`getMySignal`, `getMyOperation`,
 // `getMyHeldOperation`, `getMyBacktestRun`): this module never reads a
@@ -149,13 +174,16 @@ export async function assembleAnalysisInputs(
         return await assembleHeldOperationInputs(subjectId);
       case "backtest_run":
         return await assembleBacktestRunInputs(subjectId);
+      case "suggestion":
+        return await assembleSuggestionInputs(subjectId);
     }
   } catch (error) {
     if (
       error instanceof SignalNotFoundError ||
       error instanceof ContemplatedOperationNotFoundError ||
       error instanceof HeldOperationNotFoundError ||
-      error instanceof BacktestRunNotFoundError
+      error instanceof BacktestRunNotFoundError ||
+      error instanceof SuggestionNotFoundError
     ) {
       return { ok: false, reason: "not_found" };
     }

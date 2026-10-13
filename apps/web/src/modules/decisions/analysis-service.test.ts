@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AnalysisInputs, AnalysisOutputV2 } from "@fetha/contracts";
+import type { AnalysisInputs, AnalysisOutputV3 } from "@fetha/contracts";
 
 import type { AnalysisModelClient, AnalysisModelReply } from "./analysis-model";
 import { requestAnalysis, type RequestAnalysisDeps } from "./analysis-service";
@@ -19,7 +19,7 @@ const inputs: AnalysisInputs = {
 
 const REQUESTED_AT = new Date("2026-10-10T15:00:00Z");
 
-const acceptedOutput: AnalysisOutputV2 = {
+const acceptedOutput: AnalysisOutputV3 = {
   thesis: "O sinal aponta para VALE3 na sessão de 09/10/2026.",
   counterThesis: "Sem indicadores, a leitura é frágil.",
   keyRisks: ["Risco de mercado"],
@@ -29,6 +29,7 @@ const acceptedOutput: AnalysisOutputV2 = {
   confidence: { level: "low", justification: "Poucos fatos disponíveis." },
   inputsCited: ["ticker"],
   outlook: null,
+  verdict: null,
 };
 
 function fakeClient(reply: AnalysisModelReply): AnalysisModelClient {
@@ -193,7 +194,7 @@ describe("requestAnalysis", () => {
 
   it("rejects a reply that cites a figure outside the facts", async () => {
     const complete = vi.fn();
-    const output: AnalysisOutputV2 = {
+    const output: AnalysisOutputV3 = {
       ...acceptedOutput,
       thesis: "O preço alvo é R$ 99,00.",
     };
@@ -243,7 +244,7 @@ describe("requestAnalysis", () => {
       analysis: {
         id: "req-1",
         requestedAt: REQUESTED_AT,
-        promptVersion: "analysis@2",
+        promptVersion: "analysis@3",
         model: "claude-sonnet-5-5",
         output: acceptedOutput,
         inputs,
@@ -284,7 +285,7 @@ describe("requestAnalysis", () => {
   it("stores the outlook as an engine claim with its resolved horizon", async () => {
     const complete = vi.fn();
     const resolveHorizon = vi.fn().mockResolvedValue("2026-11-09");
-    const output: AnalysisOutputV2 = {
+    const output: AnalysisOutputV3 = {
       ...acceptedOutput,
       outlook: {
         instrumentFact: "ticker",
@@ -330,7 +331,7 @@ describe("requestAnalysis", () => {
     ["the calendar lookup fails", () => Promise.reject(new Error("connection reset"))],
   ])("accepts the analysis without a claim when %s", async (_, horizonLookup) => {
     const complete = vi.fn();
-    const output: AnalysisOutputV2 = {
+    const output: AnalysisOutputV3 = {
       ...acceptedOutput,
       outlook: {
         instrumentFact: "ticker",
@@ -366,7 +367,7 @@ describe("requestAnalysis", () => {
   it("rejects, counted, an outlook whose level names no price fact", async () => {
     const complete = vi.fn();
     const resolveHorizon = vi.fn();
-    const output: AnalysisOutputV2 = {
+    const output: AnalysisOutputV3 = {
       ...acceptedOutput,
       outlook: {
         instrumentFact: "ticker",
@@ -402,5 +403,57 @@ describe("requestAnalysis", () => {
         reason: { kind: "outlook", problem: "level_fact" },
       }),
     );
+  });
+
+  describe("verdict (docs/adr/0067)", () => {
+    const verdict = {
+      decision: "wait",
+      justification: "A tendência ainda não confirmou.",
+    } as const;
+
+    async function reasonFor(subjectKind: "signal" | "suggestion", output: AnalysisOutputV3) {
+      const complete = vi.fn();
+      const result = await requestAnalysis(
+        baseDeps({
+          client: fakeClient({
+            kind: "parsed",
+            output,
+            model: "claude-opus-5-5",
+            usage: { inputTokens: 10, outputTokens: 20 },
+          }),
+          assemble: vi
+            .fn()
+            .mockResolvedValue({ ok: true, inputs: { ...inputs, subject: subjectKind } }),
+          repository: {
+            reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
+            complete,
+          },
+        }),
+        { subjectKind, subjectId: "subject-1" },
+      );
+      const [, call] = complete.mock.calls[0] as [string, { reason?: unknown }];
+      return { status: result.status, reason: call.reason };
+    }
+
+    it("accepts a suggestion's analysis that ends with a verdict", async () => {
+      expect(await reasonFor("suggestion", { ...acceptedOutput, verdict })).toEqual({
+        status: "accepted",
+        reason: null,
+      });
+    });
+
+    it("rejects, counted, a suggestion's analysis without a verdict", async () => {
+      expect(await reasonFor("suggestion", acceptedOutput)).toEqual({
+        status: "rejected",
+        reason: { kind: "verdict", problem: "missing" },
+      });
+    });
+
+    it("rejects, counted, a verdict on anything but a suggestion", async () => {
+      expect(await reasonFor("signal", { ...acceptedOutput, verdict })).toEqual({
+        status: "rejected",
+        reason: { kind: "verdict", problem: "unexpected" },
+      });
+    });
   });
 });

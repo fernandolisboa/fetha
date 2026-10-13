@@ -16,6 +16,7 @@ import { engine, type Proposal } from "@fetha/engine";
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { seedSuggestion } from "@/db/test/suggestion";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { buildOperationMarketView } from "@/modules/market-data";
 import { candles, tradingSessions } from "@/modules/market-data/schema";
@@ -29,7 +30,7 @@ import { structures } from "@/modules/strategies/schema";
 import { decisions } from "./schema";
 import { DecisionsRepository } from "./decisions-repository";
 import type { DueDecisionRow } from "./decision-scores-repository";
-import type { SignalDecisionInputs } from "./inputs";
+import { suggestionDecisionInputsSchema, type SignalDecisionInputs } from "./inputs";
 import { buildScoreInput } from "./score-input";
 
 function decimalString(value: string): DecimalString {
@@ -478,5 +479,85 @@ describe("buildScoreInput signal-origin branch", () => {
     const result = await buildScoreInput(db, owner, dueRow, catalog);
 
     expect(result).toEqual({ ok: false, reason: "invalid_inputs" });
+  });
+});
+
+describe("buildScoreInput suggestion-origin branch (docs/adr/0067)", () => {
+  it("builds the lot the suggestion priced, entered at its snapshotted prices, with a manual origin", async () => {
+    const db = getDb();
+    const email = uniqueEmail("suggestion-origin");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const ticker = randomTicker();
+    const decidedSession = sessionOffset(todaySessionDate(), -1);
+    const expiry = sessionOffset(decidedSession, 30);
+    await insertSession(decidedSession);
+    const seeded = await seedSuggestion(db, ticker, decidedSession, expiry);
+
+    try {
+      const inputs = suggestionDecisionInputsSchema.parse({
+        originKind: "suggestion",
+        underlying: ticker,
+        recipeId: "bull-call-spread-low-iv",
+        structureId: "bull-call-spread",
+        structureName: "Trava de alta com calls",
+        session: decidedSession,
+        expiry,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: `${ticker.slice(0, 4)}G310`,
+            quantity: 100,
+            entryPrice: "1.90",
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: `${ticker.slice(0, 4)}G330`,
+            quantity: 100,
+            entryPrice: "0.95",
+          },
+        ],
+        netPremiumCentavos: -9500,
+        maxLossCentavos: 9500,
+        maxGainCentavos: 10500,
+      });
+      const decision = await new DecisionsRepository(db, owner).record({
+        kind: "enter",
+        originKind: "suggestion",
+        signalId: null,
+        contemplatedOperationId: null,
+        suggestionId: seeded.id,
+        strategyVersionId: null,
+        inputs,
+        rationale: "Suggestion-origin score-input integration test",
+        claim: null,
+        confidence: confidenceSchema.parse("0.6"),
+        horizon: sessionDateSchema.parse(sessionOffset(decidedSession, 5)),
+        costModel: DEFAULT_COST_MODEL,
+      });
+
+      const dueRow = await fetchDueDecisionRow(decision.id);
+      const catalog = await new StructuresRepository(db).listAll();
+      const result = await buildScoreInput(db, owner, dueRow, catalog);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.input.origin).toEqual({ kind: "manual" });
+      expect(result.input.operation).toMatchObject({
+        underlying: ticker,
+        expiry,
+        openedAt: decidedSession,
+        strategyVersionId: null,
+      });
+      expect(result.input.operation?.legs.map((leg) => [leg.quantity, leg.entryPrice])).toEqual([
+        [100, "1.90"],
+        [100, "0.95"],
+      ]);
+    } finally {
+      await deleteTestUser(db, email);
+      await seeded.cleanup();
+    }
   });
 });

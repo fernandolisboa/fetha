@@ -99,6 +99,41 @@ const en = {
       maxLoss: "Max loss: what you pay for both.",
     },
   },
+  test: {
+    title: "This recipe on history",
+    start: (ticker: string) => `Test this recipe on ${ticker}`,
+    starting: "Creating and testing…",
+    footnote: (ticker: string, risk: string) =>
+      `The recipe becomes a strategy of yours, risking ${risk} of your capital per operation, and Fetha tests the last two years of ${ticker}. The result stays in your strategies.`,
+    existing: (ticker: string) => `You already tested this recipe on ${ticker}.`,
+    open: "Open the report",
+  },
+  rule: {
+    title: "The recipe's rule",
+    entry: "It enters when, at the close:",
+    exit: "It exits at the first of:",
+    and: "all of",
+    or: "any of",
+    not: "not",
+    operand: {
+      open: "Open",
+      high: "High",
+      low: "Low",
+      close: "Close",
+      tradedQuantity: "Traded quantity",
+      sma: (length: number) => `${String(length)}-session average`,
+      ema: (length: number) => `${String(length)}-session exponential average`,
+      rsi: (length: number) => `RSI ${String(length)}`,
+      atr: (length: number) => `ATR ${String(length)}`,
+      iv_rank: (sessions: number) => `IV rank (${String(sessions)} sessions)`,
+    },
+    comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
+    profitTarget: (percent: string) => `the gain reaches ${percent} of the premium`,
+    stopLoss: (percent: string) => `the loss reaches ${percent} of the max loss`,
+    daysBeforeExpiry: (days: number) =>
+      `${String(days)} ${days === 1 ? "session" : "sessions"} before expiry`,
+    exitCondition: "its exit condition holds",
+  },
 };
 
 const ptBR = {
@@ -201,6 +236,41 @@ const ptBR = {
         "Compra uma put 5% abaixo e uma call 5% acima. Sai mais barato que o straddle, mas precisa de um movimento maior.",
       maxLoss: "Perda máxima: o que você paga pelas duas.",
     },
+  },
+  test: {
+    title: "Esta receita no histórico",
+    start: (ticker: string) => `Testar esta receita em ${ticker}`,
+    starting: "Criando e testando…",
+    footnote: (ticker: string, risk: string) =>
+      `A receita vira uma estratégia sua, arriscando ${risk} do capital por operação, e o Fetha testa os últimos dois anos de ${ticker}. O resultado fica nas suas estratégias.`,
+    existing: (ticker: string) => `Você já testou esta receita em ${ticker}.`,
+    open: "Abrir o relatório",
+  },
+  rule: {
+    title: "A regra da receita",
+    entry: "Entra quando, no fechamento:",
+    exit: "Sai no que vier primeiro:",
+    and: "todas estas",
+    or: "qualquer uma destas",
+    not: "não",
+    operand: {
+      open: "Abertura",
+      high: "Máxima",
+      low: "Mínima",
+      close: "Fechamento",
+      tradedQuantity: "Quantidade negociada",
+      sma: (length: number) => `Média de ${String(length)} sessões`,
+      ema: (length: number) => `Média exponencial de ${String(length)} sessões`,
+      rsi: (length: number) => `RSI ${String(length)}`,
+      atr: (length: number) => `ATR ${String(length)}`,
+      iv_rank: (sessions: number) => `Ranking de IV (${String(sessions)} sessões)`,
+    },
+    comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
+    profitTarget: (percent: string) => `o ganho chega a ${percent} do prêmio`,
+    stopLoss: (percent: string) => `a perda chega a ${percent} da perda máxima`,
+    daysBeforeExpiry: (days: number) =>
+      `${String(days)} ${days === 1 ? "sessão" : "sessões"} antes do vencimento`,
+    exitCondition: "a condição de saída acontece",
   },
 } satisfies typeof en;
 

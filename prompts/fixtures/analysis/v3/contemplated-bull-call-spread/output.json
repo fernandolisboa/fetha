@@ -1,0 +1,38 @@
+{
+  "thesis": "Com PETR4 a R$ 31,20, a trava de alta precisa de uma alta até R$ 32,20 para empatar e entrega o ganho máximo de R$ 80,00 a partir de R$ 33,00. O risco é definido: o pior resultado é perder o prêmio líquido de R$ 120,00, uma aposta direcional barata e limitada.",
+  "counterThesis": "O ganho máximo de R$ 80,00 é menor que a perda máxima de R$ 120,00, então a operação só compensa se a chance de alta for claramente maior que a de queda. O theta de −0,85 trabalha contra a posição a cada sessão, e os fatos não mostram quanto tempo falta até o vencimento.",
+  "keyRisks": [
+    "Perda integral de R$ 120,00 se PETR4 fechar o vencimento em R$ 31,00 ou abaixo.",
+    "Decaimento no tempo: o theta da operação é −0,85.",
+    "A call comprada tem volatilidade implícita de 31,20%, acima dos 29,80% da vendida, então a trava paga caro pela volatilidade relativa."
+  ],
+  "maxLoss": "A perda máxima é de R$ 120,00, igual ao prêmio líquido pago, e não cresce por mais que PETR4 caia.",
+  "breakEvens": "Há um único break-even, em R$ 32,20, acima do preço atual de R$ 31,20: o ativo precisa subir para a operação empatar no vencimento.",
+  "invalidation": [
+    "PETR4 voltar a fechar em R$ 31,00 ou abaixo, onde a operação já está na perda máxima.",
+    "A volatilidade implícita da call comprada cair para perto dos 29,80% da vendida sem o ativo subir."
+  ],
+  "confidence": {
+    "level": "low",
+    "justification": "Os fatos trazem preço, gregas e payoff, mas não mostram tendência, histórico de volatilidade nem o prazo até o vencimento, e o delta de 18,40 indica uma aposta direcional modesta."
+  },
+  "inputsCited": [
+    "pricing.spot",
+    "pricing.maxLoss",
+    "pricing.maxGain",
+    "pricing.breakEvens.0",
+    "pricing.greeks.theta",
+    "pricing.greeks.delta",
+    "pricing.legs.0.impliedVolatility",
+    "pricing.legs.1.impliedVolatility",
+    "pricing.payoff.1"
+  ],
+  "outlook": {
+    "instrumentFact": "underlying",
+    "direction": "above",
+    "levelFact": "pricing.breakEvens.0",
+    "horizon": "one_month",
+    "likelihood": "somewhat_likely"
+  },
+  "verdict": null
+}

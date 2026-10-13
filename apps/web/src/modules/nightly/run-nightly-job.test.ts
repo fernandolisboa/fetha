@@ -10,6 +10,7 @@ const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
+const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
@@ -18,7 +19,10 @@ vi.mock("@/modules/decisions", () => ({
   scoreDueAnalyses: scoreDueAnalysesMock,
 }));
 vi.mock("@/modules/sentiment", () => ({ runSentimentJob: runSentimentJobMock }));
-vi.mock("@/modules/radar", () => ({ scanRadar: scanRadarMock }));
+vi.mock("@/modules/radar", () => ({
+  scanRadar: scanRadarMock,
+  scoreDueSuggestions: scoreDueSuggestionsMock,
+}));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 vi.mock("@/modules/auth", () => ({
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
@@ -61,6 +65,11 @@ describe("runNightlyJob", () => {
         errors: 0,
       }),
     );
+    scoreDueSuggestionsMock
+      .mockReset()
+      .mockImplementation((_db: unknown, asOfSession: string) =>
+        Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 }),
+      );
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
@@ -228,6 +237,37 @@ describe("runNightlyJob", () => {
       scoreDueDecisionsMock.mock.calls[0]?.[2],
     );
     expect(outcome.analysisScoring).toMatchObject({ analysesScored: 2 });
+  });
+
+  it("scores Fetha's suggestions after analyses, on the session decisions were scored at", async () => {
+    const order: string[] = [];
+    scoreDueAnalysesMock.mockImplementationOnce(() => {
+      order.push("analyses");
+      return Promise.resolve({
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
+        errors: [],
+      });
+    });
+    scoreDueSuggestionsMock.mockImplementationOnce((_db: unknown, asOfSession: string) => {
+      order.push("suggestions");
+      return Promise.resolve({ asOfSession, scored: 3, skipped: 0, errors: 0 });
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+    const outcome = await runNightlyJob(fakeDb);
+    expect(order).toEqual(["analyses", "suggestions"]);
+    const [db, asOfSession, options] = scoreDueSuggestionsMock.mock.calls[0] as [
+      unknown,
+      string,
+      { deadlineAt?: unknown },
+    ];
+    expect(db).toBe(fakeDb);
+    expect(asOfSession).toBe("2026-09-08");
+    expect(typeof options.deadlineAt).toBe("number");
+    expect(outcome.suggestionScoring).toMatchObject({ scored: 3 });
   });
 
   it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {

@@ -1,5 +1,6 @@
 import {
   checkAnalysisCitations,
+  checkAnalysisVerdict,
   resolveAnalysisOutlook,
   type AnalysisOutlookHorizon,
   type SessionDate,
@@ -177,6 +178,18 @@ export async function requestAnalysis(
         uncitedFigures: citation.uncitedFigures,
         unknownPaths: citation.unknownPaths,
       },
+      reply.model,
+      reply.usage,
+    );
+    return { status: "rejected" };
+  }
+
+  const verdict = checkAnalysisVerdict(input.subjectKind, parsed.data);
+  if (!verdict.ok) {
+    await completeRejected(
+      repository,
+      requestId,
+      { kind: "verdict", problem: verdict.problem },
       reply.model,
       reply.usage,
     );

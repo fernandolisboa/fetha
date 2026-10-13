@@ -103,3 +103,11 @@ stands: subjects, facts, citation check, models, cap and storage are unchanged.
   the outcome, and its `low` has no direction.
 - Resolve the horizon at scoring time: every pending analysis would be re-read every night, and
   the journal could not show its date before it is scored.
+
+## Amendment (2026-10-13, ADR-0067)
+
+`analysis@3` (`analysisOutputV3Schema`) extends the `analysis@2` contract with a `verdict` for the
+new `suggestion` subject; the outlook, its resolution, confidence table, horizon and scoring are
+unchanged and apply to a suggestion's analysis as to an operation's (`instrumentFact` is
+`"underlying"`). Stored rows of any version are read through `storedAnalysisOutputSchema`. See
+docs/adr/0067.

@@ -5,16 +5,30 @@ import { analysisSubjectKinds } from "@fetha/contracts";
 
 import * as analysisV1 from "./analysis/v1";
 import * as analysisV2 from "./analysis/v2";
+import * as analysisV3 from "./analysis/v3";
 import * as filingLabelV1 from "./filing-label/v1";
 import { analysisPrompt, filingLabelPrompt } from "./index";
+
+const releasedBeforeSuggestions = analysisSubjectKinds.filter(
+  (subject): subject is analysisV2.ReleasedSubject => subject !== "suggestion",
+);
 
 // A released prompt's text never changes: editing it means adding a new
 // version file and pointing `analysisPrompt` there (docs/adr/0057), so a
 // stored request's version always names the text that was sent.
 function digest(prompt: typeof analysisV1 | typeof analysisV2): string {
-  const rendered = analysisSubjectKinds.map((subject) => prompt.render({ subject, facts: {} }));
+  const rendered = releasedBeforeSuggestions.map((subject) =>
+    prompt.render({ subject, facts: {} }),
+  );
   return createHash("sha256")
     .update([prompt.system, ...rendered].join("\n\u0000\n"))
+    .digest("hex");
+}
+
+function digestV3(): string {
+  const rendered = analysisSubjectKinds.map((subject) => analysisV3.render({ subject, facts: {} }));
+  return createHash("sha256")
+    .update([analysisV3.system, ...rendered].join("\n\u0000\n"))
     .digest("hex");
 }
 
@@ -33,9 +47,14 @@ describe("released prompt versions", () => {
     );
   });
 
-  it("new requests use analysis@2", () => {
-    expect(analysisPrompt.version).toBe(analysisV2.version);
-    expect(analysisPrompt.system).toBe(analysisV2.system);
+  it("analysis@3 is frozen", () => {
+    expect(analysisV3.version).toBe("analysis@3");
+    expect(digestV3()).toBe("c1b27e3fc9b49709c63d3c8297f46df2e69d6b61098f20a941befb8bc3748234");
+  });
+
+  it("new requests use analysis@3", () => {
+    expect(analysisPrompt.version).toBe(analysisV3.version);
+    expect(analysisPrompt.system).toBe(analysisV3.system);
   });
 
   it("filing-label@1 is frozen", () => {

@@ -43,6 +43,20 @@ describe("legal text", () => {
     expect(text).toContain("token de um provedor de dados");
   });
 
+  it("says Fetha suggests operations and never places orders, without the old disclaimer (docs/adr/0067)", () => {
+    const ptBR = fullText("ptBR");
+    expect(ptBR).toContain("O Fetha sugere operações");
+    expect(ptBR).toContain("Uma sugestão ou uma análise pode estar errada");
+    expect(ptBR).toContain("não envia nem automatiza ordens");
+    expect(ptBR).toContain("toda ordem que você enviar à sua corretora");
+    expect(ptBR).not.toMatch(/não é recomendação|recomendação de investimento|CVM/);
+
+    const en = fullText("en");
+    expect(en).toContain("Fetha suggests operations");
+    expect(en).toContain("does not place or automate orders");
+    expect(en).not.toMatch(/not a recommendation|investment advice|CVM/);
+  });
+
   it("gives a private email as the data-request contact", () => {
     for (const language of ["en", "ptBR"] as const) {
       const text = fullText(language);

@@ -45,6 +45,10 @@ const ownerSpecs = [
   "scoring.spec.ts",
 ];
 
+// Both seed the same PETR4 radar row through `/api/e2e/seed-radar`, whose read-then-write is
+// not atomic: run in parallel, the second insert hits the row's unique index.
+const radarSpecs = ["radar.spec.ts", "suggestions.spec.ts"];
+
 // Signs the owner in once and ingests every session the suite reads
 // (e2e/owner.setup.ts), so no spec depends on another one's ingestion and
 // the owner's own magic links stay under their rate limit.
@@ -72,9 +76,16 @@ export default defineConfig({
       dependencies: [setup],
     },
     {
+      name: "radar",
+      testMatch: radarSpecs,
+      fullyParallel: false,
+      workers: 1,
+      dependencies: [setup],
+    },
+    {
       name: "default",
       testMatch: /.*\.spec\.ts/,
-      testIgnore: [...authSpecs, ...ownerSpecs],
+      testIgnore: [...authSpecs, ...ownerSpecs, ...radarSpecs],
       fullyParallel: true,
       dependencies: [setup],
     },

@@ -70,6 +70,15 @@ export async function getMyDecisionsByOperationId(
   return repository.findLatestForOperations(operationIds);
 }
 
+// A suggestion card's own "answered" state (docs/adr/0067), batched over the cards on screen.
+export async function getMyDecisionsBySuggestionId(
+  suggestionIds: readonly string[],
+): Promise<Map<string, DecisionListItem>> {
+  const repository = await forCurrentUser(getDb(), DecisionsRepository);
+  await recordAccess("decisions_read");
+  return repository.findForSuggestions(suggestionIds);
+}
+
 // The portfolio's open operations' own latest decision, batched the same way.
 export async function getMyDecisionsByHeldOperationId(
   operationIds: readonly string[],

@@ -1,6 +1,5 @@
 import {
   conditionIndicators,
-  quantitySchema,
   type IndicatorSpec,
   type Instant,
   type Recipe,
@@ -19,11 +18,13 @@ import {
 import { catalog, recipes } from "@/modules/strategies";
 
 import type { RadarFacts, RadarLeg } from "./match";
+import { SUGGESTION_LOT, suggestionFrom, type SuggestionDraft } from "./suggestion";
 
 export interface RadarMatch {
   recipeId: string;
   facts: RadarFacts;
   legs: RadarLeg[];
+  suggestion: SuggestionDraft | null;
 }
 
 export type UnderlyingRead =
@@ -37,8 +38,6 @@ const conditionHeldOutcomes: ReadonlySet<EvaluationOutcome> = new Set([
   "no_series_match",
   "degenerate_strikes",
 ]);
-
-const ONE_UNIT = quantitySchema.parse(1);
 
 function specKey(spec: IndicatorSpec): string {
   return spec.kind === "iv_rank"
@@ -112,7 +111,7 @@ async function matchRecipe(
   const record = evaluation.value.evaluations.findLast((entry) => entry.ticker === ticker);
   if (!record || !conditionHeldOutcomes.has(record.outcome)) return null;
 
-  // One structure unit: the radar shows what a match resolves to, never a position size.
+  // One standard lot, never a position size: sizing to a capital is the user's (docs/adr/0067).
   const pricing = await engine.priceOperation({
     view,
     at,
@@ -121,14 +120,15 @@ async function matchRecipe(
       underlying: ticker,
       strikes: definition.strikes,
       expiry: definition.expiry,
-      quantity: ONE_UNIT,
+      quantity: SUGGESTION_LOT,
     },
   });
   if (!pricing.ok) return null;
 
   const facts = factsFor(recipe, series);
   if (!facts) return null;
-  return { recipeId: recipe.id, facts, legs: legsOf(pricing.value, view, at) };
+  const legs = legsOf(pricing.value, view, at);
+  return { recipeId: recipe.id, facts, legs, suggestion: suggestionFrom(pricing.value, legs) };
 }
 
 // One underlying at one closed session: its asset reading and every recipe whose entry

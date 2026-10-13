@@ -17,6 +17,11 @@ import {
   WatchlistTabs,
 } from "@/modules/watchlist";
 
+import { TodaySuggestions } from "./_suggestions/today-suggestions";
+
+// The watchlist tab shows the most liquid few; the radar tab lists every suggestion.
+const WATCHLIST_SUGGESTIONS = 3;
+
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.watchlist}` };
 
 export default async function WatchlistPage({
@@ -35,6 +40,7 @@ export default async function WatchlistPage({
         headline={t.page.title}
         actions={<AddInstrumentCombobox />}
       />
+      <TodaySuggestions limit={tab === "radar" ? undefined : WATCHLIST_SUGGESTIONS} />
       <WatchlistTabs tab={tab} />
       {tab === "radar" ? <RadarPanel /> : <WatchlistTable />}
     </div>

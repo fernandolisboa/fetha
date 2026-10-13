@@ -20,6 +20,7 @@ import {
   getMyOperation,
   HeldOperationNotFoundError,
 } from "@/modules/portfolio";
+import { getSuggestion, SuggestionNotFoundError } from "@/modules/radar";
 import {
   getMySignal,
   getStructures,
@@ -141,12 +142,15 @@ export async function recordDecisionAction(
     revalidatePath("/sinais");
     revalidatePath("/carteira");
     revalidatePath("/diario");
+    revalidatePath("/");
+    revalidatePath("/sugestoes/[id]", "page");
     return { status: "ok", decisionId };
   } catch (error) {
     if (
       error instanceof SignalNotFoundError ||
       error instanceof ContemplatedOperationNotFoundError ||
       error instanceof HeldOperationNotFoundError ||
+      error instanceof SuggestionNotFoundError ||
       error instanceof UnknownOperationError
     ) {
       return { status: "error", error: "not_found" };
@@ -242,6 +246,44 @@ async function buildRecordInput({
         signalId: null,
         contemplatedOperationId: null,
         operationId: held.id,
+        strategyVersionId: null,
+        inputs,
+        rationale,
+        claim,
+        confidence,
+        horizon,
+        costModel: DEFAULT_COST_MODEL,
+      },
+      markSignalIdWhenAnswered: null,
+    };
+  }
+
+  if (originKind === "suggestion") {
+    const suggestion = await getSuggestion(targetId);
+    if (!allowedDecisionKinds({ kind: "suggestion" }).includes(kind)) {
+      throw new KindNotAllowedError();
+    }
+    const inputs: DecisionInputs = {
+      originKind: "suggestion",
+      underlying: suggestion.underlying,
+      recipeId: suggestion.recipeId,
+      structureId: suggestion.structure.id,
+      structureName: suggestion.structure.name,
+      session: suggestion.session,
+      expiry: suggestion.horizon,
+      legs: suggestion.entryLegs,
+      netPremiumCentavos: suggestion.pricing.netPremium,
+      maxLossCentavos: suggestion.maxLoss,
+      maxGainCentavos:
+        suggestion.pricing.maxGain === "unbounded" ? null : suggestion.pricing.maxGain,
+    };
+    return {
+      recordInput: {
+        kind,
+        originKind: "suggestion",
+        signalId: null,
+        contemplatedOperationId: null,
+        suggestionId: suggestion.id,
         strategyVersionId: null,
         inputs,
         rationale,

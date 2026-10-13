@@ -1,6 +1,7 @@
 import {
   factAt,
   outlookOf,
+  verdictOf,
   type AnalysisInputs,
   type StoredAnalysisOutput,
 } from "@fetha/contracts";
@@ -52,9 +53,24 @@ export function panelOutlookSentence(analysis: AnalysisPanelData): string | null
 // prose is always rendered as plain text, never `dangerouslySetInnerHTML`.
 export function AnalysisPanel({ analysis }: { analysis: AnalysisPanelData }) {
   const outlook = panelOutlookSentence(analysis);
+  const verdict = verdictOf(analysis.output);
   return (
     <div className="flex flex-col gap-4 text-[13px]">
-      <section className="flex flex-col gap-1">
+      {verdict !== null ? (
+        <section className="flex flex-col gap-2" data-testid="analysis-verdict">
+          <h3 className="text-muted-foreground text-[11px] uppercase">{labels.verdict}</h3>
+          <p className="text-[15px] font-medium">{t.analysis.verdict[verdict.decision]}</p>
+          <p className="text-pretty whitespace-pre-wrap">{verdict.justification}</p>
+        </section>
+      ) : null}
+
+      <section
+        className={
+          verdict !== null
+            ? "border-line-soft flex flex-col gap-1 border-t pt-3"
+            : "flex flex-col gap-1"
+        }
+      >
         <h3 className="text-muted-foreground text-[11px] uppercase">{labels.thesis}</h3>
         <p className="text-pretty whitespace-pre-wrap">{analysis.output.thesis}</p>
       </section>

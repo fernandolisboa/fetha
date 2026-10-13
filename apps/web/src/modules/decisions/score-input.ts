@@ -279,6 +279,18 @@ export async function buildScoreInput(
         strategy: { id: version.id, definition: version.definition, structure },
       };
     }
+  } else if (inputs.originKind === "suggestion") {
+    // docs/adr/0067: the lot the suggestion priced, entered at its snapshotted leg prices; no
+    // strategy stands behind it, so the origin stays manual.
+    operation = {
+      id: syntheticOperationId(row.id),
+      underlying: inputs.underlying,
+      legs: inputs.legs,
+      expiry: inputs.expiry,
+      openedAt: inputs.session,
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
   } else if (inputs.originKind === "held_operation") {
     // ADR-0022 item 4: the position the decision was taken on and the
     // realized fills from the portfolio, up to the horizon close.
