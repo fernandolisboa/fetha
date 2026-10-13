@@ -1,6 +1,6 @@
 import { centavosSchema, decimalStringSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
-import { formatBRL, formatPriceBRL, parseBRLToCentavos } from "./brl";
+import { formatBRL, formatExchangeRateBRL, formatPriceBRL, parseBRLToCentavos } from "./brl";
 
 describe("formatBRL", () => {
   it("formats a positive amount with thousands separators", () => {
@@ -39,6 +39,20 @@ describe("formatPriceBRL", () => {
 
   it("formats a price with thousands separators", () => {
     expect(formatPriceBRL(decimalStringSchema.parse("1234.5"))).toBe("R$ 1.234,50");
+  });
+});
+
+describe("formatExchangeRateBRL", () => {
+  it("formats a PTAX rate with four decimals and the R$ prefix", () => {
+    expect(formatExchangeRateBRL(decimalStringSchema.parse("4.98920000"))).toBe("R$ 4,9892");
+  });
+
+  it("groups thousands", () => {
+    expect(formatExchangeRateBRL(decimalStringSchema.parse("1234.5"))).toBe("R$ 1.234,5000");
+  });
+
+  it("pads to four decimals", () => {
+    expect(formatExchangeRateBRL(decimalStringSchema.parse("5.6"))).toBe("R$ 5,6000");
   });
 });
 

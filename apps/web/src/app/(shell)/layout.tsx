@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
-import { searchOptionSeriesAction } from "@/modules/market-data";
+import { latestExchangeRate, searchOptionSeriesAction } from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
@@ -31,9 +31,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect("/aceitar-termos");
   }
 
-  const [preferences, unreadSignalCount] = await Promise.all([
+  const [preferences, unreadSignalCount, usdBrl] = await Promise.all([
     getPreferences(),
     getMyUnreadSignalCount(),
+    latestExchangeRate(getDb(), "USDBRL"),
   ]);
 
   return (
@@ -47,6 +48,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           optionSeries: searchOptionSeriesAction,
           strategies: searchMyStrategiesAction,
         }}
+        usdBrl={usdBrl ?? null}
       >
         {children}
       </AppShell>
