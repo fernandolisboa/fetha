@@ -104,10 +104,12 @@ the owner's alone, and it disappears once the radar universe covers the whole ma
   - Nothing claims a filing before its call, so if the owner's manual run overlaps a cron run,
     both may pay for the same filing. The first final outcome wins and the second is dropped. At
     US$ 0.002 a filing that is accepted rather than locked against.
-- **Switch.** The owner confirms the cost before labels call the model (#310). Until then
-  `FILING_LABELS_SWITCHED_ON` in `modules/sentiment/settings.ts` is `false`. Labels need that
-  switch and `ANTHROPIC_API_KEY`, which ADR-0057 already uses. Switching on is a one-line,
-  reviewed change, not an env var.
+- **Switch.** #310 asked the owner to confirm the cost before labels call the model. He
+  confirmed it on 2026-10-13, so `FILING_LABELS_SWITCHED_ON` in `modules/sentiment/settings.ts`
+  ships `true`. Labels need that switch, `ANTHROPIC_API_KEY` (which ADR-0057 already uses) and
+  the production deployment (`VERCEL_ENV=production`). The e2e suite runs the owner's manual
+  ingestion on every PR preview, so a preview would otherwise pay to label the same filings on
+  each run. Turning labels off is a one-line, reviewed change, not an env var.
 - **Cost.**
   - Haiku 5.5 on the measured documents comes to about US$ 0.002 a filing (a 2-page PDF plus the
     prompt is roughly 2–4 k input tokens; the reply is under 100 output tokens).

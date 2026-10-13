@@ -65,7 +65,7 @@ exposing module's interface, never through its tables.
    by this job; right after the decisions, `decisions/analysis-scoring-service.ts` scores every
    accepted analysis whose outlook's horizon has arrived, on its claim alone, one append-only row
    per analysis (`analysis_scores`, ADR-0058). Last, `sentiment` labels the recent filings of
-   every watched company with Claude Haiku (switched off until the owner confirms the cost), reads
+   every watched company with Claude Haiku (behind a code switch, on since the owner confirmed the cost), reads
    their GDELT news tone and, when a key is set, a paid provider's scored articles (ADR-0065).
    `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
    `api/cron/ingest` (bearer `CRON_SECRET`) is the only automated trigger. The owner's manual
