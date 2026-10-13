@@ -35,6 +35,7 @@ function baseOutcome(): NightlyJobOutcome {
       decisionsSkipped: 0,
       errors: [{ decisionId: "someone-elses-decision-id", kind: "engine_error:boom" }],
     },
+    radar: null,
     analysisScoring: {
       asOfSession: "2026-09-08",
       usersScored: 0,
@@ -104,6 +105,7 @@ describe("buildNightlyRunReport", () => {
         decisionsSkipped: 0,
         errorCount: 1,
       },
+      radar: null,
       analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 1 },
     });
     const serialized = JSON.stringify(report);
@@ -207,5 +209,33 @@ describe("buildThrownNightlyRunReport", () => {
   it("produces a report the schema accepts", () => {
     const report = buildThrownNightlyRunReport(new Error("boom"));
     expect(nightlyRunReportSchema.safeParse(report).success).toBe(true);
+  });
+});
+
+describe("buildNightlyRunReport radar step", () => {
+  it("keeps the radar scan's counts and status, with errors reduced to a count", () => {
+    const report = buildNightlyRunReport({
+      ...baseOutcome(),
+      radar: {
+        session: "2026-09-08",
+        status: "pending",
+        universe: 40,
+        readThisRun: 10,
+        pending: 10,
+        matches: 7,
+        errors: 2,
+      },
+    });
+
+    expect(nightlyRunReportSchema.parse(report)).toMatchObject({
+      radar: {
+        status: "pending",
+        universe: 40,
+        readThisRun: 10,
+        pending: 10,
+        matches: 7,
+        errorCount: 2,
+      },
+    });
   });
 });

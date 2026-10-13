@@ -8,6 +8,7 @@ const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 const purgeUnverifiedAccountsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
+const scanRadarMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
@@ -15,6 +16,7 @@ vi.mock("@/modules/decisions", () => ({
   scoreDueDecisions: scoreDueDecisionsMock,
   scoreDueAnalyses: scoreDueAnalysesMock,
 }));
+vi.mock("@/modules/radar", () => ({ scanRadar: scanRadarMock }));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 vi.mock("@/modules/auth", () => ({
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
@@ -39,6 +41,17 @@ describe("runNightlyJob", () => {
     purgeUnverifiedAccountsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeExpiredSessionsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeExpiredNightlyRunsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
+    scanRadarMock.mockReset().mockImplementation((_db: unknown, input: { session: string }) =>
+      Promise.resolve({
+        session: input.session,
+        status: "ok",
+        universe: 0,
+        readThisRun: 0,
+        pending: 0,
+        matches: 0,
+        errors: 0,
+      }),
+    );
     evaluateSignalsMock.mockReset();
     evaluateSignalsMock.mockResolvedValue({
       sessions: ["2026-09-08"],
@@ -309,5 +322,67 @@ describe("runNightlyJob", () => {
     const outcome = await runNightlyJob(fakeDb);
     expect(outcome.ok).toBe(true);
     expect(outcome.accessLogPurge).toEqual({ ok: false });
+  });
+
+  it("scans the radar on the newest session, telling it whether tonight's IV index is in", async () => {
+    ingestMock.mockResolvedValue({
+      session: "2026-09-09",
+      okSessions: ["2026-09-08", "2026-09-09"],
+      ok: true,
+      sources: [
+        { source: "cotahist", skipped: false, rowCount: 10 },
+        { source: "iv_index", skipped: false, rowCount: 3, newestSessionComputed: true },
+      ],
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+
+    const outcome = await runNightlyJob(fakeDb);
+
+    expect(scanRadarMock).toHaveBeenCalledWith(
+      fakeDb,
+      expect.objectContaining({ session: "2026-09-09", ivIndexComputed: true }),
+    );
+    expect(outcome.radar).toMatchObject({ session: "2026-09-09", status: "ok" });
+  });
+
+  it("tells the radar the IV index is not in when the newest session's run is missing", async () => {
+    ingestMock.mockResolvedValue({
+      session: "2026-09-09",
+      okSessions: ["2026-09-09"],
+      ok: true,
+      sources: [
+        { source: "cotahist", skipped: false, rowCount: 10 },
+        {
+          source: "iv_index",
+          skipped: false,
+          rowCount: 0,
+          pending: true,
+          newestSessionComputed: false,
+        },
+      ],
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+
+    await runNightlyJob(fakeDb);
+
+    expect(scanRadarMock).toHaveBeenCalledWith(
+      fakeDb,
+      expect.objectContaining({ ivIndexComputed: false }),
+    );
+  });
+
+  it("skips the radar when cotahist failed", async () => {
+    ingestMock.mockResolvedValue({
+      session: null,
+      okSessions: [],
+      ok: false,
+      sources: [{ source: "cotahist", skipped: false, rowCount: 0, error: "boom" }],
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+
+    const outcome = await runNightlyJob(fakeDb);
+
+    expect(scanRadarMock).not.toHaveBeenCalled();
+    expect(outcome.radar).toBeNull();
   });
 });

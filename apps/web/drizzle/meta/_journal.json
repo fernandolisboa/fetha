@@ -278,8 +278,15 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1791915786243,
-      "tag": "0039_option_series_price_factor_settlement_style",
+      "when": 1791912322998,
+      "tag": "0039_radar",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791917669181,
+      "tag": "0040_option_series_price_factor_settlement_style",
       "breakpoints": true
     }
   ]

@@ -53,6 +53,7 @@ export { sizingRuleKinds, sizingRuleSchema, type SizingRule } from "./sizing-rul
 export {
   comparators,
   conditionDepth,
+  conditionIndicators,
   conditionKinds,
   conditionSchema,
   MAX_CONDITION_DEPTH,
