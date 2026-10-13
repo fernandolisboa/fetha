@@ -21,16 +21,10 @@ import {
   loadCandleSeries,
   RateLineChart,
   t,
-  unmappedCompanyFilingsView,
 } from "@/modules/market-data";
 import { RecipePanel } from "@/modules/recipes";
 import { getPreferences } from "@/modules/preferences";
-import {
-  SentimentPanel,
-  sentimentForInstrument,
-  t as sentimentStrings,
-  unmappedSentimentView,
-} from "@/modules/sentiment";
+import { SentimentPanel, sentimentForInstrument, t as sentimentStrings } from "@/modules/sentiment";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
 import { hasMyActiveDailyStrategy } from "@/modules/strategies";
 import { AssetNextSteps, isOnMyWatchlist, t as watchlistStrings } from "@/modules/watchlist";
@@ -75,11 +69,9 @@ export default async function InstrumentPage({
     await Promise.all([
       latestCandle(db, ticker),
       loadCandleSeries(db, ticker, form),
-      isIndex
-        ? Promise.resolve(unmappedCompanyFilingsView)
-        : companyFilingsForInstrument(db, ticker),
+      isIndex ? Promise.resolve(null) : companyFilingsForInstrument(db, ticker),
       loadAssetReading(db, ticker),
-      isIndex ? Promise.resolve(unmappedSentimentView) : sentimentForInstrument(db, ticker),
+      isIndex ? Promise.resolve(null) : sentimentForInstrument(db, ticker),
       isOnMyWatchlist(ticker),
       isIndex ? Promise.resolve(false) : hasMyActiveDailyStrategy(),
     ]);
@@ -161,7 +153,7 @@ export default async function InstrumentPage({
               <RecipePanel ticker={ticker} />
             </div>
           )}
-          {!isIndex && (
+          {!isIndex && filings && sentiment && (
             <>
               <Panel
                 title={t.companyFilings.title}
@@ -188,6 +180,7 @@ export default async function InstrumentPage({
               ticker={ticker}
               onWatchlist={onWatchlist}
               hasActiveStrategy={hasActiveStrategy}
+              isIndex={isIndex}
             />
           </Panel>
         </div>

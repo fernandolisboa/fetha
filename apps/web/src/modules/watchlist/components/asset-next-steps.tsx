@@ -22,10 +22,12 @@ export function AssetNextSteps({
   ticker,
   onWatchlist,
   hasActiveStrategy,
+  isIndex = false,
 }: {
   ticker: string;
   onWatchlist: boolean;
   hasActiveStrategy: boolean;
+  isIndex?: boolean;
 }) {
   const strategySentence = !hasActiveStrategy
     ? strings.strategy.none
@@ -52,25 +54,29 @@ export function AssetNextSteps({
             {strings.study.action}
           </Link>
         </Step>
-        <Step title={strings.recipe.title}>
-          <p className="text-[13px]">{strings.recipe.body}</p>
-          <Link
-            href="#receitas"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-fit")}
-          >
-            {strings.recipe.action}
-          </Link>
-        </Step>
+        {!isIndex && (
+          <Step title={strings.recipe.title}>
+            <p className="text-[13px]">{strings.recipe.body}</p>
+            <Link
+              href="#receitas"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-fit")}
+            >
+              {strings.recipe.action}
+            </Link>
+          </Step>
+        )}
       </ol>
-      <div className="border-line-soft flex flex-col gap-2 border-t pt-3">
-        <p className="text-muted-foreground text-[13px]">{strategySentence}</p>
-        <Link
-          href="/estrategias"
-          className="text-primary w-fit text-[13px] underline-offset-4 hover:underline"
-        >
-          {strings.strategy.action}
-        </Link>
-      </div>
+      {!isIndex && (
+        <div className="border-line-soft flex flex-col gap-2 border-t pt-3">
+          <p className="text-muted-foreground text-[13px]">{strategySentence}</p>
+          <Link
+            href="/estrategias"
+            className="text-primary w-fit text-[13px] underline-offset-4 hover:underline"
+          >
+            {strings.strategy.action}
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
