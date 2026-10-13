@@ -1,4 +1,4 @@
-import { factAt, outlookOf, type AnalysisInputs } from "@fetha/contracts";
+import { factAt, outlookOf, verdictOf, type AnalysisInputs } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
 import { formatPriceBRL } from "@/lib/format/brl";
@@ -32,6 +32,8 @@ export function analysisOrigin(analysis: Pick<JournalAnalysis, "inputs">): strin
       return t.journal.originHeldOperation(fact(inputs, "underlying"));
     case "backtest_run":
       return labels.originBacktest(fact(inputs, "period.from"), fact(inputs, "period.to"));
+    case "suggestion":
+      return labels.originSuggestion(fact(inputs, "structure"), fact(inputs, "underlying"));
   }
 }
 
@@ -98,6 +100,7 @@ export function AnalysisJournalItem({
   score?: AnalysisScoreRow;
 }) {
   const outlook = outlookOf(analysis.output);
+  const verdict = verdictOf(analysis.output);
   const sentence = outlookSentence(analysis);
   return (
     <div className="flex flex-col gap-2">
@@ -110,6 +113,13 @@ export function AnalysisJournalItem({
           {formatDateTime(analysis.requestedAt)}
         </span>
       </div>
+
+      {verdict !== null ? (
+        <p className="text-sm">
+          {labels.verdictLabel}:{" "}
+          <span className="font-medium">{t.analysis.verdict[verdict.decision]}</span>
+        </p>
+      ) : null}
 
       <p className="text-sm text-pretty whitespace-pre-wrap">{analysis.output.thesis}</p>
 

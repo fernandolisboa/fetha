@@ -21,6 +21,7 @@ import type { Score } from "@fetha/engine";
 import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
 import { contemplatedOperations, operations } from "../portfolio/schema";
+import { suggestions } from "../radar/schema";
 
 import {
   analysisSubjectKinds,
@@ -32,8 +33,8 @@ import { journalOriginKinds } from "./allowed-kinds";
 import type { AnalysisReason } from "./analysis-reason";
 import type { DecisionInputs } from "./inputs";
 
-// A user's explicit record about a signal, a contemplated operation or a
-// held operation (UBIQUITOUS_LANGUAGE.md "Decision"): append-only (enforced by the
+// A user's explicit record about a signal, a contemplated operation, a
+// held operation or a suggestion (UBIQUITOUS_LANGUAGE.md "Decision"): append-only (enforced by the
 // `decisions_no_update` trigger, hand-appended to the generated migration
 // the same way strategy_versions and backtest_runs enforce their own
 // invariants, drizzle-kit having no first-class trigger API). `signal_id`
@@ -69,6 +70,10 @@ export const decisions = pgTable(
     // counterfactual (ADR-0014 Q40), and a contemplated operation has no
     // strategy version behind it.
     strategyVersionId: text("strategy_version_id").references(() => strategyVersions.id),
+    // A suggestion is shared reference data (docs/adr/0067), so a plain foreign key: the decision
+    // is the user's, the suggestion every user's. `no action` on delete for the same reason as
+    // `signal_id` above: the radar never rewrites a suggestion once an underlying is read.
+    suggestionId: text("suggestion_id").references(() => suggestions.id),
     inputs: jsonb("inputs").$type<DecisionInputs>().notNull(),
     rationale: text("rationale").notNull(),
     claim: jsonb("claim").$type<ThesisClaim | null>(),
@@ -90,6 +95,10 @@ export const decisions = pgTable(
     uniqueIndex("decisions_user_id_signal_id_idx")
       .on(table.userId, table.signalId)
       .where(sql`${table.signalId} is not null`),
+    // A suggestion is answered once per user, like a signal (docs/adr/0067).
+    uniqueIndex("decisions_user_id_suggestion_id_idx")
+      .on(table.userId, table.suggestionId)
+      .where(sql`${table.suggestionId} is not null`),
     // Not a business constraint (the primary key already makes `id` unique
     // on its own): Postgres requires a unique constraint on exactly the
     // referenced column set before `decision_scores`' composite foreign key
@@ -115,9 +124,10 @@ export const decisions = pgTable(
     ),
     check(
       "decisions_origin_match_check",
-      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null and ${table.operationId} is null)
-        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null and ${table.operationId} is null)
-        or (${table.originKind} = 'held_operation' and ${table.operationId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null)`,
+      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null and ${table.operationId} is null and ${table.suggestionId} is null)
+        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null and ${table.operationId} is null and ${table.suggestionId} is null)
+        or (${table.originKind} = 'held_operation' and ${table.operationId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.suggestionId} is null)
+        or (${table.originKind} = 'suggestion' and ${table.suggestionId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.operationId} is null)`,
     ),
     check("decisions_rationale_not_blank_check", sql`length(trim(${table.rationale})) > 0`),
     check(

@@ -11,8 +11,8 @@ import { timingSafeEqualStrings } from "../verification-link/timing-safe-equal-s
 const UNDERLYING = tickerSchema.parse("PETR4");
 
 // E2E-only, same guard as `/api/e2e/verification-link`: the preview holds too little history
-// for a recipe to find an entry, so radar.spec.ts seeds one radar row through the module's own
-// `seedE2ERadar` (docs/adr/0066).
+// for a recipe to find an entry, so radar.spec.ts and suggestions.spec.ts seed one radar row and
+// its suggestion through the module's own `seedE2ERadar` (docs/adr/0066, 0067).
 export async function POST(request: Request): Promise<Response> {
   const configuredSecret = readE2ESecret();
   if (isProductionDeployment() || !configuredSecret) {
@@ -31,5 +31,8 @@ export async function POST(request: Request): Promise<Response> {
     }
     return NextResponse.json({ error: "no ingested close for PETR4" }, { status: 409 });
   }
-  return NextResponse.json({ session: result.session }, { status: 201 });
+  return NextResponse.json(
+    { session: result.session, suggestionId: result.suggestionId },
+    { status: 201 },
+  );
 }

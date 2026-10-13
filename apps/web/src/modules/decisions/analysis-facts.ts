@@ -10,6 +10,7 @@ import type {
   StrategyDefinition,
 } from "@fetha/contracts";
 import type {
+  AssetReading,
   BacktestMetrics,
   Greeks,
   IndicatorReading,
@@ -158,6 +159,50 @@ export function contemplatedOperationFacts(input: ContemplatedOperationFactsInpu
     session: session(input.session),
     structure: input.structure,
     underlying: input.underlying,
+    pricing: pricingFacts(input.pricing),
+  };
+}
+
+export interface SuggestionFactsInput {
+  session: SessionDate;
+  expiry: SessionDate;
+  underlying: string;
+  structure: string;
+  recipe: { expectedMove: string; ivRegime: string; entry: unknown; exit: unknown };
+  reading: AssetReading | null;
+  close: DecimalString;
+  indicators: readonly IndicatorReading[];
+  pricing: OperationPricing;
+}
+
+// docs/adr/0067: the suggestion as the cards show it, the recipe's rule in the generic form a
+// strategy definition takes elsewhere, and the asset reading by its labels only (the engine's
+// raw readings are the entry indicators beside it).
+export function suggestionFacts(input: SuggestionFactsInput): AnalysisFacts {
+  return {
+    session: session(input.session),
+    expiry: session(input.expiry),
+    underlying: input.underlying,
+    structure: input.structure,
+    recipe: {
+      expectedMove: input.recipe.expectedMove,
+      ivRegime: input.recipe.ivRegime,
+      entry: genericFact(input.recipe.entry),
+      exit: genericFact(input.recipe.exit),
+    },
+    reading: input.reading
+      ? {
+          trend: input.reading.trend.label,
+          momentum: input.reading.momentum.label,
+          range: input.reading.range.label,
+          impliedVolatility: input.reading.impliedVolatility.label,
+          options: input.reading.options.label,
+        }
+      : null,
+    entry: {
+      close: formatPriceBRL(input.close),
+      indicators: indicatorReadingFacts(input.indicators),
+    },
     pricing: pricingFacts(input.pricing),
   };
 }

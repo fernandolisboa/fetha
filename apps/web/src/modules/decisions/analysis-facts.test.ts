@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   analysisInputsSchema,
+  decimalStringSchema,
   MAX_CONDITION_DEPTH,
   type Condition,
   type CostModel,
@@ -11,6 +12,7 @@ import {
   type StrategyDefinition,
 } from "@fetha/contracts";
 import type {
+  AssetReading,
   BacktestMetrics,
   IndicatorReading,
   OperationLeg,
@@ -25,6 +27,7 @@ import {
   genericFact,
   heldOperationFacts,
   signalFacts,
+  suggestionFacts,
   type BacktestRunFactsInput,
 } from "./analysis-facts";
 
@@ -180,6 +183,74 @@ describe("contemplatedOperationFacts", () => {
     expect(keySet(facts.pricing as Record<string, unknown>)).toEqual(
       keySet(fixture.facts.pricing as Record<string, unknown>),
     );
+  });
+});
+
+describe("suggestionFacts", () => {
+  const v3Fixture = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../../../prompts/fixtures/analysis/v3/suggestion-bull-call-spread/inputs.json",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    ),
+  ) as { facts: Record<string, Record<string, unknown>> };
+  const label = (value: string) => ({ label: value });
+  const facts = suggestionFacts({
+    session: "2026-10-09",
+    expiry: "2026-11-20",
+    underlying: "PETR4",
+    structure: "Trava de alta com calls",
+    recipe: {
+      expectedMove: "up",
+      ivRegime: "low",
+      entry: { kind: "compare", comparator: "<", right: { kind: "constant", value: "70" } },
+      exit: [{ kind: "profit_target", fractionOfPremium: "0.5" }],
+    },
+    reading: {
+      trend: label("up"),
+      momentum: label("neutral"),
+      range: label("normal"),
+      impliedVolatility: label("low"),
+      options: label("liquid"),
+    } as unknown as AssetReading,
+    close: decimalStringSchema.parse("31.20"),
+    indicators: [],
+    pricing,
+  });
+
+  it("validates against analysisInputsSchema", () => {
+    expect(analysisInputsSchema.safeParse({ subject: "suggestion", facts }).success).toBe(true);
+  });
+
+  it("matches the v3 fixture's key sets and writes the rule's numbers in pt-BR", () => {
+    expect(keySet(facts)).toEqual(keySet(v3Fixture.facts));
+    for (const key of ["recipe", "reading", "entry", "pricing"]) {
+      expect(keySet(facts[key] as Record<string, unknown>)).toEqual(
+        keySet(v3Fixture.facts[key] ?? {}),
+      );
+    }
+    expect(facts.recipe).toMatchObject({ exit: [{ fractionOfPremium: "0,5" }] });
+    expect(facts.entry).toMatchObject({ close: "R$ 31,20" });
+  });
+
+  it("carries no reading when the radar row has none", () => {
+    expect(
+      suggestionFacts({
+        session: "2026-10-09",
+        expiry: "2026-11-20",
+        underlying: "PETR4",
+        structure: "Trava de alta com calls",
+        recipe: { expectedMove: "up", ivRegime: "low", entry: null, exit: [] },
+        reading: null,
+        close: decimalStringSchema.parse("31.20"),
+        indicators: [],
+        pricing,
+      }).reading,
+    ).toBeNull();
   });
 });
 

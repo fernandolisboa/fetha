@@ -18,6 +18,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { seedOperation, seedOptionSeries, seedStockOperation } from "@/db/test/held-operation";
+import { seedSuggestion } from "@/db/test/suggestion";
 import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -167,12 +168,17 @@ async function createOperation(owner: CurrentUser, underlying: Ticker): Promise<
 }
 
 const createdEmails: string[] = [];
+const suggestionCleanups: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
   currentUser = null;
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+  }
+  // After the users: a decision on a suggestion holds it until its author is gone.
+  for (const cleanup of suggestionCleanups.splice(0)) {
+    await cleanup();
   }
 });
 
@@ -634,5 +640,83 @@ describe("recordDecisionAction on a held operation (ADR-0022)", () => {
     } finally {
       await removeSeries();
     }
+  });
+});
+
+describe("recordDecisionAction on a suggestion (docs/adr/0067)", () => {
+  async function suggestion(): Promise<string> {
+    const seeded = await seedSuggestion(getDb(), randomTicker());
+    suggestionCleanups.push(seeded.cleanup);
+    return seeded.id;
+  }
+
+  function decide(targetId: string, kind: "enter" | "do_not_enter" | "hold" = "enter") {
+    return recordDecisionAction({
+      originKind: "suggestion",
+      targetId,
+      kind,
+      rationale: "Following the suggestion",
+      claim: null,
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: "2031-06-15",
+    });
+  }
+
+  it("records the lot the suggestion priced, once per user, and keeps each user's answer theirs", async () => {
+    const emailA = uniqueEmail("suggestion-a");
+    const emailB = uniqueEmail("suggestion-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const suggestionId = await suggestion();
+
+    currentUser = userA;
+    expect(await decide(suggestionId)).toMatchObject({ status: "ok" });
+    expect(await decide(suggestionId, "do_not_enter")).toEqual({
+      status: "error",
+      error: "duplicate",
+    });
+
+    const [recorded] = await new DecisionsRepository(getDb(), userA).listMine();
+    expect(recorded?.suggestionId).toBe(suggestionId);
+    expect(recorded?.inputs).toMatchObject({
+      originKind: "suggestion",
+      recipeId: "bull-call-spread-low-iv",
+      structureId: "bull-call-spread",
+      expiry: "2031-07-18",
+      netPremiumCentavos: -9500,
+      maxLossCentavos: 9500,
+      maxGainCentavos: 10500,
+      legs: [
+        { side: "buy", quantity: 100, entryPrice: "1.90" },
+        { side: "sell", quantity: 100, entryPrice: "0.95" },
+      ],
+    });
+
+    const repositoryB = new DecisionsRepository(getDb(), userB);
+    expect(await repositoryB.listMine()).toEqual([]);
+    expect((await repositoryB.findForSuggestions([suggestionId])).size).toBe(0);
+
+    currentUser = userB;
+    expect(await decide(suggestionId, "do_not_enter")).toMatchObject({ status: "ok" });
+    expect(await repositoryB.listMine()).toHaveLength(1);
+    expect(
+      (await new DecisionsRepository(getDb(), userA).findForSuggestions([suggestionId])).get(
+        suggestionId,
+      )?.kind,
+    ).toBe("enter");
+  });
+
+  it("allows only enter and do_not_enter, and answers not_found for an unknown suggestion", async () => {
+    const email = uniqueEmail("suggestion-kinds");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const suggestionId = await suggestion();
+
+    expect(await decide(suggestionId, "hold")).toEqual({
+      status: "error",
+      error: "not_allowed",
+    });
+    expect(await decide(crypto.randomUUID())).toEqual({ status: "error", error: "not_found" });
   });
 });

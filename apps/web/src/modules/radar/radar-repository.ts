@@ -5,7 +5,7 @@ import type { Database } from "@/db/client";
 
 import { radarFactsSchema, radarLegsSchema, type RadarFacts, type RadarLeg } from "./match";
 import type { RadarMatch } from "./read-underlying";
-import { radarMatches, radarReadings } from "./schema";
+import { radarMatches, radarReadings, suggestions } from "./schema";
 
 export interface StoredRadarReading {
   underlying: string;
@@ -66,11 +66,19 @@ export async function universeSize(db: Database, session: string): Promise<numbe
   return row?.count ?? 0;
 }
 
-// The reading and its matches land together or not at all, so a reading is never stored
-// without the matches computed with it.
+// The reading, its matches and their suggestions land together or not at all, so a reading is
+// never stored without what was computed with it. Deleting the old matches cascades to their
+// suggestions; the scan reads an underlying only while it is pending, so no user's decision
+// points at a suggestion this rewrites (a decision's foreign key would refuse the delete).
 export async function saveRead(
   db: Database,
-  read: { underlying: string; session: string; reading: AssetReading; matches: RadarMatch[] },
+  read: {
+    underlying: string;
+    session: string;
+    asOf: Date;
+    reading: AssetReading;
+    matches: RadarMatch[];
+  },
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await tx
@@ -94,6 +102,23 @@ export async function saveRead(
           legs: radarLegsSchema.parse(match.legs),
         })),
       );
+      const drafts = read.matches.flatMap((match) =>
+        match.suggestion ? [{ recipeId: match.recipeId, ...match.suggestion }] : [],
+      );
+      if (drafts.length > 0) {
+        await tx.insert(suggestions).values(
+          drafts.map((draft) => ({
+            underlying: read.underlying,
+            session: read.session,
+            recipeId: draft.recipeId,
+            asOf: read.asOf,
+            legs: draft.legs,
+            pricing: draft.pricing,
+            claim: draft.claim,
+            horizon: draft.horizon,
+          })),
+        );
+      }
     }
   });
 }
