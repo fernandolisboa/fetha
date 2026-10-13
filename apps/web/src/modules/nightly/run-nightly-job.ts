@@ -11,6 +11,7 @@ import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
 import { scanRadar, scoreDueSuggestions } from "@/modules/radar";
+import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
 import { purgeExpiredNightlyRuns, type NightlyRunPurgeOutcome } from "./nightly-runs-repository";
@@ -29,6 +30,7 @@ export interface NightlyJobOutcome {
   analysisScoring: ScoreAnalysesOutcome;
   suggestionScoring: ScoreSuggestionsOutcome;
   radar: RadarScanOutcome | null;
+  sentiment: SentimentJobOutcome;
   accessLogPurge: AccessLogPurgeOutcome;
   unverifiedAccountPurge: UnverifiedAccountPurgeOutcome;
   sessionPurge: ExpiredSessionPurgeOutcome;
@@ -62,8 +64,8 @@ function ivIndexComputed(result: IngestOutcome): boolean {
 }
 
 // Shared by the cron GET handler and the owner's manual Server Action
-// (#51): both need the exact same purge -> ingest -> evaluate -> score -> radar
-// sequence and response shape, only the caller and its authorization differ.
+// (#51): both need the exact same purge -> ingest -> evaluate -> score -> radar ->
+// sentiment sequence and response shape, only the caller and its authorization differ.
 export async function runNightlyJob(
   db: Database,
   options: NightlyJobOptions = {},
@@ -103,6 +105,9 @@ export async function runNightlyJob(
           deadlineAt,
         })
       : null;
+  // Sentiment runs last, in whatever time the run has left (docs/adr/0065):
+  // nothing else reads it, and its own failures never fail the run.
+  const sentiment = await runSentimentJob(db, { deadlineAt });
 
   return {
     ...result,
@@ -111,6 +116,7 @@ export async function runNightlyJob(
     analysisScoring,
     suggestionScoring,
     radar,
+    sentiment,
     accessLogPurge,
     unverifiedAccountPurge,
     sessionPurge,

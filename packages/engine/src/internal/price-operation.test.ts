@@ -3370,3 +3370,305 @@ describe("priceOperation (selection: quantity resolution)", () => {
     );
   });
 });
+
+// ADR-0063 / #307: the real IBOVA183 row — spot and strike in index points, premium already
+// stored as reais per contract (PricFctr 100, "PREULT 19 305 points" -> stored close 193.05).
+describe("priceOperation with an index option's priceFactor (IBOVA183 fixture, #307)", () => {
+  const ibovView: MarketView = {
+    ...baseView,
+    quotes: [{ ticker: "IBOV", asOf: at, last: decimalString("180000.00"), bid: null, ask: null }],
+    optionSeries: [
+      {
+        ticker: "IBOVA183",
+        underlying: "IBOV",
+        right: "call",
+        strike: decimalString("183000"),
+        expiry: "2024-01-21",
+        style: "european",
+        asOf: at,
+        priceFactor: decimalString("100"),
+      },
+    ],
+  };
+
+  it("reports the leg's per-contract premium as the stored 193.05 reais, not 19 305 points", () => {
+    const result = priceOperation(
+      {
+        view: ibovView,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.legs[0]?.price).toBe(decimalString("193.05"));
+    expect(result.value.netPremium).toBe(centavos(-193_05));
+  });
+
+  it("rejects a non-positive series priceFactor as invalid_input", () => {
+    const view: MarketView = {
+      ...ibovView,
+      optionSeries: [
+        { ...(ibovView.optionSeries[0] as OptionSeries), priceFactor: decimalString("0") },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});
+
+// Review round 1, item 1: the payoff's slope at infinity for a call leg is `1 / priceFactor`
+// reais per point, not 1 — an index call's intrinsic value is itself in points, scaled down
+// to reais (ADR-0063) before it meets the premium. A naked long or short index call has an
+// unbounded leg and so is the structure this bug actually corrupts; a bounded vertical spread
+// cancels the factor out (both legs share it) and was already correct, kept here as a sanity
+// check.
+describe("payoff slope at infinity scales by an index option's priceFactor (#307 review)", () => {
+  const ibovView: MarketView = {
+    ...baseView,
+    quotes: [{ ticker: "IBOV", asOf: at, last: decimalString("180000.00"), bid: null, ask: null }],
+    optionSeries: [
+      {
+        ticker: "IBOVA183",
+        underlying: "IBOV",
+        right: "call",
+        strike: decimalString("183000"),
+        expiry: "2024-01-21",
+        style: "european",
+        asOf: at,
+        priceFactor: decimalString("100"),
+      },
+      {
+        ticker: "IBOVA186",
+        underlying: "IBOV",
+        right: "call",
+        strike: decimalString("186000"),
+        expiry: "2024-01-21",
+        style: "european",
+        asOf: at,
+        priceFactor: decimalString("100"),
+      },
+    ],
+  };
+
+  it("a long index call's break-even is strike + premium * priceFactor, not strike + premium", () => {
+    const result = priceOperation(
+      {
+        view: ibovView,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("202305.00")]);
+    expect(result.value.maxGain).toBe("unbounded");
+    expect(result.value.maxLoss).toBe(centavos(193_05));
+    const far = result.value.payoff.find((p) => p.underlying === decimalString("216000.00"));
+    expect(far).toBeDefined();
+    expect(far?.pnl).toBe(centavos(136_95));
+  });
+
+  it("a short index call shares the long call's break-even, with loss/gain flipped", () => {
+    const result = priceOperation(
+      {
+        view: ibovView,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "sell",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("193.05"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("202305.00")]);
+    expect(result.value.maxLoss).toBe("unbounded");
+    expect(result.value.maxGain).toBe(centavos(193_05));
+    const far = result.value.payoff.find((p) => p.underlying === decimalString("216000.00"));
+    expect(far).toBeDefined();
+    expect(far?.pnl).toBe(centavos(-136_95));
+  });
+
+  it("a bull call spread stays bounded; the price factor cancels between its two legs", () => {
+    const result = priceOperation(
+      {
+        view: ibovView,
+        at,
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: "IBOVA183",
+            quantity: quantity(1),
+            price: decimalString("19.00"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "IBOVA186",
+            quantity: quantity(1),
+            price: decimalString("5.00"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.breakEvens).toEqual([decimalString("184400.00")]);
+    expect(result.value.maxLoss).toBe(centavos(1400));
+    expect(result.value.maxGain).toBe(centavos(1600));
+  });
+
+  it("a long call's break-even at factor f on (S, K) equals f times the f=1 break-even on (S/f, K/f)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 1000 }),
+        fc.integer({ min: 1, max: 500 }),
+        fc.integer({ min: 1, max: 10000 }),
+        (factor, strikeUnscaled, premiumCents) => {
+          const premium = new Decimal(premiumCents).div(100);
+          const strike = new Decimal(strikeUnscaled);
+          const unfactoredView: MarketView = {
+            ...baseView,
+            quotes: [
+              {
+                ticker: "IBOV",
+                asOf: at,
+                last: decimalString(strike.toFixed(2)),
+                bid: null,
+                ask: null,
+              },
+            ],
+            optionSeries: [
+              {
+                ticker: "IBOVA1",
+                underlying: "IBOV",
+                right: "call",
+                strike: toDecimalString(strike, PRICE_SCALE),
+                expiry: "2024-01-21",
+                style: "european",
+                asOf: at,
+              },
+            ],
+          };
+          const unfactored = priceOperation(
+            {
+              view: unfactoredView,
+              at,
+              legs: [
+                {
+                  role: "call",
+                  side: "buy",
+                  ticker: "IBOVA1",
+                  quantity: quantity(1),
+                  price: toDecimalString(premium, PRICE_SCALE),
+                },
+              ],
+            },
+            provenanceBase,
+          );
+          if (!unfactored.ok) return true;
+          const baseBreakEven = unfactored.value.breakEvens[0];
+          if (!baseBreakEven) return false;
+
+          const factoredStrike = strike.mul(factor);
+          const factoredView: MarketView = {
+            ...baseView,
+            quotes: [
+              {
+                ticker: "IBOV",
+                asOf: at,
+                last: toDecimalString(factoredStrike, PRICE_SCALE),
+                bid: null,
+                ask: null,
+              },
+            ],
+            optionSeries: [
+              {
+                ticker: "IBOVA1",
+                underlying: "IBOV",
+                right: "call",
+                strike: toDecimalString(factoredStrike, PRICE_SCALE),
+                expiry: "2024-01-21",
+                style: "european",
+                asOf: at,
+                priceFactor: toDecimalString(new Decimal(factor), 6),
+              },
+            ],
+          };
+          const factored = priceOperation(
+            {
+              view: factoredView,
+              at,
+              legs: [
+                {
+                  role: "call",
+                  side: "buy",
+                  ticker: "IBOVA1",
+                  quantity: quantity(1),
+                  price: toDecimalString(premium, PRICE_SCALE),
+                },
+              ],
+            },
+            provenanceBase,
+          );
+          if (!factored.ok) return false;
+          const factoredBreakEven = factored.value.breakEvens[0];
+          if (!factoredBreakEven) return false;
+
+          const expected = new Decimal(baseBreakEven).mul(factor);
+          const actual = new Decimal(factoredBreakEven);
+          return actual
+            .sub(expected)
+            .abs()
+            .lte(factor * 0.01 + 0.01);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+});

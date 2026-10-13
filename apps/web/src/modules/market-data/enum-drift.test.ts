@@ -6,6 +6,7 @@ import {
   noteCodeSchema,
   optionRightSchema,
   pricingModelSchema,
+  settlementStyleSchema,
   truncationReasonSchema,
 } from "@fetha/contracts";
 import {
@@ -15,6 +16,7 @@ import {
   noteCodes,
   optionRights,
   pricingModels,
+  settlementStyles,
   truncationReasons,
 } from "@fetha/engine";
 
@@ -33,6 +35,10 @@ describe("contracts enum schemas mirror the engine's own vocabularies", () => {
 
   it("exerciseStyleSchema matches engine.exerciseStyles", () => {
     expect([...exerciseStyleSchema.options].sort()).toEqual([...exerciseStyles].sort());
+  });
+
+  it("settlementStyleSchema matches engine.settlementStyles", () => {
+    expect([...settlementStyleSchema.options].sort()).toEqual([...settlementStyles].sort());
   });
 
   it("macroSeriesKindSchema matches engine.macroSeriesKinds", () => {

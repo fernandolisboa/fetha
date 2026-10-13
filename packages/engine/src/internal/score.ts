@@ -40,6 +40,7 @@ import { isAfter, isAtOrBefore } from "./instant";
 import type { ResolvedMarketPrice } from "./option-pricing";
 import { resolveOptionStrike } from "./option-strike";
 import { computePayoffProfile, type PricedLeg } from "./price-operation";
+import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { proposeSettlement as computeProposeSettlement } from "./propose-settlement";
 import {
@@ -236,6 +237,7 @@ function buildEntryPricedLegs(
         valuation: dummyValuation(effectiveLeg),
         strike: null,
         premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
+        priceFactor: new Decimal(1),
       });
       continue;
     }
@@ -246,10 +248,16 @@ function buildEntryPricedLegs(
     if (!resolvedStrike.ok) return { ok: false, error: resolvedStrike.error };
     if (resolvedStrike.value.adjustment === "derived") anyDerived = true;
     if (resolvedStrike.value.adjustment === "unconfirmed") anyUnconfirmed = true;
+    const priceFactorResult = resolvePriceFactor(
+      resolvedStrike.value.series.priceFactor,
+      `operation.legs[${String(legIndex)}].priceFactor`,
+    );
+    if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
     priced.push({
       valuation: dummyValuation(effectiveLeg),
       strike: resolvedStrike.value.strike,
       premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
+      priceFactor: priceFactorResult.value,
     });
   }
   const notes: Note[] = [];

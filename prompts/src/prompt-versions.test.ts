@@ -6,7 +6,8 @@ import { analysisSubjectKinds } from "@fetha/contracts";
 import * as analysisV1 from "./analysis/v1";
 import * as analysisV2 from "./analysis/v2";
 import * as analysisV3 from "./analysis/v3";
-import { analysisPrompt } from "./index";
+import * as filingLabelV1 from "./filing-label/v1";
+import { analysisPrompt, filingLabelPrompt } from "./index";
 
 const releasedBeforeSuggestions = analysisSubjectKinds.filter(
   (subject): subject is analysisV2.ReleasedSubject => subject !== "suggestion",
@@ -54,5 +55,25 @@ describe("released prompt versions", () => {
   it("new requests use analysis@3", () => {
     expect(analysisPrompt.version).toBe(analysisV3.version);
     expect(analysisPrompt.system).toBe(analysisV3.system);
+  });
+
+  it("filing-label@1 is frozen", () => {
+    expect(filingLabelV1.version).toBe("filing-label@1");
+    const rendered = filingLabelV1.render({
+      companyName: "EXEMPLO S.A.",
+      category: "material_fact",
+      kind: null,
+      subject: "Assunto",
+      deliveredOn: "2026-10-13",
+    });
+    expect(
+      createHash("sha256")
+        .update([filingLabelV1.system, rendered].join("\n\u0000\n"))
+        .digest("hex"),
+    ).toBe("6c0f3f65e8b4e611b120e865c5e508d57fed05b63304ebe9e240ceca9ac98806");
+  });
+
+  it("new filing labels use filing-label@1", () => {
+    expect(filingLabelPrompt.version).toBe(filingLabelV1.version);
   });
 });

@@ -21,13 +21,20 @@ import type {
   Side,
   TradingSession,
 } from "../api";
-import { PRICE_SCALE, parseDecimal, toDecimalString, toDecimalStringAtLeastScale } from "./decimal";
-import { invalidInput, err } from "./errors";
+import {
+  CENTAVOS_PER_REAL,
+  PRICE_SCALE,
+  parseDecimal,
+  toDecimalString,
+  toDecimalStringAtLeastScale,
+} from "./decimal";
+import { err, invalidInput } from "./errors";
 import { grossCentavos } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
 import { toCentavos, toQuantity } from "./scalars";
@@ -74,6 +81,7 @@ export function settleLeg(
         intrinsicValue: null,
         fills: [],
         residualValue: toCentavos(0),
+        cashSettlementValue: null,
       },
       adjustment: "none",
     };
@@ -91,17 +99,44 @@ export function settleLeg(
       ),
     };
   }
+  const priceFactorResult = resolvePriceFactor(
+    series.priceFactor,
+    `legs[${String(legIndex)}].priceFactor`,
+  );
+  if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
+  const priceFactor = priceFactorResult.value;
+  // A series quoted in anything but reais per contract (priceFactor != 1) with no
+  // settlementStyle "cash" is a half-populated registry row, not a real B3 instrument: B3
+  // never lists a physically-settled series with a non-1 price factor, so exercising or
+  // assigning it at the raw strike would book a phantom fill on the underlying at a price
+  // scaled by the factor (e.g. "buy 1 IBOV @ 183 000.00"). Named, not silently priced.
+  if (!priceFactor.eq(1) && series.settlementStyle !== "cash") {
+    return {
+      ok: false,
+      error: invalidInput(
+        `legs[${String(legIndex)}].settlementStyle`,
+        `a series with a price factor other than 1 must be cash-settled (${series.ticker})`,
+      ),
+    };
+  }
 
   const strike = parseDecimal(strikeString);
-  const intrinsic =
+  // `strike` and `underlyingClose` are both on the series' quotation unit; scaled down to
+  // reais per contract (ADR-0063) before this intrinsic value is reported or compared against
+  // a reais-denominated entry price.
+  const intrinsic = (
     leg.role === "call"
       ? Decimal.max(underlyingClose.sub(strike), 0)
-      : Decimal.max(strike.sub(underlyingClose), 0);
+      : Decimal.max(strike.sub(underlyingClose), 0)
+  ).div(priceFactor);
   const inTheMoney = intrinsic.gt(0);
   const intrinsicValue = toDecimalString(intrinsic, PRICE_SCALE);
+  const isCashSettled = series.settlementStyle === "cash";
 
   // B3's automatic exercise mirrors ADR-0014 Q41: exercise buys the underlying for a long
-  // call and sells it for a long put; assignment is the writer's mirror image.
+  // call and sells it for a long put; assignment is the writer's mirror image. B3 cash-settles
+  // every index option instead (ADR-0063): there is no underlying to deliver, so a
+  // cash-settled leg never produces a fill, in or out of the money.
   const fillSide: Side =
     leg.side === "buy"
       ? leg.role === "call"
@@ -110,19 +145,30 @@ export function settleLeg(
       : leg.role === "call"
         ? "sell"
         : "buy";
-  const fills: Fill[] = inTheMoney
-    ? [
-        {
-          ticker: underlying,
-          side: fillSide,
-          quantity: leg.quantity,
-          price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
-          session,
-          at,
-          costs: toCentavos(0),
-        },
-      ]
-    : [];
+  const fills: Fill[] =
+    inTheMoney && !isCashSettled
+      ? [
+          {
+            ticker: underlying,
+            side: fillSide,
+            quantity: leg.quantity,
+            price: toDecimalStringAtLeastScale(strike, PRICE_SCALE),
+            session,
+            at,
+            costs: toCentavos(0),
+          },
+        ]
+      : [];
+  const cashSettlementValue: Centavos | null = isCashSettled
+    ? toCentavos(
+        intrinsic
+          .mul(leg.quantity)
+          .mul(CENTAVOS_PER_REAL)
+          .mul(leg.side === "buy" ? 1 : -1)
+          .round()
+          .toNumber(),
+      )
+    : null;
 
   if (leg.side === "buy") {
     return {
@@ -139,6 +185,7 @@ export function settleLeg(
         intrinsicValue,
         fills,
         residualValue: toCentavos(0),
+        cashSettlementValue,
       },
       adjustment,
     };
@@ -157,6 +204,7 @@ export function settleLeg(
       intrinsicValue,
       fills,
       residualValue: toCentavos(0),
+      cashSettlementValue,
     },
     adjustment,
   };
@@ -300,6 +348,27 @@ export function proposeSettlement(
     if (!settled.ok) return err(settled.error);
     if (settled.adjustment === "derived") anyStrikeDerived = true;
     if (settled.adjustment === "unconfirmed") anyStrikeUnconfirmed = true;
+
+    // A cash-settled leg's cash flow (#307 round 2 review), like the exercise/assignment fill
+    // below, is settleLeg's at the leg's nominal `quantity`; rebased here by the same window's
+    // factor, since cash — unlike a fill — never needs a whole-unit floor or its own residual.
+    if (settled.value.cashSettlementValue !== null) {
+      const visibleFactors = input.view.corporateActions.filter(
+        (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, expiryClose),
+      );
+      const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, operation.expiry);
+      // `settled.ok` above already ran every one of these same `corporateActions` rows
+      // through `resolveOptionStrike`'s own, strictly wider validity check (same ticker, same
+      // `isAtOrBefore(asOf, ...)` cutoff, a `through` window that is never narrower than this
+      // one's): a non-positive factor here would already have failed there first.
+      /* v8 ignore next */
+      if (!factorResult.ok) return err(factorResult.error);
+      const rebasedCashSettlementValue = toCentavos(
+        new Decimal(settled.value.cashSettlementValue).div(factorResult.value).round().toNumber(),
+      );
+      legs.push({ ...settled.value, cashSettlementValue: rebasedCashSettlementValue });
+      continue;
+    }
 
     const bareFill = settled.value.fills[0];
     if (!bareFill) {

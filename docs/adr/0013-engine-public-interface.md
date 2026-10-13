@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.13.0";
+export const ENGINE_VERSION = "0.14.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -261,6 +261,13 @@ export const optionRights = ["call", "put"] as const satisfies readonly OptionRi
 export type ExerciseStyle = "american" | "european";
 export const exerciseStyles = ["american", "european"] as const satisfies readonly ExerciseStyle[];
 
+// ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
+// equity option's pre-existing behaviour: the underlying changes hands at the strike. "cash"
+// is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to deliver,
+// so the leg settles for its intrinsic value in cash instead of a fill on the index itself.
+export type SettlementStyle = "physical" | "cash";
+export const settlementStyles = ["physical", "cash"] as const satisfies readonly SettlementStyle[];
+
 export type OptionSeries = {
   ticker: Ticker;
   underlying: Ticker;
@@ -269,6 +276,16 @@ export type OptionSeries = {
   expiry: SessionDate;
   style: ExerciseStyle;
   asOf: Instant;
+  // B3's registry PricFctr (ADR-0063): index options (e.g. Ibovespa) are quoted in index
+  // points at this many points per real of premium (Ibovespa: 100, i.e. R$ 0,01 per point).
+  // Absent for every equity option, which is priced and quoted in reais directly (factor 1,
+  // the pre-existing behaviour).
+  priceFactor?: DecimalString | undefined;
+  // ADR-0063: never inferred from `priceFactor` (a priceFactor is only a quotation-unit
+  // conversion; settlement style is the registry's own, separate `TpMerc`/instrument-category
+  // fact). Named `settlementStyle`, not `settlement`, since "settlement" already names the
+  // event on this same API (`proposeSettlement`, `LegSettlement`, `SettlementProposal`).
+  settlementStyle?: SettlementStyle | undefined;
 };
 
 export type OptionDayPrice = {
@@ -614,6 +631,11 @@ export const settlementOutcomes = [
 // the same residue a mark-to-market or backtest exit already cash-settles. Zero for a leg whose
 // factor divides evenly (including the common factor-of-1 case) and always zero for a `kept`
 // stock leg, which never settles.
+// `cashSettlementValue` (ADR-0063, #307 review): the signed cash flow (a long leg's gain
+// positive, a short leg's loss negative) an in-the-money leg on a cash-settled series (e.g. an
+// Ibovespa option) pays or receives in lieu of a fill on the underlying. Null for every
+// physically-settled leg (every equity option, the pre-existing behaviour) and for a `kept`
+// stock leg, which never settles either way.
 export type LegSettlement =
   | {
       leg: OperationLeg & { role: "stock" };
@@ -621,6 +643,7 @@ export type LegSettlement =
       intrinsicValue: null;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: null;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "buy" };
@@ -628,6 +651,7 @@ export type LegSettlement =
       intrinsicValue: DecimalString;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: Centavos | null;
     }
   | {
       leg: OperationLeg & { role: Exclude<LegRole, "stock">; side: "sell" };
@@ -635,6 +659,7 @@ export type LegSettlement =
       intrinsicValue: DecimalString;
       fills: Fill[];
       residualValue: Centavos;
+      cashSettlementValue: Centavos | null;
     };
 
 // residualSettledBy distinguishes an expired operation whose settlement fully netted or whose
@@ -3134,3 +3159,28 @@ their `as const` arrays — `TrendLabel`/`trendLabels`, `MomentumLabel`/`momentu
 `RangeLabel`/`rangeLabels`, `ImpliedVolatilityLabel`/`impliedVolatilityLabels`,
 `OptionLiquidityLabel`/`optionLiquidityLabels`. Nothing it returns is checkpointed or persisted, so
 `ENGINE_VERSION` does not move.
+
+## Addendum: index options carry a price factor; `ENGINE_VERSION` bumped to `0.14.0` (#307, see ADR-0063)
+
+An index option (B3 quotes it in index points, not reais) is priced on the same model, but its
+stored premium is already reais per contract while spot/strike stay in points. `OptionSeries`
+gains two optional fields: `priceFactor` (absent = 1 for every equity option), converting only at
+the seam where a premium or a model value meets spot/strike (unconverted spot/strike/delta/gamma,
+divided money outputs otherwise); and `settlementStyle` (absent = `"physical"`), since B3
+cash-settles every index option (there is no underlying to deliver). See ADR-0063 for the full
+rule, the rejected alternative and the `settlementStyle`/`priceFactor` consistency rule `settleLeg`
+enforces.
+
+Both `OptionSeries` fields are themselves optional inputs that default to the pre-existing
+behavior and need no bump on their own (the same reasoning the #273/#279 addenda above already
+apply to an optional input). But `LegSettlement` gains `cashSettlementValue: Centavos | null` on
+all three variants, and `SimulatedOperation.settlement`/`pendingSettlements[].settlement` are the
+same checkpointed, persisted artifact (`BacktestRun.operations[].settlement`, stored `jsonb`) the
+`residualValue` addendum (#271) already bumped for — a shape change to a persisted artifact, not
+merely an additive field on a type nothing persists, the exact precedent that moved `"0.11.0"` to
+`"0.12.0"` there. `ENGINE_VERSION` moves from `"0.13.0"` (the #279 addendum above) to `"0.14.0"`.
+
+Persisted reads: `packages/contracts`' `legSettlementSchema` mirror defaults `cashSettlementValue`
+to `null` (the `residualValue` default-`0` precedent, #271 addendum above) — a run persisted
+before this change never had a cash-settled leg by construction. `backtest-run-type-pin.test.ts`'s
+existing `operations` exclusion covers this without any change to that test.

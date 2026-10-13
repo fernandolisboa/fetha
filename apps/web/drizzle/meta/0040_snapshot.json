@@ -1,5 +1,5 @@
 {
-  "id": "500310e1-b0ab-4e40-837d-8d7a4f896881",
+  "id": "e06e778f-115f-4dc8-ab5e-045c8303871f",
   "prevId": "ddf15548-8b0c-4449-986f-bd510484f1f9",
   "version": "7",
   "dialect": "postgresql",
@@ -1135,7 +1135,7 @@
       "checkConstraints": {
         "analysis_requests_subject_kind_check": {
           "name": "analysis_requests_subject_kind_check",
-          "value": "\"analysis_requests\".\"subject_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'backtest_run', 'suggestion')"
+          "value": "\"analysis_requests\".\"subject_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'backtest_run')"
         }
       },
       "isRLSEnabled": false
@@ -1669,12 +1669,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "suggestion_id": {
-          "name": "suggestion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "inputs": {
           "name": "inputs",
           "type": "jsonb",
@@ -1766,28 +1760,6 @@
           ],
           "isUnique": true,
           "where": "\"decisions\".\"signal_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "decisions_user_id_suggestion_id_idx": {
-          "name": "decisions_user_id_suggestion_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "suggestion_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"decisions\".\"suggestion_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1888,19 +1860,6 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "decisions_suggestion_id_suggestions_id_fk": {
-          "name": "decisions_suggestion_id_suggestions_id_fk",
-          "tableFrom": "decisions",
-          "tableTo": "suggestions",
-          "columnsFrom": [
-            "suggestion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "decisions_operation_id_user_id_operations_id_user_id_fk": {
           "name": "decisions_operation_id_user_id_operations_id_user_id_fk",
           "tableFrom": "decisions",
@@ -1927,11 +1886,11 @@
         },
         "decisions_origin_kind_check": {
           "name": "decisions_origin_kind_check",
-          "value": "\"decisions\".\"origin_kind\" in ('signal', 'contemplated_operation', 'held_operation', 'suggestion')"
+          "value": "\"decisions\".\"origin_kind\" in ('signal', 'contemplated_operation', 'held_operation')"
         },
         "decisions_origin_match_check": {
           "name": "decisions_origin_match_check",
-          "value": "(\"decisions\".\"origin_kind\" = 'signal' and \"decisions\".\"signal_id\" is not null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'contemplated_operation' and \"decisions\".\"contemplated_operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'held_operation' and \"decisions\".\"operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"suggestion_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'suggestion' and \"decisions\".\"suggestion_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null)"
+          "value": "(\"decisions\".\"origin_kind\" = 'signal' and \"decisions\".\"signal_id\" is not null and \"decisions\".\"contemplated_operation_id\" is null and \"decisions\".\"operation_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'contemplated_operation' and \"decisions\".\"contemplated_operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"operation_id\" is null)\n        or (\"decisions\".\"origin_kind\" = 'held_operation' and \"decisions\".\"operation_id\" is not null and \"decisions\".\"signal_id\" is null and \"decisions\".\"contemplated_operation_id\" is null)"
         },
         "decisions_rationale_not_blank_check": {
           "name": "decisions_rationale_not_blank_check",
@@ -3558,6 +3517,361 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.filing_labels": {
+      "name": "filing_labels",
+      "schema": "",
+      "columns": {
+        "protocol": {
+          "name": "protocol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "topic": {
+          "name": "topic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tone": {
+          "name": "tone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_version": {
+          "name": "prompt_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "filing_labels_company_filing_fk": {
+          "name": "filing_labels_company_filing_fk",
+          "tableFrom": "filing_labels",
+          "tableTo": "company_filings",
+          "columnsFrom": [
+            "protocol",
+            "version"
+          ],
+          "columnsTo": [
+            "protocol",
+            "version"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "filing_labels_protocol_version_pk": {
+          "name": "filing_labels_protocol_version_pk",
+          "columns": [
+            "protocol",
+            "version"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "filing_labels_outcome_check": {
+          "name": "filing_labels_outcome_check",
+          "value": "outcome in ('labelled', 'rejected', 'unreadable', 'pending')"
+        },
+        "filing_labels_topic_check": {
+          "name": "filing_labels_topic_check",
+          "value": "topic is null or topic in ('results', 'dividends', 'guidance', 'm_and_a', 'debt', 'litigation', 'management', 'buyback', 'offering', 'other')"
+        },
+        "filing_labels_tone_check": {
+          "name": "filing_labels_tone_check",
+          "value": "tone is null or tone in ('positive', 'neutral', 'negative')"
+        },
+        "filing_labels_reason_check": {
+          "name": "filing_labels_reason_check",
+          "value": "reason is null or reason in ('refusal', 'incomplete', 'schema', 'figure', 'link', 'bad_request', 'not_pdf', 'too_large', 'unavailable')"
+        },
+        "filing_labels_labelled_check": {
+          "name": "filing_labels_labelled_check",
+          "value": "(outcome = 'labelled') = (topic is not null and tone is not null and summary is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.news_articles": {
+      "name": "news_articles",
+      "schema": "",
+      "columns": {
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "article_id": {
+          "name": "article_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticker": {
+          "name": "ticker",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sentiment": {
+          "name": "sentiment",
+          "type": "numeric(5, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "news_articles_ticker_published_at_idx": {
+          "name": "news_articles_ticker_published_at_idx",
+          "columns": [
+            {
+              "expression": "ticker",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "published_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "news_articles_provider_article_id_ticker_pk": {
+          "name": "news_articles_provider_article_id_ticker_pk",
+          "columns": [
+            "provider",
+            "article_id",
+            "ticker"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "news_articles_provider_check": {
+          "name": "news_articles_provider_check",
+          "value": "provider in ('marketaux')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.news_tone_points": {
+      "name": "news_tone_points",
+      "schema": "",
+      "columns": {
+        "cnpj": {
+          "name": "cnpj",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tone": {
+          "name": "tone",
+          "type": "numeric(8, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "articles": {
+          "name": "articles",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "news_tone_points_cnpj_day_pk": {
+          "name": "news_tone_points_cnpj_day_pk",
+          "columns": [
+            "cnpj",
+            "day"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sentiment_fetches": {
+      "name": "sentiment_fetches",
+      "schema": "",
+      "columns": {
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "query": {
+          "name": "query",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "sentiment_fetches_source_subject_pk": {
+          "name": "sentiment_fetches_source_subject_pk",
+          "columns": [
+            "source",
+            "subject"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sentiment_fetches_source_check": {
+          "name": "sentiment_fetches_source_check",
+          "value": "source in ('gdelt', 'marketaux')"
+        },
+        "sentiment_fetches_status_check": {
+          "name": "sentiment_fetches_status_check",
+          "value": "status in ('ok', 'rate_limited', 'failed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.radar_matches": {
       "name": "radar_matches",
       "schema": "",
@@ -3691,248 +4005,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.suggestion_scores": {
-      "name": "suggestion_scores",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "suggestion_id": {
-          "name": "suggestion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "score": {
-          "name": "score",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "unscorable_reason": {
-          "name": "unscorable_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "claim_held": {
-          "name": "claim_held",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pnl_centavos": {
-          "name": "pnl_centavos",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_loss_centavos": {
-          "name": "max_loss_centavos",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "normalized_pnl": {
-          "name": "normalized_pnl",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "engine_version": {
-          "name": "engine_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scored_at": {
-          "name": "scored_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "suggestion_scores_suggestion_id_idx": {
-          "name": "suggestion_scores_suggestion_id_idx",
-          "columns": [
-            {
-              "expression": "suggestion_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "suggestion_scores_suggestion_id_suggestions_id_fk": {
-          "name": "suggestion_scores_suggestion_id_suggestions_id_fk",
-          "tableFrom": "suggestion_scores",
-          "tableTo": "suggestions",
-          "columnsFrom": [
-            "suggestion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "suggestion_scores_score_xor_unscorable_check": {
-          "name": "suggestion_scores_score_xor_unscorable_check",
-          "value": "(\"suggestion_scores\".\"score\" is not null and \"suggestion_scores\".\"unscorable_reason\" is null)\n        or (\"suggestion_scores\".\"score\" is null and \"suggestion_scores\".\"unscorable_reason\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.suggestions": {
-      "name": "suggestions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "underlying": {
-          "name": "underlying",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session": {
-          "name": "session",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recipe_id": {
-          "name": "recipe_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "as_of": {
-          "name": "as_of",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legs": {
-          "name": "legs",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pricing": {
-          "name": "pricing",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "claim": {
-          "name": "claim",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "horizon": {
-          "name": "horizon",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "suggestions_underlying_session_recipe_id_idx": {
-          "name": "suggestions_underlying_session_recipe_id_idx",
-          "columns": [
-            {
-              "expression": "underlying",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recipe_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "suggestions_session_idx": {
-          "name": "suggestions_session_idx",
-          "columns": [
-            {
-              "expression": "session",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "suggestions_underlying_session_recipe_id_radar_matches_underlying_session_recipe_id_fk": {
-          "name": "suggestions_underlying_session_recipe_id_radar_matches_underlying_session_recipe_id_fk",
-          "tableFrom": "suggestions",
-          "tableTo": "radar_matches",
-          "columnsFrom": [
-            "underlying",
-            "session",
-            "recipe_id"
-          ],
-          "columnsTo": [
-            "underlying",
-            "session",
-            "recipe_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "suggestions_horizon_after_session_check": {
-          "name": "suggestions_horizon_after_session_check",
-          "value": "\"suggestions\".\"horizon\" > \"suggestions\".\"session\""
-        }
-      },
       "isRLSEnabled": false
     },
     "public.strategies": {

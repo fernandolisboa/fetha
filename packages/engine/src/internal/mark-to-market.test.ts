@@ -1662,3 +1662,67 @@ describe("markToMarket", () => {
     });
   });
 });
+
+// ADR-0063 / #307: settlement at an index close of 185 000 against a 183 000 strike pays
+// 2 000 points x R$ 0,01/point = R$ 20,00 per contract, not 2 000 reais.
+describe("markToMarket with an index option's priceFactor (#307)", () => {
+  it("values an expired index-option leg's intrinsic at R$ 20,00, not 2 000 points", () => {
+    const markAt = "2024-01-10T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "IBOV", asOf: markAt, last: decimalString("185000.00"), bid: null, ask: null },
+      ],
+      optionSeries: [
+        {
+          ticker: "IBOVA183",
+          underlying: "IBOV",
+          right: "call",
+          strike: decimalString("183000"),
+          expiry: "2024-01-05",
+          style: "european",
+          asOf: at,
+          priceFactor: decimalString("100"),
+        },
+      ],
+      candles: [
+        {
+          ticker: "IBOV",
+          timeframe: "D1",
+          session: "2024-01-05",
+          asOf: "2024-01-05T21:00:00.000Z",
+          open: decimalString("184000"),
+          high: decimalString("186000"),
+          low: decimalString("184000"),
+          close: decimalString("185000"),
+          tradedQuantity: 1,
+        },
+      ],
+    };
+    const op: Operation = {
+      id: "op-ibov",
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+      expiry: "2024-01-05",
+      openedAt: "2024-01-02",
+      strategyVersionId: null,
+      rolledFrom: null,
+    };
+    const result = markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionLeg = result.value.operations[0]?.pricing.legs[0];
+    expect(optionLeg?.fairValue).toBe(decimalString("20.00"));
+  });
+});

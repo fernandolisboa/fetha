@@ -26,7 +26,8 @@
               "costs": 238
             }
           ],
-          "residualValue": 0
+          "residualValue": 0,
+          "cashSettlementValue": null
         },
         {
           "leg": {
@@ -49,7 +50,8 @@
               "costs": 263
             }
           ],
-          "residualValue": 0
+          "residualValue": 0,
+          "cashSettlementValue": null
         }
       ]
     }

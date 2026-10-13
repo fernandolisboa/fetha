@@ -24,6 +24,19 @@ and reached from an instrument through the company's CNPJ (ADR-0060). Shown as "
 recentes" on the asset page; that title is UI copy, not the domain term.
 _Avoid_: news, event, announcement
 
+**Filing label**:
+What the AI says one company filing is about, from closed lists: a topic, a tone for a
+shareholder (positive, neutral, negative) and one pt-BR sentence with no figure (ADR-0065). A
+filing ends labelled, rejected (the reply broke the contract) or unreadable, and that outcome is
+never rewritten.
+_Avoid_: sentiment score, rating, AI opinion
+
+**News tone**:
+GDELT's average tone of the Portuguese-language news matching a company's name or tickers, per
+day, with the day's article count (ADR-0065). Experimental; the 30-day figure is weighted by
+articles.
+_Avoid_: sentiment index, buzz
+
 **Option series**:
 One listed option contract on an underlying: call or put, strike, expiry, exercise style. B3
 reuses a ticker across listing cycles (ADR-0017), so a lookup by ticker alone (the Ctrl K search
@@ -36,6 +49,24 @@ that was actually live at a given instant rather than only the latest one — bo
 been ingested (ADR-0056's trade-offs): a strike never traded and never re-fetched by the registry
 before an event has no epoch to recover it from.
 _Avoid_: option contract, series code, option ticker (that is its identifier, not the concept)
+
+**Price factor**:
+An index option's own quotation unit (index points, e.g. Ibovespa) per real of premium as
+stored (B3's registry `PricFctr`; ADR-0063) — absent for every equity option, which is quoted
+and priced in reais directly. Spot and strike stay in the series' own quotation unit (points
+for an index option, reais for an equity option) regardless; the price factor converts only
+where a premium or a model value meets them, never the strike or spot themselves.
+_Avoid_: quotation factor (that is COTAHIST's own `FATCOT`, a distinct, row-level lot-grouping
+divisor applied to a price field at ingestion, not this series-level field)
+
+**Settlement style**:
+How an option series' in-the-money leg settles at expiry: `"physical"` (absent; the underlying
+changes hands at the strike, every equity option) or `"cash"` (B3's rule for every index option,
+e.g. Ibovespa — there is no underlying to deliver, so the leg settles for its intrinsic value in
+cash instead). A series with a price factor other than 1 must be cash-settled; never inferred
+from the price factor itself, a separate, registry-sourced fact (ADR-0063).
+_Avoid_: settlement (that is the event — `proposeSettlement`, `LegSettlement` — not this
+series-level field, named `settlementStyle` precisely to keep the two apart)
 
 **Chain**:
 The set of option series listed on one underlying on a given day, with their quotes.

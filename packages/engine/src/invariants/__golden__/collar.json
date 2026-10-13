@@ -16,7 +16,8 @@
           "outcome": "kept",
           "intrinsicValue": null,
           "fills": [],
-          "residualValue": 0
+          "residualValue": 0,
+          "cashSettlementValue": null
         },
         {
           "leg": {
@@ -29,7 +30,8 @@
           "outcome": "expired_worthless",
           "intrinsicValue": "0.00",
           "fills": [],
-          "residualValue": 0
+          "residualValue": 0,
+          "cashSettlementValue": null
         },
         {
           "leg": {
@@ -42,7 +44,8 @@
           "outcome": "expired_worthless",
           "intrinsicValue": "0.00",
           "fills": [],
-          "residualValue": 0
+          "residualValue": 0,
+          "cashSettlementValue": null
         }
       ]
     }

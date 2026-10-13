@@ -8,6 +8,7 @@ const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 const purgeUnverifiedAccountsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
+const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
 const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
 
@@ -17,6 +18,7 @@ vi.mock("@/modules/decisions", () => ({
   scoreDueDecisions: scoreDueDecisionsMock,
   scoreDueAnalyses: scoreDueAnalysesMock,
 }));
+vi.mock("@/modules/sentiment", () => ({ runSentimentJob: runSentimentJobMock }));
 vi.mock("@/modules/radar", () => ({
   scanRadar: scanRadarMock,
   scoreDueSuggestions: scoreDueSuggestionsMock,
@@ -32,6 +34,12 @@ vi.mock("./nightly-runs-repository", () => ({
 
 const fakeDb = {} as never;
 
+const sentimentOutcome = {
+  labels: { status: "off", labelled: 0, rejected: 0, unreadable: 0, retryLater: 0, deferred: 0 },
+  newsTone: { status: "ran", refreshed: 0, failed: 0, deferred: 0 },
+  provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+};
+
 describe("runNightlyJob", () => {
   beforeEach(() => {
     ingestMock.mockReset();
@@ -45,6 +53,7 @@ describe("runNightlyJob", () => {
     purgeUnverifiedAccountsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeExpiredSessionsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
     purgeExpiredNightlyRunsMock.mockReset().mockResolvedValue({ ok: true, deleted: 0 });
+    runSentimentJobMock.mockReset().mockResolvedValue(sentimentOutcome);
     scanRadarMock.mockReset().mockImplementation((_db: unknown, input: { session: string }) =>
       Promise.resolve({
         session: input.session,
@@ -362,6 +371,20 @@ describe("runNightlyJob", () => {
     const outcome = await runNightlyJob(fakeDb);
     expect(outcome.ok).toBe(true);
     expect(outcome.accessLogPurge).toEqual({ ok: false });
+  });
+
+  it("runs sentiment last, under the same deadline, and reports its outcome", async () => {
+    const { runNightlyJob } = await import("./run-nightly-job");
+    const outcome = await runNightlyJob(fakeDb);
+
+    const evaluationDeadline: number = (
+      evaluateSignalsMock.mock.calls[0]?.[2] as { deadlineAt: number }
+    ).deadlineAt;
+    expect(runSentimentJobMock).toHaveBeenCalledWith(fakeDb, { deadlineAt: evaluationDeadline });
+    const sentimentOrder = runSentimentJobMock.mock.invocationCallOrder[0] ?? 0;
+    expect(sentimentOrder).toBeGreaterThan(scoreDueAnalysesMock.mock.invocationCallOrder[0] ?? 0);
+    expect(sentimentOrder).toBeGreaterThan(scanRadarMock.mock.invocationCallOrder[0] ?? 0);
+    expect(outcome.sentiment).toEqual(sentimentOutcome);
   });
 
   it("scans the radar on the newest session, telling it whether tonight's IV index is in", async () => {

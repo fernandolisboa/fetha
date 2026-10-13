@@ -45,6 +45,18 @@ function baseOutcome(): NightlyJobOutcome {
       analysesSkipped: 0,
       errors: [{ requestId: "someone-elses-request-id", kind: "engine_error:boom" }],
     },
+    sentiment: {
+      labels: {
+        status: "ran",
+        labelled: 2,
+        rejected: 0,
+        unreadable: 0,
+        retryLater: 0,
+        deferred: 0,
+      },
+      newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+      provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+    },
     accessLogPurge: { ok: true, deleted: 4 },
     unverifiedAccountPurge: { ok: true, deleted: 0 },
     sessionPurge: { ok: true, deleted: 1 },
@@ -109,6 +121,18 @@ describe("buildNightlyRunReport", () => {
       radar: null,
       analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 1 },
       suggestionScoring: { scored: 1, skipped: 2, errorCount: 1 },
+      sentiment: {
+        labels: {
+          status: "ran",
+          labelled: 2,
+          rejected: 0,
+          unreadable: 0,
+          retryLater: 0,
+          deferred: 0,
+        },
+        newsTone: { status: "ran", refreshed: 1, failed: 0, deferred: 0 },
+        provider: { status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 },
+      },
     });
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain("someone-elses-request-id");

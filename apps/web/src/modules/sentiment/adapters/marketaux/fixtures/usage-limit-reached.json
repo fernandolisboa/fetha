@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "usage_limit_reached",
+    "message": "You have reached your daily request limit."
+  }
+}
