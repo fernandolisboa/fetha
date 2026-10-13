@@ -12,6 +12,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { ExchangeRatePair } from "./adapters/bacen-sgs/schema";
+
 // Shared reference data (docs/adr/0017): no user_id, read-only to users. `candles`
 // and `optionDailyPrices` are declared here as ordinary tables for Drizzle's query
 // builder; the migration SQL turns them into `PARTITION BY RANGE (session)` parents
@@ -182,7 +184,7 @@ export const impliedVolatilityIndexPoints = pgTable(
 export const exchangeRates = pgTable(
   "exchange_rates",
   {
-    pair: text("pair").notNull(),
+    pair: text("pair").$type<ExchangeRatePair>().notNull(),
     date: date("date", { mode: "string" }).notNull(),
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
     rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),

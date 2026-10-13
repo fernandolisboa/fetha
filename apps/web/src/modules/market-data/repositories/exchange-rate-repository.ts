@@ -9,7 +9,11 @@ import {
 import type { Database } from "@/db/client";
 import { exchangeRates } from "../schema";
 
-import type { ExchangeRatePair, ExchangeRatePoint } from "../adapters/bacen-sgs/schema";
+import {
+  exchangeRatePairSchema,
+  type ExchangeRatePair,
+  type ExchangeRatePoint,
+} from "../adapters/bacen-sgs/schema";
 
 const CHUNK_SIZE = 1000;
 
@@ -29,13 +33,13 @@ export interface ExchangeRateRow {
 }
 
 function toExchangeRateRow(row: {
-  pair: string;
+  pair: ExchangeRatePair;
   date: string;
   asOf: Date;
   rate: string;
 }): ExchangeRateRow {
   return {
-    pair: row.pair as ExchangeRatePair,
+    pair: exchangeRatePairSchema.parse(row.pair),
     date: sessionDateSchema.parse(row.date),
     asOf: row.asOf,
     rate: decimalStringSchema.parse(row.rate),
