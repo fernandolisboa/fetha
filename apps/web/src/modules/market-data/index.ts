@@ -78,11 +78,7 @@ export {
   latestExchangeRate,
   type ExchangeRateRow,
 } from "./repositories/exchange-rate-repository";
-export {
-  companyFilingsForInstrument,
-  unmappedCompanyFilingsView,
-  type CompanyFilingsView,
-} from "./company-filing-queries";
+export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-filing-queries";
 // `marketIndexes` and `marketIndexTickersForQuery` are used only inside `market-data` itself
 // (`ingest.ts`, `candle-repository.ts`), through a direct relative import, not this barrel.
 export { ibovespa, isMarketIndex } from "./market-index";
