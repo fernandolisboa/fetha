@@ -6,6 +6,7 @@ import {
   macroSeriesKindSchema,
   optionRightSchema,
   sessionDateSchema,
+  settlementStyleSchema,
   tickerSchema,
   type DecimalString,
   type Instant,
@@ -331,6 +332,8 @@ export async function loadMarketViewWithCalendarVersion(
         expiry: sessionDateSchema.parse(row.expiry),
         style: exerciseStyleSchema.parse(row.style),
         asOf: instantSchema.parse(row.asOf.toISOString()),
+        priceFactor: decimalStringSchema.parse(row.priceFactor),
+        settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
       }))
     : [];
 
@@ -615,6 +618,8 @@ export async function buildOperationMarketView(
     expiry: row.expiry,
     style: exerciseStyleSchema.parse(row.style),
     asOf: row.asOf.toISOString(),
+    priceFactor: decimalStringSchema.parse(row.priceFactor),
+    settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
   }));
 
   const latestSeriesByTicker = new Map<string, (typeof seriesRows)[number]>();

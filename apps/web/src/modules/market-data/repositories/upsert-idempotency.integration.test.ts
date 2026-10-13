@@ -55,6 +55,8 @@ const seriesRow = instrumentOptionSeriesSchema.parse({
   expiry: "2026-08-21",
   style: "american",
   asOf: SESSION,
+  priceFactor: "1",
+  settlementStyle: "physical",
 });
 
 const macroPoint = macroPointSchema.parse({

@@ -21,6 +21,8 @@ describe("parseInstrumentsRegistry", () => {
       expiry: "2028-01-21",
       style: "american",
       asOf: "2026-09-08",
+      priceFactor: "1",
+      settlementStyle: "physical",
     });
     expect(series[1]).toEqual({
       ticker: "PETRM1",
@@ -31,6 +33,8 @@ describe("parseInstrumentsRegistry", () => {
       expiry: "2028-01-21",
       style: "european",
       asOf: "2026-09-08",
+      priceFactor: "1",
+      settlementStyle: "physical",
     });
   });
 
@@ -59,6 +63,8 @@ describe("parseInstrumentsRegistry", () => {
       right: "call",
       strike: "183000",
       style: "european",
+      priceFactor: "100",
+      settlementStyle: "cash",
     });
   });
 

@@ -6,6 +6,12 @@ import { instrumentOptionSeriesSchema } from "./schema";
 const CALL_OPTION_TYPE = "Call";
 const PUT_OPTION_TYPE = "Put";
 
+// ADR-0063: only the registry's own index-option category is cash-settled; every other
+// in-scope category (equity, BDR, ETF) settles physically, the pre-existing behaviour.
+const CASH_SETTLED_CATEGORY = "OPTION ON INDEX";
+
+const DEFAULT_PRICE_FACTOR = "1";
+
 // The registry also lists ~7,400 commodity/FX option rows (SctyCtgyNm blank,
 // MktNm "OPTIONS ON FUTURE"/"OPTIONS ON SPOT", e.g. BGIF27C034000) whose
 // tickers don't fit tickerSchema; this ticket only covers equities, BDRs,
@@ -78,6 +84,10 @@ export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegi
   const strikeIndex = indexOf("ExrcPric");
   const optionTypeIndex = indexOf("OptnTp");
   const categoryIndex = indexOf("SctyCtgyNm");
+  // Not every registry export carries `PricFctr` (older samples, other sections of the same
+  // file); absent, every series defaults to a factor of 1 (ADR-0063), the pre-existing
+  // behaviour for equity options.
+  const priceFactorIndex = columns.indexOf("PricFctr");
 
   const series: InstrumentOptionSeries[] = [];
   let skipped = 0;
@@ -99,6 +109,11 @@ export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegi
       skipped += 1;
       continue;
     }
+    const rawPriceFactor = priceFactorIndex === -1 ? undefined : fields[priceFactorIndex]?.trim();
+    const priceFactor =
+      rawPriceFactor && rawPriceFactor.length > 0
+        ? commaToDot(rawPriceFactor)
+        : DEFAULT_PRICE_FACTOR;
     try {
       series.push(
         instrumentOptionSeriesSchema.parse({
@@ -110,6 +125,8 @@ export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegi
           expiry,
           style,
           asOf: fields[reportDateIndex],
+          priceFactor,
+          settlementStyle: category === CASH_SETTLED_CATEGORY ? "cash" : "physical",
         }),
       );
     } catch (error) {

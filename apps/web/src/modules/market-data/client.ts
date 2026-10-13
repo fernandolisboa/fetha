@@ -14,6 +14,13 @@ export {
   matchExchangeRates,
   type ExchangeRateSearchHit,
 } from "./exchange-rate-match";
+export {
+  isMarketIndex,
+  marketIndexes,
+  marketIndexOf,
+  marketIndexTickersForQuery,
+  type MarketIndex,
+} from "./market-index";
 // The module's own locale choice (`t`), plain data with no server imports:
 // safe for a client component that needs exchangeRate.pairLabel (#305).
 export { t as marketDataT } from "./strings";

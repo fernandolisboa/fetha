@@ -4,6 +4,7 @@ import {
   instantSchema,
   optionRightSchema,
   sessionDateSchema,
+  settlementStyleSchema,
   tickerSchema,
   type Ticker,
 } from "@fetha/contracts";
@@ -99,6 +100,8 @@ export async function buildAssetReadingView(
       expiry: sessionDateSchema.parse(row.expiry),
       style: exerciseStyleSchema.parse(row.style),
       asOf: instantSchema.parse(row.asOf.toISOString()),
+      priceFactor: decimalStringSchema.parse(row.priceFactor),
+      settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
     })),
     optionPrices: priceRows.map((row) => ({
       ticker: tickerSchema.parse(row.ticker),

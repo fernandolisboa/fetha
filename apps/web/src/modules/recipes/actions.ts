@@ -94,6 +94,7 @@ function runErrorOf(error: StartBacktestRunError): StartRecipeError {
     case "invalid":
     case "not_found":
     case "archived":
+    case "index_in_universe":
       return "invalid";
   }
 }

@@ -1,0 +1,2 @@
+ALTER TABLE "option_series" ADD COLUMN "price_factor" numeric(18, 6) DEFAULT '1' NOT NULL;--> statement-breakpoint
+ALTER TABLE "option_series" ADD COLUMN "settlement_style" text DEFAULT 'physical' NOT NULL;

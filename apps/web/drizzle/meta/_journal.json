@@ -274,6 +274,13 @@
       "when": 1791908499825,
       "tag": "0038_exchange_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791915786243,
+      "tag": "0039_option_series_price_factor_settlement_style",
+      "breakpoints": true
     }
   ]
 }

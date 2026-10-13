@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import {
   decimalStringSchema,
   quantitySchema,
+  type Centavos,
   type DecimalString,
   type SessionDate,
   type Ticker,
@@ -36,6 +37,20 @@ const ZERO_PRICE = decimalStringSchema.parse("0");
 
 function opposite(side: FillSide): FillSide {
   return side === "buy" ? "sell" : "buy";
+}
+
+// ADR-0063: a cash-settled leg (e.g. an Ibovespa option) never produces a fill on the
+// underlying, so its settlement cash flow is carried on this same ledger as the closing
+// option fill's own price instead of the usual `ZERO_PRICE` worthless close. The closing
+// fill's side is already the leg's opposite (set by its caller), which gives `cashCentavos`
+// (bookkeeping.ts) the right sign on its own; this only has to supply the right magnitude.
+function cashSettlementClosePrice(
+  cashSettlementValue: Centavos | null,
+  quantity: number,
+): DecimalString {
+  if (cashSettlementValue == null || cashSettlementValue === 0) return ZERO_PRICE;
+  const perUnit = new Decimal(Math.abs(cashSettlementValue)).div(100).div(quantity);
+  return decimalStringSchema.parse(perUnit.toFixed(6));
 }
 
 // ADR-0014 Q41: exercise buys the underlying for a long call and sells it
@@ -117,7 +132,7 @@ export function planSettlement(
       assetClass: "option",
       side: opposite(leg.side),
       quantity: optionCloseQuantity,
-      price: ZERO_PRICE,
+      price: cashSettlementClosePrice(settlement.cashSettlementValue, optionCloseQuantity),
       session: expiry,
       costsCentavos: 0,
       expiry,

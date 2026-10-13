@@ -15,6 +15,7 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
+  isMarketIndex,
   latestCandle,
   optionSeriesForFills,
   seriesKey,
@@ -76,7 +77,8 @@ export type PortfolioActionResult =
         | "no_proposal"
         | "invalid_choice"
         | "not_a_session"
-        | "rate_limited";
+        | "rate_limited"
+        | "index_stock_leg";
     };
 
 const IMPORT_RATE_LIMIT = { windowSeconds: 60, max: 10 };
@@ -221,6 +223,11 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
     );
     if (!series && !(await latestCandle(db, ticker))) {
       return { status: "error" as const, error: "unknown_instrument" as const };
+    }
+    // A stock fill on a market index is never a real B3 fill (design-307.md section 1 rule 1):
+    // B3's own investor-area export cannot produce one.
+    if (!series && isMarketIndex(ticker)) {
+      return { status: "error" as const, error: "index_stock_leg" as const };
     }
     await new PortfolioRepository(db, user).insertFills([
       {

@@ -1,4 +1,9 @@
-import { decimalStringSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import {
+  decimalStringSchema,
+  sessionDateSchema,
+  settlementStyleSchema,
+  tickerSchema,
+} from "@fetha/contracts";
 import { z } from "zod";
 
 export const instrumentOptionSeriesSchema = z.object({
@@ -10,5 +15,10 @@ export const instrumentOptionSeriesSchema = z.object({
   expiry: sessionDateSchema,
   style: z.enum(["american", "european"]),
   asOf: sessionDateSchema,
+  // B3's own `PricFctr` (ADR-0063): absent or unparsable defaults to "1", the pre-existing
+  // equity-option behaviour.
+  priceFactor: decimalStringSchema,
+  // The registry's `SctyCtgyNm` ("OPTION ON INDEX" -> "cash", else "physical", ADR-0063).
+  settlementStyle: settlementStyleSchema,
 });
 export type InstrumentOptionSeries = z.infer<typeof instrumentOptionSeriesSchema>;

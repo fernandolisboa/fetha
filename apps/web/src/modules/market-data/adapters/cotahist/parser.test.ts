@@ -156,6 +156,22 @@ describe("parseCotahist", () => {
       const exrcPric = registryLine?.split(";")[35];
       expect(exrcPric).toBe("183000");
     });
+
+    it("FATCOT equals the instruments registry's PricFctr for IBOVA183 (ADR-0063)", () => {
+      const rows = parseCotahist(fixture, "2026-09-08");
+      const ibov = rows.find(
+        (row): row is Extract<(typeof rows)[number], { kind: "option" }> =>
+          row.kind === "option" && row.ticker === "IBOVA183",
+      );
+      expect(ibov?.factor).toBe("100");
+
+      const registryLines = registryFixture.split(/\r?\n/);
+      const header = registryLines[1]?.split(";") ?? [];
+      const pricFctrIndex = header.indexOf("PricFctr");
+      const registryLine = registryLines.find((line) => line.startsWith("2026-09-08;IBOVA183;"));
+      const pricFctr = registryLine?.split(";")[pricFctrIndex];
+      expect(pricFctr).toBe("100");
+    });
   });
 });
 

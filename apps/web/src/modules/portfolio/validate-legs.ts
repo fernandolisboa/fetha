@@ -1,4 +1,4 @@
-import type { ChainSeries } from "@/modules/market-data";
+import { isMarketIndex, type ChainSeries } from "@/modules/market-data";
 import type { ContemplatedLeg, Structure } from "@fetha/contracts";
 
 export type LegValidationFailure =
@@ -7,7 +7,8 @@ export type LegValidationFailure =
   | "unresolved_instrument"
   | "expiry_mismatch"
   | "strike_order"
-  | "leg_ratio";
+  | "leg_ratio"
+  | "index_stock_leg";
 
 // Checks a builder's concrete legs against the structure template they
 // claim to instantiate before pricing or saving them:
@@ -53,6 +54,11 @@ export function validateLegsAgainstStructure(
     }
 
     if (template.role === "stock") {
+      // A stock leg on a market index is impossible: there is nothing to deliver, and B3's
+      // own export can never produce one (design-307.md section 1 rule 1).
+      if (isMarketIndex(leg.ticker)) {
+        return { ok: false, reason: "index_stock_leg" };
+      }
       continue;
     }
 

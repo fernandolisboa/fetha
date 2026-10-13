@@ -6,12 +6,14 @@ const tradingSessionForDate = vi.fn();
 const previousTradingSession = vi.fn();
 const calendarUpTo = vi.fn();
 const loadMarketView = vi.fn();
+const MARKET_INDEX_TICKERS = new Set(["IBOV11"]);
 
 vi.mock("@/modules/market-data", () => ({
   tradingSessionForDate,
   previousTradingSession,
   calendarUpTo,
   loadMarketView,
+  isMarketIndex: (ticker: string) => MARKET_INDEX_TICKERS.has(ticker),
 }));
 
 const listAll = vi.fn();
@@ -23,6 +25,12 @@ vi.mock("./structures-repository", () => ({
 
 const activeStrategyUserIds = vi.fn();
 vi.mock("./active-strategy-users", () => ({ activeStrategyUserIds }));
+
+const evaluateVersion = vi.fn();
+vi.mock("./evaluate-version", () => ({
+  evaluateVersion,
+  inboxHorizonFloor: () => undefined,
+}));
 
 const listActiveDaily = vi.fn();
 vi.mock("./strategies-repository", () => ({
@@ -71,6 +79,7 @@ beforeEach(() => {
   watchlistList.mockReset().mockResolvedValue([]);
   riskProfileCurrent.mockReset().mockResolvedValue(null);
   lastEvaluatedSession.mockReset().mockResolvedValue(null);
+  evaluateVersion.mockReset().mockResolvedValue({ ok: true, signals: [], evaluations: [] });
 });
 
 describe("evaluateSignalsForSession", () => {
@@ -122,5 +131,20 @@ describe("evaluateSignalsForSession", () => {
     expect(outcome.usersSkipped).toBe(2);
     expect(JSON.stringify(outcome)).not.toContain("user-a");
     expect(JSON.stringify(outcome)).not.toContain("user-b");
+  });
+
+  it("design-307 section 1 rule 2: evaluates a watchlist's ordinary tickers only, dropping a market index", async () => {
+    activeStrategyUserIds.mockResolvedValueOnce(["user-a"]);
+    listActiveDaily.mockResolvedValueOnce([
+      { strategyId: "strategy-1", version: { id: "v1", definition: { structureId: "stock" } } },
+    ]);
+    listAll.mockResolvedValueOnce([{ id: "stock", name: "Ação", expiry: "shared", legs: [] }]);
+    watchlistList.mockResolvedValueOnce([{ ticker: "IBOV11" }, { ticker: "PETR4" }]);
+
+    await evaluateSignalsForSession(db, ["2026-09-09"], { deadlineAt: undefined, now: () => 1 });
+
+    expect(evaluateVersion).toHaveBeenCalledTimes(1);
+    const call = evaluateVersion.mock.calls[0]?.[1] as { tickers: string[] };
+    expect(call.tickers).toEqual(["PETR4"]);
   });
 });

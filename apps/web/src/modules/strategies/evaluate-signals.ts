@@ -3,7 +3,12 @@ import type { StrategyVersion, TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
-import { calendarUpTo, previousTradingSession, tradingSessionForDate } from "@/modules/market-data";
+import {
+  calendarUpTo,
+  isMarketIndex,
+  previousTradingSession,
+  tradingSessionForDate,
+} from "@/modules/market-data";
 import { RiskProfileRepository } from "@/modules/portfolio";
 import { WatchlistRepository } from "@/modules/watchlist";
 
@@ -247,7 +252,11 @@ export async function evaluateSignalsForSession(
       }
 
       const watchlist = await new WatchlistRepository(db, scopedUser).list();
-      const tickers = watchlist.map((item) => item.ticker);
+      // A market index is never evaluated (design-307.md section 1 rule 2): ATR, high/low
+      // and tradedQuantity conditions must never read its synthetic candle.
+      const tickers = watchlist
+        .map((item) => item.ticker)
+        .filter((ticker) => !isMarketIndex(ticker));
       if (tickers.length === 0) {
         continue;
       }
