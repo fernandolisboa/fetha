@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { DecimalString, SessionDate } from "@fetha/contracts";
 
 import { formatExchangeRateBRL } from "@/lib/format/brl";
+import { formatDecimal } from "@/lib/format/decimal";
 import { formatDate } from "@/lib/format/date-time";
 import {
   closeFreshnessKind,
@@ -21,6 +22,11 @@ const FRESHNESS_REFRESH_MS = 60_000;
 export interface UsdBrlMarketBarQuote {
   rate: DecimalString;
   date: SessionDate;
+}
+
+export interface IbovMarketBarQuote {
+  close: DecimalString;
+  session: SessionDate;
 }
 
 // An installed PWA can sit open across midnight: recomputing `now` on an
@@ -72,10 +78,35 @@ function UsdBrlChip({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote }) {
   );
 }
 
-// IBOV/CDI land with a market index (out of this ticket's scope); the
-// focused instrument's last close and freshness (#13) come from whatever
-// page published one through MarketBarProvider.
-export function MarketBar({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote | null }) {
+// The Ibovespa's own daily close (ADR-0062), loaded server-side in the shell layout and passed
+// down as a prop, same shape as UsdBrlChip above: not published by whatever page happens to be
+// open, so it stays visible everywhere in the shell. Points, never `R$` (ADR-0062).
+function IbovChip({ ibov }: { ibov: IbovMarketBarQuote }) {
+  const dateLabel = formatDate(sessionDateToDisplayDate(ibov.session));
+  return (
+    <>
+      <Link
+        href="/ativos/IBOV11"
+        title={t.marketBar.ibovAsOf(dateLabel)}
+        // Same breakpoint budget as UsdBrlChip below (e2e/shell.spec.ts, 360/390px).
+        className="text-foreground hidden shrink-0 font-medium sm:inline"
+      >
+        IBOV {formatDecimal(ibov.close)}
+      </Link>
+      <span className="text-faint hidden shrink-0 lg:inline">{dateLabel}</span>
+    </>
+  );
+}
+
+// CDI lands later (out of this ticket's scope); the focused instrument's last close and
+// freshness (#13) come from whatever page published one through MarketBarProvider.
+export function MarketBar({
+  usdBrl,
+  ibov,
+}: {
+  usdBrl: UsdBrlMarketBarQuote | null;
+  ibov: IbovMarketBarQuote | null;
+}) {
   const instrument = useMarketBarInstrument();
   const now = useNow(FRESHNESS_REFRESH_MS);
 
@@ -85,11 +116,9 @@ export function MarketBar({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote | null }) {
         data-testid="market-bar"
         className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums"
       >
-        {usdBrl ? (
-          <UsdBrlChip usdBrl={usdBrl} />
-        ) : (
-          <span className="min-w-0 truncate">{t.marketBar.noData}</span>
-        )}
+        {ibov && <IbovChip ibov={ibov} />}
+        {usdBrl && <UsdBrlChip usdBrl={usdBrl} />}
+        {!ibov && !usdBrl && <span className="min-w-0 truncate">{t.marketBar.noData}</span>}
       </div>
     );
   }
@@ -101,6 +130,7 @@ export function MarketBar({ usdBrl }: { usdBrl: UsdBrlMarketBarQuote | null }) {
       data-testid="market-bar"
       className="text-muted-foreground ml-auto flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-xs tabular-nums"
     >
+      {ibov && <IbovChip ibov={ibov} />}
       {usdBrl && <UsdBrlChip usdBrl={usdBrl} />}
       <span className="text-foreground shrink-0 font-medium">{instrument.ticker}</span>
       <span className="shrink-0">{instrument.lastClose}</span>

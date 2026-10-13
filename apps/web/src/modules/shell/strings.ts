@@ -24,6 +24,7 @@ const en = {
     closeFreshnessYesterday: "yesterday's close",
     closeFreshnessOlder: (date: string) => `close on ${date}`,
     usdBrlAsOf: (date: string) => `Bacen PTAX, ${date}`,
+    ibovAsOf: (date: string) => `B3 index close, ${date}`,
   },
   rail: {
     navigationLabel: "Main navigation",
@@ -89,6 +90,7 @@ const ptBR = {
     closeFreshnessYesterday: "fechamento de ontem",
     closeFreshnessOlder: (date: string) => `fechamento de ${date}`,
     usdBrlAsOf: (date: string) => `PTAX do Bacen, ${date}`,
+    ibovAsOf: (date: string) => `Fechamento do índice B3, ${date}`,
   },
   rail: {
     navigationLabel: "Navegação principal",

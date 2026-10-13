@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { candleForms, type CandleForm } from "@fetha/engine";
 import { tickerSchema } from "@fetha/contracts";
 
+import { Badge } from "@/components/ui/badge";
 import { getDb } from "@/db/client";
+import { formatDecimal } from "@/lib/format/decimal";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
 import { AssetTour } from "@/modules/help";
@@ -13,9 +15,11 @@ import {
   CandleFormToggle,
   CompanyFilingsList,
   companyFilingsForInstrument,
+  isMarketIndex,
   latestCandle,
   loadAssetReading,
   loadCandleSeries,
+  RateLineChart,
   t,
 } from "@/modules/market-data";
 import { RecipePanel } from "@/modules/recipes";
@@ -54,6 +58,7 @@ export default async function InstrumentPage({
   }
   const ticker = parsedTicker.data;
   const form = resolveForm(rawForm);
+  const isIndex = isMarketIndex(ticker);
 
   const db = getDb();
   const [lastClose, seriesResult, filings, reading, onWatchlist, hasActiveStrategy] =
@@ -82,7 +87,7 @@ export default async function InstrumentPage({
         <InstrumentMarketBar
           instrument={{
             ticker,
-            lastClose: formatPriceBRL(lastClose.close),
+            lastClose: isIndex ? formatDecimal(lastClose.close) : formatPriceBRL(lastClose.close),
             session: lastClose.session,
           }}
         />
@@ -92,8 +97,22 @@ export default async function InstrumentPage({
         overline={t.instrument.overline}
         headline={ticker}
         headlineClassName="font-mono uppercase"
-        actions={<CandleFormToggle ticker={ticker} form={form} />}
+        actions={isIndex ? undefined : <CandleFormToggle ticker={ticker} form={form} />}
       />
+
+      {isIndex && (
+        <ul className="flex flex-wrap gap-2">
+          <li>
+            <Badge variant="secondary">{t.marketIndex.chipLabel}</Badge>
+          </li>
+          <li>
+            <Badge variant="secondary">{t.marketIndex.chipUnit}</Badge>
+          </li>
+          <li>
+            <Badge variant="outline">{t.marketIndex.chipSource}</Badge>
+          </li>
+        </ul>
+      )}
 
       <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-[14px]">
@@ -104,7 +123,16 @@ export default async function InstrumentPage({
                   {t.instrument.unavailable}
                 </ErrorNotice>
               ) : seriesResult.value.candles.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t.instrument.noData}</p>
+                <p className="text-muted-foreground text-sm">
+                  {isIndex ? t.marketIndex.noData : t.instrument.noData}
+                </p>
+              ) : isIndex ? (
+                <RateLineChart
+                  points={seriesResult.value.candles.map((candle) => ({
+                    date: candle.session,
+                    rate: candle.close,
+                  }))}
+                />
               ) : (
                 <CandleChart candles={seriesResult.value.candles} />
               )}
@@ -120,16 +148,18 @@ export default async function InstrumentPage({
               <RecipePanel ticker={ticker} />
             </div>
           )}
-          <Panel
-            title={t.companyFilings.title}
-            subtitle={
-              filings.freshness
-                ? `${t.companyFilings.subtitle} ${filings.freshness}`
-                : t.companyFilings.subtitle
-            }
-          >
-            <CompanyFilingsList view={filings} />
-          </Panel>
+          {!isIndex && (
+            <Panel
+              title={t.companyFilings.title}
+              subtitle={
+                filings.freshness
+                  ? `${t.companyFilings.subtitle} ${filings.freshness}`
+                  : t.companyFilings.subtitle
+              }
+            >
+              <CompanyFilingsList view={filings} />
+            </Panel>
+          )}
         </div>
         <div data-tour="asset-next-steps">
           <Panel title={watchlistStrings.nextSteps.title}>

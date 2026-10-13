@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { formatDate } from "@/lib/format/date-time";
+import { formatDecimal } from "@/lib/format/decimal";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
-import { AssetReadingChips } from "@/modules/market-data";
+import { AssetReadingChips, isMarketIndex } from "@/modules/market-data";
 import { RadarPanel } from "@/modules/radar";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import { hasMyActiveDailyStrategy } from "@/modules/strategies";
@@ -90,7 +91,11 @@ async function WatchlistTable() {
                   {item.reading && <AssetReadingChips reading={item.reading} />}
                 </td>
                 <td className="py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
-                  {item.lastClose ? formatPriceBRL(item.lastClose.close) : t.table.noClose}
+                  {item.lastClose
+                    ? isMarketIndex(item.ticker)
+                      ? formatDecimal(item.lastClose.close)
+                      : formatPriceBRL(item.lastClose.close)
+                    : t.table.noClose}
                 </td>
                 <td className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
                   {item.lastClose

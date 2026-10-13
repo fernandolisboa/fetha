@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
 import {
+  latestCandle,
   latestExchangeRate,
   searchOptionSeriesAction,
   type ExchangeRateRow,
+  type CandleRow,
 } from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
@@ -35,10 +37,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect("/aceitar-termos");
   }
 
-  const [preferences, unreadSignalCount, usdBrl] = await Promise.all([
+  const [preferences, unreadSignalCount, usdBrl, ibov] = await Promise.all([
     getPreferences(),
     getMyUnreadSignalCount(),
     readLatestUsdBrl(),
+    readLatestIbov(),
   ]);
 
   return (
@@ -53,6 +56,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           strategies: searchMyStrategiesAction,
         }}
         usdBrl={usdBrl}
+        ibov={ibov}
       >
         {children}
       </AppShell>
@@ -71,6 +75,17 @@ async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
     // A fixed marker, never the driver's message: it would carry database
     // text into the logs (docs/adr/0061).
     console.error("shell: latest USD/BRL PTAX read failed; market bar chip hidden");
+    return null;
+  }
+}
+
+// Same fail-soft shape as readLatestUsdBrl above (ADR-0062): a migration not yet applied or a
+// transient read failure just hides the IBOV chip instead of taking down the shell.
+async function readLatestIbov(): Promise<CandleRow | null> {
+  try {
+    return await latestCandle(getDb(), "IBOV11");
+  } catch {
+    console.error("shell: latest IBOV11 read failed; market bar chip hidden");
     return null;
   }
 }
