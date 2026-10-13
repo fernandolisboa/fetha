@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "@/db/client";
 import {
   candles,
+  exchangeRates,
   ingestionRuns,
   macroPoints,
   optionDailyPrices,
@@ -191,6 +192,7 @@ async function cleanup(): Promise<void> {
     await db.delete(ingestionRuns).where(eq(ingestionRuns.session, calendarMarkerSession(year)));
   }
   await db.delete(macroPoints).where(eq(macroPoints.date, TEST_SESSION));
+  await db.delete(exchangeRates).where(lte(exchangeRates.date, TEST_SESSION));
 }
 
 // Both before and after: the "drains" test below deliberately writes candles
@@ -291,7 +293,7 @@ describe("ingest", () => {
     }
   });
 
-  it("ingests all four sources for the target session and records a run per source", async () => {
+  it("ingests all six sources for the target session and records a run per source", async () => {
     const db = getDb();
     const result = await ingest(db, {
       session: TEST_SESSION,
@@ -301,11 +303,13 @@ describe("ingest", () => {
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
-      ["calendar", "cotahist", "instruments", "iv_index", "sgs"].sort(),
+      ["calendar", "cotahist", "instruments", "iv_index", "ptax", "sgs"].sort(),
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
     expect(result.sources.find((s) => s.source === "iv_index")?.newestSessionComputed).toBe(true);
+    const ptax = result.sources.find((s) => s.source === "ptax");
+    expect(ptax?.rowCount).toBeGreaterThan(0);
 
     const [candleRow] = await db
       .select()
@@ -461,6 +465,81 @@ describe("ingest", () => {
     expect(sgsRuns.map((run) => run.session)).not.toContain(TEST_SESSION);
   }, 120_000);
 
+  it("reports ptax pending, not failed, when Bacen has not published USDBRL yet, and fills it on a later run", async () => {
+    const db = getDb();
+    const published = fakeFetch(TEST_SESSION);
+    const usdNotPublished = ((input: string) =>
+      input.includes("bcdata.sgs.1/")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                erro: {
+                  statusCode: 404,
+                  detail:
+                    "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found",
+                },
+              }),
+              { status: 404 },
+            ),
+          )
+        : published(input)) as unknown as typeof fetch;
+    const ptaxRuns = () =>
+      db
+        .select()
+        .from(ingestionRuns)
+        .where(and(eq(ingestionRuns.source, "ptax"), eq(ingestionRuns.session, TEST_SESSION)));
+
+    const first = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: usdNotPublished,
+    });
+
+    const ptax = first.sources.find((source) => source.source === "ptax");
+    expect(ptax).toMatchObject({ pending: true, skipped: false });
+    expect(ptax?.error).toBeUndefined();
+    expect(await ptaxRuns()).toEqual([]);
+
+    const second = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T23:00:00.000Z`),
+      fetchImpl: published,
+    });
+
+    expect(second.sources.find((source) => source.source === "ptax")?.pending).toBeUndefined();
+    expect((await ptaxRuns()).map((run) => run.status)).toEqual(["succeeded"]);
+    const [usd] = await db
+      .select()
+      .from(exchangeRates)
+      .where(and(eq(exchangeRates.pair, "USDBRL"), eq(exchangeRates.date, TEST_SESSION)));
+    expect(usd).toBeDefined();
+  });
+
+  it("fails an older ptax gap whose PTAX never publishes, while the newest gap stays pending (mirrors sgs, #216)", async () => {
+    const db = getDb();
+    const anySession = fakeFetchAnySession();
+    const usdNeverPublished = ((input: string) =>
+      input.includes("bcdata.sgs.1/")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                erro: { statusCode: 404, detail: "SGSNegocioException: Value(s) not found" },
+              }),
+              { status: 404 },
+            ),
+          )
+        : anySession(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: usdNeverPublished,
+    });
+
+    const ptax = result.sources.find((source) => source.source === "ptax");
+    expect(ptax?.pending).toBe(true);
+    expect(ptax?.error).toContain("SGS has not published PTAX");
+  }, 120_000);
+
   it("is idempotent: re-running the same session changes nothing and skips already-succeeded sources", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);
@@ -485,7 +564,7 @@ describe("ingest", () => {
       .select()
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
-    expect(runs).toHaveLength(4);
+    expect(runs).toHaveLength(5);
   });
 
   it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {
@@ -663,8 +742,11 @@ describe("ingest", () => {
     const db = getDb();
     const sgsFinalDates: string[] = [];
     const base = fakeFetchAnySession();
+    // Only the macro SGS codes (12/432/13522), not PTAX's (1/21619): ptax
+    // has its own, much later start budget (70%, docs/adr/0059) and is left
+    // free to run its own full gap window in this test.
     const fetchImpl = ((input: string) => {
-      if (input.includes("bcdata.sgs")) {
+      if (/bcdata\.sgs\.(12|432|13522)\//.test(input)) {
         sgsFinalDates.push(new URL(input).searchParams.get("dataFinal") ?? "");
       }
       return base(input as unknown as RequestInfo);
@@ -674,6 +756,7 @@ describe("ingest", () => {
       now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
       fetchImpl,
       sgsBudgetMs: 0,
+      ptaxBudgetMs: 0,
     });
 
     expect(result.ok).toBe(true);

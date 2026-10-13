@@ -175,12 +175,28 @@ export const impliedVolatilityIndexPoints = pgTable(
   ],
 );
 
+// USD/BRL and EUR/BRL selling PTAX, Bacen's own daily fixing (docs/adr/0059):
+// shared read-only reference data like the rest of this file, no user_id.
+// `as_of` is the fixed publication instant the PTAX parser stamps
+// (13:30 America/Sao_Paulo), independent of any B3 trading-session calendar.
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    pair: text("pair").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pair, table.date] })],
+);
+
 export const ingestionSourceValues = [
   "cotahist",
   "instruments",
   "sgs",
   "calendar",
   "iv_index",
+  "ptax",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 
