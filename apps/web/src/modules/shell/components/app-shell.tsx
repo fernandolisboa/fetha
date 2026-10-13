@@ -4,6 +4,7 @@ import type { CurrentUser } from "@/modules/auth";
 import type { Preferences } from "@/modules/preferences";
 
 import { Header } from "./header";
+import type { UsdBrlMarketBarQuote } from "./market-bar";
 import { MarketBarProvider } from "./market-bar-context";
 import { Rail } from "./rail";
 import { TabBar } from "./tab-bar";
@@ -14,18 +15,20 @@ export function AppShell({
   preferences,
   unreadSignalCount,
   search,
+  usdBrl,
   children,
 }: {
   user: CurrentUser;
   preferences: Preferences;
   unreadSignalCount: number;
   search: SearchSources;
+  usdBrl: UsdBrlMarketBarQuote | null;
   children: ReactNode;
 }) {
   return (
     <MarketBarProvider>
       <div className="grid min-h-full grid-cols-1 grid-rows-[var(--shell-header-height)_1fr] max-md:pb-14">
-        <Header email={user.email} search={search} />
+        <Header email={user.email} search={search} usdBrl={usdBrl} />
         <div className="flex min-h-0 flex-1">
           <Rail
             initialCollapsed={preferences.railCollapsed}

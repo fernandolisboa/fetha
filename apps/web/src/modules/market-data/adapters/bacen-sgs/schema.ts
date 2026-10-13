@@ -38,3 +38,23 @@ export const sgsSeriesCodes = {
   selic: 432,
   ipca: 13522,
 } as const satisfies Record<MacroSeriesKind, number>;
+
+export const exchangeRatePairSchema = z.enum(["USDBRL", "EURBRL"]);
+export type ExchangeRatePair = z.infer<typeof exchangeRatePairSchema>;
+
+export const exchangeRatePairValues = exchangeRatePairSchema.options;
+
+export const exchangeRatePointSchema = z.object({
+  pair: exchangeRatePairSchema,
+  date: sessionDateSchema,
+  asOf: instantSchema,
+  rate: decimalStringSchema,
+});
+export type ExchangeRatePoint = z.infer<typeof exchangeRatePointSchema>;
+
+// SGS series 1 (dollar selling PTAX) and 21619 (euro selling PTAX),
+// verified live against api.bcb.gov.br 2026-10-13 (docs/adr/0061).
+export const ptaxSgsCodes = {
+  USDBRL: 1,
+  EURBRL: 21619,
+} as const satisfies Record<ExchangeRatePair, number>;

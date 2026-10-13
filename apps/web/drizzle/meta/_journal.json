@@ -267,6 +267,13 @@
       "when": 1791902427747,
       "tag": "0037_asset_tour_dismissed",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791908499825,
+      "tag": "0038_exchange_rates",
+      "breakpoints": true
     }
   ]
 }
