@@ -28,6 +28,12 @@ export type PriceOptionLegInput = {
   // not a real market view. The caller (`valueOneLeg`) is the one that knows
   // the underlying's own corporate-actions timeline, so it decides when to suppress this.
   suppressStaleImpliedVolatility?: boolean;
+  // ADR-0063: the series' own `priceFactor` (absent = 1). `spot`/`strike` stay in the series'
+  // quotation unit (index points for an index option); `marketPrice` is a premium already in
+  // reais per contract, so it is scaled up to that same unit before the model ever sees it, and
+  // every model output (fairValue, the money-valued greeks) is scaled back down before it
+  // leaves this function. Delta is unit-free and crosses this seam unchanged.
+  priceFactor?: DecimalString | undefined;
 };
 
 const VOLATILITY_POINT = 0.01;
@@ -35,13 +41,23 @@ const VOLATILITY_POINT = 0.01;
 // ADR-0013 "Rates, time and greeks": theta is reported per session (annual theta / 252),
 // vega per one volatility point (0.01), rho per 1.00 of rate (no rescaling: the raw
 // derivative is already "per unit of r").
-function toReportedGreeks(raw: ReturnType<typeof bsmGreeksRaw>): Greeks {
+// Delta and gamma are both derivatives with respect to the underlying, so both stay in the
+// series' own quotation unit, unconverted: delta (dV/dS) is homogeneous of degree 0 in
+// (S, K) and already unit-free; gamma (d(delta)/dS, i.e. d^2V/dS^2) is homogeneous of degree
+// -1, not +1 — dividing it by the price factor as if it were a money greek (reviewed #307
+// round 1, item 3) silently rounds an index option's already-small gamma to "0.000000" at
+// RATIO_SCALE. Theta, vega and rho stay in reais per contract, like fair value itself
+// (homogeneous of degree +1), so they are scaled down by the factor.
+function toReportedGreeks(raw: ReturnType<typeof bsmGreeksRaw>, priceFactor: number): Greeks {
   return {
     delta: toDecimalString(new Decimal(raw.delta), RATIO_SCALE),
     gamma: toDecimalString(new Decimal(raw.gamma), RATIO_SCALE),
-    theta: toDecimalString(new Decimal(raw.theta / SESSIONS_PER_YEAR), RATIO_SCALE),
-    vega: toDecimalString(new Decimal(raw.vega * VOLATILITY_POINT), RATIO_SCALE),
-    rho: toDecimalString(new Decimal(raw.rho), RATIO_SCALE),
+    theta: toDecimalString(
+      new Decimal(raw.theta / SESSIONS_PER_YEAR).div(priceFactor),
+      RATIO_SCALE,
+    ),
+    vega: toDecimalString(new Decimal(raw.vega * VOLATILITY_POINT).div(priceFactor), RATIO_SCALE),
+    rho: toDecimalString(new Decimal(raw.rho).div(priceFactor), RATIO_SCALE),
   };
 }
 
@@ -53,6 +69,12 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
   const r = Number(input.riskFreeRate);
   const q = Number(input.dividendYield);
   const t = Math.max(input.timeToExpiryYears, 0);
+  // ADR-0063: every caller is expected to validate `priceFactor` positive via
+  // `resolvePriceFactor` before reaching here (the same trust `s`/`k` above already carry);
+  // `priceFactor > 0` below is this function's own last-line guard against a 0 or negative
+  // factor turning a finite model output into `Infinity`/`NaN` once divided, the same
+  // defensive role the `Number.isFinite` check a few lines down already plays for `s`/`k`.
+  const priceFactor = input.priceFactor ? Number(input.priceFactor) : 1;
 
   let volatilitySource: LegValuation["volatilitySource"] = null;
   let sigma: number | null = null;
@@ -65,7 +87,10 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
 
   let suppressIv = false;
   if (input.marketPrice) {
-    const price = Number(input.marketPrice.value);
+    // The market price is a premium already in reais per contract (ADR-0063); `s`/`k` stay in
+    // the series' own quotation unit, so the price is scaled up to that same unit before the
+    // model ever compares it to them.
+    const price = Number(input.marketPrice.value) * priceFactor;
     suppressIv = Boolean(input.marketPrice.stale) && Boolean(input.suppressStaleImpliedVolatility);
     if (suppressIv) {
       notes.push({
@@ -110,7 +135,7 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
 
   let fairValue: DecimalString | null = null;
   let greeks: Greeks | null = null;
-  if (sigma !== null && sigma > 0 && s > 0 && k > 0) {
+  if (sigma !== null && sigma > 0 && s > 0 && k > 0 && priceFactor > 0) {
     const priceRaw = bsmPriceRaw({ s, k, t, r, q, sigma, right });
     const greeksRaw = bsmGreeksRaw({ s, k, t, r, q, sigma, right });
     // Last-line guard at the number-to-Decimal seam (ADR-0002): callers are expected to
@@ -118,8 +143,10 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
     // practice, but toDecimalString throws on a non-finite input and this seam has no
     // other way to report that back than to leave the leg unpriced.
     if (Number.isFinite(priceRaw) && Object.values(greeksRaw).every(Number.isFinite)) {
-      fairValue = toDecimalString(new Decimal(priceRaw), PRICE_SCALE);
-      greeks = toReportedGreeks(greeksRaw);
+      // The model priced on the series' own quotation unit (points, for an index option);
+      // scaled back down to reais per contract (ADR-0063) before it becomes a fair value.
+      fairValue = toDecimalString(new Decimal(priceRaw).div(priceFactor), PRICE_SCALE);
+      greeks = toReportedGreeks(greeksRaw, priceFactor);
       notes.push({
         code: "european_pricing",
         message: "priced as a European option under Black-Scholes-Merton (ADR-0002)",
