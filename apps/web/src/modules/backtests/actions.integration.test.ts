@@ -289,6 +289,58 @@ describe("createBacktestRunAction", () => {
     expect(runs[0]?.riskProfile).toEqual(declaredProfile);
   });
 
+  it("ADR-0062: refuses a universe naming a market index with index_in_universe", async () => {
+    vi.resetModules();
+    const { createBacktestRunAction } = await import("./actions");
+    const { RiskProfileRepository } = await import("@/modules/portfolio");
+    const { StrategiesRepository } = await import("@/modules/strategies");
+
+    const db = getDb();
+    const email = uniqueEmail("index-universe");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    await new RiskProfileRepository(db, currentUser).declare({
+      declaredCapital: centavos(500_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("0.02"),
+        maxExposurePerOperation: decimalString("0.1"),
+        maxOpenOperations: 3,
+        maxPremiumBought: decimalString("0.05"),
+      },
+    });
+
+    await upsertTradingSessions(
+      db,
+      SESSIONS.map((date) => ({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
+      })),
+    );
+    await new WatchlistRepository(db, currentUser).add("IBOV11");
+
+    const strategy = await new StrategiesRepository(db, currentUser).createWithVersion(
+      definition(),
+    );
+    const version = strategy.versions[0];
+    if (!version) throw new Error("expected a version");
+
+    const result = await createBacktestRunAction({
+      strategyId: strategy.id,
+      strategyVersionId: version.id,
+      universe: ["IBOV11"],
+      from: SESSIONS[0] ?? "",
+      to: SESSIONS.at(-1) ?? "",
+      initialCapital: centavos(500_000_00),
+      limits: "enforce",
+      costModel: "b3_default",
+      walkForwardWindowSessions: 63,
+    });
+
+    expect(result).toEqual({ status: "error", error: "index_in_universe" });
+  });
+
   it("rate limits creation after 10 requests in the window, the 11th returns rate_limited", async () => {
     vi.resetModules();
     const { createBacktestRunAction } = await import("./actions");

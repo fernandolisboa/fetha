@@ -106,8 +106,9 @@ function ReadingRow({
   );
 }
 
-function trendRow(reading: AssetReading) {
+function trendRow(reading: AssetReading, isIndex: boolean) {
   const { label, smaShort, smaLong } = reading.trend;
+  const formatLevel = isIndex ? formatDecimal : formatPriceBRL;
   return (
     <ReadingRow
       name={strings.trend.name}
@@ -116,7 +117,7 @@ function trendRow(reading: AssetReading) {
       sentence={label ? strings.trend.sentence[label] : strings.trend.missing}
       detail={
         smaShort && smaLong
-          ? strings.trend.detail(formatPriceBRL(smaShort), formatPriceBRL(smaLong))
+          ? strings.trend.detail(formatLevel(smaShort), formatLevel(smaLong))
           : null
       }
     />
@@ -208,7 +209,13 @@ function optionsRow(reading: AssetReading) {
   );
 }
 
-export function AssetReadingPanel({ reading }: { reading: AssetReading | null }) {
+export function AssetReadingPanel({
+  reading,
+  isIndex = false,
+}: {
+  reading: AssetReading | null;
+  isIndex?: boolean;
+}) {
   if (!reading) {
     return <p className="text-muted-foreground text-[13px]">{strings.unavailable}</p>;
   }
@@ -221,9 +228,12 @@ export function AssetReadingPanel({ reading }: { reading: AssetReading | null })
         {strings.subtitle(displaySession(reading.session))}
       </p>
       <dl className="flex flex-col">
-        {trendRow(reading)}
+        {trendRow(reading, isIndex)}
         {momentumRow(reading)}
-        {rangeRow(reading)}
+        {/* The range row is ATR, computed from the synthetic open=high=low=close
+            candle a market index is ingested with (ADR-0062): "daily range" has
+            no meaning there, so it is never shown. */}
+        {!isIndex && rangeRow(reading)}
         {impliedVolatilityRow(reading)}
         {optionsRow(reading)}
       </dl>

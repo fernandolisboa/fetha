@@ -269,6 +269,22 @@ describe("startRecipeAction", () => {
     expect(await new StrategiesRepository(getDb(), owner).listMine()).toEqual([]);
   });
 
+  it("ADR-0062: refuses a market index before any write (no strategy, no watchlist row), even with a declared risk profile", async () => {
+    const owner = await insertUser("index");
+    currentUser = owner;
+    await new RiskProfileRepository(getDb(), owner).declare(PROFILE);
+
+    const result = await startRecipeAction({
+      recipeId: "long-call-low-iv",
+      ticker: "IBOV11",
+      riskFraction: "0.02",
+    });
+
+    expect(result).toEqual({ status: "error", error: "index_in_universe" });
+    expect(await new StrategiesRepository(getDb(), owner).listMine()).toEqual([]);
+    expect(await new WatchlistRepository(getDb(), owner).list()).toEqual([]);
+  });
+
   it("refuses an unknown recipe, a risk fraction it does not offer and a bad ticker", async () => {
     currentUser = await insertUser("invalid");
 

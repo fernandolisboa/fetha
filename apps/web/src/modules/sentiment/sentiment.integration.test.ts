@@ -185,6 +185,15 @@ describe("sentimentUniverse", () => {
       tickers: fixture.tickers.slice(0, 2).sort(),
     });
   });
+
+  it("ADR-0062: excludes a market index even when it is on a watchlist", async () => {
+    const fixture = await company();
+    await watch(fixture, [...fixture.tickers, "IBOV11"]);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).not.toContain("IBOV11");
+  });
 });
 
 describe("labelFilings", () => {

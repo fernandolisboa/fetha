@@ -44,6 +44,7 @@ function exercisedLeg(overrides: Partial<LegSettlement> = {}): LegSettlement {
     intrinsicValue: "2.00" as DecimalString,
     fills: [exerciseFill()],
     residualValue: 0 as never,
+    cashSettlementValue: null,
     ...overrides,
   } as LegSettlement;
 }
@@ -186,6 +187,190 @@ describe("planSettlement (#271)", () => {
     if (!result.ok) return;
     const optionFill = result.fills.find((fill) => fill.assetClass === "option");
     expect(optionFill?.quantity).toBe(1);
+  });
+
+  it("ADR-0063: books an ITM cash-settled leg's close as R$ 20,00 per contract (close 185000, strike 183000), not a stock fill", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 2000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "exercised", price: "0" as DecimalString }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fills.filter((fill) => fill.assetClass === "stock")).toEqual([]);
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.price).toBe("20.000000");
+    expect(optionFill?.side).toBe("sell");
+    expect(optionFill?.quantity).toBe(1);
+  });
+
+  it("ADR-0062: puts the user's own costs on the closing fill of a cash-settled leg, which produces no stock fill to carry them", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 2000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({
+        ticker: "IBOVA183",
+        outcome: "exercised",
+        price: "0" as DecimalString,
+        costsCentavos: 350,
+      }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.costsCentavos).toBe(350);
+    expect(result.fills.filter((fill) => fill.assetClass === "stock")).toEqual([]);
+  });
+
+  it("ADR-0063: a short cash-settled leg's close pays, not receives", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "sell",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        outcome: "assigned",
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: -2000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "assigned", price: "0" as DecimalString }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.price).toBe("20.000000");
+    expect(optionFill?.side).toBe("buy");
+  });
+
+  it("ADR-0063: an out-of-the-money cash-settled leg closes at zero, like a worthless physical one", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        outcome: "expired_worthless",
+        intrinsicValue: "0.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 0 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "expired_worthless", price: "0" as DecimalString }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.price).toBe("0");
+  });
+
+  it("ADR-0062: refuses expired_worthless for an ITM cash-settled leg (non-zero cashSettlementValue)", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 2000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({
+        ticker: "IBOVA183",
+        outcome: "expired_worthless",
+        price: "0" as DecimalString,
+      }),
+    ]);
+    expect(result).toEqual({ ok: false, reason: "invalid_choice" });
+  });
+
+  it("ADR-0062: books a cash-settled leg's close at the Decimal default (round-half-up) rounding of cash / 100 / quantity (1 centavo over 32 contracts, an exact tie at the 7th decimal)", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 32 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 1 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "exercised", price: "0" as DecimalString }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.quantity).toBe(32);
+    // 1 / 100 / 32 = 0.0003125, an exact tie at the 7th decimal: round-half-up gives
+    // 0.000313, truncation would give 0.000312.
+    expect(optionFill?.price).toBe("0.000313");
+  });
+
+  it("ADR-0062: refuses a choice whose outcome disagrees with the engine's own cash-flow sign", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 1 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        // A long leg's gain is always reported positive by the engine; a negative value here
+        // would mean the engine priced this leg as a loss for its own long side, a contradiction
+        // the plan must refuse rather than book backwards.
+        cashSettlementValue: -2000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "exercised", price: "0" as DecimalString }),
+    ]);
+    expect(result).toEqual({ ok: false, reason: "invalid_choice" });
   });
 });
 

@@ -389,6 +389,8 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
       expiry: fields.expiry,
       style: "european",
       asOf: fields.asOf,
+      priceFactor: "1",
+      settlementStyle: "physical",
     });
   }
 

@@ -88,6 +88,12 @@ const en = {
     noData: "No candle for this instrument yet.",
     unavailable: "Couldn't load the chart. Try again.",
   },
+  marketIndex: {
+    chipLabel: "Ibovespa",
+    chipUnit: "Closing level, in points",
+    chipSource: "B3",
+    noData: "No close for the Ibovespa yet.",
+  },
   optionSeries: {
     overline: "Option series",
     right: { call: "Call", put: "Put" },
@@ -261,6 +267,12 @@ const ptBR = {
     volume: "Volume",
     noData: "Ainda não há candle para este ativo.",
     unavailable: "Não foi possível carregar o gráfico. Tente novamente.",
+  },
+  marketIndex: {
+    chipLabel: "Ibovespa",
+    chipUnit: "Nível de fechamento, em pontos",
+    chipSource: "B3",
+    noData: "Ainda não há fechamento do Ibovespa.",
   },
   optionSeries: {
     overline: "Série de opção",

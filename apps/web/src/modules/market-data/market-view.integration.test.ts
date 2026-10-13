@@ -162,6 +162,60 @@ describe("buildOperationMarketView", () => {
     }
   });
 
+  it("ADR-0063: carries a cash-settled series' price factor through, and defaults an equity option to 1/physical", async () => {
+    const underlying = uniqueTicker("IDX");
+    const equityUnderlying = uniqueTicker("EQT");
+    cleanupTickers.push(underlying, equityUnderlying);
+    const db = getDb();
+
+    const sessions = businessDays("2099-04-01", 5);
+    const atSession = sessions[0];
+    const expiry = sessions[sessions.length - 1];
+    if (!atSession || !expiry) throw new Error("fixture setup failed");
+    await seedSessions(sessions);
+
+    const asOf = new Date(`${atSession}T12:00:00.000Z`);
+    await db.insert(optionSeries).values([
+      {
+        isin: `ISIN-${underlying}-CASH`,
+        ticker: `${underlying}W1`,
+        underlying,
+        right: "call",
+        strike: "183000.00000000",
+        expiry,
+        style: "european",
+        asOf,
+        priceFactor: "100",
+        settlementStyle: "cash",
+      },
+      {
+        isin: `ISIN-${equityUnderlying}-EQ`,
+        ticker: `${equityUnderlying}W1`,
+        underlying: equityUnderlying,
+        right: "call",
+        strike: "12.00000000",
+        expiry,
+        style: "european",
+        asOf,
+      },
+    ]);
+
+    const at = `${atSession}T14:00:00.000Z`;
+    const [cashView, equityView] = await Promise.all([
+      buildOperationMarketView(db, underlying, at),
+      buildOperationMarketView(db, equityUnderlying, at),
+    ]);
+
+    const cashSeries = cashView.optionSeries.find((series) => series.underlying === underlying);
+    const equitySeries = equityView.optionSeries.find(
+      (series) => series.underlying === equityUnderlying,
+    );
+    expect(cashSeries?.priceFactor).toBe("100.000000");
+    expect(cashSeries?.settlementStyle).toBe("cash");
+    expect(equitySeries?.priceFactor).toBe("1.000000");
+    expect(equitySeries?.settlementStyle).toBe("physical");
+  });
+
   it("includes the current session before its own close", async () => {
     const underlying = uniqueTicker("TOD");
     cleanupTickers.push(underlying);

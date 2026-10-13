@@ -9,13 +9,25 @@ silently.
 ### Instruments and market data
 
 **Instrument**:
-Anything tradable on B3 that Fetha knows about: a stock, an ETF or a stock option. Identified by
-its B3 ticker.
+Anything tradable on B3 that Fetha knows about: a stock, an ETF or a stock or index option.
+Identified by its B3 ticker. A market index is not an instrument (below): it is never tradable,
+only followed for its daily close.
 _Avoid_: asset, paper, security, symbol
 
 **Underlying**:
-The stock or ETF an option series is written on.
+The stock, ETF or market index an option series is written on.
 _Avoid_: base asset, spot
+
+**Market index**:
+A benchmark Fetha follows for its daily closing level alone, never traded: today, the Ibovespa
+under `IBOV11` (the B3 registry's own join key for index options, ADR-0062), read nightly from
+B3's own index service and stored as a close-only candle (`open = high = low = close`,
+`tradedQuantity = 0`). Which tickers are market indexes is a code constant
+(`market-data/market-index.ts`), checked at a handful of edges: no stock leg or stock fill may
+name one, it never enters an evaluated strategy's universe, a backtest or the radar, and its level
+is always shown in points, never `R$`.
+_Avoid_: IBOV (B3's own index-service request code, distinct from the registry's `IBOV11`),
+Ibovespa (the label), index points as a price
 
 **Company filing**:
 A document a listed company delivered to the CVM in one of four categories (material fact,
@@ -247,8 +259,10 @@ _Avoid_: published strategy, community strategy, public strategy
 ### Signals and watchlist
 
 **Watchlist**:
-The list of instruments a user follows. Active strategies are evaluated only over the user's
-watchlist.
+The tickers a user follows: instruments and, since ADR-0062, a market index. Active strategies
+are evaluated only over the user's watchlist. A watchlist may hold a market index, for following
+its level alone: a market index is not an instrument, and is excluded wherever the watchlist
+feeds a strategy, a backtest or the radar.
 _Avoid_: universe (reserved for backtests), favorites, radar
 
 **Signal**:

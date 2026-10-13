@@ -162,6 +162,7 @@ export function settlementLegs(
       strike: (pending.strikes[settlement.leg.ticker] as DecimalString | undefined) ?? null,
       intrinsicValue: settlement.intrinsicValue,
       proposed: settlement.outcome,
+      cashSettlementValue: settlement.cashSettlementValue,
     };
   });
 }

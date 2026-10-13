@@ -295,6 +295,13 @@
       "when": 1791919931591,
       "tag": "0041_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791934338709,
+      "tag": "0042_option_series_price_factor_settlement_style",
+      "breakpoints": true
     }
   ]
 }

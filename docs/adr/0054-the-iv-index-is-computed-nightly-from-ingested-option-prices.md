@@ -190,3 +190,16 @@ addendum).
 After tonight's iv_index session and before the backfill, `ingest()` now reads the CVM filings
 (ADR-0060) under a 70% start budget, past the newest session's 60% hard stop, so it never delays
 the session tonight's evaluation reads and can only shorten the backfill's own budget.
+
+## Addendum: `iv_index` waits for `indexes` on the sessions it is responsible for (2026-10-13, #307, ADR-0062)
+
+A new source, `indexes`, writes `IBOV11`'s daily close into `candles` (ADR-0062), running after
+`instruments` and before `sgs`. A session `indexes` attempted this run and did not succeed on
+(`indexesSessions.filter(session => !indexesResult.okSessions.includes(session))`) leaves
+`iv_index` `pending` for it, checked next to the `cotahist`/`instruments` succeeded-run gate: the
+same shape the CDI gate above already has. Without this, a late B3 index document would silently
+drop `IBOV11`'s point for that session the moment it enters `underlyingsToComputeForSession`,
+rather than waiting one more cron for it. Sessions `indexes` never attempted this run (the
+backfill batch, outside its own recent window) are unaffected and keep draining on their own
+schedule. The cost is the same shape as the existing CDI gate: while B3's index file lags past a
+cron, every underlying's IV point for that session waits for the next one, not only `IBOV11`'s.

@@ -163,7 +163,10 @@ export function parseNegotiationRows(rows: readonly Cell[][]): ParseNegotiationR
   const columns = headerIndexes(rows[headerRow] ?? []) as Record<keyof typeof COLUMNS, number>;
 
   const fills: ImportedFill[] = [];
-  const skipped: Record<SkipReason, number> = { exercise: 0, unsupported_market: 0 };
+  const skipped: Record<SkipReason, number> = {
+    exercise: 0,
+    unsupported_market: 0,
+  };
   const occurrences = new Map<string, number>();
 
   for (let index = headerRow + 1; index < rows.length; index += 1) {

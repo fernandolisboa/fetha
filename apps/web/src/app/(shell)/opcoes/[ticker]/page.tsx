@@ -55,8 +55,8 @@ export default async function OptionSeriesPage({
   if (!series) {
     notFound();
   }
-  // An index option's underlying (IBOV) has no candle of its own, so there
-  // is no instrument page worth linking to.
+  // The underlying's own candle (ADR-0062): for an index option this is now `IBOV11`'s own
+  // close, so the link below renders for it too, same as for an equity underlying.
   const underlyingCandle = await latestCandle(db, series.underlying);
 
   const expiry = formatDate(sessionDateToDisplayDate(series.expiry));

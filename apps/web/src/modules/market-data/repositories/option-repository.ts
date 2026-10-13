@@ -143,6 +143,8 @@ export async function upsertOptionSeries(
           expiry: row.expiry,
           style: row.style,
           asOf,
+          priceFactor: row.priceFactor,
+          settlementStyle: row.settlementStyle,
         })),
       )
       .onConflictDoUpdate({
@@ -155,6 +157,11 @@ export async function upsertOptionSeries(
           expiry: sql`excluded.expiry`,
           style: sql`excluded.style`,
           asOf: sql`least(${optionSeries.asOf}, excluded.as_of)`,
+          // Re-ingested nightly (ADR-0063): unlike `asOf`, these two track the registry's
+          // current value on every run rather than only the first sighting, since a
+          // half-populated earlier row must not freeze a series at the pre-existing default.
+          priceFactor: sql`excluded.price_factor`,
+          settlementStyle: sql`excluded.settlement_style`,
         },
       });
   }
@@ -727,6 +734,8 @@ export interface OptionSeriesEpochRow {
   expiry: string;
   style: string;
   asOf: Date;
+  priceFactor: string;
+  settlementStyle: string;
 }
 
 function epochJoin() {
@@ -802,6 +811,8 @@ const epochColumns = {
   asOf: sql<Date>`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf})`.mapWith(
     optionSeries.asOf,
   ),
+  priceFactor: optionSeries.priceFactor,
+  settlementStyle: optionSeries.settlementStyle,
 };
 
 // A strategy's chain window for `loadMarketView`: every epoch of every series listed on an

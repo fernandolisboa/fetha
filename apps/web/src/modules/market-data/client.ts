@@ -14,6 +14,9 @@ export {
   matchExchangeRates,
   type ExchangeRateSearchHit,
 } from "./exchange-rate-match";
+// `marketIndexes` and `marketIndexTickersForQuery` are used only inside `market-data` itself
+// (`ingest.ts`, `candle-repository.ts`), through a direct relative import, not this barrel.
+export { ibovespa, isMarketIndex } from "./market-index";
 // The module's own locale choice (`t`), plain data with no server imports:
 // safe for a client component that needs exchangeRate.pairLabel (#305).
 export { t as marketDataT } from "./strings";

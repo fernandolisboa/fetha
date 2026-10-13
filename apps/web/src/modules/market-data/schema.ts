@@ -62,6 +62,13 @@ export const optionSeries = pgTable(
     expiry: date("expiry", { mode: "string" }).notNull(),
     style: text("style").notNull(),
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    // B3 registry `PricFctr` (ADR-0063): a figure in the series' own quotation unit (index
+    // points for an index option) divided by it is reais per contract. 1 for every equity
+    // option, the pre-existing behaviour.
+    priceFactor: numeric("price_factor", { precision: 18, scale: 6 }).notNull().default("1"),
+    // The registry's own category (`OPTION ON INDEX` -> "cash", anything else -> "physical",
+    // ADR-0063): never inferred from `priceFactor`, a separate registry fact.
+    settlementStyle: text("settlement_style").notNull().default("physical"),
   },
   (table) => [
     // Backs the palette's `LIKE '<PREFIX>%'` series search (#241) the same
@@ -242,6 +249,7 @@ export const ingestionSourceValues = [
   "iv_index",
   "cvm_filings",
   "ptax",
+  "indexes",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 

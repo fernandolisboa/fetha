@@ -78,6 +78,8 @@ function seriesRow(fields: {
     expiry: fields.expiry,
     style: "european",
     asOf: fields.asOf,
+    priceFactor: "1",
+    settlementStyle: "physical",
   });
 }
 

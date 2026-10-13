@@ -1,11 +1,13 @@
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { quantitySchema, tickerSchema } from "@fetha/contracts";
 import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
   candles,
+  impliedVolatilityIndexPoints,
   macroPoints,
   optionDailyPrices,
   optionSeries,
@@ -100,6 +102,22 @@ function bsCall(spot: number, strike: number, years: number, sigma: number): num
   return spot * normalCdf(d1) - strike * normalCdf(d2);
 }
 
+// Same model, with the continuous carry `resolveRiskFreeRate` derives from a CDI annual
+// rate (r = ln(1 + cdi)): used only where the seeded CDI is non-zero, so the premium the
+// engine solves back from still implies the seed sigma.
+function bsCallWithRate(
+  spot: number,
+  strike: number,
+  years: number,
+  sigma: number,
+  r: number,
+): number {
+  const d1 =
+    (Math.log(spot / strike) + (r + 0.5 * sigma * sigma) * years) / (sigma * Math.sqrt(years));
+  const d2 = d1 - sigma * Math.sqrt(years);
+  return spot * normalCdf(d1) - strike * Math.exp(-r * years) * normalCdf(d2);
+}
+
 async function seedUnderlyingSpot(
   underlying: string,
   session: string,
@@ -127,6 +145,10 @@ async function seedCallSeries(
   expiry: string,
   strike: string,
   premium: string,
+  registry: { priceFactor: string; settlementStyle: "cash" | "physical" } = {
+    priceFactor: "1",
+    settlementStyle: "physical",
+  },
 ): Promise<void> {
   const db = getDb();
   await db.insert(optionSeries).values({
@@ -138,6 +160,8 @@ async function seedCallSeries(
     expiry,
     style: "european",
     asOf: new Date(`${session}T${SESSION_OPEN_UTC}`),
+    priceFactor: registry.priceFactor,
+    settlementStyle: registry.settlementStyle,
   });
   await ensureMonthlyPartition(db, "option_daily_prices", session);
   await db.insert(optionDailyPrices).values({
@@ -165,6 +189,9 @@ describe("computeIvIndexForSession", () => {
     if (underlyings.length > 0) {
       await db.delete(candles).where(inArray(candles.ticker, underlyings));
       await db.delete(optionSeries).where(inArray(optionSeries.underlying, underlyings));
+      await db
+        .delete(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, underlyings));
     }
     const optionTickers = cleanupOptionTickers.splice(0);
     if (optionTickers.length > 0) {
@@ -745,5 +772,109 @@ describe("computeIvIndexForSession", () => {
     } finally {
       engineSpy.mockRestore();
     }
+  });
+
+  // ADR-0062/ADR-0063 (#307): the Ibovespa index candle and a cash-settled index
+  // option (`price_factor` 100) through the exact same pipeline every other
+  // underlying uses. A flat 27.4% volatility curve is used for both bracket legs
+  // so the 30-calendar-day interpolation's own weighting is irrelevant: whatever
+  // the weights, interpolating a constant variance returns that same volatility —
+  // this pins that the recovered IV still equals the seeded sigma once a non-zero
+  // CDI carry is in the premiums, not any particular level of the Ibovespa's IV.
+  it("prices an IBOV11 (Ibovespa) index option through priceFactor and writes IBOV11 an iv_index point near 27.4%", async () => {
+    const db = getDb();
+    const sessions = dailySessions(130);
+    cleanupSessionDates.push(...sessions);
+    await seedSessions(sessions);
+
+    const session0 = sessions[0] ?? "";
+    const expiryLower = sessions[20] ?? "";
+    const expiryUpper = sessions[127] ?? "";
+
+    const cdi = 0.149;
+    await db.insert(macroPoints).values({
+      series: "cdi",
+      date: session0,
+      asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+      annualRate: cdi.toFixed(8),
+    });
+
+    const underlying = "IBOV11";
+    cleanupUnderlyings.push(underlying);
+    await seedUnderlyingSpot(underlying, session0, "187366.840000");
+
+    const strike = "183000.00000000";
+    const priceFactor = "100.000000";
+    const flatSigma = 0.274;
+    // `resolveRiskFreeRate` turns a CDI annual rate into the model's continuous
+    // carry, r = ln(1 + cdi) (ADR-0013): the same conversion the engine applies,
+    // so the premiums below solve back to `flatSigma`, not a biased value.
+    const r = Math.log(1 + cdi);
+
+    // `bsCallWithRate` solves in the series' own quotation unit (index points); the
+    // registry's `price_factor` of 100 (ADR-0063) is what scales that back down
+    // to the premium actually traded and stored, reais per contract.
+    const lowerPremium = (bsCallWithRate(187366.84, 183000, 20 / 252, flatSigma, r) / 100).toFixed(
+      6,
+    );
+    const upperPremium = (bsCallWithRate(187366.84, 183000, 127 / 252, flatSigma, r) / 100).toFixed(
+      6,
+    );
+
+    const tickerLower = `${underlying}CL`;
+    const tickerUpper = "IBOVA183";
+    cleanupOptionTickers.push(tickerLower, tickerUpper);
+    const registry = { priceFactor, settlementStyle: "cash" as const };
+    await seedCallSeries(
+      underlying,
+      tickerLower,
+      session0,
+      expiryLower,
+      strike,
+      lowerPremium,
+      registry,
+    );
+    await seedCallSeries(
+      underlying,
+      tickerUpper,
+      session0,
+      expiryUpper,
+      strike,
+      upperPremium,
+      registry,
+    );
+
+    const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
+    const result = await computeIvIndexForSession(db, session0, sessionClose);
+    expect(result).toEqual({ rowCount: 1, pending: false });
+
+    const points = await ivIndexPointsInRange(db, [underlying], session0, session0);
+    expect(points).toHaveLength(1);
+    const iv = Number(points[0]?.impliedVolatility);
+    expect(iv).toBeCloseTo(flatSigma, 2);
+    expect(iv).toBeGreaterThan(0.26);
+    expect(iv).toBeLessThan(0.29);
+
+    const at = sessionClose.toISOString();
+    const view = await buildOperationMarketView(db, tickerSchema.parse(underlying), at);
+    const pricing = await engine.priceOperation({
+      view,
+      at,
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: tickerSchema.parse(tickerUpper),
+          quantity: quantitySchema.parse(1),
+        },
+      ],
+      openOperationCount: 0,
+    });
+    expect(pricing.ok).toBe(true);
+    if (!pricing.ok) return;
+    const leg = pricing.value.legs[0];
+    expect(leg?.impliedVolatility).not.toBeNull();
+    expect(Number(leg?.impliedVolatility)).toBeCloseTo(flatSigma, 1);
+    expect(leg?.greeks).not.toBeNull();
   });
 });

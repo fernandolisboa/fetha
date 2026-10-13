@@ -6,7 +6,7 @@ import {
   enforceAccountRateLimit,
   requireUser,
 } from "@/modules/auth";
-import { calendarUpTo, candleSessionBoundsInRange } from "@/modules/market-data";
+import { calendarUpTo, candleSessionBoundsInRange, isMarketIndex } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import { StrategiesRepository, StrategyNotFoundError } from "@/modules/strategies";
 import { WatchlistRepository } from "@/modules/watchlist";
@@ -20,7 +20,13 @@ import { COST_MODEL_PRESETS, costModelPresetIds, walkForwardWindowOptions } from
 import { resolveStructure, StructureNotFoundError } from "./run-chunk";
 
 export type StartBacktestRunError =
-  "invalid" | "not_found" | "rate_limited" | "no_risk_profile" | "too_many_active" | "archived";
+  | "invalid"
+  | "not_found"
+  | "rate_limited"
+  | "no_risk_profile"
+  | "too_many_active"
+  | "archived"
+  | "index_in_universe";
 
 export type StartBacktestRunResult =
   | { status: "ok"; strategyId: string; runId: string }
@@ -116,6 +122,11 @@ export async function startBacktestRun(
   const watchlistTickers = new Set(watchlist.map((item) => item.ticker));
   if (!parsed.universe.every((ticker) => watchlistTickers.has(ticker))) {
     return { status: "error", error: "invalid" };
+  }
+  // A market index cannot reach a backtest (ADR-0062): ATR, high/low
+  // and tradedQuantity conditions must never read its synthetic candle.
+  if (parsed.universe.some((ticker) => isMarketIndex(ticker))) {
+    return { status: "error", error: "index_in_universe" };
   }
 
   const strategy = await new StrategiesRepository(db, user)

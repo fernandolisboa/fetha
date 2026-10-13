@@ -106,6 +106,37 @@ describe("validateLegsAgainstStructure", () => {
     });
   });
 
+  it("ADR-0062/0063: rejects a collar whose stock leg names IBOV11", () => {
+    const chain = [
+      chainSeries({ ticker: "IBOVP183", right: "put", strike: "183000.00000000" }),
+      chainSeries({ ticker: "IBOVA185", right: "call", strike: "185000.00000000" }),
+    ];
+    const legs = [
+      leg({ role: "stock", side: "buy", ticker: "IBOV11", quantity: quantitySchema.parse(100) }),
+      leg({ role: "put", side: "buy", ticker: "IBOVP183", quantity: quantitySchema.parse(1) }),
+      leg({ role: "call", side: "sell", ticker: "IBOVA185", quantity: quantitySchema.parse(1) }),
+    ];
+
+    expect(validateLegsAgainstStructure(collar, legs, chain)).toEqual({
+      ok: false,
+      reason: "index_stock_leg",
+    });
+  });
+
+  it("ADR-0062/0063: accepts a long call naming IBOV11 as its underlying", () => {
+    const longCall: Structure = {
+      id: "long-call",
+      name: "Call comprada",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }],
+    };
+    const chain = [chainSeries({ ticker: "IBOVA185", right: "call", strike: "185000.00000000" })];
+    const legs = [
+      leg({ role: "call", side: "buy", ticker: "IBOVA185", quantity: quantitySchema.parse(1) }),
+    ];
+    expect(validateLegsAgainstStructure(longCall, legs, chain)).toEqual({ ok: true });
+  });
+
   it("rejects a leg with the wrong side for its template", () => {
     const chain = [
       chainSeries({ ticker: "PETRA100", strike: "28.00000000" }),

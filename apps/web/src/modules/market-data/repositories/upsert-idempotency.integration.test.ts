@@ -55,6 +55,8 @@ const seriesRow = instrumentOptionSeriesSchema.parse({
   expiry: "2026-08-21",
   style: "american",
   asOf: SESSION,
+  priceFactor: "1",
+  settlementStyle: "physical",
 });
 
 const macroPoint = macroPointSchema.parse({
@@ -185,6 +187,24 @@ describe("repository upsert idempotency", () => {
     await upsertOptionSeries(db, later, [seriesRow]);
     const [afterLater] = await db.select().from(optionSeries).where(eq(optionSeries.isin, ISIN));
     expect(afterLater?.asOf.toISOString()).toBe(earlier.toISOString());
+  });
+
+  it("upsertOptionSeries: a re-upsert of the same isin with a changed priceFactor/settlementStyle takes the new values", async () => {
+    const db = getDb();
+    const asOf = new Date(`${SESSION}T20:00:00.000Z`);
+
+    await upsertOptionSeries(db, asOf, [seriesRow]);
+    await upsertOptionSeries(db, asOf, [
+      instrumentOptionSeriesSchema.parse({
+        ...seriesRow,
+        priceFactor: "100",
+        settlementStyle: "cash",
+      }),
+    ]);
+
+    const [row] = await db.select().from(optionSeries).where(eq(optionSeries.isin, ISIN));
+    expect(row?.priceFactor).toBe("100.000000");
+    expect(row?.settlementStyle).toBe("cash");
   });
 
   it("upsertMacroPoints: inserting the same (series, date) row twice yields one row with the same values", async () => {

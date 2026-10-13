@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { strToU8, zipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import type { CurrentUser } from "@/modules/auth";
@@ -220,6 +221,52 @@ function fixtureFile(): File {
   });
 }
 
+function inlineStr(value: string): string {
+  return `<is><t>${value}</t></is>`;
+}
+
+// Minimal OOXML a single B3 "Negociação" row for a stock leg on IBOV11, built inline
+// (no sharedStrings) rather than editing the recorded fixture.
+function indexStockLegFile(): File {
+  const header = [
+    "Data do Negocio",
+    "Tipo de Movimentacao",
+    "Mercado",
+    "Instituicao",
+    "Codigo de Negociacao",
+    "Quantidade",
+    "Preco",
+  ];
+  const headerRow = header
+    .map(
+      (value, index) =>
+        `<c r="${String.fromCharCode(65 + index)}1" t="inlineStr">${inlineStr(value)}</c>`,
+    )
+    .join("");
+  const data = ["15/09/2026", "Compra", "Mercado a Vista", "XP", "IBOV11"];
+  const dataRow =
+    data
+      .map(
+        (value, index) =>
+          `<c r="${String.fromCharCode(65 + index)}2" t="inlineStr">${inlineStr(value)}</c>`,
+      )
+      .join("") + '<c r="F2"><v>1</v></c><c r="G2"><v>100000</v></c>';
+  const bytes = zipSync({
+    "xl/workbook.xml": strToU8(
+      '<workbook><sheets><sheet name="a" r:id="rId1"/></sheets></workbook>',
+    ),
+    "xl/_rels/workbook.xml.rels": strToU8(
+      '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+    ),
+    "xl/worksheets/sheet1.xml": strToU8(
+      `<worksheet><sheetData><row r="1">${headerRow}</row><row r="2">${dataRow}</row></sheetData></worksheet>`,
+    ),
+  });
+  return new File([bytes], "negociacao-ibov.xlsx", {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 describe("importFillsAction", () => {
   it("imports the recorded export once and reports a re-import as already imported", async () => {
     await signIn("import");
@@ -230,7 +277,7 @@ describe("importFillsAction", () => {
       status: "ok",
       inserted: 6,
       alreadyImported: 0,
-      skipped: { exercise: 1, unsupported_market: 1 },
+      skipped: { exercise: 1, unsupported_market: 1, index_stock_leg: 0 },
     });
     expect(await importFillsAction(form)).toMatchObject({
       status: "ok",
@@ -268,6 +315,19 @@ describe("importFillsAction", () => {
     } finally {
       await getDb().delete(optionSeries).where(eq(optionSeries.isin, isin));
     }
+  });
+
+  it("ADR-0062: imports zero fills for a stock leg on a market index, counted as skipped", async () => {
+    await signIn("import-index");
+    const form = new FormData();
+    form.set("file", indexStockLegFile());
+
+    expect(await importFillsAction(form)).toEqual({
+      status: "ok",
+      inserted: 0,
+      alreadyImported: 0,
+      skipped: { exercise: 0, unsupported_market: 0, index_stock_leg: 1 },
+    });
   });
 
   it("refuses a file that is not a workbook", async () => {
@@ -313,6 +373,35 @@ describe("the portfolio from fills to a confirmed settlement", () => {
         costs: "",
       }),
     ).toEqual({ status: "error", error: "not_a_session" });
+
+    // ADR-0062: a stock fill on a market index is never a real B3
+    // fill, even once the index itself has an ingested candle (#307a, not shipped by this
+    // PR; seeded here directly to exercise the refusal ahead of that).
+    seededUnderlyings.push("IBOV11");
+    await upsertDailyCandles(getDb(), tradeDay, new Date(`${tradeDay}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: tradeDay,
+        ticker: "IBOV11",
+        open: "100000.000000",
+        high: "100000.000000",
+        low: "100000.000000",
+        average: "100000.000000",
+        close: "100000.000000",
+        trades: 0,
+        tradedQuantity: 0,
+      }),
+    ]);
+    expect(
+      await recordFillAction({
+        ticker: "IBOV11",
+        side: "buy",
+        quantity: 1,
+        price: "100000,00",
+        session: tradeDay,
+        costs: "",
+      }),
+    ).toEqual({ status: "error", error: "index_stock_leg" });
 
     for (const input of [
       { ticker: market.underlying, side: "buy", price: "30,00", costs: "5,00" },
@@ -386,7 +475,14 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       await confirmSettlementAction({
         operationId: pending.operation.id,
         choices: [
-          { ticker: market.call, outcome: "exercised", price: "32,00", costs: "", quantity: 100 },
+          {
+            ticker: market.call,
+            outcome: "exercised",
+            price: "32,00",
+            costs: "",
+            quantity: 100,
+            cashSettlementValue: null,
+          },
         ],
       }),
     ).toEqual({ status: "error", error: "invalid_choice" });
@@ -400,6 +496,7 @@ describe("the portfolio from fills to a confirmed settlement", () => {
             price: "32,00",
             costs: "2,50",
             quantity: 100,
+            cashSettlementValue: null,
           },
         ],
       }),
@@ -408,7 +505,14 @@ describe("the portfolio from fills to a confirmed settlement", () => {
       await confirmSettlementAction({
         operationId: pending.operation.id,
         choices: [
-          { ticker: market.call, outcome: "assigned", price: "32,00", costs: "", quantity: 100 },
+          {
+            ticker: market.call,
+            outcome: "assigned",
+            price: "32,00",
+            costs: "",
+            quantity: 100,
+            cashSettlementValue: null,
+          },
         ],
       }),
     ).toEqual({ status: "error", error: "not_found" });
@@ -440,6 +544,7 @@ describe("the portfolio from fills to a confirmed settlement", () => {
             price: "40,00",
             costs: "",
             quantity: 100,
+            cashSettlementValue: null,
           },
         ],
       }),
@@ -447,6 +552,151 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     const done = await loadPortfolio(getDb(), owner, closeOf(market.sessions[9] ?? ""));
     expect(done.expiredHoldings).toEqual([]);
     expect(done.pendingSettlements).toEqual([]);
+  });
+
+  it("ADR-0063: confirming the settlement of an ITM IBOVA leg records R$ 20,00 per contract (close 185000, strike 183000), no stock fill", async () => {
+    const db = getDb();
+    const owner = await signIn("ibov-cash-settle");
+    const sessions = businessDays("1999-05-03", 5);
+    const tradeDay = sessions[0] ?? "";
+    const expiry = sessions[3] ?? "";
+
+    await db
+      .insert(tradingSessions)
+      .values(
+        sessions.map((date) => ({
+          date,
+          open: new Date(`${date}T13:00:00.000Z`),
+          close: new Date(`${date}T20:00:00.000Z`),
+        })),
+      )
+      .onConflictDoNothing();
+    seededSessions.push(...sessions);
+    seededUnderlyings.push("IBOV11");
+
+    await upsertDailyCandles(db, tradeDay, new Date(closeOf(tradeDay)), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: tradeDay,
+        ticker: "IBOV11",
+        open: "180000.000000",
+        high: "180000.000000",
+        low: "180000.000000",
+        average: "180000.000000",
+        close: "180000.000000",
+        trades: 0,
+        tradedQuantity: 0,
+      }),
+    ]);
+    await upsertDailyCandles(db, expiry, new Date(closeOf(expiry)), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: expiry,
+        ticker: "IBOV11",
+        open: "185000.000000",
+        high: "185000.000000",
+        low: "185000.000000",
+        average: "185000.000000",
+        close: "185000.000000",
+        trades: 0,
+        tradedQuantity: 0,
+      }),
+    ]);
+
+    const optionTicker = `IBOV${crypto.randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${optionTicker}`,
+      ticker: optionTicker,
+      underlying: "IBOV11",
+      right: "call",
+      strike: "183000.00000000",
+      expiry,
+      style: "european",
+      asOf: new Date(`${tradeDay}T13:00:00.000Z`),
+      priceFactor: "100.000000",
+      settlementStyle: "cash",
+    });
+    await ensureMonthlyPartition(db, "option_daily_prices", tradeDay);
+    await db.insert(optionDailyPrices).values({
+      ticker: optionTicker,
+      session: tradeDay,
+      asOf: new Date(closeOf(tradeDay)),
+      right: "call",
+      strike: "183000.00000000",
+      expiry,
+      average: "193.050000",
+      close: "193.050000",
+      factor: "100.000000",
+      trades: 10,
+      tradedQuantity: 10,
+    });
+
+    expect(
+      await recordFillAction({
+        ticker: optionTicker,
+        side: "buy",
+        quantity: 1,
+        price: "193,05",
+        session: tradeDay,
+        costs: "",
+      }),
+    ).toEqual({ status: "ok" });
+
+    const fills = await new PortfolioRepository(db, owner).listFills();
+    const openingFill = fills.find((fill) => fill.ticker === optionTicker);
+    if (!openingFill) throw new Error("expected the opening fill");
+    expect(await groupFillsAction({ fillIds: [openingFill.id], operationId: null })).toEqual({
+      status: "ok",
+    });
+
+    const afterExpiry = await loadPortfolio(db, owner, closeOf(expiry));
+    const [pending] = afterExpiry.pendingSettlements;
+    if (!pending?.proposal) throw new Error("expected a settlement proposal");
+    const leg = pending.proposal.legs.find((candidate) => candidate.leg.ticker === optionTicker);
+    expect(leg?.outcome).toBe("exercised");
+    expect(leg?.cashSettlementValue).toBe(2000);
+    expect(leg?.fills).toEqual([]);
+
+    const beforeCash = (await loadPortfolio(db, owner, closeOf(expiry))).cash;
+    // ADR-0062: the same conflict guard as the quantity one (#271 review round 1 item 8), for a
+    // cash-settled leg's own cash flow: a stale figure (as if the dialog read a different
+    // close) is refused rather than settled against.
+    expect(
+      await confirmSettlementAction({
+        operationId: pending.operation.id,
+        choices: [
+          {
+            ticker: optionTicker,
+            outcome: "exercised",
+            price: "0",
+            costs: "",
+            quantity: 1,
+            cashSettlementValue: 1500,
+          },
+        ],
+      }),
+    ).toEqual({ status: "error", error: "conflict" });
+    expect(
+      await confirmSettlementAction({
+        operationId: pending.operation.id,
+        choices: [
+          {
+            ticker: optionTicker,
+            outcome: "exercised",
+            price: "0",
+            costs: "",
+            quantity: 1,
+            cashSettlementValue: 2000,
+          },
+        ],
+      }),
+    ).toEqual({ status: "ok" });
+
+    const settled = await loadPortfolio(db, owner, closeOf(sessions[4] ?? expiry));
+    expect(settled.positions.map((row) => row.holding.ticker)).toEqual([]);
+    // The opening premium (R$ 193,05) was already booked by the recorded fill; the
+    // settlement itself adds only the R$ 20,00 cash-settlement value, never a stock fill.
+    expect(settled.cash - beforeCash).toBe(2000);
   });
 
   it("refuses to group fills on different underlyings and ungroups an open operation", async () => {

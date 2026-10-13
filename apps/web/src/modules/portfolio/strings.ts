@@ -120,6 +120,7 @@ const en = {
       leg: "Leg",
       strike: "Strike",
       intrinsic: "Intrinsic",
+      cashSettlement: "Cash settlement",
       outcome: "Outcome",
       stockPrice: "Stock fill price",
       costs: "Costs",
@@ -176,8 +177,8 @@ const en = {
       submit: "Import",
       result: (inserted: number, already: number) =>
         `${String(inserted)} fills imported, ${String(already)} already imported.`,
-      skipped: (exercise: number, unsupported: number) =>
-        `Skipped: ${String(exercise)} exercise rows (confirm them as settlements), ${String(unsupported)} rows from other markets.`,
+      skipped: (exercise: number, unsupported: number, indexStockLeg: number) =>
+        `Skipped: ${String(exercise)} exercise rows (confirm them as settlements), ${String(unsupported)} rows from other markets, ${String(indexStockLeg)} market-index rows (a market index has no shares to hold).`,
     },
     recordDialog: {
       title: "Record fill",
@@ -210,6 +211,7 @@ const en = {
       invalid_choice: "Pick an allowed outcome for every leg.",
       rate_limited: "Too many changes in a short time. Try again in a moment.",
       not_a_session: "That date is not a trading session that has already opened.",
+      index_stock_leg: "A market index cannot be the underlying of a stock leg.",
       unavailable: "Something went wrong; try again.",
     },
   },
@@ -366,6 +368,7 @@ const ptBR = {
       leg: "Perna",
       strike: "Strike",
       intrinsic: "Intrínseco",
+      cashSettlement: "Liquidação financeira",
       outcome: "Resultado",
       stockPrice: "Preço da execução na ação",
       costs: "Custos",
@@ -422,8 +425,8 @@ const ptBR = {
       submit: "Importar",
       result: (inserted: number, already: number) =>
         `${String(inserted)} execuções importadas, ${String(already)} já estavam na carteira.`,
-      skipped: (exercise: number, unsupported: number) =>
-        `Ignoradas: ${String(exercise)} linhas de exercício (confirme-as na liquidação pendente) e ${String(unsupported)} de outros mercados.`,
+      skipped: (exercise: number, unsupported: number, indexStockLeg: number) =>
+        `Ignoradas: ${String(exercise)} linhas de exercício (confirme-as na liquidação pendente), ${String(unsupported)} de outros mercados e ${String(indexStockLeg)} de índices de mercado (um índice não tem ações para ter em carteira).`,
     },
     recordDialog: {
       title: "Registrar execução",
@@ -457,6 +460,7 @@ const ptBR = {
       invalid_choice: "Escolha um resultado permitido para cada perna.",
       rate_limited: "Muitas alterações em pouco tempo. Tente de novo em instantes.",
       not_a_session: "Essa data não é um pregão que já abriu.",
+      index_stock_leg: "Um índice de mercado não pode ser o ativo-objeto de uma perna de ação.",
       unavailable: "Algo deu errado; tente de novo.",
     },
   },

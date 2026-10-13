@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { candleForms, type CandleForm } from "@fetha/engine";
 import { tickerSchema } from "@fetha/contracts";
 
+import { Badge } from "@/components/ui/badge";
 import { getDb } from "@/db/client";
+import { formatDecimal } from "@/lib/format/decimal";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
 import { AssetTour } from "@/modules/help";
@@ -13,9 +15,11 @@ import {
   CandleFormToggle,
   CompanyFilingsList,
   companyFilingsForInstrument,
+  isMarketIndex,
   latestCandle,
   loadAssetReading,
   loadCandleSeries,
+  RateLineChart,
   t,
 } from "@/modules/market-data";
 import { RecipePanel } from "@/modules/recipes";
@@ -55,17 +59,21 @@ export default async function InstrumentPage({
   }
   const ticker = parsedTicker.data;
   const form = resolveForm(rawForm);
+  const isIndex = isMarketIndex(ticker);
 
   const db = getDb();
+  // An index maps to no company and can hold no strategy (ADR-0062): these three
+  // never have anything to show on its page, so the index branch skips the round
+  // trip rather than discarding a real result.
   const [lastClose, seriesResult, filings, reading, sentiment, onWatchlist, hasActiveStrategy] =
     await Promise.all([
       latestCandle(db, ticker),
       loadCandleSeries(db, ticker, form),
-      companyFilingsForInstrument(db, ticker),
+      isIndex ? Promise.resolve(null) : companyFilingsForInstrument(db, ticker),
       loadAssetReading(db, ticker),
-      sentimentForInstrument(db, ticker),
+      isIndex ? Promise.resolve(null) : sentimentForInstrument(db, ticker),
       isOnMyWatchlist(ticker),
-      hasMyActiveDailyStrategy(),
+      isIndex ? Promise.resolve(false) : hasMyActiveDailyStrategy(),
     ]);
   const preferences = await getPreferences();
 
@@ -84,7 +92,7 @@ export default async function InstrumentPage({
         <InstrumentMarketBar
           instrument={{
             ticker,
-            lastClose: formatPriceBRL(lastClose.close),
+            lastClose: isIndex ? formatDecimal(lastClose.close) : formatPriceBRL(lastClose.close),
             session: lastClose.session,
           }}
         />
@@ -94,8 +102,22 @@ export default async function InstrumentPage({
         overline={t.instrument.overline}
         headline={ticker}
         headlineClassName="font-mono uppercase"
-        actions={<CandleFormToggle ticker={ticker} form={form} />}
+        actions={isIndex ? undefined : <CandleFormToggle ticker={ticker} form={form} />}
       />
+
+      {isIndex && (
+        <ul className="flex flex-wrap gap-2">
+          <li>
+            <Badge variant="secondary">{t.marketIndex.chipLabel}</Badge>
+          </li>
+          <li>
+            <Badge variant="secondary">{t.marketIndex.chipUnit}</Badge>
+          </li>
+          <li>
+            <Badge variant="outline">{t.marketIndex.chipSource}</Badge>
+          </li>
+        </ul>
+      )}
 
       <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-[14px]">
@@ -106,7 +128,16 @@ export default async function InstrumentPage({
                   {t.instrument.unavailable}
                 </ErrorNotice>
               ) : seriesResult.value.candles.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t.instrument.noData}</p>
+                <p className="text-muted-foreground text-sm">
+                  {isIndex ? t.marketIndex.noData : t.instrument.noData}
+                </p>
+              ) : isIndex ? (
+                <RateLineChart
+                  points={seriesResult.value.candles.map((candle) => ({
+                    date: candle.session,
+                    rate: candle.close,
+                  }))}
+                />
               ) : (
                 <CandleChart candles={seriesResult.value.candles} />
               )}
@@ -114,27 +145,34 @@ export default async function InstrumentPage({
           </div>
           <div data-tour="asset-reading">
             <Panel title={t.reading.title}>
-              <AssetReadingPanel reading={reading} />
+              <AssetReadingPanel reading={reading} isIndex={isIndex} />
             </Panel>
           </div>
-          {lastClose && (
+          {lastClose && !isIndex && (
             <div id="receitas" className="scroll-mt-16">
               <RecipePanel ticker={ticker} />
             </div>
           )}
-          <Panel
-            title={t.companyFilings.title}
-            subtitle={
-              filings.freshness
-                ? `${t.companyFilings.subtitle} ${filings.freshness}`
-                : t.companyFilings.subtitle
-            }
-          >
-            <CompanyFilingsList view={filings} />
-          </Panel>
-          <Panel title={sentimentStrings.panel.title} subtitle={sentimentStrings.panel.subtitle}>
-            <SentimentPanel view={sentiment} onWatchlist={onWatchlist} />
-          </Panel>
+          {!isIndex && filings && sentiment && (
+            <>
+              <Panel
+                title={t.companyFilings.title}
+                subtitle={
+                  filings.freshness
+                    ? `${t.companyFilings.subtitle} ${filings.freshness}`
+                    : t.companyFilings.subtitle
+                }
+              >
+                <CompanyFilingsList view={filings} />
+              </Panel>
+              <Panel
+                title={sentimentStrings.panel.title}
+                subtitle={sentimentStrings.panel.subtitle}
+              >
+                <SentimentPanel view={sentiment} onWatchlist={onWatchlist} />
+              </Panel>
+            </>
+          )}
         </div>
         <div data-tour="asset-next-steps">
           <Panel title={watchlistStrings.nextSteps.title}>
@@ -142,6 +180,7 @@ export default async function InstrumentPage({
               ticker={ticker}
               onWatchlist={onWatchlist}
               hasActiveStrategy={hasActiveStrategy}
+              isIndex={isIndex}
             />
           </Panel>
         </div>

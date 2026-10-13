@@ -58,3 +58,15 @@ Sentiment adds two news sources outside `MarketDataProvider`, both read by the `
 GDELT's DOC 2.0 API (free, no key, news tone per company) and a `NewsSentimentProvider` interface
 for paid news feeds, selected by which key is set (Marketaux first, Economatica later). Neither is
 scraped.
+
+## Amendment (2026-10-13, #307, ADR-0062): B3's public JSON data services, narrowed
+
+"Scraping broker or B3 web pages" above excluded HTML-page scraping and intraday displays, not
+B3's own public JSON data services. That exclusion is narrowed: B3's index statistics service
+(`sistemaswebb3-listados.b3.com.br/indexStatisticsProxy`) may be read for end-of-day and
+historical values only — one request per index and calendar year, from the nightly job alone,
+never while the app is in use, never for an intraday value — on the same footing as COTAHIST: a
+public B3 data service under its Market Data policy v3.0.4 §7.9/7.10 (end-of-day and historical
+data redistributed free, no prior authorisation), not its paid index-services tier (§7.3,
+real-time/delayed intraday display, which this never does). HTML pages and intraday endpoints
+stay excluded. ADR-0062 records the full decision (the daily Ibovespa level, source `indexes`).

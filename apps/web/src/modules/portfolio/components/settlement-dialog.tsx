@@ -2,7 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DecimalString } from "@fetha/contracts";
+import type { Centavos, DecimalString } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 
 import { confirmSettlementAction } from "../portfolio-actions";
@@ -38,6 +40,10 @@ export interface SettlementLegView {
   strike: DecimalString | null;
   intrinsicValue: DecimalString | null;
   proposed: OptionOutcome | "kept";
+  // ADR-0062: non-null on a cash-settled leg (e.g. an Ibovespa option), the signed cash flow
+  // the leg's close pays or receives in lieu of a fill on the underlying; a physically-settled
+  // leg never carries one.
+  cashSettlementValue: Centavos | null;
 }
 
 interface Choice {
@@ -47,6 +53,14 @@ interface Choice {
 }
 
 const labels = t.dashboard.settlements;
+
+// DESIGN.md's money convention: a credit (money received, positive signed
+// cash flow) is prefixed "+ R$"; a debit already reads negative through
+// `formatBRL`'s own minus sign. `signedMoney` and `formatNetPremium` apply the
+// same convention to net premium elsewhere in the dashboard.
+function formatSignedBRL(value: Centavos): string {
+  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
+}
 
 export function SettlementDialog({
   operationId,
@@ -100,6 +114,7 @@ export function SettlementDialog({
           // #271 review round 1 item 8: the delivered quantity this dialog showed, so the server
           // can refuse rather than settle against a figure a factor ingested since render.
           quantity: leg.quantity,
+          cashSettlementValue: leg.cashSettlementValue,
         })),
       })
         .then((result) => {
@@ -161,6 +176,12 @@ export function SettlementDialog({
                     <span className="text-muted-foreground font-mono text-[12px] tabular-nums">
                       {labels.strike} {formatDecimal(leg.strike)} · {labels.intrinsic}{" "}
                       {formatDecimal(leg.intrinsicValue ?? ("0" as DecimalString))}
+                      {leg.cashSettlementValue !== null && (
+                        <>
+                          {" "}
+                          · {labels.cashSettlement} {formatSignedBRL(leg.cashSettlementValue)}
+                        </>
+                      )}
                     </span>
                   )}
                 </div>
@@ -184,22 +205,32 @@ export function SettlementDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={allowed}>{labels.outcomes[allowed]}</SelectItem>
-                        <SelectItem value="expired_worthless">
-                          {labels.outcomes.expired_worthless}
-                        </SelectItem>
+                        {/* ADR-0062: an ITM cash-settled leg's cash flow is never zero, so
+                            "expired worthless" is never a legitimate choice for it. */}
+                        {!(leg.cashSettlementValue !== null && leg.cashSettlementValue !== 0) && (
+                          <SelectItem value="expired_worthless">
+                            {labels.outcomes.expired_worthless}
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                     {choice.outcome !== "expired_worthless" && (
                       <>
-                        <Input
-                          aria-label={`${labels.stockPrice} ${leg.ticker}`}
-                          value={choice.price}
-                          inputMode="decimal"
-                          className="font-mono tabular-nums"
-                          onChange={(event) => {
-                            update(leg.ticker, { price: event.target.value });
-                          }}
-                        />
+                        {leg.cashSettlementValue === null ? (
+                          <Input
+                            aria-label={`${labels.stockPrice} ${leg.ticker}`}
+                            value={choice.price}
+                            inputMode="decimal"
+                            className="font-mono tabular-nums"
+                            onChange={(event) => {
+                              update(leg.ticker, { price: event.target.value });
+                            }}
+                          />
+                        ) : (
+                          // A cash-settled leg's closing price is the engine's own cash flow
+                          // (ADR-0062, shown above), not a stock fill price: no input to collect.
+                          <span />
+                        )}
                         <Input
                           aria-label={`${labels.costs} ${leg.ticker}`}
                           value={choice.costs}

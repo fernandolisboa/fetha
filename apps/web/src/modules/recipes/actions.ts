@@ -20,7 +20,7 @@ import {
   startBacktestRun,
   type StartBacktestRunError,
 } from "@/modules/backtests";
-import { candleSessionBoundsInRange } from "@/modules/market-data";
+import { candleSessionBoundsInRange, isMarketIndex } from "@/modules/market-data";
 import { getCurrentRiskProfile } from "@/modules/portfolio";
 import {
   createStrategyAction,
@@ -37,6 +37,7 @@ export type StartRecipeError =
   | "invalid"
   | "no_risk_profile"
   | "no_data"
+  | "index_in_universe"
   | "watchlist_full"
   | "rate_limited"
   | "limit_reached"
@@ -91,6 +92,8 @@ function runErrorOf(error: StartBacktestRunError): StartRecipeError {
     case "too_many_active":
     case "no_risk_profile":
       return error;
+    case "index_in_universe":
+      return "index_in_universe";
     case "invalid":
     case "not_found":
     case "archived":
@@ -122,6 +125,14 @@ async function startRecipe(
   const riskProfile = await getCurrentRiskProfile();
   if (!riskProfile) {
     return { status: "error", error: "no_risk_profile" };
+  }
+
+  // Checked before anything is written, same as the no-data guard below: a
+  // market index can never reach a backtest (ADR-0062), and startBacktestRun's
+  // own `index_in_universe` refusal would otherwise fire after the watchlist
+  // row and the strategy were already created, orphaning both on every retry.
+  if (isMarketIndex(ticker)) {
+    return { status: "error", error: "index_in_universe" };
   }
 
   const to = todaySaoPauloDate();

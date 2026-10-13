@@ -122,6 +122,20 @@ function buildSgsFixture(url: string): string {
   ]);
 }
 
+// Days 1..28 of every month, so the fixture never lands on an invalid calendar date regardless
+// of year: enough for every test session this file exercises (none past day 28) to come back
+// "published" by default, without pinning the fixture to one specific year or day.
+function buildIndexYearFixture(close = "100.000,00"): string {
+  const results = Array.from({ length: 28 }, (_, index) => {
+    const row: Record<string, unknown> = { day: index + 1 };
+    for (let month = 1; month <= 12; month += 1) {
+      row[`rateValue${String(month)}`] = close;
+    }
+    return row;
+  });
+  return JSON.stringify({ min: null, max: null, results });
+}
+
 const CVM_FIXTURES = path.join(import.meta.dirname, "adapters", "cvm", "fixtures");
 const CVM_FIXTURE_CNPJS = ["33000167000101", "33592510000154", "00070698000111", "15073274000188"];
 const CVM_FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3", "ENGI11"];
@@ -156,6 +170,9 @@ function fakeFetch(session: string): typeof fetch {
     }
     if (input.includes("bcdata.sgs")) {
       return Promise.resolve(new Response(buildSgsFixture(input), { status: 200 }));
+    }
+    if (input.includes("indexStatisticsProxy")) {
+      return Promise.resolve(new Response(buildIndexYearFixture(), { status: 200 }));
     }
     return Promise.resolve(new Response("not found", { status: 404 }));
   }) as unknown as typeof fetch;
@@ -195,6 +212,9 @@ function fakeFetchAnySession(): typeof fetch {
         new Response(JSON.stringify([{ data: finalDate, valor: "0.05" }]), { status: 200 }),
       );
     }
+    if (input.includes("indexStatisticsProxy")) {
+      return Promise.resolve(new Response(buildIndexYearFixture(), { status: 200 }));
+    }
     return Promise.resolve(new Response("not found", { status: 404 }));
   }) as unknown as typeof fetch;
 }
@@ -220,6 +240,11 @@ async function cleanup(): Promise<void> {
   await db.delete(exchangeRates).where(lte(exchangeRates.date, TEST_SESSION));
   await db.delete(companyFilings).where(inArray(companyFilings.cnpj, CVM_FIXTURE_CNPJS));
   await db.delete(companyTickers).where(inArray(companyTickers.ticker, CVM_FIXTURE_TICKERS));
+  // `indexes` floors its first-ever backfill at SGS_DEFAULT_SINCE (2024-01-01), well outside
+  // WINDOW_FLOOR/TEST_SESSION, and must never leak a succeeded run into another test's own
+  // backfill decision.
+  await db.delete(candles).where(eq(candles.ticker, "IBOV11"));
+  await db.delete(ingestionRuns).where(eq(ingestionRuns.source, "indexes"));
 }
 
 // Both before and after: the "drains" test below deliberately writes candles
@@ -330,13 +355,37 @@ describe("ingest", () => {
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
-      ["calendar", "cotahist", "cvm_filings", "instruments", "iv_index", "ptax", "sgs"].sort(),
+      [
+        "calendar",
+        "cotahist",
+        "cvm_filings",
+        "indexes",
+        "instruments",
+        "iv_index",
+        "ptax",
+        "sgs",
+      ].sort(),
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
     expect(result.sources.find((s) => s.source === "iv_index")?.newestSessionComputed).toBe(true);
     const ptax = result.sources.find((s) => s.source === "ptax");
     expect(ptax?.rowCount).toBeGreaterThan(0);
+    const indexes = result.sources.find((s) => s.source === "indexes");
+    expect(indexes?.rowCount).toBeGreaterThan(0);
+
+    const [indexCandle] = await db
+      .select()
+      .from(candles)
+      .where(and(eq(candles.ticker, "IBOV11"), eq(candles.session, TEST_SESSION)));
+    expect(indexCandle).toMatchObject({
+      open: "100000.000000",
+      high: "100000.000000",
+      low: "100000.000000",
+      close: "100000.000000",
+      tradedQuantity: 0,
+    });
+    expect(indexCandle?.asOf.toISOString()).toBe("2026-06-15T20:00:00.000Z");
 
     const [candleRow] = await db
       .select()
@@ -567,6 +616,105 @@ describe("ingest", () => {
     expect(ptax?.error).toContain("SGS has not published PTAX");
   }, 120_000);
 
+  it("reports indexes pending, not failed, when B3 has not published the session yet, writes earlier rows, and never marks it succeeded", async () => {
+    const db = getDb();
+    const published = fakeFetch(TEST_SESSION);
+    const indexNotPublished = ((input: string) =>
+      input.includes("indexStatisticsProxy")
+        ? Promise.resolve(new Response('{"min":null,"max":null,"results":null}', { status: 200 }))
+        : published(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: indexNotPublished,
+    });
+
+    const indexes = result.sources.find((source) => source.source === "indexes");
+    expect(indexes).toMatchObject({ pending: true, skipped: false });
+    expect(indexes?.error).toBeUndefined();
+    const indexRuns = await db
+      .select()
+      .from(ingestionRuns)
+      .where(and(eq(ingestionRuns.source, "indexes"), eq(ingestionRuns.session, TEST_SESSION)));
+    expect(indexRuns).toEqual([]);
+  });
+
+  it("fails an older indexes gap whose B3 document never lists it, while the newest gap stays pending", async () => {
+    const db = getDb();
+    const anySession = fakeFetchAnySession();
+    const indexAlwaysEmpty = ((input: string) =>
+      input.includes("indexStatisticsProxy")
+        ? Promise.resolve(new Response('{"min":null,"max":null,"results":null}', { status: 200 }))
+        : anySession(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: indexAlwaysEmpty,
+    });
+
+    const indexes = result.sources.find((source) => source.source === "indexes");
+    expect(indexes?.pending).toBe(true);
+    expect(indexes?.error).toContain("B3 index statistics has not published IBOV");
+    const indexRuns = await db
+      .select({ session: ingestionRuns.session, status: ingestionRuns.status })
+      .from(ingestionRuns)
+      .where(eq(ingestionRuns.source, "indexes"));
+    expect(indexRuns.some((run) => run.status === "failed")).toBe(true);
+    expect(indexRuns.map((run) => run.session)).not.toContain(TEST_SESSION);
+  }, 120_000);
+
+  it("skips a published date with no trading session and counts it, not a write", async () => {
+    const db = getDb();
+    const published = fakeFetch(TEST_SESSION);
+    const withHoliday = ((input: string) =>
+      input.includes("indexStatisticsProxy")
+        ? Promise.resolve(
+            new Response(buildIndexYearFixture(), {
+              status: 200,
+              headers: { "x-fixture": "weekend-included" },
+            }),
+          )
+        : published(input)) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: withHoliday,
+    });
+
+    const indexes = result.sources.find((source) => source.source === "indexes");
+    // The fixture publishes days 1..28 of every month (buildIndexYearFixture), which always
+    // includes at least one weekend day across 2024..2026 that the ANBIMA calendar never lists
+    // as a trading session.
+    expect(indexes?.skippedRows).toBeGreaterThan(0);
+  });
+
+  it("leaves iv_index pending for a session indexes attempted this run and did not succeed on", async () => {
+    const db = getDb();
+    const published = fakeFetch(TEST_SESSION);
+    const indexNotPublished = ((input: string) =>
+      input.includes("indexStatisticsProxy")
+        ? Promise.resolve(new Response('{"min":null,"max":null,"results":null}', { status: 200 }))
+        : published(input)) as unknown as typeof fetch;
+
+    const first = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: indexNotPublished,
+    });
+    expect(first.sources.find((s) => s.source === "indexes")?.pending).toBe(true);
+    expect(first.sources.find((s) => s.source === "iv_index")?.pending).toBe(true);
+
+    const second = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T23:00:00.000Z`),
+      fetchImpl: published,
+    });
+    expect(second.sources.find((s) => s.source === "indexes")?.pending).toBeUndefined();
+    expect(second.sources.find((s) => s.source === "iv_index")?.newestSessionComputed).toBe(true);
+  });
+
   it("is idempotent: re-running the same session changes nothing and skips already-succeeded sources", async () => {
     const db = getDb();
     const fetchSpy = fakeFetch(TEST_SESSION);
@@ -591,7 +739,7 @@ describe("ingest", () => {
       .select()
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
-    expect(runs).toHaveLength(6);
+    expect(runs).toHaveLength(7);
   });
 
   it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {

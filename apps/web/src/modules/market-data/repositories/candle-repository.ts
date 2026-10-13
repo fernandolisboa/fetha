@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, like, lte, max, min } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, like, lte, max, min, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   decimalStringSchema,
@@ -14,6 +14,8 @@ import type { Database } from "@/db/client";
 import { candles } from "../schema";
 
 import type { CotahistStockRow } from "../adapters/cotahist/schema";
+import type { IndexClosePoint } from "../adapters/b3-indexes/schema";
+import { marketIndexTickersForQuery } from "../market-index";
 import { ensureMonthlyPartition } from "./partitions";
 
 // The storage-side timeframe literal `candles` rows are keyed by; distinct
@@ -124,6 +126,64 @@ export async function upsertDailyCandles(
   }
 
   return deduped.length;
+}
+
+// A market index's level, O=H=L=C and zero traded quantity (ADR-0062): the four
+// equal prices are a close repeated, not fabricated highs and lows, and nothing that reads
+// `high`, `low` or `tradedQuantity` ever sees this row (indexes never enter an evaluated
+// universe). One batch of `upsertIndexCandles` can span more than one calendar month (the first
+// backfill brings in 2024..today in one call), so every distinct month is partitioned first.
+export async function upsertIndexCandles(
+  db: Database,
+  rows: IndexClosePoint[],
+  ticker: Ticker,
+  asOfBySession: Map<string, Date>,
+): Promise<number> {
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  const months = new Set(rows.map((row) => row.date.slice(0, 7)));
+  for (const month of months) {
+    await ensureMonthlyPartition(db, "candles", `${month}-01`);
+  }
+
+  for (const batch of chunk(rows, CHUNK_SIZE)) {
+    await db
+      .insert(candles)
+      .values(
+        batch.map((row) => {
+          const asOf = asOfBySession.get(row.date);
+          if (!asOf) {
+            throw new Error(`no asOf instant resolved for index session ${row.date}`);
+          }
+          return {
+            ticker,
+            timeframe: DAILY_TIMEFRAME,
+            session: row.date,
+            asOf,
+            open: row.close,
+            high: row.close,
+            low: row.close,
+            close: row.close,
+            tradedQuantity: 0,
+          };
+        }),
+      )
+      .onConflictDoUpdate({
+        target: [candles.ticker, candles.timeframe, candles.session],
+        set: {
+          asOf: sql`excluded.as_of`,
+          open: sql`excluded.open`,
+          high: sql`excluded.high`,
+          low: sql`excluded.low`,
+          close: sql`excluded.close`,
+          tradedQuantity: sql`excluded.traded_quantity`,
+        },
+      });
+  }
+
+  return rows.length;
 }
 
 // Every daily candle for `tickers` whose session falls in [fromSession,
@@ -238,6 +298,17 @@ export async function searchInstruments(
     return [];
   }
   const pattern = `${trimmed.toUpperCase()}%`;
+  // "ibovespa" is not itself a prefix of `IBOV11`, so the alias match is added to the `LIKE`
+  // prefix match rather than replacing it (ADR-0062): "ibov" already hits
+  // `IBOV11` by prefix alone and must not also hit it through the alias clause, which
+  // `marketIndexTickersForQuery` never duplicates since it returns each index ticker at most
+  // once. `inArray([])` would still work, but the clause is only added once it has a ticker
+  // to add, so the `text_pattern_ops` index keeps serving the plain `LIKE` on its own.
+  const aliasTickers = marketIndexTickersForQuery(trimmed);
+  const matcher =
+    aliasTickers.length > 0
+      ? or(like(candles.ticker, pattern), inArray(candles.ticker, aliasTickers))
+      : like(candles.ticker, pattern);
   const rows = await db
     .selectDistinctOn([candles.ticker], {
       ticker: candles.ticker,
@@ -245,7 +316,7 @@ export async function searchInstruments(
       close: candles.close,
     })
     .from(candles)
-    .where(and(eq(candles.timeframe, DAILY_TIMEFRAME), like(candles.ticker, pattern)))
+    .where(and(eq(candles.timeframe, DAILY_TIMEFRAME), matcher))
     .orderBy(asc(candles.ticker), desc(candles.session))
     .limit(limit);
 

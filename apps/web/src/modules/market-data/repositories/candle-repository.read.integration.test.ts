@@ -11,6 +11,7 @@ import {
   recentDailyCandles,
   searchInstruments,
   upsertDailyCandles,
+  upsertIndexCandles,
 } from "./candle-repository";
 
 function stockRow(overrides: Partial<Parameters<typeof cotahistStockRowSchema.parse>[0]> = {}) {
@@ -31,11 +32,13 @@ function stockRow(overrides: Partial<Parameters<typeof cotahistStockRowSchema.pa
 
 const TICKER_A = "WLST3";
 const TICKER_B = "WLSU3";
+const INDEX_TICKER = "IBOV11";
 
 async function cleanup(): Promise<void> {
   const db = getDb();
   await db.delete(candles).where(eq(candles.ticker, TICKER_A));
   await db.delete(candles).where(eq(candles.ticker, TICKER_B));
+  await db.delete(candles).where(eq(candles.ticker, INDEX_TICKER));
 }
 
 afterEach(cleanup);
@@ -119,6 +122,117 @@ describe("candle-repository reads", () => {
     const rows = await recentDailyCandles(db, TICKER_A, 10);
 
     expect(rows.every((row) => row.ticker === TICKER_A)).toBe(true);
+  });
+  it("searchInstruments finds the alias 'ibovespa' for IBOV11", async () => {
+    const db = getDb();
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "180000.000000" }],
+      INDEX_TICKER,
+      new Map([["2026-05-12", new Date("2026-05-12T21:00:00.000Z")]]),
+    );
+
+    const results = await searchInstruments(db, "ibovespa", 10);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ ticker: INDEX_TICKER });
+  });
+
+  it("searchInstruments finds IBOV11 exactly once for 'ibov', never duplicated by the alias", async () => {
+    const db = getDb();
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "180000.000000" }],
+      INDEX_TICKER,
+      new Map([["2026-05-12", new Date("2026-05-12T21:00:00.000Z")]]),
+    );
+
+    const results = await searchInstruments(db, "ibov", 10);
+
+    expect(results.filter((row) => row.ticker === INDEX_TICKER)).toHaveLength(1);
+  });
+
+  it("searchInstruments never matches IBOV11 for an unrelated query", async () => {
+    const db = getDb();
+    await upsertDailyCandles(db, "2026-05-12", new Date("2026-05-12T21:00:00.000Z"), [
+      stockRow({ ticker: "PETR4", session: "2026-05-12" }),
+    ]);
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "180000.000000" }],
+      INDEX_TICKER,
+      new Map([["2026-05-12", new Date("2026-05-12T21:00:00.000Z")]]),
+    );
+
+    const results = await searchInstruments(db, "petr", 10);
+
+    expect(results.every((row) => row.ticker !== INDEX_TICKER)).toBe(true);
+    await db.delete(candles).where(eq(candles.ticker, "PETR4"));
+  });
+});
+
+describe("upsertIndexCandles", () => {
+  afterEach(cleanup);
+
+  it("writes O=H=L=C with zero traded quantity and the given asOf", async () => {
+    const db = getDb();
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "180123.456789" }],
+      INDEX_TICKER,
+      new Map([["2026-05-12", new Date("2026-05-12T21:00:00.000Z")]]),
+    );
+
+    const row = await latestCandle(db, INDEX_TICKER);
+
+    expect(row).toMatchObject({
+      open: "180123.456789",
+      high: "180123.456789",
+      low: "180123.456789",
+      close: "180123.456789",
+      tradedQuantity: 0,
+    });
+  });
+
+  it("spans more than one calendar month in a single call", async () => {
+    const db = getDb();
+    const asOf = new Map([
+      ["2026-04-30", new Date("2026-04-30T21:00:00.000Z")],
+      ["2026-05-04", new Date("2026-05-04T21:00:00.000Z")],
+    ]);
+    const rowCount = await upsertIndexCandles(
+      db,
+      [
+        { date: "2026-04-30", close: "170000.000000" },
+        { date: "2026-05-04", close: "171000.000000" },
+      ],
+      INDEX_TICKER,
+      asOf,
+    );
+
+    expect(rowCount).toBe(2);
+    const row = await latestCandle(db, INDEX_TICKER);
+    expect(row?.session).toBe("2026-05-04");
+  });
+
+  it("upserts idempotently on (ticker, timeframe, session)", async () => {
+    const db = getDb();
+    const asOf = new Map([["2026-05-12", new Date("2026-05-12T21:00:00.000Z")]]);
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "180000.000000" }],
+      INDEX_TICKER,
+      asOf,
+    );
+    await upsertIndexCandles(
+      db,
+      [{ date: "2026-05-12", close: "181000.000000" }],
+      INDEX_TICKER,
+      asOf,
+    );
+
+    const row = await latestCandle(db, INDEX_TICKER);
+    expect(row?.close).toBe("181000.000000");
   });
 });
 
