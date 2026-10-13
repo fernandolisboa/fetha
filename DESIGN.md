@@ -27,6 +27,10 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   `env(safe-area-inset-*)`: the header's and the tab bar's surfaces extend under the status bar,
   the home indicator and the side insets, while their contents stay inside; the tab bar's cells
   stay 56px tall, and the gutter below the content is the shell's 56px plus the body's bottom inset.
+  From 768px up the header is pinned to the top of the viewport and the rail sits right under it at
+  the viewport's remaining height, scrolling on its own if it ever overflows, so navigation and the
+  rail foot stay on screen; the page keeps the document's scroll. The rail foot shows only when the
+  rail has labels: collapsed or under 1024px it is icons only.
   The header never scrolls sideways: under 1024px the account menu shows only its avatar and the
   market bar drops the freshness phrase; under 768px the command search becomes a 44px icon button
   and the account avatar a 44px target.
