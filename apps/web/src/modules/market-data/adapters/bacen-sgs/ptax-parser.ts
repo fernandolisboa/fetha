@@ -5,7 +5,7 @@ import { toIsoDate } from "./parser";
 import type { ExchangeRatePair, ExchangeRatePoint } from "./schema";
 import { exchangeRatePointSchema, sgsResponseSchema } from "./schema";
 
-// The Bacen fixing instant (ADR-0059): PTAX is published around 13h and
+// The Bacen fixing instant (ADR-0061): PTAX is published around 13h and
 // closed at 13:30 America/Sao_Paulo (UTC-3 year-round; Brazil has not
 // observed DST since 2019), a fixed publication instant independent of any
 // trading-session open/close this module otherwise carries.
@@ -17,7 +17,7 @@ export function ptaxAsOf(date: string): string {
 
 // Unlike `parseSgsResponse`, this never filters by a trading-session
 // calendar: Bacen's own business-day calendar for PTAX differs from B3's
-// (ADR-0059), so a date B3 would not treat as a session is still a real,
+// (ADR-0061), so a date B3 would not treat as a session is still a real,
 // published PTAX point and is kept.
 export function parsePtaxResponse(pair: ExchangeRatePair, body: unknown): ExchangeRatePoint[] {
   const points = sgsResponseSchema.parse(body).filter((point) => point.valor.trim() !== "");

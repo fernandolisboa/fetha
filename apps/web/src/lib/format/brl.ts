@@ -23,7 +23,7 @@ export function formatPriceBRL(price: DecimalString): string {
   return formatBRL(centavos.toNumber() as Centavos);
 }
 
-// A PTAX exchange rate (docs/adr/0059): four decimals, pt-BR grouping, the
+// A PTAX exchange rate (docs/adr/0061): four decimals, pt-BR grouping, the
 // same "R$" prefix formatBRL/formatPriceBRL use, but never rounded down to
 // centavos — a rate's own precision is the point, unlike a money amount.
 export function formatExchangeRateBRL(rate: DecimalString): string {

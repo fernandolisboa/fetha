@@ -846,7 +846,7 @@ describe("ingest", () => {
     const sgsFinalDates: string[] = [];
     const base = fakeFetchAnySession();
     // Only the macro SGS codes (12/432/13522), not PTAX's (1/21619): ptaxBudgetMs
-    // below defers ptax's own older gaps too (docs/adr/0059), so this test
+    // below defers ptax's own older gaps too (docs/adr/0061), so this test
     // only needs to track the macro codes this assertion is actually about.
     const fetchImpl = ((input: string) => {
       if (/bcdata\.sgs\.(12|432|13522)\//.test(input)) {

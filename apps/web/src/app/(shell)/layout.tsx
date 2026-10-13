@@ -60,7 +60,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   );
 }
 
-// A cosmetic shell fixture (the market bar chip, docs/adr/0059), not a
+// A cosmetic shell fixture (the market bar chip, docs/adr/0061), not a
 // dependency every signed-in page should 500 on: a migration not yet
 // applied to this environment or a transient read failure just hides the
 // chip instead of taking down the whole workstation shell.
@@ -69,7 +69,7 @@ async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
     return (await latestExchangeRate(getDb(), "USDBRL")) ?? null;
   } catch {
     // A fixed marker, never the driver's message: it would carry database
-    // text into the logs (docs/adr/0059).
+    // text into the logs (docs/adr/0061).
     console.error("shell: latest USD/BRL PTAX read failed; market bar chip hidden");
     return null;
   }

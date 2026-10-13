@@ -47,7 +47,7 @@ describe("parsePtaxResponse", () => {
   // 09/07/2026 is a Thursday; Bacen published a PTAX for it (recorded live,
   // 2026-10-13), even though it is not necessarily a B3 trading session —
   // Bacen's own business-day calendar for PTAX differs from B3's
-  // (ADR-0059). Unlike parseSgsResponse's selic branch, this parser takes no
+  // (ADR-0061). Unlike parseSgsResponse's selic branch, this parser takes no
   // `sessions` argument at all, so a date absent from any trading calendar
   // is never dropped or made to throw a calendar-coverage error.
   it("keeps a published date even when it is not a B3 trading session", () => {

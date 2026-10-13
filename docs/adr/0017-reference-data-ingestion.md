@@ -573,11 +573,11 @@ The CVM's company filings (IPE) and its FCA securities table are a sixth source,
 session-bound like the others, but one download serves every gap session of an invocation, and it
 stays out of `ingest().ok`. ADR-0060 has the details.
 
-## Addendum: USD/BRL and EUR/BRL PTAX join the sources table (2026-10-13, #305, ADR-0059)
+## Addendum: USD/BRL and EUR/BRL PTAX join the sources table (2026-10-13, #305, ADR-0061)
 
 | source         | adapter (`apps/web/src/modules/market-data/adapters/`) | natural key                   | cadence                                               |
 | -------------- | ------------------------------------------------------ | ----------------------------- | ----------------------------------------------------- |
 | Bacen SGS PTAX | `bacen-sgs` (`ptax-parser.ts`, shares `fetch.ts`)      | `(pair, date)` exchange rates | incremental since the last stored point for each pair |
 
-A new, separate ingestion source, `ptax`, not folded into `sgs`'s own loop: see ADR-0059 for why
+A new, separate ingestion source, `ptax`, not folded into `sgs`'s own loop: see ADR-0061 for why
 (different failure budget, no trading-session dependency) and for the full decision.

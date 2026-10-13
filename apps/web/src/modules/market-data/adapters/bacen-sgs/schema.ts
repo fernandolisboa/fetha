@@ -53,7 +53,7 @@ export const exchangeRatePointSchema = z.object({
 export type ExchangeRatePoint = z.infer<typeof exchangeRatePointSchema>;
 
 // SGS series 1 (dollar selling PTAX) and 21619 (euro selling PTAX),
-// verified live against api.bcb.gov.br 2026-10-13 (docs/adr/0059).
+// verified live against api.bcb.gov.br 2026-10-13 (docs/adr/0061).
 export const ptaxSgsCodes = {
   USDBRL: 1,
   EURBRL: 21619,

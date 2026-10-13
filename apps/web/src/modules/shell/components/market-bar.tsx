@@ -46,7 +46,7 @@ function useNow(intervalMs: number): Date {
   return now;
 }
 
-// The latest USDBRL PTAX (docs/adr/0059), loaded server-side in the shell
+// The latest USDBRL PTAX (docs/adr/0061), loaded server-side in the shell
 // layout and passed down as a prop: unlike the instrument slot below, it is
 // not published by whatever page happens to be open, so it stays visible
 // everywhere in the shell.

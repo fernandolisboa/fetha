@@ -177,7 +177,7 @@ export const impliedVolatilityIndexPoints = pgTable(
   ],
 );
 
-// USD/BRL and EUR/BRL selling PTAX, Bacen's own daily fixing (docs/adr/0059):
+// USD/BRL and EUR/BRL selling PTAX, Bacen's own daily fixing (docs/adr/0061):
 // shared read-only reference data like the rest of this file, no user_id.
 // `as_of` is the fixed publication instant the PTAX parser stamps
 // (13:30 America/Sao_Paulo), independent of any B3 trading-session calendar.

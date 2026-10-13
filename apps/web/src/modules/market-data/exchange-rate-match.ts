@@ -5,7 +5,7 @@ export interface ExchangeRateSearchHit {
 }
 
 // Accent-insensitive aliases a user typed to find a pair, lowercased, no
-// diacritics (docs/adr/0059): matched the same way the pair code itself is,
+// diacritics (docs/adr/0061): matched the same way the pair code itself is,
 // by prefix, so "dol" already finds USDBRL.
 const EXCHANGE_RATE_ALIASES: Record<ExchangeRatePair, string[]> = {
   USDBRL: ["dolar"],

@@ -23,7 +23,7 @@ export class SgsFetchError extends Error {
 // other body, it stays an error, so an outage is never read as "pending".
 // `label` identifies the series in the error message only (a MacroSeriesKind
 // for cdi/selic/ipca, an ExchangeRatePair for USDBRL/EURBRL): both are plain
-// SGS codes under the same provider, ADR-0059.
+// SGS codes under the same provider, ADR-0061.
 export class SgsNotPublishedError extends SgsFetchError {
   constructor(label: string, status: number) {
     super(`SGS has no value yet for series ${label} in the requested range`, status);
@@ -151,7 +151,7 @@ export function sgsUrl(series: MacroSeriesKind, from: string, to: string): strin
 }
 
 // The HTTP leg shared by every SGS code (macro series and PTAX pairs alike,
-// ADR-0059): one request per 10-year window, one retry, the same
+// ADR-0061): one request per 10-year window, one retry, the same
 // not-yet-published/error classification. The caller supplies `label` only
 // for error messages and owns the JSON-to-domain parse.
 async function fetchSgsWindows(
@@ -191,7 +191,7 @@ export async function fetchSgsSeries(
   return bodies.flatMap((body) => parseSgsResponse(series, body, sessions));
 }
 
-// PTAX has no session-eligibility concept (ADR-0059): Bacen publishes it on
+// PTAX has no session-eligibility concept (ADR-0061): Bacen publishes it on
 // its own business-day calendar, which differs from B3's, so every
 // published date is kept without a `sessions` lookup.
 export async function fetchPtaxSeries(

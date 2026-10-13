@@ -57,7 +57,7 @@ const SGS_START_BUDGET_FRACTION = 0.4;
 // (docs/adr/0060); a routine read takes seconds.
 const CVM_START_BUDGET_FRACTION = 0.7;
 // ptax runs last, after iv_index and cvm_filings, so it never costs cotahist/sgs/instruments
-// or tonight's iv_index point any of their own budget (docs/adr/0059). Split
+// or tonight's iv_index point any of their own budget (docs/adr/0061). Split
 // the same way sgs is (#298): starting an older gap session is gated at 70%
 // of maxDurationMs, counted from ingest()'s own start, and the newest one —
 // the only session allowed to report `pending` on a not-yet-published value
@@ -631,7 +631,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
 
   // Runs last, after iv_index and cvm_filings, so a slow or down Bacen PTAX endpoint never
   // costs cotahist, instruments, sgs or tonight's iv_index point any of
-  // their own start budget (docs/adr/0059). Oldest gap session first, each
+  // their own start budget (docs/adr/0061). Oldest gap session first, each
   // session fetching cumulatively from (latest stored date for the pair + 1
   // day) to the session, exactly like sgsRun; the only session allowed to
   // report `pending` on a not-yet-published value is the newest, which is
@@ -722,7 +722,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   // it is computed reference data derived from the other sources, never
   // itself a dependency the cron response should 500 on (docs/adr/0054).
   // A ptax error flips `ok` the same way an sgs/instruments one does
-  // (docs/adr/0059) — `cotahistSucceeded` already gates evaluation on
+  // (docs/adr/0061) — `cotahistSucceeded` already gates evaluation on
   // cotahist alone, not on `ok`, so this never blocks it either.
   return {
     session,
