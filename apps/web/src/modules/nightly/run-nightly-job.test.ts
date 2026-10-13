@@ -250,9 +250,14 @@ describe("runNightlyJob", () => {
     const { runNightlyJob } = await import("./run-nightly-job");
     const outcome = await runNightlyJob(fakeDb);
     expect(order).toEqual(["analyses", "suggestions"]);
-    expect(scoreDueSuggestionsMock).toHaveBeenCalledWith(fakeDb, "2026-09-08", {
-      deadlineAt: expect.any(Number),
-    });
+    const [db, asOfSession, options] = scoreDueSuggestionsMock.mock.calls[0] as [
+      unknown,
+      string,
+      { deadlineAt?: unknown },
+    ];
+    expect(db).toBe(fakeDb);
+    expect(asOfSession).toBe("2026-09-08");
+    expect(typeof options.deadlineAt).toBe("number");
     expect(outcome.suggestionScoring).toMatchObject({ scored: 3 });
   });
 
