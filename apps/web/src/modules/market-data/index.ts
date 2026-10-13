@@ -6,6 +6,8 @@ export {
 } from "./close-freshness";
 export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } from "./ingest";
 export { loadCandleSeries } from "./candle-series";
+export { loadAssetReading } from "./asset-reading";
+export { AssetReadingChips, AssetReadingPanel } from "./components/asset-reading";
 export {
   calendarUpTo,
   loadMarketView,
@@ -63,5 +65,17 @@ export {
   type RecentCorporateActionFactor,
 } from "./corporate-action-queries";
 export { CorporateActionPanel } from "./components/corporate-action-panel";
+export {
+  exchangeRateHref,
+  matchExchangeRates,
+  type ExchangeRateSearchHit,
+} from "./exchange-rate-match";
+export { exchangeRatePairSchema, type ExchangeRatePair } from "./adapters/bacen-sgs/schema";
+export { RateLineChart, type RatePoint } from "./components/rate-line-chart";
+export {
+  exchangeRateSeries,
+  latestExchangeRate,
+  type ExchangeRateRow,
+} from "./repositories/exchange-rate-repository";
 export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-filing-queries";
 export { CompanyFilingsList } from "./components/company-filings-list";

@@ -25,7 +25,7 @@ import {
   parseDecimal,
   toDecimalString,
 } from "./decimal";
-import { invalidInput } from "./errors";
+import { invalidInput, err } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import {
@@ -47,10 +47,6 @@ import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;
-}
-
-function err(error: EngineError): Result<OperationPricing> {
-  return { ok: false, error };
 }
 
 function isPositive(value: DecimalString): boolean {

@@ -15,7 +15,7 @@ import type {
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
 import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
-import { invalidInput } from "./errors";
+import { invalidInput, err } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
@@ -35,10 +35,6 @@ import { toCentavos, toQuantity } from "./scalars";
 import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
-
-function err(error: EngineError): Result<PortfolioValuation> {
-  return { ok: false, error };
-}
 
 function sign(side: "buy" | "sell"): 1 | -1 {
   return side === "buy" ? 1 : -1;

@@ -12,6 +12,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { ExchangeRatePair } from "./adapters/bacen-sgs/schema";
+
 // Shared reference data (docs/adr/0017): no user_id, read-only to users. `candles`
 // and `optionDailyPrices` are declared here as ordinary tables for Drizzle's query
 // builder; the migration SQL turns them into `PARTITION BY RANGE (session)` parents
@@ -175,6 +177,21 @@ export const impliedVolatilityIndexPoints = pgTable(
   ],
 );
 
+// USD/BRL and EUR/BRL selling PTAX, Bacen's own daily fixing (docs/adr/0061):
+// shared read-only reference data like the rest of this file, no user_id.
+// `as_of` is the fixed publication instant the PTAX parser stamps
+// (13:30 America/Sao_Paulo), independent of any B3 trading-session calendar.
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    pair: text("pair").$type<ExchangeRatePair>().notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pair, table.date] })],
+);
+
 export const companyFilingCategoryValues = [
   "material_fact",
   "market_notice",
@@ -228,6 +245,7 @@ export const ingestionSourceValues = [
   "calendar",
   "iv_index",
   "cvm_filings",
+  "ptax",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 

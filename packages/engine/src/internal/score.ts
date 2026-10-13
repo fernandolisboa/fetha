@@ -34,7 +34,7 @@ import {
 } from "./decimal";
 import { evaluateStrategy as computeEvaluateStrategy } from "./evaluate-strategy";
 import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
-import { invalidInput } from "./errors";
+import { invalidInput, err } from "./errors";
 import { assertPresent, invariant } from "./invariant";
 import { isAfter, isAtOrBefore } from "./instant";
 import type { ResolvedMarketPrice } from "./option-pricing";
@@ -55,10 +55,6 @@ import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
-
-function err(error: EngineError): Result<Score> {
-  return { ok: false, error };
-}
 
 function opposite(side: Side): Side {
   return side === "buy" ? "sell" : "buy";

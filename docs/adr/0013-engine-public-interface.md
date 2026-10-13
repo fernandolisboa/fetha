@@ -3,7 +3,7 @@ status: accepted
 date: 2026-09-09
 ---
 
-# The engine public interface: ten methods over one market view, frozen
+# The engine public interface: eleven methods over one market view, frozen
 
 ## Context
 
@@ -18,7 +18,8 @@ tickets.
 
 ## Decision
 
-The engine exposes one `Engine` interface with exactly ten methods, one constant
+The engine exposes one `Engine` interface with exactly ten methods (eleven since the `assetReading`
+addendum below), one constant
 (`ENGINE_VERSION`), one `as const` array per closed vocabulary it declares (`noteCodes`,
 `engineErrorCodes`, `settlementOutcomes`, ...) and the types they use. Every input and every
 artifact is plain JSON: decimals travel as `DecimalString`, money as integer `Centavos` (BRL,
@@ -842,6 +843,80 @@ export type ImpliedVolatilityIndex = {
   provenance: Provenance;
 };
 
+export type TrendLabel = "up" | "down" | "sideways";
+export const trendLabels = ["up", "down", "sideways"] as const satisfies readonly TrendLabel[];
+
+export type MomentumLabel = "oversold" | "neutral" | "overbought";
+export const momentumLabels = [
+  "oversold",
+  "neutral",
+  "overbought",
+] as const satisfies readonly MomentumLabel[];
+
+export type RangeLabel = "calm" | "normal" | "wide";
+export const rangeLabels = ["calm", "normal", "wide"] as const satisfies readonly RangeLabel[];
+
+export type ImpliedVolatilityLabel = "low" | "normal" | "high";
+export const impliedVolatilityLabels = [
+  "low",
+  "normal",
+  "high",
+] as const satisfies readonly ImpliedVolatilityLabel[];
+
+export type OptionLiquidityLabel = "liquid" | "thin" | "none";
+export const optionLiquidityLabels = [
+  "liquid",
+  "thin",
+  "none",
+] as const satisfies readonly OptionLiquidityLabel[];
+
+// The project's default label boundaries (ADR-0059). Every boundary is inclusive on the side of
+// the extreme label: an RSI of exactly 30 reads oversold, an IV rank of exactly 70 reads high.
+export const assetReadingThresholds = {
+  smaShortLength: 50,
+  smaLongLength: 200,
+  rsiLength: 14,
+  rsiOversold: "30",
+  rsiOverbought: "70",
+  atrLength: 14,
+  atrShareCalm: "0.015",
+  atrShareWide: "0.035",
+  ivRankLookbackSessions: 252,
+  ivRankLow: "30",
+  ivRankHigh: "70",
+  liquidTradedSeries: 10,
+  nextExpiries: 3,
+} as const;
+
+export type AssetReadingThresholds = typeof assetReadingThresholds;
+
+export type AssetReading = {
+  ticker: Ticker;
+  session: SessionDate | null;
+  close: DecimalString | null;
+  trend: {
+    label: TrendLabel | null;
+    smaShort: DecimalString | null;
+    smaLong: DecimalString | null;
+  };
+  momentum: { label: MomentumLabel | null; rsi: DecimalString | null };
+  range: { label: RangeLabel | null; atr: DecimalString | null; atrShare: DecimalString | null };
+  impliedVolatility: {
+    label: ImpliedVolatilityLabel | null;
+    ivRank: DecimalString | null;
+    latest: { session: SessionDate; impliedVolatility: DecimalString } | null;
+  };
+  options: {
+    label: OptionLiquidityLabel;
+    session: SessionDate | null;
+    tradedSeries: number;
+    nextExpiries: { expiry: SessionDate; series: number; tradedSeries: number }[];
+  };
+  thresholds: AssetReadingThresholds;
+  notes: Note[];
+  provenance: Provenance;
+};
+
 export type Capabilities = {
   engineVersion: string;
   timeframes: Timeframe[];
@@ -936,6 +1011,8 @@ export type ScoreInput = {
 
 export type ImpliedVolatilityIndexInput = { view: MarketView; underlying: Ticker; at: Instant };
 
+export type AssetReadingInput = { view: MarketView; ticker: Ticker; at: Instant };
+
 export interface Engine {
   capabilities(): Capabilities;
   dataWindow(input: DataWindowInput): DataWindow;
@@ -949,6 +1026,7 @@ export interface Engine {
   impliedVolatilityIndex(
     input: ImpliedVolatilityIndexInput,
   ): Promise<Result<ImpliedVolatilityIndex>>;
+  assetReading(input: AssetReadingInput): Promise<Result<AssetReading>>;
 }
 ```
 
@@ -3069,6 +3147,18 @@ mark. #279 closes the remaining paths:
 
 The marks and a persisted artifact's value set changed, so `ENGINE_VERSION` moves from `"0.12.0"`
 to `"0.13.0"`.
+
+## Addendum: `assetReading` (2026-10-13, #304, see ADR-0059)
+
+An eleventh method, `assetReading(input: AssetReadingInput): Promise<Result<AssetReading>>`, reads
+one ticker's trend, momentum, range, implied volatility and option liquidity at an instant, each as
+a plain label from this project's own default thresholds (ADR-0059 has the full rationale and
+every threshold's source). New types: `AssetReadingInput`, `AssetReading`,
+`AssetReadingThresholds`, the `assetReadingThresholds` const, and five label vocabularies with
+their `as const` arrays — `TrendLabel`/`trendLabels`, `MomentumLabel`/`momentumLabels`,
+`RangeLabel`/`rangeLabels`, `ImpliedVolatilityLabel`/`impliedVolatilityLabels`,
+`OptionLiquidityLabel`/`optionLiquidityLabels`. Nothing it returns is checkpointed or persisted, so
+`ENGINE_VERSION` does not move.
 
 ## Addendum: index options carry a price factor; `ENGINE_VERSION` bumped to `0.14.0` (#307, see ADR-0063)
 

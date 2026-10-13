@@ -1,0 +1,861 @@
+[
+  {
+    "id": "bull-call-spread-low-iv",
+    "expectedMove": "up",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Trava de alta com calls",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "70"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "bull-call-spread",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close above its 50-session SMA and 14-session RSI below 70, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "long-call-low-iv",
+    "expectedMove": "up",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Compra de call",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "70"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "long-call",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "1"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 10
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): compra de calls para exposição direcional; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close above its 50-session SMA and 14-session RSI below 70, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 1× the premium, stop at 0.5× the max loss, close 10 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "bull-put-spread-high-iv",
+    "expectedMove": "up",
+    "ivRegime": "high",
+    "definition": {
+      "name": "Trava de alta com puts",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "70"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": ">=",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "bull-put-spread",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from puts); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close above its 50-session SMA and 14-session RSI below 70, 63-session IV rank at or above 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "covered-call-high-iv",
+    "expectedMove": "up",
+    "ivRegime": "high",
+    "definition": {
+      "name": "Lançamento coberto",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "70"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": ">=",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "covered-call",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.1"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Trading an Option and the Underlying Asset” (writing a covered call); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): lançamento coberto; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close above its 50-session SMA and 14-session RSI below 70, 63-session IV rank at or above 50; strikes and expiry are the catalog defaults; stop at 0.1× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "bear-put-spread-low-iv",
+    "expectedMove": "down",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Trava de baixa com puts",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "constant",
+              "value": "30"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "bear-put-spread",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bear spreads created from puts); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de baixa; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close below its 50-session SMA and 14-session RSI above 30, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "long-put-low-iv",
+    "expectedMove": "down",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Compra de put",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "constant",
+              "value": "30"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "long-put",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "1"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 10
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): compra de puts para exposição direcional; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close below its 50-session SMA and 14-session RSI above 30, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 1× the premium, stop at 0.5× the max loss, close 10 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "bear-call-spread-high-iv",
+    "expectedMove": "down",
+    "ivRegime": "high",
+    "definition": {
+      "name": "Trava de baixa com calls",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "price",
+              "field": "close"
+            },
+            "comparator": "<",
+            "right": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "sma",
+                "length": 50
+              }
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": ">",
+            "right": {
+              "kind": "constant",
+              "value": "30"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "iv_rank",
+                "lookbackSessions": 63
+              }
+            },
+            "comparator": ">=",
+            "right": {
+              "kind": "constant",
+              "value": "50"
+            }
+          }
+        ]
+      },
+      "structureId": "bear-call-spread",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bear spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de baixa; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on close below its 50-session SMA and 14-session RSI above 30, 63-session IV rank at or above 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "call-butterfly",
+    "expectedMove": "sideways",
+    "ivRegime": "any",
+    "definition": {
+      "name": "Borboleta com calls",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "and",
+        "conditions": [
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": ">=",
+            "right": {
+              "kind": "constant",
+              "value": "40"
+            }
+          },
+          {
+            "kind": "compare",
+            "left": {
+              "kind": "indicator",
+              "indicator": {
+                "kind": "rsi",
+                "length": 14
+              }
+            },
+            "comparator": "<=",
+            "right": {
+              "kind": "constant",
+              "value": "60"
+            }
+          }
+        ]
+      },
+      "structureId": "call-butterfly",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "1"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 5
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (butterfly spreads created from calls)",
+    "notes": "Enters on 14-session RSI between 40 and 60; strikes and expiry are the catalog defaults; take profit at 1× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "long-straddle-low-iv",
+    "expectedMove": "big_move",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Straddle comprado",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "compare",
+        "left": {
+          "kind": "indicator",
+          "indicator": {
+            "kind": "iv_rank",
+            "lookbackSessions": 63
+          }
+        },
+        "comparator": "<",
+        "right": {
+          "kind": "constant",
+          "value": "50"
+        }
+      },
+      "structureId": "long-straddle",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "0"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 10
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (straddle; bottom straddle or straddle purchase); IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on no trend filter: the expected move has no direction, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 10 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  },
+  {
+    "id": "long-strangle-low-iv",
+    "expectedMove": "big_move",
+    "ivRegime": "low",
+    "definition": {
+      "name": "Strangle comprado",
+      "timeframe": "D1",
+      "entry": {
+        "kind": "compare",
+        "left": {
+          "kind": "indicator",
+          "indicator": {
+            "kind": "iv_rank",
+            "lookbackSessions": 63
+          }
+        },
+        "comparator": "<",
+        "right": {
+          "kind": "constant",
+          "value": "50"
+        }
+      },
+      "structureId": "long-strangle",
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 20,
+        "max": 60
+      },
+      "sizing": {
+        "kind": "fixed_risk",
+        "fraction": "0.02"
+      },
+      "exit": [
+        {
+          "kind": "profit_target",
+          "fractionOfPremium": "0.5"
+        },
+        {
+          "kind": "stop_loss",
+          "multipleOfMaxLoss": "0.5"
+        },
+        {
+          "kind": "days_before_expiry",
+          "businessDays": 10
+        }
+      ],
+      "adjustments": []
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Combinations” (strangles; bottom vertical combination); IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a bought option has positive vega, a sold one negative)",
+    "notes": "Enters on no trend filter: the expected move has no direction, 63-session IV rank below 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium, stop at 0.5× the max loss, close 10 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+  }
+]

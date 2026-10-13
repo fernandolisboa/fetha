@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "asset_tour_dismissed_at" timestamp with time zone;

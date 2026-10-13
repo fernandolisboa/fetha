@@ -3,7 +3,13 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SgsFetchError, SgsNotPublishedError, fetchSgsSeries, sgsUrl } from "./fetch";
+import {
+  SgsFetchError,
+  SgsNotPublishedError,
+  fetchPtaxSeries,
+  fetchSgsSeries,
+  sgsUrl,
+} from "./fetch";
 
 function readFixture(name: string): string {
   return readFileSync(path.join(import.meta.dirname, "fixtures", name), "utf-8");
@@ -305,5 +311,33 @@ describe("fetchSgsSeries", () => {
 
     await expect(rejection).rejects.toThrow(SgsFetchError);
     await expect(rejection).rejects.not.toThrow(SgsNotPublishedError);
+  });
+});
+
+describe("fetchPtaxSeries", () => {
+  const ptaxFixture = readFixture("ptax-usdbrl-sample.json");
+
+  it("parses the response through the PTAX parser", async () => {
+    const points = await fetchPtaxSeries(
+      "USDBRL",
+      "2026-01-01",
+      "2026-01-31",
+      fakeFetch(200, ptaxFixture),
+    );
+    expect(points).toHaveLength(21);
+  });
+
+  it("throws SgsNotPublishedError when SGS answers its 'Value(s) not found' 404", async () => {
+    await expect(
+      fetchPtaxSeries("USDBRL", "2026-09-26", "2026-09-28", fakeFetch(404, notFoundBody)),
+    ).rejects.toThrow(SgsNotPublishedError);
+  });
+
+  it("names the pair, not a MacroSeriesKind, in a fetch failure", async () => {
+    const error = await rejectionOf(
+      fetchPtaxSeries("EURBRL", "2026-01-01", "2026-01-31", fakeFetch(503, ""), 0),
+    );
+    expect(error).toBeInstanceOf(SgsFetchError);
+    expect((error as Error).message).toContain("EURBRL");
   });
 });
