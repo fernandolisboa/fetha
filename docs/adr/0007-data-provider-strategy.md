@@ -28,6 +28,12 @@ nightly ingestion job. None of them takes a per-user token, none has a second im
 justify an interface, and ADR-0006's "deep modules, thin interfaces" principle argues against one
 here. ADR-0017 records their operational detail (parsing, partitioning, retries, freshness).
 
+## Amendment (2026-10-13, #305, ADR-0061)
+
+USD/BRL and EUR/BRL PTAX (Bacen's own daily fixing, SGS series 1 and 21619) join the reference-data
+sources: shared, read-only, ingested nightly by a new `ptax` source alongside `sgs`, not behind
+`MarketDataProvider` either. ADR-0061 records the full decision.
+
 ## Considered options
 
 - OpLab as the intraday adapter: real-time quotes and chain with greeks, but no intraday

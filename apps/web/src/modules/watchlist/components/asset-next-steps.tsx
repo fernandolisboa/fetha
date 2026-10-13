@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -53,17 +52,14 @@ export function AssetNextSteps({
             {strings.study.action}
           </Link>
         </Step>
-        <Step
-          title={
-            <span className="flex items-center gap-2">
-              {strings.recipe.title}
-              <Badge variant="outline" className="text-muted-foreground text-[11px] font-normal">
-                {strings.recipe.soon}
-              </Badge>
-            </span>
-          }
-        >
-          <p className="text-muted-foreground text-[13px]">{strings.recipe.body}</p>
+        <Step title={strings.recipe.title}>
+          <p className="text-[13px]">{strings.recipe.body}</p>
+          <Link
+            href="#receitas"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-fit")}
+          >
+            {strings.recipe.action}
+          </Link>
         </Step>
       </ol>
       <div className="border-line-soft flex flex-col gap-2 border-t pt-3">

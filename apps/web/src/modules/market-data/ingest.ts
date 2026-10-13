@@ -4,8 +4,8 @@ import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
-import { SgsNotPublishedError, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
-import { sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
+import { SgsNotPublishedError, fetchPtaxSeries, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
+import { exchangeRatePairValues, sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
 import { gaps, latestSession } from "./freshness";
 import { withSourceLock } from "./repositories/advisory-lock";
@@ -16,6 +16,10 @@ import {
   sessionsFrom,
   upsertTradingSessions,
 } from "./repositories/calendar-repository";
+import {
+  latestExchangeRateDate,
+  upsertExchangeRates,
+} from "./repositories/exchange-rate-repository";
 import {
   deleteRun,
   finishRun,
@@ -52,6 +56,19 @@ const SGS_START_BUDGET_FRACTION = 0.4;
 // as late as its 60% hard stop, so their start budget sits past it
 // (docs/adr/0060); a routine read takes seconds.
 const CVM_START_BUDGET_FRACTION = 0.7;
+// ptax runs last, after iv_index and cvm_filings, so it never costs cotahist/sgs/instruments
+// or tonight's iv_index point any of their own budget (docs/adr/0061). Split
+// the same way sgs is (#298): starting an older gap session is gated at 70%
+// of maxDurationMs, counted from ingest()'s own start, and the newest one —
+// the only session allowed to report `pending` on a not-yet-published value
+// — gets its own later deadline, 75%, so older gaps can never starve it. A
+// stalled Bacen costs about 31s per series per session (mirroring sgs), two
+// series about 62s worst case: an older session starting right at 70%
+// (210s of 300s) ends by about 272s, and the newest starting right at 75%
+// (225s) by about 287s, both before the route's own 300s deadline, so the
+// run still records itself and the next run retries whatever it missed.
+const PTAX_START_BUDGET_FRACTION = 0.7;
+const PTAX_NEWEST_START_BUDGET_FRACTION = 0.75;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -403,6 +420,9 @@ export interface IngestOptions {
   sgsBudgetMs?: number;
   // Overrides `maxDurationMs * CVM_START_BUDGET_FRACTION`, likewise.
   cvmBudgetMs?: number;
+  // Overrides `maxDurationMs * PTAX_START_BUDGET_FRACTION`, for the same
+  // reason as `ivIndexBudgetMs`.
+  ptaxBudgetMs?: number;
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
@@ -609,6 +629,64 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     ivIndexRestResult.outcome,
   ]);
 
+  // Runs last, after iv_index and cvm_filings, so a slow or down Bacen PTAX endpoint never
+  // costs cotahist, instruments, sgs or tonight's iv_index point any of
+  // their own start budget (docs/adr/0061). Oldest gap session first, each
+  // session fetching cumulatively from (latest stored date for the pair + 1
+  // day) to the session, exactly like sgsRun; the only session allowed to
+  // report `pending` on a not-yet-published value is the newest, which is
+  // why it is split out below with its own, later start deadline — an
+  // older gap stalling Bacen must never starve the one session this run
+  // most needs a fresh attempt at.
+  const ptaxSessions = await resolveSessions("ptax");
+  const ptaxRun = async (session: string): Promise<RunResult> => {
+    let total = 0;
+    const notPublished: string[] = [];
+    for (const pair of exchangeRatePairValues) {
+      const latest = await latestExchangeRateDate(db, pair);
+      const from = resolveSgsFromDate(latest);
+      if (from > session) {
+        continue;
+      }
+      try {
+        const points = await fetchPtaxSeries(pair, from, session, fetchImpl);
+        total += await upsertExchangeRates(db, points);
+      } catch (error) {
+        if (!(error instanceof SgsNotPublishedError)) {
+          throw error;
+        }
+        notPublished.push(pair);
+      }
+    }
+    if (notPublished.length === 0) {
+      return total;
+    }
+    if (session !== ptaxSessions.at(-1)) {
+      throw new Error(`SGS has not published PTAX for ${notPublished.join(", ")} on ${session}`);
+    }
+    return { rowCount: total, pending: true };
+  };
+  const ptaxOlderResult = await runSessionBoundSource(
+    db,
+    "ptax",
+    ptaxSessions.slice(0, -1),
+    maxDurationMs,
+    ptaxRun,
+    startedAt + (options.ptaxBudgetMs ?? maxDurationMs * PTAX_START_BUDGET_FRACTION),
+  );
+  const ptaxNewestSession = ptaxSessions.at(-1);
+  const ptaxNewestResult = await runSessionBoundSource(
+    db,
+    "ptax",
+    ptaxNewestSession ? [ptaxNewestSession] : [],
+    maxDurationMs,
+    ptaxRun,
+    startedAt + maxDurationMs * PTAX_NEWEST_START_BUDGET_FRACTION,
+  );
+  const ptaxResult = {
+    outcome: mergeOutcomes("ptax", [ptaxOlderResult.outcome, ptaxNewestResult.outcome]),
+  };
+
   // A source that is fully caught up drains no gaps this invocation
   // (`cotahistSessions` is empty), so `okSessions` is empty too even though a
   // previous run already succeeded on the newest session; falling back to
@@ -636,12 +714,16 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     sgsOutcome,
     session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
     cvmResult.outcome,
+    ptaxResult.outcome,
   ];
 
   // iv_index errors stay out of `ok` the same way cotahistSucceeded keeps
   // sgs/instruments failures from blocking evaluation (run-nightly-job.ts):
   // it is computed reference data derived from the other sources, never
   // itself a dependency the cron response should 500 on (docs/adr/0054).
+  // A ptax error flips `ok` the same way an sgs/instruments one does
+  // (docs/adr/0061) — `cotahistSucceeded` already gates evaluation on
+  // cotahist alone, not on `ok`, so this never blocks it either.
   return {
     session,
     okSessions,

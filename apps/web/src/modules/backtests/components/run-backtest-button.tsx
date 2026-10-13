@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ErrorNotice } from "@/components/error-notice";
@@ -24,8 +24,17 @@ async function refusedForActiveCap(response: Response): Promise<boolean> {
 // Server Component with the freshly persisted status; a paused run shows
 // the same button labeled "Continuar" for the next chunk instead of the
 // client looping on its own, so a page reload never loses progress.
-export function RunBacktestButton({ runId, label }: { runId: string; label: string }) {
+export function RunBacktestButton({
+  runId,
+  label,
+  autoStart = false,
+}: {
+  runId: string;
+  label: string;
+  autoStart?: boolean;
+}) {
   const router = useRouter();
+  const autoStarted = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tooManyActive, setTooManyActive] = useState(false);
@@ -45,13 +54,29 @@ export function RunBacktestButton({ runId, label }: { runId: string; label: stri
         }
         return;
       }
-      router.refresh();
+      if (autoStart) {
+        router.replace(window.location.pathname);
+      } else {
+        router.refresh();
+      }
     } catch {
       setError(t.networkError);
     } finally {
       setPending(false);
     }
   }
+
+  // A recipe lands here with a fresh run (docs/adr/0064): its first chunk
+  // starts on arrival, once, even under Strict Mode's double effect.
+  const startOnArrival = useEffectEvent(() => {
+    void run();
+  });
+  useEffect(() => {
+    if (autoStart && !autoStarted.current) {
+      autoStarted.current = true;
+      startOnArrival();
+    }
+  }, [autoStart]);
 
   return (
     <div className="flex flex-col gap-2">

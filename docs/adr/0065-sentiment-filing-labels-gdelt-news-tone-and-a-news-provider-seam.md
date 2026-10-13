@@ -194,7 +194,7 @@ updated nightly for the assets on a watchlist.
 
 ## Consequences
 
-- Migration 0038 creates four shared reference tables (CLAUDE.md principle 5), written only by
+- Migration 0039 creates four shared reference tables (CLAUDE.md principle 5), written only by
   the nightly job and read by every user: `filing_labels`, `news_tone_points`,
   `sentiment_fetches` and `news_articles`. They hold no user data, so they need no isolation
   test and no LGPD export or deletion.

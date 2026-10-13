@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
 import { getSession, hasPassword, readTermsGate } from "@/modules/auth";
-import { searchOptionSeriesAction } from "@/modules/market-data";
+import {
+  latestExchangeRate,
+  searchOptionSeriesAction,
+  type ExchangeRateRow,
+} from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
@@ -31,9 +35,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect("/aceitar-termos");
   }
 
-  const [preferences, unreadSignalCount] = await Promise.all([
+  const [preferences, unreadSignalCount, usdBrl] = await Promise.all([
     getPreferences(),
     getMyUnreadSignalCount(),
+    readLatestUsdBrl(),
   ]);
 
   return (
@@ -47,9 +52,25 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           optionSeries: searchOptionSeriesAction,
           strategies: searchMyStrategiesAction,
         }}
+        usdBrl={usdBrl}
       >
         {children}
       </AppShell>
     </TourProvider>
   );
+}
+
+// A cosmetic shell fixture (the market bar chip, docs/adr/0061), not a
+// dependency every signed-in page should 500 on: a migration not yet
+// applied to this environment or a transient read failure just hides the
+// chip instead of taking down the whole workstation shell.
+async function readLatestUsdBrl(): Promise<ExchangeRateRow | null> {
+  try {
+    return (await latestExchangeRate(getDb(), "USDBRL")) ?? null;
+  } catch {
+    // A fixed marker, never the driver's message: it would carry database
+    // text into the logs (docs/adr/0061).
+    console.error("shell: latest USD/BRL PTAX read failed; market bar chip hidden");
+    return null;
+  }
 }

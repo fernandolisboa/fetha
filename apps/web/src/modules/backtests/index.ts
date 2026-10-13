@@ -11,7 +11,14 @@ export {
 } from "./backtest-run-repository";
 export { isActiveRun, isDiscardedRun } from "./run-status";
 export { runBacktestChunk } from "./run-chunk";
-export { DEFAULT_COST_MODEL } from "./default-config";
+export { DEFAULT_COST_MODEL, DEFAULT_WALK_FORWARD_WINDOW } from "./default-config";
+export { AUTO_RUN_PARAM, reportHref } from "./report-href";
+export {
+  startBacktestRun,
+  type StartBacktestRunError,
+  type StartBacktestRunInput,
+  type StartBacktestRunResult,
+} from "./start-run";
 export {
   getMyActiveBacktestRuns,
   getMyBacktestRun,
@@ -21,6 +28,7 @@ export {
 export { compareHref, comparedRunIds, MAX_COMPARED_RUNS, requestedRunIds } from "./comparison";
 export { ComparisonView } from "./components/comparison-view";
 export { CompareRunsPicker } from "./components/compare-runs-picker";
+export { ReadingNotes } from "./components/reading-notes";
 export { ReportPanel } from "./components/report-panel";
 export { IN_PROGRESS_RUNS_HREF, runErrorMessage, isResumableRunError, t } from "./strings";
 export { BacktestsDataExport } from "./data-export";

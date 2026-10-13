@@ -119,6 +119,14 @@ A reference rate or index published by Bacen and used as risk-free rate or bench
 IPCA.
 _Avoid_: indicator (reserved for technical indicators), rate
 
+**Exchange rate (PTAX)**:
+Bacen's own daily fixing for a currency pair against the real (USD/BRL, EUR/BRL), the "venda"
+(selling) rate, published around 1pm on Bacen's own business-day calendar — not a B3 trading-
+session close and not a macro series (ADR-0061). Shared, read-only reference data like the macro
+series, but tracked for its own sake (findable, charted), never as a strategy input, a backtest
+instrument or an option underlying.
+_Avoid_: FX rate, currency quote, dollar price
+
 ### Structures and strategies
 
 **Structure**:
@@ -169,6 +177,26 @@ The shared, read-only library of structures and reference strategies available t
 Each entry is a structure with its published source and a default strike and expiry selection;
 that default selection is what makes it a reference strategy (docs/adr/0053).
 _Avoid_: library, templates
+
+**Recipe**:
+A complete, shared, read-only strategy definition (entry, structure, strikes, expiry, sizing,
+exits) chosen by the expected move it serves and the IV regime it enters on (ADR-0064). A user
+copies one into their own strategies in one click from the asset page; the copy is an ordinary
+strategy. The radar and suggestions match recipes, not copies. Shown as "receita".
+_Avoid_: template, preset, reference strategy (that is a catalog entry's default selection)
+
+**Expected move**:
+What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or
+`big_move` (either way). Stated by the user; a recipe only maps it to a structure.
+_Avoid_: view, market view (MarketView is the engine's data snapshot), outlook (an analysis's
+scored claim), thesis
+
+**IV regime**:
+The implied-volatility condition a recipe enters on: `low` (the DSL's `iv_rank` over 63
+sessions below 50, i.e. IV below its own median for the quarter), `high` (at or above 50) or
+`any`, from the sign of the structure's vega (ADR-0064). `iv_rank` is a percentile, not the
+min–max IV rank.
+_Avoid_: volatility view, vol regime
 
 **Shared strategy**:
 A user's strategy made visible, read-only, to every registered user, who may copy it into their

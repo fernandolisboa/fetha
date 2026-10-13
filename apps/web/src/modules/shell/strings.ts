@@ -11,6 +11,7 @@ const en = {
       instruments: "Instruments",
       optionSeries: "Option series",
       strategies: "Strategies",
+      exchangeRates: "Exchange rates",
     },
     optionRight: {
       call: "Call",
@@ -22,6 +23,7 @@ const en = {
     closeFreshnessToday: "today's close",
     closeFreshnessYesterday: "yesterday's close",
     closeFreshnessOlder: (date: string) => `close on ${date}`,
+    usdBrlAsOf: (date: string) => `Bacen PTAX, ${date}`,
   },
   rail: {
     navigationLabel: "Main navigation",
@@ -74,6 +76,7 @@ const ptBR = {
       instruments: "Ativos",
       optionSeries: "Séries de opção",
       strategies: "Estratégias",
+      exchangeRates: "Câmbio",
     },
     optionRight: {
       call: "Call",
@@ -85,6 +88,7 @@ const ptBR = {
     closeFreshnessToday: "fechamento de hoje",
     closeFreshnessYesterday: "fechamento de ontem",
     closeFreshnessOlder: (date: string) => `fechamento de ${date}`,
+    usdBrlAsOf: (date: string) => `PTAX do Bacen, ${date}`,
   },
   rail: {
     navigationLabel: "Navegação principal",

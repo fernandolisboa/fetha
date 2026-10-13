@@ -58,3 +58,9 @@ and a committed checklist of what was covered and what was left out.
   the app reads, and two places to keep in step.
 - Full reference strategies (entry and exit rules) in the catalog: the sources define payoffs,
   not signals, so any rule would be invented and presented as a reference.
+
+## Addendum (#306, ADR-0064)
+
+Full reference strategies now exist, outside the catalog: `recipes.json` next to it holds
+complete definitions chosen by expected move, with entry and exit thresholds stated as this
+project's defaults rather than as the sources'. The catalog itself stays structures only.

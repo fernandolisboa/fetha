@@ -18,6 +18,7 @@ import {
   loadCandleSeries,
   t,
 } from "@/modules/market-data";
+import { RecipePanel } from "@/modules/recipes";
 import { getPreferences } from "@/modules/preferences";
 import { SentimentPanel, sentimentForInstrument, t as sentimentStrings } from "@/modules/sentiment";
 import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
@@ -116,6 +117,11 @@ export default async function InstrumentPage({
               <AssetReadingPanel reading={reading} />
             </Panel>
           </div>
+          {lastClose && (
+            <div id="receitas" className="scroll-mt-16">
+              <RecipePanel ticker={ticker} />
+            </div>
+          )}
           <Panel
             title={t.companyFilings.title}
             subtitle={

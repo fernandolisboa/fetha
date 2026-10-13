@@ -271,8 +271,15 @@
     {
       "idx": 38,
       "version": "7",
-      "when": 1791911911376,
-      "tag": "0038_sentiment",
+      "when": 1791908499825,
+      "tag": "0038_exchange_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791912990471,
+      "tag": "0039_sentiment",
       "breakpoints": true
     }
   ]

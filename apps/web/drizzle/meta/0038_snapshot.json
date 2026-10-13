@@ -1,5 +1,5 @@
 {
-  "id": "5eb6c895-b76b-4097-9a6b-42cb3352edcc",
+  "id": "f4e21fb2-3784-4224-838c-4ef64d62ee39",
   "prevId": "34fc45b7-e3ff-40f0-9981-ab40b27eb93f",
   "version": "7",
   "dialect": "postgresql",
@@ -2240,6 +2240,51 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.exchange_rates": {
+      "name": "exchange_rates",
+      "schema": "",
+      "columns": {
+        "pair": {
+          "name": "pair",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "as_of": {
+          "name": "as_of",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate": {
+          "name": "rate",
+          "type": "numeric(18, 8)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "exchange_rates_pair_date_pk": {
+          "name": "exchange_rates_pair_date_pk",
+          "columns": [
+            "pair",
+            "date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.implied_volatility_index": {
       "name": "implied_volatility_index",
       "schema": "",
@@ -3470,361 +3515,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.filing_labels": {
-      "name": "filing_labels",
-      "schema": "",
-      "columns": {
-        "protocol": {
-          "name": "protocol",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "topic": {
-          "name": "topic",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tone": {
-          "name": "tone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prompt_version": {
-          "name": "prompt_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "input_tokens": {
-          "name": "input_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output_tokens": {
-          "name": "output_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "filing_labels_company_filing_fk": {
-          "name": "filing_labels_company_filing_fk",
-          "tableFrom": "filing_labels",
-          "tableTo": "company_filings",
-          "columnsFrom": [
-            "protocol",
-            "version"
-          ],
-          "columnsTo": [
-            "protocol",
-            "version"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "filing_labels_protocol_version_pk": {
-          "name": "filing_labels_protocol_version_pk",
-          "columns": [
-            "protocol",
-            "version"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "filing_labels_outcome_check": {
-          "name": "filing_labels_outcome_check",
-          "value": "outcome in ('labelled', 'rejected', 'unreadable', 'pending')"
-        },
-        "filing_labels_topic_check": {
-          "name": "filing_labels_topic_check",
-          "value": "topic is null or topic in ('results', 'dividends', 'guidance', 'm_and_a', 'debt', 'litigation', 'management', 'buyback', 'offering', 'other')"
-        },
-        "filing_labels_tone_check": {
-          "name": "filing_labels_tone_check",
-          "value": "tone is null or tone in ('positive', 'neutral', 'negative')"
-        },
-        "filing_labels_reason_check": {
-          "name": "filing_labels_reason_check",
-          "value": "reason is null or reason in ('refusal', 'incomplete', 'schema', 'figure', 'link', 'bad_request', 'not_pdf', 'too_large', 'unavailable')"
-        },
-        "filing_labels_labelled_check": {
-          "name": "filing_labels_labelled_check",
-          "value": "(outcome = 'labelled') = (topic is not null and tone is not null and summary is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.news_articles": {
-      "name": "news_articles",
-      "schema": "",
-      "columns": {
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "article_id": {
-          "name": "article_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ticker": {
-          "name": "ticker",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sentiment": {
-          "name": "sentiment",
-          "type": "numeric(5, 4)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "news_articles_ticker_published_at_idx": {
-          "name": "news_articles_ticker_published_at_idx",
-          "columns": [
-            {
-              "expression": "ticker",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "published_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "news_articles_provider_article_id_ticker_pk": {
-          "name": "news_articles_provider_article_id_ticker_pk",
-          "columns": [
-            "provider",
-            "article_id",
-            "ticker"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "news_articles_provider_check": {
-          "name": "news_articles_provider_check",
-          "value": "provider in ('marketaux')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.news_tone_points": {
-      "name": "news_tone_points",
-      "schema": "",
-      "columns": {
-        "cnpj": {
-          "name": "cnpj",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tone": {
-          "name": "tone",
-          "type": "numeric(8, 4)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "articles": {
-          "name": "articles",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "news_tone_points_cnpj_day_pk": {
-          "name": "news_tone_points_cnpj_day_pk",
-          "columns": [
-            "cnpj",
-            "day"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sentiment_fetches": {
-      "name": "sentiment_fetches",
-      "schema": "",
-      "columns": {
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subject": {
-          "name": "subject",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "query": {
-          "name": "query",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "sentiment_fetches_source_subject_pk": {
-          "name": "sentiment_fetches_source_subject_pk",
-          "columns": [
-            "source",
-            "subject"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "sentiment_fetches_source_check": {
-          "name": "sentiment_fetches_source_check",
-          "value": "source in ('gdelt', 'marketaux')"
-        },
-        "sentiment_fetches_status_check": {
-          "name": "sentiment_fetches_status_check",
-          "value": "status in ('ok', 'rate_limited', 'failed')"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.strategies": {

@@ -612,6 +612,42 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  it("logs the full outcome server-side when ptax deferred sessions past its own start budget (#305)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sources: [
+        ...(run.sources as unknown[]),
+        { source: "ptax", skipped: false, rowCount: 0, pending: true, deferred: 2 },
+      ],
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
+  it("logs the full outcome server-side when sgs deferred sessions past its start budget (#298)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sources: [
+        ...(run.sources as unknown[]),
+        { source: "sgs", skipped: false, rowCount: 0, pending: true, deferred: 3 },
+      ],
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
   it("does not log a run whose only leftover is a deferred CVM filings read (#309)", async () => {
     const run = cleanRunWithIvIndex({ newestSessionComputed: true });
     runNightlyJobMock.mockResolvedValue({

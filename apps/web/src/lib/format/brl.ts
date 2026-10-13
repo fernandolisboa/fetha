@@ -23,6 +23,18 @@ export function formatPriceBRL(price: DecimalString): string {
   return formatBRL(centavos.toNumber() as Centavos);
 }
 
+// A PTAX exchange rate (docs/adr/0061): four decimals, pt-BR grouping, the
+// same "R$" prefix formatBRL/formatPriceBRL use, but never rounded down to
+// centavos — a rate's own precision is the point, unlike a money amount.
+export function formatExchangeRateBRL(rate: DecimalString): string {
+  const decimal = new Decimal(rate);
+  const formatter = new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
+  return `R$ ${formatter.format(decimal.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toNumber())}`;
+}
+
 // Parses a pt-BR money input ("1.234,56" or "1234,56" or "1234") into
 // centavos; returns null for anything that is not a positive amount, since
 // the only caller (declared capital) never accepts zero or negative money.

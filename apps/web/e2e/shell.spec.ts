@@ -21,7 +21,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   ]) {
     await expect(rail.getByRole("link", { name })).toBeVisible();
   }
-  await expect(page.getByText("sem dados")).toBeVisible();
+  await expect(page.getByTestId("market-bar")).toBeVisible();
 });
 
 test("under 768px the rail becomes a bottom tab bar with the six destinations", async ({
@@ -286,7 +286,7 @@ const themeFontExpectations = [
 test("each theme resolves its own vendored font families", async ({ page, baseURL, request }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  const tabularNumberElement = page.getByText("sem dados");
+  const tabularNumberElement = page.getByTestId("market-bar");
 
   for (const { theme, label, bodyFamily, monoFamily } of themeFontExpectations) {
     await page.getByRole("button", { name: "Menu da conta" }).click();
