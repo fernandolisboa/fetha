@@ -31,8 +31,12 @@ describe("marketIndexTickersForQuery", () => {
     expect(marketIndexTickersForQuery("ibov")).toEqual(["IBOV11"]);
   });
 
-  it("is case- and accent-insensitive", () => {
-    expect(marketIndexTickersForQuery("IBOVÉSPA".slice(0, 4))).toEqual(["IBOV11"]);
+  it("is case-insensitive", () => {
+    expect(marketIndexTickersForQuery("IBOVESPA")).toEqual(["IBOV11"]);
+  });
+
+  it("is accent-insensitive: an accented variant of the same alias still matches", () => {
+    expect(marketIndexTickersForQuery("íbovéspa")).toEqual(["IBOV11"]);
   });
 
   it("returns nothing for an unrelated query", () => {

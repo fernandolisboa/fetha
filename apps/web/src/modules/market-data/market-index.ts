@@ -9,7 +9,7 @@ export interface MarketIndex {
 }
 
 // Membership ("this ticker is a market index, not a tradable instrument") is a code constant
-// (design-307.md section 1), not a column: one entry, the Ibovespa. The registry keys IBOV
+// (ADR-0062), not a column: one entry, the Ibovespa. The registry keys IBOV
 // options to `IBOV11` (the join key `option_series.underlying` carries); `IBOV` is only the B3
 // index-statistics service's own request code.
 export const marketIndexes = [
@@ -40,7 +40,7 @@ function normalize(value: string): string {
   return stripDiacritics(value).toLowerCase().trim();
 }
 
-// Alias prefix match for `searchInstruments` (design-307.md section 5): "ibovespa" finds
+// Alias prefix match for `searchInstruments` (ADR-0062): "ibovespa" finds
 // `IBOV11` even though it is not itself a prefix of the ticker; "ibov" already matches by the
 // ticker's own prefix, so this only ever adds a ticker, never duplicates the plain `LIKE` hit.
 export function marketIndexTickersForQuery(query: string): Ticker[] {

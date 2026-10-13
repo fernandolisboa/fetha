@@ -4,6 +4,7 @@ import type { MarketView } from "@fetha/engine";
 import type { Database } from "@/db/client";
 
 import { buildAssetReadingView } from "./asset-reading";
+import { isMarketIndex } from "./market-index";
 import { toTradingSession } from "./market-view";
 import { recentSessions, sessionByDate, sessionsInRange } from "./repositories/calendar-repository";
 import { liquidOptionableUnderlyings } from "./repositories/iv-index-repository";
@@ -27,7 +28,16 @@ export async function radarUniverse(
   }
   const window = await recentSessions(db, trading.close, rule.windowSessions);
   const fromSession = window[0]?.date ?? session;
-  return liquidOptionableUnderlyings(db, session, fromSession, rule.minTradedSessions);
+  const underlyings = await liquidOptionableUnderlyings(
+    db,
+    session,
+    fromSession,
+    rule.minTradedSessions,
+  );
+  // A market index trades no options on itself, but once it has an IV index point
+  // (ADR-0062), nothing upstream of this read would otherwise exclude it from the radar's own
+  // universe.
+  return underlyings.filter((ticker) => !isMarketIndex(ticker));
 }
 
 // The asset reading's view (candles, IV points and the chain listed at the reading session with

@@ -79,11 +79,8 @@ export {
   type ExchangeRateRow,
 } from "./repositories/exchange-rate-repository";
 export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-filing-queries";
-export {
-  isMarketIndex,
-  marketIndexes,
-  marketIndexOf,
-  marketIndexTickersForQuery,
-  type MarketIndex,
-} from "./market-index";
+// Only `isMarketIndex` has consumers outside this module (ADR-0062); `marketIndexes`,
+// `marketIndexOf` and `marketIndexTickersForQuery` are used only inside `market-data` itself
+// (`ingest.ts`, `candle-repository.ts`), through a direct relative import, not this barrel.
+export { isMarketIndex } from "./market-index";
 export { CompanyFilingsList } from "./components/company-filings-list";
