@@ -175,12 +175,59 @@ export const impliedVolatilityIndexPoints = pgTable(
   ],
 );
 
+export const companyFilingCategoryValues = [
+  "material_fact",
+  "market_notice",
+  "shareholder_notice",
+  "shareholder_meeting",
+] as const;
+export type CompanyFilingCategory = (typeof companyFilingCategoryValues)[number];
+
+// Filings listed companies deliver to the CVM (docs/adr/0060), one row per
+// (protocol, version): a re-presentation is a new version of the same
+// protocol, so readers keep only each protocol's highest version. Shared
+// reference data, written only by the nightly ingestion.
+export const companyFilings = pgTable(
+  "company_filings",
+  {
+    protocol: text("protocol").notNull(),
+    version: integer("version").notNull(),
+    cnpj: text("cnpj").notNull(),
+    companyName: text("company_name").notNull(),
+    category: text("category").$type<CompanyFilingCategory>().notNull(),
+    kind: text("kind"),
+    subject: text("subject").notNull(),
+    deliveredOn: date("delivered_on", { mode: "string" }).notNull(),
+    documentUrl: text("document_url").notNull(),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.protocol, table.version] }),
+    index("company_filings_cnpj_delivered_on_idx").on(table.cnpj, table.deliveredOn),
+    index("company_filings_delivered_on_idx").on(table.deliveredOn),
+  ],
+);
+
+// A B3 trading code to the CNPJ of the company that issues it, from the
+// CVM's FCA securities table (docs/adr/0060).
+export const companyTickers = pgTable(
+  "company_tickers",
+  {
+    ticker: text("ticker").primaryKey(),
+    cnpj: text("cnpj").notNull(),
+    referenceDate: date("reference_date", { mode: "string" }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("company_tickers_cnpj_idx").on(table.cnpj)],
+);
+
 export const ingestionSourceValues = [
   "cotahist",
   "instruments",
   "sgs",
   "calendar",
   "iv_index",
+  "cvm_filings",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 

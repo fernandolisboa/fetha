@@ -1,0 +1,9 @@
+CNPJ_Companhia;Data_Referencia;Versao;ID_Documento;Nome_Empresarial;Valor_Mobiliario;Sigla_Classe_Acao_Preferencial;Classe_Acao_Preferencial;Codigo_Negociacao;Composicao_BDR_Unit;Mercado;Sigla_Entidade_Administradora;Entidade_Administradora;Data_Inicio_Negociacao;Data_Fim_Negociacao;Segmento;Data_Inicio_Listagem;Data_Fim_Listagem
+33.000.167/0001-01;2026-01-01;1;156276;PETROLEO BRASILEIRO S.A. PETROBRAS;Ações Ordinárias;;;PETR3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2018-05-14;;Nível 2 de Governança Corporativa;1977-07-20;
+33.000.167/0001-01;2026-01-01;1;156276;PETROLEO BRASILEIRO S.A. PETROBRAS;Ações Preferenciais;;;PETR4;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2018-05-14;;Nível 2 de Governança Corporativa;1977-07-20;
+33.592.510/0001-54;2026-01-01;1;156281;VALE S.A.;Ações Ordinárias;;;VALE3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2017-12-22;;Novo Mercado;1968-04-01;
+00.185.475/0001-08;2026-01-01;1;154886;PARCOM PARTICIPACOES S.A. - EM LIQUIDAÇÃO;Ações Ordinárias;;;NÃO HÁ;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;1998-06-17;2012-12-27;Básico;1998-06-17;2012-12-27
+02.351.144/0001-18;2026-01-01;1;156431;TEGMA GESTAO LOGISTICA S.A.;Ações Ordinárias;;;tgma3;;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2007-08-03;;Novo Mercado;2007-08-03;
+00.743.065/0001-27;2026-01-01;1;156687;LITEL PARTICIPACOES S.A.;Ações Ordinárias;;;LTEL3B;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2000-10-18;;Básico;2000-10-18;
+00.001.180/0001-26;2026-01-01;4;159987;AXIA Energia S.A.;Debêntures;;;;;Balcão Organizado;B3;B3 S.A. - Brasil, Bolsa, Balcão.;2024-10-17;;Básico;2024-09-15;
+00.864.214/0001-06;2026-01-01;1;158184;ENERGISA S.A.;Units;;;ENGI11;1 ação ordinária e 4 ações preferenciais;Bolsa;B3;B3 S.A. - Brasil, Bolsa, Balcão.;1995-12-20;;Nível 2 de Governança Corporativa;1995-12-20;

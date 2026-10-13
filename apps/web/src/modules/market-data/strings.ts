@@ -130,6 +130,28 @@ const en = {
     factorColumn: "Factor",
     recordedAtColumn: "Recorded at",
   },
+  companyFilings: {
+    title: "Recent events",
+    subtitle:
+      "Material facts, market notices, shareholder notices and meetings filed with the CVM. Source: CVM open data (ODbL).",
+    deliveredUntilToday: "CVM data up to today.",
+    deliveredUntilYesterday: "CVM data up to yesterday.",
+    deliveredUntil: (date: string) => `CVM data up to ${date}.`,
+    deliveredOn: "Filed",
+    categoryColumn: "Type",
+    subject: "Subject",
+    category: {
+      material_fact: "Material fact",
+      market_notice: "Market notice",
+      shareholder_notice: "Shareholder notice",
+      shareholder_meeting: "Shareholder meeting",
+    },
+    openDocument: (subject: string) => `${subject} (opens the document on the CVM site)`,
+    notLoaded: "The CVM filings haven't been loaded yet; they arrive with the nightly update.",
+    notACompany:
+      "The CVM doesn't link this code to a listed company. ETFs, real-estate funds and BDRs don't file these documents.",
+    empty: "No recent filing with the CVM.",
+  },
 };
 
 const ptBR = {
@@ -272,6 +294,29 @@ const ptBR = {
       `${String(sharesBefore)} para ${String(sharesAfter)}`,
     factorColumn: "Fator",
     recordedAtColumn: "Registrado em",
+  },
+  companyFilings: {
+    title: "Eventos recentes",
+    subtitle:
+      "Fatos relevantes, comunicados, avisos aos acionistas e assembleias entregues à CVM. Fonte: dados abertos da CVM (ODbL).",
+    deliveredUntilToday: "Dados da CVM até hoje.",
+    deliveredUntilYesterday: "Dados da CVM até ontem.",
+    deliveredUntil: (date: string) => `Dados da CVM até ${date}.`,
+    deliveredOn: "Entrega",
+    categoryColumn: "Tipo",
+    subject: "Assunto",
+    category: {
+      material_fact: "Fato relevante",
+      market_notice: "Comunicado ao mercado",
+      shareholder_notice: "Aviso aos acionistas",
+      shareholder_meeting: "Assembleia",
+    },
+    openDocument: (subject: string) => `${subject} (abre o documento no site da CVM)`,
+    notLoaded:
+      "Os documentos da CVM ainda não foram carregados; eles chegam na atualização noturna.",
+    notACompany:
+      "A CVM não associa este código a uma companhia aberta. ETFs, fundos imobiliários e BDRs não entregam esses documentos.",
+    empty: "Nenhum documento recente entregue à CVM.",
   },
 } satisfies typeof en;
 

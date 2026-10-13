@@ -24,6 +24,7 @@ import {
   startRun,
   succeededSessionsMissingRun,
 } from "./repositories/ingestion-run-repository";
+import { ingestCvmFilings } from "./cvm-filings-source";
 import { computeIvIndexForSession } from "./iv-index-compute";
 import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
@@ -47,6 +48,10 @@ const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 // push tonight's iv_index session past its hard stop; that run still ends in
 // time to record itself, and the next run retries both.
 const SGS_START_BUDGET_FRACTION = 0.4;
+// The CVM filings run right after tonight's iv_index session, which may start
+// as late as its 60% hard stop, so their start budget sits past it
+// (docs/adr/0060); a routine read takes seconds.
+const CVM_START_BUDGET_FRACTION = 0.7;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -93,7 +98,7 @@ export interface SourceOutcome {
 // too so it survives into the SourceOutcome instead of only a console.warn.
 // One whose provider has not published the session yet reports `pending`
 // with the rows it did write, and no succeeded marker is recorded.
-type RunResult =
+export type RunResult =
   number | { rowCount: number; skippedRows: number } | { rowCount: number; pending: true };
 
 function normalizeRunResult(result: RunResult): {
@@ -396,6 +401,8 @@ export interface IngestOptions {
   // Overrides `maxDurationMs * SGS_START_BUDGET_FRACTION`, for the same
   // reason as `ivIndexBudgetMs`.
   sgsBudgetMs?: number;
+  // Overrides `maxDurationMs * CVM_START_BUDGET_FRACTION`, likewise.
+  cvmBudgetMs?: number;
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
@@ -564,6 +571,31 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
         ivIndexHardStopAt,
       )
     : { outcome: mergeOutcomes("iv_index", []), okSessions: [] };
+  // The CVM files are cumulative yearly snapshots (docs/adr/0060): one read
+  // covers every gap session, so only the first session this invocation
+  // attempts downloads them and the rest share its outcome. It runs after
+  // tonight's iv_index session and before the iv_index backfill, under its
+  // own 70% start budget, so it never delays what tonight's evaluation
+  // reads; like iv_index it stays out of `ok`, since no other
+  // step reads filings and the asset page shows their freshness.
+  let cvmSnapshot: Promise<RunResult> | undefined;
+  const cvmRun = async (): Promise<RunResult> => {
+    if (cvmSnapshot) {
+      const first = normalizeRunResult(await cvmSnapshot);
+      return first.pending ? { rowCount: 0, pending: true as const } : 0;
+    }
+    cvmSnapshot = ingestCvmFilings(db, now, fetchImpl);
+    return cvmSnapshot;
+  };
+  const cvmResult = await runSessionBoundSource(
+    db,
+    "cvm_filings",
+    await resolveSessions("cvm_filings"),
+    maxDurationMs,
+    cvmRun,
+    startedAt + (options.cvmBudgetMs ?? maxDurationMs * CVM_START_BUDGET_FRACTION),
+  );
+
   const ivIndexRestResult = await runSessionBoundSource(
     db,
     "iv_index",
@@ -603,6 +635,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     instrumentsResult.outcome,
     sgsOutcome,
     session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
+    cvmResult.outcome,
   ];
 
   // iv_index errors stay out of `ok` the same way cotahistSucceeded keeps
@@ -613,7 +646,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     session,
     okSessions,
     ok: sources
-      .filter((outcome) => outcome.source !== "iv_index")
+      .filter((outcome) => outcome.source !== "iv_index" && outcome.source !== "cvm_filings")
       .every((outcome) => outcome.error === undefined),
     sources,
   };

@@ -11,6 +11,8 @@ import {
   AssetReadingPanel,
   CandleChart,
   CandleFormToggle,
+  CompanyFilingsList,
+  companyFilingsForInstrument,
   latestCandle,
   loadAssetReading,
   loadCandleSeries,
@@ -53,13 +55,15 @@ export default async function InstrumentPage({
   const form = resolveForm(rawForm);
 
   const db = getDb();
-  const [lastClose, seriesResult, reading, onWatchlist, hasActiveStrategy] = await Promise.all([
-    latestCandle(db, ticker),
-    loadCandleSeries(db, ticker, form),
-    loadAssetReading(db, ticker),
-    isOnMyWatchlist(ticker),
-    hasMyActiveDailyStrategy(),
-  ]);
+  const [lastClose, seriesResult, filings, reading, onWatchlist, hasActiveStrategy] =
+    await Promise.all([
+      latestCandle(db, ticker),
+      loadCandleSeries(db, ticker, form),
+      companyFilingsForInstrument(db, ticker),
+      loadAssetReading(db, ticker),
+      isOnMyWatchlist(ticker),
+      hasMyActiveDailyStrategy(),
+    ]);
   const preferences = await getPreferences();
 
   if (!seriesResult.ok) {
@@ -110,6 +114,16 @@ export default async function InstrumentPage({
               <AssetReadingPanel reading={reading} />
             </Panel>
           </div>
+          <Panel
+            title={t.companyFilings.title}
+            subtitle={
+              filings.freshness
+                ? `${t.companyFilings.subtitle} ${filings.freshness}`
+                : t.companyFilings.subtitle
+            }
+          >
+            <CompanyFilingsList view={filings} />
+          </Panel>
         </div>
         <div data-tour="asset-next-steps">
           <Panel title={watchlistStrings.nextSteps.title}>
