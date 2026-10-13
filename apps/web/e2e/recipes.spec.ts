@@ -19,6 +19,8 @@ test("use a recipe from the asset page and land on its backtest report", async (
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   await page.goto(`/ativos/${TICKER}`);
+  await page.getByRole("link", { name: "Escolher uma receita" }).click();
+  await expect(page).toHaveURL(/#receitas$/);
   await expect(page.getByText("Para testar uma receita, informe antes")).toBeVisible();
 
   await page.goto("/configuracoes");
@@ -27,7 +29,7 @@ test("use a recipe from the asset page and land on its backtest report", async (
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
 
   await page.goto(`/ativos/${TICKER}`);
-  await expect(page.getByRole("heading", { name: "Usar uma receita" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Usar uma receita", exact: true })).toBeVisible();
   await page.getByRole("radio", { name: "Que suba" }).click();
   await expect(page.getByRole("radio", { name: /Médio: 2% do capital/ })).toBeChecked();
   await expect(page.getByText("cerca de R$ 200,00")).toBeVisible();

@@ -115,7 +115,11 @@ export default async function InstrumentPage({
               <AssetReadingPanel reading={reading} />
             </Panel>
           </div>
-          {lastClose && <RecipePanel ticker={ticker} />}
+          {lastClose && (
+            <div id="receitas" className="scroll-mt-16">
+              <RecipePanel ticker={ticker} />
+            </div>
+          )}
           <Panel
             title={t.companyFilings.title}
             subtitle={
