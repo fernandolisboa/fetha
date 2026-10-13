@@ -18,6 +18,7 @@ import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
+import { err } from "./errors";
 
 const CALENDAR_DAYS_TO_TARGET = 30;
 
@@ -25,10 +26,6 @@ type ProvenanceBase = Pick<
   Provenance,
   "engineVersion" | "pricingModel" | "dataVersion" | "datasetNotes"
 >;
-
-function err(error: EngineError): Result<ImpliedVolatilityIndex> {
-  return { ok: false, error };
-}
 
 function addCalendarDays(date: SessionDate, days: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);

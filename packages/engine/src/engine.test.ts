@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { engine } from "./engine";
 import type {
+  AssetReadingInput,
   DataWindowInput,
   Engine,
   EvaluateStrategyInput,
@@ -406,6 +407,48 @@ describe("engine", () => {
       path: "config.period",
       message: "no calendar session falls inside the requested period",
     });
+  });
+
+  it("computes an asset reading end to end through the Engine interface, provenance stamped", async () => {
+    const result = await engine.assetReading({
+      view: {
+        ...emptyView,
+        dataVersion: "2024-01-01T00:00:00.000Z",
+        datasetNotes: ["b3-cotahist-2024"],
+        candles: [
+          {
+            ticker: "PETR4",
+            timeframe: "D1",
+            session: "2024-01-02",
+            asOf: "2024-01-02T21:00:00.000Z",
+            open: decimalString("40.00"),
+            high: decimalString("40.00"),
+            low: decimalString("40.00"),
+            close: decimalString("40.00"),
+            tradedQuantity: 1000,
+          },
+        ],
+      },
+      ticker: "PETR4",
+      at: "2024-01-02T21:00:00.000Z",
+    } satisfies AssetReadingInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ticker).toBe("PETR4");
+    expect(result.value.session).toBe("2024-01-02");
+    expect(result.value.close).toBe("40.00");
+    expect(result.value.trend).toEqual({ label: null, smaShort: null, smaLong: null });
+    expect(result.value.options).toEqual({
+      label: "none",
+      session: "2024-01-02",
+      tradedSeries: 0,
+      nextExpiries: [],
+    });
+    expect(result.value.thresholds.liquidTradedSeries).toBe(10);
+    expect(result.value.provenance.engineVersion).toBe(ENGINE_VERSION);
+    expect(result.value.provenance.pricingModel).toBe("bsm_continuous_yield");
+    expect(result.value.provenance.dataVersion).toBe("2024-01-01T00:00:00.000Z");
+    expect(result.value.provenance.datasetNotes).toEqual(["b3-cotahist-2024"]);
   });
 
   it("runs a stock-only backtest end to end through the Engine interface", async () => {

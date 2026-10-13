@@ -29,7 +29,7 @@ data like every other table in that file (CLAUDE.md principle 5): no `user_id`, 
 ingestion, read by every user. Columns: `pair` (`'USDBRL' | 'EURBRL'`, an `exchangeRatePairSchema`
 Zod enum next to `macroSeriesKindSchema`'s own in `adapters/bacen-sgs/schema.ts`), `date`,
 `as_of` (`timestamptz`) and `rate` (`numeric(18,8)`), primary keyed on `(pair, date)`. Migration
-`0037`. No isolation test: the exception CLAUDE.md principle 5 and ADR-0017 already carve out for
+`0038`. No isolation test: the exception CLAUDE.md principle 5 and ADR-0017 already carve out for
 reference data and the catalog.
 
 **A new ingestion source, `ptax`**, added to `ingestionSourceValues` — **not** folded into the

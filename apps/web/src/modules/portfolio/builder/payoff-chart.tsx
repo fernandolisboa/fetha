@@ -78,6 +78,7 @@ function Chart({
           x={(point) => xScale(point.underlying)}
           y={(point) => (point.pnl >= 0 ? yScale(point.pnl) : yScale(0))}
           yScale={yScale}
+          y0={yScale(0)}
           fill="var(--up)"
           opacity={0.12}
         />
@@ -86,6 +87,7 @@ function Chart({
           x={(point) => xScale(point.underlying)}
           y={(point) => (point.pnl < 0 ? yScale(point.pnl) : yScale(0))}
           yScale={yScale}
+          y0={yScale(0)}
           fill="var(--down)"
           opacity={0.12}
         />

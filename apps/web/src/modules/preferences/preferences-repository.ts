@@ -9,12 +9,14 @@ export interface Preferences {
   theme: Theme;
   railCollapsed: boolean;
   tourDismissed: boolean;
+  assetTourDismissed: boolean;
 }
 
 const defaults: Preferences = {
   theme: themeSchema.parse(undefined),
   railCollapsed: false,
   tourDismissed: false,
+  assetTourDismissed: false,
 };
 
 export class PreferencesRepository extends UserScopedRepository {
@@ -24,6 +26,7 @@ export class PreferencesRepository extends UserScopedRepository {
         theme: preferences.theme,
         railCollapsed: preferences.railCollapsed,
         tourDismissedAt: preferences.tourDismissedAt,
+        assetTourDismissedAt: preferences.assetTourDismissedAt,
       })
       .from(preferences)
       .where(eq(preferences.userId, this.userId))
@@ -38,6 +41,7 @@ export class PreferencesRepository extends UserScopedRepository {
       theme: parsedTheme.success ? parsedTheme.data : defaults.theme,
       railCollapsed: row.railCollapsed,
       tourDismissed: row.tourDismissedAt !== null,
+      assetTourDismissed: row.assetTourDismissedAt !== null,
     };
   }
 
@@ -59,6 +63,21 @@ export class PreferencesRepository extends UserScopedRepository {
         target: preferences.userId,
         set: {
           tourDismissedAt: sql`coalesce(${preferences.tourDismissedAt}, now())`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
+  // Same shape as dismissTour, its own column: the asset-page tour is
+  // dismissed independently of the main one (ADR-0046 addendum, #304).
+  async dismissAssetTour(): Promise<void> {
+    await this.db
+      .insert(preferences)
+      .values({ userId: this.userId, assetTourDismissedAt: new Date() })
+      .onConflictDoUpdate({
+        target: preferences.userId,
+        set: {
+          assetTourDismissedAt: sql`coalesce(${preferences.assetTourDismissedAt}, now())`,
           updatedAt: new Date(),
         },
       });

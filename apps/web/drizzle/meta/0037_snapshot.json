@@ -1,5 +1,5 @@
 {
-  "id": "c58a4b94-f410-4003-9e7c-dd837d87e197",
+  "id": "34fc45b7-e3ff-40f0-9981-ab40b27eb93f",
   "prevId": "6e859f93-d42e-4020-9243-3105826f2526",
   "version": "7",
   "dialect": "postgresql",
@@ -2240,51 +2240,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.exchange_rates": {
-      "name": "exchange_rates",
-      "schema": "",
-      "columns": {
-        "pair": {
-          "name": "pair",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "date": {
-          "name": "date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "as_of": {
-          "name": "as_of",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rate": {
-          "name": "rate",
-          "type": "numeric(18, 8)",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "exchange_rates_pair_date_pk": {
-          "name": "exchange_rates_pair_date_pk",
-          "columns": [
-            "pair",
-            "date"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.implied_volatility_index": {
       "name": "implied_volatility_index",
       "schema": "",
@@ -3462,6 +3417,12 @@
         },
         "tour_dismissed_at": {
           "name": "tour_dismissed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "asset_tour_dismissed_at": {
+          "name": "asset_tour_dismissed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

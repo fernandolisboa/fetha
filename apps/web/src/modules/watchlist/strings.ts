@@ -18,8 +18,40 @@ const en = {
     error: "Couldn't remove the instrument. Try again.",
   },
   table: {
-    columns: { ticker: "Ticker", lastClose: "Last close", session: "Session" },
+    columns: { ticker: "Ticker", reading: "Reading", lastClose: "Last close", session: "Session" },
     noClose: "no close yet",
+    noStrategy:
+      "No active strategy looks at these assets. The reading works without one; an active strategy adds the nightly signals.",
+    strategiesLink: "See strategies",
+  },
+  nextSteps: {
+    title: "Next steps",
+    subtitle: "Three ways to go from here. A strategy is optional.",
+    follow: {
+      title: "Keep following",
+      onWatchlist: "It's on your watchlist: the reading refreshes after every close.",
+      notOnWatchlist: "Add it to your watchlist to see its reading there after every close.",
+      add: "Add to watchlist",
+    },
+    study: {
+      title: "Study an operation",
+      body: (ticker: string) =>
+        `Open the builder with ${ticker} filled in, pick a structure and see max loss, max gain and break-evens before deciding.`,
+      action: "Open the builder",
+    },
+    recipe: {
+      title: "Use a ready recipe",
+      body: "Ready-made strategies by market view, backtested on this asset in one click.",
+      soon: "soon",
+    },
+    strategy: {
+      active:
+        "An active strategy already looks at this asset every night: when its conditions match, a signal shows up in Signals.",
+      notWatched:
+        "Your active strategies only look at assets on your watchlist; add this one for them to evaluate it every night.",
+      none: "No active strategy looks at this asset. That's fine: the reading above doesn't need one. An active strategy adds a nightly evaluation that raises a signal in Signals when its conditions match.",
+      action: "See strategies",
+    },
   },
 };
 
@@ -43,8 +75,45 @@ const ptBR = {
     error: "Não foi possível remover o ativo. Tente novamente.",
   },
   table: {
-    columns: { ticker: "Código", lastClose: "Último fechamento", session: "Pregão" },
+    columns: {
+      ticker: "Código",
+      reading: "Leitura",
+      lastClose: "Último fechamento",
+      session: "Pregão",
+    },
     noClose: "sem fechamento ainda",
+    noStrategy:
+      "Nenhuma estratégia ativa olha estes ativos. A leitura funciona sem estratégia; uma estratégia ativa acrescenta os sinais noturnos.",
+    strategiesLink: "Ver estratégias",
+  },
+  nextSteps: {
+    title: "Próximos passos",
+    subtitle: "Três caminhos a partir daqui. Ter uma estratégia é opcional.",
+    follow: {
+      title: "Continuar acompanhando",
+      onWatchlist: "Está na sua watchlist: a leitura se atualiza a cada fechamento.",
+      notOnWatchlist: "Adicione à watchlist para ver a leitura dele lá a cada fechamento.",
+      add: "Adicionar à watchlist",
+    },
+    study: {
+      title: "Estudar uma operação",
+      body: (ticker: string) =>
+        `Abra o montador já com ${ticker} preenchido, escolha uma estrutura e veja perda máxima, ganho máximo e pontos de equilíbrio antes de decidir.`,
+      action: "Abrir o montador",
+    },
+    recipe: {
+      title: "Usar uma receita pronta",
+      body: "Estratégias prontas por visão de mercado, com backtest neste ativo em um clique.",
+      soon: "em breve",
+    },
+    strategy: {
+      active:
+        "Uma estratégia ativa já olha este ativo toda noite: quando as condições dela batem, aparece um sinal em Sinais.",
+      notWatched:
+        "Suas estratégias ativas só olham os ativos da watchlist; adicione este para que elas o avaliem toda noite.",
+      none: "Nenhuma estratégia ativa olha este ativo. Tudo bem: a leitura acima não depende de uma. Uma estratégia ativa acrescenta a avaliação noturna, que gera um sinal em Sinais quando as condições dela batem.",
+      action: "Ver estratégias",
+    },
   },
 } satisfies typeof en;
 

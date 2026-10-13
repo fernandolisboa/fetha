@@ -1,4 +1,6 @@
 import type {
+  AssetReading,
+  AssetReadingInput,
   BacktestProgress,
   Capabilities,
   DataWindow,
@@ -24,6 +26,7 @@ import type {
   SettlementProposal,
 } from "./api";
 import { ENGINE_VERSION, pricingModels } from "./api";
+import { computeAssetReading } from "./internal/asset-reading";
 import { capabilities as computeCapabilities } from "./internal/capabilities";
 import { dataWindow as computeDataWindow } from "./internal/data-window";
 import { evaluateStrategy as computeEvaluateStrategy } from "./internal/evaluate-strategy";
@@ -98,6 +101,12 @@ export const engine: Engine = {
         input.at,
         provenanceBaseFor(input.view),
       ),
+    );
+  },
+
+  assetReading(input: AssetReadingInput): Promise<Result<AssetReading>> {
+    return Promise.resolve(
+      computeAssetReading(input.view, input.ticker, input.at, provenanceBaseFor(input.view)),
     );
   },
 };

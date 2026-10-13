@@ -1,4 +1,5 @@
 export {
+  dismissAssetTourAction,
   dismissTourAction,
   setRailCollapsedAction,
   setThemeAction,
