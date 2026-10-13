@@ -24,7 +24,7 @@ export function AppShell({
 }) {
   return (
     <MarketBarProvider>
-      <div className="grid min-h-full grid-cols-1 grid-rows-[48px_1fr] max-md:pb-14">
+      <div className="grid min-h-full grid-cols-1 grid-rows-[var(--shell-header-height)_1fr] max-md:pb-14">
         <Header email={user.email} search={search} />
         <div className="flex min-h-0 flex-1">
           <Rail

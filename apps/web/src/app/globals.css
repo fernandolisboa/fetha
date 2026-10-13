@@ -191,6 +191,16 @@
   html {
     @apply font-sans;
   }
+  :root {
+    --shell-header-height: 3rem;
+  }
+  /* The shell header sticks from 768px up: focus and scrollIntoView must
+     stop below it, not under it. */
+  @media (width >= 48rem) {
+    html {
+      scroll-padding-top: calc(var(--shell-header-height) + env(safe-area-inset-top));
+    }
+  }
 }
 
 .tabular-nums {
