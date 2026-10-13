@@ -71,3 +71,4 @@ supersedes or amends them and says so.
 | 0064 | Recipes are shared, read-only strategy definitions chosen by expected move (#306, amends 0053)                                       |
 | 0065 | Sentiment: filing labels, GDELT tone, a news-provider seam (#310, sharpens 0009, amends 0007, 0016, 0017, 0045, 0060)                |
 | 0066 | The radar reads every liquid optionable underlying against the recipes, nightly (#308, amends 0042, 0045)                            |
+| 0067 | Suggestions are priced radar matches, spoken in direct voice and scored like decisions (#311, amends 0014, 0057, 0058, 0066)         |

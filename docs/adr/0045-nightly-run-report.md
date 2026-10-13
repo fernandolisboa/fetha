@@ -140,3 +140,9 @@ The report gains an optional `sentiment` object with three closed-status counts:
 (`off|ran|failed`), `newsTone` (`ran|rate_limited|failed`) and `provider`
 (`off|ran|rate_limited|failed`). The manual trigger logs a `failed` sub-step as trouble; being rate
 limited or deferred is routine, since the next run picks it up.
+
+## Amendment (2026-10-13, ADR-0067)
+
+The report gains an optional `suggestionScoring { scored, skipped, errorCount }` for the step that
+scores Fetha's own suggestions right after decisions and analyses, under the same redaction rules.
+See docs/adr/0067.

@@ -89,6 +89,8 @@ const en = {
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
     originHeldOperation: (underlying: string) => `Portfolio operation · ${underlying}`,
+    originSuggestion: (structureName: string, underlying: string) =>
+      `Fetha's suggestion · ${structureName} · ${underlying}`,
     confidenceLabel: "Confidence",
     horizonLabel: "Horizon",
     claimLabel: "Thesis",
@@ -107,6 +109,9 @@ const en = {
       likelihoodLabel: "Likelihood",
       outlookHeld: "Outlook confirmed",
       outlookNotHeld: "Outlook not confirmed",
+      originSuggestion: (structure: string, underlying: string) =>
+        `Suggestion · ${structure} · ${underlying}`,
+      verdictLabel: "Verdict",
     },
   },
   trackRecord: {
@@ -147,8 +152,14 @@ const en = {
       inputsCited: "Inputs cited",
       metadata: (requestedAt: string, promptVersion: string, model: string) =>
         `Requested ${requestedAt} · prompt ${promptVersion} · ${model}`,
+      verdict: "Verdict",
       disclaimer:
-        "This is a model's reading of the engine's computed numbers, not a recommendation.",
+        "This is a model's reading of the engine's computed numbers. It can be wrong; the decision and the order at your broker are yours.",
+    },
+    verdict: {
+      enter: "Enter",
+      wait: "Wait",
+      do_not_enter: "Do not enter",
     },
     confidenceLevel: {
       low: "Low",
@@ -180,7 +191,7 @@ const en = {
     },
     errors: {
       invalid: "Some fields are invalid.",
-      not_found: "This signal, operation or backtest run no longer exists.",
+      not_found: "This signal, operation, backtest run or suggestion no longer exists.",
       not_ready: "There is not enough data to analyze this yet.",
       unavailable: "AI analysis is not available in this environment.",
       rate_limited: "Too many requests recently. Try again in a moment.",
@@ -279,6 +290,8 @@ const ptBR = {
     originOperation: (structureName: string, underlying: string) =>
       `${structureName} · ${underlying}`,
     originHeldOperation: (underlying: string) => `Operação em carteira · ${underlying}`,
+    originSuggestion: (structureName: string, underlying: string) =>
+      `Sugestão do Fetha · ${structureName} · ${underlying}`,
     confidenceLabel: "Confiança",
     horizonLabel: "Horizonte",
     claimLabel: "Tese",
@@ -298,6 +311,9 @@ const ptBR = {
       likelihoodLabel: "Probabilidade",
       outlookHeld: "Previsão confirmada",
       outlookNotHeld: "Previsão não confirmada",
+      originSuggestion: (structure: string, underlying: string) =>
+        `Sugestão · ${structure} · ${underlying}`,
+      verdictLabel: "Veredito",
     },
   },
   trackRecord: {
@@ -338,8 +354,14 @@ const ptBR = {
       inputsCited: "Dados citados",
       metadata: (requestedAt: string, promptVersion: string, model: string) =>
         `Pedida em ${requestedAt} · prompt ${promptVersion} · ${model}`,
+      verdict: "Veredito",
       disclaimer:
-        "Esta é a leitura de um modelo sobre os números já calculados pelo motor, não uma recomendação.",
+        "Esta é a leitura de um modelo sobre os números já calculados pelo motor. Pode errar; a decisão e a ordem na corretora são suas.",
+    },
+    verdict: {
+      enter: "Entrar",
+      wait: "Esperar",
+      do_not_enter: "Não entrar",
     },
     confidenceLevel: {
       low: "Baixa",
@@ -371,7 +393,7 @@ const ptBR = {
     },
     errors: {
       invalid: "Alguns campos estão inválidos.",
-      not_found: "Esse sinal, operação ou backtest não existe mais.",
+      not_found: "Esse sinal, operação, backtest ou sugestão não existe mais.",
       not_ready: "Ainda não há dados suficientes para analisar isso.",
       unavailable: "A análise de IA não está disponível neste ambiente.",
       rate_limited: "Muitos pedidos em pouco tempo. Tente novamente em instantes.",

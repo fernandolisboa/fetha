@@ -9,7 +9,7 @@ import {
   type AnalysisInputs,
 } from "@fetha/contracts";
 
-import { render } from "./v1";
+import { render, type ReleasedSubject } from "./v1";
 
 const fixtures = fileURLToPath(new URL("../../fixtures/analysis/v1/", import.meta.url));
 
@@ -17,8 +17,10 @@ function read(path: string): unknown {
   return JSON.parse(readFileSync(`${fixtures}${path}`, "utf8"));
 }
 
-function inputsOf(name: string): AnalysisInputs {
-  return analysisInputsSchema.parse(read(`${name}/inputs.json`));
+function inputsOf(name: string): AnalysisInputs & { subject: ReleasedSubject } {
+  const inputs = analysisInputsSchema.parse(read(`${name}/inputs.json`));
+  if (inputs.subject === "suggestion") throw new Error(`${name}: not a released subject`);
+  return { ...inputs, subject: inputs.subject };
 }
 
 const golden = readdirSync(fixtures).filter((name) => !name.startsWith("adversarial-"));

@@ -260,3 +260,12 @@ ADR-0013 stays in force: Q52 and Q53 are the permanent rules its #16 addendum al
 recorded here rather than as a #16-scope stopgap. The glossary gains "Thesis claim", "Implied
 volatility index", "Settlement proposal", "Missed entry", "Leg template", "Evaluation record" and
 "Checkpoint", and rewrites "Walk-forward".
+
+## Amendment (2026-10-13, ADR-0067)
+
+A suggestion (a radar match priced for one lot) carries a thesis claim from Q36's vocabulary,
+derived by the app rather than stated by a user: `close_above`/`close_below` its single break-even
+(side read from the engine's payoff at its highest sampled underlying) or `operation_pnl_positive`
+when it has none or several. It is scored by `score` under Q54's rules as an `enter` on the lot at
+the engine's own leg prices, no fills, origin `manual`, with confidence asserted as `1`, so its
+Brier is its miss rate and is never shown. See docs/adr/0067.

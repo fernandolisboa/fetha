@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 10/10/2026, revision 1",
+    updated: "Version of 13/10/2026, revision 1",
     sections: [
       {
         heading: "What Fetha is",
@@ -26,8 +26,8 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
       {
         heading: "Every decision is your own",
         paragraphs: [
-          "Fetha is not a broker, does not place or automate orders and does not connect to any broker. It is not investment advice, a recommendation or securities analysis in the sense of CVM rules.",
-          "Every figure is an estimate from models and past data (for example, Black-Scholes prices and closing quotes) and can differ from the market. A backtest shows how a rule would have behaved in the past and promises nothing about the future. An AI analysis is a model's reading of those figures: it can be wrong and is not a recommendation. Every decision you take, in Fetha or outside it, is yours alone, and so are its results.",
+          "Fetha suggests operations from its own rules, its models and past data, and analyses the ones you ask about. A suggestion or an analysis can be wrong. Fetha is not a broker, does not place or automate orders and does not connect to any broker.",
+          "Every figure is an estimate from models and past data (for example, Black-Scholes prices and closing quotes) and can differ from the market. A backtest shows how a rule would have behaved in the past and promises nothing about the future. An AI analysis is a model's reading of those figures and can be wrong too. Every decision you take, in Fetha or outside it, and every order you place at your broker, is yours alone, and so are its results.",
         ],
       },
       {
@@ -66,7 +66,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 10/10/2026, revision 1",
+    updated: "Version of 13/10/2026, revision 1",
     sections: [
       {
         heading: "Who handles your data",
@@ -133,7 +133,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 10/10/2026, revisão 1",
+    updated: "Versão de 13/10/2026, revisão 1",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -144,8 +144,8 @@ const ptBR: typeof en = {
       {
         heading: "Toda decisão é sua",
         paragraphs: [
-          "O Fetha não é corretora, não envia nem automatiza ordens e não se conecta a nenhuma corretora. Também não é consultoria, recomendação de investimento ou análise de valores mobiliários nos termos das normas da CVM.",
-          "Todo número exibido é uma estimativa feita com modelos e dados passados (por exemplo, preços pelo modelo de Black-Scholes e cotações de fechamento) e pode ser diferente do mercado. Um backtest mostra como uma regra teria se comportado no passado e não garante nada sobre o futuro. Uma análise por IA é a leitura que um modelo faz desses números: pode estar errada e não é recomendação. Toda decisão que você tomar, dentro ou fora do Fetha, é só sua, assim como os resultados dela.",
+          "O Fetha sugere operações a partir das próprias regras, dos seus modelos e de dados passados, e analisa as que você pedir. Uma sugestão ou uma análise pode estar errada. O Fetha não é corretora, não envia nem automatiza ordens e não se conecta a nenhuma corretora.",
+          "Todo número exibido é uma estimativa feita com modelos e dados passados (por exemplo, preços pelo modelo de Black-Scholes e cotações de fechamento) e pode ser diferente do mercado. Um backtest mostra como uma regra teria se comportado no passado e não garante nada sobre o futuro. Uma análise por IA é a leitura que um modelo faz desses números e também pode errar. Toda decisão que você tomar, dentro ou fora do Fetha, e toda ordem que você enviar à sua corretora são só suas, assim como os resultados delas.",
         ],
       },
       {
@@ -184,7 +184,7 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 10/10/2026, revisão 1",
+    updated: "Versão de 13/10/2026, revisão 1",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
@@ -264,6 +264,10 @@ interface TermsChangeSummary {
 // `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-10-13.1": {
+    en: "This version says in Fetha's own voice what it does: it suggests operations from its own rules, models and past data, and its AI analyses can end with a verdict in words; a suggestion or an analysis can be wrong, Fetha still places no orders and connects to no broker, and every decision, and every order you place at your broker, stays yours alone, as do its results.",
+    ptBR: "Esta versão diz, sem rodeios, o que o Fetha faz: ele sugere operações a partir das próprias regras, dos seus modelos e de dados passados, e as análises por IA podem terminar com um veredito em palavras; uma sugestão ou uma análise pode errar, o Fetha continua sem enviar ordens e sem se conectar a corretora, e toda decisão, e toda ordem que você enviar à sua corretora, continua sendo só sua, assim como os resultados.",
+  },
   "2026-10-10.1": {
     en: "This version covers the AI analyses you can now request: Anthropic joins the providers that process data on Fetha's behalf, receiving only the engine's figures for the object you ask about — including each leg's quantity and entry price for an operation you hold or are studying, and the starting capital for a backtest — and never your name, email, declared capital or any text you wrote; and an analysis is a model's reading of those figures, not a recommendation.",
     ptBR: "Esta versão trata das análises por IA que você agora pode pedir: a Anthropic passa a tratar dados em nome do Fetha, recebendo só os números do motor para o objeto analisado — incluindo a quantidade e o preço de entrada de cada perna, para uma operação que você mantém ou está estudando, e o capital inicial, para um backtest — e nunca seu nome, seu e-mail, seu capital declarado nem texto escrito por você; e uma análise é a leitura de um modelo sobre esses números, não uma recomendação.",

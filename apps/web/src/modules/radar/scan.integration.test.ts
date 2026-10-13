@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { decimalStringSchema, tickerSchema, type Ticker } from "@fetha/contracts";
 
@@ -16,7 +16,8 @@ import { recipes } from "@/modules/strategies";
 
 import { latestRadar } from "./radar-repository";
 import { scanRadar } from "./scan";
-import { radarReadings } from "./schema";
+import { radarReadings, suggestions, suggestionScores } from "./schema";
+import { scoreDueSuggestions } from "./suggestion-scoring";
 
 function businessDays(startIso: string, count: number): string[] {
   const days: string[] = [];
@@ -384,4 +385,67 @@ describe("scanRadar (#308)", () => {
       .where(inArray(radarReadings.underlying, underlyings));
     expect(rows).toHaveLength(0);
   });
+
+  it("stores each priced match as a suggestion for one standard lot, claimed at its break-even", async () => {
+    await clearRadar();
+    await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
+
+    const [suggestion] = await bullCallSuggestion();
+    expect(suggestion?.horizon).toBe(SESSIONS[EXPIRY_INDEX]);
+    expect(suggestion?.asOf.toISOString()).toBe(`${SCAN_SESSION}T20:00:00.000Z`);
+    expect(suggestion?.legs.map((leg) => [leg.side, leg.quantity])).toEqual([
+      ["buy", 100],
+      ["sell", 100],
+    ]);
+    const pricing = suggestion?.pricing;
+    expect(pricing?.breakEvens).toHaveLength(1);
+    expect(suggestion?.claim).toEqual({
+      kind: "close_above",
+      instrument: UP_LOW_IV.ticker,
+      level: pricing?.breakEvens[0],
+    });
+    expect(typeof pricing?.maxLoss).toBe("number");
+    expect(pricing?.netPremium).toBeLessThan(0);
+  }, 120_000);
+
+  it("scores a suggestion only once its horizon arrives, as the lot held from the scanned close", async () => {
+    await clearRadar();
+    await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
+    const [suggestion] = await bullCallSuggestion();
+    const scoreOf = () =>
+      getDb()
+        .select()
+        .from(suggestionScores)
+        .where(eq(suggestionScores.suggestionId, suggestion?.id ?? ""));
+
+    await scoreDueSuggestions(getDb(), SESSIONS[EXPIRY_INDEX - 1] ?? "");
+    expect(await scoreOf()).toHaveLength(0);
+
+    await scoreDueSuggestions(getDb(), SESSIONS[EXPIRY_INDEX] ?? "");
+    const [score] = await scoreOf();
+    // After the scanned close the underlying crashes far below both strikes: the claim fails and
+    // the spread loses its whole debit plus costs.
+    expect(score?.unscorableReason).toBeNull();
+    expect(score?.claimHeld).toBe(false);
+    expect(score?.pnlCentavos).toBeLessThan(0);
+    expect(Math.abs(score?.pnlCentavos ?? 0)).toBeGreaterThanOrEqual(
+      Math.abs(suggestion?.pricing.netPremium ?? 0),
+    );
+
+    await scoreDueSuggestions(getDb(), SESSIONS[EXPIRY_INDEX] ?? "");
+    expect(await scoreOf()).toHaveLength(1);
+  }, 120_000);
 });
+
+function bullCallSuggestion() {
+  return getDb()
+    .select()
+    .from(suggestions)
+    .where(
+      and(
+        eq(suggestions.underlying, UP_LOW_IV.ticker),
+        eq(suggestions.session, SCAN_SESSION),
+        eq(suggestions.recipeId, "bull-call-spread-low-iv"),
+      ),
+    );
+}

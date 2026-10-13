@@ -4,12 +4,15 @@ import {
   analysisInputsSchema,
   analysisOutputSchema,
   analysisOutputV2Schema,
+  analysisOutputV3Schema,
   checkAnalysisCitations,
+  checkAnalysisVerdict,
   factAt,
   figuresIn,
   outlookOf,
   resolveAnalysisOutlook,
   storedAnalysisOutputSchema,
+  verdictOf,
   type AnalysisFact,
   type AnalysisInputs,
   type AnalysisOutlook,
@@ -288,6 +291,78 @@ describe("storedAnalysisOutputSchema and outlookOf", () => {
     const v2 = storedAnalysisOutputSchema.parse({ ...outputWith(), outlook: outlookWith() });
     expect(outlookOf(v1)).toBeNull();
     expect(outlookOf(v2)).toEqual(outlookWith());
+  });
+});
+
+const verdict = {
+  decision: "wait" as const,
+  justification: "O preço de R$ 31,20 ainda não passou do break-even de R$ 30,15.",
+};
+
+describe("analysisOutputV3Schema", () => {
+  it("accepts a verdict or null, and requires the field", () => {
+    const v2 = { ...outputWith(), outlook: null };
+    expect(analysisOutputV3Schema.safeParse({ ...v2, verdict }).success).toBe(true);
+    expect(analysisOutputV3Schema.safeParse({ ...v2, verdict: null }).success).toBe(true);
+    expect(analysisOutputV3Schema.safeParse(v2).success).toBe(false);
+  });
+
+  it("takes the verdict only from the closed list, never as a number", () => {
+    const v2 = { ...outputWith(), outlook: null };
+    expect(
+      analysisOutputV3Schema.safeParse({ ...v2, verdict: { ...verdict, decision: "buy" } }).success,
+    ).toBe(false);
+    expect(
+      analysisOutputV3Schema.safeParse({ ...v2, verdict: { ...verdict, decision: 1 } }).success,
+    ).toBe(false);
+  });
+
+  it("checks the verdict's justification against the facts like any other prose", () => {
+    const output = { ...outputWith(), outlook: null, verdict };
+    expect(checkAnalysisCitations(inputs, output)).toEqual({ ok: true });
+    expect(
+      checkAnalysisCitations(inputs, {
+        ...output,
+        verdict: { decision: "enter", justification: "Entre até R$ 29,00." },
+      }),
+    ).toEqual({ ok: false, uncitedFigures: ["29,00"], unknownPaths: [] });
+  });
+});
+
+describe("checkAnalysisVerdict", () => {
+  const v3 = { ...outputWith(), outlook: null };
+
+  it("requires a verdict for a suggestion", () => {
+    expect(checkAnalysisVerdict("suggestion", { ...v3, verdict })).toEqual({ ok: true });
+    expect(checkAnalysisVerdict("suggestion", { ...v3, verdict: null })).toEqual({
+      ok: false,
+      problem: "missing",
+    });
+  });
+
+  it("refuses a verdict on every other subject", () => {
+    for (const subject of [
+      "signal",
+      "contemplated_operation",
+      "held_operation",
+      "backtest_run",
+    ] as const) {
+      expect(checkAnalysisVerdict(subject, { ...v3, verdict: null })).toEqual({ ok: true });
+      expect(checkAnalysisVerdict(subject, { ...v3, verdict })).toEqual({
+        ok: false,
+        problem: "unexpected",
+      });
+    }
+  });
+});
+
+describe("verdictOf", () => {
+  it("reads the verdict of an analysis@3 reply and null for older ones", () => {
+    const v3 = storedAnalysisOutputSchema.parse({ ...outputWith(), outlook: null, verdict });
+    const v2 = storedAnalysisOutputSchema.parse({ ...outputWith(), outlook: outlookWith() });
+    expect(verdictOf(v3)).toEqual(verdict);
+    expect(verdictOf(v2)).toBeNull();
+    expect(verdictOf(storedAnalysisOutputSchema.parse(outputWith()))).toBeNull();
   });
 });
 

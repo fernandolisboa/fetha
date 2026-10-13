@@ -38,6 +38,9 @@ function origin(decision: DecisionListItem): string {
   if (decision.inputs.originKind === "held_operation") {
     return t.journal.originHeldOperation(decision.inputs.underlying);
   }
+  if (decision.inputs.originKind === "suggestion") {
+    return t.journal.originSuggestion(decision.inputs.structureName, decision.inputs.underlying);
+  }
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 

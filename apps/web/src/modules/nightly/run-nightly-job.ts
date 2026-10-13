@@ -4,13 +4,13 @@ import type { ExpiredSessionPurgeOutcome, UnverifiedAccountPurgeOutcome } from "
 import type { EvaluateSignalsOutcome } from "@/modules/strategies";
 import type { ScoreAnalysesOutcome, ScoreDecisionsOutcome } from "@/modules/decisions";
 import type { IngestOutcome, SourceOutcome } from "@/modules/market-data";
-import type { RadarScanOutcome } from "@/modules/radar";
+import type { RadarScanOutcome, ScoreSuggestionsOutcome } from "@/modules/radar";
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
 import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
-import { scanRadar } from "@/modules/radar";
+import { scanRadar, scoreDueSuggestions } from "@/modules/radar";
 import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
@@ -28,6 +28,7 @@ export interface NightlyJobOutcome {
   evaluation: EvaluateSignalsOutcome | null;
   scoring: ScoreDecisionsOutcome;
   analysisScoring: ScoreAnalysesOutcome;
+  suggestionScoring: ScoreSuggestionsOutcome;
   radar: RadarScanOutcome | null;
   sentiment: SentimentJobOutcome;
   accessLogPurge: AccessLogPurgeOutcome;
@@ -92,6 +93,8 @@ export async function runNightlyJob(
   // AI analyses' outlooks are scored right after decisions, on the same
   // as-of session and deadline (docs/adr/0058).
   const analysisScoring = await scoreDueAnalyses(db, scoringInput, { deadlineAt });
+  // Fetha's own suggestions are scored on the same as-of session decisions were (docs/adr/0067).
+  const suggestionScoring = await scoreDueSuggestions(db, scoring.asOfSession, { deadlineAt });
   // The radar reads the newest session's close after everything a user's own data depends on
   // (docs/adr/0066): it is resumable, so whatever the deadline leaves the next run reads.
   const radar =
@@ -111,6 +114,7 @@ export async function runNightlyJob(
     evaluation,
     scoring,
     analysisScoring,
+    suggestionScoring,
     radar,
     sentiment,
     accessLogPurge,

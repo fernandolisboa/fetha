@@ -6,6 +6,8 @@ export {
   type SaveOperationActionResult,
 } from "./operations-actions";
 export { priceOperationNow } from "./price-now";
+export { RiskNotice } from "./builder/risk-notice";
+export { getMyLimitBreaches, type LimitCheck, type LimitCheckResult } from "./limit-breaches";
 export {
   ContemplatedOperationNotFoundError,
   OperationsRepository,

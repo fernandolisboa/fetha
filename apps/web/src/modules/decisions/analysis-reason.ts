@@ -24,6 +24,8 @@ export const analysisRejectedReasonSchema = z.discriminatedUnion("kind", [
     kind: z.literal("outlook"),
     problem: z.enum(["instrument_fact", "level_fact", "expiry_fact"]),
   }),
+  // docs/adr/0067: a suggestion's analysis without a verdict, or a verdict on any other subject.
+  z.strictObject({ kind: z.literal("verdict"), problem: z.enum(["missing", "unexpected"]) }),
 ]);
 export type AnalysisRejectedReason = z.infer<typeof analysisRejectedReasonSchema>;
 

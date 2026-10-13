@@ -15,6 +15,7 @@ export const analysisSubjectKinds = [
   "contemplated_operation",
   "held_operation",
   "backtest_run",
+  "suggestion",
 ] as const;
 export const analysisSubjectKindSchema = z.enum(analysisSubjectKinds);
 export type AnalysisSubjectKind = z.infer<typeof analysisSubjectKindSchema>;
@@ -120,12 +121,53 @@ export const analysisOutputV2Schema = analysisOutputSchema.extend({
 });
 export type AnalysisOutputV2 = z.infer<typeof analysisOutputV2Schema>;
 
-// What an accepted row may hold: a reply to either released version.
-export const storedAnalysisOutputSchema = z.union([analysisOutputV2Schema, analysisOutputSchema]);
-export type StoredAnalysisOutput = AnalysisOutput | AnalysisOutputV2;
+export const analysisVerdicts = ["enter", "wait", "do_not_enter"] as const;
+export type AnalysisVerdictDecision = (typeof analysisVerdicts)[number];
+
+export const analysisVerdictSchema = z.strictObject({
+  decision: z.enum(analysisVerdicts),
+  justification: prose(800),
+});
+export type AnalysisVerdict = z.infer<typeof analysisVerdictSchema>;
+
+// The `analysis@3` contract (docs/adr/0067): `analysis@2`'s fields plus a
+// verdict, words from a closed list and never a number, set for a
+// suggestion and null for every other subject.
+export const analysisOutputV3Schema = analysisOutputV2Schema.extend({
+  verdict: analysisVerdictSchema.nullable(),
+});
+export type AnalysisOutputV3 = z.infer<typeof analysisOutputV3Schema>;
+
+// What an accepted row may hold: a reply to any released version, newest
+// first so a reply is read with every field it carries.
+export const storedAnalysisOutputSchema = z.union([
+  analysisOutputV3Schema,
+  analysisOutputV2Schema,
+  analysisOutputSchema,
+]);
+export type StoredAnalysisOutput = AnalysisOutput | AnalysisOutputV2 | AnalysisOutputV3;
 
 export function outlookOf(output: StoredAnalysisOutput): AnalysisOutlook | null {
   return "outlook" in output ? output.outlook : null;
+}
+
+export function verdictOf(output: StoredAnalysisOutput): AnalysisVerdict | null {
+  return "verdict" in output ? output.verdict : null;
+}
+
+export type AnalysisVerdictProblem = "missing" | "unexpected";
+
+// docs/adr/0067: a suggestion's analysis must end with a verdict; any other
+// subject's must not carry one (a held operation or a backtest has nothing
+// to enter).
+export function checkAnalysisVerdict(
+  subject: AnalysisSubjectKind,
+  output: AnalysisOutputV3,
+): { ok: true } | { ok: false; problem: AnalysisVerdictProblem } {
+  if (subject === "suggestion") {
+    return output.verdict === null ? { ok: false, problem: "missing" } : { ok: true };
+  }
+  return output.verdict === null ? { ok: true } : { ok: false, problem: "unexpected" };
 }
 
 export type AnalysisOutlookHorizon =
@@ -225,7 +267,7 @@ export type AnalysisCitationCheck =
 // "−R$ 500,00"), and every cited path must name a fact.
 export function checkAnalysisCitations(
   inputs: AnalysisInputs,
-  output: AnalysisOutput,
+  output: StoredAnalysisOutput,
 ): AnalysisCitationCheck {
   const known = new Set(collectFactStrings(inputs.facts).flatMap(figureKeys));
   const uncitedFigures = unique(
@@ -315,8 +357,10 @@ function figureKeys(text: string): string[] {
   return figuresIn(text).flatMap((figure) => figure.keys);
 }
 
-function outputProse(output: AnalysisOutput): string[] {
+function outputProse(output: StoredAnalysisOutput): string[] {
+  const verdict = verdictOf(output);
   return [
+    ...(verdict ? [verdict.justification] : []),
     output.thesis,
     output.counterThesis,
     ...output.keyRisks,

@@ -64,9 +64,27 @@ export const heldOperationDecisionInputsSchema = z.strictObject({
 });
 export type HeldOperationDecisionInputs = z.infer<typeof heldOperationDecisionInputsSchema>;
 
+// docs/adr/0067: the suggestion as the user saw it, one standard lot at the engine's own leg
+// prices at the scanned close, which scoring reads as the entry.
+export const suggestionDecisionInputsSchema = z.strictObject({
+  originKind: z.literal("suggestion"),
+  underlying: tickerSchema,
+  recipeId: z.string().min(1),
+  structureId: z.string().min(1),
+  structureName: z.string().min(1),
+  session: sessionDateSchema,
+  expiry: sessionDateSchema,
+  legs: z.array(contemplatedLegSchema.extend({ entryPrice: decimalStringSchema })).min(1),
+  netPremiumCentavos: centavosSchema,
+  maxLossCentavos: centavosSchema,
+  maxGainCentavos: centavosSchema.nullable(),
+});
+export type SuggestionDecisionInputs = z.infer<typeof suggestionDecisionInputsSchema>;
+
 export const decisionInputsSchema = z.discriminatedUnion("originKind", [
   signalDecisionInputsSchema,
   operationDecisionInputsSchema,
   heldOperationDecisionInputsSchema,
+  suggestionDecisionInputsSchema,
 ]);
 export type DecisionInputs = z.infer<typeof decisionInputsSchema>;

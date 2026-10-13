@@ -123,3 +123,13 @@ scored on its outlook and shown in the journal.)
 - Send the strategy name for readability: user text reaches the model, the opposite of
   minimization, for no analytic gain.
 - A numeric confidence from the model: a number not in the inputs, against ADR-0009's own rule.
+
+## Amendment (2026-10-13, ADR-0067)
+
+`suggestion` is a fifth subject (model Opus; facts: the suggestion as shown, the recipe's rule,
+the asset reading labels, the entry close and indicators, the engine pricing of one lot), and
+prompt `analysis@3` adds a required `verdict` (`enter` | `wait` | `do_not_enter` with a
+justification, words never a number) for a suggestion, `null` for every other subject; a wrong
+presence or absence is `rejected` with reason kind `verdict`. Cap, citation check and storage are
+unchanged. The owner lifted the "not a recommendation" stance the same day; `analysis@1`'s system
+text keeps its wording because a released prompt version is frozen. See docs/adr/0067.

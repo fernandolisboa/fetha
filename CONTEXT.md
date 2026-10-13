@@ -3,9 +3,11 @@
 Fetha is a personal trading and investment lab for the Brazilian market (B3). A user studies,
 prices and backtests options structures and directional strategies on their own declared
 capital, records the decisions they take and sees how those decisions age. It is a free
-decision-support tool: no fees, no plans, no order execution, no broker connection. Every number
-on screen comes from the engine; the AI only reasons over engine output. The vocabulary is in
-`UBIQUITOUS_LANGUAGE.md`; decisions are in `docs/adr/`.
+decision-support tool: no fees, no plans, no order execution, no broker connection. Fetha
+suggests operations in its own voice, from its recipes' rules, its models and past data, and its
+suggestions are scored like the user's decisions (ADR-0067); every decision, and every order at
+the broker, is the user's own. Every number on screen comes from the engine; the AI only reasons
+over engine output. The vocabulary is in `UBIQUITOUS_LANGUAGE.md`; decisions are in `docs/adr/`.
 
 ## Users
 
@@ -18,23 +20,23 @@ capability over one system job, not a tenancy role — it changes nothing about 
 
 ## Modules
 
-| module        | owns                                                                                                                                                                                                                                                                                                                                                                                                                 | exposes                                                                                                        |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance and re-acceptance on a version change, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts and expired sessions                                                                                                                                                                          | the current user                                                                                               |
-| `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                                                                                                                                                                                                          | the current user's access log; `recordAccess` for read models                                                  |
-| `account`     | nothing of its own: the user's data export, assembled from every module's own export                                                                                                                                                                                                                                                                                                                                 | the export document                                                                                            |
-| `preferences` | per-user workstation settings (theme, rail collapse state, guided-tour dismissal)                                                                                                                                                                                                                                                                                                                                    | the current user's preferences                                                                                 |
-| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, exchange rates/PTAX (ADR-0061), trading calendar, the implied-volatility index computed nightly from the others, ADR-0054; company filings delivered to the CVM and the ticker-to-CNPJ map, ADR-0060) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface                         |
-| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring, the asset reading (trend/momentum/range/IV/option-liquidity labels, ADR-0059)                                                                                                                                                                                                                   | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)                                       |
-| `strategies`  | the catalog of structures and reference strategies; the recipe book (ADR-0064); each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                                                                                                                                                                                 | the structure catalog, strategy versions, signals                                                              |
-| `watchlist`   | each user's list of followed instruments                                                                                                                                                                                                                                                                                                                                                                             | the current user's watchlist; the distinct tickers anyone follows, for the sentiment job's universe (ADR-0065) |
-| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                                                                                                                                                                                                     | the portfolio view, operation lifecycle commands, the operation builder                                        |
-| `backtests`   | backtest runs, their checkpoints and reports                                                                                                                                                                                                                                                                                                                                                                         | run creation, chunked resume, the report, the comparison of runs                                               |
-| `recipes`     | nothing of its own: the one-click flow that copies a recipe (ADR-0064) into the user's strategies, adds the instrument to the watchlist and starts its backtest                                                                                                                                                                                                                                                      | the recipe picker on the asset page, `startRecipeAction`                                                       |
-| `radar`       | the nightly read of liquid optionable underlyings against the recipes: shared readings and matches (`radar_readings`, `radar_matches`, ADR-0066), shown as the watchlist page's Radar tab                                                                                                                                                                                                                            | the radar tab, `scanRadar`                                                                                     |
-| `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                                                                                                                                                                                                               | the journal, analysis requests                                                                                 |
-| `nightly`     | the purge → ingest → evaluate → score → radar → sentiment sequence the nightly job runs (ADR-0042); the redacted per-run report (`nightly_runs`, ADR-0045)                                                                                                                                                                                                                                                           | `runNightlyJobRecorded`, the owner's manual trigger action                                                     |
-| `sentiment`   | sentiment reference data: AI labels on company filings (topic, tone, a one-sentence summary with no figure), daily GDELT news tone per company, a paid provider's scored articles (ADR-0065)                                                                                                                                                                                                                         | the asset page's "Sentimento" view; the `NewsSentimentProvider` interface                                      |
+| module        | owns                                                                                                                                                                                                                                                                                                                                                                                                                 | exposes                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `auth`        | accounts, sessions, registration mode, email-first registration, terms acceptance and re-acceptance on a version change, sign-in (password or magic link), password reset, rate limiting, purge of unverified accounts and expired sessions                                                                                                                                                                          | the current user                                                                                                                   |
+| `audit`       | the access log: each read or export of a user's portfolio and decision data                                                                                                                                                                                                                                                                                                                                          | the current user's access log; `recordAccess` for read models                                                                      |
+| `account`     | nothing of its own: the user's data export, assembled from every module's own export                                                                                                                                                                                                                                                                                                                                 | the export document                                                                                                                |
+| `preferences` | per-user workstation settings (theme, rail collapse state, guided-tour dismissal)                                                                                                                                                                                                                                                                                                                                    | the current user's preferences                                                                                                     |
+| `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, exchange rates/PTAX (ADR-0061), trading calendar, the implied-volatility index computed nightly from the others, ADR-0054; company filings delivered to the CVM and the ticker-to-CNPJ map, ADR-0060) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface                                             |
+| `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring, the asset reading (trend/momentum/range/IV/option-liquidity labels, ADR-0059)                                                                                                                                                                                                                   | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)                                                           |
+| `strategies`  | the catalog of structures and reference strategies; the recipe book (ADR-0064); each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                                                                                                                                                                                 | the structure catalog, strategy versions, signals                                                                                  |
+| `watchlist`   | each user's list of followed instruments                                                                                                                                                                                                                                                                                                                                                                             | the current user's watchlist; the distinct tickers anyone follows, for the sentiment job's universe (ADR-0065)                     |
+| `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                                                                                                                                                                                                     | the portfolio view, operation lifecycle commands, the operation builder                                                            |
+| `backtests`   | backtest runs, their checkpoints and reports                                                                                                                                                                                                                                                                                                                                                                         | run creation, chunked resume, the report, the comparison of runs                                                                   |
+| `recipes`     | nothing of its own: the one-click flow that copies a recipe (ADR-0064) into the user's strategies, adds the instrument to the watchlist and starts its backtest                                                                                                                                                                                                                                                      | the recipe picker on the asset page, `startRecipeAction`                                                                           |
+| `radar`       | the nightly read of liquid optionable underlyings against the recipes: shared readings and matches (`radar_readings`, `radar_matches`, ADR-0066), shown as the watchlist page's Radar tab; the suggestions those matches become when priced for one lot, and their scores (`suggestions`, `suggestion_scores`, ADR-0067)                                                                                             | the radar tab, today's suggestion cards, the suggestion page, the suggestion calibration panel, `scanRadar`, `scoreDueSuggestions` |
+| `decisions`   | decisions (on a signal, a contemplated or held operation, or a suggestion), theses, AI analyses, the journal and scores                                                                                                                                                                                                                                                                                              | the journal, analysis requests                                                                                                     |
+| `nightly`     | the purge → ingest → evaluate → score (decisions, analyses, suggestions) → radar → sentiment sequence the nightly job runs (ADR-0042); the redacted per-run report (`nightly_runs`, ADR-0045)                                                                                                                                                                                                                        | `runNightlyJobRecorded`, the owner's manual trigger action                                                                         |
+| `sentiment`   | sentiment reference data: AI labels on company filings (topic, tone, a one-sentence summary with no figure), daily GDELT news tone per company, a paid provider's scored articles (ADR-0065)                                                                                                                                                                                                                         | the asset page's "Sentimento" view; the `NewsSentimentProvider` interface                                                          |
 
 Modules are deep: small entry points, private implementation. Cross-module reads go through the
 exposing module's interface, never through its tables.
@@ -68,7 +70,9 @@ exposing module's interface, never through its tables.
    per analysis (`analysis_scores`, ADR-0058). Then the radar (`radar/scan.ts`, ADR-0066) reads
    the newest session's liquid optionable underlyings against the recipes and stores their
    readings and matches as shared reference data, resumable per underlying under the same
-   deadline. Last, `sentiment` labels the recent filings of every watched company with Claude
+   deadline; a match the engine fully prices for one standard lot is also stored as a suggestion
+   (ADR-0067), and `radar/suggestion-scoring.ts` scores every suggestion whose horizon arrived
+   on the same as-of session, one append-only row each (`suggestion_scores`). Last, `sentiment` labels the recent filings of every watched company with Claude
    Haiku (behind a code switch, on in production since the owner confirmed the cost), reads their
    GDELT news tone and, when a key is set, a paid provider's scored articles (ADR-0065).
    `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
@@ -97,17 +101,19 @@ exposing module's interface, never through its tables.
    curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
    or the next candle of the strategy timeframe in an intraday run (ADR-0011, as sharpened by
    ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
-6. **Decide and journal.** From a signal, a contemplated operation, a held operation or a
-   complete backtest run, the user may request one AI analysis (on demand, a monthly cap per
-   user, ADR-0057): the engine's own computed facts go in as a checked `AnalysisInputs` tree, the
-   model's reply is validated against the output contract and a citation check before it is ever
-   stored, and the request and its outcome (`accepted`, `rejected` or `failed`) are kept
-   append-only (`decisions/analyses-repository.ts`). The user then records a decision (enter, do
-   not enter, hold, adjust, exit) with a thesis and horizon; an open operation of the real
-   portfolio takes hold, adjust or exit decisions, scored on the position held and its own fills
-   once any expired option is settled (ADR-0022). At the horizon the engine scores the decision
-   (#29, ADR-0005), and each analysis's outlook the same way (ADR-0058); the journal shows
-   analyses under the decisions they informed, and the track record keeps the two apart.
+6. **Decide and journal.** From a signal, a contemplated operation, a held operation, a complete
+   backtest run or a suggestion, the user may request one AI analysis (on demand, a monthly cap
+   per user, ADR-0057): the engine's own computed facts go in as a checked `AnalysisInputs` tree,
+   the model's reply is validated against the output contract and a citation check before it is
+   ever stored, and the request and its outcome (`accepted`, `rejected` or `failed`) are kept
+   append-only (`decisions/analyses-repository.ts`); an analysis of a suggestion ends with a
+   verdict in words (ADR-0067). The user then records a decision (enter, do not enter, hold,
+   adjust, exit) with a thesis and horizon; an open operation of the real portfolio takes hold,
+   adjust or exit decisions, scored on the position held and its own fills once any expired
+   option is settled (ADR-0022). At the horizon the engine scores the decision (#29, ADR-0005),
+   and each analysis's outlook the same way (ADR-0058); the journal shows analyses under the
+   decisions they informed, and the track record keeps the two apart, with a third, shared panel
+   for how Fetha's own suggestions aged (ADR-0067).
 7. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
@@ -119,6 +125,14 @@ exposing module's interface, never through its tables.
    (ADR-0059). The asset page lists the next steps: keep following, study an operation in the
    builder pre-filled with the ticker, or a starter recipe. A strategy stays optional; an active
    one adds the nightly evaluation and its signals.
+9. **Read today's suggestions.** The home shows "Sugestões de hoje" (ADR-0067): each radar match
+   the engine priced for one standard lot, in Fetha's own voice ("Uma trava de alta com calls em
+   PETR4 cabe agora."), ordered by traded series, with the user's own risk-profile breaches
+   computed on display. From a card or `/sugestoes/[id]` the user records enter or do not enter,
+   requests an analysis with a verdict, tests the recipe through the recipe start flow (or opens
+   the run already made for that ticker) or opens the builder prefilled with the lot. Nothing is
+   sized to the user's capital or stored per user until they decide; the suggestion itself is
+   shared reference data, scored at expiry for everyone alike.
 
 ## Invariants
 
@@ -155,7 +169,11 @@ exposing module's interface, never through its tables.
   first published, and a restatement is read from its `asOf` on, never evaluated on its own
   (ADR-0055).
 - Tenant isolation: every user-scoped table carries `user_id`; repositories take the user from
-  the session. Exceptions, read-only to users: reference data, the catalog and shared strategies.
+  the session. Exceptions, read-only to users: reference data (the radar's readings, matches,
+  suggestions and suggestion scores included), the catalog and shared strategies.
+- Fetha suggests but never ranks by an invented score and never executes: a suggestion's order on
+  screen is a market fact (traded series), the AI analyses one suggestion on request and never
+  picks among them, and every order is placed by the user at their broker (ADR-0003, ADR-0067).
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for
   money.
 - No broker integration and no order execution (ADR-0003).
@@ -189,4 +207,9 @@ vocabulary with `EvaluationRecord.detail` removed from the engine (0039), B3 fee
 class (0040), metrics over observed sessions (0041), owner-gated manual ingestion (0042),
 strategies archived, never deleted, and out of the cap (0043), entry proposals older than five
 sessions kept out of the inbox (0044), a redacted nightly run report recorded by every run (0045),
-the guided tour's dismissal kept as a per-user preference (0046), and append-only, audited re-evaluation of one session (0047).
+the guided tour's dismissal kept as a per-user preference (0046), append-only, audited re-evaluation of one session (0047),
+AI analyses over engine facts under a checked contract and a monthly cap (0057), analyses carrying
+an outlook scored at its horizon (0058), the asset reading from engine defaults (0059), recipes as
+shared strategy definitions chosen by expected move (0064), the nightly radar over liquid
+underlyings (0066), and suggestions as priced radar matches spoken in direct voice and scored like
+decisions, with the "not a recommendation" stance lifted by the owner (0067).

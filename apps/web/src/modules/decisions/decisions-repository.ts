@@ -23,6 +23,7 @@ export interface RecordDecisionInput {
   signalId: string | null;
   contemplatedOperationId: string | null;
   operationId?: string | null;
+  suggestionId?: string | null;
   strategyVersionId: string | null;
   inputs: DecisionInputs;
   rationale: string;
@@ -59,6 +60,7 @@ export interface DecisionListItem {
   signalId: string | null;
   contemplatedOperationId: string | null;
   operationId: string | null;
+  suggestionId: string | null;
 }
 
 // Thrown on the unique partial index over (user_id, signal_id): a signal is
@@ -113,6 +115,7 @@ function toDecisionListItem(row: typeof decisions.$inferSelect): DecisionListIte
     signalId: row.signalId,
     contemplatedOperationId: row.contemplatedOperationId,
     operationId: row.operationId,
+    suggestionId: row.suggestionId,
     rationale: row.rationale,
     horizon: row.horizon,
     kind: parseDecisionKind(row.kind),
@@ -143,6 +146,7 @@ export class DecisionsRepository extends UserScopedRepository {
           signalId: input.signalId,
           contemplatedOperationId: input.contemplatedOperationId,
           operationId: input.operationId ?? null,
+          suggestionId: input.suggestionId ?? null,
           strategyVersionId: input.strategyVersionId,
           inputs,
           rationale: input.rationale,
@@ -233,6 +237,28 @@ export class DecisionsRepository extends UserScopedRepository {
     for (const row of rows) {
       if (row.contemplatedOperationId !== null && !map.has(row.contemplatedOperationId)) {
         map.set(row.contemplatedOperationId, toDecisionListItem(row));
+      }
+    }
+    return map;
+  }
+
+  // This user's decision on each of a page of suggestions (answered once, like a signal).
+  async findForSuggestions(
+    suggestionIds: readonly string[],
+  ): Promise<Map<string, DecisionListItem>> {
+    if (suggestionIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select()
+      .from(decisions)
+      .where(
+        and(eq(decisions.userId, this.userId), inArray(decisions.suggestionId, [...suggestionIds])),
+      );
+
+    const map = new Map<string, DecisionListItem>();
+    for (const row of rows) {
+      if (row.suggestionId !== null) {
+        map.set(row.suggestionId, toDecisionListItem(row));
       }
     }
     return map;

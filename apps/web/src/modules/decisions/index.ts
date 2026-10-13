@@ -13,6 +13,7 @@ export {
   getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
   getMyDecisionsBySignalId,
+  getMyDecisionsBySuggestionId,
   getMyJournalAnalyses,
   getMyLatestAnalyses,
   getMyTrackRecordStats,
