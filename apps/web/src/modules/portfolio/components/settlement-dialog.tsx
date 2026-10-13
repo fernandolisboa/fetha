@@ -2,7 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DecimalString } from "@fetha/contracts";
+import type { Centavos, DecimalString } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { centavosSchema } from "@fetha/contracts";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -42,9 +41,9 @@ export interface SettlementLegView {
   intrinsicValue: DecimalString | null;
   proposed: OptionOutcome | "kept";
   // ADR-0062: non-null on a cash-settled leg (e.g. an Ibovespa option), the signed cash flow
-  // (centavos) the leg's close pays or receives in lieu of a fill on the underlying; a
-  // physically-settled leg never carries one.
-  cashSettlementValue: number | null;
+  // the leg's close pays or receives in lieu of a fill on the underlying; a physically-settled
+  // leg never carries one.
+  cashSettlementValue: Centavos | null;
 }
 
 interface Choice {
@@ -54,6 +53,14 @@ interface Choice {
 }
 
 const labels = t.dashboard.settlements;
+
+// DESIGN.md's money convention: a credit (money received, positive signed
+// cash flow) is prefixed "+ R$"; a debit already reads negative through
+// `formatBRL`'s own minus sign. `signedMoney` and `formatNetPremium` apply the
+// same convention to net premium elsewhere in the dashboard.
+function formatSignedBRL(value: Centavos): string {
+  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
+}
 
 export function SettlementDialog({
   operationId,
@@ -172,8 +179,7 @@ export function SettlementDialog({
                       {leg.cashSettlementValue !== null && (
                         <>
                           {" "}
-                          · {labels.cashSettlement}{" "}
-                          {formatBRL(centavosSchema.parse(leg.cashSettlementValue))}
+                          · {labels.cashSettlement} {formatSignedBRL(leg.cashSettlementValue)}
                         </>
                       )}
                     </span>
