@@ -99,6 +99,14 @@ A reference rate or index published by Bacen and used as risk-free rate or bench
 IPCA.
 _Avoid_: indicator (reserved for technical indicators), rate
 
+**Exchange rate (PTAX)**:
+Bacen's own daily fixing for a currency pair against the real (USD/BRL, EUR/BRL), the "venda"
+(selling) rate, published around 1pm on Bacen's own business-day calendar — not a B3 trading-
+session close and not a macro series (ADR-0059). Shared, read-only reference data like the macro
+series, but tracked for its own sake (findable, charted), never as a strategy input, a backtest
+instrument or an option underlying.
+_Avoid_: FX rate, currency quote, dollar price
+
 ### Structures and strategies
 
 **Structure**:

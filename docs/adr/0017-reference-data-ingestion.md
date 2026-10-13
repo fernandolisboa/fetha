@@ -565,3 +565,12 @@ and the next run retries both.
 A deferred `sgs` session is not an error and does not flip `ok`, but unlike `iv_index`'s nightly
 backfill it is never routine, so the manual trigger logs the full outcome when it happens, and the
 nightly report keeps its `deferred` count (ADR-0045 addendum).
+
+## Addendum: USD/BRL and EUR/BRL PTAX join the sources table (2026-10-13, #305, ADR-0059)
+
+| source         | adapter (`apps/web/src/modules/market-data/adapters/`) | natural key                   | cadence                                               |
+| -------------- | ------------------------------------------------------ | ----------------------------- | ----------------------------------------------------- |
+| Bacen SGS PTAX | `bacen-sgs` (`ptax-parser.ts`, shares `fetch.ts`)      | `(pair, date)` exchange rates | incremental since the last stored point for each pair |
+
+A new, separate ingestion source, `ptax`, not folded into `sgs`'s own loop: see ADR-0059 for why
+(different failure budget, no trading-session dependency) and for the full decision.
