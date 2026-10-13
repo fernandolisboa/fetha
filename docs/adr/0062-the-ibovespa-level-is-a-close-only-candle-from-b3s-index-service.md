@@ -57,20 +57,25 @@ Three refusals read `isMarketIndex`, all in `apps/web`, none in the engine:
    (`validate-legs.ts`, reason `index_stock_leg`) and a stock fill in the portfolio
    (`portfolio-actions.ts`). The engine's own refusal of a stock fill on a zero-volume candle is
    defence in depth, not the rule a market index's real absence of shares relies on.
-2. **Indexes are not in any evaluated or backtested universe**: the nightly evaluation drops them
+2. **Indexes are not in any evaluated or backtested universe**: `startRecipeAction`
+   (`modules/recipes/actions.ts`) refuses one before any write, the nightly evaluation drops them
    from the watchlist's tickers (`evaluate-signals.ts`) before scanning for signals, and a
-   backtest cannot name one (`backtests/actions.ts`, reason `index_in_universe`). This is what
-   keeps ATR, high/low and `tradedQuantity` conditions from ever reading the synthetic fields an
-   index candle carries. An index-option-only strategy is a later product decision, not a side
-   effect of this one. The radar (ADR-0066) excludes `IBOV11` from its universe the same way, once
-   it has a candle: `liquidOptionableUnderlyings` filters `isMarketIndex` so the index itself,
-   which trades no options on itself, never occupies a radar slot.
+   backtest cannot name one (`startBacktestRun`, `modules/backtests/start-run.ts`, reason
+   `index_in_universe`). This is what keeps ATR, high/low and `tradedQuantity` _strategy
+   conditions_ from ever reading the synthetic fields an index candle carries — the asset page's
+   own reading (item 3) is a separate code path and needed its own fix. An index-option-only
+   strategy is a later product decision, not a side effect of this one. The radar (ADR-0066)
+   excludes `IBOV11` from its universe the same way, once it has a candle: `radarUniverse`
+   (`modules/market-data/radar-view.ts`) filters `isMarketIndex` so the index itself, which
+   trades no options on itself, never occupies a radar slot.
 3. **The level is shown in points (`209.066,90`), never with `R$`**: the instrument page, the
    watchlist, the market bar. The page draws a line (`RateLineChart`, ADR-0061) instead of
-   candles, hides the nominal/adjusted toggle and the CVM filings panel (ADR-0060 maps companies,
-   not indexes). A watchlist row for an index is excluded wherever the watchlist feeds a strategy,
-   a backtest or the radar, the same exclusion as item 2 — the watchlist itself may still hold one,
-   for following.
+   candles, hides the nominal/adjusted toggle, the recipes panel and the CVM filings and sentiment
+   panels (ADR-0060/ADR-0065 map companies, not indexes), and its own reading panel formats the
+   SMA levels in points and drops the ATR/range row outright — ATR reads an index candle's
+   synthetic high/low, so "daily range" has no meaning there. A watchlist row for an index is
+   excluded wherever the watchlist feeds a strategy, a backtest or the radar, the same exclusion
+   as item 2 — the watchlist itself may still hold one, for following.
 
 Search finds it by prefix (`ibov`, the ticker's own prefix) and by alias (`ibovespa`), both
 expanded inside `searchInstruments` so the command palette and the watchlist combobox share one
@@ -98,12 +103,14 @@ delete's probe is never interleaved with a write (ADR-0017, #189). An `indexes` 
 `ingest().ok` like `sgs` and `ptax`; evaluation still gates on `cotahist` alone; a deferral is
 unsurfaced trouble for the owner's manual run, like `ptax`'s.
 
-**`iv_index` waits for `indexes` on the sessions it is responsible for** (ADR-0054 addendum): a
-session `indexes` attempted this run and did not succeed on leaves `iv_index` `pending` for it, so
-a late B3 document delays every underlying's point by one cron — the shape the CDI gate already
-has — instead of silently dropping `IBOV11`'s. Sessions `indexes` never attempted this run (the
-older iv_index backfill, outside its own window) are unaffected and keep draining on their own
-schedule.
+**`iv_index` waits for `indexes` on every session it is responsible for, deferred or failed
+alike** (ADR-0054 addendum): `indexesMissing` is every session `indexes` has ever had outstanding
+(`gaps(db, "indexes", now)`) minus the ones that succeeded this run, not only the ones this run's
+own start budget got around to starting — so a session `indexes` never even attempted (its start
+budget elapsed first, or it sits outside `iv_index`'s own backfill window this run) pends
+`iv_index` for it exactly like one `indexes` attempted and failed. A late or never-started B3
+index document delays every underlying's point by one cron — the shape the CDI gate already has —
+instead of silently dropping `IBOV11`'s.
 
 **Index options' cash settlement, wired into the portfolio** (the follow-up ADR-0063 named): a
 cash-settled leg's `LegSettlement.cashSettlementValue` (centavos, signed, null for a
@@ -134,6 +141,12 @@ the owner call the Ibovespa.
   apply to a decision's cost model on an index structure; no backtest can reach one, by item 2
   above); a wrong index value is corrected by re-ingestion, like a macro point; only `IBOV` is read
   — another index is a new entry in the constant and a request per year, not a design change.
+  Cash settlement is booked against `IBOV11`'s daily close, while B3 settles an expiring index
+  option against its own settlement index for that expiry (an intraday average); the booked
+  amount can differ from the broker statement. `indexes` writes cumulatively from the day after
+  the latest stored `IBOV11` candle: a value B3 revises later, or a session that was `null` when
+  a later one had already been published, is never re-read on its own — correcting it means
+  deleting that candle row and re-running.
 - Sources enumerated by name (`freshness.ts`, the nightly report, the manual panel) pick up
   `indexes` from `ingestionSourceValues` unchanged.
 - The instruments registry parser (ADR-0063) now refuses an `OPTION ON INDEX` row with a blank,

@@ -244,10 +244,10 @@ _Avoid_: published strategy, community strategy, public strategy
 ### Signals and watchlist
 
 **Watchlist**:
-The list of instruments a user follows. Active strategies are evaluated only over the user's
-watchlist. A watchlist may hold a market index (ADR-0062), for following its level alone: a
-market index is not an instrument, and is excluded wherever the watchlist feeds a strategy, a
-backtest or the radar.
+The tickers a user follows: instruments and, since ADR-0062, a market index. Active strategies
+are evaluated only over the user's watchlist. A watchlist may hold a market index, for following
+its level alone: a market index is not an instrument, and is excluded wherever the watchlist
+feeds a strategy, a backtest or the radar.
 _Avoid_: universe (reserved for backtests), favorites, radar
 
 **Signal**:
