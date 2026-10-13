@@ -2,8 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import { createChart, LineSeries, type UTCTimestamp } from "lightweight-charts";
+import type { DecimalString, SessionDate } from "@fetha/contracts";
 
-import type { ExchangeRateRow } from "../repositories/exchange-rate-repository";
+export interface RatePoint {
+  date: SessionDate;
+  rate: DecimalString;
+}
 
 function resolvedToken(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -16,7 +20,7 @@ function toChartTime(date: string): UTCTimestamp {
   return (new Date(`${date}T00:00:00Z`).getTime() / 1000) as UTCTimestamp;
 }
 
-export function RateLineChart({ points }: { points: ExchangeRateRow[] }) {
+export function RateLineChart({ points }: { points: RatePoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

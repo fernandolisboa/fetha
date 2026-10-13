@@ -14,7 +14,7 @@ import {
   sessionDateToDisplayDate,
   t,
 } from "@/modules/market-data";
-import { InstrumentMarketBar, PageHeader, Panel } from "@/modules/shell";
+import { PageHeader, Panel } from "@/modules/shell";
 
 const labels = t.exchangeRate;
 
@@ -44,16 +44,6 @@ export default async function ExchangeRatePage({ params }: { params: Promise<{ p
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
-      {latest && (
-        <InstrumentMarketBar
-          instrument={{
-            ticker: pair,
-            lastClose: formatExchangeRateBRL(latest.rate),
-            session: latest.date,
-          }}
-        />
-      )}
-
       <PageHeader
         overline={labels.overline}
         headline={`${pair.slice(0, 3)}/${pair.slice(3)}`}
@@ -92,7 +82,7 @@ export default async function ExchangeRatePage({ params }: { params: Promise<{ p
         {points.length === 0 ? (
           <p className="text-muted-foreground text-sm">{labels.noData}</p>
         ) : (
-          <RateLineChart points={points} />
+          <RateLineChart points={points.map((point) => ({ date: point.date, rate: point.rate }))} />
         )}
       </Panel>
     </div>

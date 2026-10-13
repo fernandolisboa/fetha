@@ -69,7 +69,7 @@ export {
   type ExchangeRateSearchHit,
 } from "./exchange-rate-match";
 export { exchangeRatePairSchema, type ExchangeRatePair } from "./adapters/bacen-sgs/schema";
-export { RateLineChart } from "./components/rate-line-chart";
+export { RateLineChart, type RatePoint } from "./components/rate-line-chart";
 export {
   exchangeRateSeries,
   latestExchangeRate,
