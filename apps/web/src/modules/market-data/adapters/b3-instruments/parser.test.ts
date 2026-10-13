@@ -92,6 +92,39 @@ describe("parseInstrumentsRegistry", () => {
     expect(skipped).toBe(1);
   });
 
+  it("drops a cash-settled (index-option) row with a blank PricFctr instead of defaulting it to 1", () => {
+    const header = "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp;SctyCtgyNm;PricFctr";
+    const blankFactor =
+      "2026-09-08;IBOVA183;IBOV11;BRIBOV9A0WC1;2027-01-13;EURO;183000;Call;OPTION ON INDEX;";
+    const content = ["Status do Arquivo: Final", header, blankFactor].join("\n");
+
+    const { series, skipped } = parseInstrumentsRegistry(content);
+    expect(series).toEqual([]);
+    expect(skipped).toBe(1);
+  });
+
+  it("drops a cash-settled row with a non-positive PricFctr instead of a wrong-sign factor", () => {
+    const header = "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp;SctyCtgyNm;PricFctr";
+    const zeroFactor =
+      "2026-09-08;IBOVA183;IBOV11;BRIBOV9A0WC1;2027-01-13;EURO;183000;Call;OPTION ON INDEX;0";
+    const content = ["Status do Arquivo: Final", header, zeroFactor].join("\n");
+
+    const { series, skipped } = parseInstrumentsRegistry(content);
+    expect(series).toEqual([]);
+    expect(skipped).toBe(1);
+  });
+
+  it("keeps the default factor of 1 for a physically-settled row with no PricFctr column at all", () => {
+    const header = "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp;SctyCtgyNm";
+    const equityRow =
+      "2026-09-08;PETRA1;PETR4;BRPETR4A1TF9;2028-01-21;AMER;43,94;Call;OPTION ON EQUITIES";
+    const content = ["Status do Arquivo: Final", header, equityRow].join("\n");
+
+    const { series, skipped } = parseInstrumentsRegistry(content);
+    expect(skipped).toBe(0);
+    expect(series[0]?.priceFactor).toBe("1");
+  });
+
   it("throws instead of silently returning a registry with more skips than the threshold allows", () => {
     const header = "RptDt;TckrSymb;Asst;ISIN;XprtnDt;OptnStyle;ExrcPric;OptnTp;SctyCtgyNm";
     const missingIsin = "2026-09-08;ZZZW1;ZZZ3;;2026-10-16;AMER;5,00;Call;OPTION ON EQUITIES";

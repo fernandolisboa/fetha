@@ -85,8 +85,9 @@ export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegi
   const optionTypeIndex = indexOf("OptnTp");
   const categoryIndex = indexOf("SctyCtgyNm");
   // Not every registry export carries `PricFctr` (older samples, other sections of the same
-  // file); absent, every series defaults to a factor of 1 (ADR-0063), the pre-existing
-  // behaviour for equity options.
+  // file); absent, every physically-settled series defaults to a factor of 1 (ADR-0062/0063),
+  // the pre-existing behaviour for equity options. A cash-settled (index-option) row never gets
+  // that default: its own factor is required, below.
   const priceFactorIndex = columns.indexOf("PricFctr");
 
   const series: InstrumentOptionSeries[] = [];
@@ -110,6 +111,15 @@ export function parseInstrumentsRegistry(content: string): ParsedInstrumentsRegi
       continue;
     }
     const rawPriceFactor = priceFactorIndex === -1 ? undefined : fields[priceFactorIndex]?.trim();
+    const isCashSettled = category === CASH_SETTLED_CATEGORY;
+    // A cash-settled series' `PricFctr` is never defaulted (CLAUDE.md "never JavaScript number
+    // for money"-adjacent invariant, ADR-0062): a blank, unparsable or non-positive factor on an
+    // `OPTION ON INDEX` row would otherwise silently settle at 1/100th of the correct cash flow,
+    // so the row is dropped as non-conforming instead, the same way a missing strike already is.
+    if (isCashSettled && (!rawPriceFactor || rawPriceFactor.length === 0)) {
+      skipped += 1;
+      continue;
+    }
     const priceFactor =
       rawPriceFactor && rawPriceFactor.length > 0
         ? commaToDot(rawPriceFactor)
