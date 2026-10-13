@@ -24,6 +24,19 @@ and reached from an instrument through the company's CNPJ (ADR-0060). Shown as "
 recentes" on the asset page; that title is UI copy, not the domain term.
 _Avoid_: news, event, announcement
 
+**Filing label**:
+What the AI says one company filing is about, from closed lists: a topic, a tone for a
+shareholder (positive, neutral, negative) and one pt-BR sentence with no figure (ADR-0065). A
+filing ends labelled, rejected (the reply broke the contract) or unreadable, and that outcome is
+never rewritten.
+_Avoid_: sentiment score, rating, AI opinion
+
+**News tone**:
+GDELT's average tone of the Portuguese-language news matching a company's name or tickers, per
+day, with the day's article count (ADR-0065). Experimental; the 30-day figure is weighted by
+articles.
+_Avoid_: sentiment index, buzz
+
 **Option series**:
 One listed option contract on an underlying: call or put, strike, expiry, exercise style. B3
 reuses a ticker across listing cycles (ADR-0017), so a lookup by ticker alone (the Ctrl K search

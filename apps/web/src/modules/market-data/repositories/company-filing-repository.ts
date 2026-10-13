@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, max, notExists, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, max, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { Database, Transaction } from "@/db/client";
@@ -128,4 +128,87 @@ export async function recentCompanyFilings(
     .orderBy(desc(companyFilings.deliveredOn), desc(companyFilings.protocol))
     .limit(limit);
   return { mapped: true, filings };
+}
+
+export interface CompanyOfTicker {
+  ticker: string;
+  cnpj: string;
+  // The name on the company's newest stored filing; null before it files.
+  companyName: string | null;
+}
+
+export async function companiesOfTickers(
+  db: Database,
+  tickers: readonly string[],
+): Promise<CompanyOfTicker[]> {
+  if (tickers.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({ ticker: companyTickers.ticker, cnpj: companyTickers.cnpj })
+    .from(companyTickers)
+    .where(inArray(companyTickers.ticker, [...tickers]));
+  if (rows.length === 0) {
+    return [];
+  }
+  const names = await db
+    .selectDistinctOn([companyFilings.cnpj], {
+      cnpj: companyFilings.cnpj,
+      companyName: companyFilings.companyName,
+    })
+    .from(companyFilings)
+    .where(inArray(companyFilings.cnpj, [...new Set(rows.map((row) => row.cnpj))]))
+    .orderBy(companyFilings.cnpj, desc(companyFilings.deliveredOn));
+  const nameOf = new Map(names.map((row) => [row.cnpj, row.companyName]));
+  return rows
+    .map((row) => ({ ...row, companyName: nameOf.get(row.cnpj) ?? null }))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+}
+
+export interface CompanyFilingOfCompany extends CompanyFilingRow {
+  cnpj: string;
+  companyName: string;
+}
+
+// Every filing of these companies delivered on or after `since`, each
+// protocol at its highest stored version, newest first.
+export async function filingsOfCompaniesSince(
+  db: Database,
+  cnpjs: readonly string[],
+  since: string,
+): Promise<CompanyFilingOfCompany[]> {
+  if (cnpjs.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      protocol: companyFilings.protocol,
+      version: companyFilings.version,
+      cnpj: companyFilings.cnpj,
+      companyName: companyFilings.companyName,
+      category: companyFilings.category,
+      kind: companyFilings.kind,
+      subject: companyFilings.subject,
+      deliveredOn: companyFilings.deliveredOn,
+      documentUrl: companyFilings.documentUrl,
+    })
+    .from(companyFilings)
+    .where(
+      and(
+        inArray(companyFilings.cnpj, [...cnpjs]),
+        gte(companyFilings.deliveredOn, since),
+        notExists(
+          db
+            .select({ protocol: newerVersion.protocol })
+            .from(newerVersion)
+            .where(
+              and(
+                eq(newerVersion.protocol, companyFilings.protocol),
+                gt(newerVersion.version, companyFilings.version),
+              ),
+            ),
+        ),
+      ),
+    )
+    .orderBy(desc(companyFilings.deliveredOn), desc(companyFilings.protocol));
 }

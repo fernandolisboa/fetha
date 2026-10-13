@@ -1,10 +1,13 @@
 import {
   analysisOutputV2Schema,
+  filingLabelOutputSchema,
+  type FilingLabelInputs,
   type AnalysisInputs,
   type AnalysisSubjectKind,
 } from "@fetha/contracts";
 
 import * as analysisV2 from "./analysis/v2";
+import * as filingLabelV1 from "./filing-label/v1";
 
 export interface AnalysisPrompt {
   version: string;
@@ -31,3 +34,19 @@ export const analysisModels: Record<AnalysisSubjectKind, AnalysisModel> = {
   held_operation: "claude-opus-5-5",
   backtest_run: "claude-opus-5-5",
 };
+
+export interface FilingLabelPrompt {
+  version: string;
+  system: string;
+  render: (inputs: FilingLabelInputs) => string;
+  outputSchema: typeof filingLabelOutputSchema;
+}
+
+export const filingLabelPrompt: FilingLabelPrompt = {
+  ...filingLabelV1,
+  outputSchema: filingLabelOutputSchema,
+};
+
+// docs/adr/0065: the cheapest current model; a label is a closed-list
+// classification and one plain sentence.
+export const filingLabelModel = "claude-haiku-5-5";
