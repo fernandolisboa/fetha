@@ -574,9 +574,9 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   // The CVM files are cumulative yearly snapshots (docs/adr/0060): one read
   // covers every gap session, so only the first session this invocation
   // attempts downloads them and the rest share its outcome. It runs after
-  // tonight's iv_index session and before the iv_index backfill, under the
-  // same 40% start budget as the backfill, so it never delays what tonight's
-  // evaluation reads; like iv_index it stays out of `ok`, since no other
+  // tonight's iv_index session and before the iv_index backfill, under its
+  // own 70% start budget, so it never delays what tonight's evaluation
+  // reads; like iv_index it stays out of `ok`, since no other
   // step reads filings and the asset page shows their freshness.
   let cvmSnapshot: Promise<RunResult> | undefined;
   const cvmRun = async (): Promise<RunResult> => {
