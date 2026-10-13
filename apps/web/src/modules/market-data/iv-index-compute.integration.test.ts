@@ -7,6 +7,7 @@ import { engine } from "@fetha/engine";
 import { getDb } from "@/db/client";
 import {
   candles,
+  impliedVolatilityIndexPoints,
   macroPoints,
   optionDailyPrices,
   optionSeries,
@@ -101,6 +102,22 @@ function bsCall(spot: number, strike: number, years: number, sigma: number): num
   return spot * normalCdf(d1) - strike * normalCdf(d2);
 }
 
+// Same model, with the continuous carry `resolveRiskFreeRate` derives from a CDI annual
+// rate (r = ln(1 + cdi)): used only where the seeded CDI is non-zero, so the premium the
+// engine solves back from still implies the seed sigma.
+function bsCallWithRate(
+  spot: number,
+  strike: number,
+  years: number,
+  sigma: number,
+  r: number,
+): number {
+  const d1 =
+    (Math.log(spot / strike) + (r + 0.5 * sigma * sigma) * years) / (sigma * Math.sqrt(years));
+  const d2 = d1 - sigma * Math.sqrt(years);
+  return spot * normalCdf(d1) - strike * Math.exp(-r * years) * normalCdf(d2);
+}
+
 async function seedUnderlyingSpot(
   underlying: string,
   session: string,
@@ -172,6 +189,9 @@ describe("computeIvIndexForSession", () => {
     if (underlyings.length > 0) {
       await db.delete(candles).where(inArray(candles.ticker, underlyings));
       await db.delete(optionSeries).where(inArray(optionSeries.underlying, underlyings));
+      await db
+        .delete(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, underlyings));
     }
     const optionTickers = cleanupOptionTickers.splice(0);
     if (optionTickers.length > 0) {
@@ -758,9 +778,9 @@ describe("computeIvIndexForSession", () => {
   // option (`price_factor` 100) through the exact same pipeline every other
   // underlying uses. A flat 27.4% volatility curve is used for both bracket legs
   // so the 30-calendar-day interpolation's own weighting is irrelevant: whatever
-  // the weights, interpolating a constant variance returns that same volatility
-  // (the quant target this pins), not a value an unrelated review recompute
-  // could silently drift from if the brackets' own weights ever changed.
+  // the weights, interpolating a constant variance returns that same volatility —
+  // this pins that the recovered IV still equals the seeded sigma once a non-zero
+  // CDI carry is in the premiums, not any particular level of the Ibovespa's IV.
   it("prices an IBOV11 (Ibovespa) index option through priceFactor and writes IBOV11 an iv_index point near 27.4%", async () => {
     const db = getDb();
     const sessions = dailySessions(130);
@@ -771,11 +791,12 @@ describe("computeIvIndexForSession", () => {
     const expiryLower = sessions[20] ?? "";
     const expiryUpper = sessions[127] ?? "";
 
+    const cdi = 0.149;
     await db.insert(macroPoints).values({
       series: "cdi",
       date: session0,
       asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
-      annualRate: "0.00000000",
+      annualRate: cdi.toFixed(8),
     });
 
     const underlying = "IBOV11";
@@ -785,12 +806,20 @@ describe("computeIvIndexForSession", () => {
     const strike = "183000.00000000";
     const priceFactor = "100.000000";
     const flatSigma = 0.274;
+    // `resolveRiskFreeRate` turns a CDI annual rate into the model's continuous
+    // carry, r = ln(1 + cdi) (ADR-0013): the same conversion the engine applies,
+    // so the premiums below solve back to `flatSigma`, not a biased value.
+    const r = Math.log(1 + cdi);
 
-    // `bsCall` solves in the series' own quotation unit (index points); the
+    // `bsCallWithRate` solves in the series' own quotation unit (index points); the
     // registry's `price_factor` of 100 (ADR-0063) is what scales that back down
     // to the premium actually traded and stored, reais per contract.
-    const lowerPremium = (bsCall(187366.84, 183000, 20 / 252, flatSigma) / 100).toFixed(6);
-    const upperPremium = (bsCall(187366.84, 183000, 127 / 252, flatSigma) / 100).toFixed(6);
+    const lowerPremium = (bsCallWithRate(187366.84, 183000, 20 / 252, flatSigma, r) / 100).toFixed(
+      6,
+    );
+    const upperPremium = (bsCallWithRate(187366.84, 183000, 127 / 252, flatSigma, r) / 100).toFixed(
+      6,
+    );
 
     const tickerLower = `${underlying}CL`;
     const tickerUpper = "IBOVA183";
