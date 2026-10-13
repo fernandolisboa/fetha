@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.13.0";
+export const ENGINE_VERSION = "0.14.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -203,6 +203,13 @@ export const optionRights = ["call", "put"] as const satisfies readonly OptionRi
 export type ExerciseStyle = "american" | "european";
 export const exerciseStyles = ["american", "european"] as const satisfies readonly ExerciseStyle[];
 
+// ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
+// equity option's pre-existing behaviour: the underlying changes hands at the strike. "cash"
+// is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to deliver,
+// so the leg settles for its intrinsic value in cash instead of a fill on the index itself.
+export type SettlementStyle = "physical" | "cash";
+export const settlementStyles = ["physical", "cash"] as const satisfies readonly SettlementStyle[];
+
 export type OptionSeries = {
   ticker: Ticker;
   underlying: Ticker;
@@ -216,13 +223,11 @@ export type OptionSeries = {
   // Absent for every equity option, which is priced and quoted in reais directly (factor 1,
   // the pre-existing behaviour).
   priceFactor?: DecimalString | undefined;
-  // ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
-  // equity option's pre-existing behaviour: the underlying changes hands at the strike.
-  // "cash" is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to
-  // deliver, so the leg settles for its intrinsic value in cash instead of a fill on the
-  // index itself. Never inferred from `priceFactor` (a priceFactor is only a quotation-unit
-  // conversion; settlement is the registry's own, separate `TpMerc`/instrument-category fact).
-  settlement?: "physical" | "cash" | undefined;
+  // ADR-0063: never inferred from `priceFactor` (a priceFactor is only a quotation-unit
+  // conversion; settlement style is the registry's own, separate `TpMerc`/instrument-category
+  // fact). Named `settlementStyle`, not `settlement`, since "settlement" already names the
+  // event on this same API (`proposeSettlement`, `LegSettlement`, `SettlementProposal`).
+  settlementStyle?: SettlementStyle | undefined;
 };
 
 export type OptionDayPrice = {

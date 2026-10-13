@@ -46,6 +46,15 @@ where a premium or a model value meets them, never the strike or spot themselves
 _Avoid_: quotation factor (that is COTAHIST's own `FATCOT`, a distinct, row-level lot-grouping
 divisor applied to a price field at ingestion, not this series-level field)
 
+**Settlement style**:
+How an option series' in-the-money leg settles at expiry: `"physical"` (absent; the underlying
+changes hands at the strike, every equity option) or `"cash"` (B3's rule for every index option,
+e.g. Ibovespa — there is no underlying to deliver, so the leg settles for its intrinsic value in
+cash instead). A series with a price factor other than 1 must be cash-settled; never inferred
+from the price factor itself, a separate, registry-sourced fact (ADR-0063).
+_Avoid_: settlement (that is the event — `proposeSettlement`, `LegSettlement` — not this
+series-level field, named `settlementStyle` precisely to keep the two apart)
+
 **Chain**:
 The set of option series listed on one underlying on a given day, with their quotes.
 _Avoid_: option board, grade de opções

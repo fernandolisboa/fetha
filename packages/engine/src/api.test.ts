@@ -31,6 +31,7 @@ import {
   pricingModels,
   scoreSubjects,
   settlementOutcomes,
+  settlementStyles,
   signalKinds,
   simulatedOperationStatuses,
   truncationReasons,
@@ -78,6 +79,7 @@ import {
   type ScoreSubject,
   type SettlementOutcome,
   type SettlementProposal,
+  type SettlementStyle,
   type Side,
   type SignalKind,
   type SimulatedOperation,
@@ -300,6 +302,8 @@ describe("closed vocabularies", () => {
     expect(optionRights).toEqual(["call", "put"]);
     expectTypeOf<(typeof exerciseStyles)[number]>().toEqualTypeOf<ExerciseStyle>();
     expect(exerciseStyles).toEqual(["american", "european"]);
+    expectTypeOf<(typeof settlementStyles)[number]>().toEqualTypeOf<SettlementStyle>();
+    expect(settlementStyles).toEqual(["physical", "cash"]);
   });
 
   it("enumerates macro series kinds", () => {
@@ -441,6 +445,7 @@ describe("closed vocabularies", () => {
     ["simulatedOperationStatuses", simulatedOperationStatuses],
     ["backtestProgressStatuses", backtestProgressStatuses],
     ["settlementOutcomes", settlementOutcomes],
+    ["settlementStyles", settlementStyles],
     ["decisionKinds", decisionKinds],
     ["scoreSubjects", scoreSubjects],
     ["decisionOriginKinds", decisionOriginKinds],

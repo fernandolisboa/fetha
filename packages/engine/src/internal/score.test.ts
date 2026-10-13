@@ -1290,6 +1290,8 @@ describe("score — settlement at expiry for the taken-operation path (ADR-0014 
 // ADR-0063 / #307: settlement at an index close of 185 000 against a 183 000 strike pays
 // R$ 20,00 per contract (2 000 points x R$ 0,01/point), not 2 000 reais.
 describe("score — settlement at expiry for an index option's priceFactor (#307)", () => {
+  // Real B3 index options are always cash-settled (ADR-0063, #307 review round 2): a
+  // priceFactor other than 1 on a physically-settled series is now a named invalid_input.
   const ibovaSeries: OptionSeries = {
     ticker: "IBOVA183",
     underlying: "IBOV",
@@ -1299,6 +1301,7 @@ describe("score — settlement at expiry for an index option's priceFactor (#307
     style: "european",
     asOf: "2024-01-01T00:00:00.000Z",
     priceFactor: decimalString("100"),
+    settlementStyle: "cash",
   };
 
   function ibovCandle(session: string, close: string): Candle {

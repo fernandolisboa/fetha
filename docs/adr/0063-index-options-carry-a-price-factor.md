@@ -60,25 +60,36 @@ would fail every solve the moment IBOV11 gets a candle and the nightly `iv_index
     portfolio holds both. An index-option leg's own money exposure per point of the underlying is
     its reported delta divided by its series' `priceFactor`, read off the operation's own leg
     valuation, never off the portfolio aggregate.
-  - `OptionSeries` also gains an optional `settlement: "physical" | "cash"`. Absent means
-    "physical", the pre-existing behaviour for every equity option: an in-the-money leg settles
-    by a fill on the underlying at the strike. B3 cash-settles every index option instead — there
-    is no Ibovespa to deliver — so a `"cash"` series' leg never produces that fill, in or out of
-    the money; `settleLeg` (`propose-settlement.ts`) instead carries the leg's signed cash flow
-    (`intrinsic × quantity`, sign by side) on a new `LegSettlement.cashSettlementValue`, null for
-    every physically-settled leg. `runBacktest` books it as option P&L the same way a worthless
-    leg's premium already is: never folded into a stock trade, never counted toward
-    `currentMonthStockSales` or its R$ 20k exemption, no stock fees. `settlement` is never
-    inferred from `priceFactor` — a priceFactor is only a quotation-unit conversion, settlement is
-    the registry's own, separate fact (B3's `TpMerc`/instrument category) — so `apps/web` fills it
-    independently from the registry when it starts ingesting an index option's chain (the same
-    follow-up `priceFactor` itself is waiting on, below). Index options never reach a backtest
-    through the web today (they are excluded from universes before that), but the engine is
-    correct for the day they are not.
-- No `ENGINE_VERSION` bump (ADR-0040's own precedent): `priceFactor`, `settlement` and
-  `LegSettlement.cashSettlementValue` are all optional/nullable fields that default to the
-  pre-existing behaviour, absent (or null) from every checkpoint and config stored before this
-  change, and every existing fixture and golden file is unaffected bit-for-bit.
+  - `OptionSeries` also gains an optional `settlementStyle: "physical" | "cash"` (its own
+    `settlementStyles` `as const` array, ADR-0013's rule for every closed union on this API —
+    named `settlementStyle`, not `settlement`, since "settlement" already names the event
+    elsewhere on this same API: `proposeSettlement`, `LegSettlement`, `SettlementProposal`).
+    Absent means "physical", the pre-existing behaviour for every equity option: an in-the-money
+    leg settles by a fill on the underlying at the strike. B3 cash-settles every index option
+    instead — there is no Ibovespa to deliver — so a `"cash"` series' leg never produces that
+    fill, in or out of the money; `settleLeg` (`propose-settlement.ts`) instead carries the leg's
+    signed cash flow (`intrinsic × effective quantity`, sign by side, rebased by the same
+    corporate-action window its own exercise/assignment fill already is — #271's precedent) on a
+    new `LegSettlement.cashSettlementValue`, null for every physically-settled leg. `runBacktest`
+    books it as option P&L the same way a worthless leg's premium already is: never folded into
+    a stock trade, never counted toward `currentMonthStockSales` or its R$ 20k exemption, no
+    stock fees. `settlementStyle` is never inferred from `priceFactor` — a priceFactor is only a
+    quotation-unit conversion, settlement style is the registry's own, separate fact (B3's
+    `TpMerc`/instrument category) — so `apps/web` fills it independently from the registry when
+    it starts ingesting an index option's chain (the same follow-up `priceFactor` itself is
+    waiting on, below). Index options never reach a backtest through the web today (they are
+    excluded from universes before that), but the engine is correct for the day they are not.
+  - `settleLeg` rejects a series whose `priceFactor` is not 1 but whose `settlementStyle` is not
+    `"cash"` as `invalid_input` (path `...settlementStyle`): B3 never lists a physically-settled
+    series quoted off 1:1, so one is a half-populated registry row, never a real instrument — the
+    alternative is a phantom fill on the underlying at the factor's own scale (e.g. "buy 1 IBOV
+    @ 183 000.00").
+- `ENGINE_VERSION` bumped to `0.14.0` (ADR-0013's own addendum has the full rule and precedent):
+  `priceFactor` and `settlementStyle` are themselves optional inputs that need no bump on their
+  own, but `LegSettlement.cashSettlementValue` changes the shape of a checkpointed, persisted
+  artifact (`SimulatedOperation.settlement[]`, stored `jsonb`) — the same case #271's
+  `residualValue` addendum already bumped for, not merely an additive field on a type nothing
+  persists.
 - ADR-0040's `b3OptionFeeRate` is the equity-option tariff (B3's "Opções de Ações" page); B3's own
   index-option tariff is a separate schedule this ADR does not model. `fillCosts` keeps charging
   `b3OptionFeeRate` (or `b3FeeRate`, absent that) on every option fill regardless of
@@ -95,12 +106,19 @@ would fail every solve the moment IBOV11 gets a candle and the nightly `iv_index
 
 ## Consequences
 
-- `apps/web` must populate `OptionSeries.priceFactor` and `OptionSeries.settlement` ("cash" for
-  registry category OPTION ON INDEX) from the instruments registry when it starts ingesting
+- `apps/web` must populate `OptionSeries.priceFactor` and `OptionSeries.settlementStyle` ("cash"
+  for registry category OPTION ON INDEX) from the instruments registry when it starts ingesting
   IBOV11 and its option chain; absent that, every index option continues to default to factor 1
   and physical settlement and fails its own IV solve the same way it does today (a known,
   now-named gap, not a silent wrong number).
-- Every existing equity-option fixture, checkpoint and golden file is untouched: `priceFactor`
-  absent is bit-identical to today's behaviour by construction.
+- Every existing equity-option fixture and config is bit-identical by construction (`priceFactor`
+  and `settlementStyle` both absent, the pre-existing behaviour); the four golden files that
+  pin a `settlement[]`/provenance snapshot gained the additive `cashSettlementValue`/the new
+  `ENGINE_VERSION` string and were regenerated, not hand-edited.
+- `apps/web/src/modules/portfolio/settlement-plan.ts` books cash only from
+  `settlement.fills[0]` (ADR-0062): a cash-settled leg's `fills` is always empty, so wiring
+  `LegSettlement.cashSettlementValue` into that plan as its own portfolio-side cash flow is an
+  acceptance criterion of the PR that first sets `settlementStyle: "cash"` from the registry,
+  not assumed done by this one.
 - A future second index product (if B3 ever quotes one with a different points-per-real ratio)
   needs only its own `priceFactor`, no engine change.

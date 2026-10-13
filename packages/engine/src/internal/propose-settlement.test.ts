@@ -1067,6 +1067,9 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     close: decimalString("185000"),
     tradedQuantity: 1,
   };
+  // Real B3 index options are always cash-settled (ADR-0063, #307 review round 2): a series
+  // whose priceFactor is not 1 and whose settlementStyle is not "cash" is a half-populated
+  // registry row settleLeg now rejects, so this fixture's default already carries both.
   const ibovaSeries: OptionSeries = {
     ticker: "IBOVA183",
     underlying: "IBOV",
@@ -1076,6 +1079,7 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     style: "european",
     asOf: expiryClose,
     priceFactor: decimalString("100"),
+    settlementStyle: "cash",
   };
 
   it("settles a long call's intrinsic at R$ 20,00 per contract, not 2 000 points", () => {
@@ -1127,13 +1131,43 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
   });
 
+  // Review round 2 (advisory): a priceFactor other than 1 on a physically-settled series is a
+  // half-populated registry row, not a real B3 instrument — B3 never lists one — so it must be
+  // a named error, never a phantom fill on the underlying at the factor's own scale.
+  it("rejects a priceFactor other than 1 on a physically-settled series as invalid_input", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, settlementStyle: undefined }],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(1),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({
+      message: "a series with a price factor other than 1 must be cash-settled (IBOVA183)",
+    });
+  });
+
   // Review round 1, item 2: B3 cash-settles every index option (there is no IBOV to deliver),
   // so a cash-settled leg must never carry a stock fill, in or out of the money.
   it("cash-settles a long call's intrinsic value instead of filling the underlying, when the series is cash-settled", () => {
     const view: MarketView = {
       ...baseView,
       candles: [ibovCandle],
-      optionSeries: [{ ...ibovaSeries, settlement: "cash" }],
+      optionSeries: [{ ...ibovaSeries, settlementStyle: "cash" }],
     };
     const op = operation({
       underlying: "IBOV",
@@ -1157,11 +1191,52 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     expect(settled?.cashSettlementValue).toBe(2000);
   });
 
+  // Review round 2 (advisory): settleLeg reports cashSettlementValue at the leg's nominal
+  // quantity, the same as its own exercise/assignment fill does (#271) — proposeSettlement
+  // must rebase it by the same corporate-action window, or a split moving between entry and
+  // expiry leaves the reported cash flow on the wrong scale, consistent with how score.ts
+  // independently rebases the same leg's pnl by its own effectiveQuantity.
+  it("rebases a cash-settled leg's cash flow by a 2:1 grouping on the underlying, the same way the exercise fill is", () => {
+    const grouping: CorporateActionFactor = {
+      ticker: "IBOV",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("2"),
+    };
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, settlementStyle: "cash" }],
+      corporateActions: [grouping],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      openedAt: "2024-01-01",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(2),
+          entryPrice: decimalString("193.05"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const settled = result.value.legs[0];
+    // Nominal: intrinsic 20.00 x 2 contracts x 100 centavos = 4 000. Effective quantity
+    // 2 / 2 (the grouping) = 1: rebased cash = 4 000 / 2 = 2 000, the same single-contract
+    // figure the earlier (ungrouped) test above asserts.
+    expect(settled?.cashSettlementValue).toBe(2000);
+  });
+
   it("cash-settles a short call's loss as a negative cash flow, with no stock fill", () => {
     const view: MarketView = {
       ...baseView,
       candles: [ibovCandle],
-      optionSeries: [{ ...ibovaSeries, settlement: "cash" }],
+      optionSeries: [{ ...ibovaSeries, settlementStyle: "cash" }],
     };
     const op = operation({
       underlying: "IBOV",
@@ -1184,21 +1259,19 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     expect(settled?.cashSettlementValue).toBe(-2000);
   });
 
-  it("leaves a physically-settled (default) leg's cashSettlementValue null", () => {
+  it("leaves a physically-settled (default), ordinary equity-option leg's cashSettlementValue null", () => {
     const view: MarketView = {
       ...baseView,
-      candles: [ibovCandle],
-      optionSeries: [ibovaSeries],
+      optionSeries: [optionSeries("PETR4C28", "call", "28.00")],
     };
     const op = operation({
-      underlying: "IBOV",
       legs: [
         {
           role: "call",
           side: "buy",
-          ticker: "IBOVA183",
+          ticker: "PETR4C28",
           quantity: quantity(1),
-          entryPrice: decimalString("193.05"),
+          entryPrice: decimalString("2.50"),
         },
       ],
     });

@@ -66,11 +66,11 @@ export type SessionDate = z.infer<typeof sessionDateSchema>;
 export const instantSchema = z.iso.datetime({ precision: 3, offset: false });
 export type Instant = z.infer<typeof instantSchema>;
 
-// Mirrors `@fetha/engine`'s `optionRights`/`exerciseStyles`/`macroSeriesKinds`
-// (packages/engine/src/api.ts) by value, not by import: the engine depends
-// on `@fetha/contracts`, so the dependency cannot run the other way. Any
-// value the database can hold for these columns must parse here rather than
-// be cast at the read site.
+// Mirrors `@fetha/engine`'s `optionRights`/`exerciseStyles`/`macroSeriesKinds`/
+// `settlementStyles` (packages/engine/src/api.ts) by value, not by import: the
+// engine depends on `@fetha/contracts`, so the dependency cannot run the
+// other way. Any value the database can hold for these columns must parse
+// here rather than be cast at the read site.
 export const optionRightSchema = z.enum(["call", "put"]);
 export type OptionRight = z.infer<typeof optionRightSchema>;
 
@@ -79,3 +79,8 @@ export type ExerciseStyle = z.infer<typeof exerciseStyleSchema>;
 
 export const macroSeriesKindSchema = z.enum(["cdi", "selic", "ipca"]);
 export type MacroSeriesKind = z.infer<typeof macroSeriesKindSchema>;
+
+// ADR-0063: a series' settlement style (absent = "physical"). B3 cash-settles every index
+// option instead, since there is no underlying to deliver.
+export const settlementStyleSchema = z.enum(["physical", "cash"]);
+export type SettlementStyle = z.infer<typeof settlementStyleSchema>;

@@ -4954,7 +4954,7 @@ describe("runBacktest — option structures (#23)", () => {
           style: "european",
           asOf: `${days[0] as string}T20:00:00.000Z`,
           priceFactor: decimalString("100"),
-          settlement: "cash",
+          settlementStyle: "cash",
         },
       ],
       optionPrices: days.slice(0, 11).map((d) => optionDayPrice("IBOVA183", d, "193.05")),

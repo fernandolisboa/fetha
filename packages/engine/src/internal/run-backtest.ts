@@ -1277,11 +1277,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
 
       const settlement: LegSettlement[] = [];
       let optionsPnl = new Decimal(0);
-      // The worthless-leg slice of optionsPnl: never folded into a stock
-      // trade (nothing is exercised or assigned), so it is the operation's own optionGain,
-      // not stockGain — unlike an exercised/assigned leg's premium, which stays in optionsPnl
-      // and folds into the stock trade the exercise or assignment produced.
-      let worthlessOptionPnl = new Decimal(0);
+      // Option P&L not folded into a stock trade: worthless legs and cash-settled legs
+      // (ADR-0063, #307) both land here, so it is the operation's own optionGain, not
+      // stockGain — unlike an exercised/assigned, physically-settled leg's premium, which
+      // stays in optionsPnl and folds into the stock trade the exercise or assignment
+      // produced.
+      let optionOnlyPnl = new Decimal(0);
       let buyQty = new Decimal(0);
       let buyCost = new Decimal(0);
       let sellQty = new Decimal(0);
@@ -1349,18 +1350,27 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // underlying even when in the money, so it must be branched on before the
         // worthless-leg check below, which would otherwise read its empty `fills` the same
         // way. Its cash flow is option P&L, never a stock trade: no stock fees, never counted
-        // toward currentMonthStockSales or the R$ 20k exemption.
+        // toward currentMonthStockSales or the R$ 20k exemption. settleLeg reports it at the
+        // leg's nominal quantity (#307 round 2 review); rebased by the same `splitFactor` an
+        // exercise/assignment fill's own quantity already is, below, so a factor that moved
+        // between entry and expiry is reflected the same way on either settlement path.
         if (settled.value.cashSettlementValue !== null) {
-          const cashValue = new Decimal(settled.value.cashSettlementValue);
-          state.cash += settled.value.cashSettlementValue;
+          const rebasedCashSettlementValue = toCentavos(
+            new Decimal(settled.value.cashSettlementValue).div(splitFactor).round().toNumber(),
+          );
+          const cashValue = new Decimal(rebasedCashSettlementValue);
+          state.cash += rebasedCashSettlementValue;
           optionsPnl = optionsPnl.add(cashValue);
-          worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl).add(cashValue);
-          settlement.push(settled.value);
+          optionOnlyPnl = optionOnlyPnl.add(legPremiumPnl).add(cashValue);
+          settlement.push({
+            ...settled.value,
+            cashSettlementValue: rebasedCashSettlementValue,
+          });
           continue;
         }
 
         if (settled.value.fills.length === 0) {
-          worthlessOptionPnl = worthlessOptionPnl.add(legPremiumPnl);
+          optionOnlyPnl = optionOnlyPnl.add(legPremiumPnl);
           settlement.push(settled.value);
           continue;
         }
@@ -1446,7 +1456,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
       let pnlSoFar = optionsPnl.add(matchedPnl).sub(sumCentavos(entryCosts)).sub(settlementCosts);
 
-      const optionGainSoFarCentavos = worthlessOptionPnl.round().toNumber();
+      const optionGainSoFarCentavos = optionOnlyPnl.round().toNumber();
       // A grouping factor that does not divide a stock leg's quantity evenly (Q51) can leave
       // this signed residual with a sub-one-share fraction: truncated toward zero (never
       // rounded, which would silently manufacture or discard up to half a phantom share) into

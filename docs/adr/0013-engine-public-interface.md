@@ -79,7 +79,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.13.0";
+export const ENGINE_VERSION = "0.14.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -260,6 +260,13 @@ export const optionRights = ["call", "put"] as const satisfies readonly OptionRi
 export type ExerciseStyle = "american" | "european";
 export const exerciseStyles = ["american", "european"] as const satisfies readonly ExerciseStyle[];
 
+// ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
+// equity option's pre-existing behaviour: the underlying changes hands at the strike. "cash"
+// is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to deliver,
+// so the leg settles for its intrinsic value in cash instead of a fill on the index itself.
+export type SettlementStyle = "physical" | "cash";
+export const settlementStyles = ["physical", "cash"] as const satisfies readonly SettlementStyle[];
+
 export type OptionSeries = {
   ticker: Ticker;
   underlying: Ticker;
@@ -273,13 +280,11 @@ export type OptionSeries = {
   // Absent for every equity option, which is priced and quoted in reais directly (factor 1,
   // the pre-existing behaviour).
   priceFactor?: DecimalString | undefined;
-  // ADR-0063: how an in-the-money leg settles at expiry. Absent (= "physical") keeps every
-  // equity option's pre-existing behaviour: the underlying changes hands at the strike.
-  // "cash" is B3's own rule for every index option (e.g. Ibovespa): there is no underlying to
-  // deliver, so the leg settles for its intrinsic value in cash instead of a fill on the
-  // index itself. Never inferred from `priceFactor` (a priceFactor is only a quotation-unit
-  // conversion; settlement is the registry's own, separate `TpMerc`/instrument-category fact).
-  settlement?: "physical" | "cash" | undefined;
+  // ADR-0063: never inferred from `priceFactor` (a priceFactor is only a quotation-unit
+  // conversion; settlement style is the registry's own, separate `TpMerc`/instrument-category
+  // fact). Named `settlementStyle`, not `settlement`, since "settlement" already names the
+  // event on this same API (`proposeSettlement`, `LegSettlement`, `SettlementProposal`).
+  settlementStyle?: SettlementStyle | undefined;
 };
 
 export type OptionDayPrice = {
@@ -3065,11 +3070,27 @@ mark. #279 closes the remaining paths:
 The marks and a persisted artifact's value set changed, so `ENGINE_VERSION` moves from `"0.12.0"`
 to `"0.13.0"`.
 
-## Addendum: index options carry a price factor (2026-10-13, #307, see ADR-0063)
+## Addendum: index options carry a price factor; `ENGINE_VERSION` bumped to `0.14.0` (#307, see ADR-0063)
 
 An index option (B3 quotes it in index points, not reais) is priced on the same model, but its
 stored premium is already reais per contract while spot/strike stay in points. `OptionSeries`
-gains an optional `priceFactor`, absent (= 1) for every equity option, converting only at the
-seam where a premium or a model value meets spot/strike: unconverted spot/strike/delta, divided
-money outputs otherwise. See ADR-0063 for the full rule and the rejected alternative. No
-`ENGINE_VERSION` bump: the field is optional and defaults to the pre-existing behavior.
+gains two optional fields: `priceFactor` (absent = 1 for every equity option), converting only at
+the seam where a premium or a model value meets spot/strike (unconverted spot/strike/delta/gamma,
+divided money outputs otherwise); and `settlementStyle` (absent = `"physical"`), since B3
+cash-settles every index option (there is no underlying to deliver). See ADR-0063 for the full
+rule, the rejected alternative and the `settlementStyle`/`priceFactor` consistency rule `settleLeg`
+enforces.
+
+Both `OptionSeries` fields are themselves optional inputs that default to the pre-existing
+behavior and need no bump on their own (the same reasoning the #273/#279 addenda above already
+apply to an optional input). But `LegSettlement` gains `cashSettlementValue: Centavos | null` on
+all three variants, and `SimulatedOperation.settlement`/`pendingSettlements[].settlement` are the
+same checkpointed, persisted artifact (`BacktestRun.operations[].settlement`, stored `jsonb`) the
+`residualValue` addendum (#271) already bumped for — a shape change to a persisted artifact, not
+merely an additive field on a type nothing persists, the exact precedent that moved `"0.11.0"` to
+`"0.12.0"` there. `ENGINE_VERSION` moves from `"0.13.0"` (the #279 addendum above) to `"0.14.0"`.
+
+Persisted reads: `packages/contracts`' `legSettlementSchema` mirror defaults `cashSettlementValue`
+to `null` (the `residualValue` default-`0` precedent, #271 addendum above) — a run persisted
+before this change never had a cash-settled leg by construction. `backtest-run-type-pin.test.ts`'s
+existing `operations` exclusion covers this without any change to that test.
