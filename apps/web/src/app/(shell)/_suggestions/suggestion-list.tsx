@@ -38,7 +38,7 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
 
 // The suggestion cards with the viewer's own layer on top (docs/adr/0067): their risk check,
 // their decision on each and the analysis they may ask for. `onPage` drops the link to the
-// suggestion's own page when the card is that page.
+// suggestion's own page, and the card's headline, when the card is that page.
 export async function SuggestionList({
   suggestions,
   onPage = false,
@@ -72,6 +72,7 @@ export async function SuggestionList({
       <SuggestionCard
         key={suggestion.id}
         suggestion={suggestion}
+        headline={!onPage}
         risk={<LimitCheck result={checks[index] ?? { kind: "unpriced" }} />}
         actions={
           <>

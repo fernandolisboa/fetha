@@ -114,9 +114,13 @@ export function OperationBuilderForm({
   const structure = structures.find((candidate) => candidate.id === structureId) ?? structures[0];
   const [underlying, setUnderlying] = useState(initialUnderlying);
   const [chain, setChain] = useState<ChainSeries[]>([]);
-  const [legs, setLegs] = useState<BuilderLeg[]>(
-    structure ? withInitialLegs(legsForStructure(structure, initialUnderlying), initialLegs) : [],
-  );
+  const [legs, setLegs] = useState<BuilderLeg[]>(() => {
+    if (!structure) return [];
+    const templates = legsForStructure(structure, initialUnderlying);
+    return structure.id === initialStructureId
+      ? withInitialLegs(templates, initialLegs)
+      : templates;
+  });
   const [pricing, setPricing] = useState<OperationPricing | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);

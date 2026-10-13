@@ -1,3 +1,4 @@
+import { Decimal } from "decimal.js";
 import {
   quantitySchema,
   sessionDateSchema,
@@ -27,7 +28,7 @@ export interface SuggestionDraft {
 export function suggestionClaim(pricing: OperationPricing): ThesisClaim {
   const [breakEven, ...others] = pricing.breakEvens;
   const highest = pricing.payoff.reduce<OperationPricing["payoff"][number] | null>(
-    (top, point) => (!top || Number(point.underlying) > Number(top.underlying) ? point : top),
+    (top, point) => (!top || new Decimal(point.underlying).gt(top.underlying) ? point : top),
     null,
   );
   if (breakEven === undefined || others.length > 0 || !highest || highest.pnl === 0) {

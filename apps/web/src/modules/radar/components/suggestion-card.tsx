@@ -76,12 +76,12 @@ export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }
       />
       <Figure
         label={labels.delta}
-        value={formatDecimal(pricing.greeks.delta, 2)}
+        value={formatDecimal(pricing.greeks.delta, 0)}
         token="--greek-delta"
       />
       <Figure
         label={labels.gamma}
-        value={formatDecimal(pricing.greeks.gamma, 2)}
+        value={formatDecimal(pricing.greeks.gamma, 0)}
         token="--greek-gamma"
       />
       <Figure
@@ -100,15 +100,18 @@ export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }
 
 // One suggestion as the cards and its own page show it (docs/adr/0067): the direct-voice line,
 // the readings that triggered it, the lot the engine priced and its numbers, the thesis it is
-// scored on, then the viewer's own risk check and actions, which the page supplies.
+// scored on, then the viewer's own risk check and actions, which the page supplies. On its own
+// page the page header already speaks the line, so the card leaves it out.
 export function SuggestionCard({
   suggestion,
   risk,
   actions,
+  headline = true,
 }: {
   suggestion: SuggestionView;
   risk: ReactNode;
   actions: ReactNode;
+  headline?: boolean;
 }) {
   return (
     <article
@@ -116,7 +119,7 @@ export function SuggestionCard({
       data-testid="suggestion-card"
       aria-label={suggestionHeadline(suggestion)}
     >
-      <h3 className="text-[15px] font-medium">{suggestionHeadline(suggestion)}</h3>
+      {headline && <h3 className="text-[15px] font-medium">{suggestionHeadline(suggestion)}</h3>}
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
           {t.suggestions.why(suggestion.recipe.definition.name)}

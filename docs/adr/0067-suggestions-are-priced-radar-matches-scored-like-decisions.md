@@ -68,7 +68,11 @@ only" is about execution, not about voice, and is unchanged.
    `enter` and `do_not_enter`. Its inputs snapshot the suggestion as the user saw it: underlying,
    recipe, structure, session, expiry, legs with their entry prices, net premium, max loss and max
    gain. It is scored like any decision: the lot rebuilt from its snapshot at its snapshotted
-   prices, origin `manual`. Decisions stay user-scoped; the suggestion they point to is shared.
+   prices, origin `manual`, the convention a signal's proposal already follows (not re-priced at
+   the decision instant, as a contemplated operation is), so the user's answer and Fetha's own
+   score judge the same lot. Both therefore enter at the scanned close, a fill nobody could get
+   after the suggestion existed; a next-session fill is a known refinement, not taken here.
+   Decisions stay user-scoped; the suggestion they point to is shared.
 6. **One analysis of one suggestion, on request, with a verdict.** `suggestion` is a fifth analysis
    subject (ADR-0057's cap, rate limits and storage unchanged; model Opus, as for an operation).
    The facts sent are the suggestion as the cards show it, the recipe's entry rule, the asset

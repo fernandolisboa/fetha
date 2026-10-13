@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { tickerSchema } from "@fetha/contracts";
 
+import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
@@ -28,6 +29,19 @@ export default async function SuggestionPage({ params }: { params: Promise<{ id:
         overline={t.page.overline(formatDate(sessionDateToDisplayDate(suggestion.session)))}
         headline={suggestionHeadline(suggestion)}
       />
+      <ul className="flex flex-wrap gap-2">
+        <li>
+          <Badge variant="secondary">{suggestion.structure.name}</Badge>
+        </li>
+        <li>
+          <Badge variant="secondary" className="font-mono tabular-nums">
+            {t.page.expires(formatDate(sessionDateToDisplayDate(suggestion.horizon)))}
+          </Badge>
+        </li>
+        <li>
+          <Badge variant="secondary">{t.page.lot}</Badge>
+        </li>
+      </ul>
       <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-[14px]">
           <Panel>

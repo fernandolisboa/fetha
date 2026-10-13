@@ -99,6 +99,8 @@ const en = {
   },
   page: {
     overline: (date: string) => `Suggestion · close of ${date}`,
+    expires: (date: string) => `Expires ${date}`,
+    lot: "One standard lot",
     notesTitle: "How to read a suggestion",
     notes: [
       "The lot is one standard B3 lot: 100 per leg for each unit of the structure. Sizing it to your capital is up to you, in the builder.",
@@ -223,6 +225,8 @@ const ptBR = {
   },
   page: {
     overline: (date: string) => `Sugestão · fechamento de ${date}`,
+    expires: (date: string) => `Vence em ${date}`,
+    lot: "Um lote padrão",
     notesTitle: "Como ler uma sugestão",
     notes: [
       "O lote é um lote padrão da B3: 100 por perna para cada unidade da estrutura. Ajustar o tamanho ao seu capital fica com você, no simulador.",
