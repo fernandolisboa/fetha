@@ -172,6 +172,14 @@ copies one into their own strategies in one click from the asset page; the copy 
 strategy. The radar and suggestions match recipes, not copies. Shown as "receita".
 _Avoid_: template, preset, reference strategy (that is a catalog entry's default selection)
 
+**Radar** (pt-BR: _Radar_):
+The nightly, shared read of every liquid optionable underlying against the recipes (ADR-0066):
+its universe is the underlyings with an IV index point on the session whose options traded on at
+least 17 of the last 21 sessions. A recipe "found an entry" on an underlying when its entry
+condition held at the close and one unit of its structure resolves to listed series. Shown as a
+tab of the watchlist page; reference data, never a user's strategy.
+_Avoid_: screener, scanner, recommendations, ranking
+
 **Expected move**:
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or
 `big_move` (either way). Stated by the user; a recipe only maps it to a structure.

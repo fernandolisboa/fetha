@@ -3,6 +3,7 @@ const en = {
     overline: "Watchlist",
     title: "Watchlist",
   },
+  tabs: { watchlist: "Watchlist", radar: "Radar" },
   add: {
     trigger: "Add instrument",
     placeholder: "Search by ticker",
@@ -60,6 +61,7 @@ const ptBR = {
     overline: "Watchlist",
     title: "Watchlist",
   },
+  tabs: { watchlist: "Watchlist", radar: "Radar" },
   add: {
     trigger: "Adicionar ativo",
     placeholder: "Buscar pelo código",

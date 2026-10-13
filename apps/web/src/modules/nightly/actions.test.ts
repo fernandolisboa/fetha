@@ -32,6 +32,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [{ decisionId: "someone-elses-decision", kind: "engine_error:boom" }],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -109,6 +110,7 @@ describe("triggerNightlyJobAction", () => {
         signalsWritten: 3,
         decisionsScored: 2,
         analysesScored: 0,
+        radar: null,
         evaluationErrorCount: 0,
         scoringErrorCount: 1,
       },
@@ -144,6 +146,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "",
         usersScored: 0,
@@ -193,6 +196,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "",
         usersScored: 0,
@@ -243,6 +247,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -279,6 +284,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 1,
@@ -320,6 +326,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -357,6 +364,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -394,6 +402,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -434,6 +443,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -578,6 +588,7 @@ describe("triggerNightlyJobAction", () => {
               decisionsSkipped: 0,
               errors: [],
             },
+            radar: null,
             analysisScoring: {
               asOfSession: "2026-09-08",
               usersScored: 0,
