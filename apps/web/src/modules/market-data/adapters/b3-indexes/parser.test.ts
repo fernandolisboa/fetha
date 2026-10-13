@@ -84,4 +84,62 @@ describe("parseIndexYear", () => {
   it("rejects a malformed payload", () => {
     expect(() => parseIndexYear(2026, { results: "not-an-array" })).toThrow();
   });
+
+  it("converts the ticket's own example exactly (#307)", () => {
+    const row = {
+      day: 1,
+      rateValue1: "184.691,05",
+      rateValue2: null,
+      rateValue3: null,
+      rateValue4: null,
+      rateValue5: null,
+      rateValue6: null,
+      rateValue7: null,
+      rateValue8: null,
+      rateValue9: null,
+      rateValue10: null,
+      rateValue11: null,
+      rateValue12: null,
+    };
+    const points = parseIndexYear(2026, { results: [row] });
+    expect(points).toEqual([{ date: "2026-01-01", close: "184691.050000" }]);
+  });
+
+  describe("a non-numeric or malformed day value (#289, #307 round 2)", () => {
+    function rowWith(value: string) {
+      return {
+        day: 1,
+        rateValue1: value,
+        rateValue2: null,
+        rateValue3: null,
+        rateValue4: null,
+        rateValue5: null,
+        rateValue6: null,
+        rateValue7: null,
+        rateValue8: null,
+        rateValue9: null,
+        rateValue10: null,
+        rateValue11: null,
+        rateValue12: null,
+      };
+    }
+
+    it.each(["N/D", "NaN", "Infinity", "-1.234,56", "209066.90"])(
+      "rejects %s without reading it as a valid value",
+      (value) => {
+        expect(() => parseIndexYear(2026, { results: [rowWith(value)] })).toThrow();
+      },
+    );
+
+    it("never quotes the provider text in the thrown message", () => {
+      expect(() => parseIndexYear(2026, { results: [rowWith("NaN")] })).toThrow(
+        "B3 index statistics returned a non-numeric value for 2026-01-01",
+      );
+      try {
+        parseIndexYear(2026, { results: [rowWith("NaN")] });
+      } catch (error) {
+        expect(String(error)).not.toContain("NaN");
+      }
+    });
+  });
 });

@@ -1,7 +1,16 @@
 import Decimal from "decimal.js";
+import { positiveDecimalSchema } from "@fetha/contracts";
 
 import { indexPortfolioDayResponseSchema, monthColumns } from "./schema";
 import type { IndexClosePoint, IndexDayRow } from "./schema";
+
+// B3's own Brazilian number format, strictly: 1 to 3 digits, then zero or more
+// exactly-3-digit thousands groups, then an optional comma decimal part. An
+// en-US `209066.90` fails this (the digits before its lone "." are not a
+// 1-3-digit group), as does "N/D", "NaN", "Infinity" or a leading "-" (#289:
+// never let a provider string reach `Decimal`'s own constructor, which quotes
+// its input verbatim in the thrown message).
+const BRAZILIAN_NUMBER_PATTERN = /^\d{1,3}(\.\d{3})*(,\d+)?$/;
 
 function isValidCalendarDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -17,10 +26,20 @@ function isoDate(year: number, month: number, day: number): string {
 }
 
 // "160.538,69" -> "160538.69": B3's own Brazilian number format, thousands
-// separator and decimal comma (ADR-0062).
-function parseBrazilianNumber(value: string): Decimal {
-  const normalized = value.trim().replaceAll(".", "").replace(",", ".");
-  return new Decimal(normalized);
+// separator and decimal comma (ADR-0062). `date` never reaches the thrown message: only the
+// provider's own text would (#289), and it is never trustworthy once it has failed the format
+// check below.
+function parseBrazilianNumber(value: string, date: string): Decimal {
+  const trimmed = value.trim();
+  if (!BRAZILIAN_NUMBER_PATTERN.test(trimmed)) {
+    throw new Error(`B3 index statistics returned a non-numeric value for ${date}`);
+  }
+  const normalized = trimmed.replaceAll(".", "").replace(",", ".");
+  const positive = positiveDecimalSchema.safeParse(normalized);
+  if (!positive.success) {
+    throw new Error(`B3 index statistics returned a non-numeric value for ${date}`);
+  }
+  return new Decimal(positive.data);
 }
 
 function closeAtDay(row: IndexDayRow, month: number): string | null | undefined {
@@ -49,9 +68,10 @@ export function parseIndexYear(year: number, body: unknown): IndexClosePoint[] {
       if (!isValidCalendarDate(year, month, row.day)) {
         throw new Error(`B3 index statistics returned a value for an impossible date`);
       }
+      const date = isoDate(year, month, row.day);
       points.push({
-        date: isoDate(year, month, row.day),
-        close: parseBrazilianNumber(raw).toFixed(6),
+        date,
+        close: parseBrazilianNumber(raw, date).toFixed(6),
       });
     }
   }
