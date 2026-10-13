@@ -53,45 +53,55 @@ export default async function WatchlistPage() {
             </Link>
           </p>
         )}
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-              <th className="py-2 font-normal">{t.table.columns.ticker}</th>
-              <th className="py-2 font-normal">{t.table.columns.reading}</th>
-              <th className="py-2 text-right font-normal">{t.table.columns.lastClose}</th>
-              <th className="py-2 text-right font-normal">{t.table.columns.session}</th>
-              <th className="py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.ticker} className="border-line-soft border-b">
-                <td className="py-2">
-                  <Link
-                    href={`/ativos/${item.ticker}`}
-                    className="font-mono uppercase underline-offset-4 hover:underline"
-                  >
-                    {item.ticker}
-                  </Link>
-                </td>
-                <td className="py-2">
-                  {item.reading && <AssetReadingChips reading={item.reading} />}
-                </td>
-                <td className="py-2 text-right font-mono tabular-nums">
-                  {item.lastClose ? formatPriceBRL(item.lastClose.close) : t.table.noClose}
-                </td>
-                <td className="text-muted-foreground py-2 text-right font-mono tabular-nums">
-                  {item.lastClose
-                    ? formatDate(new Date(`${item.lastClose.session}T12:00:00Z`))
-                    : "—"}
-                </td>
-                <td className="py-2 text-right">
-                  <RemoveFromWatchlistButton ticker={item.ticker} />
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                <th className="py-2 pr-4 font-normal whitespace-nowrap">
+                  {t.table.columns.ticker}
+                </th>
+                <th className="py-2 pr-4 font-normal whitespace-nowrap">
+                  {t.table.columns.reading}
+                </th>
+                <th className="py-2 pr-4 text-right font-normal whitespace-nowrap">
+                  {t.table.columns.lastClose}
+                </th>
+                <th className="py-2 pr-4 text-right font-normal whitespace-nowrap">
+                  {t.table.columns.session}
+                </th>
+                <th className="py-2 font-normal" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.ticker} className="border-line-soft border-b">
+                  <td className="py-2 pr-4 whitespace-nowrap">
+                    <Link
+                      href={`/ativos/${item.ticker}`}
+                      className="font-mono uppercase underline-offset-4 hover:underline"
+                    >
+                      {item.ticker}
+                    </Link>
+                  </td>
+                  <td className="py-2 pr-4">
+                    {item.reading && <AssetReadingChips reading={item.reading} />}
+                  </td>
+                  <td className="py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
+                    {item.lastClose ? formatPriceBRL(item.lastClose.close) : t.table.noClose}
+                  </td>
+                  <td className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
+                    {item.lastClose
+                      ? formatDate(new Date(`${item.lastClose.session}T12:00:00Z`))
+                      : "—"}
+                  </td>
+                  <td className="py-2 text-right whitespace-nowrap">
+                    <RemoveFromWatchlistButton ticker={item.ticker} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Panel>
     </div>
   );
