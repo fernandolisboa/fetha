@@ -41,8 +41,8 @@ const en = {
     },
     recipe: {
       title: "Use a ready recipe",
-      body: "Ready-made strategies by market view, backtested on this asset in one click.",
-      soon: "soon",
+      body: "Ready-made strategies chosen by what you expect from the asset, backtested on it in one click.",
+      action: "Choose a recipe",
     },
     strategy: {
       active:
@@ -103,8 +103,8 @@ const ptBR = {
     },
     recipe: {
       title: "Usar uma receita pronta",
-      body: "Estratégias prontas por visão de mercado, com backtest neste ativo em um clique.",
-      soon: "em breve",
+      body: "Estratégias prontas escolhidas pelo que você espera do ativo, com backtest nele em um clique.",
+      action: "Escolher uma receita",
     },
     strategy: {
       active:

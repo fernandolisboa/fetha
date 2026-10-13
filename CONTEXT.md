@@ -26,10 +26,11 @@ capability over one system job, not a tenancy role — it changes nothing about 
 | `preferences` | per-user workstation settings (theme, rail collapse state, guided-tour dismissal)                                                                                                                                                                                                                                                                                                                                    | the current user's preferences                                                         |
 | `market-data` | reference data (daily candles, option series, daily option prices, corporate-action factors, macro series, exchange rates/PTAX (ADR-0061), trading calendar, the implied-volatility index computed nightly from the others, ADR-0054; company filings delivered to the CVM and the ticker-to-CNPJ map, ADR-0060) and the per-user intraday tier (live quotes, chain, intraday candles fetched with the user's token) | data views by instrument, timeframe and date range; the `MarketDataProvider` interface |
 | `engine`      | every computation: indicators, fair value, implied volatility, greeks, payoff, backtest runs, risk metrics, scoring, the asset reading (trend/momentum/range/IV/option-liquidity labels, ADR-0059)                                                                                                                                                                                                                   | a pure public interface, frozen by ADR-0013 (ADR-0006 sets the boundary)               |
-| `strategies`  | the catalog of structures and reference strategies; each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                                                                                                                                                                                                             | the structure catalog, strategy versions, signals                                      |
+| `strategies`  | the catalog of structures and reference strategies; the recipe book (ADR-0064); each user's strategies and versions; sharing; signal evaluation and the signal inbox                                                                                                                                                                                                                                                 | the structure catalog, strategy versions, signals                                      |
 | `watchlist`   | each user's list of followed instruments                                                                                                                                                                                                                                                                                                                                                                             | the current user's watchlist                                                           |
 | `portfolio`   | fills (manual or imported from the B3 export), positions, operations and their lifecycle, contemplated operations, mark to market, risk profile and limit checks                                                                                                                                                                                                                                                     | the portfolio view, operation lifecycle commands, the operation builder                |
 | `backtests`   | backtest runs, their checkpoints and reports                                                                                                                                                                                                                                                                                                                                                                         | run creation, chunked resume, the report, the comparison of runs                       |
+| `recipes`     | nothing of its own: the one-click flow that copies a recipe (ADR-0064) into the user's strategies, adds the instrument to the watchlist and starts its backtest                                                                                                                                                                                                                                                      | the recipe picker on the asset page, `startRecipeAction`                               |
 | `decisions`   | decisions, theses, AI analyses, the journal and scores                                                                                                                                                                                                                                                                                                                                                               | the journal, analysis requests                                                         |
 | `nightly`     | the purge → ingest → evaluate → score sequence the nightly job runs (ADR-0042); the redacted per-run report (`nightly_runs`, ADR-0045)                                                                                                                                                                                                                                                                               | `runNightlyJobRecorded`, the owner's manual trigger action                             |
 
@@ -78,12 +79,17 @@ exposing module's interface, never through its tables.
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
    Saving the priced structure records a Contemplated Operation, a snapshot the user can revisit
    before deciding; it is not an Operation and opens no position.
-4. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
+4. **Start from a recipe.** On the asset page the user says what they expect the instrument to
+   do and how much they accept to lose per operation; Fetha lists the matching recipes (ADR-0064),
+   copies the chosen one into the user's strategies as a new inactive strategy, adds the
+   instrument to the watchlist, backtests it over the last two years and opens the report. The
+   user turns the strategy on from there.
+5. **Backtest.** A strategy version, a universe, a period, an initial capital, a cost model and a
    sizing rule produce an immutable, reproducible run: simulated operations and fills, equity
    curve, metrics, walk-forward view. Fills happen in the next session of a daily run (ADR-0004)
    or the next candle of the strategy timeframe in an intraday run (ADR-0011, as sharpened by
    ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
-5. **Decide and journal.** From a signal, a contemplated operation, a held operation or a
+6. **Decide and journal.** From a signal, a contemplated operation, a held operation or a
    complete backtest run, the user may request one AI analysis (on demand, a monthly cap per
    user, ADR-0057): the engine's own computed facts go in as a checked `AnalysisInputs` tree, the
    model's reply is validated against the output contract and a citation check before it is ever
@@ -94,12 +100,12 @@ exposing module's interface, never through its tables.
    once any expired option is settled (ADR-0022). At the horizon the engine scores the decision
    (#29, ADR-0005), and each analysis's outlook the same way (ADR-0058); the journal shows
    analyses under the decisions they informed, and the track record keeps the two apart.
-6. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
+7. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
    confirms or corrects. Only fills and operations are stored; positions and cash are derived
    from fills, and cash starts from the declared capital (ADR-0021).
-7. **Read an asset without a strategy.** The watchlist and the asset page show the engine's
+8. **Read an asset without a strategy.** The watchlist and the asset page show the engine's
    reading of each asset (trend, RSI, daily range, implied volatility, option liquidity) with a
    closed label and a templated sentence, computed on each request, never stored, no AI
    (ADR-0059). The asset page lists the next steps: keep following, study an operation in the

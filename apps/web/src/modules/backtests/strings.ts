@@ -216,6 +216,19 @@ const en = {
   },
   networkError: "Network error. Try again.",
   tooManyActive: "You already have two backtests in progress. Finish one before starting another.",
+  readingNotes: {
+    title: "How to read this result",
+    items: [
+      "Total return: how much the initial capital gained or lost over the period, after fees and taxes.",
+      "Max drawdown: the largest fall of the equity from a previous peak. It is the scare you would have lived through.",
+      "Win rate and profit factor: with few operations these numbers swing a lot; trust them more once there are dozens.",
+      "Zero operations usually means the entry conditions never happened in the period, or there was not enough history yet (volatility, for instance). It can also mean no option had the strike and expiry the rules ask for, or the operation did not fit what you accept to lose.",
+      "The past does not promise the future: a backtest shows how the rules would have behaved, not how they will.",
+    ],
+    nextStep:
+      "If the result makes sense to you, turn the strategy on: Fetha evaluates it every night and tells you in Signals when its entry conditions show up.",
+    strategyLink: "Open the strategy",
+  },
 };
 
 const ptBR = {
@@ -437,6 +450,19 @@ const ptBR = {
   networkError: "Erro de rede. Tente novamente.",
   tooManyActive:
     "Você já tem dois backtests em andamento. Conclua ou descarte um deles antes de começar outro.",
+  readingNotes: {
+    title: "Como ler este resultado",
+    items: [
+      "Retorno total: quanto o capital inicial ganhou ou perdeu no período, já descontadas taxas e impostos.",
+      "Drawdown máximo: a maior queda do patrimônio a partir de um pico anterior. É o tamanho do susto que você teria passado.",
+      "Taxa de acerto e fator de lucro: com poucas operações, esses números variam muito; confie mais neles quando houver dezenas.",
+      "Nenhuma operação costuma querer dizer que as condições de entrada não aconteceram no período ou que ainda faltava histórico (de volatilidade, por exemplo). Também pode ser que não houvesse opção com o strike e o vencimento das regras, ou que a operação não coubesse no valor que você aceita perder.",
+      "O passado não garante o futuro: o backtest mostra como as regras teriam se comportado, não como vão se comportar.",
+    ],
+    nextStep:
+      "Se o resultado fizer sentido para você, ative a estratégia: o Fetha passa a avaliá-la toda noite e avisa em Sinais quando as condições de entrada aparecerem.",
+    strategyLink: "Abrir a estratégia",
+  },
 } satisfies typeof en;
 
 export const backtestsStrings = { en, ptBR } as const;

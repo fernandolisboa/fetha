@@ -67,3 +67,4 @@ supersedes or amends them and says so.
 | 0059 | The asset reading: engine labels from project-default thresholds (#304, amends 0013)                                    |
 | 0060 | Company filings come from CVM open data, mapped to tickers by CNPJ (#309, amends 0007, 0017, 0045, 0054)                |
 | 0061 | Exchange rates are read-only PTAX reference series (#305, amends 0007, 0017)                                            |
+| 0064 | Recipes are shared, read-only strategy definitions chosen by expected move (#306, amends 0053)                          |
