@@ -38,6 +38,15 @@ const DEFAULT_MAX_DURATION_MS = 300_000;
 // inside `computeIvIndexForSession`.
 const IV_INDEX_START_BUDGET_FRACTION = 0.4;
 const IV_INDEX_HARD_STOP_FRACTION = 0.6;
+// Starting an older sgs gap session is gated at 40% of maxDurationMs,
+// counted from ingest()'s own start, and the newest one at iv_index's 60%
+// hard stop (#298). A stalled Bacen costs about 31 s per session (15 s
+// timeout, 1 s pause, 15 s retry, then the first series' failure aborts the
+// rest), so up to ten gap sessions could otherwise outlast the route. A Bacen
+// slow on all three series can hold one session for about 93 s, which can
+// push tonight's iv_index session past its hard stop; that run still ends in
+// time to record itself, and the next run retries both.
+const SGS_START_BUDGET_FRACTION = 0.4;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -384,6 +393,9 @@ export interface IngestOptions {
   // without touching `maxDurationMs` itself, which `reapStaleRunningRuns`
   // also uses as a cutoff for every other source in the same invocation.
   ivIndexBudgetMs?: number;
+  // Overrides `maxDurationMs * SGS_START_BUDGET_FRACTION`, for the same
+  // reason as `ivIndexBudgetMs`.
+  sgsBudgetMs?: number;
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
@@ -438,45 +450,65 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     },
   );
 
+  const ivIndexHardStopAt = startedAt + maxDurationMs * IV_INDEX_HARD_STOP_FRACTION;
+
   const sgsSessions = await resolveSessions("sgs");
-  const sgsResult = await runSessionBoundSource(
+  const sgsRun = async (session: string): Promise<RunResult> => {
+    let total = 0;
+    const notPublished: string[] = [];
+    for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
+      const latest = await latestMacroPointDate(db, series);
+      const from = resolveSgsFromDate(latest);
+      if (from > session) {
+        continue;
+      }
+      const sessions = await sessionsFrom(db, from);
+      try {
+        const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
+        total += await upsertMacroPoints(db, points);
+      } catch (error) {
+        if (!(error instanceof SgsNotPublishedError)) {
+          throw error;
+        }
+        notPublished.push(series);
+      }
+    }
+    if (notPublished.length === 0) {
+      return total;
+    }
+    // Only the newest session can legitimately be unpublished: Bacen
+    // publishes a session's CDI the next morning, so a value still missing
+    // a session later is a real failure (a retired series, a bad range),
+    // not something to keep reporting as pending (docs/adr/0017, #216).
+    if (session !== sgsSessions.at(-1)) {
+      throw new Error(`SGS has not published ${notPublished.join(", ")} for ${session}`);
+    }
+    return { rowCount: total, pending: true };
+  };
+  // Mirrors iv_index's split (docs/adr/0054): the newest session carries the
+  // CDI tonight's IV index needs, so it may start until iv_index's own hard
+  // stop, while every older gap stops starting at the 40% budget. Older gaps
+  // still run first: the "only the newest is pending" rule above and the
+  // cumulative `from`..`session` fetch both rely on oldest-first order, and
+  // the newest session's fetch also fills any older gap deferred here.
+  const sgsOlderResult = await runSessionBoundSource(
     db,
     "sgs",
-    sgsSessions,
+    sgsSessions.slice(0, -1),
     maxDurationMs,
-    async (session) => {
-      let total = 0;
-      const notPublished: string[] = [];
-      for (const series of Object.keys(sgsSeriesCodes) as Array<keyof typeof sgsSeriesCodes>) {
-        const latest = await latestMacroPointDate(db, series);
-        const from = resolveSgsFromDate(latest);
-        if (from > session) {
-          continue;
-        }
-        const sessions = await sessionsFrom(db, from);
-        try {
-          const points = await fetchSgsSeries(series, from, session, sessions, fetchImpl);
-          total += await upsertMacroPoints(db, points);
-        } catch (error) {
-          if (!(error instanceof SgsNotPublishedError)) {
-            throw error;
-          }
-          notPublished.push(series);
-        }
-      }
-      if (notPublished.length === 0) {
-        return total;
-      }
-      // Only the newest session can legitimately be unpublished: Bacen
-      // publishes a session's CDI the next morning, so a value still missing
-      // a session later is a real failure (a retired series, a bad range),
-      // not something to keep reporting as pending (docs/adr/0017, #216).
-      if (session !== sgsSessions.at(-1)) {
-        throw new Error(`SGS has not published ${notPublished.join(", ")} for ${session}`);
-      }
-      return { rowCount: total, pending: true };
-    },
+    sgsRun,
+    startedAt + (options.sgsBudgetMs ?? maxDurationMs * SGS_START_BUDGET_FRACTION),
   );
+  const sgsNewestSession = sgsSessions.at(-1);
+  const sgsNewestResult = await runSessionBoundSource(
+    db,
+    "sgs",
+    sgsNewestSession ? [sgsNewestSession] : [],
+    maxDurationMs,
+    sgsRun,
+    ivIndexHardStopAt,
+  );
+  const sgsOutcome = mergeOutcomes("sgs", [sgsOlderResult.outcome, sgsNewestResult.outcome]);
 
   // Runs after cotahist and instruments, over the same recent window plus an
   // older backfill batch (docs/adr/0054): the compute step needs that
@@ -500,7 +532,6 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const ivIndexRestSessions = [
     ...new Set([...ivIndexRecentSessions.slice(0, -1)].reverse().concat(ivIndexBackfillCandidates)),
   ];
-  const ivIndexHardStopAt = startedAt + maxDurationMs * IV_INDEX_HARD_STOP_FRACTION;
   const ivIndexRun = async (session: string): Promise<RunResult> => {
     const [cotahistRun, instrumentsRun] = await Promise.all([
       findSucceededRun(db, "cotahist", session),
@@ -570,7 +601,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     calendarOutcome,
     cotahistResult.outcome,
     instrumentsResult.outcome,
-    sgsResult.outcome,
+    sgsOutcome,
     session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
   ];
 

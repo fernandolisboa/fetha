@@ -177,3 +177,10 @@ does move: the insert defaults it to `now()` and the upsert's `onConflictDoUpdat
   expiries bracketed 30 days) and a `notes` array (e.g. `dividend_yield_defaulted`); neither is
   persisted. A later ticket that needs to show which series a stored point came from, or surface
   the notes that applied when it was computed, has to recompute rather than read them back.
+
+## Addendum: `sgs` has a start deadline too (2026-10-13, #298)
+
+The deadline parameter of `runSessionBoundSource` is no longer `Infinity` for every source but
+`iv_index`: `sgs` uses the same 40% start budget for its older gaps and this ADR's 60% hard stop
+for its newest session, since that session's CDI is what tonight's IV index needs (ADR-0017
+addendum).
