@@ -4,13 +4,13 @@ import {
   analysisSubjectKindSchema,
   confidenceSchema,
   storedAnalysisOutputSchema,
-  thesisClaimSchema,
+  analysisOutlookClaimSchema,
   type AnalysisInputs,
   type AnalysisSubjectKind,
   type Confidence,
   type SessionDate,
   type StoredAnalysisOutput,
-  type ThesisClaim,
+  type AnalysisOutlookClaim,
 } from "@fetha/contracts";
 
 import type { Database, Transaction } from "@/db/client";
@@ -44,7 +44,7 @@ export type AnalysisOutcome = "accepted" | "rejected" | "failed";
 // An accepted outlook in the engine's own terms (docs/adr/0058), resolved
 // before the result row is written.
 export interface AnalysisClaim {
-  claim: ThesisClaim;
+  claim: AnalysisOutlookClaim;
   confidence: Confidence;
   horizon: SessionDate;
 }
@@ -115,7 +115,7 @@ function toAnalysisClaim(row: {
     return null;
   }
   return {
-    claim: thesisClaimSchema.parse(row.claim),
+    claim: analysisOutlookClaimSchema.parse(row.claim),
     confidence: confidenceSchema.parse(row.claimConfidence),
     horizon: row.horizon,
   };

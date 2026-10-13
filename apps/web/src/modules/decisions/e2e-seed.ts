@@ -5,6 +5,7 @@ import type {
   ContemplatedLeg,
   SessionDate,
   ThesisClaim,
+  AnalysisOutlookClaim,
   Ticker,
 } from "@fetha/contracts";
 
@@ -35,7 +36,7 @@ export interface SeedE2EDecisionInput {
   rationale: string;
   // An accepted AI analysis of the same operation, requested just before the
   // decision, whose outlook the same nightly run scores (docs/adr/0058).
-  analysis: { requestedAt: Date; claim: ThesisClaim; claimConfidence: Confidence };
+  analysis: { requestedAt: Date; claim: AnalysisOutlookClaim; claimConfidence: Confidence };
 }
 
 export type SeedE2EDecisionResult =

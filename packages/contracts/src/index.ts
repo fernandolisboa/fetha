@@ -78,7 +78,13 @@ export {
 } from "./strategy-definition";
 export { contemplatedLegSchema, type ContemplatedLeg } from "./contemplated-leg";
 export { checkStrategyCoherence, type StrategyCoherenceResult } from "./strategy-coherence";
-export { thesisClaimKinds, thesisClaimSchema, type ThesisClaim } from "./thesis-claim";
+export {
+  analysisOutlookClaimSchema,
+  thesisClaimKinds,
+  thesisClaimSchema,
+  type AnalysisOutlookClaim,
+  type ThesisClaim,
+} from "./thesis-claim";
 export {
   backtestCheckpointSchema,
   backtestConfigSchema,

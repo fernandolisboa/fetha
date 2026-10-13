@@ -83,10 +83,11 @@ describe("outlookSentence", () => {
     );
   });
 
-  it("says when there is no outlook, including an analysis@1 reply", () => {
-    expect(outlookSentence(analysis({ output: v1Output, claim: null }))).toBe(
-      "Sem previsão verificável",
-    );
+  it("has no line for an analysis@1 reply, which was never asked for an outlook", () => {
+    expect(outlookSentence(analysis({ output: v1Output, claim: null }))).toBeNull();
+  });
+
+  it("says when a reply chose no outlook", () => {
     expect(outlookSentence(analysis({ output: { ...v2Output, outlook: null }, claim: null }))).toBe(
       "Sem previsão verificável",
     );

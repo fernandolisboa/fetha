@@ -36,16 +36,22 @@ export function analysisOrigin(analysis: Pick<JournalAnalysis, "inputs">): strin
 }
 
 // docs/adr/0058: the resolved claim when there is one, so the sentence shows
-// the horizon date the engine scores against.
-export function outlookSentence(analysis: Pick<JournalAnalysis, "output" | "claim">): string {
+// the horizon date the engine scores against. An `analysis@1` reply was never
+// asked for an outlook, so it gets no line at all.
+export function outlookSentence(
+  analysis: Pick<JournalAnalysis, "output" | "claim">,
+): string | null {
+  if (!("outlook" in analysis.output)) {
+    return null;
+  }
   const outlook = outlookOf(analysis.output);
   if (outlook === null) {
     return labels.outlookNone;
   }
-  const claim = analysis.claim?.claim;
-  if (!analysis.claim || !claim || claim.kind === "operation_pnl_positive") {
+  if (!analysis.claim) {
     return labels.outlookUndated;
   }
+  const { claim } = analysis.claim;
   return t.analysis.outlook(
     claim.instrument,
     claim.kind === "close_above" ? "above" : "below",
@@ -92,6 +98,7 @@ export function AnalysisJournalItem({
   score?: AnalysisScoreRow;
 }) {
   const outlook = outlookOf(analysis.output);
+  const sentence = outlookSentence(analysis);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
@@ -106,9 +113,11 @@ export function AnalysisJournalItem({
 
       <p className="text-sm text-pretty whitespace-pre-wrap">{analysis.output.thesis}</p>
 
-      <p className="text-muted-foreground text-sm">
-        {labels.outlookLabel}: {outlookSentence(analysis)}
-      </p>
+      {sentence !== null ? (
+        <p className="text-muted-foreground text-sm">
+          {labels.outlookLabel}: {sentence}
+        </p>
+      ) : null}
 
       <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
         {outlook !== null ? (

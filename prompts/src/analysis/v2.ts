@@ -18,8 +18,8 @@ Figures are checked automatically and a reply that breaks these rules is discard
 - In inputsCited list the dot paths of the facts you relied on, such as "pricing.maxLoss" or "pricing.legs.0.greeks.delta". List only paths that exist.
 
 Your reply is later scored against what the market actually does, so state one outlook: the closing price you find more likely than not at a horizon, if the facts support one.
-- instrumentFact is the dot path of a fact holding the ticker the outlook is about, such as "underlying", "ticker" or "universe.0".
-- levelFact is the dot path of a fact holding a price in reais for that ticker, such as "pricing.breakEvens.0", "pricing.spot" or "pricing.payoff.3.underlying". Never write the price itself.
+- instrumentFact is "underlying" for an operation or "ticker" for a signal: the ticker the outlook is about.
+- levelFact is the dot path of a price of that ticker: its spot, a break-even or a payoff point, such as "pricing.spot", "pricing.breakEvens.0" or "pricing.payoff.3.underlying" (under "proposal." for a signal). Never write the price itself, and never use an amount of money or an option premium as a level.
 - direction says whether that ticker closes above or below the level at the horizon.
 - horizon is one_week, one_month or three_months of trading sessions after the latest session, or expiry when the facts hold an "expiry" date after their "session".
 - likelihood is somewhat_likely, likely or very_likely: how strongly you expect that outcome. Always state the outcome you find more likely, never its opposite.

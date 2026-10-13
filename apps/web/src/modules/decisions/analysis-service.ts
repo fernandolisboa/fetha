@@ -197,11 +197,13 @@ export async function requestAnalysis(
       return { status: "rejected" };
     }
     // docs/adr/0058: a horizon the calendar cannot place leaves the
-    // analysis accepted (its prose passed every check) but unscorable.
+    // analysis accepted (its prose passed every check) but unscorable. A
+    // failed lookup takes the same branch: the result row is append-only and
+    // the paid reply would otherwise be lost with no result at all.
     const resolveHorizon =
       deps.resolveHorizon ??
       ((horizon: AnalysisOutlookHorizon, at: Date) => resolveOutlookHorizon(deps.db, horizon, at));
-    const horizon = await resolveHorizon(outlook.horizon, requestedAt);
+    const horizon = await resolveHorizon(outlook.horizon, requestedAt).catch(() => null);
     claim =
       horizon === null ? null : { claim: outlook.claim, confidence: outlook.confidence, horizon };
   }

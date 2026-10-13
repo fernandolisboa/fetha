@@ -3,12 +3,12 @@ import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import {
   analysisLikelihoods,
   confidenceSchema,
-  thesisClaimSchema,
-  analysisLikelihoodConfidence,
+  analysisOutlookClaimSchema,
+  outlookOf,
   type AnalysisLikelihood,
   type Confidence,
   type DecimalString,
-  type ThesisClaim,
+  type AnalysisOutlookClaim,
 } from "@fetha/contracts";
 import type { Score } from "@fetha/engine";
 
@@ -48,7 +48,7 @@ export interface AnalysisScoreRow {
 export interface DueAnalysisRow {
   requestId: string;
   requestedAt: Date;
-  claim: ThesisClaim;
+  claim: AnalysisOutlookClaim;
   confidence: Confidence;
   horizon: string;
 }
@@ -118,7 +118,7 @@ export class AnalysisScoresRepository extends UserScopedRepository {
             {
               requestId: row.requestId,
               requestedAt: row.requestedAt,
-              claim: thesisClaimSchema.parse(row.claim),
+              claim: analysisOutlookClaimSchema.parse(row.claim),
               confidence: confidenceSchema.parse(row.claimConfidence),
               horizon: row.horizon,
             },
@@ -156,7 +156,7 @@ export class AnalysisScoresRepository extends UserScopedRepository {
       .select({
         claimHeld: analysisScores.claimHeld,
         brier: analysisScores.brier,
-        claimConfidence: analysisResults.claimConfidence,
+        output: analysisResults.output,
       })
       .from(analysisScores)
       .innerJoin(
@@ -168,21 +168,19 @@ export class AnalysisScoresRepository extends UserScopedRepository {
       )
       .where(eq(analysisScores.userId, this.userId));
 
-    return computeAnalysisTrackRecordStats(rows);
+    return computeAnalysisTrackRecordStats(
+      rows.map(({ output, ...row }) => ({
+        ...row,
+        likelihood: output ? (outlookOf(output)?.likelihood ?? null) : null,
+      })),
+    );
   }
 }
 
 interface AnalysisTrackRecordSourceRow {
   claimHeld: boolean | null;
   brier: string | null;
-  claimConfidence: string | null;
-}
-
-function likelihoodOf(confidence: string | null): AnalysisLikelihood | undefined {
-  if (confidence === null) return undefined;
-  return analysisLikelihoods.find((likelihood) =>
-    new Decimal(analysisLikelihoodConfidence[likelihood]).equals(confidence),
-  );
+  likelihood: AnalysisLikelihood | null;
 }
 
 // Only rows the engine scored count: an unscorable row has no claim outcome.
@@ -202,7 +200,7 @@ export function computeAnalysisTrackRecordStats(
           .toFixed(4) as DecimalString);
 
   const likelihoodBuckets = analysisLikelihoods.flatMap((likelihood) => {
-    const inBucket = scored.filter((row) => likelihoodOf(row.claimConfidence) === likelihood);
+    const inBucket = scored.filter((row) => row.likelihood === likelihood);
     return inBucket.length === 0
       ? []
       : [

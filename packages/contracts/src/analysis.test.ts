@@ -229,6 +229,7 @@ const heldInputs: AnalysisInputs = {
     pricing: {
       spot: "R$ 35,80",
       maxLoss: "−R$ 10.452,00",
+      maxGain: "R$ 348,00",
       breakEvens: ["R$ 34,84"],
       payoff: [{ underlying: "R$ 1.030,00", pnl: "R$ 0,00" }],
       riskFreeRate: "10,65% a.a.",
@@ -334,6 +335,7 @@ describe("resolveAnalysisOutlook", () => {
     ["a missing path", { instrumentFact: "user.email" }],
     ["a price, not a ticker", { instrumentFact: "pricing.spot" }],
     ["a ticker list, not a ticker", { instrumentFact: "legs" }],
+    ["an option leg, not the subject's ticker", { instrumentFact: "legs.0.ticker" }],
   ])("refuses an instrument fact that is %s", (_, overrides) => {
     expect(resolveAnalysisOutlook(heldInputs, outlookWith(overrides))).toEqual({
       ok: false,
@@ -347,6 +349,8 @@ describe("resolveAnalysisOutlook", () => {
     ["a rate", "pricing.riskFreeRate"],
     ["a zero amount", "pricing.payoff.0.pnl"],
     ["a ticker", "underlying"],
+    ["an amount of money", "pricing.maxGain"],
+    ["an option premium", "legs.0.entryPrice"],
   ])("refuses a level fact that is %s", (_, levelFact) => {
     expect(resolveAnalysisOutlook(heldInputs, outlookWith({ levelFact }))).toEqual({
       ok: false,

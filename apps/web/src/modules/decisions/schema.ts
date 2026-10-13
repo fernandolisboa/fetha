@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { decisionKinds } from "@fetha/engine";
-import type { CostModel, ThesisClaim } from "@fetha/contracts";
+import type { AnalysisOutlookClaim, CostModel, ThesisClaim } from "@fetha/contracts";
 import type { Score } from "@fetha/engine";
 
 import { user } from "../auth/schema";
@@ -265,7 +265,7 @@ export const analysisResults = pgTable(
     model: text("model"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
-    claim: jsonb("claim").$type<ThesisClaim | null>(),
+    claim: jsonb("claim").$type<AnalysisOutlookClaim | null>(),
     claimConfidence: numeric("claim_confidence", { mode: "string" }),
     horizon: date("horizon", { mode: "string" }),
     completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),

@@ -8,7 +8,7 @@ import {
   type Confidence,
   type SessionDate,
 } from "./scalars";
-import type { ThesisClaim } from "./thesis-claim";
+import type { AnalysisOutlookClaim } from "./thesis-claim";
 
 export const analysisSubjectKinds = [
   "signal",
@@ -136,13 +136,21 @@ export type AnalysisOutlookProblem = "instrument_fact" | "level_fact" | "expiry_
 export type ResolvedAnalysisOutlook =
   | {
       ok: true;
-      claim: Extract<ThesisClaim, { kind: "close_above" | "close_below" }>;
+      claim: AnalysisOutlookClaim;
       confidence: Confidence;
       horizon: AnalysisOutlookHorizon;
     }
   | { ok: false; problem: AnalysisOutlookProblem };
 
 const PRICE_FACT = /^R\$ (\d{1,3}(?:\.\d{3})*|\d+),(\d{2})$/;
+
+// The subject's own ticker, and only a per-share price of it: a money amount
+// (max gain, net premium) or an option premium is also written in reais but
+// is no level for the underlying, and would make a claim hold trivially
+// (docs/adr/0058).
+const INSTRUMENT_FACT_PATHS = new Set(["underlying", "ticker"]);
+const LEVEL_FACT_PATH =
+  /^(?:proposal\.)?pricing\.(?:spot|breakEvens\.\d+|payoff\.\d+\.underlying)$/;
 
 // A positive price in reais exactly as `formatPriceBRL` writes it
 // ("R$ 1.234,56"); anything else (a percentage, a negative amount, a count)
@@ -171,12 +179,15 @@ export function resolveAnalysisOutlook(
   inputs: AnalysisInputs,
   outlook: AnalysisOutlook,
 ): ResolvedAnalysisOutlook {
-  const instrumentFact = factAt(inputs.facts, outlook.instrumentFact);
-  const instrument = tickerSchema.safeParse(instrumentFact);
-  if (!instrument.success) {
+  const instrument = INSTRUMENT_FACT_PATHS.has(outlook.instrumentFact)
+    ? tickerSchema.safeParse(factAt(inputs.facts, outlook.instrumentFact))
+    : null;
+  if (!instrument?.success) {
     return { ok: false, problem: "instrument_fact" };
   }
-  const levelFact = factAt(inputs.facts, outlook.levelFact);
+  const levelFact = LEVEL_FACT_PATH.test(outlook.levelFact)
+    ? factAt(inputs.facts, outlook.levelFact)
+    : undefined;
   const level = typeof levelFact === "string" ? priceFromFact(levelFact) : null;
   if (level === null) {
     return { ok: false, problem: "level_fact" };

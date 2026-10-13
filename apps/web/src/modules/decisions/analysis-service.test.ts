@@ -325,7 +325,10 @@ describe("requestAnalysis", () => {
     );
   });
 
-  it("accepts the analysis without a claim when the calendar cannot place its horizon", async () => {
+  it.each([
+    ["the calendar cannot place its horizon", () => Promise.resolve(null)],
+    ["the calendar lookup fails", () => Promise.reject(new Error("connection reset"))],
+  ])("accepts the analysis without a claim when %s", async (_, horizonLookup) => {
     const complete = vi.fn();
     const output: AnalysisOutputV2 = {
       ...acceptedOutput,
@@ -349,7 +352,7 @@ describe("requestAnalysis", () => {
           reserve: vi.fn().mockResolvedValue({ id: "req-1", requestedAt: REQUESTED_AT }),
           complete,
         },
-        resolveHorizon: vi.fn().mockResolvedValue(null),
+        resolveHorizon: vi.fn(horizonLookup),
       }),
       requestInput,
     );

@@ -458,7 +458,9 @@ _Avoid_: history, log, diary
 
 **Horizon**:
 The date at which a decision is scored: the date stated in its thesis or, by default, the
-expiry of its operation.
+expiry of its operation. For an analysis's outlook (ADR-0058), the session resolved at acceptance
+from `one_week`, `one_month`, `three_months` (5, 21, 63 sessions) or `expiry` against the trading
+calendar.
 _Avoid_: deadline, due date, target date
 
 **Score**:

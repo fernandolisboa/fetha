@@ -6,7 +6,11 @@ import { LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
 import { Circle } from "@visx/shape";
-import { decimalStringSchema, type DecimalString } from "@fetha/contracts";
+import {
+  analysisLikelihoodConfidence,
+  decimalStringSchema,
+  type DecimalString,
+} from "@fetha/contracts";
 
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
@@ -260,6 +264,7 @@ function AiCalibration({ stats }: { stats: AnalysisTrackRecordStats }) {
         <TableHeader>
           <TableRow>
             <TableHead>{t.trackRecord.aiLikelihoodHeader}</TableHead>
+            <TableHead className="text-right">{t.trackRecord.aiNominalHeader}</TableHead>
             <TableHead className="text-right">{t.trackRecord.aiCountHeader}</TableHead>
             <TableHead className="text-right">{t.trackRecord.calibrationHitRateHeader}</TableHead>
           </TableRow>
@@ -268,6 +273,9 @@ function AiCalibration({ stats }: { stats: AnalysisTrackRecordStats }) {
           {stats.likelihoodBuckets.map((bucket) => (
             <TableRow key={bucket.likelihood}>
               <TableCell>{t.analysis.likelihood[bucket.likelihood]}</TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {formatPercent(analysisLikelihoodConfidence[bucket.likelihood])}
+              </TableCell>
               <TableCell className="text-right font-mono tabular-nums">{bucket.count}</TableCell>
               <TableCell className="text-right font-mono tabular-nums">
                 {formatPercent(ratio(bucket.heldCount, bucket.count))}

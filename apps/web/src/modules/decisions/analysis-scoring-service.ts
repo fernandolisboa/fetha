@@ -54,9 +54,6 @@ async function buildAnalysisScoreInput(
     return { ok: false, reason: "build_failed:unresolvable_horizon_session" };
   }
   const decidedAt = instantSchema.parse(row.requestedAt.toISOString());
-  if (row.claim.kind === "operation_pnl_positive") {
-    return { ok: false, reason: "build_failed:invalid_inputs" };
-  }
   const view = await buildOperationMarketView(db, row.claim.instrument, horizonSession.close, {
     from: decidedAt,
   });

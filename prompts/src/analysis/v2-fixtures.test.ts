@@ -110,6 +110,8 @@ describe("analysis@2 adversarial fixtures", () => {
   it.each([
     ["adversarial-written-level", "level_fact"],
     ["adversarial-level-not-a-price", "level_fact"],
+    ["adversarial-level-money-amount", "level_fact"],
+    ["adversarial-level-option-premium", "level_fact"],
     ["adversarial-instrument-not-a-ticker", "instrument_fact"],
     ["adversarial-expiry-without-expiry", "expiry_fact"],
   ])("%s: the outlook is refused (%s)", (name, problem) => {

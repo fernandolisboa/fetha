@@ -128,6 +128,7 @@ const en = {
     aiHitRateSentence: (held: number, total: number) =>
       `${String(held)}/${String(total)} outlooks confirmed`,
     aiLikelihoodHeader: "Stated likelihood",
+    aiNominalHeader: "Nominal probability",
     aiCountHeader: "Analyses",
   },
   analysis: {
@@ -318,6 +319,7 @@ const ptBR = {
     aiHitRateSentence: (held: number, total: number) =>
       `${String(held)} de ${String(total)} previsões confirmadas`,
     aiLikelihoodHeader: "Probabilidade declarada",
+    aiNominalHeader: "Equivale a",
     aiCountHeader: "Análises",
   },
   analysis: {

@@ -1,10 +1,8 @@
 export { allowedDecisionKinds } from "./allowed-kinds";
-export { AnalysisJournalItem } from "./components/analysis-journal-item";
 export { AnalysisPanel } from "./components/analysis-panel";
-export { JournalEntry } from "./components/journal-entry";
+export { JournalTimeline } from "./components/journal-timeline";
 export { TrackRecordPanel } from "./components/track-record-panel";
 export { type DecisionListItem } from "./decisions-repository";
-export { buildJournalTimeline, type JournalTimelineEntry } from "./journal-timeline";
 export { seedE2EDecision } from "./e2e-seed";
 export {
   getMyAnalysisScores,
