@@ -69,3 +69,4 @@ supersedes or amends them and says so.
 | 0061 | Exchange rates are read-only PTAX reference series (#305, amends 0007, 0017)                                                         |
 | 0063 | Index options carry a price factor; premiums are reais per contract, strikes and spot stay in points (#307, amends 0013; notes 0040) |
 | 0064 | Recipes are shared, read-only strategy definitions chosen by expected move (#306, amends 0053)                                       |
+| 0066 | The radar reads every liquid optionable underlying against the recipes, nightly (#308, amends 0042, 0045)                            |

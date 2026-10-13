@@ -32,6 +32,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [{ decisionId: "someone-elses-decision", kind: "engine_error:boom" }],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -109,6 +110,7 @@ describe("triggerNightlyJobAction", () => {
         signalsWritten: 3,
         decisionsScored: 2,
         analysesScored: 0,
+        radar: null,
         evaluationErrorCount: 0,
         scoringErrorCount: 1,
       },
@@ -144,6 +146,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "",
         usersScored: 0,
@@ -193,6 +196,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "",
         usersScored: 0,
@@ -243,6 +247,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -279,6 +284,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 1,
@@ -320,6 +326,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -357,6 +364,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -394,6 +402,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -434,6 +443,7 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      radar: null,
       analysisScoring: {
         asOfSession: "2026-09-08",
         usersScored: 0,
@@ -558,6 +568,31 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  it("summarizes the radar as read so far for the session, not only by this run (#308)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      radar: {
+        session: "2026-09-08",
+        status: "pending",
+        universe: 40,
+        readThisRun: 10,
+        pending: 10,
+        matches: 7,
+        errors: 0,
+      },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(result).toMatchObject({
+      status: "ok",
+      summary: { radar: { read: 30, universe: 40, matches: 7 } },
+    });
+  });
+
   it("rejects a second call while a run is already in progress", async () => {
     isOwnerMock.mockResolvedValue(true);
     let resolveJob: (() => void) | undefined;
@@ -578,6 +613,7 @@ describe("triggerNightlyJobAction", () => {
               decisionsSkipped: 0,
               errors: [],
             },
+            radar: null,
             analysisScoring: {
               asOfSession: "2026-09-08",
               usersScored: 0,
