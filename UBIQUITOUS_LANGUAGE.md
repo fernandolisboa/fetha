@@ -347,7 +347,8 @@ revision (ADR-0013's #90 addendum).
 _Avoid_: snapshot, save state, resume token
 
 **Universe**:
-The set of instruments a backtest run evaluates the strategy over.
+The set of instruments a backtest run evaluates the strategy over. The radar's universe (ADR-0066)
+is a different, global set: the liquid optionable underlyings it reads nightly.
 _Avoid_: watchlist (that is the live list), basket
 
 **Cost model**:

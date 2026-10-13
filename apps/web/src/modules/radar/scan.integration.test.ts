@@ -80,7 +80,27 @@ const NO_IV_TONIGHT: Scenario = {
   ticker: ticker("ZRN"),
   ivPointOn: (index) => index !== SCAN_INDEX,
 };
-const SCENARIOS = [UP_LOW_IV, DOWN_HIGH_IV, ILLIQUID, NO_IV_TONIGHT];
+// The liquidity rule's edges: 17 traded sessions of the 21 ending at the scanned one (itself
+// included) is in; 16 plus one just before the window is out.
+const LIQUID_AT_EDGE: Scenario = {
+  ...UP_LOW_IV,
+  ticker: ticker("ZRE"),
+  optionsTradeOn: (index) => index >= SCAN_INDEX - 16 && index <= SCAN_INDEX,
+};
+const ILLIQUID_AT_EDGE: Scenario = {
+  ...UP_LOW_IV,
+  ticker: ticker("ZRF"),
+  optionsTradeOn: (index) =>
+    index === SCAN_INDEX - 21 || (index >= SCAN_INDEX - 15 && index <= SCAN_INDEX),
+};
+const SCENARIOS = [
+  UP_LOW_IV,
+  DOWN_HIGH_IV,
+  ILLIQUID,
+  NO_IV_TONIGHT,
+  LIQUID_AT_EDGE,
+  ILLIQUID_AT_EDGE,
+];
 const underlyings = SCENARIOS.map((scenario) => scenario.ticker);
 const optionTickers: string[] = [];
 const insertedSessions: string[] = [];
@@ -107,8 +127,8 @@ function strikes(scenario: Scenario): number[] {
   return result;
 }
 
-// COTAHIST-shaped rows written through the same writers ingestion uses: the recorded COTAHIST
-// sample holds one session, and a recipe's entry reads 84 sessions of history.
+// COTAHIST-shaped candles go through ingestion's candle writer and options are inserted directly:
+// the recorded COTAHIST sample holds one session, and a recipe's entry reads 84 sessions of history.
 async function seedScenario(scenario: Scenario): Promise<void> {
   const db = getDb();
   for (const [index, session] of SESSIONS.entries()) {
@@ -247,11 +267,17 @@ describe("scanRadar (#308)", () => {
 
     const outcome = await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
 
-    expect(outcome).toMatchObject({ status: "ok", universe: 2, scanned: 2, pending: 0, errors: 0 });
+    expect(outcome).toMatchObject({
+      status: "ok",
+      universe: 3,
+      readThisRun: 3,
+      pending: 0,
+      errors: 0,
+    });
     const radar = await latestRadar(getDb());
     expect(radar?.session).toBe(SCAN_SESSION);
     expect(radar?.readings.map((row) => row.underlying).sort()).toEqual(
-      [UP_LOW_IV.ticker, DOWN_HIGH_IV.ticker].sort(),
+      [UP_LOW_IV.ticker, DOWN_HIGH_IV.ticker, LIQUID_AT_EDGE.ticker].sort(),
     );
 
     const matched = (underlying: Ticker) =>
@@ -308,25 +334,50 @@ describe("scanRadar (#308)", () => {
   it("stops at the deadline and the next run reads what is left", async () => {
     await clearRadar();
 
+    // The deadline passes right after the universe is seeded, before the first read.
+    let clockReads = 0;
     const first = await scanRadar(getDb(), {
+      session: SCAN_SESSION,
+      ivIndexComputed: true,
+      deadlineAt: 1,
+      now: () => (clockReads++ === 0 ? 0 : 1),
+    });
+    expect(first).toMatchObject({ status: "pending", universe: 3, readThisRun: 0, pending: 3 });
+    const seeded = await getDb()
+      .select({ reading: radarReadings.reading })
+      .from(radarReadings)
+      .where(inArray(radarReadings.underlying, underlyings));
+    expect(seeded).toHaveLength(3);
+    expect(seeded.every((row) => row.reading === null)).toBe(true);
+    expect((await latestRadar(getDb()))?.session).not.toBe(SCAN_SESSION);
+
+    const second = await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
+    expect(second).toMatchObject({ status: "ok", universe: 3, readThisRun: 3, pending: 0 });
+  }, 120_000);
+
+  it("does no work at all when the deadline has already passed", async () => {
+    await clearRadar();
+
+    const outcome = await scanRadar(getDb(), {
       session: SCAN_SESSION,
       ivIndexComputed: true,
       deadlineAt: 0,
     });
-    expect(first).toMatchObject({ status: "pending", universe: 2, scanned: 0, pending: 2 });
-    const pendingRadar = await latestRadar(getDb());
-    expect(pendingRadar?.readings.every((row) => row.reading === null)).toBe(true);
 
-    const second = await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
-    expect(second).toMatchObject({ status: "ok", universe: 2, scanned: 2, pending: 0 });
-  }, 120_000);
+    expect(outcome).toMatchObject({ status: "pending", universe: 0, readThisRun: 0 });
+    const rows = await getDb()
+      .select()
+      .from(radarReadings)
+      .where(inArray(radarReadings.underlying, underlyings));
+    expect(rows).toHaveLength(0);
+  });
 
   it("waits for tonight's IV index before seeding the universe", async () => {
     await clearRadar();
 
     const outcome = await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: false });
 
-    expect(outcome).toMatchObject({ status: "pending", universe: 0, scanned: 0 });
+    expect(outcome).toMatchObject({ status: "pending", universe: 0, readThisRun: 0 });
     const rows = await getDb()
       .select()
       .from(radarReadings)

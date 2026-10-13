@@ -104,7 +104,9 @@ export async function RadarPanel() {
         )}
       </div>
       {radar.rows.length === 0 ? (
-        <p className="text-muted-foreground text-[13px]">{t.panel.none(date)}</p>
+        radar.pending.length === 0 && (
+          <p className="text-muted-foreground text-[13px]">{t.panel.none(date)}</p>
+        )
       ) : (
         <>
           <p className="text-muted-foreground text-xs">{t.panel.order}</p>

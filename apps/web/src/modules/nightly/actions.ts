@@ -23,7 +23,7 @@ export interface TriggerNightlyJobSummary {
   signalsWritten: number | null;
   decisionsScored: number;
   analysesScored: number;
-  radar: { scanned: number; universe: number; matches: number } | null;
+  radar: { read: number; universe: number; matches: number } | null;
   evaluationErrorCount: number;
   scoringErrorCount: number;
 }
@@ -101,7 +101,7 @@ function summarize(
     analysesScored: outcome.analysisScoring.analysesScored,
     radar: outcome.radar
       ? {
-          scanned: outcome.radar.universe - outcome.radar.pending,
+          read: outcome.radar.universe - outcome.radar.pending,
           universe: outcome.radar.universe,
           matches: outcome.radar.matches,
         }

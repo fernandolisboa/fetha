@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-13
 ---
 
-# The radar reads every liquid optionable underlying against the recipes, nightly (#308)
+# The radar reads every liquid optionable underlying against the recipes, nightly (#308, amends 0042, 0045)
 
 ## Context
 
@@ -25,7 +25,10 @@ on an underlying is the same fact for every user.
 2. **Nightly, shared, reference data.** After ingestion (and so after the IV index step),
    evaluation and scoring, the nightly job runs `scanRadar` on the newest ingested session, under
    the same deadline as the steps before it. Two tables in the new `radar` module, both without
-   `user_id`, written only by that step and read by every user, the IV index's class:
+   `user_id`, written only by that step and read by every user, the IV index's class. Outside
+   production the E2E seed route also files one fixture row (the `decisions` E2E seed
+   precedent); on a preview where the nightly has not seeded that session yet, the fixture is
+   the session's whole universe, which is acceptable for test data:
    - `radar_readings` (`underlying`, `session`, `as_of`, `reading`, `computed_at`): one row per
      universe underlying and session; `reading` is the engine's `AssetReading` at the session's
      close, null while the underlying is pending.
@@ -65,14 +68,16 @@ on an underlying is the same fact for every user.
    by an invented attractiveness score. The copy frames a row as a recipe's finding; the direct
    voice the owner chose (#303) belongs to suggestions (#311).
 8. **Report.** The nightly report (ADR-0045) gains `radar`: `status` (`ok`, `pending`,
-   `failed`), `universe`, `scanned`, `pending`, `matches` and an `errorCount`, or null when
-   cotahist did not succeed.
+   `failed`), `universe`, `readThisRun` (this run only; `universe - pending` is what the session
+   holds read so far, which the owner's panel shows), `pending`, `matches` and an `errorCount`, or
+   null when cotahist did not succeed.
 
 ## Consequences
 
 - Adding a recipe to the book adds it to the radar with no code change.
-- The radar shows only the newest session that has a universe; a session whose universe is empty
-  (not enough liquidity history yet) leaves the previous one on screen, dated.
+- The radar shows the newest session with at least one underlying read; a session seeded but not
+  read yet, or whose universe is empty (not enough liquidity history yet), leaves the previous one
+  on screen, dated. "No recipe found an entry" is said only once nothing is pending.
 - Rows accumulate one per universe underlying per session (tens a night); no retention yet.
 - A recipe removed from the book drops out of the screen even for sessions scanned with it.
 - `@fetha/contracts` exports `conditionIndicators`, already used to bound strategy writes, so the

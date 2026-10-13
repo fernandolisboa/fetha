@@ -70,7 +70,7 @@ function ResultBody({ result }: { result: PanelResult }) {
           <p>
             {result.summary.radar
               ? t.panel.radar(
-                  result.summary.radar.scanned,
+                  result.summary.radar.read,
                   result.summary.radar.universe,
                   result.summary.radar.matches,
                 )

@@ -220,7 +220,7 @@ describe("buildNightlyRunReport radar step", () => {
         session: "2026-09-08",
         status: "pending",
         universe: 40,
-        scanned: 30,
+        readThisRun: 10,
         pending: 10,
         matches: 7,
         errors: 2,
@@ -231,7 +231,7 @@ describe("buildNightlyRunReport radar step", () => {
       radar: {
         status: "pending",
         universe: 40,
-        scanned: 30,
+        readThisRun: 10,
         pending: 10,
         matches: 7,
         errorCount: 2,

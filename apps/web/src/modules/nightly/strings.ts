@@ -26,8 +26,8 @@ const en = {
     signalsWritten: (count: number) => `${String(count)} signals written`,
     decisionsScored: (count: number) => `${String(count)} decisions scored`,
     analysesScored: (count: number) => `${String(count)} AI analyses scored`,
-    radar: (scanned: number, universe: number, matches: number) =>
-      `Radar: ${String(scanned)} of ${String(universe)} underlyings read, ${String(matches)} recipe entries`,
+    radar: (read: number, universe: number, matches: number) =>
+      `Radar: ${String(read)} of ${String(universe)} underlyings read, ${String(matches)} recipe entries`,
     radarSkipped: "Radar: not run",
     evaluationErrors: (count: number) => `${countFormatterEn.format(count)} evaluation errors`,
     scoringErrors: (count: number) => `${countFormatterEn.format(count)} scoring errors`,
@@ -59,8 +59,8 @@ const ptBR = {
     signalsWritten: (count: number) => `${String(count)} sinais gerados`,
     decisionsScored: (count: number) => `${String(count)} decisões pontuadas`,
     analysesScored: (count: number) => `${String(count)} análises de IA pontuadas`,
-    radar: (scanned: number, universe: number, matches: number) =>
-      `Radar: ${String(scanned)} de ${String(universe)} ativos lidos, ${String(matches)} entradas de receitas`,
+    radar: (read: number, universe: number, matches: number) =>
+      `Radar: ${String(read)} de ${String(universe)} ativos lidos, ${String(matches)} entradas de receitas`,
     radarSkipped: "Radar: não rodou",
     evaluationErrors: (count: number) => `${countFormatterPtBR.format(count)} erros na avaliação`,
     scoringErrors: (count: number) => `${countFormatterPtBR.format(count)} erros na pontuação`,

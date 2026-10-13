@@ -46,7 +46,7 @@ describe("runNightlyJob", () => {
         session: input.session,
         status: "ok",
         universe: 0,
-        scanned: 0,
+        readThisRun: 0,
         pending: 0,
         matches: 0,
         errors: 0,

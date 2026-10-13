@@ -9,6 +9,7 @@ import {
 import {
   engine,
   type AssetReading,
+  type EngineErrorCode,
   type EvaluationOutcome,
   type IndicatorSeries,
   type MarketView,
@@ -26,7 +27,7 @@ export interface RadarMatch {
 }
 
 export type UnderlyingRead =
-  { ok: true; reading: AssetReading; matches: RadarMatch[] } | { ok: false; code: string };
+  { ok: true; reading: AssetReading; matches: RadarMatch[] } | { ok: false; code: EngineErrorCode };
 
 // The outcomes ADR-0014 (Q45) records only after the entry condition held: the radar has no
 // capital to size against, so `unsizeable` (no_declared_capital) is the usual one.

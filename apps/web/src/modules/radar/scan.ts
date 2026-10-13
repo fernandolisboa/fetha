@@ -28,7 +28,8 @@ export interface RadarScanOutcome {
   // because tonight's IV index is not computed; `failed` is a setup error.
   status: "ok" | "pending" | "failed";
   universe: number;
-  scanned: number;
+  // Underlyings this run read; `universe - pending` is what the session holds read so far.
+  readThisRun: number;
   pending: number;
   matches: number;
   errors: number;
@@ -48,7 +49,7 @@ function outcome(session: string, fields: Partial<RadarScanOutcome>): RadarScanO
     session,
     status: "ok",
     universe: 0,
-    scanned: 0,
+    readThisRun: 0,
     pending: 0,
     matches: 0,
     errors: 0,
@@ -62,9 +63,13 @@ function outcome(session: string, fields: Partial<RadarScanOutcome>): RadarScanO
 export async function scanRadar(db: Database, input: ScanRadarInput): Promise<RadarScanOutcome> {
   const { session } = input;
   const now = input.now ?? Date.now;
+  if (input.deadlineAt !== undefined && now() >= input.deadlineAt) {
+    return outcome(session, { status: "pending" });
+  }
 
   let pending: string[];
   let close: string;
+  let universe: number;
   try {
     const trading = await tradingSessionForDate(db, session);
     if (!trading) return outcome(session, { status: "failed", errors: 1 });
@@ -76,13 +81,14 @@ export async function scanRadar(db: Database, input: ScanRadarInput): Promise<Ra
       await seedUniverse(db, session, new Date(close), universe);
     }
     pending = await pendingUnderlyings(db, session);
+    universe = await universeSize(db, session);
   } catch (error) {
     console.error("radar scan setup failed", safeDbErrorMessage(error));
     return outcome(session, { status: "failed", errors: 1 });
   }
 
   const at = instantSchema.parse(close);
-  let scanned = 0;
+  let readThisRun = 0;
   let matches = 0;
   let errors = 0;
   for (const underlying of pending) {
@@ -96,7 +102,7 @@ export async function scanRadar(db: Database, input: ScanRadarInput): Promise<Ra
         continue;
       }
       await saveRead(db, { underlying, session, reading: read.reading, matches: read.matches });
-      scanned += 1;
+      readThisRun += 1;
       matches += read.matches.length;
     } catch (error) {
       console.error("radar scan failed for an underlying", safeDbErrorMessage(error));
@@ -104,19 +110,16 @@ export async function scanRadar(db: Database, input: ScanRadarInput): Promise<Ra
     }
   }
 
-  let universe: number;
   let left: number;
   try {
-    universe = await universeSize(db, session);
     left = (await pendingUnderlyings(db, session)).length;
   } catch {
-    universe = pending.length;
-    left = pending.length - scanned;
+    left = pending.length - readThisRun;
   }
   return outcome(session, {
     status: left > 0 ? "pending" : "ok",
     universe,
-    scanned,
+    readThisRun,
     pending: left,
     matches,
     errors,

@@ -1,5 +1,5 @@
 import type { AssetReading } from "@fetha/engine";
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 
@@ -98,12 +98,14 @@ export async function saveRead(
   });
 }
 
-// The newest session the radar holds a universe for, with every reading (null while pending)
-// and every match of that session.
+// The newest session the radar has read at least one underlying of, with every reading (null
+// while pending) and every match of that session. A session seeded but not read yet would claim
+// that no recipe found an entry at a close nothing was read at.
 export async function latestRadar(db: Database): Promise<StoredRadar | null> {
   const [latest] = await db
     .select({ session: radarReadings.session })
     .from(radarReadings)
+    .where(isNotNull(radarReadings.reading))
     .orderBy(desc(radarReadings.session))
     .limit(1);
   if (!latest) return null;

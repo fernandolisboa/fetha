@@ -44,7 +44,7 @@ const analysisScoringReportSchema = z.object({
 const radarReportSchema = z.object({
   status: z.enum(["ok", "pending", "failed"]),
   universe: z.number().int().nonnegative(),
-  scanned: z.number().int().nonnegative(),
+  readThisRun: z.number().int().nonnegative(),
   pending: z.number().int().nonnegative(),
   matches: z.number().int().nonnegative(),
   errorCount: z.number().int().nonnegative(),
@@ -134,7 +134,7 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       ? {
           status: outcome.radar.status,
           universe: outcome.radar.universe,
-          scanned: outcome.radar.scanned,
+          readThisRun: outcome.radar.readThisRun,
           pending: outcome.radar.pending,
           matches: outcome.radar.matches,
           errorCount: outcome.radar.errors,
