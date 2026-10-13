@@ -184,3 +184,9 @@ The deadline parameter of `runSessionBoundSource` is no longer `Infinity` for ev
 `iv_index`: `sgs` uses the same 40% start budget for its older gaps and this ADR's 60% hard stop
 for its newest session, since that session's CDI is what tonight's IV index needs (ADR-0017
 addendum).
+
+## Addendum: `cvm_filings` runs between the newest session and the backfill (2026-10-13, #309)
+
+After tonight's iv_index session and before the backfill, `ingest()` now reads the CVM filings
+(ADR-0060) under a 70% start budget, past the newest session's 60% hard stop, so it never delays
+the session tonight's evaluation reads and can only shorten the backfill's own budget.
