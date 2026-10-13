@@ -257,8 +257,15 @@
     {
       "idx": 36,
       "version": "7",
-      "when": 1791896122730,
-      "tag": "0036_exchange_rates",
+      "when": 1791897159092,
+      "tag": "0036_company_filings",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791902120845,
+      "tag": "0037_exchange_rates",
       "breakpoints": true
     }
   ]

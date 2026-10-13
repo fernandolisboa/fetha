@@ -75,3 +75,5 @@ export {
   latestExchangeRate,
   type ExchangeRateRow,
 } from "./repositories/exchange-rate-repository";
+export { companyFilingsForInstrument, type CompanyFilingsView } from "./company-filing-queries";
+export { CompanyFilingsList } from "./components/company-filings-list";

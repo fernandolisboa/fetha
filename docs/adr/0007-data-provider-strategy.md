@@ -45,3 +45,9 @@ sources: shared, read-only, ingested nightly by a new `ptax` source alongside `s
   provider's terms on serving cached data to third parties are not published; revisit if the
   user base grows beyond family and friends.
 - Scraping broker or B3 web pages: excluded by the terms-of-service rule.
+
+## Addendum: the CVM is a third public publisher (2026-10-13, #309, ADR-0060)
+
+Besides B3 and Bacen, the reference backbone now reads the CVM's open data (ODbL): listed
+companies' filings and the FCA's ticker-to-CNPJ table, fetched and parsed by `market-data` like the
+other reference sources, not behind `MarketDataProvider`.

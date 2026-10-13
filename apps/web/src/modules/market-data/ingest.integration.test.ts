@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { zipSync } from "fflate";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +9,8 @@ import { getDb } from "@/db/client";
 import {
   candles,
   exchangeRates,
+  companyFilings,
+  companyTickers,
   ingestionRuns,
   macroPoints,
   optionDailyPrices,
@@ -117,8 +122,25 @@ function buildSgsFixture(url: string): string {
   ]);
 }
 
+const CVM_FIXTURES = path.join(import.meta.dirname, "adapters", "cvm", "fixtures");
+const CVM_FIXTURE_CNPJS = ["33000167000101", "33592510000154", "00070698000111", "15073274000188"];
+const CVM_FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3", "ENGI11"];
+
+// The recorded CVM samples, served under whichever year's name was asked.
+function cvmFixtureResponse(input: string): Response {
+  const year = /_(\d{4})\.zip$/.exec(input)?.[1] ?? "";
+  const [entry, fixture] = input.includes("/IPE/")
+    ? [`ipe_cia_aberta_${year}.csv`, "ipe-sample.csv"]
+    : [`fca_cia_aberta_valor_mobiliario_${year}.csv`, "fca-valor-mobiliario-sample.csv"];
+  const bytes = new Uint8Array(readFileSync(path.join(CVM_FIXTURES, fixture)));
+  return new Response(zipSync({ [entry]: bytes }), { status: 200 });
+}
+
 function fakeFetch(session: string): typeof fetch {
   return ((input: string) => {
+    if (input.includes("dados.cvm.gov.br")) {
+      return Promise.resolve(cvmFixtureResponse(input));
+    }
     if (input.includes("InstDados/SerHist")) {
       return Promise.resolve(
         new Response(buildCotahistFixture(session) as unknown as BodyInit, { status: 200 }),
@@ -144,6 +166,9 @@ function fakeFetch(session: string): typeof fetch {
 // sessions a gap-draining invocation attempts in one call.
 function fakeFetchAnySession(): typeof fetch {
   return ((input: string) => {
+    if (input.includes("dados.cvm.gov.br")) {
+      return Promise.resolve(cvmFixtureResponse(input));
+    }
     const cotahistMatch = /COTAHIST_D(\d{2})(\d{2})(\d{4})\.ZIP/.exec(input);
     if (cotahistMatch) {
       const [, dd = "", mm = "", yyyy = ""] = cotahistMatch;
@@ -193,6 +218,8 @@ async function cleanup(): Promise<void> {
   }
   await db.delete(macroPoints).where(eq(macroPoints.date, TEST_SESSION));
   await db.delete(exchangeRates).where(lte(exchangeRates.date, TEST_SESSION));
+  await db.delete(companyFilings).where(inArray(companyFilings.cnpj, CVM_FIXTURE_CNPJS));
+  await db.delete(companyTickers).where(inArray(companyTickers.ticker, CVM_FIXTURE_TICKERS));
 }
 
 // Both before and after: the "drains" test below deliberately writes candles
@@ -293,7 +320,7 @@ describe("ingest", () => {
     }
   });
 
-  it("ingests all six sources for the target session and records a run per source", async () => {
+  it("ingests every source for the target session and records a run per source", async () => {
     const db = getDb();
     const result = await ingest(db, {
       session: TEST_SESSION,
@@ -303,7 +330,7 @@ describe("ingest", () => {
 
     expect(result.session).toBe(TEST_SESSION);
     expect(result.sources.map((s) => s.source).sort()).toEqual(
-      ["calendar", "cotahist", "instruments", "iv_index", "ptax", "sgs"].sort(),
+      ["calendar", "cotahist", "cvm_filings", "instruments", "iv_index", "ptax", "sgs"].sort(),
     );
     expect(result.ok).toBe(true);
     expect(result.sources.every((s) => s.error === undefined)).toBe(true);
@@ -564,7 +591,7 @@ describe("ingest", () => {
       .select()
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.session, TEST_SESSION), eq(ingestionRuns.status, "succeeded")));
-    expect(runs).toHaveLength(5);
+    expect(runs).toHaveLength(6);
   });
 
   it("rejects a COTAHIST file whose DATA field does not match the requested session and records the run as failed", async () => {
@@ -626,6 +653,19 @@ describe("ingest", () => {
     expect(succeededSessions).toContain(TEST_SESSION);
     expect(result.session).toBe(TEST_SESSION);
 
+    const succeededCvmSessions = await db
+      .select({ session: ingestionRuns.session })
+      .from(ingestionRuns)
+      .where(
+        and(
+          eq(ingestionRuns.source, "cvm_filings"),
+          eq(ingestionRuns.status, "succeeded"),
+          gte(ingestionRuns.session, WINDOW_FLOOR),
+          lte(ingestionRuns.session, TEST_SESSION),
+        ),
+      );
+    expect(succeededCvmSessions.map((run) => run.session).sort()).toEqual(succeededSessions);
+
     const secondRun = await ingest(db, {
       now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
       fetchImpl: fakeFetchAnySession(),
@@ -635,6 +675,69 @@ describe("ingest", () => {
     expect(secondCotahist?.skipped).toBe(true);
     expect(secondRun.session).toBe(TEST_SESSION);
   }, 120_000);
+
+  it("downloads the CVM files once for every drained gap and keeps a CVM failure out of ok", async () => {
+    const db = getDb();
+    const urls: string[] = [];
+    const base = fakeFetchAnySession();
+    const counting = ((input: string, init?: RequestInit) => {
+      urls.push(input);
+      return base(input, init);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: counting,
+    });
+
+    expect(
+      urls.filter((url) => url.includes("dados.cvm.gov.br/") && url.includes("/IPE/")),
+    ).toEqual(["https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_2026.zip"]);
+    expect(result.sources.find((s) => s.source === "cvm_filings")?.error).toBeUndefined();
+
+    await db.delete(ingestionRuns).where(eq(ingestionRuns.source, "cvm_filings"));
+    const failing = ((input: string, init?: RequestInit) =>
+      input.includes("dados.cvm.gov.br")
+        ? Promise.resolve(new Response("down", { status: 503 }))
+        : base(input, init)) as unknown as typeof fetch;
+    const failed = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T23:00:00.000Z`),
+      fetchImpl: failing,
+    });
+
+    expect(failed.ok).toBe(true);
+    expect(failed.sources.find((s) => s.source === "cvm_filings")?.error).toMatch(
+      /CVM fetch failed/,
+    );
+  }, 120_000);
+
+  it("defers the CVM filings, without downloading them, once their start budget has elapsed", async () => {
+    const db = getDb();
+    const urls: string[] = [];
+    const base = fakeFetch(TEST_SESSION);
+    const counting = ((input: string, init?: RequestInit) => {
+      urls.push(input);
+      return base(input, init);
+    }) as unknown as typeof fetch;
+
+    const result = await ingest(db, {
+      session: TEST_SESSION,
+      now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+      fetchImpl: counting,
+      cvmBudgetMs: 0,
+    });
+
+    expect(urls.some((url) => url.includes("dados.cvm.gov.br"))).toBe(false);
+    expect(result.sources.find((s) => s.source === "cvm_filings")).toEqual({
+      source: "cvm_filings",
+      skipped: false,
+      rowCount: 0,
+      pending: true,
+      deferred: 1,
+    });
+    expect(result.ok).toBe(true);
+  });
 
   it("reports session: null, not the latest closed session, when every drained gap fails", async () => {
     const db = getDb();

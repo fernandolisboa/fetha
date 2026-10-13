@@ -9,6 +9,8 @@ import { requireUser } from "@/modules/auth";
 import {
   CandleChart,
   CandleFormToggle,
+  CompanyFilingsList,
+  companyFilingsForInstrument,
   latestCandle,
   loadCandleSeries,
   t,
@@ -47,9 +49,10 @@ export default async function InstrumentPage({
   const form = resolveForm(rawForm);
 
   const db = getDb();
-  const [lastClose, seriesResult] = await Promise.all([
+  const [lastClose, seriesResult, filings] = await Promise.all([
     latestCandle(db, ticker),
     loadCandleSeries(db, ticker, form),
+    companyFilingsForInstrument(db, ticker),
   ]);
 
   if (!seriesResult.ok) {
@@ -89,6 +92,17 @@ export default async function InstrumentPage({
         ) : (
           <CandleChart candles={seriesResult.value.candles} />
         )}
+      </Panel>
+
+      <Panel
+        title={t.companyFilings.title}
+        subtitle={
+          filings.freshness
+            ? `${t.companyFilings.subtitle} ${filings.freshness}`
+            : t.companyFilings.subtitle
+        }
+      >
+        <CompanyFilingsList view={filings} />
       </Panel>
     </div>
   );

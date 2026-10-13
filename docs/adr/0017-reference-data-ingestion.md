@@ -566,6 +566,13 @@ A deferred `sgs` session is not an error and does not flip `ok`, but unlike `iv_
 backfill it is never routine, so the manual trigger logs the full outcome when it happens, and the
 nightly report keeps its `deferred` count (ADR-0045 addendum).
 
+## Addendum: a sixth source, `cvm_filings` (2026-10-13, #309, ADR-0060)
+
+The CVM's company filings (IPE) and its FCA securities table are a sixth source, natural keys
+`company_filings (protocol, version)` (insert-only) and `company_tickers (ticker)`. It is
+session-bound like the others, but one download serves every gap session of an invocation, and it
+stays out of `ingest().ok`. ADR-0060 has the details.
+
 ## Addendum: USD/BRL and EUR/BRL PTAX join the sources table (2026-10-13, #305, ADR-0059)
 
 | source         | adapter (`apps/web/src/modules/market-data/adapters/`) | natural key                   | cadence                                               |
