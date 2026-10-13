@@ -399,6 +399,13 @@ test("rail and header stay put while a long page scrolls", async ({ page, baseUR
   expect(headerBox?.y).toBe(0);
   expect(Math.abs((railBox?.y ?? 0) - 48)).toBeLessThanOrEqual(1);
   expect(Math.abs((railBox?.y ?? 0) + (railBox?.height ?? 0) - 600)).toBeLessThanOrEqual(1);
+
+  const panelTitle = page.getByRole("main").getByRole("heading", { level: 2, name: "Sinais" });
+  await panelTitle.evaluate((element) => {
+    element.scrollIntoView({ block: "start" });
+  });
+  const titleBox = await panelTitle.boundingBox();
+  expect(titleBox?.y ?? 0).toBeGreaterThanOrEqual(48);
 });
 
 test("collapsed rail keeps its foot inside its width", async ({ page, baseURL, request }) => {
