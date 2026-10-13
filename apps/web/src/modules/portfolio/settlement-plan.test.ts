@@ -322,6 +322,31 @@ describe("planSettlement (#271)", () => {
     expect(result).toEqual({ ok: false, reason: "invalid_choice" });
   });
 
+  it("ADR-0062: books a cash-settled leg's close at the Decimal default (round-half-up) rounding of cash / 100 / quantity (1000 centavos over 3 contracts)", () => {
+    const proposal = [
+      exercisedLeg({
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: 3 as never,
+          entryPrice: "193.05" as DecimalString,
+        },
+        intrinsicValue: "20.00" as DecimalString,
+        fills: [],
+        cashSettlementValue: 1000 as never,
+      }),
+    ];
+    const result = plan(proposal, [
+      choice({ ticker: "IBOVA183", outcome: "exercised", price: "0" as DecimalString }),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const optionFill = result.fills.find((fill) => fill.assetClass === "option");
+    expect(optionFill?.quantity).toBe(3);
+    expect(optionFill?.price).toBe("3.333333");
+  });
+
   it("ADR-0062: refuses a choice whose outcome disagrees with the engine's own cash-flow sign", () => {
     const proposal = [
       exercisedLeg({
