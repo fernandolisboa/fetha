@@ -91,6 +91,8 @@ export function CreateRunForm({
           setTooManyActive(true);
         } else if (result.error === "archived") {
           setError(t.create.archived);
+        } else if (result.error === "index_in_universe") {
+          setError(t.create.indexInUniverse);
         } else {
           setError(t.create.error);
         }

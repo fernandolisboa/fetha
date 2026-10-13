@@ -36,6 +36,7 @@ const en = {
       "Declare a risk profile in Settings before running a backtest, so its limits can be enforced.",
     empty: "Add at least one instrument to your watchlist to run a backtest.",
     archived: "This strategy is archived. Unarchive it to run a new backtest.",
+    indexInUniverse: "A market index can't be backtested: remove it from the universe.",
   },
   report: {
     overline: "Backtest",
@@ -265,6 +266,7 @@ const ptBR = {
       "Declare um perfil de risco em Configurações antes de rodar um backtest, para que os limites possam ser aplicados.",
     empty: "Adicione ao menos um ativo à sua watchlist para rodar um backtest.",
     archived: "Esta estratégia está arquivada. Desarquive para rodar um novo backtest.",
+    indexInUniverse: "Um índice de mercado não entra no backtest: remova-o do universo.",
   },
   report: {
     overline: "Backtest",
