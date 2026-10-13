@@ -6,7 +6,8 @@ export {
 } from "./actions";
 export { AddInstrumentCombobox } from "./components/add-instrument-combobox";
 export { RemoveFromWatchlistButton } from "./components/remove-from-watchlist-button";
-export { getMyWatchlist, type WatchlistRow } from "./queries";
+export { getMyWatchlist, isOnMyWatchlist, type WatchlistRow } from "./queries";
+export { AssetNextSteps } from "./components/asset-next-steps";
 export { watchlistStrings, t } from "./strings";
 export { WatchlistRepository, type WatchlistItem } from "./watchlist-repository";
 export { WatchlistDataExport } from "./data-export";

@@ -13,6 +13,7 @@ export const preferences = pgTable("preferences", {
   theme: text("theme").notNull().default("instrumento"),
   railCollapsed: boolean("rail_collapsed").notNull().default(false),
   tourDismissedAt: timestamp("tour_dismissed_at", { withTimezone: true }),
+  assetTourDismissedAt: timestamp("asset_tour_dismissed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

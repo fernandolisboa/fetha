@@ -4,7 +4,9 @@ import Link from "next/link";
 import { formatDate } from "@/lib/format/date-time";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
+import { AssetReadingChips } from "@/modules/market-data";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
+import { hasMyActiveDailyStrategy } from "@/modules/strategies";
 import {
   AddInstrumentCombobox,
   getMyWatchlist,
@@ -16,7 +18,10 @@ export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations
 
 export default async function WatchlistPage() {
   await requireUser();
-  const items = await getMyWatchlist();
+  const [items, hasActiveStrategy] = await Promise.all([
+    getMyWatchlist(),
+    hasMyActiveDailyStrategy(),
+  ]);
 
   if (items.length === 0) {
     return (
@@ -40,10 +45,19 @@ export default async function WatchlistPage() {
       />
 
       <Panel>
+        {!hasActiveStrategy && (
+          <p className="text-muted-foreground text-[13px]" data-testid="no-active-strategy">
+            {t.table.noStrategy}{" "}
+            <Link href="/estrategias" className="text-primary underline-offset-4 hover:underline">
+              {t.table.strategiesLink}
+            </Link>
+          </p>
+        )}
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
               <th className="py-2 font-normal">{t.table.columns.ticker}</th>
+              <th className="py-2 font-normal">{t.table.columns.reading}</th>
               <th className="py-2 text-right font-normal">{t.table.columns.lastClose}</th>
               <th className="py-2 text-right font-normal">{t.table.columns.session}</th>
               <th className="py-2 font-normal" />
@@ -59,6 +73,9 @@ export default async function WatchlistPage() {
                   >
                     {item.ticker}
                   </Link>
+                </td>
+                <td className="py-2">
+                  {item.reading && <AssetReadingChips reading={item.reading} />}
                 </td>
                 <td className="py-2 text-right font-mono tabular-nums">
                   {item.lastClose ? formatPriceBRL(item.lastClose.close) : t.table.noClose}

@@ -253,6 +253,13 @@
       "when": 1791862603560,
       "tag": "0035_analysis_scores",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791897143479,
+      "tag": "0036_asset_tour_dismissed",
+      "breakpoints": true
     }
   ]
 }
