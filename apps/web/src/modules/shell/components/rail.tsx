@@ -45,7 +45,7 @@ export function Rail({
       data-tour="rail"
       data-collapsed={collapsed}
       className={cn(
-        "border-border bg-card flex flex-col gap-0.5 border-r py-3 transition-[width] duration-[180ms] max-md:hidden",
+        "border-border bg-card sticky top-[calc(3rem+env(safe-area-inset-top))] flex h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] flex-col gap-0.5 self-start overflow-x-hidden overflow-y-auto border-r py-3 transition-[width] duration-[180ms] max-md:hidden",
         collapsed ? "w-14 items-center px-1" : "w-[200px] px-2",
         "max-lg:w-14 max-lg:items-center max-lg:px-1",
       )}
@@ -94,7 +94,12 @@ export function Rail({
         )}
       </button>
 
-      <div className="text-muted-foreground mt-auto px-3 py-2 text-xs max-lg:hidden">
+      <div
+        className={cn(
+          "text-muted-foreground mt-auto px-3 py-2 text-xs max-lg:hidden",
+          collapsed && "hidden",
+        )}
+      >
         <div>{t.rail.declaredCapital}</div>
         <div className="font-mono">{t.rail.capitalNotDeclared}</div>
       </div>

@@ -375,6 +375,49 @@ test("rail collapse persists across reload", async ({ page, baseURL, request }) 
   await expect(watchlistLink).toBeVisible();
 });
 
+test("rail and header stay put while a long page scrolls", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto("/como-usar");
+  await expect(page.getByRole("heading", { level: 1, name: "Como usar a Fetha" })).toBeVisible();
+
+  await page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  const header = page.locator("header");
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(header).toBeInViewport({ ratio: 1 });
+  await expect(rail).toBeInViewport({ ratio: 1 });
+  await expect(rail.getByText("Capital declarado")).toBeInViewport();
+
+  const headerBox = await header.boundingBox();
+  const railBox = await rail.boundingBox();
+  expect(headerBox?.y).toBe(0);
+  expect(railBox?.y).toBe(48);
+  expect((railBox?.y ?? 0) + (railBox?.height ?? 0)).toBe(600);
+});
+
+test("collapsed rail keeps its foot inside its width", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  const capital = rail.getByText("Capital declarado");
+  await expect(capital).toBeVisible();
+
+  await Promise.all([
+    page.waitForResponse((res) => res.request().method() === "POST"),
+    rail.getByRole("button", { name: "Recolher a navegação" }).click(),
+  ]);
+
+  await expect(capital).toBeHidden();
+  await expect(rail).toHaveAttribute("data-collapsed", "true");
+  await expect
+    .poll(() => rail.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBe(0);
+});
+
 test("PWA manifest and service worker are served", async ({ request, baseURL }) => {
   const manifestResponse = await request.get(`${baseURL ?? ""}/manifest.webmanifest`);
   expect(manifestResponse.ok()).toBe(true);
