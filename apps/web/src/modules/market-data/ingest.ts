@@ -56,15 +56,14 @@ const SGS_START_BUDGET_FRACTION = 0.4;
 // the same way sgs is (#298): starting an older gap session is gated at 70%
 // of maxDurationMs, counted from ingest()'s own start, and the newest one —
 // the only session allowed to report `pending` on a not-yet-published value
-// — gets its own later deadline, 80%, so older gaps can never starve it. A
+// — gets its own later deadline, 75%, so older gaps can never starve it. A
 // stalled Bacen costs about 31s per series per session (mirroring sgs), two
-// series about 62s worst case: a session starting right at 80% of a 300s
-// maxDurationMs (240s) and running that full 62s ends around the route's own
-// 300s deadline, the same shape sgs's own 93s-worst-case-at-60%-start
-// already accepts (docs/adr/0017's sgs addendum) — that run still ends in
-// time to record itself, and the next run retries whatever it missed.
+// series about 62s worst case: an older session starting right at 70%
+// (210s of 300s) ends by about 272s, and the newest starting right at 75%
+// (225s) by about 287s, both before the route's own 300s deadline, so the
+// run still records itself and the next run retries whatever it missed.
 const PTAX_START_BUDGET_FRACTION = 0.7;
-const PTAX_NEWEST_START_BUDGET_FRACTION = 0.8;
+const PTAX_NEWEST_START_BUDGET_FRACTION = 0.75;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day

@@ -44,15 +44,14 @@ uses.
 is the only one allowed to report `{ pending: true }` on a not-yet-published value, so an older gap
 stalling Bacen must never starve it of its own attempt this run. Older gap sessions stop starting at
 `startedAt + maxDurationMs * 0.7`; the newest one gets its own, later deadline,
-`startedAt + maxDurationMs * 0.8`. A stalled Bacen costs about 31s per series per session (the same
-timeout/retry budget `fetchWithOneRetry` already spends on SGS), two series about 62s worst case; a
-session starting right at 80% of a 300s `maxDurationMs` (240s) and running that full 62s ends around
-302s, essentially at the route's own 300s deadline rather than comfortably inside it — the same
-shape `sgs`'s 93s-worst-case-at-60%-start already accepts for the exact same reason (ADR-0017's
-`sgs` addendum): that run still ends in time to record itself, and the next run retries whatever it
-missed. 80%, not later, is what still leaves any margin at all for `ptax` to run after `iv_index`.
+`startedAt + maxDurationMs * 0.75`. A stalled Bacen costs about 31s per series per session (the
+same timeout/retry budget `fetchWithOneRetry` already spends on SGS), two series about 62s worst
+case: an older session starting right at 70% of a 300s `maxDurationMs` (210s) ends by about 272s,
+and the newest starting right at 75% (225s) by about 287s, both before the route's own 300s
+deadline, so the run still records itself and the next run retries whatever it missed. A later
+newest-session deadline would let a worst-case stall outlast the route.
 `ptaxBudgetMs` on `IngestOptions` overrides the older sessions' deadline for tests, mirroring
-`sgsBudgetMs`; the newest session's own 80% deadline has no override, the same as `sgs`'s newest
+`sgsBudgetMs`; the newest session's own 75% deadline has no override, the same as `sgs`'s newest
 session relying on `iv_index`'s fixed 60% hard stop with none.
 
 Not-published handling mirrors `sgs` exactly (#216/#289): `SgsNotPublishedError` on the newest gap
