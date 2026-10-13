@@ -58,6 +58,17 @@ function legsForStructure(structure: Structure, underlying: string): BuilderLeg[
   }));
 }
 
+// A builder opened from a suggestion (docs/adr/0067) starts on its legs, matched to the
+// structure's templates by position, role and side.
+function withInitialLegs(legs: BuilderLeg[], initial: readonly ContemplatedLeg[]): BuilderLeg[] {
+  return legs.map((builderLeg, index) => {
+    const leg = initial[index];
+    return leg && leg.role === builderLeg.template.role && leg.side === builderLeg.template.side
+      ? { ...builderLeg, leg }
+      : builderLeg;
+  });
+}
+
 function readyToPrice(legs: BuilderLeg[]): ContemplatedLeg[] | null {
   const result: ContemplatedLeg[] = [];
   for (const builderLeg of legs) {
@@ -85,18 +96,26 @@ export function OperationBuilderForm({
   structures,
   hasRiskProfile,
   initialUnderlying = "",
+  initialStructureId,
+  initialLegs = [],
 }: {
   structures: Structure[];
   hasRiskProfile: boolean;
   initialUnderlying?: string;
+  initialStructureId?: string;
+  initialLegs?: ContemplatedLeg[];
 }) {
   const router = useRouter();
-  const [structureId, setStructureId] = useState(structures[0]?.id ?? "");
+  const [structureId, setStructureId] = useState(
+    structures.find((candidate) => candidate.id === initialStructureId)?.id ??
+      structures[0]?.id ??
+      "",
+  );
   const structure = structures.find((candidate) => candidate.id === structureId) ?? structures[0];
   const [underlying, setUnderlying] = useState(initialUnderlying);
   const [chain, setChain] = useState<ChainSeries[]>([]);
   const [legs, setLegs] = useState<BuilderLeg[]>(
-    structure ? legsForStructure(structure, initialUnderlying) : [],
+    structure ? withInitialLegs(legsForStructure(structure, initialUnderlying), initialLegs) : [],
   );
   const [pricing, setPricing] = useState<OperationPricing | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);

@@ -176,9 +176,24 @@ _Avoid_: template, preset, reference strategy (that is a catalog entry's default
 The nightly, shared read of every liquid optionable underlying against the recipes (ADR-0066):
 its universe is the underlyings with an IV index point on the session whose options traded on at
 least 17 of the last 21 sessions. A recipe "found an entry" on an underlying when its entry
-condition held at the close and one unit of its structure resolves to listed series. Shown as a
-tab of the watchlist page; reference data, never a user's strategy.
-_Avoid_: screener, scanner, recommendations, ranking
+condition held at the close and one unit of its structure resolves to listed series. A match the
+engine fully prices for one standard lot becomes a suggestion (ADR-0067). Shown as a tab of the
+watchlist page; reference data, never a user's strategy.
+_Avoid_: screener, scanner, ranking, suggestion (that is the priced match, its own entry)
+
+**Suggestion** (pt-BR: _Sugestão_):
+A radar match made concrete and spoken in Fetha's own voice ("Uma trava de alta com calls em
+PETR4 cabe agora.", ADR-0067): the structure one B3 standard lot (100 units per ratio unit)
+resolves to on the scanned session's closing chain, the engine's pricing of it, a thesis claim
+(`close_above`/`close_below` its single break-even, or `operation_pnl_positive`) and a horizon, the
+options' shared expiry. Exists only when every leg was priced, the max loss is bounded and the
+options share one expiry. Shared reference data written by the nightly scan, the same for every
+user, ordered by traded series, never by a score; a user's risk-profile breaches on it are
+computed when shown. A user answers it with a decision (enter / do not enter), may request an
+analysis of it, test its recipe or open it in the builder. Scored at its horizon like a decision,
+as the lot entered at the engine's prices, with its confidence asserted. The AI never picks or
+ranks suggestions.
+_Avoid_: recommendation, tip, idea (in code), pick, match (the radar row before pricing)
 
 **Expected move**:
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or
@@ -212,7 +227,8 @@ met on an open operation; with the indicator values that fired. A signal waits i
 inbox until a decision answers it. Every evaluation produces an evaluation record; only these
 outcomes also produce a signal, and an entry from a session older than the inbox horizon
 (ADR-0044) produces none.
-_Avoid_: alert, trigger, recommendation, setup
+_Avoid_: alert, trigger, recommendation, setup, suggestion (that comes from the radar and the
+recipes, not from the user's own strategy)
 
 **Proposal**:
 The sized, priced set of legs an entry signal carries: quantities and an `OperationPricing`
@@ -466,11 +482,13 @@ _Avoid_: zero point, ponto de equilíbrio (in code)
 ### Decisions
 
 **Decision**:
-An explicit record by the user about an operation, existing or contemplated: enter, do not
-enter, hold, adjust (including roll) or exit; with date, rationale, a thesis and, optionally,
+An explicit record by the user about an operation, existing, contemplated or suggested: enter, do
+not enter, hold, adjust (including roll) or exit; with date, rationale, a thesis and, optionally,
 the analysis that informed it. "Do not enter" is a first-class decision. A decision on an
 existing operation of the real portfolio (hold, adjust or exit) is scored on the position held
-when it was taken and the fills that followed (ADR-0022).
+when it was taken and the fills that followed (ADR-0022). A decision on a suggestion (enter or do
+not enter, one per user per suggestion) snapshots the lot as shown and is scored on it
+(ADR-0067).
 _Avoid_: action, choice, trade idea, entry, order
 
 **Thesis**:
@@ -486,13 +504,22 @@ _Avoid_: prediction, target, condition (reserved for strategy rules)
 
 **Analysis**:
 One AI-produced reasoning artifact over engine output for a signal, a contemplated operation, a
-held operation or a backtest run: thesis, counter-thesis, key risks, max loss, break-evens,
-invalidation conditions and confidence with justification, always citing the engine inputs it
-used (ADR-0057). Requested on demand, never automatically, up to a monthly cap per user (default
-50); every request and its outcome (`accepted`, `rejected` or `failed`) is stored append-only
-with the prompt version and the model that answered. From `analysis@2` on, an analysis may carry
-an outlook, scored at its horizon (ADR-0058).
+held operation, a backtest run or a suggestion: thesis, counter-thesis, key risks, max loss,
+break-evens, invalidation conditions and confidence with justification, always citing the engine
+inputs it used (ADR-0057). Requested on demand, never automatically, up to a monthly cap per user
+(default 50); every request and its outcome (`accepted`, `rejected` or `failed`) is stored
+append-only with the prompt version and the model that answered. From `analysis@2` on, an
+analysis may carry an outlook, scored at its horizon (ADR-0058); from `analysis@3` on, an
+analysis of a suggestion ends with a verdict (ADR-0067).
 _Avoid_: recommendation, report, insight, opinion
+
+**Verdict** (pt-BR: _Veredito_):
+The closing field of an analysis of a suggestion (`analysis@3`, ADR-0067): `enter`, `wait` or
+`do_not_enter`, a word from a closed list with a justification in prose, never a number. Required
+on a suggestion's analysis and forbidden on every other subject's; its justification goes through
+the same citation check as the rest of the reply. A verdict is read, not executed: the decision
+stays the user's.
+_Avoid_: recommendation, rating, score, signal, call
 
 **Outlook**:
 The verifiable part of an analysis (ADR-0058): a ticker closing above or below a price level at a
@@ -505,19 +532,22 @@ _Avoid_: forecast, target, prediction (in code)
 **Journal**:
 The chronological record of a user's decisions and accepted AI analyses, each later scored against
 realized outcomes. An analysis sits under the decision it informed; the track record keeps
-decision scores and analysis scores apart (ADR-0058).
+decision scores and analysis scores apart (ADR-0058), and a third panel, "Sugestões do Fetha",
+shows how the app's own suggestions aged (hit rate and P&L per lot, per recipe), shared and the
+same for every user (ADR-0067).
 _Avoid_: history, log, diary
 
 **Horizon**:
 The date at which a decision is scored: the date stated in its thesis or, by default, the
 expiry of its operation. For an analysis's outlook (ADR-0058), the session resolved at acceptance
 from `one_week`, `one_month`, `three_months` (5, 21, 63 sessions) or `expiry` against the trading
-calendar.
+calendar. For a suggestion, the options' shared expiry (ADR-0067).
 _Avoid_: deadline, due date, target date
 
 **Score**:
-The evaluation of a decision or analysis at its horizon: realized P&L normalized by max loss,
-whether the thesis held (crossed with the stated confidence, Brier-style), and, for "do not
+The evaluation of a decision, an analysis or a suggestion at its horizon: realized P&L normalized
+by max loss, whether the thesis held (crossed with the stated confidence, Brier-style; a
+suggestion asserts its claim at confidence `1`, so only its hit rate is shown), and, for "do not
 enter", the counterfactual P&L of the operation not taken.
 _Avoid_: grade, rating, performance
 

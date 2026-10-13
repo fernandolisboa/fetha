@@ -8,7 +8,9 @@ user in practice today; family or friends may get access later.
 
 An individual investor who wants to study, price and backtest options structures and directional
 strategies before putting money at risk, and who wants an honest record of how well their own
-decisions age. No fees, no plans, no order execution. Every decision is the user's own.
+decisions age. Fetha suggests operations from its own rules, models and past data, and keeps the
+same honest record of how its suggestions age. No fees, no plans, no order execution. Every
+decision, and every order at the broker, is the user's own.
 
 ## The six jobs
 
@@ -33,6 +35,14 @@ over the user's watchlist: daily ones at the close, intraday ones while the app 
 land in an inbox and wait for the user's decision, including "do not enter". A user may share a
 strategy read-only with every registered user, who copies it to use it.
 
+A shared book of recipes (complete strategy definitions chosen by the move the user expects) can
+be started on any asset in one click. Every night the radar reads every liquid optionable
+underlying against those recipes, and each match the engine can price for one standard lot
+becomes a suggestion, in Fetha's own voice: "Uma trava de alta com calls em PETR4 cabe agora."
+Suggestions are the same for every user, ordered by a market fact (traded series), never by a
+score; each can be answered with a decision, analysed, tested or opened in the builder, and is
+scored at expiry so the user sees how Fetha's own suggestions age. A suggestion can be wrong.
+
 ### 4. Charts
 
 Candles with overlays, payoff diagrams, equity curves, drawdown, distribution of returns. Charts
@@ -40,11 +50,13 @@ are the primary reading surface; numbers and charts share one visual language.
 
 ### 5. AI decision layer
 
-On demand, one object at a time (a signal, an operation, a strategy with its backtest), reasoning
-over engine outputs only: thesis, counter-thesis, key risks, max loss, break-evens, invalidation
-conditions, confidence with justification. Every analysis and every recorded decision goes to a
-journal that is scored at its horizon (outcome, thesis accuracy, counterfactual for "do not
-enter"), so the user sees their own track record and the AI's calibration.
+On demand, one object at a time (a signal, an operation, a strategy with its backtest, a
+suggestion), reasoning over engine outputs only: thesis, counter-thesis, key risks, max loss,
+break-evens, invalidation conditions, confidence with justification and, for a suggestion, a
+verdict in words (enter, wait, do not enter). The AI never picks or ranks suggestions. Every
+analysis and every recorded decision goes to a journal that is scored at its horizon (outcome,
+thesis accuracy, counterfactual for "do not enter"), so the user sees their own track record, the
+AI's calibration and how Fetha's suggestions aged.
 
 ### 6. Real portfolio
 
@@ -63,6 +75,8 @@ broker connection, no order execution.
 4. Candle chart with indicator overlays, daily and intraday timeframes, adjusted or nominal
    series.
 5. Signal inbox: today's and late signals, each answered by a decision.
+   Today's suggestions on the home, each with its recipe page (`/sugestoes/[id]`): decide, analyse,
+   test the recipe, open the builder.
 6. Strategy editor and backtest report: equity curve, drawdown, distribution, walk-forward view,
    declared limits of intraday runs.
 7. Portfolio and risk dashboard: positions, operations, mark to market, limits.

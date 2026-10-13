@@ -4,10 +4,11 @@ import { getDb } from "@/db/client";
 import { forCurrentUser } from "@/modules/auth";
 import { WatchlistRepository } from "@/modules/watchlist";
 
+import { suggestionCalibration, type SuggestionCalibration } from "./calibration";
 import { latestRadar } from "./radar-repository";
 import { radarView, type RadarView } from "./radar-view";
 import { suggestionView, type SuggestionView } from "./suggestion-view";
-import { findSuggestion, latestSuggestions } from "./suggestions-repository";
+import { findSuggestion, latestSuggestions, scoredSuggestions } from "./suggestions-repository";
 
 // The latest radar for the signed-in user: the shared readings and matches, plus whether each
 // matched underlying is already on this user's watchlist.
@@ -49,3 +50,8 @@ export const getTodaySuggestions = cache(async (): Promise<SuggestionView[]> => 
         a.recipeId.localeCompare(b.recipeId),
     );
 });
+
+// Shared reference data like the suggestions themselves: the same calibration for every user.
+export const getSuggestionCalibration = cache(async (): Promise<SuggestionCalibration> =>
+  suggestionCalibration(await scoredSuggestions(getDb())),
+);

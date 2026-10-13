@@ -133,3 +133,9 @@ logs the full outcome when it happens. `newestSessionComputed` stays `iv_index` 
 
 `cvm_filings` can carry `deferred` when it misses its start budget. Like `iv_index`'s backfill, that
 is not logged as trouble by the manual trigger: the next run reads the same cumulative file.
+
+## Amendment (2026-10-13, ADR-0067)
+
+The report gains an optional `suggestionScoring { scored, skipped, errorCount }` for the step that
+scores Fetha's own suggestions right after decisions and analyses, under the same redaction rules.
+See docs/adr/0067.

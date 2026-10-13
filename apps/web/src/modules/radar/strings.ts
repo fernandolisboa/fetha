@@ -34,6 +34,80 @@ const en = {
     strike: (strike: string) => `strike ${strike}`,
     expiry: (date: string) => `expires ${date}`,
   },
+  suggestions: {
+    title: "Today's suggestions",
+    subtitle: (date: string) =>
+      `From the radar at the close of ${date}, priced for one standard lot (100 per leg).`,
+    order: "Ordered by how many option series traded at the close, never by a score.",
+    footnote:
+      "Fetha suggests from its recipes' rules, its models and past data. A suggestion can be wrong; the decision, and any order at your broker, is yours.",
+    none: "No recipe found an entry at the latest close.",
+    notRun: "The radar has not run yet. Suggestions show up after its first night.",
+    more: (count: number) => `See all ${String(count)} suggestions in the radar`,
+    headline: {
+      "bull-call-spread-low-iv": (ticker: string) => `A bull call spread on ${ticker} fits now.`,
+      "long-call-low-iv": (ticker: string) => `Buying a call on ${ticker} fits now.`,
+      "bull-put-spread-high-iv": (ticker: string) => `A bull put spread on ${ticker} fits now.`,
+      "covered-call-high-iv": (ticker: string) => `A covered call on ${ticker} fits now.`,
+      "bear-put-spread-low-iv": (ticker: string) => `A bear put spread on ${ticker} fits now.`,
+      "long-put-low-iv": (ticker: string) => `Buying a put on ${ticker} fits now.`,
+      "bear-call-spread-high-iv": (ticker: string) => `A bear call spread on ${ticker} fits now.`,
+      "call-butterfly": (ticker: string) => `A call butterfly on ${ticker} fits now.`,
+      "long-straddle-low-iv": (ticker: string) => `A long straddle on ${ticker} fits now.`,
+      "long-strangle-low-iv": (ticker: string) => `A long strangle on ${ticker} fits now.`,
+    },
+    fallbackHeadline: (structure: string, ticker: string) => `${structure} on ${ticker} fits now.`,
+    why: (recipe: string) => `The recipe ${recipe} found an entry at the close:`,
+    legsLabel: "The lot",
+    legPrice: (price: string) => `at ${price}`,
+    numbersLabel: "The engine's numbers for the lot",
+    numbers: {
+      netPremium: "Premium",
+      maxLoss: "Max loss",
+      maxGain: "Max gain",
+      breakEvens: "Break-even",
+      unbounded: "Unbounded",
+      delta: "Delta",
+      gamma: "Gamma",
+      theta: "Theta / session",
+      vega: "Vega / point",
+    },
+    claim: {
+      close_above: (ticker: string, level: string, date: string) =>
+        `The thesis: ${ticker} closes above ${level} on ${date}.`,
+      close_below: (ticker: string, level: string, date: string) =>
+        `The thesis: ${ticker} closes below ${level} on ${date}.`,
+      operation_pnl_positive: (date: string) =>
+        `The thesis: the operation ends with a profit on ${date}.`,
+    },
+    noRiskProfile: "Declare your capital in Settings to check this lot against your limits.",
+    withinLimits: "Within your risk limits.",
+    actions: {
+      recipe: "See the recipe",
+      builder: "Study in the builder",
+    },
+    answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
+  },
+  calibration: {
+    title: "Fetha's suggestions",
+    subtitle:
+      "How the suggestions did at their expiry: the share whose thesis held and the result of one lot, entered at the close the radar read, after B3 costs. The same for everyone.",
+    empty: "No suggestion has reached its expiry yet.",
+    columns: { recipe: "Recipe", scored: "Scored", held: "Thesis held", pnl: "Result per lot" },
+    held: (held: number, claimed: number) => `${String(held)} of ${String(claimed)}`,
+    all: "All recipes",
+  },
+  page: {
+    overline: (date: string) => `Suggestion · close of ${date}`,
+    notesTitle: "How to read a suggestion",
+    notes: [
+      "The lot is one standard B3 lot: 100 per leg for each unit of the structure. Sizing it to your capital is up to you, in the builder.",
+      "Premium is what you pay (negative) or receive (positive, with +) to set it up, at the closing prices the radar read. Tomorrow's prices will differ.",
+      "Max loss and max gain are at expiry, before costs. The break-even is the underlying's price at expiry where the result is zero.",
+      "The thesis is what Fetha scores at expiry: it shows up in the journal, under Fetha's suggestions, as right or wrong, with the result of the lot.",
+      "Your limits are checked against the risk profile you declared in Settings and the operations you have open now.",
+    ],
+  },
 };
 
 const ptBR = {
@@ -72,6 +146,91 @@ const ptBR = {
     role: { stock: "ação", call: "call", put: "put" },
     strike: (strike: string) => `strike ${strike}`,
     expiry: (date: string) => `vence ${date}`,
+  },
+  suggestions: {
+    title: "Sugestões de hoje",
+    subtitle: (date: string) =>
+      `Do radar do fechamento de ${date}, com preço para um lote padrão (100 por perna).`,
+    order:
+      "Ordenadas pela quantidade de séries de opções negociadas no fechamento, nunca por nota.",
+    footnote:
+      "O Fetha sugere a partir das regras das receitas, dos modelos e de dados passados. Uma sugestão pode errar; a decisão, e qualquer ordem na corretora, é sua.",
+    none: "Nenhuma receita encontrou entrada no último fechamento.",
+    notRun: "O radar ainda não rodou. As sugestões aparecem depois da primeira noite.",
+    more: (count: number) => `Ver as ${String(count)} sugestões no radar`,
+    headline: {
+      "bull-call-spread-low-iv": (ticker: string) =>
+        `Uma trava de alta com calls em ${ticker} cabe agora.`,
+      "long-call-low-iv": (ticker: string) => `Uma compra de call em ${ticker} cabe agora.`,
+      "bull-put-spread-high-iv": (ticker: string) =>
+        `Uma trava de alta com puts em ${ticker} cabe agora.`,
+      "covered-call-high-iv": (ticker: string) => `Um lançamento coberto em ${ticker} cabe agora.`,
+      "bear-put-spread-low-iv": (ticker: string) =>
+        `Uma trava de baixa com puts em ${ticker} cabe agora.`,
+      "long-put-low-iv": (ticker: string) => `Uma compra de put em ${ticker} cabe agora.`,
+      "bear-call-spread-high-iv": (ticker: string) =>
+        `Uma trava de baixa com calls em ${ticker} cabe agora.`,
+      "call-butterfly": (ticker: string) => `Uma borboleta com calls em ${ticker} cabe agora.`,
+      "long-straddle-low-iv": (ticker: string) => `Um straddle comprado em ${ticker} cabe agora.`,
+      "long-strangle-low-iv": (ticker: string) => `Um strangle comprado em ${ticker} cabe agora.`,
+    },
+    fallbackHeadline: (structure: string, ticker: string) =>
+      `${structure} em ${ticker} cabe agora.`,
+    why: (recipe: string) => `A receita ${recipe} encontrou entrada no fechamento:`,
+    legsLabel: "O lote",
+    legPrice: (price: string) => `a ${price}`,
+    numbersLabel: "Os números do motor para o lote",
+    numbers: {
+      netPremium: "Prêmio",
+      maxLoss: "Perda máxima",
+      maxGain: "Ganho máximo",
+      breakEvens: "Break-even",
+      unbounded: "Ilimitado",
+      delta: "Delta",
+      gamma: "Gama",
+      theta: "Theta / sessão",
+      vega: "Vega / ponto",
+    },
+    claim: {
+      close_above: (ticker: string, level: string, date: string) =>
+        `A tese: ${ticker} fecha acima de ${level} em ${date}.`,
+      close_below: (ticker: string, level: string, date: string) =>
+        `A tese: ${ticker} fecha abaixo de ${level} em ${date}.`,
+      operation_pnl_positive: (date: string) => `A tese: a operação termina no lucro em ${date}.`,
+    },
+    noRiskProfile:
+      "Declare seu capital em Configurações para conferir este lote com os seus limites.",
+    withinLimits: "Dentro dos seus limites de risco.",
+    actions: {
+      recipe: "Ver receita",
+      builder: "Montar no simulador",
+    },
+    answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
+  },
+  calibration: {
+    title: "Sugestões do Fetha",
+    subtitle:
+      "Como as sugestões se saíram no vencimento: quantas tiveram a tese confirmada e o resultado de um lote, comprado no fechamento que o radar leu, já com os custos da B3. É igual para todo mundo.",
+    empty: "Nenhuma sugestão chegou ao vencimento ainda.",
+    columns: {
+      recipe: "Receita",
+      scored: "Avaliadas",
+      held: "Tese confirmada",
+      pnl: "Resultado por lote",
+    },
+    held: (held: number, claimed: number) => `${String(held)} de ${String(claimed)}`,
+    all: "Todas as receitas",
+  },
+  page: {
+    overline: (date: string) => `Sugestão · fechamento de ${date}`,
+    notesTitle: "Como ler uma sugestão",
+    notes: [
+      "O lote é um lote padrão da B3: 100 por perna para cada unidade da estrutura. Ajustar o tamanho ao seu capital fica com você, no simulador.",
+      "O prêmio é o que você paga (negativo) ou recebe (positivo, com +) para montar, aos preços de fechamento que o radar leu. Os preços de amanhã serão outros.",
+      "Perda máxima e ganho máximo valem para o vencimento, antes dos custos. O break-even é o preço do ativo no vencimento em que o resultado fica zero.",
+      "A tese é o que o Fetha confere no vencimento: ela aparece no diário, em Sugestões do Fetha, como acerto ou erro, com o resultado do lote.",
+      "Os seus limites são conferidos com o perfil de risco que você declarou em Configurações e com as operações que você tem abertas agora.",
+    ],
   },
 } satisfies typeof en;
 
