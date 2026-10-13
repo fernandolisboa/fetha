@@ -1,10 +1,10 @@
 import { and, desc, eq, gt, max, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import type { Database } from "@/db/client";
-import { companyFilings, companyTickers } from "../schema";
+import type { Database, Transaction } from "@/db/client";
+import { companyFilings, companyTickers, type CompanyFilingCategory } from "../schema";
 
-import type { CompanyFiling, CompanyFilingCategory, CompanyTicker } from "../adapters/cvm/schema";
+import type { CompanyFiling, CompanyTicker } from "../adapters/cvm/schema";
 
 const CHUNK_SIZE = 500;
 
@@ -24,7 +24,7 @@ export async function latestFilingDeliveredOn(db: Database): Promise<string | un
 // A (protocol, version) is immutable once CVM publishes it, so a row already
 // stored is left alone; returns how many rows were new.
 export async function insertCompanyFilings(
-  db: Database,
+  db: Database | Transaction,
   filings: readonly CompanyFiling[],
 ): Promise<number> {
   let inserted = 0;
@@ -39,9 +39,11 @@ export async function insertCompanyFilings(
   return inserted;
 }
 
-// Returns how many tickers were new or changed.
+// A row older than the stored mapping never re-points it: when this year's
+// FCA drops a contested code, last year's row must not win it back
+// (docs/adr/0060). Returns how many tickers were new or changed.
 export async function upsertCompanyTickers(
-  db: Database,
+  db: Database | Transaction,
   tickers: readonly CompanyTicker[],
 ): Promise<number> {
   let changed = 0;
@@ -56,7 +58,7 @@ export async function upsertCompanyTickers(
           referenceDate: sql`excluded.reference_date`,
           recordedAt: sql`now()`,
         },
-        setWhere: sql`${companyTickers.cnpj} <> excluded.cnpj or ${companyTickers.referenceDate} <> excluded.reference_date`,
+        setWhere: sql`excluded.reference_date >= ${companyTickers.referenceDate} and (${companyTickers.cnpj} <> excluded.cnpj or ${companyTickers.referenceDate} <> excluded.reference_date)`,
       })
       .returning({ ticker: companyTickers.ticker });
     changed += rows.length;
@@ -75,8 +77,6 @@ export interface CompanyFilingRow {
 }
 
 export interface RecentCompanyFilings {
-  // Whether the ticker maps to a company at all: an ETF, FII or BDR has no
-  // CVM company filings, which the panel says instead of "nothing recent".
   mapped: boolean;
   filings: CompanyFilingRow[];
 }

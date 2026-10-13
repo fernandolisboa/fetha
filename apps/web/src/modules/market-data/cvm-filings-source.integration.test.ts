@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { zipSync } from "fflate";
 import { inArray } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import { companyFilings, companyTickers } from "./schema";
@@ -13,6 +13,27 @@ import {
   latestFilingDeliveredOn,
   recentCompanyFilings,
 } from "./repositories/company-filing-repository";
+
+const cutShort = vi.hoisted(() => ({ afterRows: undefined as number | undefined }));
+
+// Lands the first rows through the run's own transaction, then fails, the
+// way a run killed by the route's maxDuration would.
+vi.mock("./repositories/company-filing-repository", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("./repositories/company-filing-repository")>();
+  return {
+    ...original,
+    insertCompanyFilings: async (
+      ...[db, filings]: Parameters<typeof original.insertCompanyFilings>
+    ): Promise<number> => {
+      if (cutShort.afterRows === undefined) {
+        return original.insertCompanyFilings(db, filings);
+      }
+      await original.insertCompanyFilings(db, filings.slice(0, cutShort.afterRows));
+      throw new Error("cut short");
+    },
+  };
+});
 
 const FIXTURES = path.join(import.meta.dirname, "adapters", "cvm", "fixtures");
 const ipeFixture = readFileSync(path.join(FIXTURES, "ipe-sample.csv"), { encoding: "latin1" });
@@ -27,7 +48,7 @@ const FIXTURE_CNPJS = [
   "15073274000188",
   "02351144000118",
 ];
-const FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3"];
+const FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3", "ENGI11"];
 const OCTOBER_NIGHT = new Date("2026-10-13T23:00:00.000Z");
 
 function latin1(content: string): Uint8Array {
@@ -88,7 +109,10 @@ async function cleanup(): Promise<void> {
 }
 
 beforeEach(cleanup);
-afterEach(cleanup);
+afterEach(async () => {
+  cutShort.afterRows = undefined;
+  await cleanup();
+});
 
 describe("ingestCvmFilings", () => {
   it("stores the year's filings and the ticker map, then lists a company's newest first", async () => {
@@ -97,7 +121,7 @@ describe("ingestCvmFilings", () => {
 
     const result = await ingestCvmFilings(db, OCTOBER_NIGHT, fetchImpl);
 
-    expect(result).toBe(13);
+    expect(result).toBe(14);
     expect(urls.filter((url) => url.includes("/IPE/"))).toHaveLength(1);
     const recent = await recentCompanyFilings(db, "PETR4");
     expect(recent.mapped).toBe(true);
@@ -205,7 +229,7 @@ describe("ingestCvmFilings", () => {
 
     const result = await ingestCvmFilings(db, OCTOBER_NIGHT, fetchImpl);
 
-    expect(result).toEqual({ rowCount: 4, pending: true });
+    expect(result).toEqual({ rowCount: 5, pending: true });
   });
 
   it("fails when neither this nor last year's FCA exists", async () => {
@@ -213,6 +237,57 @@ describe("ingestCvmFilings", () => {
     const { fetchImpl } = cvmFetch({ ipe: { 2026: ipeFixture } });
 
     await expect(ingestCvmFilings(db, OCTOBER_NIGHT, fetchImpl)).rejects.toThrow(/FCA/);
+  });
+
+  it("leaves nothing behind when a run is cut short, so the next one reads the whole file", async () => {
+    const db = getDb();
+    const { fetchImpl } = cvmFetch({ ipe: { 2026: ipeFixture }, fca: { 2026: fcaFixture } });
+    cutShort.afterRows = 3;
+
+    await expect(ingestCvmFilings(db, OCTOBER_NIGHT, fetchImpl)).rejects.toThrow("cut short");
+    expect(await latestFilingDeliveredOn(db)).toBeUndefined();
+
+    cutShort.afterRows = undefined;
+    expect(await ingestCvmFilings(db, OCTOBER_NIGHT, fetchImpl)).toBe(14);
+  });
+
+  it("drops a delivery date past today and counts it, so the cutoff stays put", async () => {
+    const db = getDb();
+    const garbled = withVersion(ipeFixture, "009512IPE280720260274877668-50", 3, "2126-02-11");
+    const content = [ipeFixture, garbled.split("\r\n")[1]].join("\r\n");
+
+    const result = await ingestCvmFilings(
+      db,
+      OCTOBER_NIGHT,
+      cvmFetch({ ipe: { 2026: content }, fca: { 2026: fcaFixture } }).fetchImpl,
+    );
+
+    expect(result).toEqual({ rowCount: 14, skippedRows: 1 });
+    expect(await latestFilingDeliveredOn(db)).toBe("2026-08-27");
+  });
+
+  it("never lets an older FCA row re-point a stored ticker", async () => {
+    const db = getDb();
+    await ingestCvmFilings(
+      db,
+      OCTOBER_NIGHT,
+      cvmFetch({ ipe: { 2026: ipeFixture }, fca: { 2026: fcaFixture } }).fetchImpl,
+    );
+    const olderClaim = fcaFixture
+      .replace("33.592.510/0001-54", "33.000.167/0001-01")
+      .replaceAll("2026-01-01", "2025-01-01");
+
+    await ingestCvmFilings(
+      db,
+      OCTOBER_NIGHT,
+      cvmFetch({ ipe: { 2026: ipeFixture }, fca: { 2025: olderClaim } }).fetchImpl,
+    );
+
+    const [vale] = await db
+      .select()
+      .from(companyTickers)
+      .where(inArray(companyTickers.ticker, ["VALE3"]));
+    expect(vale).toMatchObject({ cnpj: "33592510000154", referenceDate: "2026-01-01" });
   });
 
   it("says a ticker with no company behind it is unmapped", async () => {

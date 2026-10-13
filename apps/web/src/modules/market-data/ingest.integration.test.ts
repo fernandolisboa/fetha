@@ -123,7 +123,7 @@ function buildSgsFixture(url: string): string {
 
 const CVM_FIXTURES = path.join(import.meta.dirname, "adapters", "cvm", "fixtures");
 const CVM_FIXTURE_CNPJS = ["33000167000101", "33592510000154", "00070698000111", "15073274000188"];
-const CVM_FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3"];
+const CVM_FIXTURE_TICKERS = ["PETR3", "PETR4", "VALE3", "TGMA3", "ENGI11"];
 
 // The recorded CVM samples, served under whichever year's name was asked.
 function cvmFixtureResponse(input: string): Response {

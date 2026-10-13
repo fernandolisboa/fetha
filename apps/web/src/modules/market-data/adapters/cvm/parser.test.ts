@@ -119,10 +119,18 @@ describe("parseIpeFilings", () => {
     expect(parseIpeFilings(content)).toEqual({ filings: [], skipped: 3 });
   });
 
-  it("counts a line with the wrong field count as malformed", () => {
-    const content = [IPE_HEADER, ipeRow(), "a;b;c"].join("\n");
+  it("counts a wrong-field-count line as malformed only when its category is in scope", () => {
+    const content = [
+      IPE_HEADER,
+      ipeRow(),
+      ipeRow({ Assunto: "Assunto; com ponto e vírgula" }),
+      ipeRow({ Categoria: "Dados Econômico-Financeiros", Assunto: "Outro; assunto" }),
+    ].join("\n");
 
-    expect(parseIpeFilings(content).skipped).toBe(1);
+    expect(parseIpeFilings(content)).toEqual({
+      filings: [expect.objectContaining({ subject: "Assunto" })],
+      skipped: 1,
+    });
   });
 
   it("fails the whole file once more than 20 in-scope rows are malformed", () => {
@@ -150,6 +158,7 @@ describe("parseFcaTickers", () => {
       { ticker: "PETR4", cnpj: "33000167000101", referenceDate: "2026-01-01" },
       { ticker: "VALE3", cnpj: "33592510000154", referenceDate: "2026-01-01" },
       { ticker: "TGMA3", cnpj: "02351144000118", referenceDate: "2026-01-01" },
+      { ticker: "ENGI11", cnpj: "00864214000106", referenceDate: "2026-01-01" },
     ]);
   });
 
@@ -176,17 +185,19 @@ describe("parseFcaTickers", () => {
     expect(parseFcaTickers([header, row].join("\n")).tickers).toEqual([]);
   });
 
-  it("keeps the newest reference date when two companies list the same code", () => {
+  it("drops a code two companies claim in the same file, and counts it", () => {
     const header = "CNPJ_Companhia;Data_Referencia;Valor_Mobiliario;Codigo_Negociacao";
     const content = [
       header,
       "11.111.111/0001-11;2026-03-01;Ações Ordinárias;ABCD3",
       "22.222.222/0001-22;2026-05-01;Ações Ordinárias;ABCD3",
-      "33.333.333/0001-33;2026-04-01;Ações Ordinárias;ABCD3",
+      "33.333.333/0001-33;2026-04-01;Ações Ordinárias;WXYZ3",
+      "33.333.333/0001-33;2026-06-01;Ações Ordinárias;WXYZ3",
     ].join("\n");
 
-    expect(parseFcaTickers(content).tickers).toEqual([
-      { ticker: "ABCD3", cnpj: "22222222000122", referenceDate: "2026-05-01" },
-    ]);
+    expect(parseFcaTickers(content)).toEqual({
+      tickers: [{ ticker: "WXYZ3", cnpj: "33333333000133", referenceDate: "2026-06-01" }],
+      skipped: 1,
+    });
   });
 });

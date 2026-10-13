@@ -90,6 +90,7 @@ describe("fetchFcaTickers", () => {
       "PETR4",
       "VALE3",
       "TGMA3",
+      "ENGI11",
     ]);
   });
 });

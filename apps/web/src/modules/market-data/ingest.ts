@@ -48,9 +48,10 @@ const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 // push tonight's iv_index session past its hard stop; that run still ends in
 // time to record itself, and the next run retries both.
 const SGS_START_BUDGET_FRACTION = 0.4;
-// The CVM filings start under the iv_index backfill's own 40% budget
-// (docs/adr/0060): they are the least urgent source and run last but one.
-const CVM_START_BUDGET_FRACTION = 0.4;
+// The CVM filings run right after tonight's iv_index session, which may start
+// as late as its 60% hard stop, so their start budget sits past it
+// (docs/adr/0060); a routine read takes seconds.
+const CVM_START_BUDGET_FRACTION = 0.7;
 const FIRST_INGESTED_CALENDAR_YEAR = 2024;
 // The sentinel used when no macro point has ever been ingested for a series
 // is the day *before* the calendar's own coverage starts, not that first day
@@ -97,7 +98,7 @@ export interface SourceOutcome {
 // too so it survives into the SourceOutcome instead of only a console.warn.
 // One whose provider has not published the session yet reports `pending`
 // with the rows it did write, and no succeeded marker is recorded.
-type RunResult =
+export type RunResult =
   number | { rowCount: number; skippedRows: number } | { rowCount: number; pending: true };
 
 function normalizeRunResult(result: RunResult): {

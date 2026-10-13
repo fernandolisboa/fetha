@@ -1,13 +1,9 @@
 import { sessionDateSchema, tickerSchema } from "@fetha/contracts";
 import { z } from "zod";
 
-export const companyFilingCategorySchema = z.enum([
-  "material_fact",
-  "market_notice",
-  "shareholder_notice",
-  "shareholder_meeting",
-]);
-export type CompanyFilingCategory = z.infer<typeof companyFilingCategorySchema>;
+import { companyFilingCategoryValues } from "../../schema";
+
+export const companyFilingCategorySchema = z.enum(companyFilingCategoryValues);
 
 export const cnpjSchema = z.string().regex(/^\d{14}$/);
 

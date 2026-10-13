@@ -12,8 +12,6 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import type { CompanyFilingCategory } from "./adapters/cvm/schema";
-
 // Shared reference data (docs/adr/0017): no user_id, read-only to users. `candles`
 // and `optionDailyPrices` are declared here as ordinary tables for Drizzle's query
 // builder; the migration SQL turns them into `PARTITION BY RANGE (session)` parents
@@ -176,6 +174,14 @@ export const impliedVolatilityIndexPoints = pgTable(
     index("implied_volatility_index_session_idx").on(table.session),
   ],
 );
+
+export const companyFilingCategoryValues = [
+  "material_fact",
+  "market_notice",
+  "shareholder_notice",
+  "shareholder_meeting",
+] as const;
+export type CompanyFilingCategory = (typeof companyFilingCategoryValues)[number];
 
 // Filings listed companies deliver to the CVM (docs/adr/0060), one row per
 // (protocol, version): a re-presentation is a new version of the same

@@ -3,6 +3,7 @@ import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 import { CvmFetchError, fetchFcaTickers, fetchIpeFilings } from "./adapters/cvm/fetch";
 import type { CompanyTicker } from "./adapters/cvm/schema";
+import type { RunResult } from "./ingest";
 import {
   insertCompanyFilings,
   latestFilingDeliveredOn,
@@ -16,9 +17,6 @@ const OVERLAP_DAYS = 30;
 // Until April the current year's file is too short to fill the asset page's
 // panel, so the previous year's file is read too.
 const LAST_MONTH_READING_PREVIOUS_YEAR = 3;
-
-export type CvmFilingsResult =
-  number | { rowCount: number; skippedRows: number } | { rowCount: number; pending: true };
 
 function daysBefore(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00.000Z`);
@@ -41,7 +39,7 @@ export async function ingestCvmFilings(
   db: Database,
   now: Date,
   fetchImpl: typeof fetch,
-): Promise<CvmFilingsResult> {
+): Promise<RunResult> {
   const today = todaySaoPauloDate(now);
   const year = Number(today.slice(0, 4));
   const month = Number(today.slice(5, 7));
@@ -56,22 +54,35 @@ export async function ingestCvmFilings(
     throw new CvmFetchError("CVM has no FCA file for this or last year");
   }
 
+  const parsedFilings = ipe.flatMap((parsed) => parsed?.filings ?? []);
+  // A delivery date past today is a garbled row; it would otherwise become
+  // the newest stored filing and push the cutoff past every real one.
+  const filings = parsedFilings.filter((filing) => filing.deliveredOn <= today);
+  const futureRows = parsedFilings.length - filings.length;
+
   const latest = await latestFilingDeliveredOn(db);
   const cutoff = latest === undefined ? undefined : daysBefore(latest, OVERLAP_DAYS);
-  const filings = ipe
-    .flatMap((parsed) => parsed?.filings ?? [])
-    .filter((filing) => cutoff === undefined || filing.deliveredOn >= cutoff);
-
-  const tickerCount = await upsertCompanyTickers(
-    db,
-    newestPerTicker(fcaFiles.flatMap((parsed) => parsed.tickers)),
-  );
-  const filingCount = await insertCompanyFilings(db, filings);
-  const rowCount = tickerCount + filingCount;
+  // One transaction, because the cutoff is read from what is stored: a run
+  // cut short after some batches must leave nothing behind, or the next run
+  // would skip everything older than the batches that did land.
+  const rowCount = await db.transaction(async (tx) => {
+    const tickerCount = await upsertCompanyTickers(
+      tx,
+      newestPerTicker(fcaFiles.flatMap((parsed) => parsed.tickers)),
+    );
+    const filingCount = await insertCompanyFilings(
+      tx,
+      filings.filter((filing) => cutoff === undefined || filing.deliveredOn >= cutoff),
+    );
+    return tickerCount + filingCount;
+  });
 
   if (ipe.at(-1) === null) {
     return { rowCount, pending: true };
   }
-  const skippedRows = [...ipe, ...fca].reduce((total, parsed) => total + (parsed?.skipped ?? 0), 0);
+  const skippedRows = [...ipe, ...fca].reduce(
+    (total, parsed) => total + (parsed?.skipped ?? 0),
+    futureRows,
+  );
   return skippedRows > 0 ? { rowCount, skippedRows } : rowCount;
 }

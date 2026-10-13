@@ -52,7 +52,7 @@ const en = {
   companyFilings: {
     title: "Recent events",
     subtitle:
-      "Material facts, market notices, shareholder notices and meetings filed with the CVM.",
+      "Material facts, market notices, shareholder notices and meetings filed with the CVM. Source: CVM open data (ODbL).",
     deliveredUntilToday: "CVM data up to today.",
     deliveredUntilYesterday: "CVM data up to yesterday.",
     deliveredUntil: (date: string) => `CVM data up to ${date}.`,

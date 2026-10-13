@@ -10,11 +10,9 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format/date-time";
 
-import { closeFreshnessKind, sessionDateToDisplayDate } from "../close-freshness";
-import type {
-  CompanyFilingRow,
-  RecentCompanyFilings,
-} from "../repositories/company-filing-repository";
+import { sessionDateToDisplayDate } from "../close-freshness";
+import type { CompanyFilingsView } from "../company-filing-queries";
+import type { CompanyFilingRow } from "../repositories/company-filing-repository";
 import { t } from "../strings";
 
 const labels = t.companyFilings;
@@ -23,42 +21,18 @@ function displayDate(isoDate: string): string {
   return formatDate(sessionDateToDisplayDate(isoDate));
 }
 
-export function companyFilingsFreshness(
-  latestDelivery: string | undefined,
-  now: Date,
-): string | null {
-  if (latestDelivery === undefined) {
-    return null;
-  }
-  const freshness = closeFreshnessKind(latestDelivery, now);
-  switch (freshness.kind) {
-    case "today":
-      return labels.deliveredUntilToday;
-    case "yesterday":
-      return labels.deliveredUntilYesterday;
-    case "older":
-      return labels.deliveredUntil(displayDate(freshness.session));
-  }
-}
-
 function headlineOf(filing: CompanyFilingRow): string {
   return filing.subject || filing.kind || labels.category[filing.category];
 }
 
-export function CompanyFilingsList({
-  recent,
-  loaded,
-}: {
-  recent: RecentCompanyFilings;
-  loaded: boolean;
-}) {
-  if (!loaded) {
+export function CompanyFilingsList({ view }: { view: CompanyFilingsView }) {
+  if (!view.loaded) {
     return <p className="text-muted-foreground text-[13px]">{labels.notLoaded}</p>;
   }
-  if (!recent.mapped) {
+  if (!view.mapped) {
     return <p className="text-muted-foreground text-[13px]">{labels.notACompany}</p>;
   }
-  if (recent.filings.length === 0) {
+  if (view.filings.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.empty}</p>;
   }
   return (
@@ -71,7 +45,7 @@ export function CompanyFilingsList({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {recent.filings.map((filing) => (
+        {view.filings.map((filing) => (
           <TableRow key={filing.protocol}>
             <TableCell className="align-top font-mono tabular-nums">
               {displayDate(filing.deliveredOn)}
@@ -84,15 +58,17 @@ export function CompanyFilingsList({
                 href={filing.documentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-primary inline-flex items-start gap-1 underline-offset-4 hover:underline"
+                className="hover:text-primary inline-flex min-h-11 items-start gap-1 py-1 underline-offset-4 hover:underline sm:min-h-8"
                 aria-label={labels.openDocument(headlineOf(filing))}
               >
                 <span className="line-clamp-2">{headlineOf(filing)}</span>
                 <ExternalLink aria-hidden className="mt-0.5 size-3 shrink-0" />
               </a>
-              <p className="text-muted-foreground line-clamp-1 text-xs sm:hidden">
-                {labels.category[filing.category]}
-              </p>
+              {headlineOf(filing) !== labels.category[filing.category] && (
+                <p className="text-muted-foreground line-clamp-1 text-xs sm:hidden">
+                  {labels.category[filing.category]}
+                </p>
+              )}
               {filing.kind && filing.subject && (
                 <p className="text-muted-foreground line-clamp-1 hidden text-xs sm:block">
                   {filing.kind}

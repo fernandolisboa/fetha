@@ -128,3 +128,8 @@ roles create`, the API) always create a role as a member of `neon_superuser`, wh
 `sgs` now has a start deadline (ADR-0017 addendum, #298), so its source entry can carry `deferred`
 too. A deferred `sgs` session is not routine the way `iv_index`'s backfill is: the manual trigger
 logs the full outcome when it happens. `newestSessionComputed` stays `iv_index` only.
+
+## Addendum: a deferred `cvm_filings` read is routine too (2026-10-13, #309, ADR-0060)
+
+`cvm_filings` can carry `deferred` when it misses its start budget. Like `iv_index`'s backfill, that
+is not logged as trouble by the manual trigger: the next run reads the same cumulative file.

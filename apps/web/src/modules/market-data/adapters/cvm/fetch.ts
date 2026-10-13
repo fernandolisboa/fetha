@@ -42,6 +42,9 @@ async function fetchZipEntry(
   if (!response.ok) {
     throw new CvmFetchError(`CVM fetch failed for ${entryName}`, response.status);
   }
+  if (Number(response.headers.get("content-length") ?? 0) > MAX_ZIP_BYTES) {
+    throw new CvmFetchError(`CVM zip for ${entryName} is too large`);
+  }
   const zipBytes = new Uint8Array(await response.arrayBuffer());
   if (zipBytes.byteLength > MAX_ZIP_BYTES) {
     throw new CvmFetchError(`CVM zip for ${entryName} is too large`);

@@ -21,7 +21,7 @@ _Avoid_: base asset, spot
 A document a listed company delivered to the CVM in one of four categories (material fact,
 market notice, shareholder notice, shareholder meeting), identified by its protocol and version
 and reached from an instrument through the company's CNPJ (ADR-0060). Shown as "Eventos
-recentes" on the asset page.
+recentes" on the asset page; that title is UI copy, not the domain term.
 _Avoid_: news, event, announcement
 
 **Option series**:

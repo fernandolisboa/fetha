@@ -1,4 +1,6 @@
-import type { CompanyFiling, CompanyFilingCategory, CompanyTicker } from "./schema";
+import type { CompanyFilingCategory } from "../../schema";
+
+import type { CompanyFiling, CompanyTicker } from "./schema";
 import { companyFilingSchema, companyTickerSchema } from "./schema";
 
 const IPE_CATEGORIES: ReadonlyMap<string, CompanyFilingCategory> = new Map([
@@ -39,8 +41,9 @@ export class CvmFileFormatError extends Error {
 
 interface CsvTable {
   rows: string[][];
-  // Lines whose field count differs from the header's.
-  malformed: number;
+  // Lines whose field count differs from the header's; their leading fields
+  // still say whether the line was in scope.
+  malformed: string[][];
   column: (name: string) => number;
 }
 
@@ -51,10 +54,9 @@ function readCsv(content: string, file: string): CsvTable {
   const [header, ...body] = lines;
   const columns = (header ?? "").split(";");
   const split = body.map((line) => line.split(";"));
-  const rows = split.filter((fields) => fields.length === columns.length);
   return {
-    rows,
-    malformed: split.length - rows.length,
+    rows: split.filter((fields) => fields.length === columns.length),
+    malformed: split.filter((fields) => fields.length !== columns.length),
     column: (name) => {
       const index = columns.indexOf(name);
       if (index === -1) {
@@ -80,6 +82,10 @@ function subjectOf(raw: string | undefined): string {
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
     .join("; ");
+}
+
+function isEquity(security: string | undefined): boolean {
+  return EQUITY_SECURITIES.has(security?.trim().toLowerCase() ?? "");
 }
 
 function failOnTooManySkipped(skipped: number, file: string): void {
@@ -110,7 +116,9 @@ export function parseIpeFilings(content: string): ParsedCompanyFilings {
   const linkIndex = table.column("Link_Download");
 
   const byKey = new Map<string, CompanyFiling>();
-  let skipped = table.malformed;
+  let skipped = table.malformed.filter((fields) =>
+    IPE_CATEGORIES.has(fields[categoryIndex]?.trim() ?? ""),
+  ).length;
   for (const fields of table.rows) {
     const category = IPE_CATEGORIES.get(fields[categoryIndex]?.trim() ?? "");
     if (!category) {
@@ -155,8 +163,10 @@ export interface ParsedCompanyTickers {
 // is the only open-data link from a CNPJ to its trading codes. The code is
 // free text typed by the company ("NÃO HÁ", "N/A", "tgma3"), so it is
 // normalized to upper case and kept only when it looks like a B3 share or
-// unit code; debentures and other non-equity rows are dropped. A code listed
-// under two CNPJs keeps the newest reference date.
+// unit code; debentures and other non-equity rows are dropped. Since any
+// filer can type any code, a code two CNPJs claim in the same file is
+// ambiguous and dropped, so the stored mapping stays as it was rather than
+// letting one company re-point another's ticker (docs/adr/0060).
 export function parseFcaTickers(content: string): ParsedCompanyTickers {
   const table = readCsv(content, "FCA");
   const cnpjIndex = table.column("CNPJ_Companhia");
@@ -165,9 +175,10 @@ export function parseFcaTickers(content: string): ParsedCompanyTickers {
   const codeIndex = table.column("Codigo_Negociacao");
 
   const byTicker = new Map<string, CompanyTicker>();
-  let skipped = table.malformed;
+  const ambiguous = new Set<string>();
+  let skipped = table.malformed.filter((fields) => isEquity(fields[securityIndex])).length;
   for (const fields of table.rows) {
-    if (!EQUITY_SECURITIES.has(fields[securityIndex]?.trim().toLowerCase() ?? "")) {
+    if (!isEquity(fields[securityIndex])) {
       continue;
     }
     const cnpj = digitsOf(fields[cnpjIndex] ?? "");
@@ -188,10 +199,14 @@ export function parseFcaTickers(content: string): ParsedCompanyTickers {
       continue;
     }
     const existing = byTicker.get(ticker);
+    if (existing && existing.cnpj !== parsed.data.cnpj) {
+      ambiguous.add(ticker);
+    }
     if (!existing || parsed.data.referenceDate > existing.referenceDate) {
       byTicker.set(ticker, parsed.data);
     }
   }
   failOnTooManySkipped(skipped, "FCA");
-  return { tickers: [...byTicker.values()], skipped };
+  const tickers = [...byTicker.values()].filter((entry) => !ambiguous.has(entry.ticker));
+  return { tickers, skipped: skipped + ambiguous.size };
 }
