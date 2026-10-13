@@ -1,7 +1,8 @@
 import type { SessionOpen } from "./parser";
 import { parseSgsResponse, splitIntoTenYearWindows } from "./parser";
-import type { MacroPoint, MacroSeriesKind } from "./schema";
-import { sgsNotFoundBodySchema, sgsSeriesCodes } from "./schema";
+import { parsePtaxResponse } from "./ptax-parser";
+import type { ExchangeRatePair, ExchangeRatePoint, MacroPoint, MacroSeriesKind } from "./schema";
+import { ptaxSgsCodes, sgsNotFoundBodySchema, sgsSeriesCodes } from "./schema";
 
 export class SgsFetchError extends Error {
   constructor(
@@ -20,9 +21,12 @@ export class SgsFetchError extends Error {
 // too: the nightly report recorded 200s carrying some JSON object around
 // publication time, body not kept (#289). On any other status, or with any
 // other body, it stays an error, so an outage is never read as "pending".
+// `label` identifies the series in the error message only (a MacroSeriesKind
+// for cdi/selic/ipca, an ExchangeRatePair for USDBRL/EURBRL): both are plain
+// SGS codes under the same provider, ADR-0059.
 export class SgsNotPublishedError extends SgsFetchError {
-  constructor(series: MacroSeriesKind, status: number) {
-    super(`SGS has no value yet for series ${series} in the requested range`, status);
+  constructor(label: string, status: number) {
+    super(`SGS has no value yet for series ${label} in the requested range`, status);
     this.name = "SgsNotPublishedError";
   }
 }
@@ -71,7 +75,7 @@ async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<SgsAns
 }
 
 async function fetchWithOneRetry(
-  series: MacroSeriesKind,
+  label: string,
   url: string,
   fetchImpl: typeof fetch,
   retryDelayMs: number,
@@ -93,7 +97,7 @@ async function fetchWithOneRetry(
     if (!isTransient(error)) {
       throw error;
     }
-    throw new SgsFetchError(`SGS request failed for series ${series} (network error)`);
+    throw new SgsFetchError(`SGS request failed for series ${label} (network error)`);
   }
 }
 
@@ -105,20 +109,20 @@ function jsonBodyOf(text: string): unknown {
   }
 }
 
-function readSgsBody(series: MacroSeriesKind, answer: SgsAnswer): unknown {
+function readSgsBody(label: string, answer: SgsAnswer): unknown {
   const { status, contentType } = answer;
   const body = jsonBodyOf(answer.text);
   const mayBeNotPublished = answer.ok || status === 404;
   if (mayBeNotPublished && sgsNotFoundBodySchema.safeParse(body).success) {
-    throw new SgsNotPublishedError(series, status);
+    throw new SgsNotPublishedError(label, status);
   }
   const detail = `(HTTP ${String(status)}, ${contentType})`;
   if (!answer.ok) {
-    throw new SgsFetchError(`SGS fetch failed for series ${series} ${detail}`, status, contentType);
+    throw new SgsFetchError(`SGS fetch failed for series ${label} ${detail}`, status, contentType);
   }
   if (!Array.isArray(body)) {
     throw new SgsFetchError(
-      `SGS returned an unexpected response for series ${series} ${detail}`,
+      `SGS returned an unexpected response for series ${label} ${detail}`,
       status,
       contentType,
     );
@@ -133,14 +137,39 @@ function toBrDate(isoDate: string): string {
 
 // docs/research/2026-09-02-market-data-providers.md, section 5: the API
 // enforces a 10-year window per request as of March 2025.
-export function sgsUrl(series: MacroSeriesKind, from: string, to: string): string {
-  const code = sgsSeriesCodes[series];
+export function sgsUrlForCode(code: number, from: string, to: string): string {
   const params = new URLSearchParams({
     formato: "json",
     dataInicial: toBrDate(from),
     dataFinal: toBrDate(to),
   });
   return `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${String(code)}/dados?${params.toString()}`;
+}
+
+export function sgsUrl(series: MacroSeriesKind, from: string, to: string): string {
+  return sgsUrlForCode(sgsSeriesCodes[series], from, to);
+}
+
+// The HTTP leg shared by every SGS code (macro series and PTAX pairs alike,
+// ADR-0059): one request per 10-year window, one retry, the same
+// not-yet-published/error classification. The caller supplies `label` only
+// for error messages and owns the JSON-to-domain parse.
+async function fetchSgsWindows(
+  code: number,
+  label: string,
+  from: string,
+  to: string,
+  fetchImpl: typeof fetch,
+  retryDelayMs: number,
+): Promise<unknown[]> {
+  const windows = splitIntoTenYearWindows(from, to);
+  const bodies: unknown[] = [];
+  for (const window of windows) {
+    const url = sgsUrlForCode(code, window.from, window.to);
+    const answer = await fetchWithOneRetry(label, url, fetchImpl, retryDelayMs);
+    bodies.push(readSgsBody(label, answer));
+  }
+  return bodies;
 }
 
 export async function fetchSgsSeries(
@@ -151,13 +180,27 @@ export async function fetchSgsSeries(
   fetchImpl: typeof fetch = fetch,
   retryDelayMs = RETRY_DELAY_MS,
 ): Promise<MacroPoint[]> {
-  const windows = splitIntoTenYearWindows(from, to);
-  const results: MacroPoint[] = [];
-  for (const window of windows) {
-    const url = sgsUrl(series, window.from, window.to);
-    const answer = await fetchWithOneRetry(series, url, fetchImpl, retryDelayMs);
-    const body = readSgsBody(series, answer);
-    results.push(...parseSgsResponse(series, body, sessions));
-  }
-  return results;
+  const bodies = await fetchSgsWindows(
+    sgsSeriesCodes[series],
+    series,
+    from,
+    to,
+    fetchImpl,
+    retryDelayMs,
+  );
+  return bodies.flatMap((body) => parseSgsResponse(series, body, sessions));
+}
+
+// PTAX has no session-eligibility concept (ADR-0059): Bacen publishes it on
+// its own business-day calendar, which differs from B3's, so every
+// published date is kept without a `sessions` lookup.
+export async function fetchPtaxSeries(
+  pair: ExchangeRatePair,
+  from: string,
+  to: string,
+  fetchImpl: typeof fetch = fetch,
+  retryDelayMs = RETRY_DELAY_MS,
+): Promise<ExchangeRatePoint[]> {
+  const bodies = await fetchSgsWindows(ptaxSgsCodes[pair], pair, from, to, fetchImpl, retryDelayMs);
+  return bodies.flatMap((body) => parsePtaxResponse(pair, body));
 }

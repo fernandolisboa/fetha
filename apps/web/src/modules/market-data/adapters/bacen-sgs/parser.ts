@@ -11,7 +11,7 @@ export interface SessionOpen {
   open: string;
 }
 
-function toIsoDate(ddmmyyyy: string): string {
+export function toIsoDate(ddmmyyyy: string): string {
   const [day = "", month = "", year = ""] = ddmmyyyy.split("/");
   return `${year}-${month}-${day}`;
 }
