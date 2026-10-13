@@ -532,6 +532,24 @@ describe("triggerNightlyJobAction", () => {
     expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
   });
 
+  it("logs the full outcome server-side when indexes deferred sessions past its own start budget (#307)", async () => {
+    const run = cleanRunWithIvIndex({ newestSessionComputed: true });
+    runNightlyJobMock.mockResolvedValue({
+      ...run,
+      sources: [
+        ...(run.sources as unknown[]),
+        { source: "indexes", skipped: false, rowCount: 0, pending: true, deferred: 1 },
+      ],
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ok", summary: { ok: true } });
+  });
+
   it("logs the full outcome server-side when sgs deferred sessions past its start budget (#298)", async () => {
     const run = cleanRunWithIvIndex({ newestSessionComputed: true });
     runNightlyJobMock.mockResolvedValue({

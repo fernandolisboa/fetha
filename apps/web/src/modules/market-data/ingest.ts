@@ -6,13 +6,21 @@ import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calen
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
 import { SgsNotPublishedError, fetchPtaxSeries, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { exchangeRatePairValues, sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
+import { fetchIndexYear } from "./adapters/b3-indexes/fetch";
+import type { IndexClosePoint } from "./adapters/b3-indexes/schema";
 import { fetchCotahist } from "./adapters/cotahist/fetch";
 import { gaps, latestSession } from "./freshness";
+import { marketIndexes } from "./market-index";
 import { withSourceLock } from "./repositories/advisory-lock";
-import { upsertDailyCandles } from "./repositories/candle-repository";
+import {
+  latestCandle,
+  upsertDailyCandles,
+  upsertIndexCandles,
+} from "./repositories/candle-repository";
 import {
   deleteUnlistedTradingSessions,
   sessionByDate,
+  sessionClosesFrom,
   sessionsFrom,
   upsertTradingSessions,
 } from "./repositories/calendar-repository";
@@ -52,6 +60,12 @@ const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 // push tonight's iv_index session past its hard stop; that run still ends in
 // time to record itself, and the next run retries both.
 const SGS_START_BUDGET_FRACTION = 0.4;
+// `indexes` runs after `instruments` and before `sgs` (docs/adr/0062): `iv_index` decides which
+// underlyings to compute from the candles present on the session and never revisits a skipped
+// one once the session succeeded, so a level landing after `iv_index` would lose `IBOV11`'s
+// point for that session for good. Split the same way `sgs` is (#298): older gap sessions stop
+// starting at 40%, the newest at iv_index's own 60% hard stop.
+const INDEXES_START_BUDGET_FRACTION = 0.4;
 // The CVM filings run right after tonight's iv_index session, which may start
 // as late as its 60% hard stop, so their start budget sits past it
 // (docs/adr/0060); a routine read takes seconds.
@@ -423,6 +437,9 @@ export interface IngestOptions {
   // Overrides `maxDurationMs * PTAX_START_BUDGET_FRACTION`, for the same
   // reason as `ivIndexBudgetMs`.
   ptaxBudgetMs?: number;
+  // Overrides `maxDurationMs * INDEXES_START_BUDGET_FRACTION`, for the same
+  // reason as `ivIndexBudgetMs`.
+  indexesBudgetMs?: number;
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
@@ -478,6 +495,94 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   );
 
   const ivIndexHardStopAt = startedAt + maxDurationMs * IV_INDEX_HARD_STOP_FRACTION;
+
+  // Runs after `instruments` and before `sgs` (docs/adr/0062): each calendar year touched is
+  // fetched at most once per invocation, success or failure alike, so a stalled B3 is paid once
+  // per year rather than once per gap session (the same per-invocation memo `cvmSnapshot` below
+  // uses for its own cumulative file). Cumulative from the day after the latest stored IBOV11
+  // candle, floored at `SGS_DEFAULT_SINCE` like every other reference series.
+  const indexYearFetches = new Map<number, Promise<IndexClosePoint[]>>();
+  function fetchIndexYearMemoised(year: number): Promise<IndexClosePoint[]> {
+    const existing = indexYearFetches.get(year);
+    if (existing) {
+      return existing;
+    }
+    const promise = fetchIndexYear(year, fetchImpl);
+    indexYearFetches.set(year, promise);
+    return promise;
+  }
+
+  const indexesSessions = await resolveSessions("indexes");
+  const indexesRun = async (session: string): Promise<RunResult> => {
+    const latest = await latestCandle(db, marketIndexes[0].ticker);
+    const from = resolveSgsFromDate(latest?.session);
+    if (from > session) {
+      return 0;
+    }
+    const fromYear = Number(from.slice(0, 4));
+    const toYear = Number(session.slice(0, 4));
+    const years = Array.from({ length: toYear - fromYear + 1 }, (_, index) => fromYear + index);
+    const bodies = await Promise.all(years.map((year) => fetchIndexYearMemoised(year)));
+    const points = bodies
+      .flat()
+      .filter((point) => point.date >= from && point.date <= session)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    const sessionCloses = await sessionClosesFrom(db, from);
+    const closeByDate = new Map(sessionCloses.map((row) => [row.date, row.close]));
+    const asOfBySession = new Map<string, Date>();
+    let skippedRows = 0;
+    const writable: IndexClosePoint[] = [];
+    for (const point of points) {
+      const close = closeByDate.get(point.date);
+      if (!close) {
+        // A published date the ANBIMA calendar never lists as a trading session is a
+        // calendar discrepancy worth seeing in the report, like the registry's own skips
+        // (ADR-0062), not a write.
+        skippedRows += 1;
+        continue;
+      }
+      asOfBySession.set(point.date, close);
+      writable.push(point);
+    }
+
+    const rowCount = await withSourceLock(db, "cotahist", (tx) =>
+      upsertIndexCandles(tx, writable, marketIndexes[0].ticker, asOfBySession),
+    );
+
+    const published = points.some((point) => point.date === session);
+    if (published || session < from) {
+      return { rowCount, skippedRows };
+    }
+    // The processed session's own date is missing from its year's file: not yet published
+    // (ADR-0062). The newest gap session reports `pending` (rows for earlier
+    // dates already written); an older gap is a thrown failure, exactly `sgsRun`'s rule.
+    if (session !== indexesSessions.at(-1)) {
+      throw new Error(`B3 index statistics has not published IBOV for ${session}`);
+    }
+    return { rowCount, pending: true };
+  };
+  const indexesOlderResult = await runSessionBoundSource(
+    db,
+    "indexes",
+    indexesSessions.slice(0, -1),
+    maxDurationMs,
+    indexesRun,
+    startedAt + (options.indexesBudgetMs ?? maxDurationMs * INDEXES_START_BUDGET_FRACTION),
+  );
+  const indexesNewestSession = indexesSessions.at(-1);
+  const indexesNewestResult = await runSessionBoundSource(
+    db,
+    "indexes",
+    indexesNewestSession ? [indexesNewestSession] : [],
+    maxDurationMs,
+    indexesRun,
+    ivIndexHardStopAt,
+  );
+  const indexesResult = {
+    outcome: mergeOutcomes("indexes", [indexesOlderResult.outcome, indexesNewestResult.outcome]),
+    okSessions: [...indexesOlderResult.okSessions, ...indexesNewestResult.okSessions],
+  };
 
   const sgsSessions = await resolveSessions("sgs");
   const sgsRun = async (session: string): Promise<RunResult> => {
@@ -559,7 +664,18 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const ivIndexRestSessions = [
     ...new Set([...ivIndexRecentSessions.slice(0, -1)].reverse().concat(ivIndexBackfillCandidates)),
   ];
+  // A session `indexes` attempted this run and did not succeed on leaves `iv_index` pending for
+  // it (docs/adr/0054 addendum): otherwise a late B3 index document would silently lose
+  // `IBOV11`'s point for that session rather than delaying it by one cron, like the CDI gate
+  // already does. Sessions `indexes` never attempted this run (older backfill, outside its
+  // own window) are unaffected and keep draining on their own schedule.
+  const indexesMissing = new Set(
+    indexesSessions.filter((session) => !indexesResult.okSessions.includes(session)),
+  );
   const ivIndexRun = async (session: string): Promise<RunResult> => {
+    if (indexesMissing.has(session)) {
+      return { rowCount: 0, pending: true as const };
+    }
     const [cotahistRun, instrumentsRun] = await Promise.all([
       findSucceededRun(db, "cotahist", session),
       findSucceededRun(db, "instruments", session),
@@ -711,6 +827,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     calendarOutcome,
     cotahistResult.outcome,
     instrumentsResult.outcome,
+    indexesResult.outcome,
     sgsOutcome,
     session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
     cvmResult.outcome,

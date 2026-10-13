@@ -253,6 +253,7 @@ export const ingestionSourceValues = [
   "iv_index",
   "cvm_filings",
   "ptax",
+  "indexes",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 

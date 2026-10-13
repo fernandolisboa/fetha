@@ -256,6 +256,21 @@ export async function sessionsFrom(
   return rows.map((row) => ({ date: row.date, open: row.open.toISOString() }));
 }
 
+// Every session's own close from `from` onward, oldest first: the `indexes` source
+// (ADR-0062) stamps each day's `IBOV11` row with its own trading session's close,
+// the instant every other candle on that session already carries, unlike PTAX's fixed
+// publication time (docs/adr/0061).
+export async function sessionClosesFrom(
+  db: Database,
+  from: string,
+): Promise<Array<{ date: string; close: Date }>> {
+  return db
+    .select({ date: tradingSessions.date, close: tradingSessions.close })
+    .from(tradingSessions)
+    .where(gte(tradingSessions.date, from))
+    .orderBy(asc(tradingSessions.date));
+}
+
 // The calendar `buildOperationMarketView` needs to resolve time to expiry
 // for every leg of a chain (`resolveTimeToExpiryYears`, ADR-0013): the
 // engine's calendar walk requires the session containing `at` (found by
