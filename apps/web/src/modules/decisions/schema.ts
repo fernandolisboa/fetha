@@ -22,7 +22,11 @@ import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
 import { contemplatedOperations, operations } from "../portfolio/schema";
 
-import { analysisSubjectKinds, type AnalysisInputs, type AnalysisOutput } from "@fetha/contracts";
+import {
+  analysisSubjectKinds,
+  type AnalysisInputs,
+  type StoredAnalysisOutput,
+} from "@fetha/contracts";
 
 import { journalOriginKinds } from "./allowed-kinds";
 import type { AnalysisReason } from "./analysis-reason";
@@ -241,7 +245,10 @@ export const analysisRequests = pgTable(
 // reason, `rejected`/`failed` always carry a reason and no output — a
 // rejected reply's text is never stored (docs/adr/0057), only why it was
 // discarded. `model` is nullable: a `failed` call (no reply at all, an API
-// error) never reached a model that answered.
+// error) never reached a model that answered. `claim`, `claim_confidence`
+// and `horizon` (docs/adr/0058) are the accepted outlook resolved into the
+// engine's terms at acceptance, written in the same insert: all set or all
+// null, and only ever on an accepted row.
 export const analysisResults = pgTable(
   "analysis_results",
   {
@@ -253,11 +260,14 @@ export const analysisResults = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     requestId: text("request_id").notNull().unique(),
     outcome: text("outcome").notNull(),
-    output: jsonb("output").$type<AnalysisOutput | null>(),
+    output: jsonb("output").$type<StoredAnalysisOutput | null>(),
     reason: jsonb("reason").$type<AnalysisReason | null>(),
     model: text("model"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
+    claim: jsonb("claim").$type<ThesisClaim | null>(),
+    claimConfidence: numeric("claim_confidence", { mode: "string" }),
+    horizon: date("horizon", { mode: "string" }),
     completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -275,6 +285,56 @@ export const analysisResults = pgTable(
       "analysis_results_output_xor_reason_check",
       sql`(${table.outcome} = 'accepted' and ${table.output} is not null and ${table.reason} is null)
         or (${table.outcome} <> 'accepted' and ${table.output} is null and ${table.reason} is not null)`,
+    ),
+    check(
+      "analysis_results_claim_all_or_none_check",
+      sql`(${table.claim} is null and ${table.claimConfidence} is null and ${table.horizon} is null)
+        or (${table.outcome} = 'accepted' and ${table.claim} is not null
+          and ${table.claimConfidence} is not null and ${table.horizon} is not null)`,
+    ),
+    check(
+      "analysis_results_claim_confidence_range_check",
+      sql`${table.claimConfidence} >= 0 and ${table.claimConfidence} <= 1`,
+    ),
+  ],
+);
+
+// An accepted analysis's engine-computed score (docs/adr/0058): the same
+// shape and rules as `decision_scores`, one append-only row per request
+// (`analysis_scores_no_update` trigger, `request_id` unique), either the
+// engine's `Score` or a terminal `unscorable_reason`. The composite foreign
+// key binds this row's own `user_id` to the request's, over
+// `analysis_requests_id_user_id_idx`, so a score can never be attached to
+// another user's analysis.
+export const analysisScores = pgTable(
+  "analysis_scores",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requestId: text("request_id").notNull(),
+    score: jsonb("score").$type<Score>(),
+    unscorableReason: text("unscorable_reason"),
+    claimHeld: boolean("claim_held"),
+    brier: numeric("brier", { mode: "string" }),
+    engineVersion: text("engine_version").notNull(),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("analysis_scores_request_id_idx").on(table.requestId),
+    index("analysis_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
+    foreignKey({
+      name: "analysis_scores_request_id_user_id_fk",
+      columns: [table.requestId, table.userId],
+      foreignColumns: [analysisRequests.id, analysisRequests.userId],
+    }),
+    check(
+      "analysis_scores_score_xor_unscorable_check",
+      sql`(${table.score} is not null and ${table.unscorableReason} is null)
+        or (${table.score} is null and ${table.unscorableReason} is not null)`,
     ),
   ],
 );

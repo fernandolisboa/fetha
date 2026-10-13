@@ -1,4 +1,9 @@
-import { factAt, type AnalysisInputs, type AnalysisOutput } from "@fetha/contracts";
+import {
+  factAt,
+  outlookOf,
+  type AnalysisInputs,
+  type StoredAnalysisOutput,
+} from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format/date-time";
@@ -8,7 +13,7 @@ import { t } from "../strings";
 import { analysisModelDisplayName } from "./analysis-model-name";
 
 export interface AnalysisPanelData {
-  output: AnalysisOutput;
+  output: StoredAnalysisOutput;
   model: string;
   promptVersion: string;
   requestedAt: Date;
@@ -22,10 +27,31 @@ function citedFactValue(inputs: AnalysisInputs, path: string): string | null {
 
 const labels = t.analysis.panel;
 
+// docs/adr/0058: the outlook in words, with the instrument and level read
+// from the facts its paths name. `analysis@1` replies carry no outlook field
+// and show no outlook section at all.
+export function panelOutlookSentence(analysis: AnalysisPanelData): string | null {
+  if (!("outlook" in analysis.output)) {
+    return null;
+  }
+  const outlook = outlookOf(analysis.output);
+  if (outlook === null) {
+    return t.journal.analysis.outlookNone;
+  }
+  const sentence = t.analysis.outlook(
+    citedFactValue(analysis.inputs, outlook.instrumentFact) ?? "",
+    outlook.direction,
+    citedFactValue(analysis.inputs, outlook.levelFact) ?? "",
+    t.analysis.horizon[outlook.horizon],
+  );
+  return `${sentence} · ${t.analysis.likelihood[outlook.likelihood]}`;
+}
+
 // DESIGN.md's AnalysisPanel: thesis, counter-thesis, risks, invalidation,
 // confidence, inputs cited, prompt version and model. The model's own
 // prose is always rendered as plain text, never `dangerouslySetInnerHTML`.
 export function AnalysisPanel({ analysis }: { analysis: AnalysisPanelData }) {
+  const outlook = panelOutlookSentence(analysis);
   return (
     <div className="flex flex-col gap-4 text-[13px]">
       <section className="flex flex-col gap-1">
@@ -76,6 +102,15 @@ export function AnalysisPanel({ analysis }: { analysis: AnalysisPanelData }) {
           {analysis.output.confidence.justification}
         </p>
       </section>
+
+      {outlook !== null ? (
+        <section className="border-line-soft flex flex-col gap-1 border-t pt-3">
+          <h3 className="text-muted-foreground text-[11px] uppercase">
+            {t.journal.analysis.outlookLabel}
+          </h3>
+          <p className="text-pretty">{outlook}</p>
+        </section>
+      ) : null}
 
       <section className="border-line-soft flex flex-col gap-1 border-t pt-3">
         <h3 className="text-muted-foreground text-[11px] uppercase">{labels.inputsCited}</h3>

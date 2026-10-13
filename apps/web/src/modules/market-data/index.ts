@@ -10,6 +10,7 @@ export {
   calendarUpTo,
   loadMarketView,
   loadMarketViewWithCalendarVersion,
+  nthTradingSessionAfter,
   previousTradingSession,
   tradingSessionForDate,
   tradingSessionOnOrAfter,

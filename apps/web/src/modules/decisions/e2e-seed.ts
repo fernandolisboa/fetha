@@ -1,4 +1,5 @@
 import type {
+  AnalysisOutputV2,
   Centavos,
   Confidence,
   ContemplatedLeg,
@@ -16,6 +17,7 @@ import { StructuresRepository } from "@/modules/strategies";
 
 import { DecisionsRepository } from "./decisions-repository";
 import type { DecisionInputs } from "./inputs";
+import { analysisRequests, analysisResults } from "./schema";
 
 const STOCK_STRUCTURE_ID = "stock";
 
@@ -31,6 +33,9 @@ export interface SeedE2EDecisionInput {
   claim: ThesisClaim | null;
   confidence: Confidence;
   rationale: string;
+  // An accepted AI analysis of the same operation, requested just before the
+  // decision, whose outlook the same nightly run scores (docs/adr/0058).
+  analysis: { requestedAt: Date; claim: ThesisClaim; claimConfidence: Confidence };
 }
 
 export type SeedE2EDecisionResult =
@@ -109,5 +114,69 @@ export async function seedE2EDecision(
     decidedAt: input.decidedAt,
   });
 
+  await seedAcceptedAnalysis(db, scopedUser, operation.id, input);
+
   return { ok: true, id: recorded.id };
+}
+
+// Written to the tables directly, not through `AnalysesRepository.reserve`:
+// the request instant must be backdated to an already-ingested session, and
+// no model is called. The outlook names facts this row really holds.
+async function seedAcceptedAnalysis(
+  db: Database,
+  scopedUser: ScopedUser,
+  operationId: string,
+  input: SeedE2EDecisionInput,
+): Promise<void> {
+  const output: AnalysisOutputV2 = {
+    thesis: `Análise semeada pelo fluxo E2E sobre ${input.underlying}.`,
+    counterThesis: "Os fatos semeados não sustentam uma contratese.",
+    keyRisks: ["Os fatos semeados são mínimos."],
+    maxLoss: "Os fatos não mostram a perda máxima.",
+    breakEvens: "Os fatos não mostram pontos de equilíbrio.",
+    invalidation: ["Uma queda forte do ativo."],
+    confidence: { level: "low", justification: "Fatos mínimos, semeados para teste." },
+    inputsCited: ["underlying"],
+    outlook: {
+      instrumentFact: "underlying",
+      direction: "above",
+      levelFact: "pricing.spot",
+      horizon: "one_week",
+      likelihood: "likely",
+    },
+  };
+  const [request] = await db
+    .insert(analysisRequests)
+    .values({
+      userId: scopedUser.id,
+      subjectKind: "contemplated_operation",
+      subjectId: operationId,
+      inputs: {
+        subject: "contemplated_operation",
+        facts: {
+          session: input.session.split("-").reverse().join("/"),
+          structure: "Compra de ação",
+          underlying: input.underlying,
+          pricing: { spot: "R$ 1,00" },
+        },
+      },
+      promptVersion: "analysis@2",
+      model: "claude-opus-5-5",
+      requestedAt: input.analysis.requestedAt,
+    })
+    .returning({ id: analysisRequests.id });
+  if (!request) {
+    throw new Error("failed to seed the E2E analysis request");
+  }
+  await db.insert(analysisResults).values({
+    userId: scopedUser.id,
+    requestId: request.id,
+    outcome: "accepted",
+    output,
+    model: "claude-opus-5-5",
+    claim: input.analysis.claim,
+    claimConfidence: input.analysis.claimConfidence,
+    horizon: input.horizon,
+    completedAt: input.analysis.requestedAt,
+  });
 }

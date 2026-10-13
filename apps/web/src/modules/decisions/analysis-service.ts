@@ -1,14 +1,21 @@
-import { analysisOutputSchema, checkAnalysisCitations } from "@fetha/contracts";
+import {
+  checkAnalysisCitations,
+  resolveAnalysisOutlook,
+  type AnalysisOutlookHorizon,
+  type SessionDate,
+} from "@fetha/contracts";
 import { analysisModels, analysisPrompt } from "@fetha/prompts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 
 import { assembleAnalysisInputs, type AssembleAnalysisInputsResult } from "./analysis-inputs";
+import { resolveOutlookHorizon } from "./analysis-horizon";
 import type { AnalysisModelClient } from "./analysis-model";
 import {
   AnalysesRepository,
   AnalysisCapReachedError,
+  type AnalysisClaim,
   type CompleteAnalysisInput,
   type LatestAcceptedAnalysis,
   type ReserveAnalysisInput,
@@ -43,6 +50,10 @@ export interface RequestAnalysisDeps {
     subjectId: string,
   ) => Promise<AssembleAnalysisInputsResult>;
   repository?: AnalysisRepositoryPort;
+  resolveHorizon?: (
+    horizon: AnalysisOutlookHorizon,
+    requestedAt: Date,
+  ) => Promise<SessionDate | null>;
 }
 
 export interface RequestAnalysisInput {
@@ -150,7 +161,7 @@ export async function requestAnalysis(
     return { status: "failed" };
   }
 
-  const parsed = analysisOutputSchema.safeParse(reply.output);
+  const parsed = analysisPrompt.outputSchema.safeParse(reply.output);
   if (!parsed.success) {
     await completeRejected(repository, requestId, { kind: "schema" }, reply.model, reply.usage);
     return { status: "rejected" };
@@ -172,6 +183,29 @@ export async function requestAnalysis(
     return { status: "rejected" };
   }
 
+  let claim: AnalysisClaim | null = null;
+  if (parsed.data.outlook !== null) {
+    const outlook = resolveAnalysisOutlook(assembled.inputs, parsed.data.outlook);
+    if (!outlook.ok) {
+      await completeRejected(
+        repository,
+        requestId,
+        { kind: "outlook", problem: outlook.problem },
+        reply.model,
+        reply.usage,
+      );
+      return { status: "rejected" };
+    }
+    // docs/adr/0058: a horizon the calendar cannot place leaves the
+    // analysis accepted (its prose passed every check) but unscorable.
+    const resolveHorizon =
+      deps.resolveHorizon ??
+      ((horizon: AnalysisOutlookHorizon, at: Date) => resolveOutlookHorizon(deps.db, horizon, at));
+    const horizon = await resolveHorizon(outlook.horizon, requestedAt);
+    claim =
+      horizon === null ? null : { claim: outlook.claim, confidence: outlook.confidence, horizon };
+  }
+
   await repository.complete(requestId, {
     outcome: "accepted",
     output: parsed.data,
@@ -179,6 +213,7 @@ export async function requestAnalysis(
     model: reply.model,
     inputTokens: reply.usage.inputTokens,
     outputTokens: reply.usage.outputTokens,
+    claim,
   });
   return {
     status: "accepted",

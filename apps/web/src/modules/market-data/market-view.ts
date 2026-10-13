@@ -28,6 +28,7 @@ import type { Database } from "@/db/client";
 import {
   calendarWindowThroughExpiry,
   latestSessionOnOrBefore,
+  nthSessionAfter,
   sessionBefore,
   sessionByDate,
   sessionOnOrAfter,
@@ -440,6 +441,17 @@ export async function tradingSessionOnOrAfter(
   date: string,
 ): Promise<TradingSession | undefined> {
   const row = await sessionOnOrAfter(db, date);
+  return row ? toTradingSession(row) : undefined;
+}
+
+// The engine-shaped `count`-th trading session after `date`: an analysis
+// outlook's horizon (docs/adr/0058).
+export async function nthTradingSessionAfter(
+  db: Database,
+  date: string,
+  count: number,
+): Promise<TradingSession | undefined> {
+  const row = await nthSessionAfter(db, date, count);
   return row ? toTradingSession(row) : undefined;
 }
 

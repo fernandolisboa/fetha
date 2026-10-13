@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
 const scoreDueDecisionsMock = vi.hoisted(() => vi.fn());
+const scoreDueAnalysesMock = vi.hoisted(() => vi.fn());
 const purgeExpiredAccessLogMock = vi.hoisted(() => vi.fn());
 const purgeUnverifiedAccountsMock = vi.hoisted(() => vi.fn());
 const purgeExpiredSessionsMock = vi.hoisted(() => vi.fn());
@@ -10,7 +11,10 @@ const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
-vi.mock("@/modules/decisions", () => ({ scoreDueDecisions: scoreDueDecisionsMock }));
+vi.mock("@/modules/decisions", () => ({
+  scoreDueDecisions: scoreDueDecisionsMock,
+  scoreDueAnalyses: scoreDueAnalysesMock,
+}));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 vi.mock("@/modules/auth", () => ({
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
@@ -53,6 +57,18 @@ describe("runNightlyJob", () => {
           usersSkipped: 0,
           decisionsScored: 0,
           decisionsSkipped: 0,
+          errors: [],
+        }),
+      );
+    scoreDueAnalysesMock
+      .mockReset()
+      .mockImplementation((_db: unknown, input: { okSessions: readonly string[] }) =>
+        Promise.resolve({
+          asOfSession: input.okSessions[0] ?? "",
+          usersScored: 0,
+          usersSkipped: 0,
+          analysesScored: 0,
+          analysesSkipped: 0,
           errors: [],
         }),
       );
@@ -155,6 +171,41 @@ describe("runNightlyJob", () => {
       scoreDueDecisionsMock.mock.calls[0]?.[2] as { deadlineAt: number }
     ).deadlineAt;
     expect(scoringDeadline).toBe(evaluationDeadline);
+  });
+
+  it("scores analyses after decisions, with the same input and deadline", async () => {
+    const order: string[] = [];
+    scoreDueDecisionsMock.mockImplementationOnce(() => {
+      order.push("decisions");
+      return Promise.resolve({
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        decisionsScored: 0,
+        decisionsSkipped: 0,
+        errors: [],
+      });
+    });
+    scoreDueAnalysesMock.mockImplementationOnce(() => {
+      order.push("analyses");
+      return Promise.resolve({
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        analysesScored: 2,
+        analysesSkipped: 0,
+        errors: [],
+      });
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+    const outcome = await runNightlyJob(fakeDb);
+    expect(order).toEqual(["decisions", "analyses"]);
+    expect(scoreDueAnalysesMock).toHaveBeenCalledWith(
+      fakeDb,
+      { okSessions: ["2026-09-08"] },
+      scoreDueDecisionsMock.mock.calls[0]?.[2],
+    );
+    expect(outcome.analysisScoring).toMatchObject({ analysesScored: 2 });
   });
 
   it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {

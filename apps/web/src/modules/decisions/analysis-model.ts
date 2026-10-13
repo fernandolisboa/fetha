@@ -1,8 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { analysisOutputSchema } from "@fetha/contracts";
-import type { AnalysisModel } from "@fetha/prompts";
+import { analysisPrompt, type AnalysisModel } from "@fetha/prompts";
 
 export interface AnalysisModelRequest {
   model: AnalysisModel;
@@ -43,7 +42,7 @@ const MAX_OUTPUT_TOKENS = 8000;
 // one attempt of at most 100s leaves time to store the result, so a slow
 // call ends as `api_error` instead of the platform killing the function.
 const REQUEST_TIMEOUT_MS = 100_000;
-const outputFormat = betaZodOutputFormat(analysisOutputSchema);
+const outputFormat = betaZodOutputFormat(analysisPrompt.outputSchema);
 const END_TURN_STOP_REASONS = new Set(["end_turn", "stop_sequence"]);
 
 // Reads the reply by hand instead of through the SDK's `parse()`, which

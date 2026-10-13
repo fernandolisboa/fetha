@@ -2,12 +2,12 @@ import type { Database } from "@/db/client";
 import type { AccessLogPurgeOutcome } from "@/modules/audit";
 import type { ExpiredSessionPurgeOutcome, UnverifiedAccountPurgeOutcome } from "@/modules/auth";
 import type { EvaluateSignalsOutcome } from "@/modules/strategies";
-import type { ScoreDecisionsOutcome } from "@/modules/decisions";
+import type { ScoreAnalysesOutcome, ScoreDecisionsOutcome } from "@/modules/decisions";
 import type { IngestOutcome, SourceOutcome } from "@/modules/market-data";
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
 import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
-import { scoreDueDecisions } from "@/modules/decisions";
+import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
 import { ingest } from "@/modules/market-data";
 import { evaluateSignalsForSession } from "@/modules/strategies";
 
@@ -24,6 +24,7 @@ export interface NightlyJobOutcome {
   sources: SourceOutcome[];
   evaluation: EvaluateSignalsOutcome | null;
   scoring: ScoreDecisionsOutcome;
+  analysisScoring: ScoreAnalysesOutcome;
   accessLogPurge: AccessLogPurgeOutcome;
   unverifiedAccountPurge: UnverifiedAccountPurgeOutcome;
   sessionPurge: ExpiredSessionPurgeOutcome;
@@ -75,16 +76,17 @@ export async function runNightlyJob(
   // Scoring is chained after evaluation, same run, same deadline (#29): its
   // own failures never turn an otherwise successful ingestion response into
   // a failed one, reported alongside it the same way evaluation's are.
-  const scoring = await scoreDueDecisions(
-    db,
-    { okSessions: cotahistSucceeded(result) ? result.okSessions : [] },
-    { deadlineAt },
-  );
+  const scoringInput = { okSessions: cotahistSucceeded(result) ? result.okSessions : [] };
+  const scoring = await scoreDueDecisions(db, scoringInput, { deadlineAt });
+  // AI analyses' outlooks are scored right after decisions, on the same
+  // as-of session and deadline (docs/adr/0058).
+  const analysisScoring = await scoreDueAnalyses(db, scoringInput, { deadlineAt });
 
   return {
     ...result,
     evaluation,
     scoring,
+    analysisScoring,
     accessLogPurge,
     unverifiedAccountPurge,
     sessionPurge,

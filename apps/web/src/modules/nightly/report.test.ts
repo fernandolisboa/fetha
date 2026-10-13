@@ -35,6 +35,14 @@ function baseOutcome(): NightlyJobOutcome {
       decisionsSkipped: 0,
       errors: [{ decisionId: "someone-elses-decision-id", kind: "engine_error:boom" }],
     },
+    analysisScoring: {
+      asOfSession: "2026-09-08",
+      usersScored: 0,
+      usersSkipped: 0,
+      analysesScored: 0,
+      analysesSkipped: 0,
+      errors: [{ requestId: "someone-elses-request-id", kind: "engine_error:boom" }],
+    },
     accessLogPurge: { ok: true, deleted: 4 },
     unverifiedAccountPurge: { ok: true, deleted: 0 },
     sessionPurge: { ok: true, deleted: 1 },
@@ -96,8 +104,10 @@ describe("buildNightlyRunReport", () => {
         decisionsSkipped: 0,
         errorCount: 1,
       },
+      analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 1 },
     });
     const serialized = JSON.stringify(report);
+    expect(serialized).not.toContain("someone-elses-request-id");
     expect(serialized).not.toContain("someone-elses-decision-id");
     expect(serialized).not.toContain("someone-elses-strategy-id");
     expect(serialized).not.toContain("engine_error:boom");

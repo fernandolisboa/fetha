@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { decimalStringSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -8,6 +9,7 @@ import { backtestRuns } from "@/modules/backtests/schema";
 import {
   analysisRequests,
   analysisResults,
+  analysisScores,
   decisions,
   decisionScores,
 } from "@/modules/decisions/schema";
@@ -259,6 +261,44 @@ export async function seedUserFootprint(
     requestId: analysisRequest.id,
     outcome: "failed",
     reason: { kind: "api_error", status: null },
+  });
+  const scoredRequest = only(
+    await db
+      .insert(analysisRequests)
+      .values({
+        userId,
+        subjectKind: "signal",
+        subjectId: signal.id,
+        inputs: { subject: "signal", facts: {} },
+        promptVersion: "footprint",
+        model: "footprint",
+      })
+      .returning({ id: analysisRequests.id }),
+  );
+  await db.insert(analysisResults).values({
+    userId,
+    requestId: scoredRequest.id,
+    outcome: "accepted",
+    output: {
+      thesis: "footprint",
+      counterThesis: "footprint",
+      keyRisks: ["footprint"],
+      maxLoss: "footprint",
+      breakEvens: "footprint",
+      invalidation: ["footprint"],
+      confidence: { level: "low", justification: "footprint" },
+      inputsCited: ["footprint"],
+      outlook: null,
+    },
+    claim: { kind: "close_above", instrument: "PETR4", level: decimalStringSchema.parse("30") },
+    claimConfidence: "0.6",
+    horizon: "2026-09-10",
+  });
+  await db.insert(analysisScores).values({
+    userId,
+    requestId: scoredRequest.id,
+    unscorableReason: "footprint",
+    engineVersion: "footprint",
   });
 
   return { strategyId, strategyVersionId };

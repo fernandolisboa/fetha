@@ -8,8 +8,14 @@ import { forCurrentUser } from "@/modules/auth";
 import {
   AnalysesRepository,
   type AnalysisUsage,
+  type JournalAnalysis,
   type LatestAcceptedAnalysis,
 } from "./analyses-repository";
+import {
+  AnalysisScoresRepository,
+  type AnalysisScoreRow,
+  type AnalysisTrackRecordStats,
+} from "./analysis-scores-repository";
 import { readAnthropicApiKey } from "./analysis-model";
 import {
   DecisionScoresRepository,
@@ -84,6 +90,28 @@ export async function getMyLatestAnalyses(
   await recordAccess("decisions_read");
   return repository.latestAccepted(subjectKind, subjectIds);
 }
+
+// The journal's analyses (docs/adr/0058): every accepted one, newest first.
+export const getMyJournalAnalyses = cache(async (): Promise<JournalAnalysis[]> => {
+  const repository = await forCurrentUser(getDb(), AnalysesRepository);
+  await recordAccess("decisions_read");
+  return repository.listAcceptedForJournal();
+});
+
+export const getMyAnalysisScores = cache(
+  async (requestIds: readonly string[]): Promise<Map<string, AnalysisScoreRow>> => {
+    if (requestIds.length === 0) return new Map();
+    const repository = await forCurrentUser(getDb(), AnalysisScoresRepository);
+    await recordAccess("decisions_read");
+    return repository.findForRequests(requestIds);
+  },
+);
+
+export const getMyAnalysisTrackRecordStats = cache(async (): Promise<AnalysisTrackRecordStats> => {
+  const repository = await forCurrentUser(getDb(), AnalysisScoresRepository);
+  await recordAccess("decisions_read");
+  return repository.trackRecordStats();
+});
 
 export const getMyAnalysisUsage = cache(async (): Promise<AnalysisUsage> => {
   const repository = await forCurrentUser(getDb(), AnalysesRepository);

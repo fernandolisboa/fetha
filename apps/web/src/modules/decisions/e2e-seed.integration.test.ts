@@ -14,6 +14,8 @@ import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { structures } from "@/modules/strategies/schema";
 
+import { AnalysesRepository } from "./analyses-repository";
+import { buildJournalTimeline } from "./journal-timeline";
 import { DecisionsRepository } from "./decisions-repository";
 import { seedE2EDecision, type SeedE2EDecisionInput } from "./e2e-seed";
 
@@ -57,6 +59,11 @@ function seedInput(ticker: Ticker): SeedE2EDecisionInput {
     claim: { kind: "close_above", instrument: ticker, level: decimalStringSchema.parse("1") },
     confidence: confidenceSchema.parse("0.7"),
     rationale: "seedE2EDecision integration test",
+    analysis: {
+      requestedAt: new Date("2026-09-08T21:04:00.000Z"),
+      claim: { kind: "close_above", instrument: ticker, level: decimalStringSchema.parse("1") },
+      claimConfidence: confidenceSchema.parse("0.75"),
+    },
   };
 }
 
@@ -106,6 +113,7 @@ describe("seedE2EDecision", () => {
     expect(result).toEqual({ ok: false, reason: "e2e_not_available" });
     const decisionsRepository = new DecisionsRepository(getDb(), owner);
     expect(await decisionsRepository.listMine()).toEqual([]);
+    expect(await new AnalysesRepository(getDb(), owner).listAcceptedForJournal()).toEqual([]);
   });
 
   it("refuses before any write on a production deployment even with a secret configured", async () => {
@@ -119,6 +127,7 @@ describe("seedE2EDecision", () => {
     expect(result).toEqual({ ok: false, reason: "e2e_not_available" });
     const decisionsRepository = new DecisionsRepository(getDb(), owner);
     expect(await decisionsRepository.listMine()).toEqual([]);
+    expect(await new AnalysesRepository(getDb(), owner).listAcceptedForJournal()).toEqual([]);
   });
 
   // Only the "stock" row is removed, and restored in `finally` regardless of
@@ -170,5 +179,21 @@ describe("seedE2EDecision", () => {
     expect(decision?.id).toBe(result.id);
     expect(decision?.horizon).toBe("2026-09-09");
     expect(decision?.decidedAt.toISOString()).toBe("2026-09-08T21:05:00.000Z");
+
+    const analyses = await new AnalysesRepository(getDb(), owner).listAcceptedForJournal();
+    expect(analyses).toHaveLength(1);
+    expect(analyses[0]).toMatchObject({
+      promptVersion: "analysis@2",
+      claim: {
+        claim: { kind: "close_above", instrument: ticker, level: "1" },
+        confidence: "0.75",
+        horizon: "2026-09-09",
+      },
+    });
+    expect(analyses[0]?.requestedAt.toISOString()).toBe("2026-09-08T21:04:00.000Z");
+    const [entry] = buildJournalTimeline(decision ? [decision] : [], analyses);
+    expect(entry?.kind === "decision" ? entry.analyses.map((a) => a.id) : []).toEqual([
+      analyses[0]?.id,
+    ]);
   });
 });

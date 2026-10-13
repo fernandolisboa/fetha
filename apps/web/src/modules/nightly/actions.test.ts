@@ -32,6 +32,14 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [{ decisionId: "someone-elses-decision", kind: "engine_error:boom" }],
       },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
+        errors: [],
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -100,6 +108,7 @@ describe("triggerNightlyJobAction", () => {
         sources: [{ source: "cotahist", status: "ok" }],
         signalsWritten: 3,
         decisionsScored: 2,
+        analysesScored: 0,
         evaluationErrorCount: 0,
         scoringErrorCount: 1,
       },
@@ -133,6 +142,14 @@ describe("triggerNightlyJobAction", () => {
         usersSkipped: 0,
         decisionsScored: 0,
         decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
         errors: [],
       },
       accessLogPurge: { ok: true, deleted: 0 },
@@ -174,6 +191,14 @@ describe("triggerNightlyJobAction", () => {
         usersSkipped: 0,
         decisionsScored: 0,
         decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
         errors: [],
       },
       accessLogPurge: { ok: true, deleted: 0 },
@@ -218,6 +243,14 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
+        errors: [],
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -229,6 +262,47 @@ describe("triggerNightlyJobAction", () => {
     await triggerNightlyJobAction({});
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it("counts analysis scoring in the summary and logs a skipped analysis server-side", async () => {
+    runNightlyJobMock.mockResolvedValue({
+      ok: true,
+      session: "2026-09-08",
+      okSessions: ["2026-09-08"],
+      sources: [{ source: "cotahist", skipped: false, rowCount: 10 }],
+      evaluation: { signalsWritten: 3, errors: [] },
+      scoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        decisionsScored: 2,
+        decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 1,
+        usersSkipped: 0,
+        analysesScored: 4,
+        analysesSkipped: 1,
+        errors: [{ requestId: "someone-elses-request", kind: "engine_error:invalid_input" }],
+      },
+      accessLogPurge: { ok: true, deleted: 0 },
+      unverifiedAccountPurge: { ok: true, deleted: 0 },
+      sessionPurge: { ok: true, deleted: 0 },
+      nightlyRunPurge: { ok: true, deleted: 0 },
+    });
+    isOwnerMock.mockResolvedValue(true);
+    const { triggerNightlyJobAction } = await import("./actions");
+
+    const result = await triggerNightlyJobAction({});
+
+    expect(result).toMatchObject({
+      status: "ok",
+      summary: { analysesScored: 4, scoringErrorCount: 1 },
+    });
+    expect(JSON.stringify(result)).not.toContain("someone-elses-request");
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
   });
 
   it("logs the full outcome server-side when a retention purge fails on an otherwise clean run", async () => {
@@ -244,6 +318,14 @@ describe("triggerNightlyJobAction", () => {
         usersSkipped: 0,
         decisionsScored: 2,
         decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
         errors: [],
       },
       accessLogPurge: { ok: true, deleted: 0 },
@@ -275,6 +357,14 @@ describe("triggerNightlyJobAction", () => {
         decisionsSkipped: 0,
         errors: [],
       },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
+        errors: [],
+      },
       accessLogPurge: { ok: true, deleted: 0 },
       unverifiedAccountPurge: { ok: true, deleted: 0 },
       sessionPurge: { ok: true, deleted: 0 },
@@ -302,6 +392,14 @@ describe("triggerNightlyJobAction", () => {
         usersSkipped: 0,
         decisionsScored: 2,
         decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
         errors: [],
       },
       accessLogPurge: { ok: true, deleted: 0 },
@@ -334,6 +432,14 @@ describe("triggerNightlyJobAction", () => {
         usersSkipped: 0,
         decisionsScored: 2,
         decisionsSkipped: 0,
+        errors: [],
+      },
+      analysisScoring: {
+        asOfSession: "2026-09-08",
+        usersScored: 0,
+        usersSkipped: 0,
+        analysesScored: 0,
+        analysesSkipped: 0,
         errors: [],
       },
       accessLogPurge: { ok: true, deleted: 0 },
@@ -398,6 +504,14 @@ describe("triggerNightlyJobAction", () => {
               usersSkipped: 0,
               decisionsScored: 0,
               decisionsSkipped: 0,
+              errors: [],
+            },
+            analysisScoring: {
+              asOfSession: "2026-09-08",
+              usersScored: 0,
+              usersSkipped: 0,
+              analysesScored: 0,
+              analysesSkipped: 0,
               errors: [],
             },
             accessLogPurge: { ok: true, deleted: 0 },

@@ -39,6 +39,7 @@ async function insertRawRun(startedAt: Date): Promise<string> {
         nightlyRunPurge: { ok: true, deleted: 0 },
         evaluation: null,
         scoring: { decisionsScored: 0, usersSkipped: 0, decisionsSkipped: 0, errorCount: 0 },
+        analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 0 },
       },
     })
     .returning({ id: nightlyRuns.id });
@@ -70,6 +71,7 @@ describe("nightly_runs (docs/adr/0045)", () => {
         nightlyRunPurge: { ok: true, deleted: 0 },
         evaluation: { signalsWritten: 3, strategiesDeferred: 0, usersSkipped: 0, errorCount: 0 },
         scoring: { decisionsScored: 2, usersSkipped: 0, decisionsSkipped: 0, errorCount: 0 },
+        analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 0 },
       },
     });
 
