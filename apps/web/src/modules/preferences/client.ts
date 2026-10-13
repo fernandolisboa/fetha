@@ -3,6 +3,7 @@
 // PreferencesRepository, Drizzle or any other server-only module through
 // the module's main index.
 export {
+  dismissAssetTourAction,
   dismissTourAction,
   setRailCollapsedAction,
   setThemeAction,

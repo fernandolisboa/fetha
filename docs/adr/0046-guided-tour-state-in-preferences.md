@@ -47,3 +47,23 @@ tour starts.
   `help/tour-steps.ts`; the e2e `tour.spec.ts` walks every step.
 - Every e2e spec except `tour.spec.ts` imports `test` from `e2e/tour.ts`, whose page fixture skips
   the tour like a user would; `registerAndSignIn` closes it with Escape before the spec starts.
+
+## Addendum: a contextual tour on the first asset page (2026-10-13, #304)
+
+A layman owner asked the asset page (`/ativos/[ticker]`) to explain itself the first time he opens
+one, the same way the shell explains itself once. Three new anchors on that page —
+`[data-tour="asset-reading"]` (the asset's reading panel), `[data-tour="asset-next-steps"]` (the
+panel naming a strategy as optional) and `[data-tour="asset-chart"]` (the candle chart) — get their
+own three-step tour, dismissed the same way: `preferences.asset_tour_dismissed_at`, nullable,
+written once by `dismissAssetTourAction` and never moved again (`PreferencesRepository.
+dismissAssetTour`, same `coalesce`-on-conflict shape as `dismissTour`).
+
+The hand-built machinery this ADR chose — the shadcn `Popover`, the spotlight, the
+target-on-screen fallback — is shared, not duplicated: `help/components/guided-tour.tsx` now
+exports a step-list-and-dismiss-agnostic `GuidedTour` underneath both `TourProvider` (the main
+tour, unchanged for its own caller) and the new `AssetTour` component. `AssetTour({ autoStart:
+boolean })` renders nothing visible until `autoStart`; the asset page computes that boolean itself
+from `getPreferences()` (`preferences.tourDismissed && !preferences.assetTourDismissed`) so the two
+tours never auto-start together, and passes it in. Auto-start still waits 600ms after mount and is
+cancelled by the first pointer or key event, exactly like the shell's own tour. No replay button
+exists for this one: it is short enough that re-reading the guide's own prose covers it.

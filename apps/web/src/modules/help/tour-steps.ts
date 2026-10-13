@@ -13,8 +13,10 @@ export interface TourTarget {
 // so a rail step points at the left rail on a wide screen and at the bottom
 // tab bar under 768px, where the rail is hidden (#243).
 export interface TourStep {
-  id: TourStepId;
+  id: string;
   targets: readonly TourTarget[];
+  title: string;
+  body: string;
 }
 
 const RAIL = '[data-tour="rail"]';
@@ -31,14 +33,19 @@ function destinationLink(href: DestinationHref): readonly TourTarget[] {
   return navigation(` a[href="${href}"]`);
 }
 
+function step(id: TourStepId, targets: readonly TourTarget[]): TourStep {
+  const copy = t.tour.steps[id];
+  return { id, targets, title: copy.title, body: copy.body };
+}
+
 export const tourSteps: readonly TourStep[] = [
-  { id: "welcome", targets: [] },
-  { id: "rail", targets: navigation() },
-  { id: "commandSearch", targets: [{ selector: '[data-tour="command-search"]', side: "bottom" }] },
-  { id: "addInstrument", targets: [{ selector: '[data-tour="add-instrument"]', side: "bottom" }] },
-  { id: "signals", targets: destinationLink("/sinais") },
-  { id: "strategies", targets: destinationLink("/estrategias") },
-  { id: "portfolio", targets: destinationLink("/carteira") },
-  { id: "journal", targets: destinationLink("/diario") },
-  { id: "accountMenu", targets: [{ selector: '[data-tour="account-menu"]', side: "bottom" }] },
+  step("welcome", []),
+  step("rail", navigation()),
+  step("commandSearch", [{ selector: '[data-tour="command-search"]', side: "bottom" }]),
+  step("addInstrument", [{ selector: '[data-tour="add-instrument"]', side: "bottom" }]),
+  step("signals", destinationLink("/sinais")),
+  step("strategies", destinationLink("/estrategias")),
+  step("portfolio", destinationLink("/carteira")),
+  step("journal", destinationLink("/diario")),
+  step("accountMenu", [{ selector: '[data-tour="account-menu"]', side: "bottom" }]),
 ];

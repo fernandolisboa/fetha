@@ -399,6 +399,14 @@ expiries. Computed by the engine from the chain, persisted with reference data a
 `iv_rank`.
 _Avoid_: VIX (a specific index), IV surface, vol level
 
+**Asset reading** (pt-BR: _Leitura do ativo_):
+A deterministic engine snapshot of one ticker at an instant: trend (up/down/sideways from SMA
+50/200), momentum (oversold/neutral/overbought from RSI 14), range (calm/normal/wide from ATR 14
+as a share of close), implied volatility (low/normal/high from its IV rank) and option liquidity
+(liquid/thin/none from traded series), each labeled from this project's own default thresholds
+(ADR-0059). No AI involved; "not enough data" is a null label, never an error.
+_Avoid_: snapshot, overview, summary
+
 **Greeks**:
 The sensitivities of an option's fair value: delta, gamma, theta, vega, rho. Computed per leg and
 aggregated per operation and per portfolio.

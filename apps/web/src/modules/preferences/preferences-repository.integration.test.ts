@@ -75,6 +75,7 @@ describe("PreferencesRepository isolation", () => {
       theme: "amplo",
       railCollapsed: false,
       tourDismissed: false,
+      assetTourDismissed: false,
     });
   });
 
@@ -103,6 +104,56 @@ describe("PreferencesRepository isolation", () => {
       theme: "terminal",
       railCollapsed: false,
       tourDismissed: true,
+      assetTourDismissed: false,
+    });
+  });
+
+  it("user A dismissing the asset tour leaves user B's asset tour pending", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("asset-tour-a");
+    const emailB = uniqueEmail("asset-tour-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await new PreferencesRepository(db, userB).setTheme("amplo");
+
+    await new PreferencesRepository(db, userA).dismissAssetTour();
+
+    expect((await new PreferencesRepository(db, userA).find()).assetTourDismissed).toBe(true);
+    expect(await new PreferencesRepository(db, userB).find()).toEqual({
+      theme: "amplo",
+      railCollapsed: false,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
+  });
+
+  it("keeps the first dismissal time of the asset tour independently of the main tour", async () => {
+    const db = getDb();
+    const email = uniqueEmail("asset-tour-again");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new PreferencesRepository(db, testUser);
+    await repository.dismissTour();
+
+    await repository.dismissAssetTour();
+    const [first] = await db
+      .select({ at: preferences.assetTourDismissedAt })
+      .from(preferences)
+      .where(eq(preferences.userId, testUser.id));
+    await repository.dismissAssetTour();
+    const [second] = await db
+      .select({ at: preferences.assetTourDismissedAt })
+      .from(preferences)
+      .where(eq(preferences.userId, testUser.id));
+
+    expect(first?.at).toBeInstanceOf(Date);
+    expect(second?.at).toEqual(first?.at);
+    expect(await repository.find()).toEqual({
+      theme: "instrumento",
+      railCollapsed: false,
+      tourDismissed: true,
+      assetTourDismissed: true,
     });
   });
 
@@ -114,7 +165,12 @@ describe("PreferencesRepository isolation", () => {
 
     const result = await new PreferencesRepository(db, testUser).find();
 
-    expect(result).toEqual({ theme: "instrumento", railCollapsed: false, tourDismissed: false });
+    expect(result).toEqual({
+      theme: "instrumento",
+      railCollapsed: false,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
   });
 
   it("persists the rail collapse state independently of the theme", async () => {
@@ -128,7 +184,12 @@ describe("PreferencesRepository isolation", () => {
     await repository.setRailCollapsed(true);
 
     const result = await repository.find();
-    expect(result).toEqual({ theme: "amplo", railCollapsed: true, tourDismissed: false });
+    expect(result).toEqual({
+      theme: "amplo",
+      railCollapsed: true,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
   });
 
   it("persists a concurrent theme change and rail toggle without one clobbering the other", async () => {
@@ -141,7 +202,12 @@ describe("PreferencesRepository isolation", () => {
     await Promise.all([repository.setTheme("terminal"), repository.setRailCollapsed(true)]);
 
     const result = await repository.find();
-    expect(result).toEqual({ theme: "terminal", railCollapsed: true, tourDismissed: false });
+    expect(result).toEqual({
+      theme: "terminal",
+      railCollapsed: true,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
   });
 
   it("falls back to the default theme when the stored value is out of the enum", async () => {

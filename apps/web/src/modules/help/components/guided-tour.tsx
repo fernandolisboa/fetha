@@ -22,8 +22,9 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { dismissTourAction } from "@/modules/preferences/client";
+import { dismissAssetTourAction, dismissTourAction } from "@/modules/preferences/client";
 
+import { assetTourSteps } from "../asset-tour-steps";
 import { t } from "../strings";
 import { tourSteps, type TourStep, type TourTarget } from "../tour-steps";
 
@@ -118,17 +119,19 @@ function Spotlight({ rect }: { rect: DOMRect | null }) {
 }
 
 function TourCard({
+  steps,
   index,
   onBack,
   onNext,
   onClose,
 }: {
+  steps: readonly TourStep[];
   index: number;
   onBack: () => void;
   onNext: () => void;
   onClose: () => void;
 }) {
-  const step = tourSteps[index];
+  const step = steps[index];
   const nextRef = useRef<HTMLButtonElement>(null);
   // Replay navigates to the watchlist and starts at once; looking again when
   // the route lands finds targets that only exist there.
@@ -158,8 +161,7 @@ function TourCard({
 
   if (!step) return null;
 
-  const copy = t.tour.steps[step.id];
-  const isLast = index === tourSteps.length - 1;
+  const isLast = index === steps.length - 1;
   const anchored = target !== null && rect !== null;
 
   return (
@@ -184,13 +186,13 @@ function TourCard({
           className="w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] p-4"
         >
           <p aria-hidden className="text-muted-foreground font-mono text-[11px] tabular-nums">
-            {t.tour.progress(index + 1, tourSteps.length)}
+            {t.tour.progress(index + 1, steps.length)}
           </p>
           <div className="flex flex-col gap-1">
-            <PopoverTitle className="text-[15px] font-semibold">{copy.title}</PopoverTitle>
+            <PopoverTitle className="text-[15px] font-semibold">{step.title}</PopoverTitle>
             <PopoverDescription className="text-[13px]">
-              <span className="sr-only">{t.tour.progress(index + 1, tourSteps.length)}. </span>
-              {copy.body}
+              <span className="sr-only">{t.tour.progress(index + 1, steps.length)}. </span>
+              {step.body}
             </PopoverDescription>
           </div>
           <div className="flex items-center gap-2 pt-1">
@@ -222,7 +224,18 @@ function TourCard({
   );
 }
 
-export function TourProvider({ autoStart, children }: { autoStart: boolean; children: ReactNode }) {
+interface GuidedTourProps {
+  steps: readonly TourStep[];
+  autoStart: boolean;
+  onDismiss: () => void;
+  onStartRef?: (start: () => void) => void;
+}
+
+// Shared by the main tour (`TourProvider`) and the asset page's own tour
+// (`AssetTour`, ADR-0046 addendum, #304): one step list, one dismissal
+// action, the same auto-start, cancel-on-interaction and spotlight/card
+// behaviour either way.
+function GuidedTour({ steps, autoStart, onDismiss, onStartRef }: GuidedTourProps) {
   const [index, setIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -248,29 +261,60 @@ export function TourProvider({ autoStart, children }: { autoStart: boolean; chil
     setIndex(0);
   }, []);
 
+  useEffect(() => {
+    onStartRef?.(start);
+  }, [onStartRef, start]);
+
   const close = useCallback(() => {
     setIndex(null);
+    onDismiss();
+  }, [onDismiss]);
+
+  if (index === null) return null;
+
+  return (
+    <TourCard
+      key={index}
+      steps={steps}
+      index={index}
+      onBack={() => {
+        setIndex(Math.max(0, index - 1));
+      }}
+      onNext={() => {
+        setIndex(Math.min(steps.length - 1, index + 1));
+      }}
+      onClose={close}
+    />
+  );
+}
+
+export function TourProvider({ autoStart, children }: { autoStart: boolean; children: ReactNode }) {
+  const startRef = useRef<(() => void) | null>(null);
+
+  const dismiss = useCallback(() => {
     void dismissTourAction().catch(() => undefined);
   }, []);
 
-  const controls = useMemo(() => ({ start }), [start]);
+  const controls = useMemo<TourControls>(
+    () => ({
+      start: () => {
+        startRef.current?.();
+      },
+    }),
+    [],
+  );
 
   return (
     <TourContext value={controls}>
       {children}
-      {index !== null ? (
-        <TourCard
-          key={index}
-          index={index}
-          onBack={() => {
-            setIndex(Math.max(0, index - 1));
-          }}
-          onNext={() => {
-            setIndex(Math.min(tourSteps.length - 1, index + 1));
-          }}
-          onClose={close}
-        />
-      ) : null}
+      <GuidedTour
+        steps={tourSteps}
+        autoStart={autoStart}
+        onDismiss={dismiss}
+        onStartRef={(start) => {
+          startRef.current = start;
+        }}
+      />
     </TourContext>
   );
 }
@@ -294,4 +338,16 @@ export function ReplayTourButton({ className }: { className?: string }) {
       {t.tour.replay}
     </Button>
   );
+}
+
+// The asset page's own 3-step tour (ADR-0046 addendum, #304): renders
+// nothing visible until `autoStart` is true, 600ms after mount, like the
+// main tour. The page decides `autoStart` from preferences (the main tour
+// already dismissed, this one not yet) so the two never run together.
+export function AssetTour({ autoStart }: { autoStart: boolean }) {
+  const dismiss = useCallback(() => {
+    void dismissAssetTourAction().catch(() => undefined);
+  }, []);
+
+  return <GuidedTour steps={assetTourSteps} autoStart={autoStart} onDismiss={dismiss} />;
 }
