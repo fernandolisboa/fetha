@@ -9,3 +9,8 @@ export {
   sessionDateToDisplayDate,
   type CloseFreshness,
 } from "./close-freshness";
+export {
+  exchangeRateHref,
+  matchExchangeRates,
+  type ExchangeRateSearchHit,
+} from "./exchange-rate-match";

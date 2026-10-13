@@ -15,6 +15,7 @@ import {
   CommandStatus,
 } from "@/components/ui/command";
 import { deriveSearchMessage, deriveSearchStatusText } from "@/lib/search-status";
+import { exchangeRateHref, matchExchangeRates } from "@/modules/market-data/client";
 
 import {
   instrumentHref,
@@ -125,9 +126,15 @@ export function CommandSearch({ search }: { search: SearchSources }) {
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.optionSeries : [];
   const strategyResults =
     trimmedQuery.length > 0 && currentOutcome?.kind === "ok" ? currentOutcome.strategies : [];
+  // Pure and local (#305), unlike the three above: no server action, no
+  // debounce, no "in flight" state of its own.
+  const exchangeRateResults = matchExchangeRates(trimmedQuery);
   const searchFailed = trimmedQuery.length > 0 && currentOutcome?.kind === "failed";
   const hasResults =
-    instrumentResults.length > 0 || optionSeriesResults.length > 0 || strategyResults.length > 0;
+    instrumentResults.length > 0 ||
+    optionSeriesResults.length > 0 ||
+    strategyResults.length > 0 ||
+    exchangeRateResults.length > 0;
   const rateLimited =
     trimmedQuery.length > 0 &&
     (currentOutcome?.kind === "rate_limited" ||
@@ -192,6 +199,24 @@ export function CommandSearch({ search }: { search: SearchSources }) {
             ) : (
               <CommandEmpty>{message}</CommandEmpty>
             ))}
+          {showResults && exchangeRateResults.length > 0 && (
+            <CommandGroup heading={t.search.groups.exchangeRates}>
+              {exchangeRateResults.map((result) => (
+                <CommandItem
+                  key={result.pair}
+                  value={`exchange-rate:${result.pair}`}
+                  onSelect={() => {
+                    navigate(exchangeRateHref(result.pair));
+                  }}
+                >
+                  <span className="font-mono uppercase">{result.pair}</span>
+                  <span className="text-muted-foreground ml-auto min-w-0 truncate font-mono text-[12px]">
+                    {result.label}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           {showResults && instrumentResults.length > 0 && (
             <CommandGroup heading={t.search.groups.instruments}>
               {instrumentResults.map((result) => (
