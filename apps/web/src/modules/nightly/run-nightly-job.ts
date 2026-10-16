@@ -7,9 +7,13 @@ import type { IngestOutcome, SourceOutcome } from "@/modules/market-data";
 import type { RadarScanOutcome, ScoreSuggestionsOutcome } from "@/modules/radar";
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
-import { purgeExpiredSessions, purgeUnverifiedAccounts } from "@/modules/auth";
+import {
+  purgeExpiredSessions,
+  purgeUnverifiedAccounts,
+  readE2EInstrumentsRecordingsDirectory,
+} from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
-import { ingest } from "@/modules/market-data";
+import { ingest, type IngestOptions } from "@/modules/market-data";
 import { scanRadar, scoreDueSuggestions } from "@/modules/radar";
 import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -57,6 +61,14 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
   return cotahist !== undefined && cotahist.error === undefined;
 }
 
+function ingestOptions(options: NightlyJobOptions): IngestOptions {
+  const instrumentsRecordingsDirectory = readE2EInstrumentsRecordingsDirectory();
+  return {
+    ...(options.session ? { session: options.session } : {}),
+    ...(instrumentsRecordingsDirectory ? { instrumentsRecordingsDirectory } : {}),
+  };
+}
+
 function ivIndexComputed(result: IngestOutcome): boolean {
   return (
     result.sources.find((source) => source.source === "iv_index")?.newestSessionComputed === true
@@ -78,7 +90,7 @@ export async function runNightlyJob(
   const unverifiedAccountPurge = await purgeUnverifiedAccounts(db);
   const sessionPurge = await purgeExpiredSessions(db);
   const nightlyRunPurge = await purgeExpiredNightlyRuns(db);
-  const result = await ingest(db, options.session ? { session: options.session } : {});
+  const result = await ingest(db, ingestOptions(options));
   const deadlineAt = startedAt + MAX_DURATION_SECONDS * 1000 - SAFETY_MARGIN_MS;
   const evaluation =
     cotahistSucceeded(result) && result.okSessions.length > 0

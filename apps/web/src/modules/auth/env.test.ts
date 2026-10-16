@@ -4,6 +4,7 @@ import {
   isProductionDatabaseHost,
   isProductionDeployment,
   readAuthBaseUrl,
+  readE2EInstrumentsRecordingsDirectory,
   readE2ESecret,
   readOwnerEmails,
 } from "./env";
@@ -40,6 +41,41 @@ describe("readE2ESecret", () => {
 
   it("returns the configured secret", () => {
     expect(readE2ESecret({ E2E_SECRET: "shh" })).toBe("shh");
+  });
+});
+
+describe("readE2EInstrumentsRecordingsDirectory", () => {
+  it("returns undefined when unset or blank", () => {
+    expect(readE2EInstrumentsRecordingsDirectory({})).toBeUndefined();
+    expect(readE2EInstrumentsRecordingsDirectory({ E2E_B3_INSTRUMENTS_DIR: " " })).toBeUndefined();
+  });
+
+  it("returns the configured directory outside production", () => {
+    expect(
+      readE2EInstrumentsRecordingsDirectory({
+        E2E_B3_INSTRUMENTS_DIR: "e2e/fixtures/b3-instruments",
+        VERCEL_ENV: "preview",
+      }),
+    ).toBe("e2e/fixtures/b3-instruments");
+  });
+
+  it("is ignored in production", () => {
+    expect(
+      readE2EInstrumentsRecordingsDirectory({
+        E2E_B3_INSTRUMENTS_DIR: "e2e/fixtures/b3-instruments",
+        VERCEL_ENV: "production",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("is ignored against the production database", () => {
+    expect(
+      readE2EInstrumentsRecordingsDirectory({
+        E2E_B3_INSTRUMENTS_DIR: "e2e/fixtures/b3-instruments",
+        DATABASE_URL: "postgres://user:pass@db.example.com/main",
+        DATABASE_PRODUCTION_HOST: "db.example.com",
+      }),
+    ).toBeUndefined();
   });
 });
 

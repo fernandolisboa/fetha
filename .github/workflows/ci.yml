@@ -199,6 +199,9 @@ jobs:
       E2E_SECRET: ci-e2e-fixed-secret
       OWNER_EMAILS: dono-e2e@example.com
       REGISTRATION_MODE: open
+      # arquivos.b3.com.br times out from the runners, so the nightly job replays the instruments
+      # registries recorded in the repo instead (docs/adr/0017 addendum 2026-10-16).
+      E2E_B3_INSTRUMENTS_DIR: e2e/fixtures/b3-instruments
       PLAYWRIGHT_BASE_URL: http://localhost:3000
     steps:
       - name: Checkout
