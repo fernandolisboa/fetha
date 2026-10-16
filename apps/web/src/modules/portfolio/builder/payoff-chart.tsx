@@ -14,7 +14,7 @@ import { formatDecimal } from "@/lib/format/decimal";
 import { t } from "../strings";
 
 const MARGIN = { top: 12, right: 56, bottom: 28 };
-// 11px IBM Plex Mono advances 0.6em per glyph; the left margin fits the widest y tick label.
+// Every theme's mono font advances 0.6em per glyph at 11px; the left margin fits the widest y tick label.
 const TICK_CHAR_WIDTH = 6.6;
 const TICK_GAP = 12;
 
