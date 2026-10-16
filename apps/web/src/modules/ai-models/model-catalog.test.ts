@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { ModelCatalog } from "./model-catalog";
@@ -59,6 +61,55 @@ describe("ModelCatalog", () => {
     const catalog = new ModelCatalog(fetchModels);
     expect(await catalog.resolveModel("opus", "key-a")).toBe("claude-opus-6");
     expect(await catalog.resolveModel("opus", "key-b")).toBe("claude-opus-5-5");
+    expect(fetchModels).toHaveBeenCalledTimes(2);
+  });
+
+  it("never keys its cache by the plaintext API key", async () => {
+    const apiKey = "sk-ant-super-secret-key";
+    const fetchModels = vi.fn().mockResolvedValue([at("claude-opus-6", "2026-11-01")]);
+    const catalog = new ModelCatalog(fetchModels);
+    await catalog.resolveModel("opus", apiKey);
+
+    const cache = (catalog as unknown as { cache: Map<string, unknown> }).cache;
+    const keys = [...cache.keys()];
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toBe(apiKey);
+    expect(keys[0]).not.toContain(apiKey);
+    expect(keys[0]).toBe(createHash("sha256").update(apiKey).digest("hex"));
+  });
+
+  it("dedupes concurrent resolutions for the same key into one fetch", async () => {
+    let resolveFetch: (models: ReturnType<typeof at>[]) => void = () => undefined;
+    const fetchModels = vi.fn().mockReturnValue(
+      new Promise<ReturnType<typeof at>[]>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    const catalog = new ModelCatalog(fetchModels);
+
+    const first = catalog.resolveModel("opus", "sk-ant-key");
+    const second = catalog.resolveModel("opus", "sk-ant-key");
+    resolveFetch([at("claude-opus-6", "2026-11-01")]);
+
+    expect(await first).toBe("claude-opus-6");
+    expect(await second).toBe("claude-opus-6");
+    expect(fetchModels).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a model markRejected named, until the listing is refetched", async () => {
+    const fetchModels = vi
+      .fn()
+      .mockResolvedValue([at("claude-opus-6", "2026-11-01"), at("claude-opus-5-6", "2026-09-01")]);
+    let now = 0;
+    const catalog = new ModelCatalog(fetchModels, () => now);
+
+    expect(await catalog.resolveModel("opus", "sk-ant-key")).toBe("claude-opus-6");
+    catalog.markRejected("sk-ant-key", "claude-opus-6");
+    expect(await catalog.resolveModel("opus", "sk-ant-key")).toBe("claude-opus-5-6");
+    expect(fetchModels).toHaveBeenCalledTimes(1);
+
+    now += 7 * 60 * 60 * 1000;
+    expect(await catalog.resolveModel("opus", "sk-ant-key")).toBe("claude-opus-6");
     expect(fetchModels).toHaveBeenCalledTimes(2);
   });
 });
