@@ -90,3 +90,12 @@ no operator path rewrites decision data today.
   text again is a follow-up, not part of #31.
 - An operator path that ever writes a user's decision data must log to `access_log`, adding an
   actor column then.
+
+## Addendum (2026-10-16): the rail's declared capital is not logged
+
+The rail foot shows the user's declared capital on every signed-in page (DESIGN.md). Its read,
+`getMyDeclaredCapital`, writes no `portfolio_read` row: logging it would add one row per
+navigation, and the 50 entries the user sees under Configurações would hold nothing but page
+views, hiding the reads of the portfolio itself. The value is the user's own declaration shown
+back to the same signed-in user, not a view of positions, fills or decisions, which keep their
+rows.

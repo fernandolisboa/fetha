@@ -4,8 +4,10 @@ import { startTransition, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { Centavos } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
+import { formatBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { setRailCollapsedAction } from "@/modules/preferences/client";
 
@@ -15,9 +17,11 @@ import { t } from "../strings";
 export function Rail({
   initialCollapsed,
   unreadSignalCount,
+  declaredCapital,
 }: {
   initialCollapsed: boolean;
   unreadSignalCount: number;
+  declaredCapital: Centavos | null;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const pathname = usePathname();
@@ -101,7 +105,13 @@ export function Rail({
         )}
       >
         <div>{t.rail.declaredCapital}</div>
-        <div className="font-mono">{t.rail.capitalNotDeclared}</div>
+        {declaredCapital === null ? (
+          <Link href="/configuracoes/risco" className="text-primary font-mono hover:underline">
+            {t.rail.capitalNotDeclared}
+          </Link>
+        ) : (
+          <div className="text-foreground font-mono tabular-nums">{formatBRL(declaredCapital)}</div>
+        )}
       </div>
     </nav>
   );

@@ -430,6 +430,25 @@ test("collapsed rail keeps its foot inside its width", async ({ page, baseURL, r
     .toBe(0);
 });
 
+test("rail foot shows the declared capital once it is declared", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  await rail.getByRole("link", { name: "não declarado" }).click();
+  await expect(page).toHaveURL(/\/configuracoes\/risco$/);
+
+  await page.getByLabel("Capital declarado").fill("10.000,00");
+  await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
+  await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
+
+  await expect(rail.getByText("R$ 10.000,00")).toBeVisible();
+  await expect(rail.getByRole("link", { name: "não declarado" })).toHaveCount(0);
+});
+
 test("PWA manifest and service worker are served", async ({ request, baseURL }) => {
   const manifestResponse = await request.get(`${baseURL ?? ""}/manifest.webmanifest`);
   expect(manifestResponse.ok()).toBe(true);
