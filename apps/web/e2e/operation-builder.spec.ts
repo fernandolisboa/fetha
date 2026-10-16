@@ -89,6 +89,16 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   await page.getByRole("button", { name: "Precificar" }).click();
 
   await expect(page.getByText("Prêmio líquido")).toBeVisible();
+
+  // A laptop-width screen fits the whole legs table beside the results column, with strikes and
+  // expiries in pt-BR, instead of a centered column that scrolls the table sideways.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const legsTable = page.locator('[data-slot="table-container"]').first();
+  await expect
+    .poll(() => legsTable.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(0);
+  await expect(legsTable.getByRole("cell", { name: /^\d{2}\/\d{2}\/\d{4}$/ })).toHaveCount(2);
+
   await expect(page.getByRole("alert", { name: "Limite excedido" })).toContainText(
     "Limite excedido",
   );

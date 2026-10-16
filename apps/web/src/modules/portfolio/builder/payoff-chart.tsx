@@ -13,7 +13,10 @@ import { formatDecimal } from "@/lib/format/decimal";
 
 import { t } from "../strings";
 
-const MARGIN = { top: 12, right: 56, bottom: 28, left: 56 };
+const MARGIN = { top: 12, right: 56, bottom: 28 };
+// 11px IBM Plex Mono advances 0.6em per glyph; the left margin fits the widest y tick label.
+const TICK_CHAR_WIDTH = 6.6;
+const TICK_GAP = 12;
 
 type PlotPoint = { underlying: number; pnl: number };
 
@@ -29,6 +32,10 @@ function formatAxisBRL(value: number): string {
   return formatBRL(centavosSchema.parse(Math.round(value)));
 }
 
+// DESIGN.md's 800×340 aspect, capped so a wide monitor gets a wider chart, not a taller one
+// that pushes the stat blocks below the fold.
+const MAX_HEIGHT = 420;
+
 function Chart({
   width,
   points,
@@ -40,27 +47,31 @@ function Chart({
   spot: number;
   breakEvens: DecimalString[];
 }) {
-  const height = Math.round((width * 340) / 800);
-  const innerWidth = width - MARGIN.left - MARGIN.right;
+  const height = Math.min(Math.round((width * 340) / 800), MAX_HEIGHT);
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
 
   const plot = plotPoints(points);
   const underlyings = plot.map((point) => point.underlying);
   const pnls = plot.map((point) => point.pnl);
 
-  const xScale = scaleLinear({
-    domain: [Math.min(...underlyings), Math.max(...underlyings)],
-    range: [0, innerWidth],
-  });
   const maxAbsPnl = Math.max(1, ...pnls.map((pnl) => Math.abs(pnl)));
   const yScale = scaleLinear({
     domain: [-maxAbsPnl, maxAbsPnl],
     range: [innerHeight, 0],
   });
+  const left =
+    Math.ceil(
+      Math.max(...yScale.ticks().map((tick) => formatAxisBRL(tick).length)) * TICK_CHAR_WIDTH,
+    ) + TICK_GAP;
+  const innerWidth = width - left - MARGIN.right;
+  const xScale = scaleLinear({
+    domain: [Math.min(...underlyings), Math.max(...underlyings)],
+    range: [0, innerWidth],
+  });
 
   return (
     <svg width={width} height={height} role="img" aria-label={t.builder.payoffChart.pnl}>
-      <Group left={MARGIN.left} top={MARGIN.top}>
+      <Group left={left} top={MARGIN.top}>
         <Line
           from={{ x: 0, y: yScale(0) }}
           to={{ x: innerWidth, y: yScale(0) }}
@@ -144,6 +155,9 @@ function Chart({
             fill: "var(--muted)",
             fontSize: 11,
             fontFamily: "var(--font-mono)",
+            textAnchor: "end",
+            dx: "-0.25em",
+            dy: "0.25em",
           })}
         />
       </Group>
@@ -164,7 +178,7 @@ export function PayoffChart({
     return null;
   }
   return (
-    <ParentSize style={{ height: "auto", aspectRatio: "800 / 340" }}>
+    <ParentSize style={{ height: "auto", aspectRatio: "800 / 340", maxHeight: MAX_HEIGHT }}>
       {({ width }) =>
         width > 0 ? (
           <Chart width={width} points={points} spot={Number(spot)} breakEvens={breakEvens} />

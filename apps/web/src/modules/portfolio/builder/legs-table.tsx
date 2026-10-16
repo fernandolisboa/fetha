@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatSessionDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 
@@ -127,7 +128,7 @@ export function LegsTable({
                               style={{ color: "var(--muted)" }}
                             >
                               {formatDecimal(decimalStringSchema.parse(series.lastPrice.value))} ·{" "}
-                              {series.lastPrice.session}
+                              {formatSessionDate(series.lastPrice.session)}
                               {series.lastPriceStrike
                                 ? ` · ${t.builder.legsTable.tradedAtStrike(formatDecimal(decimalStringSchema.parse(series.lastPriceStrike)))}`
                                 : null}
@@ -144,10 +145,10 @@ export function LegsTable({
                 )}
               </TableCell>
               <TableCell className="text-right font-mono tabular-nums">
-                {selected ? selected.strike : "—"}
+                {selected ? formatDecimal(decimalStringSchema.parse(selected.strike)) : "—"}
               </TableCell>
               <TableCell className="font-mono tabular-nums">
-                {selected ? selected.expiry : "—"}
+                {selected ? formatSessionDate(selected.expiry) : "—"}
               </TableCell>
               <TableCell className="text-right">
                 <Input

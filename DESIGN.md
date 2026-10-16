@@ -138,8 +138,10 @@ rounded to whole px), which is how the three artboards differ. Numbers always
 ### Spacing and layout
 
 4px base: 4, 6, 8, 10, 12, 14, 16, 20, 24, 32. Page padding 16px 20px. Panel gap 14px. Content
-grid `minmax(0,1fr) 320px`; charts fill their panel width and keep a 800×340 aspect for payoff,
-equity and drawdown. Hit targets ≥ 32px desktop in every theme, table row actions included, ≥ 44px on
+grid `minmax(0,1fr) 320px`, stacked when the content area is too narrow for both. Pages fill the
+content area at every width: no page sits in a centered max-width column, and only running prose
+is held to 72ch. Charts fill their panel width; payoff keeps a 800×340 aspect up to 420px tall,
+equity and drawdown a fixed height. Hit targets ≥ 32px desktop in every theme, table row actions included, ≥ 44px on
 touch.
 
 ### Motion
