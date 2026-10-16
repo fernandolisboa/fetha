@@ -19,7 +19,6 @@ import { readBetterAuthSecret } from "./env";
 export interface AiSettingsView {
   modelFamilies: AiSettingsModelFamilies;
   apiKey: ApiKeyStatus;
-  serverKeyConfigured: boolean;
   resolvedModels: Record<AnalysisSubjectKind, string>;
 }
 
@@ -53,16 +52,14 @@ export const getMyAiSettings = cache(async (): Promise<AiSettingsView> => {
   const resolvedModels = Object.fromEntries(
     analysisSubjectKinds.map((kind) => [kind, modelByFamily.get(familyOf(kind))]),
   ) as Record<AnalysisSubjectKind, string>;
-  return { modelFamilies, apiKey, serverKeyConfigured: serverKey !== undefined, resolvedModels };
+  return { modelFamilies, apiKey, resolvedModels };
 });
 
-// Whether this signed-in user can request an analysis at all: the server
-// key, or their own key if one is stored and still decrypts
-// (docs/adr/0068). Replaces the old environment-only check.
+// Whether this signed-in user can request an analysis at all (#325): only
+// their own stored key, if one still decrypts. The server key never bills
+// a user-requested analysis (docs/adr/0068's 2026-10-16 amendment), so it
+// plays no part in this check regardless of whether it is configured.
 export async function isAnalysisAvailable(): Promise<boolean> {
-  if (readAnthropicApiKey() !== undefined) {
-    return true;
-  }
   const repository = await forCurrentUser(getDb(), AiSettingsRepository);
   const status = await repository.getApiKeyStatus(readBetterAuthSecret());
   return status.configured && status.readable;

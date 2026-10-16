@@ -1,7 +1,8 @@
 const en = {
   panel: {
     title: "AI analyses",
-    subtitle: "Pick a model family per analysis kind, and optionally your own Anthropic key.",
+    subtitle:
+      "Pick a model family per analysis kind. Your own Anthropic key is required to run them.",
   },
   families: {
     default: "Default",
@@ -19,10 +20,9 @@ const en = {
   usingModel: (name: string) => `using ${name}`,
   apiKey: {
     title: "Your Anthropic key",
-    serverKey: "Using the server's key",
     ownKey: (last4: string) => `Your own key, ending ••••${last4}`,
     unreadable: "Your key could not be read; save it again",
-    noKey: "No key is configured anywhere; analyses are unavailable",
+    noKey: "No key saved; analyses need your Anthropic key",
     placeholder: "sk-ant-...",
     save: "Save",
     test: "Test",
@@ -48,7 +48,7 @@ const ptBR: typeof en = {
   panel: {
     title: "Análises por IA",
     subtitle:
-      "Escolha a família de modelo por tipo de análise e, se quiser, sua própria chave da Anthropic.",
+      "Escolha a família de modelo por tipo de análise. Sua própria chave da Anthropic é necessária para rodá-las.",
   },
   families: {
     default: "Padrão",
@@ -66,10 +66,9 @@ const ptBR: typeof en = {
   usingModel: (name: string) => `usando ${name}`,
   apiKey: {
     title: "Sua chave da Anthropic",
-    serverKey: "Usando a chave do servidor",
     ownKey: (last4: string) => `Sua chave, terminada em ••••${last4}`,
     unreadable: "Sua chave não pôde ser lida; salve de novo",
-    noKey: "Nenhuma chave está configurada; as análises não estão disponíveis",
+    noKey: "Nenhuma chave salva; as análises precisam da sua chave da Anthropic",
     placeholder: "sk-ant-...",
     save: "Salvar",
     test: "Testar",
