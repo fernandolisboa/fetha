@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import type { Centavos } from "@fetha/contracts";
 
+import { DeclaredCapitalValue } from "./declared-capital";
 import { MarketBar, type IbovMarketBarQuote, type UsdBrlMarketBarQuote } from "./market-bar";
 import { formatUnreadCount } from "../destinations";
 import { t } from "../strings";
@@ -11,10 +13,12 @@ import { t } from "../strings";
 // shell (header market bar, bottom tab bar).
 export function StatusBar({
   unreadSignalCount,
+  declaredCapital,
   usdBrl,
   ibov,
 }: {
   unreadSignalCount: number;
+  declaredCapital: Centavos | null;
   usdBrl: UsdBrlMarketBarQuote | null;
   ibov: IbovMarketBarQuote | null;
 }) {
@@ -39,6 +43,10 @@ export function StatusBar({
           </span>
         )}
       </Link>
+      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5">
+        {t.rail.declaredCapital}
+        <DeclaredCapitalValue declaredCapital={declaredCapital} />
+      </span>
       <MarketBar usdBrl={usdBrl} ibov={ibov} />
     </footer>
   );
