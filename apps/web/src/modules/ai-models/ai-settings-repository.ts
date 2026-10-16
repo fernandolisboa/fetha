@@ -82,8 +82,11 @@ export class AiSettingsRepository extends UserScopedRepository {
     };
   }
 
-  // Used only by server actions that must hand the plaintext to the
-  // Anthropic SDK; never by a query a page or the data export reads from.
+  // The plaintext this returns is never returned to a page, a client
+  // component or a data export (ADR-0068 S4): it is decrypted only
+  // server-side, to bill an analysis request, to answer the "test this
+  // key" button, or to resolve the model listing when there is no server
+  // key to list with.
   async readOwnApiKey(secret: string): Promise<OwnApiKey> {
     const [row] = await this.db
       .select({ apiKeyCiphertext: aiSettings.apiKeyCiphertext })
