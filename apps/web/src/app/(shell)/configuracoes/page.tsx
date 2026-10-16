@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
 import { AiModelSettingsPanel, getMyAiSettings, t as aiModelsStrings } from "@/modules/ai-models";
 import { AccessLogPanel, getMyAccessLog, groupAccessLog, t as auditStrings } from "@/modules/audit";
@@ -38,105 +40,132 @@ export default async function SettingsPage() {
   const corporateActionFactors = ownerSession ? await recentCorporateActionFactorsList() : [];
 
   return (
-    <div className="mx-auto flex max-w-lg flex-col gap-8 px-5 py-8">
+    <div className="flex flex-col gap-8 px-5 py-8">
       <PageHeader
         overline={preferencesStrings.settings.overline}
         headline={t.destinations.settings}
       />
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{preferencesStrings.themePicker.title}</h2>
-          <p className="text-muted-foreground text-xs">{preferencesStrings.themePicker.subtitle}</p>
-        </div>
-        <ThemePicker current={preferences.theme} />
-      </section>
+      <div className="@container">
+        <div
+          className={cn(
+            "grid items-start gap-[14px] @min-[50rem]:grid-cols-2 @min-[75rem]:grid-cols-3",
+            ownerSession && "@min-[100rem]:grid-cols-4",
+          )}
+        >
+          <SettingsColumn>
+            <SettingsSection
+              title={preferencesStrings.themePicker.title}
+              subtitle={preferencesStrings.themePicker.subtitle}
+            >
+              <ThemePicker current={preferences.theme} />
+            </SettingsSection>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{portfolioStrings.riskProfileForm.title}</h2>
-          <p className="text-muted-foreground text-xs">
-            {portfolioStrings.riskProfileForm.subtitle}
-          </p>
-        </div>
-        <RiskProfileForm current={riskProfile} />
-      </section>
+            <SettingsSection
+              title={portfolioStrings.riskProfileForm.title}
+              subtitle={portfolioStrings.riskProfileForm.subtitle}
+            >
+              <RiskProfileForm current={riskProfile} />
+            </SettingsSection>
+          </SettingsColumn>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{aiModelsStrings.panel.title}</h2>
-          <p className="text-muted-foreground text-xs">{aiModelsStrings.panel.subtitle}</p>
-        </div>
-        <AiModelSettingsPanel
-          modelFamilies={aiSettings.modelFamilies}
-          apiKey={aiSettings.apiKey}
-          serverKeyConfigured={aiSettings.serverKeyConfigured}
-          resolvedModels={aiSettings.resolvedModels}
-        />
-      </section>
+          <SettingsColumn>
+            <SettingsSection
+              title={aiModelsStrings.panel.title}
+              subtitle={aiModelsStrings.panel.subtitle}
+            >
+              <AiModelSettingsPanel
+                modelFamilies={aiSettings.modelFamilies}
+                apiKey={aiSettings.apiKey}
+                serverKeyConfigured={aiSettings.serverKeyConfigured}
+                resolvedModels={aiSettings.resolvedModels}
+              />
+            </SettingsSection>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{accountStrings.dataExport.title}</h2>
-          <p className="text-muted-foreground text-xs">{accountStrings.dataExport.subtitle}</p>
-        </div>
-        <div>
-          <ExportDataLink />
-        </div>
-        <p className="text-muted-foreground text-xs">
-          <Link href="/termos" className="underline underline-offset-4">
-            {authStrings.terms.title}
-          </Link>
-          {" · "}
-          <Link href="/privacidade" className="underline underline-offset-4">
-            {authStrings.privacy.title}
-          </Link>
-        </p>
-      </section>
+            <SettingsSection
+              title={accountStrings.dataExport.title}
+              subtitle={accountStrings.dataExport.subtitle}
+            >
+              <div>
+                <ExportDataLink />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                <Link href="/termos" className="underline underline-offset-4">
+                  {authStrings.terms.title}
+                </Link>
+                {" · "}
+                <Link href="/privacidade" className="underline underline-offset-4">
+                  {authStrings.privacy.title}
+                </Link>
+              </p>
+            </SettingsSection>
+          </SettingsColumn>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{auditStrings.accessLog.title}</h2>
-          <p className="text-muted-foreground text-xs">{auditStrings.accessLog.subtitle}</p>
-        </div>
-        <AccessLogPanel groups={accessLogGroups} />
-      </section>
+          <SettingsColumn>
+            <SettingsSection
+              title={auditStrings.accessLog.title}
+              subtitle={auditStrings.accessLog.subtitle}
+            >
+              <AccessLogPanel groups={accessLogGroups} />
+            </SettingsSection>
 
-      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-        <div>
-          <h2 className="text-sm font-medium">{authStrings.deleteAccount.title}</h2>
-          <p className="text-muted-foreground text-xs">{authStrings.deleteAccount.subtitle}</p>
-        </div>
-        <div>
-          <DeleteAccountDialog />
-        </div>
-      </section>
+            <SettingsSection
+              title={authStrings.deleteAccount.title}
+              subtitle={authStrings.deleteAccount.subtitle}
+            >
+              <div>
+                <DeleteAccountDialog />
+              </div>
+            </SettingsSection>
+          </SettingsColumn>
 
-      {ownerSession ? (
-        <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-          <div>
-            <h2 className="text-sm font-medium">{nightlyStrings.panel.title}</h2>
-            <p className="text-muted-foreground text-xs">{nightlyStrings.panel.subtitle}</p>
-          </div>
-          <NightlyTriggerPanel />
-        </section>
-      ) : null}
+          {ownerSession ? (
+            <SettingsColumn>
+              <SettingsSection
+                title={nightlyStrings.panel.title}
+                subtitle={nightlyStrings.panel.subtitle}
+              >
+                <NightlyTriggerPanel />
+              </SettingsSection>
 
-      {ownerSession ? (
-        <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
-          <div>
-            <h2 className="text-sm font-medium">{marketDataStrings.corporateActionPanel.title}</h2>
-            <p className="text-muted-foreground text-xs">
-              {marketDataStrings.corporateActionPanel.subtitle}
-            </p>
-          </div>
-          <CorporateActionPanel factors={corporateActionFactors} />
-        </section>
-      ) : null}
+              <SettingsSection
+                title={marketDataStrings.corporateActionPanel.title}
+                subtitle={marketDataStrings.corporateActionPanel.subtitle}
+              >
+                <CorporateActionPanel factors={corporateActionFactors} />
+              </SettingsSection>
+            </SettingsColumn>
+          ) : null}
+        </div>
+      </div>
 
       <section>
         <SignOutButton />
       </section>
     </div>
+  );
+}
+
+function SettingsColumn({ children }: { children: ReactNode }) {
+  return <div className="flex min-w-0 flex-col gap-[14px]">{children}</div>;
+}
+
+function SettingsSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: ReactNode;
+  subtitle: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+      <div>
+        <h2 className="text-sm font-medium">{title}</h2>
+        <p className="text-muted-foreground text-xs">{subtitle}</p>
+      </div>
+      {children}
+    </section>
   );
 }
