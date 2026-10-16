@@ -5,7 +5,7 @@ import { forCurrentUser } from "@/modules/auth";
 
 import { AccessLogRepository, type AccessLogEntry } from "./access-log-repository";
 
-const ACCESS_LOG_WINDOW = 500;
+const ACCESS_LOG_WINDOW = 50;
 
 export const getMyAccessLog = cache(async (): Promise<AccessLogEntry[]> => {
   const repository = await forCurrentUser(getDb(), AccessLogRepository);
