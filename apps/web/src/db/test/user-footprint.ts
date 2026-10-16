@@ -3,7 +3,8 @@ import { decimalStringSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
-import { encryptApiKey, readBetterAuthSecret } from "@/modules/ai-models";
+import { encryptApiKey } from "@/modules/ai-models/crypto";
+import { readBetterAuthSecret } from "@/modules/ai-models/env";
 import { aiSettings } from "@/modules/ai-models/schema";
 import { accessLog } from "@/modules/audit/schema";
 import { account, invites, session, termsAcceptances, user } from "@/modules/auth/schema";
