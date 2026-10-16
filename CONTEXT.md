@@ -108,17 +108,17 @@ exposing module's interface, never through its tables.
    backtest run or a suggestion, the user may request one AI analysis (on demand, a monthly cap
    per user, ADR-0057), on a model family (Haiku, Sonnet or Opus) the user can pick per kind under
    Configurações, resolved to that family's newest release, and billed to their own Anthropic key
-   when they store one (ADR-0068): the engine's own computed facts go in as a checked `AnalysisInputs` tree,
-   the model's reply is validated against the output contract and a citation check before it is
-   ever stored, and the request and its outcome (`accepted`, `rejected` or `failed`) are kept
-   append-only (`decisions/analyses-repository.ts`); an analysis of a suggestion ends with a
-   verdict in words (ADR-0067). The user then records a decision (enter, do not enter, hold,
-   adjust, exit) with a thesis and horizon; an open operation of the real portfolio takes hold,
-   adjust or exit decisions, scored on the position held and its own fills once any expired
-   option is settled (ADR-0022). At the horizon the engine scores the decision (#29, ADR-0005),
-   and each analysis's outlook the same way (ADR-0058); the journal shows analyses under the
-   decisions they informed, and the track record keeps the two apart, with a third, shared panel
-   for how Fetha's own suggestions aged (ADR-0067).
+   when they store one (ADR-0068): the engine's own computed facts go in as a checked
+   `AnalysisInputs` tree, the model's reply is validated against the output contract and a
+   citation check before it is ever stored, and the request and its outcome (`accepted`,
+   `rejected` or `failed`) are kept append-only (`decisions/analyses-repository.ts`); an analysis
+   of a suggestion ends with a verdict in words (ADR-0067). The user then records a decision
+   (enter, do not enter, hold, adjust, exit) with a thesis and horizon; an open operation of the
+   real portfolio takes hold, adjust or exit decisions, scored on the position held and its own
+   fills once any expired option is settled (ADR-0022). At the horizon the engine scores the
+   decision (#29, ADR-0005), and each analysis's outlook the same way (ADR-0058); the journal
+   shows analyses under the decisions they informed, and the track record keeps the two apart,
+   with a third, shared panel for how Fetha's own suggestions aged (ADR-0067).
 7. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
