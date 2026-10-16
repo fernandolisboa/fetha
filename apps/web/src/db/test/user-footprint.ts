@@ -3,6 +3,7 @@ import { decimalStringSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
+import { aiSettings } from "@/modules/ai-models/schema";
 import { accessLog } from "@/modules/audit/schema";
 import { account, invites, session, termsAcceptances, user } from "@/modules/auth/schema";
 import { backtestRuns } from "@/modules/backtests/schema";
@@ -92,6 +93,7 @@ export async function seedUserFootprint(
   await db.insert(accessLog).values({ userId, event: "portfolio_read" });
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });
+  await db.insert(aiSettings).values({ userId, modelFamilies: { signal: "haiku" } });
 
   const strategy = only(
     await db
