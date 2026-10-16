@@ -106,7 +106,9 @@ exposing module's interface, never through its tables.
    ADR-0013 and ADR-0014); missed fills, warn mode and walk-forward follow ADR-0014.
 6. **Decide and journal.** From a signal, a contemplated operation, a held operation, a complete
    backtest run or a suggestion, the user may request one AI analysis (on demand, a monthly cap
-   per user, ADR-0057): the engine's own computed facts go in as a checked `AnalysisInputs` tree,
+   per user, ADR-0057), on a model family (Haiku, Sonnet or Opus) the user can pick per kind under
+   Configurações, resolved to that family's newest release, and billed to their own Anthropic key
+   when they store one (ADR-0068): the engine's own computed facts go in as a checked `AnalysisInputs` tree,
    the model's reply is validated against the output contract and a citation check before it is
    ever stored, and the request and its outcome (`accepted`, `rejected` or `failed`) are kept
    append-only (`decisions/analyses-repository.ts`); an analysis of a suggestion ends with a

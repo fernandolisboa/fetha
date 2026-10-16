@@ -22,3 +22,10 @@ bound cost. Analyses are append-only and scored like decisions.
   opinions; the user asks when they are about to decide.
 - Letting the model compute (for example, its own break-evens): rejected by principle; the
   engine is the only source of numbers.
+
+## Amendment (2026-10-16, ADR-0068)
+
+The model per subject is now a family (Haiku, Sonnet, Opus) resolved to that family's newest
+release, not a pinned id; a user can override the family per kind and supply their own Anthropic
+key under Configurações. The Opus/Sonnet split this ADR set is now `@fetha/prompts`'
+`defaultAnalysisFamilies`, used whenever no override is stored. See docs/adr/0068.

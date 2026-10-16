@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 13/10/2026, revision 1",
+    updated: "Version of 16/10/2026, revision 1",
     sections: [
       {
         heading: "What Fetha is",
@@ -66,7 +66,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 13/10/2026, revision 1",
+    updated: "Version of 16/10/2026, revision 1",
     sections: [
       {
         heading: "Who handles your data",
@@ -79,7 +79,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         paragraphs: [
           "Registration: your name, your email and the password you create after confirming your email, stored only as a one-way hash, plus which version of these terms you accepted and when.",
           "Sessions: when you signed in, the IP address and the browser. Sign-in attempt limits: the IP address of each call to sign-in, sign-up and the other account actions.",
-          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, and your theme and layout preferences.",
+          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, your theme and layout preferences and, optionally, your own Anthropic API key, stored encrypted and used only for the analyses you request, never shown to you again in full.",
           "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted. If that account is deleted because its email was never confirmed, the invitation stays open for a new registration.",
           "What Fetha computes for you: signals, strategy evaluations, decision scores and the AI analyses you request.",
           "Access log: each opening of a portfolio or decisions page and each data export, with the date, the IP address and the browser.",
@@ -96,7 +96,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         heading: "Who else processes it",
         paragraphs: [
           "Four providers run the service on Fetha's behalf: Vercel (hosting), Neon (the Postgres database), Resend (sending email) and Anthropic (the AI model behind the analyses you request). All four process data in the United States, so your data is transferred abroad under LGPD art. 33. No one else receives it.",
-          "Anthropic receives only what an analysis you request needs: the market figures, prices, greeks and backtest results the engine computed for that one object. For an operation you hold or are studying, it also receives each leg's quantity and entry price; for a backtest, its starting capital. It never receives your name, your email, your declared capital or any text you wrote, such as a strategy's name or a decision's rationale.",
+          "Anthropic receives only what an analysis you request needs: the market figures, prices, greeks and backtest results the engine computed for that one object. For an operation you hold or are studying, it also receives each leg's quantity and entry price; for a backtest, its starting capital. It never receives your name, your email, your declared capital or any text you wrote, such as a strategy's name or a decision's rationale. If you supply your own Anthropic API key, the requests you make with it are billed and processed under your own account with Anthropic instead of Fetha's.",
         ],
       },
       {
@@ -133,7 +133,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 13/10/2026, revisão 1",
+    updated: "Versão de 16/10/2026, revisão 1",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -184,7 +184,7 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 13/10/2026, revisão 1",
+    updated: "Versão de 16/10/2026, revisão 1",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
@@ -197,7 +197,7 @@ const ptBR: typeof en = {
         paragraphs: [
           "Cadastro: seu nome, seu e-mail e a senha que você cria depois de confirmar o e-mail, guardada apenas como hash irreversível, além de qual versão destes termos você aceitou e quando.",
           "Sessões: quando você entrou, o endereço IP e o navegador. Limite de tentativas: o endereço IP de cada chamada de login, cadastro e demais ações da conta.",
-          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses e suas preferências de tema e de layout.",
+          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses, suas preferências de tema e de layout e, se quiser, sua própria chave de API da Anthropic, guardada de forma criptografada e usada só nas análises que você pedir, nunca mostrada a você de novo por completo.",
           "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída. Se essa conta for apagada por nunca ter confirmado o e-mail, o convite continua valendo para um novo cadastro.",
           "O que o Fetha calcula para você: sinais, avaliações de estratégias, pontuações de decisões e as análises por IA que você pedir.",
           "Registro de acesso: cada abertura de uma tela da sua carteira ou das suas decisões e cada exportação de dados, com data, endereço IP e navegador.",
@@ -214,7 +214,7 @@ const ptBR: typeof en = {
         heading: "Quem mais trata os dados",
         paragraphs: [
           "Quatro fornecedores operam o serviço em nome do Fetha: Vercel (hospedagem), Neon (banco de dados Postgres), Resend (envio de e-mails) e Anthropic (o modelo de IA das análises que você pede). Os quatro tratam dados nos Estados Unidos, o que configura transferência internacional nos termos do art. 33 da LGPD. Ninguém mais recebe seus dados.",
-          "A Anthropic recebe só o que a análise pedida precisa: os números de mercado, preços, gregas e resultados de backtest que o motor calculou para aquele objeto. Para uma operação que você mantém ou está estudando, ela também recebe a quantidade e o preço de entrada de cada perna; para um backtest, o capital inicial. Ela nunca recebe seu nome, seu e-mail, seu capital declarado nem nenhum texto escrito por você, como o nome de uma estratégia ou a justificativa de uma decisão.",
+          "A Anthropic recebe só o que a análise pedida precisa: os números de mercado, preços, gregas e resultados de backtest que o motor calculou para aquele objeto. Para uma operação que você mantém ou está estudando, ela também recebe a quantidade e o preço de entrada de cada perna; para um backtest, o capital inicial. Ela nunca recebe seu nome, seu e-mail, seu capital declarado nem nenhum texto escrito por você, como o nome de uma estratégia ou a justificativa de uma decisão. Se você informar sua própria chave de API da Anthropic, os pedidos feitos com ela são cobrados e tratados pela sua própria conta na Anthropic, e não pela do Fetha.",
         ],
       },
       {
@@ -264,6 +264,10 @@ interface TermsChangeSummary {
 // `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-10-16.1": {
+    en: "This version covers the new, optional own Anthropic API key under Configurações: it is stored encrypted, used only for the analyses you request, never shown to you again in full, and requests made with it are billed and processed under your own Anthropic account instead of Fetha's.",
+    ptBR: "Esta versão trata da nova chave de API da Anthropic, opcional, em Configurações: ela fica guardada de forma criptografada, é usada só nas análises que você pedir, nunca é mostrada a você de novo por completo, e os pedidos feitos com ela são cobrados e tratados pela sua própria conta na Anthropic, não pela do Fetha.",
+  },
   "2026-10-13.1": {
     en: "This version says in Fetha's own voice what it does: it suggests operations from its own rules, models and past data, and its AI analyses can end with a verdict in words; a suggestion or an analysis can be wrong, Fetha still places no orders and connects to no broker, and every decision, and every order you place at your broker, stays yours alone, as do its results.",
     ptBR: "Esta versão diz, sem rodeios, o que o Fetha faz: ele sugere operações a partir das próprias regras, dos seus modelos e de dados passados, e as análises por IA podem terminar com um veredito em palavras; uma sugestão ou uma análise pode errar, o Fetha continua sem enviar ordens e sem se conectar a corretora, e toda decisão, e toda ordem que você enviar à sua corretora, continua sendo só sua, assim como os resultados.",

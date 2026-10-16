@@ -566,6 +566,14 @@ the same citation check as the rest of the reply. A verdict is read, not execute
 stays the user's.
 _Avoid_: recommendation, rating, score, signal, call
 
+**Model family**:
+Haiku, Sonnet or Opus — the only three choices a user can pick per analysis kind under
+Configurações (ADR-0068), each resolved at request time to that family's newest Anthropic release,
+never older than a pinned floor. A kind with no stored choice uses its own default family
+(`@fetha/prompts`' `defaultAnalysisFamilies`, the same Opus/Sonnet split ADR-0009 set). Distinct
+from the literal model id that answered a request, which is still what is stored on the analysis.
+_Avoid_: model version, model id (the resolved id, not the family, is the id)
+
 **Outlook**:
 The verifiable part of an analysis (ADR-0058): a ticker closing above or below a price level at a
 horizon (one week, one month or three months of sessions, or the expiry), with a likelihood
