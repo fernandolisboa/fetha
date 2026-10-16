@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExportDataLink, t as accountStrings } from "@/modules/account";
+import { AiModelSettingsPanel, getMyAiSettings, t as aiModelsStrings } from "@/modules/ai-models";
 import { AccessLogPanel, getMyAccessLog, groupAccessLog, t as auditStrings } from "@/modules/audit";
 import {
   DeleteAccountDialog,
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
   await requireUser();
   const preferences = await getPreferences();
   const riskProfile = await getCurrentRiskProfile();
+  const aiSettings = await getMyAiSettings();
   const accessLogGroups = groupAccessLog(await getMyAccessLog());
   const ownerSession = await isOwner();
   const corporateActionFactors = ownerSession ? await recentCorporateActionFactorsList() : [];
@@ -58,6 +60,19 @@ export default async function SettingsPage() {
           </p>
         </div>
         <RiskProfileForm current={riskProfile} />
+      </section>
+
+      <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
+        <div>
+          <h2 className="text-sm font-medium">{aiModelsStrings.panel.title}</h2>
+          <p className="text-muted-foreground text-xs">{aiModelsStrings.panel.subtitle}</p>
+        </div>
+        <AiModelSettingsPanel
+          modelFamilies={aiSettings.modelFamilies}
+          apiKey={aiSettings.apiKey}
+          serverKeyConfigured={aiSettings.serverKeyConfigured}
+          resolvedModels={aiSettings.resolvedModels}
+        />
       </section>
 
       <section className="border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4">
