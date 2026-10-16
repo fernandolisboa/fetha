@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { themes } from "./theme";
+import { themeMode, themes } from "./theme";
 
-import { parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
+import { parseThemeColorScheme, parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 
 // Every token DESIGN.md lists under "Tokens" (CLAUDE.md mirrors the same
-// list) must exist as a CSS custom property in each of the three themes.
+// list) must exist as a CSS custom property in every shipped theme.
 const designTokens = [
   "--bg",
   "--surface",
@@ -48,5 +48,9 @@ describe("theme tokens", () => {
       expect(tokens, `missing ${token} in ${theme}`).toHaveProperty(token);
       expect(tokens[token]?.length, `${token} in ${theme} is empty`).toBeGreaterThan(0);
     }
+  });
+
+  it.each(themes)("declares the %s theme's color-scheme so native controls match it", (theme) => {
+    expect(parseThemeColorScheme(css, theme)).toBe(themeMode(theme));
   });
 });

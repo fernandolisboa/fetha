@@ -41,6 +41,12 @@ const en = {
     journal: "Journal",
     settings: "Settings",
   },
+  statusBar: {
+    label: "Status bar",
+    noUnreadSignals: "No unread signal",
+    unreadSignalsNoun: (count: number): string =>
+      count === 1 ? "unread signal" : "unread signals",
+  },
   accountMenu: {
     open: "Account menu",
     howToUse: "How to use",
@@ -106,6 +112,11 @@ const ptBR = {
     portfolio: "Carteira",
     journal: "Diário",
     settings: "Configurações",
+  },
+  statusBar: {
+    label: "Barra de status",
+    noUnreadSignals: "Nenhum sinal não lido",
+    unreadSignalsNoun: (count: number) => (count === 1 ? "sinal não lido" : "sinais não lidos"),
   },
   accountMenu: {
     open: "Menu da conta",
