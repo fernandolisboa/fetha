@@ -72,7 +72,7 @@ export function RequestAnalysisButton({
           ) : (
             <>
               {t.analysis.request.ownKeyRequired}{" "}
-              <Link href="/configuracoes" className="underline-offset-4 hover:underline">
+              <Link href="/configuracoes/ia" className="underline-offset-4 hover:underline">
                 {t.analysis.request.ownKeyRequiredLink}
               </Link>
               .

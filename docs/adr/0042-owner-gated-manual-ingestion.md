@@ -52,7 +52,8 @@ carried no notion of _who_ triggered a run, only _that_ the caller knew the secr
    non-owner or signed-out caller gets a typed `{ status: "forbidden" }`; the job is never invoked
    for them. The action validates its one input (`session`, an optional `sessionDateSchema`) with
    the same `.strict()` Zod object the old POST body used, returning `{ status: "invalid_input" }`
-   for anything else. `/configuracoes` sets `export const maxDuration = 300`, matching the cron
+   for anything else. `/configuracoes/administracao` (`/configuracoes` before PR #326 split it into
+   tabs) sets `export const maxDuration = 300`, matching the cron
    route's own budget, since the action can run the same long job.
 
 5. **`api/cron/ingest` drops its `POST` handler entirely.** `GET`, still behind the `CRON_SECRET`

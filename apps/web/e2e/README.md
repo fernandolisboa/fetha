@@ -92,7 +92,7 @@ Environment variables:
   own `OWNER_EMAILS` allowlist (docs/adr/0042) that CI re-creates after every reset of
   `fetha-preview` (`db:seed-e2e-owner`), so nobody registers it by hand. The setup project signs
   this account in through a magic link, and every run of the nightly job drives
-  `/configuracoes`'s manual trigger form with that session instead of holding `CRON_SECRET`; no
+  `/configuracoes/administracao`'s manual trigger form with that session instead of holding `CRON_SECRET`; no
   spec needs `CRON_SECRET` anymore, since the manual trigger moved off it (#51).
 - `VERCEL_PROTECTION_BYPASS`: Vercel Deployment Protection (SSO) sits in front of every preview
   deployment, so every Playwright request needs the bypass header or it hits the SSO challenge

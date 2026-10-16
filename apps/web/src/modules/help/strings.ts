@@ -188,11 +188,11 @@ const en = {
         ],
       },
       "/configuracoes": {
-        summary: "Your account and how the workstation looks.",
+        summary: "Your account and how the workstation looks, one tab per group.",
         steps: [
-          "Declare capital and risk limits; without them pricing shows the “sem perfil de risco” chip.",
-          "Pick a theme: Instrumento, Terminal or Amplo.",
-          "Export your data, review the access log or delete your account.",
+          "Risco: declare capital and risk limits; without them pricing shows the “sem perfil de risco” chip.",
+          "Aparência: pick a theme: Instrumento, Terminal or Amplo.",
+          "Conta: export your data, review the access log or delete your account.",
         ],
       },
     } satisfies Record<DestinationHref, DestinationGuide>,
@@ -385,11 +385,11 @@ const ptBR = {
         ],
       },
       "/configuracoes": {
-        summary: "Sua conta e a aparência da estação.",
+        summary: "Sua conta e a aparência da estação, separadas em abas.",
         steps: [
-          "Declare capital e limites de risco; sem eles, a precificação mostra a etiqueta “sem perfil de risco”.",
-          "Escolha um tema: Instrumento, Terminal ou Amplo.",
-          "Exporte seus dados, confira o registro de acesso ou exclua sua conta.",
+          "Risco: declare capital e limites de risco; sem eles, a precificação mostra a etiqueta “sem perfil de risco”.",
+          "Aparência: escolha um tema entre Instrumento, Terminal e Amplo.",
+          "Conta: exporte seus dados, confira o registro de acesso ou exclua sua conta.",
         ],
       },
     } satisfies Record<DestinationHref, DestinationGuide>,

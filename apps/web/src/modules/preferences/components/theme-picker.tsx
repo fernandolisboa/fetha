@@ -6,7 +6,7 @@ import { t as preferencesStrings } from "../strings";
 export function ThemePicker({ current }: { current: Theme }) {
   return (
     <div
-      className="flex flex-col gap-2"
+      className="grid gap-2 @min-[40rem]:grid-cols-3"
       role="radiogroup"
       aria-label={preferencesStrings.themePicker.title}
     >
@@ -27,7 +27,7 @@ export function ThemePicker({ current }: { current: Theme }) {
               role="radio"
               aria-checked={active}
               className={cn(
-                "border-border flex w-full items-center gap-3 rounded-[var(--radius)] border px-3 py-2 text-left",
+                "border-border flex h-full w-full items-center gap-3 rounded-[var(--radius)] border px-3 py-2 text-left",
                 active && "border-primary bg-accent",
               )}
             >
