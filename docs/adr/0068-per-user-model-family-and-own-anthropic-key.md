@@ -88,6 +88,35 @@ be picked up without an app change.
 - The privacy policy's "what you enter" paragraph and the Anthropic processing paragraph both gain
   a sentence about the optional own key; terms version `2026-10-16.1`.
 
+## Amendment 2026-10-16: the server key no longer bills a user-requested analysis (#325)
+
+The owner asked the same day this ADR landed for the server key to stop being a fallback for a
+user-requested analysis: a user has to save their own key in Configurações, no exceptions.
+`resolveAnalysisModelPolicy`'s billing branch in decision point 5 above changes:
+
+- A user-requested analysis bills only that user's own key when it is stored and still decrypts. A
+  stored key that no longer decrypts still answers `own_key_unreadable`, unchanged. With no own key
+  at all, it now answers a new, distinct `own_key_missing` instead of falling back to the server's
+  key — the `unavailable` outcome that case used to produce no longer has any caller that reaches
+  it through this policy, so it drops out of `AnalysisModelResolution`'s own union (it survives
+  elsewhere: `requestAnalysis`'s defensive `client: null` guard, kept for the test that exercises it
+  directly, and `decisions`' own persistence-error `unavailable`, unrelated to billing).
+- `isAnalysisAvailable` is now true only when the user has a configured, readable own key,
+  regardless of whether the server key is configured.
+- The model **listing** is unaffected: it is free, catalog-only, and still prefers the server's key
+  when one is configured, falling back to the requesting user's own key only when there is none —
+  decision point 5's listing sentence stands as written.
+- Background jobs with no user to bill — the nightly filing-label job (decision point 5's last
+  sentence) and the sentiment job — keep the server key, unchanged.
+
+The settings panel's "Usando a chave do servidor" status disappears along with it: a user with no
+own key now reads that analyses need one, not that the server is covering them.
+
+This retracts this ADR's own Consequences bullet "A user who never opens the new settings section
+sees no behavior change": that was true only while the server key could still bill a user-requested
+analysis. Such a user now gets `own_key_missing` on every analysis request instead of one silently
+billed to the server.
+
 ## Considered options
 
 - Keep pinning literal ids, bump them by hand on release: exactly the toil the owner asked to
