@@ -23,7 +23,7 @@ test("use a recipe from the asset page and land on its backtest report", async (
   await expect(page).toHaveURL(/#receitas$/);
   await expect(page.getByText("Para testar uma receita, informe antes")).toBeVisible();
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("10.000,00");
   await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();

@@ -29,7 +29,7 @@ test("compare the backtests of two versions of a strategy", async ({ page, baseU
   test.setTimeout(TEST_TIMEOUT_MS);
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("10.000,00");
   await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();

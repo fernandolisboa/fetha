@@ -1,4 +1,4 @@
-import { expect, test } from "./tour";
+import { expect, skipTourWhenShown, test } from "./tour";
 
 import { registerAndSignIn } from "./helpers";
 
@@ -122,6 +122,9 @@ test("header fits phone, tablet and desktop widths without overflowing", async (
   request,
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  // The asset page's own tour (#304) starts 600ms after load; the width loop
+  // below can outlast that, and its overlay would then take the search click.
+  await skipTourWhenShown(page);
   await page.goto("/ativos/PETR4");
   await expect(page.getByRole("banner").getByText("PETR4")).toBeVisible();
 

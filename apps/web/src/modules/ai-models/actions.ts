@@ -54,7 +54,7 @@ export async function setAnalysisModelFamilyAction(
         parsed.data.family === "default" ? undefined : parsed.data.family,
       );
     });
-    revalidatePath("/configuracoes");
+    revalidatePath("/configuracoes", "layout");
     return { status: "ok" };
   } catch (error) {
     if (error instanceof AccountRateLimitExceededError) {
@@ -126,7 +126,7 @@ export async function saveAnthropicApiKeyAction(
 
       const repository = await forCurrentUser(getDb(), AiSettingsRepository);
       await repository.saveApiKey(apiKey, readBetterAuthSecret());
-      revalidatePath("/configuracoes");
+      revalidatePath("/configuracoes", "layout");
       return { status: "ok", last4: apiKey.slice(-4) } as const;
     });
   } catch (error) {
@@ -171,7 +171,7 @@ export async function removeAnthropicApiKeyAction(): Promise<ApiKeyActionResult>
   return withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), AiSettingsRepository);
     await repository.removeApiKey();
-    revalidatePath("/configuracoes");
+    revalidatePath("/configuracoes", "layout");
     return { status: "ok_removed" } as const;
   });
 }

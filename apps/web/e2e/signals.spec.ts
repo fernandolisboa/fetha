@@ -25,7 +25,7 @@ test("a signal appears in the inbox after a triggered evaluation", async ({
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("10.000,00");
   await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();

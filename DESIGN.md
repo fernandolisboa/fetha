@@ -20,7 +20,9 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   left rail, 200px with icons and labels, 56px collapsed with icons only, state remembered per
   user; six destinations: Watchlist, Sinais (with an unread count), Estratégias, Carteira, Diário,
   Configurações; declared capital at the rail foot. The radar (ADR-0066) is a tab of the
-  Watchlist page (`/?aba=radar`), never a seventh destination. Under 1024px the rail collapses; under 768px
+  Watchlist page (`/?aba=radar`), never a seventh destination. Configurações is split into tabs, each with its own URL
+  (`/configuracoes/<aba>`): Aparência, Risco, IA, Conta and, for the owner only, Administração;
+  `/configuracoes` opens Aparência and links about a missing risk profile open Risco. Under 1024px the rail collapses; under 768px
   it becomes a 56px bottom tab bar (rare: desktop first): six equal icon-only cells, like the
   collapsed rail, the active one in `--accent` with a 2px top line, Sinais' unread count as a
   small accent pill; it is fixed to the viewport bottom and the page keeps a gutter its height.

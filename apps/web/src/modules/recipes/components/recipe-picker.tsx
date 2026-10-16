@@ -106,7 +106,10 @@ export function RecipePicker({
       ) : (
         <p className="text-muted-foreground text-sm">
           {t.picker.noRiskProfile}{" "}
-          <Link href="/configuracoes" className="text-primary underline-offset-4 hover:underline">
+          <Link
+            href="/configuracoes/risco"
+            className="text-primary underline-offset-4 hover:underline"
+          >
             {t.picker.noRiskProfileLink}
           </Link>
         </p>

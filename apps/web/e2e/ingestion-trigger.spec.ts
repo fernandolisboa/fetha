@@ -20,7 +20,10 @@ test("a non-owner account never sees the manual ingestion trigger", async ({
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/conta");
+  await expect(page.getByRole("tab", { name: "Administração" })).toHaveCount(0);
+
+  await page.goto("/configuracoes/administracao");
   await expect(page.getByRole("heading", { name: "Disparo manual da ingestão" })).not.toBeVisible();
 });
 
@@ -30,7 +33,7 @@ test.describe("as the owner", () => {
   test("the owner's manual ingestion trigger runs for a given session", async ({ page }) => {
     test.setTimeout(TEST_TIMEOUT_MS);
 
-    await page.goto("/configuracoes");
+    await page.goto("/configuracoes/administracao");
     await expect(page.getByRole("heading", { name: "Disparo manual da ingestão" })).toBeVisible();
 
     await runIngestion(page, FROM_SESSION);

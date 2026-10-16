@@ -20,7 +20,10 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
     case "no_risk_profile":
       return (
         <p className="text-muted-foreground text-xs">
-          <Link href="/configuracoes" className="text-primary underline-offset-4 hover:underline">
+          <Link
+            href="/configuracoes/risco"
+            className="text-primary underline-offset-4 hover:underline"
+          >
             {t.suggestions.noRiskProfile}
           </Link>
         </p>

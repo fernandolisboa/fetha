@@ -22,7 +22,7 @@ test('recording "não entrar" on a signal shows it in the journal', async ({
 }) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("10.000,00");
   await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
