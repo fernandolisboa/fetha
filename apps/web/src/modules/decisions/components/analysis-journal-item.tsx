@@ -9,7 +9,7 @@ import type { JournalAnalysis } from "../analyses-repository";
 import type { AnalysisScoreRow } from "../analysis-scores-repository";
 import { t } from "../strings";
 
-import { modelDisplayName } from "@/modules/ai-models";
+import { modelDisplayName } from "@/modules/ai-models/client";
 import { formatSessionDate, unscorableReasonLabel } from "./journal-entry";
 
 const labels = t.journal.analysis;

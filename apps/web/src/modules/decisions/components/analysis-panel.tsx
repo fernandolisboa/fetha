@@ -11,7 +11,7 @@ import { formatDateTime } from "@/lib/format/date-time";
 
 import { t } from "../strings";
 
-import { modelDisplayName } from "@/modules/ai-models";
+import { modelDisplayName } from "@/modules/ai-models/client";
 
 export interface AnalysisPanelData {
   output: StoredAnalysisOutput;
