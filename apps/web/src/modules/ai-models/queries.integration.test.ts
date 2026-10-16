@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { pinnedModels } from "@fetha/prompts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -5,6 +6,7 @@ process.env.REGISTRATION_MODE = "open";
 
 let currentHeaders = new Headers();
 vi.mock("next/headers", () => ({ headers: () => Promise.resolve(currentHeaders) }));
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
@@ -12,10 +14,8 @@ import { openVerificationLink } from "@/modules/auth/registration-test-support";
 import { signUp } from "@/modules/auth/service";
 import { testRequestHeaders, uniqueTestIp } from "@/modules/auth/test-support";
 
-import { setAnalysisModelFamilyAction } from "./actions";
-import { getMyAiSettings } from "./queries";
-
-vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+import { saveAnthropicApiKeyAction, setAnalysisModelFamilyAction } from "./actions";
+import { getMyAiSettings, isAnalysisAvailable } from "./queries";
 
 const createdEmails: string[] = [];
 
@@ -79,5 +79,52 @@ describe("getMyAiSettings", () => {
 
     expect(settings.modelFamilies).toEqual({ signal: "opus" });
     expect(settings.resolvedModels.signal).toBe(pinnedModels.opus);
+  });
+});
+
+describe("isAnalysisAvailable", () => {
+  const originalServerKey = process.env.ANTHROPIC_API_KEY;
+
+  afterEach(() => {
+    if (originalServerKey === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = originalServerKey;
+    }
+  });
+
+  it("is false with a server key configured but no own key (#325)", async () => {
+    const { sessionHeaders } = await signUpAndVerify("available-server-only");
+    currentHeaders = sessionHeaders;
+    process.env.ANTHROPIC_API_KEY = "sk-server-test";
+
+    expect(await isAnalysisAvailable()).toBe(false);
+  });
+
+  it("is false with neither key", async () => {
+    const { sessionHeaders } = await signUpAndVerify("available-none");
+    currentHeaders = sessionHeaders;
+    delete process.env.ANTHROPIC_API_KEY;
+
+    expect(await isAnalysisAvailable()).toBe(false);
+  });
+
+  it("is true once the user saves a readable own key, server key or not", async () => {
+    const { sessionHeaders } = await signUpAndVerify("available-own-key");
+    vi.spyOn(Anthropic.Models.prototype, "list").mockResolvedValue({ data: [] } as never);
+
+    process.env.ANTHROPIC_API_KEY = "sk-server-test";
+    currentHeaders = sessionHeaders;
+    const saved = await saveAnthropicApiKeyAction({
+      key: "sk-ant-api03-cccccccccccccccccccccccccccc",
+    });
+    expect(saved).toMatchObject({ status: "ok" });
+
+    currentHeaders = sessionHeaders;
+    expect(await isAnalysisAvailable()).toBe(true);
+
+    delete process.env.ANTHROPIC_API_KEY;
+    currentHeaders = sessionHeaders;
+    expect(await isAnalysisAvailable()).toBe(true);
   });
 });
