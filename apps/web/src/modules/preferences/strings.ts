@@ -25,7 +25,7 @@ const en = {
       },
       fosforo: {
         label: "Fósforo",
-        description: "Green phosphor terminal, all monospaced. From Bardo and Mascate.",
+        description: "Green phosphor of an old monitor, all monospaced. From Bardo and Mascate.",
       },
       papel: {
         label: "Papel",
@@ -96,7 +96,8 @@ const ptBR = {
       },
       fosforo: {
         label: "Fósforo",
-        description: "Terminal de fósforo verde, tudo em monoespaçada. Vem do Bardo e do Mascate.",
+        description:
+          "Verde fósforo de monitor antigo, tudo em monoespaçada. Vem do Bardo e do Mascate.",
       },
       papel: {
         label: "Papel",

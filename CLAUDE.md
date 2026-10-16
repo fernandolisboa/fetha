@@ -233,7 +233,10 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
   56px collapsed, six destinations; page = overline + headline + chips + actions; content grid
   `minmax(0,1fr) 320px`; hairline panels and table rows (height by `--density`), one decision
   bar per screen.
-- Themes (per-user, `data-theme`, ADR-0015): `instrumento` (default) · `terminal` · `amplo`.
+- Themes (per-user, `data-theme`, ADR-0015, ADR-0069): `instrumento` (default) · `terminal` ·
+  `amplo` · `grafite` · `ouro-negro` · `fosforo` · `papel` (light; the last four from Bardo and
+  Mascate). Layouts (per-user, `data-layout`, ADR-0069): `workspace` (default, left rail) ·
+  `studio` (header tabs, bottom status bar with the market bar, compact page header).
   Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
 --accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
 --greek-gamma --greek-theta --greek-vega --font-display --font-body --font-mono --radius
