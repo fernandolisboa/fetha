@@ -36,6 +36,20 @@ Every project depends on `setup` (`owner.setup.ts`), which runs first and does t
   newest closed B3 session, which the E2E-only route `/api/e2e/recent-session` reads from the
   ingested calendar (the inbox only takes entries from its newest few sessions, so a fixed date
   would age out).
+- The instruments registry is not fetched from B3 in CI. `arquivos.b3.com.br` times out from
+  GitHub's runners (504 on the token request), so the job sets `E2E_B3_INSTRUMENTS_DIR` to
+  `e2e/fixtures/b3-instruments` and the nightly job replays those recordings instead: one
+  `<session>.csv` per fixed session, B3's own `InstrumentsConsolidatedFile` for that date cut down
+  to its PETR4 option rows and the columns the parser reads. A session with no recording (the
+  recent session signals and decisions ingest) replays the newest one before it, so that session's
+  PETR4 chain and IV index only see the strikes listed by then; no spec asserts either. The
+  variable is ignored in production and against the production database. COTAHIST still comes live from `bvmf.bmfbovespa.com.br`. To record a new
+  session, download that date's file through the two-step flow in
+  `src/modules/market-data/adapters/b3-instruments/fetch.ts` and keep the same rows and columns.
+  Series listed after the newest recording never reach the e2e database, so the PETR4 chain only
+  shrinks as its near-month expiries roll off. `operation-builder.spec.ts` (collar on traded
+  series) and `shell.spec.ts` (palette to a series page) need unexpired series with recent trades:
+  record a newer session once the newest recording's near-month expiries have passed.
 - Each run must end with `calendar`, `cotahist` and `instruments` ok or skipped. The `sgs` and
   `iv_index` sources feed no spec and are not asserted, so a Bacen outage (#289) does not fail the
   suite.

@@ -16,7 +16,7 @@ export default async function NewStrategyPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8">
+    <div className="flex flex-col gap-6 px-5 py-8">
       <PageHeader overline={t.editor.createOverline} headline={t.list.newStrategy} />
       <StrategyEditorForm structures={structures} />
     </div>

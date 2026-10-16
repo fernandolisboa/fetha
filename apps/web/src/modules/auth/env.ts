@@ -51,6 +51,18 @@ export function readE2ESecret(env: AuthEnv = process.env): string | undefined {
   return readOptionalEnvValue(env, "E2E_SECRET");
 }
 
+// arquivos.b3.com.br times out from GitHub's runners (docs/adr/0017 addendum 2026-10-16), so CI's
+// e2e job points this at the instruments registries recorded in the repo. Never against
+// production, by deployment or by database: a replayed snapshot would be recorded as succeeded.
+export function readE2EInstrumentsRecordingsDirectory(
+  env: AuthEnv = process.env,
+): string | undefined {
+  if (isProductionDeployment(env) || isProductionDatabaseHost(env)) {
+    return undefined;
+  }
+  return readOptionalEnvValue(env, "E2E_B3_INSTRUMENTS_DIR")?.trim() || undefined;
+}
+
 // The manual ingestion trigger's allowlist (#51): comma-separated, trimmed
 // and lower-cased so "Owner@Example.com, other@example.com" and
 // "owner@example.com,other@example.com" mean the same thing. Unset or empty

@@ -68,30 +68,35 @@ export function OperandField({
             }}
             options={indicatorKinds.map((kind) => ({ value: kind, label: t.indicatorKinds[kind] }))}
           />
-          {value.indicator.kind === "iv_rank" ? (
-            <NumberField
-              min={2}
-              max={MAX_IV_RANK_LOOKBACK_SESSIONS}
-              ariaLabel={`${label} · ${t.editor.operand.indicatorLookback}`}
-              value={value.indicator.lookbackSessions}
-              onChange={(lookbackSessions) => {
-                onChange({ kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions } });
-              }}
-            />
-          ) : (
-            <NumberField
-              min={1}
-              max={MAX_INDICATOR_LENGTH}
-              ariaLabel={`${label} · ${t.editor.operand.indicatorLength}`}
-              value={value.indicator.length}
-              onChange={(length) => {
-                if (value.indicator.kind === "iv_rank") {
-                  return;
-                }
-                onChange({ kind: "indicator", indicator: { kind: value.indicator.kind, length } });
-              }}
-            />
-          )}
+          <div className="w-20 shrink-0">
+            {value.indicator.kind === "iv_rank" ? (
+              <NumberField
+                min={2}
+                max={MAX_IV_RANK_LOOKBACK_SESSIONS}
+                ariaLabel={`${label} · ${t.editor.operand.indicatorLookback}`}
+                value={value.indicator.lookbackSessions}
+                onChange={(lookbackSessions) => {
+                  onChange({ kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions } });
+                }}
+              />
+            ) : (
+              <NumberField
+                min={1}
+                max={MAX_INDICATOR_LENGTH}
+                ariaLabel={`${label} · ${t.editor.operand.indicatorLength}`}
+                value={value.indicator.length}
+                onChange={(length) => {
+                  if (value.indicator.kind === "iv_rank") {
+                    return;
+                  }
+                  onChange({
+                    kind: "indicator",
+                    indicator: { kind: value.indicator.kind, length },
+                  });
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
 
