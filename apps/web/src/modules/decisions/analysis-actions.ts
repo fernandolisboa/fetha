@@ -73,7 +73,7 @@ export async function requestAnalysisAction(
           client,
           model: resolution.model,
           family: resolution.family,
-          listingKey: resolution.listingKey,
+          onRejected: resolution.markRejected,
         },
         { subjectKind: parsed.data.subjectKind, subjectId: parsed.data.subjectId },
       );

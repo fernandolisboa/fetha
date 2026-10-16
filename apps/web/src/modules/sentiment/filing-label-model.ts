@@ -70,8 +70,13 @@ function errorReplyFrom(error: unknown): FilingLabelReply {
 // tools, and the reply is only ever parsed against the label contract. The
 // model is resolved once per run by the caller (#322 review A4), not here,
 // so every filing in the run shares one listing instead of each one
-// re-resolving it.
-export function createAnthropicFilingLabelClient(apiKey: string, model: string): FilingLabelClient {
+// re-resolving it; `onRejected` is the caller's own closure over that
+// listing's key, built in `run-sentiment-job.ts`.
+export function createAnthropicFilingLabelClient(
+  apiKey: string,
+  model: string,
+  onRejected?: (modelId: string) => void,
+): FilingLabelClient {
   const anthropic = new Anthropic({ apiKey });
 
   async function attempt(
@@ -120,7 +125,7 @@ export function createAnthropicFilingLabelClient(apiKey: string, model: string):
           filingLabelFamily,
           model,
           (m) => attempt(m, pdf, inputs),
-          apiKey,
+          onRejected,
         );
       } catch (error) {
         return errorReplyFrom(error);

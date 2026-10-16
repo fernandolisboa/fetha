@@ -15,9 +15,12 @@ export type AnalysisModelResolution =
       apiKey: string;
       model: string;
       family: ModelFamily;
-      // Which cached listing a bad resolution's retry should mark the id
-      // rejected on (#322 review A2/A3) — the same key `resolveModel` used.
-      listingKey: string | undefined;
+      // Marks `modelId` rejected on the listing it was resolved from, so a
+      // later resolution skips it until that listing's TTL expires
+      // (#322 review A2/A3). A closure instead of the listing key itself:
+      // the key is a plaintext credential, and decisions (the one caller
+      // today) has no business holding it, only calling this back.
+      markRejected: (modelId: string) => void;
     }
   | { status: "unavailable" }
   | { status: "own_key_unreadable" };
@@ -86,11 +89,16 @@ export async function resolveAnalysisModelForCurrentUser(
     return policy;
   }
   const model = await defaultModelCatalog.resolveModel(policy.family, policy.listingKey);
+  const listingKey = policy.listingKey;
   return {
     status: "ok",
     apiKey: policy.apiKey,
     model,
     family: policy.family,
-    listingKey: policy.listingKey,
+    markRejected: (modelId: string) => {
+      if (listingKey) {
+        defaultModelCatalog.markRejected(listingKey, modelId);
+      }
+    },
   };
 }

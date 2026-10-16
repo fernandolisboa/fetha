@@ -13,10 +13,10 @@ export interface AnalysisModelRequest {
   family: ModelFamily;
   system: string;
   user: string;
-  // The key whose cached listing `model` came from, so a pinned-fallback
-  // retry can mark it rejected there (#322 review A2/A3). Absent when the
-  // model was the pinned id outright (no listing was ever fetched).
-  listingKey?: string;
+  // Called with `model` once a pinned-fallback retry for it succeeds
+  // (#322 review A2/A3): the resolver's own closure, so this module never
+  // holds the plaintext listing key the catalog is cached under.
+  onRejected?: (modelId: string) => void;
 }
 
 export type AnalysisModelReply =
@@ -125,13 +125,13 @@ export function createAnthropicAnalysisClient(apiKey: string): AnalysisModelClie
   }
 
   return {
-    async analyze({ model, family, system, user, listingKey }): Promise<AnalysisModelReply> {
+    async analyze({ model, family, system, user, onRejected }): Promise<AnalysisModelReply> {
       try {
         return await withPinnedFallback(
           family,
           model,
           (m) => attempt(m, family, system, user),
-          listingKey,
+          onRejected,
         );
       } catch (error) {
         return apiErrorFrom(error);

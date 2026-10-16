@@ -2,20 +2,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import { pinnedModels } from "@fetha/prompts";
 import type { ModelFamily } from "@fetha/contracts";
 
-import { defaultModelCatalog, type ModelCatalog } from "./model-catalog";
-
 // A resolved id can go stale (a dated snapshot Anthropic later removes, a
 // release withdrawn): one retry on the family's own pinned floor instead of
-// failing a request for a reason the user never caused (docs/adr/0068). The
-// rejected id is marked so the next resolution against the same listing
-// skips it rather than handing it out again until the listing's TTL expires
-// (#322 review A2/A3).
+// failing a request for a reason the user never caused (docs/adr/0068).
+// `onRejected` fires only once the pinned retry itself succeeds: a 400/404
+// caused by the request's own payload (an unreadable PDF) fails the same
+// way on the pinned id, and that is not evidence the first model was stale
+// (#322 review).
 export async function withPinnedFallback<T>(
   family: ModelFamily,
   model: string,
   attempt: (model: string) => Promise<T>,
-  listingKey: string | undefined,
-  catalog: ModelCatalog = defaultModelCatalog,
+  onRejected?: (modelId: string) => void,
 ): Promise<T> {
   try {
     return await attempt(model);
@@ -27,9 +25,8 @@ export async function withPinnedFallback<T>(
     if (!retryable) {
       throw error;
     }
-    if (listingKey) {
-      catalog.markRejected(listingKey, model);
-    }
-    return attempt(pinnedId);
+    const result = await attempt(pinnedId);
+    onRejected?.(model);
+    return result;
   }
 }

@@ -75,13 +75,17 @@ export async function runSentimentJob(
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
   const settings = readSentimentSettings();
+  const labelApiKey = settings.labelApiKey;
   const labelClient =
     options.labelClient !== undefined
       ? options.labelClient
-      : settings.labelApiKey
+      : labelApiKey
         ? createAnthropicFilingLabelClient(
-            settings.labelApiKey,
-            await defaultModelCatalog.resolveModel(filingLabelFamily, settings.labelApiKey),
+            labelApiKey,
+            await defaultModelCatalog.resolveModel(filingLabelFamily, labelApiKey),
+            (modelId) => {
+              defaultModelCatalog.markRejected(labelApiKey, modelId);
+            },
           )
         : null;
   const provider =

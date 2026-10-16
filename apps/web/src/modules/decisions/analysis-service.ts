@@ -48,7 +48,7 @@ export interface RequestAnalysisDeps {
   // resolution happens there, not here.
   model: string;
   family: ModelFamily;
-  listingKey?: string;
+  onRejected?: (modelId: string) => void;
   // Injected for the unit tests this file's own test suite runs (CLAUDE.md
   // /tdd): the live default goes through each owning module's real
   // user-scoped query (docs/adr/0057's own ownership check), the fake used
@@ -149,7 +149,7 @@ export async function requestAnalysis(
     family: deps.family,
     system: analysisPrompt.system,
     user: analysisPrompt.render(assembled.inputs),
-    listingKey: deps.listingKey,
+    onRejected: deps.onRejected,
   });
 
   if (reply.kind === "refusal") {
