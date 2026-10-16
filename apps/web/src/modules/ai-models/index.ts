@@ -1,23 +1,14 @@
-export { AiSettingsRepository, type ApiKeyStatus, type OwnApiKey } from "./ai-settings-repository";
-export { anthropicApiKeySchema } from "./api-key-schema";
-export { ModelCatalog, defaultModelCatalog, type ModelFetcher } from "./model-catalog";
-export { newestOfFamily, type CatalogModelInfo } from "./model-resolver";
-export { modelDisplayName } from "./display-name";
+// Only what a consumer outside this module actually imports: an export
+// with no such caller is dropped rather than kept "just in case"
+// (#322 review A11; `apps/web/src/db/test/user-footprint.ts` is the one
+// caller of `encryptApiKey`, `readBetterAuthSecret`).
+export { defaultModelCatalog } from "./model-catalog";
 export { readBetterAuthSecret } from "./env";
 export { readAnthropicApiKey } from "./server-key";
-export { encryptApiKey, decryptApiKey } from "./crypto";
+export { encryptApiKey } from "./crypto";
 export { AiSettingsDataExport } from "./data-export";
-export { getMyAiSettings, isAnalysisAvailable, type AiSettingsView } from "./queries";
-export {
-  resolveAnalysisModelForCurrentUser,
-  type AnalysisModelResolution,
-} from "./resolve-analysis-model";
+export { getMyAiSettings, isAnalysisAvailable } from "./queries";
+export { resolveAnalysisModelForCurrentUser } from "./resolve-analysis-model";
 export { withPinnedFallback } from "./pinned-fallback";
-export {
-  setAnalysisModelFamilyAction,
-  saveAnthropicApiKeyAction,
-  testAnthropicApiKeyAction,
-  removeAnthropicApiKeyAction,
-} from "./actions";
 export { AiModelSettingsPanel } from "./components/ai-model-settings-panel";
 export { t } from "./strings";
