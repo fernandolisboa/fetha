@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, formatTime } from "./date-time";
+import { formatDate, formatDateTime, formatSessionDate, formatTime } from "./date-time";
 
 describe("formatDate", () => {
   it("formats a date as dd/mm/yyyy in America/Sao_Paulo", () => {
@@ -20,5 +20,11 @@ describe("formatTime", () => {
 describe("formatDateTime", () => {
   it("combines date and time separated by a space", () => {
     expect(formatDateTime(new Date("2026-10-17T14:32:00.000Z"))).toBe("17/10/2026 11:32");
+  });
+});
+
+describe("formatSessionDate", () => {
+  it("formats a session date as dd/mm/yyyy without a time-zone shift", () => {
+    expect(formatSessionDate("2026-11-19")).toBe("19/11/2026");
   });
 });
