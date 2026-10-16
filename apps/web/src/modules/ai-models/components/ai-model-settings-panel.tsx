@@ -1,10 +1,12 @@
 "use client";
 
 import { startTransition, useState } from "react";
-import type {
-  AiSettingsModelFamilies,
-  AnalysisModelFamilyChoice,
-  AnalysisSubjectKind,
+import {
+  analysisModelFamilyChoices,
+  analysisSubjectKinds,
+  type AiSettingsModelFamilies,
+  type AnalysisModelFamilyChoice,
+  type AnalysisSubjectKind,
 } from "@fetha/contracts";
 
 import {
@@ -29,16 +31,6 @@ import { modelDisplayName } from "../display-name";
 import { t } from "../strings";
 import type { ApiKeyStatus } from "../ai-settings-repository";
 
-const KINDS: readonly AnalysisSubjectKind[] = [
-  "signal",
-  "contemplated_operation",
-  "held_operation",
-  "backtest_run",
-  "suggestion",
-];
-
-const CHOICES: readonly AnalysisModelFamilyChoice[] = ["default", "haiku", "sonnet", "opus"];
-
 export function AiModelSettingsPanel({
   modelFamilies,
   apiKey,
@@ -53,7 +45,7 @@ export function AiModelSettingsPanel({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
-        {KINDS.map((kind) => (
+        {analysisSubjectKinds.map((kind) => (
           <FamilyRow
             key={kind}
             kind={kind}
@@ -78,53 +70,72 @@ function FamilyRow({
 }) {
   const [value, setValue] = useState<AnalysisModelFamilyChoice>(current);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function submit(next: AnalysisModelFamilyChoice) {
+    const previous = value;
     setValue(next);
     setPending(true);
+    setError(null);
     startTransition(() => {
       setAnalysisModelFamilyAction({ kind, family: next })
-        .then(() => {
+        .then((result) => {
           setPending(false);
+          if (result.status === "error") {
+            setValue(previous);
+            setError(t.apiKey.errors[result.error]);
+          }
         })
         .catch(() => {
           setPending(false);
+          setValue(previous);
+          setError(t.apiKey.errors.unavailable);
         });
     });
   }
 
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex flex-col">
-        <span className="text-sm">{t.kinds[kind]}</span>
-        <span className="text-muted-foreground font-mono text-xs">
-          {t.usingModel(modelDisplayName(resolvedModel))}
-        </span>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col">
+          <span className="text-sm">{t.kinds[kind]}</span>
+          <span className="text-muted-foreground font-mono text-xs">
+            {t.usingModel(modelDisplayName(resolvedModel))}
+          </span>
+        </div>
+        <Select
+          value={value}
+          onValueChange={(next) => {
+            if (
+              typeof next === "string" &&
+              (analysisModelFamilyChoices as readonly string[]).includes(next)
+            ) {
+              submit(next);
+            }
+          }}
+          disabled={pending}
+        >
+          <SelectTrigger aria-label={t.kinds[kind]} className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {analysisModelFamilyChoices.map((choice) => (
+              <SelectItem key={choice} value={choice}>
+                {t.families[choice]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <Select
-        value={value}
-        onValueChange={(next) => {
-          if (typeof next === "string" && (CHOICES as readonly string[]).includes(next)) {
-            submit(next);
-          }
-        }}
-        disabled={pending}
-      >
-        <SelectTrigger aria-label={t.kinds[kind]} className="w-36">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {CHOICES.map((choice) => (
-            <SelectItem key={choice} value={choice}>
-              {t.families[choice]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {error ? <ErrorNotice>{error}</ErrorNotice> : null}
     </div>
   );
 }
 
+// Three distinct states, never conflated (#322 review A1): a stored key
+// that no longer decrypts says so and is still removable; a missing key
+// falls back to the server's, or says plainly that analyses are
+// unavailable when neither exists.
 function statusLine(apiKey: ApiKeyStatus, serverKeyConfigured: boolean): string {
   if (apiKey.configured && !apiKey.readable) {
     return t.apiKey.unreadable;
@@ -132,7 +143,7 @@ function statusLine(apiKey: ApiKeyStatus, serverKeyConfigured: boolean): string 
   if (apiKey.configured && apiKey.last4) {
     return t.apiKey.ownKey(apiKey.last4);
   }
-  return serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.unreadable;
+  return serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.noKey;
 }
 
 function ApiKeySection({
@@ -144,7 +155,11 @@ function ApiKeySection({
 }) {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState(() => statusLine(apiKey, serverKeyConfigured));
-  const [configured, setConfigured] = useState(apiKey.configured && apiKey.readable);
+  // Remove must stay enabled for a stored key even when it no longer
+  // decrypts (#322 review A1); testing one is pointless (there is no
+  // plaintext to send), so it alone tracks readability too.
+  const [stored, setStored] = useState(apiKey.configured);
+  const [readable, setReadable] = useState(apiKey.configured && apiKey.readable);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
@@ -159,7 +174,8 @@ function ApiKeySection({
           setBusy(null);
           if (result.status === "ok") {
             setInput("");
-            setConfigured(true);
+            setStored(true);
+            setReadable(true);
             setStatus(t.apiKey.ownKey(result.last4));
             setMessage(t.apiKey.saved);
           } else if (result.status === "error") {
@@ -203,8 +219,9 @@ function ApiKeySection({
         .then((result) => {
           setBusy(null);
           if (result.status === "ok_removed") {
-            setConfigured(false);
-            setStatus(serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.unreadable);
+            setStored(false);
+            setReadable(false);
+            setStatus(serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.noKey);
             setMessage(t.apiKey.removed);
           } else if (result.status === "error") {
             setError(t.apiKey.errors[result.error]);
@@ -245,7 +262,7 @@ function ApiKeySection({
           type="button"
           variant="outline"
           onClick={test}
-          disabled={busy !== null || !configured}
+          disabled={busy !== null || !readable}
         >
           {busy === "test" ? t.apiKey.testing : t.apiKey.test}
         </Button>
@@ -253,7 +270,7 @@ function ApiKeySection({
           type="button"
           variant="outline"
           onClick={remove}
-          disabled={busy !== null || !configured}
+          disabled={busy !== null || !stored}
         >
           {busy === "remove" ? t.apiKey.removing : t.apiKey.remove}
         </Button>
