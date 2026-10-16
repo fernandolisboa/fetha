@@ -367,6 +367,10 @@ test("layout switch to Studio moves the navigation and the market bar, and persi
   const statusBar = page.getByRole("contentinfo", { name: "Barra de status" });
   await expect(statusBar.getByTestId("market-bar")).toBeVisible();
   await expect(statusBar).toContainText("Nenhum sinal não lido");
+  await expect(statusBar.getByRole("link", { name: "não declarado" })).toHaveAttribute(
+    "href",
+    "/configuracoes/risco",
+  );
   await expect(navigation.getByRole("link", { name: "Configurações" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -482,6 +486,25 @@ test("collapsed rail keeps its foot inside its width", async ({ page, baseURL, r
   await expect
     .poll(() => rail.evaluate((element) => element.scrollWidth - element.clientWidth))
     .toBe(0);
+});
+
+test("rail foot shows the declared capital once it is declared", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  await rail.getByRole("link", { name: "não declarado" }).click();
+  await expect(page).toHaveURL(/\/configuracoes\/risco$/);
+
+  await page.getByLabel("Capital declarado").fill("10.000,00");
+  await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
+  await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();
+
+  await expect(rail.getByText("R$ 10.000,00")).toBeVisible();
+  await expect(rail.getByRole("link", { name: "não declarado" })).toHaveCount(0);
 });
 
 test("PWA manifest and service worker are served", async ({ request, baseURL }) => {

@@ -26,7 +26,7 @@ export {
   type HeldOperation,
 } from "./held-operations";
 export { declareRiskProfileAction, type RiskProfileActionResult } from "./risk-profile-actions";
-export { getCurrentRiskProfile } from "./risk-profile-queries";
+export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-queries";
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";

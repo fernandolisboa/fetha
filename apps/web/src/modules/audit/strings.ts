@@ -4,7 +4,7 @@ const en = {
   accessLog: {
     title: "Access log",
     subtitle:
-      "Each read or export of your portfolio and decision data, with the address and device it came from. Entries are kept for 180 days.",
+      "Each time a portfolio or decisions screen is opened and each data export, with the address and device it came from. Entries are kept for 180 days.",
     empty: "No access recorded yet.",
     event: "Access",
     origin: "Origin",
@@ -24,7 +24,7 @@ const ptBR = {
   accessLog: {
     title: "Registro de acesso",
     subtitle:
-      "Cada leitura ou exportação dos dados da sua carteira e das suas decisões, com o endereço e o dispositivo de origem. Os registros ficam guardados por 180 dias.",
+      "Cada abertura de uma tela da sua carteira ou das suas decisões e cada exportação de dados, com o endereço e o dispositivo de origem. Os registros ficam guardados por 180 dias.",
     empty: "Nenhum acesso registrado ainda.",
     event: "Acesso",
     origin: "Origem",
