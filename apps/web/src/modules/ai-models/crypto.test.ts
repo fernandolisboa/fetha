@@ -40,6 +40,18 @@ describe("encryptApiKey / decryptApiKey", () => {
     expect(decryptApiKey(tampered, SECRET, USER_A)).toEqual({ ok: false });
   });
 
+  it("fails closed on a truncated auth tag", () => {
+    const stored = encryptApiKey(KEY, SECRET, USER_A);
+    const [version, iv, tag, ciphertext] = stored.split(":");
+    const truncated = [
+      version,
+      iv,
+      Buffer.from(Buffer.from(tag ?? "", "base64").subarray(0, 8)).toString("base64"),
+      ciphertext,
+    ].join(":");
+    expect(decryptApiKey(truncated, SECRET, USER_A)).toEqual({ ok: false });
+  });
+
   it("fails closed on a malformed stored value", () => {
     expect(decryptApiKey("not-a-valid-value", SECRET, USER_A)).toEqual({ ok: false });
     expect(decryptApiKey("v2:a:b:c", SECRET, USER_A)).toEqual({ ok: false });
