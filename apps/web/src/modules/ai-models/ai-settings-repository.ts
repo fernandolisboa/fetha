@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { aiSettingsModelFamiliesSchema, type AiSettingsModelFamilies } from "@fetha/contracts";
 
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -35,27 +35,28 @@ export class AiSettingsRepository extends UserScopedRepository {
     return row ? parseFamilies(row.modelFamilies) : {};
   }
 
+  // One statement, merging the one changed kind into whatever
+  // `model_families` currently holds in Postgres itself (`||` to set it,
+  // `-` to drop it back to "default"): each row on the panel fires its own
+  // save independently, so a read-modify-write here would lose a
+  // concurrent sibling's change (docs/adr/0068, #322 review).
   async setModelFamily(
     kind: keyof AiSettingsModelFamilies,
     family: AiSettingsModelFamilies[keyof AiSettingsModelFamilies] | undefined,
   ): Promise<void> {
-    const current = await this.getModelFamilies();
-    const next: Record<string, unknown> = {};
-    for (const key of Object.keys(current)) {
-      if (key !== kind) {
-        next[key] = current[key as keyof AiSettingsModelFamilies];
-      }
-    }
-    if (family !== undefined) {
-      next[kind] = family;
-    }
-    const validated = aiSettingsModelFamiliesSchema.parse(next);
+    const seed = aiSettingsModelFamiliesSchema.parse(
+      family === undefined ? {} : { [kind]: family },
+    );
+    const merge =
+      family === undefined
+        ? sql`${aiSettings.modelFamilies} - ${kind}`
+        : sql`${aiSettings.modelFamilies} || ${JSON.stringify(seed)}::jsonb`;
     await this.db
       .insert(aiSettings)
-      .values({ userId: this.userId, modelFamilies: validated })
+      .values({ userId: this.userId, modelFamilies: seed })
       .onConflictDoUpdate({
         target: aiSettings.userId,
-        set: { modelFamilies: validated, updatedAt: new Date() },
+        set: { modelFamilies: merge, updatedAt: new Date() },
       });
   }
 
