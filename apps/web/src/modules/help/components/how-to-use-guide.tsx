@@ -30,22 +30,36 @@ function StepList({ steps, ordered = false }: { steps: string[]; ordered?: boole
   );
 }
 
+// Two fixed stacks rather than CSS columns: a multi-column flow rebalances every panel when one
+// grows, so text moves under the reader.
+function sectionColumns() {
+  const sections = guideSections();
+  const half = Math.ceil(sections.length / 2);
+  return [sections.slice(0, half), sections.slice(half)];
+}
+
 export function HowToUseGuide() {
   return (
     <div className="flex flex-col gap-[14px]">
       <div className="grid items-start gap-[14px] lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex flex-col gap-[14px]">
-          {guideSections().map((section) => (
-            <Panel key={section.href} title={section.label} subtitle={section.summary}>
-              <StepList steps={section.steps} />
-              <Link
-                href={section.href}
-                className="text-primary inline-flex min-h-8 items-center self-start text-[13px] underline-offset-4 hover:underline"
-              >
-                {t.guide.open(section.label)}
-              </Link>
-            </Panel>
-          ))}
+        <div className="@container">
+          <div className="grid items-start gap-[14px] @min-[64rem]:grid-cols-2">
+            {sectionColumns().map((column, index) => (
+              <div key={index} className="flex min-w-0 flex-col gap-[14px]">
+                {column.map((section) => (
+                  <Panel key={section.href} title={section.label} subtitle={section.summary}>
+                    <StepList steps={section.steps} />
+                    <Link
+                      href={section.href}
+                      className="text-primary inline-flex min-h-8 items-center self-start text-[13px] underline-offset-4 hover:underline"
+                    >
+                      {t.guide.open(section.label)}
+                    </Link>
+                  </Panel>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-col gap-[14px] lg:sticky lg:top-4">

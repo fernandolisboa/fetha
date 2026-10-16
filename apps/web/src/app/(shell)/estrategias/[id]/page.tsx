@@ -57,7 +57,7 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
   const archived = strategy.archivedAt !== null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8">
+    <div className="@container flex flex-col gap-6 px-5 py-8">
       <PageHeader
         overline={archived ? t.editor.archivedOverline : t.editor.editOverline}
         headline={strategy.name}
@@ -82,71 +82,76 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
         }
       />
 
-      {archived ? (
-        <Panel title={t.editor.readOnlyTitle}>
-          <p className="text-muted-foreground text-sm">{t.editor.errors.archived}</p>
-        </Panel>
-      ) : (
-        <StrategyEditorForm
-          structures={structures}
-          strategyId={strategy.id}
-          initial={latestVersion.definition}
-        />
-      )}
-
-      <Panel title={t.editor.versions.title}>
-        <ul className="text-muted-foreground flex flex-col gap-1 text-xs">
-          {strategy.versions.map((version) => (
-            <li key={version.id} className="font-mono tabular-nums">
-              v{version.versionNumber} · {t.editor.versions.createdAt}{" "}
-              {formatDateTime(version.createdAt)}
-            </li>
-          ))}
-        </ul>
-      </Panel>
-
-      <Panel title={backtestsStrings.report.overline}>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            {archived ? null : (
-              <Link
-                href={`/estrategias/${strategy.id}/backtests/novo`}
-                className={buttonVariants()}
-              >
-                {backtestsStrings.create.submit}
-              </Link>
-            )}
-            {completedRunIds.length >= 2 ? (
-              <Link
-                href={compareHref(completedRunIds.slice(0, 2))}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                {backtestsStrings.compare.link}
-              </Link>
-            ) : null}
-          </div>
-          {runs.length > 0 ? (
-            <ul className="flex flex-col gap-1 text-sm">
-              {runs.map((run) => (
-                <li key={run.id} className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/estrategias/${strategy.id}/backtests/${run.id}`}
-                    className="underline-offset-4 hover:underline"
-                  >
-                    {periodLabel(run.period)}
-                  </Link>{" "}
-                  <span className="text-muted-foreground text-xs">
-                    ({formatDate(run.createdAt)})
-                  </span>
-                  {isActiveRun(run) ? (
-                    <DiscardRunButton runId={run.id} runLabel={periodLabel(run.period)} />
-                  ) : null}
+      <div className="grid items-start gap-[14px] @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          {archived ? (
+            <Panel title={t.editor.readOnlyTitle}>
+              <p className="text-muted-foreground text-sm">{t.editor.errors.archived}</p>
+            </Panel>
+          ) : (
+            <StrategyEditorForm
+              structures={structures}
+              strategyId={strategy.id}
+              initial={latestVersion.definition}
+            />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-[14px]">
+          <Panel title={t.editor.versions.title}>
+            <ul className="text-muted-foreground flex flex-col gap-1 text-xs">
+              {strategy.versions.map((version) => (
+                <li key={version.id} className="font-mono tabular-nums">
+                  v{version.versionNumber} · {t.editor.versions.createdAt}{" "}
+                  {formatDateTime(version.createdAt)}
                 </li>
               ))}
             </ul>
-          ) : null}
+          </Panel>
+
+          <Panel title={backtestsStrings.report.overline}>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                {archived ? null : (
+                  <Link
+                    href={`/estrategias/${strategy.id}/backtests/novo`}
+                    className={buttonVariants()}
+                  >
+                    {backtestsStrings.create.submit}
+                  </Link>
+                )}
+                {completedRunIds.length >= 2 ? (
+                  <Link
+                    href={compareHref(completedRunIds.slice(0, 2))}
+                    className={buttonVariants({ variant: "outline" })}
+                  >
+                    {backtestsStrings.compare.link}
+                  </Link>
+                ) : null}
+              </div>
+              {runs.length > 0 ? (
+                <ul className="flex flex-col gap-1 text-sm">
+                  {runs.map((run) => (
+                    <li key={run.id} className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/estrategias/${strategy.id}/backtests/${run.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {periodLabel(run.period)}
+                      </Link>{" "}
+                      <span className="text-muted-foreground text-xs">
+                        ({formatDate(run.createdAt)})
+                      </span>
+                      {isActiveRun(run) ? (
+                        <DiscardRunButton runId={run.id} runLabel={periodLabel(run.period)} />
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </Panel>
         </div>
-      </Panel>
+      </div>
     </div>
   );
 }

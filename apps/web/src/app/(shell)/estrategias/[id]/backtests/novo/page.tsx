@@ -31,7 +31,7 @@ export default async function NewBacktestRunPage({ params }: { params: Promise<{
   }
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-6 px-5 py-8">
+    <div className="flex flex-col gap-6 px-5 py-8">
       <PageHeader overline={t.create.overline} headline={strategy.name} />
 
       <Panel>
