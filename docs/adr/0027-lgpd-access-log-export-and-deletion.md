@@ -98,4 +98,5 @@ The rail foot shows the user's declared capital on every signed-in page (DESIGN.
 navigation, and the 50 entries the user sees under Configurações would hold nothing but page
 views, hiding the reads of the portfolio itself. The value is the user's own declaration shown
 back to the same signed-in user, not a view of positions, fills or decisions, which keep their
-rows.
+rows. The privacy policy already promises a row per opened portfolio or decisions screen, not per
+read of any portfolio value, and the access-log subtitle now says the same.
