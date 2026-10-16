@@ -73,6 +73,23 @@ describe("setAnalysisModelFamilyAction", () => {
     expect(await new AiSettingsRepository(getDb(), user).getModelFamilies()).toEqual({});
   });
 
+  it("rate limits after 20 saves in the window, the 21st returns rate_limited", async () => {
+    const { sessionHeaders } = await signUpAndVerify("family-rate-limit");
+    currentHeaders = sessionHeaders;
+
+    const outcomes = [];
+    for (let i = 0; i < 21; i += 1) {
+      outcomes.push(
+        await setAnalysisModelFamilyAction({
+          kind: "signal",
+          family: i % 2 === 0 ? "haiku" : "default",
+        }),
+      );
+    }
+    expect(outcomes.slice(0, 20).every((outcome) => outcome.status === "ok")).toBe(true);
+    expect(outcomes[20]).toEqual({ status: "error", error: "rate_limited" });
+  });
+
   it("rejects an invalid kind", async () => {
     const { sessionHeaders } = await signUpAndVerify("family-invalid");
     currentHeaders = sessionHeaders;

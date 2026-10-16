@@ -28,6 +28,10 @@ const setFamilyInputSchema = z.strictObject({
   family: analysisModelFamilyChoiceSchema,
 });
 
+// Each row on the panel saves independently (#322 review A9): one account
+// bucket covers all of them rather than one per kind.
+const SET_FAMILY_RATE_LIMIT = { windowSeconds: 60, max: 20 };
+
 export async function setAnalysisModelFamilyAction(
   input: z.infer<typeof setFamilyInputSchema>,
 ): Promise<SetAnalysisModelFamilyActionResult> {
@@ -37,6 +41,13 @@ export async function setAnalysisModelFamilyAction(
   }
   try {
     await withAuthenticatedAction(async () => {
+      const user = await requireUser();
+      await enforceAccountRateLimit(
+        getDb(),
+        user.email,
+        "ai-settings/set-family",
+        SET_FAMILY_RATE_LIMIT,
+      );
       const repository = await forCurrentUser(getDb(), AiSettingsRepository);
       await repository.setModelFamily(
         parsed.data.kind,
@@ -45,8 +56,11 @@ export async function setAnalysisModelFamilyAction(
     });
     revalidatePath("/configuracoes");
     return { status: "ok" };
-  } catch {
-    return { status: "error", error: "unavailable" };
+  } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
+    throw error;
   }
 }
 
@@ -150,15 +164,14 @@ export async function testAnthropicApiKeyAction(): Promise<ApiKeyActionResult> {
   }
 }
 
+// No rate limit (unlike save/test): removing a key has no external call to
+// throttle, and a bare catch here would swallow the NEXT_REDIRECT
+// withAuthenticatedAction throws for an expired session (#322 review B4).
 export async function removeAnthropicApiKeyAction(): Promise<ApiKeyActionResult> {
-  try {
-    return await withAuthenticatedAction(async () => {
-      const repository = await forCurrentUser(getDb(), AiSettingsRepository);
-      await repository.removeApiKey();
-      revalidatePath("/configuracoes");
-      return { status: "ok_removed" } as const;
-    });
-  } catch {
-    return { status: "error", error: "unavailable" };
-  }
+  return withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), AiSettingsRepository);
+    await repository.removeApiKey();
+    revalidatePath("/configuracoes");
+    return { status: "ok_removed" } as const;
+  });
 }
