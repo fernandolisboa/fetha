@@ -36,7 +36,7 @@ export async function registerAndSignIn(
 }
 
 // The nightly job's manual trigger runs for up to 300s (the same budget the
-// cron route and /configuracoes's own `maxDuration` share); the default 30s
+// cron route and /configuracoes/administracao's own `maxDuration` share); the default 30s
 // test timeout and 5s expect timeout are both too short for it.
 const NIGHTLY_JOB_TIMEOUT_MS = 300_000;
 export const TEST_TIMEOUT_MS = NIGHTLY_JOB_TIMEOUT_MS + 60_000;
@@ -49,7 +49,7 @@ const SUITE_SOURCES = ["calendar", "cotahist", "instruments"];
 export const ownerStorageState = path.join(__dirname, ".auth", "owner.json");
 
 // The nightly job's manual trigger moved from a `CRON_SECRET` bearer to the
-// owner's own session (#51, docs/adr/0042). This drives `/configuracoes`'s
+// owner's own session (#51, docs/adr/0042). This drives `/configuracoes/administracao`'s
 // trigger form in a separate browser context, so the caller's own context
 // and session are left untouched.
 export async function triggerIngestionAsOwner(
