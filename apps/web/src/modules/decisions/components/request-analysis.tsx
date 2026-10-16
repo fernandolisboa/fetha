@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AnalysisSubjectKind } from "@fetha/contracts";
 
@@ -66,9 +67,17 @@ export function RequestAnalysisButton({
           {pending ? t.analysis.request.pending : label}
         </Button>
         <span className="text-muted-foreground text-xs">
-          {available
-            ? t.analysis.request.usage(usage.used, usage.cap)
-            : t.analysis.errors.unavailable}
+          {available ? (
+            t.analysis.request.usage(usage.used, usage.cap)
+          ) : (
+            <>
+              {t.analysis.request.ownKeyRequired}{" "}
+              <Link href="/configuracoes/ia" className="underline-offset-4 hover:underline">
+                {t.analysis.request.ownKeyRequiredLink}
+              </Link>
+              .
+            </>
+          )}
         </span>
       </div>
 

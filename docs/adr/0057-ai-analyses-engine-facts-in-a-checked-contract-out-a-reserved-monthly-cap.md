@@ -139,4 +139,6 @@ text keeps its wording because a released prompt version is frozen. See docs/adr
 "Model per subject" is now a family resolved to its newest release (`claude-opus-5-5`/
 `claude-sonnet-5-5` become the pinned floor, not the literal id sent), overridable per user per
 kind, billed to the user's own Anthropic key when one is stored and readable, else the server's.
-Caps, facts discipline and storage are unchanged. See docs/adr/0068.
+Caps, facts discipline and storage are unchanged. See docs/adr/0068. #325, the same day, removed
+the "else the server's" clause: the server key no longer bills a user-requested analysis, and with
+no readable own key the action answers `own_key_missing` instead. See docs/adr/0068's amendment.

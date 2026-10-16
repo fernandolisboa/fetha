@@ -32,6 +32,7 @@ export type RequestAnalysisActionResult =
         | "not_found"
         | "not_ready"
         | "unavailable"
+        | "own_key_missing"
         | "own_key_unreadable"
         | "cap_reached"
         | "rate_limited"
@@ -58,8 +59,8 @@ export async function requestAnalysisAction(
       await enforceAccountRateLimit(getDb(), user.email, "analyses/request", REQUEST_RATE_LIMIT);
 
       const resolution = await resolveAnalysisModelForCurrentUser(parsed.data.subjectKind);
-      if (resolution.status === "unavailable") {
-        return { status: "unavailable" as const };
+      if (resolution.status === "own_key_missing") {
+        return { status: "own_key_missing" as const };
       }
       if (resolution.status === "own_key_unreadable") {
         return { status: "own_key_unreadable" as const };
