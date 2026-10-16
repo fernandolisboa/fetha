@@ -383,3 +383,29 @@ every user's watchlist (`watchedTickersOfAnyUser`, distinct tickers only, never 
 Seeing a label on an unwatched asset tells a user that someone in the instance watches it. ADR-0065
 accepts that while the instance is the owner's alone; it disappears once the radar (#308) covers the
 whole market.
+
+## Addendum: CI's e2e suite moved off the Vercel preview (2026-10-16)
+
+`fetha-preview`'s free 5 GB/month data transfer quota ran out on 2026-10-16, failing `db:reset`
+with Neon's HTTP 402 and blocking every PR at the job that both maintained the shared database and
+ran e2e against its Vercel preview (the 2026-09-28 addendum above). The job id `preview-database`
+now runs the whole Playwright suite in the runner itself, against a production build
+(`next build` + `next start` on `localhost:3000`) behind the same Postgres-service-container-behind-
+Neon's-local-proxy setup the `integration` job already used (`db.localtest.me`, pinned to loopback;
+`ALLOW_DISPOSABLE_DATABASE=1`). It needs no Vercel preview and no `VERCEL_PROTECTION_BYPASS`, and
+runs on `pull_request` only, same as before.
+
+`src/db/client.ts` now calls `routeToLocalNeonProxy` (`scripts/lib/local-neon.mjs`, already used by
+`vitest.integration.config.mts`'s setup file and by `db:seed-structures`/`db:seed-e2e-owner`)
+before constructing its Drizzle client, so the app's own runtime, not just its scripts, reaches the
+local proxy when `DATABASE_URL`'s host is `db.localtest.me`; production's `DATABASE_URL` never
+matches that host, so this is a no-op outside CI and local verification against the same setup.
+`E2E_SECRET` is a fixed, non-secret CI literal now, since nothing in this job reaches a Vercel
+deployment the value would need to match.
+
+The reset/migrate/seed-structures/seed-e2e-owner maintenance of the shared `fetha-preview` project
+moved to its own job, `preview-database-maintenance`, kept for Vercel preview deployments used for
+manual checks; each of its database-touching steps is `continue-on-error: true` so a quota outage
+there never fails the check the owner's merge process gates on. `scripts/wait-for-vercel-preview.mjs`
+is no longer called from any workflow; it is left in place, unused, rather than removed, since
+nothing about this change needed its deletion.

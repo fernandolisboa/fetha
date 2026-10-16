@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/neon-serverless";
 
+import { routeToLocalNeonProxy } from "../../scripts/lib/local-neon.mjs";
 import { MissingDatabaseUrlError } from "./errors";
 import { attachPoolErrorLogger } from "./pool-error-logger";
 import * as schema from "./schema";
@@ -19,6 +20,7 @@ export function getDb(): Database {
     throw new MissingDatabaseUrlError();
   }
 
+  routeToLocalNeonProxy(url);
   cachedDb = drizzle({ connection: url, schema });
   attachPoolErrorLogger(cachedDb.$client);
   return cachedDb;
