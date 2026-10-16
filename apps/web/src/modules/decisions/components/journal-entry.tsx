@@ -2,21 +2,13 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format/brl";
-import { formatDateTime } from "@/lib/format/date-time";
+import { formatDateTime, formatSessionDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 
 import type { DecisionScoreRow } from "../decision-scores-repository";
 import type { DecisionListItem } from "../decisions-repository";
 import { t } from "../strings";
-
-// A session-date string ("2026-10-17") formatted DESIGN.md's way
-// ("17/10/2026") without going through `formatDate`'s `Date`/timezone path:
-// a plain calendar date has no time-of-day to misinterpret across zones.
-export function formatSessionDate(session: string): string {
-  const [year, month, day] = session.split("-");
-  return `${day ?? ""}/${month ?? ""}/${year ?? ""}`;
-}
 
 function claimSentence(decision: DecisionListItem): string {
   if (decision.claim === null) {

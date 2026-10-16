@@ -2,7 +2,7 @@ import { factAt, outlookOf, verdictOf, type AnalysisInputs } from "@fetha/contra
 
 import { Badge } from "@/components/ui/badge";
 import { formatPriceBRL } from "@/lib/format/brl";
-import { formatDateTime } from "@/lib/format/date-time";
+import { formatDateTime, formatSessionDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 
 import type { JournalAnalysis } from "../analyses-repository";
@@ -10,7 +10,7 @@ import type { AnalysisScoreRow } from "../analysis-scores-repository";
 import { t } from "../strings";
 
 import { modelDisplayName } from "@/modules/ai-models/client";
-import { formatSessionDate, unscorableReasonLabel } from "./journal-entry";
+import { unscorableReasonLabel } from "./journal-entry";
 
 const labels = t.journal.analysis;
 

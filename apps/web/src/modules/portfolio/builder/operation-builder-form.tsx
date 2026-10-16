@@ -332,7 +332,7 @@ export function OperationBuilderForm({
   const blocksSave = displayedNotes.some((note) => note.code === "no_market_price");
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="structure">{t.builder.structure}</Label>
@@ -389,8 +389,8 @@ export function OperationBuilderForm({
 
       {priceError ? <ErrorNotice>{priceError}</ErrorNotice> : null}
 
-      <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
-        <div className="flex flex-col gap-[14px]">
+      <div className="grid items-start gap-[14px] @min-[60rem]:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-[14px]">
           {structure ? (
             <Panel title={t.builder.legsTable.title}>
               <LegsTable
