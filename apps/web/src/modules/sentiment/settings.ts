@@ -1,3 +1,5 @@
+import { readAnthropicApiKey } from "@/modules/ai-models";
+
 import { newsProviderKeyIsSet, type ProviderEnv } from "./news-sentiment-provider";
 
 interface SentimentEnv extends ProviderEnv {
@@ -22,7 +24,7 @@ export function readSentimentSettings(
   env: SentimentEnv = process.env,
   labelsSwitchedOn: boolean = FILING_LABELS_SWITCHED_ON,
 ): SentimentSettings {
-  const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim();
+  const anthropicApiKey = readAnthropicApiKey(env);
   const labelsOn = labelsSwitchedOn && env.VERCEL_ENV === "production";
   return {
     labelApiKey: labelsOn && anthropicApiKey ? anthropicApiKey : undefined,

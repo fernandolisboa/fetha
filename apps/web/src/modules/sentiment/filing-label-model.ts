@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { FilingLabelInputs } from "@fetha/contracts";
-import { filingLabelFamily, filingLabelPrompt, pinnedModels } from "@fetha/prompts";
+import { filingLabelFamily, filingLabelPrompt } from "@fetha/prompts";
 
-import { defaultModelCatalog } from "@/modules/ai-models";
+import { withPinnedFallback } from "@/modules/ai-models";
 
 export interface FilingLabelUsage {
   inputTokens: number;
@@ -67,8 +67,11 @@ function errorReplyFrom(error: unknown): FilingLabelReply {
 }
 
 // The document is untrusted text (docs/adr/0065): the request carries no
-// tools, and the reply is only ever parsed against the label contract.
-export function createAnthropicFilingLabelClient(apiKey: string): FilingLabelClient {
+// tools, and the reply is only ever parsed against the label contract. The
+// model is resolved once per run by the caller (#322 review A4), not here,
+// so every filing in the run shares one listing instead of each one
+// re-resolving it.
+export function createAnthropicFilingLabelClient(apiKey: string, model: string): FilingLabelClient {
   const anthropic = new Anthropic({ apiKey });
 
   async function attempt(
@@ -109,25 +112,18 @@ export function createAnthropicFilingLabelClient(apiKey: string): FilingLabelCli
 
   return {
     async label({ pdf, inputs }): Promise<FilingLabelReply> {
-      const model = await defaultModelCatalog.resolveModel(filingLabelFamily, apiKey);
       try {
-        return await attempt(model, pdf, inputs);
-      } catch (error) {
         // Same one retry on the family's pinned floor as the analysis
         // client (docs/adr/0068): a bad PDF still ends `bad_request` after
         // it, since the pinned model refuses it for the same reason.
-        const pinnedId = pinnedModels[filingLabelFamily];
-        const retryable =
-          model !== pinnedId &&
-          (error instanceof Anthropic.BadRequestError || error instanceof Anthropic.NotFoundError);
-        if (!retryable) {
-          return errorReplyFrom(error);
-        }
-        try {
-          return await attempt(pinnedId, pdf, inputs);
-        } catch (retryError) {
-          return errorReplyFrom(retryError);
-        }
+        return await withPinnedFallback(
+          filingLabelFamily,
+          model,
+          (m) => attempt(m, pdf, inputs),
+          apiKey,
+        );
+      } catch (error) {
+        return errorReplyFrom(error);
       }
     },
   };

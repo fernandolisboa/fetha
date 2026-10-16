@@ -23,9 +23,10 @@ const MAX_DOWNLOAD_ATTEMPTS = 3;
 // one bad day at RAD costs one attempt, not all three.
 const RETRY_AFTER_MS = 20 * 60 * 60 * 1000;
 const DOWNLOAD_SPACING_MS = 6_000;
-// A download (30 s timeout) plus a model call (60 s timeout), with margin:
-// a filing is only started when it can finish before the deadline.
-const ITEM_BUDGET_MS = 100_000;
+// A download (30s timeout) plus a model call (60s timeout) plus, on a bad
+// resolution, one pinned-fallback retry (another 60s, #322 review A4), with
+// margin: a filing is only started when it can finish before the deadline.
+const ITEM_BUDGET_MS = 160_000;
 // Bounds a run's model calls whatever the watchlists hold; a backlog drains
 // over the following runs (docs/adr/0065).
 export const MAX_LABEL_CALLS_PER_RUN = 60;

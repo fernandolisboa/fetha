@@ -2,8 +2,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Message } from "@anthropic-ai/sdk/resources/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defaultModelCatalog } from "@/modules/ai-models";
-
 import { createAnthropicFilingLabelClient } from "./filing-label-model";
 
 const PDF = new Uint8Array([1, 2, 3]);
@@ -37,8 +35,7 @@ afterEach(() => {
 });
 
 describe("createAnthropicFilingLabelClient retry on 400/404", () => {
-  it("resolves the newest haiku and retries on the pinned id on a 400", async () => {
-    vi.spyOn(defaultModelCatalog, "resolveModel").mockResolvedValue("claude-haiku-6");
+  it("retries on the pinned id on a 400 for a resolved, non-pinned model", async () => {
     const create = vi
       .spyOn(Anthropic.Messages.prototype, "create")
       .mockRejectedValueOnce(badRequest())
@@ -46,7 +43,7 @@ describe("createAnthropicFilingLabelClient retry on 400/404", () => {
         fakeMessage("claude-haiku-5-5", '{"topic":"dividends","tone":"positive","summary":"ok"}'),
       );
 
-    const client = createAnthropicFilingLabelClient("sk-ant-fake");
+    const client = createAnthropicFilingLabelClient("sk-ant-fake", "claude-haiku-6");
     const reply = await client.label({ pdf: PDF, inputs: INPUTS });
 
     expect(reply).toMatchObject({ kind: "parsed", model: "claude-haiku-5-5" });
@@ -56,13 +53,12 @@ describe("createAnthropicFilingLabelClient retry on 400/404", () => {
   });
 
   it("ends bad_request after the pinned retry when the document itself is unreadable", async () => {
-    vi.spyOn(defaultModelCatalog, "resolveModel").mockResolvedValue("claude-haiku-6");
     const create = vi
       .spyOn(Anthropic.Messages.prototype, "create")
       .mockRejectedValueOnce(badRequest())
       .mockRejectedValueOnce(badRequest());
 
-    const client = createAnthropicFilingLabelClient("sk-ant-fake");
+    const client = createAnthropicFilingLabelClient("sk-ant-fake", "claude-haiku-6");
     const reply = await client.label({ pdf: PDF, inputs: INPUTS });
 
     expect(reply).toEqual({ kind: "bad_request" });
@@ -70,12 +66,11 @@ describe("createAnthropicFilingLabelClient retry on 400/404", () => {
   });
 
   it("does not retry when the resolved model is already the pinned one", async () => {
-    vi.spyOn(defaultModelCatalog, "resolveModel").mockResolvedValue("claude-haiku-5-5");
     const create = vi
       .spyOn(Anthropic.Messages.prototype, "create")
       .mockRejectedValueOnce(badRequest());
 
-    const client = createAnthropicFilingLabelClient("sk-ant-fake");
+    const client = createAnthropicFilingLabelClient("sk-ant-fake", "claude-haiku-5-5");
     const reply = await client.label({ pdf: PDF, inputs: INPUTS });
 
     expect(reply).toEqual({ kind: "bad_request" });
