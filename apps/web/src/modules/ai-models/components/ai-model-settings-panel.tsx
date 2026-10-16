@@ -99,7 +99,7 @@ function FamilyRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col">
           <span className="text-sm">{t.kinds[kind]}</span>
-          <span className="text-muted-foreground font-mono text-xs">
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
             {t.usingModel(modelDisplayName(resolvedModel))}
           </span>
         </div>

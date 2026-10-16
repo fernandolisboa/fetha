@@ -195,7 +195,7 @@ const en = {
       not_ready: "There is not enough data to analyze this yet.",
       unavailable: "AI analysis is not available in this environment.",
       own_key_unreadable:
-        "Your Anthropic API key could not be read. Save it again in Settings, or remove it to use the shared key instead.",
+        "Your Anthropic API key could not be read. Save it again in Settings, or remove it to use the server's key instead.",
       rate_limited: "Too many requests recently. Try again in a moment.",
       rejected:
         "The reply did not pass Fetha's checks and was discarded. It still counted toward the monthly limit.",
@@ -399,7 +399,7 @@ const ptBR = {
       not_ready: "Ainda não há dados suficientes para analisar isso.",
       unavailable: "A análise de IA não está disponível neste ambiente.",
       own_key_unreadable:
-        "Não foi possível ler sua chave de API da Anthropic. Salve-a novamente em Configurações, ou remova-a para usar a chave compartilhada.",
+        "Não foi possível ler sua chave de API da Anthropic. Salve-a novamente em Configurações, ou remova-a para usar a chave do servidor.",
       rate_limited: "Muitos pedidos em pouco tempo. Tente novamente em instantes.",
       rejected:
         "A resposta não passou nas verificações do Fetha e foi descartada. Ainda assim, contou no limite mensal.",
