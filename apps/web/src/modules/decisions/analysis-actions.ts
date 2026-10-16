@@ -4,22 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { analysisSubjectKinds } from "@fetha/contracts";
 
-import { defaultAnalysisFamilies } from "@fetha/prompts";
-
 import { getDb } from "@/db/client";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
-  forCurrentUser,
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import {
-  AiSettingsRepository,
-  defaultModelCatalog,
-  readAnthropicApiKey,
-  readBetterAuthSecret,
-} from "@/modules/ai-models";
+import { resolveAnalysisModelForCurrentUser } from "@/modules/ai-models";
 
 import { createAnthropicAnalysisClient } from "./analysis-model";
 import { requestAnalysis, type AcceptedAnalysisView } from "./analysis-service";
@@ -40,6 +32,7 @@ export type RequestAnalysisActionResult =
         | "not_found"
         | "not_ready"
         | "unavailable"
+        | "own_key_unreadable"
         | "cap_reached"
         | "rate_limited"
         | "rejected"
@@ -64,27 +57,17 @@ export async function requestAnalysisAction(
       const user = await requireUser();
       await enforceAccountRateLimit(getDb(), user.email, "analyses/request", REQUEST_RATE_LIMIT);
 
-      const serverKey = readAnthropicApiKey();
-      const settings = await forCurrentUser(getDb(), AiSettingsRepository);
-      const secret = readBetterAuthSecret();
-      const ownKey = await settings.readOwnApiKey(secret);
-      // Billing prefers the user's own key when it is present and still
-      // readable; listing the model catalog prefers the server's own key
-      // so every user's own key does not each make its own listing call
-      // (docs/adr/0068).
-      const analysisKey = ownKey.status === "ok" ? ownKey.key : serverKey;
-      if (!analysisKey) {
+      const resolution = await resolveAnalysisModelForCurrentUser(parsed.data.subjectKind);
+      if (resolution.status === "unavailable") {
         return { status: "unavailable" as const };
       }
-      const listingKey = serverKey ?? (ownKey.status === "ok" ? ownKey.key : undefined);
-      const families = await settings.getModelFamilies();
-      const family =
-        families[parsed.data.subjectKind] ?? defaultAnalysisFamilies[parsed.data.subjectKind];
-      const model = await defaultModelCatalog.resolveModel(family, listingKey);
-      const client = createAnthropicAnalysisClient(analysisKey);
+      if (resolution.status === "own_key_unreadable") {
+        return { status: "own_key_unreadable" as const };
+      }
+      const client = createAnthropicAnalysisClient(resolution.apiKey);
 
       return requestAnalysis(
-        { db: getDb(), user, client, model, family },
+        { db: getDb(), user, client, model: resolution.model, family: resolution.family },
         { subjectKind: parsed.data.subjectKind, subjectId: parsed.data.subjectId },
       );
     });

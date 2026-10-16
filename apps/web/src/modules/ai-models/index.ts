@@ -9,6 +9,10 @@ export { encryptApiKey, decryptApiKey } from "./crypto";
 export { AiSettingsDataExport } from "./data-export";
 export { getMyAiSettings, isAnalysisAvailable, type AiSettingsView } from "./queries";
 export {
+  resolveAnalysisModelForCurrentUser,
+  type AnalysisModelResolution,
+} from "./resolve-analysis-model";
+export {
   setAnalysisModelFamilyAction,
   saveAnthropicApiKeyAction,
   testAnthropicApiKeyAction,
