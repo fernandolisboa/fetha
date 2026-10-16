@@ -133,6 +133,26 @@ describe("AiSettingsRepository isolation", () => {
     expect(await repository.getModelFamilies()).toEqual({ signal: "haiku" });
   });
 
+  it("merges concurrent setModelFamily calls for different kinds instead of losing one", async () => {
+    const db = getDb();
+    const email = uniqueEmail("concurrent");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new AiSettingsRepository(db, testUser);
+
+    await Promise.all([
+      repository.setModelFamily("signal", "haiku"),
+      repository.setModelFamily("contemplated_operation", "opus"),
+      repository.setModelFamily("held_operation", "sonnet"),
+    ]);
+
+    expect(await repository.getModelFamilies()).toEqual({
+      signal: "haiku",
+      contemplated_operation: "opus",
+      held_operation: "sonnet",
+    });
+  });
+
   it("defaults to no stored families and no configured key", async () => {
     const db = getDb();
     const email = uniqueEmail("default");
