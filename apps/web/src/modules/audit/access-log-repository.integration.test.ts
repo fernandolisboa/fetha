@@ -61,6 +61,23 @@ describe("AccessLogRepository isolation", () => {
     expect(await new AccessLogRepository(db, userB).listRecent(50)).toHaveLength(1);
   });
 
+  it("user A cannot list, count or see the origins of user B's access log", async () => {
+    const db = getDb();
+    const { userA, userB } = await twoUsers("isolation-page");
+
+    await new AccessLogRepository(db, userB).record("portfolio_read", context);
+
+    const repositoryA = new AccessLogRepository(db, userA);
+    expect((await repositoryA.listPage({}, null, 50)).entries).toEqual([]);
+    expect(await repositoryA.count({})).toBe(0);
+    expect(await repositoryA.listOrigins()).toEqual([]);
+
+    const repositoryB = new AccessLogRepository(db, userB);
+    expect((await repositoryB.listPage({}, null, 50)).entries).toHaveLength(1);
+    expect(await repositoryB.count({})).toBe(1);
+    expect(await repositoryB.listOrigins()).toEqual([context.ipAddress]);
+  });
+
   it("user A's record never lands in user B's log", async () => {
     const db = getDb();
     const { userA, userB } = await twoUsers("write");
@@ -110,6 +127,109 @@ describe("AccessLogRepository", () => {
     const entriesA = await new AccessLogRepository(db, userA).listRecent(50);
     expect(entriesA.map((entry) => entry.event)).toEqual(["decisions_read"]);
     expect(await new AccessLogRepository(db, userB).listRecent(50)).toEqual([]);
+  });
+
+  it("paginates newest first with keyset cursors, breaking ties on id", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("keyset");
+    const repository = new AccessLogRepository(db, userA);
+    const tied = new Date("2026-05-01T12:00:00.000Z");
+    const earlier = new Date("2026-04-01T12:00:00.000Z");
+
+    await repository.record("portfolio_read", context, tied);
+    await repository.record("decisions_read", context, tied);
+    await repository.record("data_export", context, earlier);
+
+    const firstPage = await repository.listPage({}, null, 2);
+    expect(firstPage.entries).toHaveLength(2);
+    expect(firstPage.entries.every((entry) => entry.occurredAt.getTime() === tied.getTime())).toBe(
+      true,
+    );
+    expect(firstPage.nextCursor).not.toBeNull();
+
+    const secondPage = await repository.listPage({}, firstPage.nextCursor, 2);
+    expect(secondPage.entries.map((entry) => entry.event)).toEqual(["data_export"]);
+    expect(secondPage.nextCursor).toBeNull();
+
+    const allIds = [...firstPage.entries, ...secondPage.entries].map((entry) => entry.id);
+    expect(new Set(allIds).size).toBe(3);
+  });
+
+  it("filters listPage by event and by origin", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("filters");
+    const repository = new AccessLogRepository(db, userA);
+    const otherContext = { ipAddress: "198.51.100.9", userAgent: context.userAgent };
+
+    await repository.record("portfolio_read", context);
+    await repository.record("decisions_read", context);
+    await repository.record("portfolio_read", otherContext);
+
+    const byEvent = await repository.listPage({ event: "portfolio_read" }, null, 50);
+    expect(byEvent.entries).toHaveLength(2);
+    expect(byEvent.entries.every((entry) => entry.event === "portfolio_read")).toBe(true);
+
+    const byOrigin = await repository.listPage({ ipAddress: context.ipAddress }, null, 50);
+    expect(byOrigin.entries).toHaveLength(2);
+    expect(byOrigin.entries.every((entry) => entry.ipAddress === context.ipAddress)).toBe(true);
+  });
+
+  it("treats from/to as São Paulo calendar days, inclusive", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("sp-day");
+    const repository = new AccessLogRepository(db, userA);
+    // 02:30 UTC is 23:30 the previous day in America/Sao_Paulo (UTC-3).
+    const at = new Date("2026-01-10T02:30:00.000Z");
+    await repository.record("portfolio_read", context, at);
+
+    const previousDay = await repository.listPage(
+      { from: "2026-01-09", to: "2026-01-09" },
+      null,
+      50,
+    );
+    expect(previousDay.entries).toHaveLength(1);
+
+    const sameUtcDay = await repository.listPage(
+      { from: "2026-01-10", to: "2026-01-10" },
+      null,
+      50,
+    );
+    expect(sameUtcDay.entries).toHaveLength(0);
+  });
+
+  it("counts matching rows the same way listPage filters them", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("count");
+    const repository = new AccessLogRepository(db, userA);
+
+    await repository.record("portfolio_read", context);
+    await repository.record("decisions_read", context);
+
+    expect(await repository.count({})).toBe(2);
+    expect(await repository.count({ event: "portfolio_read" })).toBe(1);
+  });
+
+  it("lists distinct origins newest first", async () => {
+    const db = getDb();
+    const { userA } = await twoUsers("origins");
+    const repository = new AccessLogRepository(db, userA);
+    const older = new Date("2026-01-01T00:00:00.000Z");
+    const newer = new Date("2026-02-01T00:00:00.000Z");
+
+    await repository.record(
+      "portfolio_read",
+      { ipAddress: "198.51.100.9", userAgent: null },
+      older,
+    );
+    await repository.record("portfolio_read", { ipAddress: "203.0.113.7", userAgent: null }, newer);
+    await repository.record(
+      "decisions_read",
+      { ipAddress: "198.51.100.9", userAgent: null },
+      older,
+    );
+    await repository.record("data_export", { ipAddress: null, userAgent: null });
+
+    expect(await repository.listOrigins()).toEqual(["203.0.113.7", "198.51.100.9"]);
   });
 
   it("refuses an event outside the vocabulary", async () => {

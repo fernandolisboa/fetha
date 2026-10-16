@@ -1,8 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -17,9 +14,9 @@ import { formatDateTime } from "@/lib/format/date-time";
 import type { AccessLogGroup } from "../group-access-log";
 import { t } from "../strings";
 import { describeUserAgent } from "../user-agent";
+import { AccessLogDialog } from "./access-log-dialog";
 
 const labels = t.accessLog;
-const GROUPS_PER_PAGE = 10;
 
 function deviceLabel(userAgent: string | null): string {
   const { browser, os } = describeUserAgent(userAgent);
@@ -32,69 +29,59 @@ function occurrenceLabel(group: AccessLogGroup): string {
 }
 
 export function AccessLogPanel({ groups }: { groups: AccessLogGroup[] }) {
-  const [visibleCount, setVisibleCount] = useState(GROUPS_PER_PAGE);
-
   if (groups.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.empty}</p>;
   }
 
-  const visibleGroups = groups.slice(0, visibleCount);
-  const hasMore = visibleCount < groups.length;
-
   return (
     <div className="flex flex-col gap-3">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{labels.event}</TableHead>
-            <TableHead>{labels.origin}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {visibleGroups.map((group) => (
-            <TableRow
-              key={`${group.event}-${group.ipAddress ?? "none"}-${group.userAgent ?? "none"}-${group.last.toISOString()}`}
-            >
-              <TableCell className="py-1">
-                <div>
-                  {labels.events[group.event]}
-                  {group.count > 1 ? (
-                    <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                      {" "}
-                      {group.count}×
-                    </span>
-                  ) : null}
-                </div>
-                <div className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                  {occurrenceLabel(group)}
-                </div>
-              </TableCell>
-              <TableCell className="py-1">
-                <div className="font-mono tabular-nums">{group.ipAddress ?? labels.unknown}</div>
-                <div
-                  className="text-muted-foreground text-[11px]"
-                  title={group.userAgent ?? undefined}
-                >
-                  {deviceLabel(group.userAgent)}
-                </div>
-              </TableCell>
+      <div
+        role="region"
+        aria-label={labels.title}
+        tabIndex={0}
+        className="max-h-[28rem] overflow-y-auto rounded-sm"
+      >
+        <Table>
+          <TableHeader className="bg-card sticky top-0 z-10">
+            <TableRow>
+              <TableHead>{labels.event}</TableHead>
+              <TableHead>{labels.origin}</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {hasMore ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => {
-            setVisibleCount((count) => count + GROUPS_PER_PAGE);
-          }}
-        >
-          {labels.showMore}
-        </Button>
-      ) : null}
+          </TableHeader>
+          <TableBody>
+            {groups.map((group) => (
+              <TableRow
+                key={`${group.event}-${group.ipAddress ?? "none"}-${group.userAgent ?? "none"}-${group.last.toISOString()}`}
+              >
+                <TableCell className="py-1">
+                  <div>
+                    {labels.events[group.event]}
+                    {group.count > 1 ? (
+                      <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                        {" "}
+                        {group.count}×
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                    {occurrenceLabel(group)}
+                  </div>
+                </TableCell>
+                <TableCell className="py-1">
+                  <div className="font-mono tabular-nums">{group.ipAddress ?? labels.unknown}</div>
+                  <div
+                    className="text-muted-foreground text-[11px]"
+                    title={group.userAgent ?? undefined}
+                  >
+                    {deviceLabel(group.userAgent)}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <AccessLogDialog />
     </div>
   );
 }

@@ -29,6 +29,31 @@ test("export my data as a JSON file", async ({ page, baseURL, request }) => {
   await expect(page.getByRole("cell", { name: "Exportação dos dados" })).toBeVisible();
 });
 
+test("browses the access log in its own scroll area and filters the full log in a dialog", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.goto("/carteira");
+
+  await page.goto("/configuracoes/conta");
+  const panelRegion = page.getByRole("region", { name: "Registro de acesso" });
+  await expect(panelRegion.getByRole("cell", { name: "Leitura da carteira" })).toBeVisible();
+
+  await expect(panelRegion).toHaveCSS("overflow-y", "auto");
+
+  await page.getByRole("button", { name: "Ver registro completo" }).click();
+  const dialog = page.getByRole("dialog", { name: "Registro de acesso completo" });
+  await expect(dialog.getByRole("cell", { name: "Leitura da carteira" })).toBeVisible();
+
+  await dialog.getByLabel("Tipo de acesso").click();
+  await page.getByRole("option", { name: "Leitura da carteira" }).click();
+  await expect(dialog.getByRole("cell", { name: "Leitura da carteira" })).toBeVisible();
+  await expect(dialog.getByRole("cell", { name: "Leitura das decisões" })).toHaveCount(0);
+});
+
 test("delete my account and every piece of its data", async ({ page, baseURL, request }) => {
   const email = await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 

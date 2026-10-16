@@ -81,6 +81,27 @@ no operator path rewrites decision data today.
   owner (Resend's onboarding sender) until a domain is verified. The password is the second
   factor already in hand.
 
+## Addendum 2026-10-16: browsing the log
+
+The panel under Configurações → Conta showed the last 500 entries client-side, with a "Ver mais"
+button that unbounded the page as the user clicked through them. With 180 days of retention and
+no cap on daily activity, that list could in principle grow without bound and push the page's own
+scrollbar with it.
+
+The panel now renders only its most recent rows (`getMyAccessLog`'s window dropped from 500 to 50) inside a fixed-height region that scrolls on its own (`max-h-[28rem] overflow-y-auto`, a
+sticky header, `role="region"` with a label, keyboard-focusable); the page around it never grows.
+A "Ver registro completo" button opens a dialog that is the only place the full log is browsed:
+`AccessLogRepository.listPage` keyset-paginates on `(occurred_at desc, id desc)` so a page never
+shifts under a concurrent insert, `count` and `listOrigins` back a running total and an origin
+filter, and `from`/`to` are São Paulo calendar days compared against UTC timestamps with the
+existing `(user_id, occurred_at)` index still sargable (cast to `date`, then interpret as a São
+Paulo `timestamp`, rather than calling a timezone function on every row). `listMyAccessLogAction`
+and `listMyAccessOriginsAction` sit behind the same per-account rate limit shape as the rest of
+the app (30 requests per 10s). No new index: the one from item 1 already orders by
+`(user_id, occurred_at)`, which both `listPage`'s default order and its date-bound filters use
+directly; the id tie-break and the event/origin filters are selective enough over one user's rows
+that a sequential scan within that slice is the right cost, not a reason for a second index.
+
 ## Consequences
 
 - Every portfolio or decision page view costs one insert on `access_log`; the nightly run adds
