@@ -605,9 +605,11 @@ uses. ADR-0062 has the full decision, including the `iv_index` gate addendum on 
 Since the e2e job moved into the GitHub runner (ADR-0016 addendum 2026-10-16), its setup failed
 in most runs on `instruments: falhou`: `arquivos.b3.com.br`'s token request answers 504 from the
 runners, and intermittently from elsewhere too. The e2e suite now never calls that host.
-`ingest()` takes an optional `instrumentsRegistry` loader in place of the live two-step fetch, and
-the nightly job passes `recordedInstrumentsRegistry(dir)` when `E2E_B3_INSTRUMENTS_DIR` is set and
-the deployment is not production; only CI's e2e job sets it. The recordings
+`ingest()` takes an optional `instrumentsRecordingsDirectory` and, when it is given, replays the
+registry recorded there (`adapters/b3-instruments/replay.ts`) in place of the live two-step fetch.
+The nightly job passes it only when `E2E_B3_INSTRUMENTS_DIR` is set and neither the deployment
+nor `DATABASE_URL` is production (`readE2EInstrumentsRecordingsDirectory`), and only CI's e2e job
+sets that variable. The recordings
 (`apps/web/e2e/fixtures/b3-instruments/<session>.csv`) are B3's real files for the suite's fixed
 sessions, cut to PETR4's option rows and the columns the parser reads; a session without its own
 recording replays the newest one before it. Production keeps fetching the live registry, with no

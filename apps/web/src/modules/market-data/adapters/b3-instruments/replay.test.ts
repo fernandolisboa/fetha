@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { recordedInstrumentsRegistry } from "./recorded";
+import { replayInstrumentsRegistry } from "./replay";
 
 const sample = path.join(import.meta.dirname, "fixtures", "instruments-sample.csv");
 const e2eRecordings = path.join(
@@ -21,7 +21,7 @@ const e2eRecordings = path.join(
 const header =
   "Status do Arquivo: Final\nRptDt;TckrSymb;Asst;SctyCtgyNm;XprtnDt;ISIN;OptnTp;ExrcPric;OptnStyle\n";
 
-describe("recordedInstrumentsRegistry", () => {
+describe("replayInstrumentsRegistry", () => {
   let directory: string;
 
   beforeEach(async () => {
@@ -36,18 +36,17 @@ describe("recordedInstrumentsRegistry", () => {
   });
 
   it("replays the session's own recording", async () => {
-    const registry = await recordedInstrumentsRegistry(directory)("2026-09-08");
+    const registry = await replayInstrumentsRegistry(directory, "2026-09-08");
     expect(registry.series).toHaveLength(13);
   });
 
   it("replays the newest recording before a session that has none", async () => {
-    const load = recordedInstrumentsRegistry(directory);
-    expect((await load("2026-09-17")).series).toHaveLength(13);
-    expect((await load("2026-10-14")).series).toHaveLength(0);
+    expect((await replayInstrumentsRegistry(directory, "2026-09-17")).series).toHaveLength(13);
+    expect((await replayInstrumentsRegistry(directory, "2026-10-14")).series).toHaveLength(0);
   });
 
   it("fails for a session older than every recording", async () => {
-    await expect(recordedInstrumentsRegistry(directory)("2026-09-04")).rejects.toThrow(
+    await expect(replayInstrumentsRegistry(directory, "2026-09-04")).rejects.toThrow(
       "no instruments registry recorded on or before 2026-09-04",
     );
   });
@@ -57,7 +56,7 @@ describe("the e2e recordings", () => {
   it.each(["2026-09-08", "2026-09-09", "2026-09-18"])(
     "%s parses whole, PETR4 series only, with the monthly expiry the portfolio spec settles",
     async (session) => {
-      const { series, skipped } = await recordedInstrumentsRegistry(e2eRecordings)(session);
+      const { series, skipped } = await replayInstrumentsRegistry(e2eRecordings, session);
       expect(skipped).toBe(0);
       expect(series.length).toBeGreaterThan(3000);
       expect(new Set(series.map((row) => row.underlying))).toEqual(new Set(["PETR4"]));

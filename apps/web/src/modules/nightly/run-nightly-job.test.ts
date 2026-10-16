@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ingestMock = vi.hoisted(() => vi.fn());
 const evaluateSignalsMock = vi.hoisted(() => vi.fn());
@@ -11,13 +11,9 @@ const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
 const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
-const recordedInstrumentsRegistryMock = vi.hoisted(() => vi.fn());
-const isProductionDeploymentMock = vi.hoisted(() => vi.fn());
+const readE2EInstrumentsRecordingsDirectoryMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/market-data", () => ({
-  ingest: ingestMock,
-  recordedInstrumentsRegistry: recordedInstrumentsRegistryMock,
-}));
+vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
 vi.mock("@/modules/decisions", () => ({
   scoreDueDecisions: scoreDueDecisionsMock,
@@ -30,7 +26,7 @@ vi.mock("@/modules/radar", () => ({
 }));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 vi.mock("@/modules/auth", () => ({
-  isProductionDeployment: isProductionDeploymentMock,
+  readE2EInstrumentsRecordingsDirectory: readE2EInstrumentsRecordingsDirectoryMock,
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
   purgeExpiredSessions: purgeExpiredSessionsMock,
 }));
@@ -47,14 +43,8 @@ const sentimentOutcome = {
 };
 
 describe("runNightlyJob", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   beforeEach(() => {
-    vi.stubEnv("E2E_B3_INSTRUMENTS_DIR", "");
-    isProductionDeploymentMock.mockReset().mockReturnValue(false);
-    recordedInstrumentsRegistryMock.mockReset().mockReturnValue("recorded-loader");
+    readE2EInstrumentsRecordingsDirectoryMock.mockReset().mockReturnValue(undefined);
     ingestMock.mockReset();
     ingestMock.mockResolvedValue({
       session: "2026-09-08",
@@ -131,24 +121,14 @@ describe("runNightlyJob", () => {
     expect(ingestMock).toHaveBeenCalledWith(fakeDb, {});
   });
 
-  it("replays the recorded instruments registry when E2E_B3_INSTRUMENTS_DIR is set", async () => {
-    vi.stubEnv("E2E_B3_INSTRUMENTS_DIR", "e2e/fixtures/b3-instruments");
+  it("replays the recorded instruments registries when a recordings directory is configured", async () => {
+    readE2EInstrumentsRecordingsDirectoryMock.mockReturnValue("e2e/fixtures/b3-instruments");
     const { runNightlyJob } = await import("./run-nightly-job");
     await runNightlyJob(fakeDb, { session: "2026-09-08" });
-    expect(recordedInstrumentsRegistryMock).toHaveBeenCalledWith("e2e/fixtures/b3-instruments");
     expect(ingestMock).toHaveBeenCalledWith(fakeDb, {
       session: "2026-09-08",
-      instrumentsRegistry: "recorded-loader",
+      instrumentsRecordingsDirectory: "e2e/fixtures/b3-instruments",
     });
-  });
-
-  it("fetches the live instruments registry in production even with E2E_B3_INSTRUMENTS_DIR set", async () => {
-    vi.stubEnv("E2E_B3_INSTRUMENTS_DIR", "e2e/fixtures/b3-instruments");
-    isProductionDeploymentMock.mockReturnValue(true);
-    const { runNightlyJob } = await import("./run-nightly-job");
-    await runNightlyJob(fakeDb);
-    expect(recordedInstrumentsRegistryMock).not.toHaveBeenCalled();
-    expect(ingestMock).toHaveBeenCalledWith(fakeDb, {});
   });
 
   it("runs every retention purge before ingestion", async () => {

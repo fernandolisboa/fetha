@@ -4,7 +4,7 @@ import type { IngestionSource } from "./schema";
 
 import { closuresForYear, tradingSessionsForYear } from "./adapters/anbima-calendar/source";
 import { fetchInstrumentsRegistry } from "./adapters/b3-instruments/fetch";
-import type { InstrumentsRegistryLoader } from "./adapters/b3-instruments/recorded";
+import { replayInstrumentsRegistry } from "./adapters/b3-instruments/replay";
 import { SgsNotPublishedError, fetchPtaxSeries, fetchSgsSeries } from "./adapters/bacen-sgs/fetch";
 import { exchangeRatePairValues, sgsSeriesCodes } from "./adapters/bacen-sgs/schema";
 import { fetchIndexYear } from "./adapters/b3-indexes/fetch";
@@ -424,8 +424,8 @@ export interface IngestOptions {
   session?: string;
   now?: Date;
   fetchImpl?: typeof fetch;
-  // Replaces the live registry fetch; the e2e suite replays recorded registries through it.
-  instrumentsRegistry?: InstrumentsRegistryLoader;
+  // E2E only: replays the instruments registries recorded here instead of fetching the live one.
+  instrumentsRecordingsDirectory?: string;
   maxDurationMs?: number;
   // Overrides `maxDurationMs * IV_INDEX_START_BUDGET_FRACTION`: test-only
   // knob to force that start deadline to have already elapsed (e.g. `0`)
@@ -449,9 +449,11 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   const startedAt = Date.now();
   const now = options.now ?? new Date();
   const fetchImpl = options.fetchImpl ?? fetch;
-  const loadInstrumentsRegistry =
-    options.instrumentsRegistry ??
-    ((session: string) => fetchInstrumentsRegistry(session, fetchImpl));
+  const { instrumentsRecordingsDirectory } = options;
+  const loadInstrumentsRegistry = (session: string) =>
+    instrumentsRecordingsDirectory
+      ? replayInstrumentsRegistry(instrumentsRecordingsDirectory, session)
+      : fetchInstrumentsRegistry(session, fetchImpl);
   const maxDurationMs = options.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
 
   const calendarOutcome = await runCalendarSources(db, now, maxDurationMs);

@@ -41,12 +41,15 @@ Every project depends on `setup` (`owner.setup.ts`), which runs first and does t
   `e2e/fixtures/b3-instruments` and the nightly job replays those recordings instead: one
   `<session>.csv` per fixed session, B3's own `InstrumentsConsolidatedFile` for that date cut down
   to its PETR4 option rows and the columns the parser reads. A session with no recording (the
-  recent session signals and decisions ingest) replays the newest one before it. The variable is
-  ignored in production. COTAHIST still comes live from `bvmf.bmfbovespa.com.br`. To record a new
+  recent session signals and decisions ingest) replays the newest one before it, so that session's
+  PETR4 chain and IV index only see the strikes listed by then; no spec asserts either. The
+  variable is ignored in production and against the production database. COTAHIST still comes live from `bvmf.bmfbovespa.com.br`. To record a new
   session, download that date's file through the two-step flow in
   `src/modules/market-data/adapters/b3-instruments/fetch.ts` and keep the same rows and columns.
-  The recordings list PETR4 series out to 2028-09; the builder and palette specs need an unexpired
-  one, so record a newer session before then.
+  Series listed after the newest recording never reach the e2e database, so the PETR4 chain only
+  shrinks as its near-month expiries roll off. `operation-builder.spec.ts` (collar on traded
+  series) and `shell.spec.ts` (palette to a series page) need unexpired series with recent trades:
+  record a newer session once the newest recording's near-month expiries have passed.
 - Each run must end with `calendar`, `cotahist` and `instruments` ok or skipped. The `sgs` and
   `iv_index` sources feed no spec and are not asserted, so a Bacen outage (#289) does not fail the
   suite.

@@ -8,12 +8,12 @@ import type { RadarScanOutcome, ScoreSuggestionsOutcome } from "@/modules/radar"
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
 import {
-  isProductionDeployment,
   purgeExpiredSessions,
   purgeUnverifiedAccounts,
+  readE2EInstrumentsRecordingsDirectory,
 } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions } from "@/modules/decisions";
-import { ingest, recordedInstrumentsRegistry, type IngestOptions } from "@/modules/market-data";
+import { ingest, type IngestOptions } from "@/modules/market-data";
 import { scanRadar, scoreDueSuggestions } from "@/modules/radar";
 import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -61,15 +61,11 @@ function cotahistSucceeded(result: IngestOutcome): boolean {
   return cotahist !== undefined && cotahist.error === undefined;
 }
 
-// arquivos.b3.com.br times out from GitHub's runners (docs/adr/0017 addendum 2026-10-16), so the
-// e2e job points this at registries recorded in the repo. Production always fetches the live one.
 function ingestOptions(options: NightlyJobOptions): IngestOptions {
-  const recordedDirectory = process.env.E2E_B3_INSTRUMENTS_DIR?.trim();
+  const instrumentsRecordingsDirectory = readE2EInstrumentsRecordingsDirectory();
   return {
     ...(options.session ? { session: options.session } : {}),
-    ...(recordedDirectory && !isProductionDeployment()
-      ? { instrumentsRegistry: recordedInstrumentsRegistry(recordedDirectory) }
-      : {}),
+    ...(instrumentsRecordingsDirectory ? { instrumentsRecordingsDirectory } : {}),
   };
 }
 
