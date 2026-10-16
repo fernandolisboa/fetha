@@ -115,7 +115,7 @@ export function SuggestionCard({
 }) {
   return (
     <article
-      className="border-line-soft flex flex-col gap-3 border-t pt-4 first:border-t-0 first:pt-0"
+      className="flex flex-col gap-3"
       data-testid="suggestion-card"
       aria-label={suggestionHeadline(suggestion)}
     >

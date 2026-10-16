@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { tickerSchema } from "@fetha/contracts";
 
@@ -71,9 +72,8 @@ export async function SuggestionList({
 
   return suggestions.map((suggestion, index) => {
     const decision = decisions.get(suggestion.id);
-    return (
+    const card = (
       <SuggestionCard
-        key={suggestion.id}
         suggestion={suggestion}
         headline={!onPage}
         risk={<LimitCheck result={checks[index] ?? { kind: "unpriced" }} />}
@@ -119,6 +119,14 @@ export async function SuggestionList({
           </>
         }
       />
+    );
+    // Framed in a list, so the list's own title never reads as part of the first card.
+    return onPage ? (
+      <Fragment key={suggestion.id}>{card}</Fragment>
+    ) : (
+      <div key={suggestion.id} className="border-border rounded-[var(--radius)] border p-3">
+        {card}
+      </div>
     );
   });
 }

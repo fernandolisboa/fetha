@@ -18,10 +18,9 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
   return (
     <Panel
       title={t.suggestions.title}
-      subtitle={t.suggestions.subtitle(formatDate(sessionDateToDisplayDate(first.session)))}
+      subtitle={`${t.suggestions.subtitle(formatDate(sessionDateToDisplayDate(first.session)))} ${t.suggestions.order}`}
     >
-      <p className="text-muted-foreground text-xs">{t.suggestions.order}</p>
-      <div className="flex flex-col gap-4" data-testid="today-suggestions">
+      <div className="flex flex-col gap-3" data-testid="today-suggestions">
         <SuggestionList suggestions={shown} />
       </div>
       {shown.length < suggestions.length && (
