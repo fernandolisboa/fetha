@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { FilingLabelInputs } from "@fetha/contracts";
-import { filingLabelModel, filingLabelPrompt } from "@fetha/prompts";
+import { filingLabelFamily, filingLabelPrompt, pinnedModels } from "@fetha/prompts";
+
+import { defaultModelCatalog } from "@/modules/ai-models";
 
 export interface FilingLabelUsage {
   inputTokens: number;
@@ -54,50 +56,78 @@ function parseJson(text: string): unknown {
   }
 }
 
+function errorReplyFrom(error: unknown): FilingLabelReply {
+  if (error instanceof Anthropic.BadRequestError) {
+    return { kind: "bad_request" };
+  }
+  if (error instanceof Anthropic.APIError) {
+    return { kind: "api_error" };
+  }
+  throw error;
+}
+
 // The document is untrusted text (docs/adr/0065): the request carries no
 // tools, and the reply is only ever parsed against the label contract.
 export function createAnthropicFilingLabelClient(apiKey: string): FilingLabelClient {
   const anthropic = new Anthropic({ apiKey });
+
+  async function attempt(
+    model: string,
+    pdf: Uint8Array,
+    inputs: FilingLabelInputs,
+  ): Promise<FilingLabelReply> {
+    const message = await anthropic.messages.create(
+      {
+        model,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system: filingLabelPrompt.system,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: Buffer.from(pdf).toString("base64"),
+                },
+              },
+              { type: "text", text: filingLabelPrompt.render(inputs) },
+            ],
+          },
+        ],
+        output_config: {
+          effort: "low",
+          format: { type: outputFormat.type, schema: outputFormat.schema },
+        },
+      },
+      { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
+    );
+    return replyFromMessage(message);
+  }
+
   return {
     async label({ pdf, inputs }): Promise<FilingLabelReply> {
+      const model = await defaultModelCatalog.resolveModel(filingLabelFamily, apiKey);
       try {
-        const message = await anthropic.messages.create(
-          {
-            model: filingLabelModel,
-            max_tokens: MAX_OUTPUT_TOKENS,
-            system: filingLabelPrompt.system,
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "document",
-                    source: {
-                      type: "base64",
-                      media_type: "application/pdf",
-                      data: Buffer.from(pdf).toString("base64"),
-                    },
-                  },
-                  { type: "text", text: filingLabelPrompt.render(inputs) },
-                ],
-              },
-            ],
-            output_config: {
-              effort: "low",
-              format: { type: outputFormat.type, schema: outputFormat.schema },
-            },
-          },
-          { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
-        );
-        return replyFromMessage(message);
+        return await attempt(model, pdf, inputs);
       } catch (error) {
-        if (error instanceof Anthropic.BadRequestError) {
-          return { kind: "bad_request" };
+        // Same one retry on the family's pinned floor as the analysis
+        // client (docs/adr/0068): a bad PDF still ends `bad_request` after
+        // it, since the pinned model refuses it for the same reason.
+        const pinnedId = pinnedModels[filingLabelFamily];
+        const retryable =
+          model !== pinnedId &&
+          (error instanceof Anthropic.BadRequestError || error instanceof Anthropic.NotFoundError);
+        if (!retryable) {
+          return errorReplyFrom(error);
         }
-        if (error instanceof Anthropic.APIError) {
-          return { kind: "api_error" };
+        try {
+          return await attempt(pinnedId, pdf, inputs);
+        } catch (retryError) {
+          return errorReplyFrom(retryError);
         }
-        throw error;
       }
     },
   };
