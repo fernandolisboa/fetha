@@ -63,7 +63,7 @@ function Chart({
     Math.ceil(
       Math.max(...yScale.ticks().map((tick) => formatAxisBRL(tick).length)) * TICK_CHAR_WIDTH,
     ) + TICK_GAP;
-  const innerWidth = width - left - MARGIN.right;
+  const innerWidth = Math.max(1, width - left - MARGIN.right);
   const xScale = scaleLinear({
     domain: [Math.min(...underlyings), Math.max(...underlyings)],
     range: [0, innerWidth],

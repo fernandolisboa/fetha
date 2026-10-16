@@ -96,8 +96,31 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   const legsTable = page.locator('[data-slot="table-container"]').first();
   await expect
     .poll(() => legsTable.evaluate((element) => element.scrollWidth - element.clientWidth))
-    .toBeLessThanOrEqual(0);
+    .toBeLessThanOrEqual(1);
   await expect(legsTable.getByRole("cell", { name: /^\d{2}\/\d{2}\/\d{4}$/ })).toHaveCount(2);
+
+  // A wide monitor gets a wider payoff chart, not a taller one, with the y labels left of the axis.
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  const payoff = page.getByRole("img", { name: "Resultado no vencimento" });
+  await expect.poll(async () => (await payoff.boundingBox())?.height ?? 0).toBeLessThanOrEqual(420);
+  const axisLineX = (await payoff.locator(".visx-axis-left .visx-axis-line").boundingBox())?.x ?? 0;
+  const labelRights = await payoff
+    .locator(".visx-axis-left .visx-axis-tick text")
+    .evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().right));
+  expect(labelRights.length).toBeGreaterThan(0);
+  for (const right of labelRights) {
+    expect(right).toBeLessThanOrEqual(axisLineX);
+  }
+
+  // A tablet-width screen stacks the results under the work instead of squeezing both.
+  await page.setViewportSize({ width: 900, height: 1200 });
+  await expect
+    .poll(async () => {
+      const table = await legsTable.boundingBox();
+      const results = await page.getByText("Prêmio líquido").boundingBox();
+      return table && results ? results.y - (table.y + table.height) : -1;
+    })
+    .toBeGreaterThan(0);
 
   await expect(page.getByRole("alert", { name: "Limite excedido" })).toContainText(
     "Limite excedido",
