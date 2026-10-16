@@ -14,8 +14,9 @@ import { formatDecimal } from "@/lib/format/decimal";
 import { t } from "../strings";
 
 const MARGIN = { top: 12, right: 56, bottom: 28 };
-// Every theme's mono font advances 0.6em per glyph at 11px; the left margin fits the widest y tick label.
-const TICK_CHAR_WIDTH = 6.6;
+// Every theme's mono font advances 0.6em (6.6px at 11px); 7px leaves room for renderers that draw it
+// wider, as the CI runner's headless Chromium does. The left margin fits the widest y tick label.
+const TICK_CHAR_WIDTH = 7;
 const TICK_GAP = 12;
 
 type PlotPoint = { underlying: number; pnl: number };

@@ -59,7 +59,7 @@ export default async function BacktestReportPage({
   const analysisAvailable = await isAnalysisAvailable();
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-5 py-8">
+    <div className="@container flex flex-col gap-6 px-5 py-8">
       <PageHeader
         overline={t.report.overline}
         headline={
@@ -89,14 +89,16 @@ export default async function BacktestReportPage({
       {run.status === "complete" && run.result ? (
         <>
           <ReportPanel run={run.result} />
-          <ReadingNotes strategyId={run.strategyId} />
-          <Panel title={decisionsT.analysis.report.title}>
-            {latest ? (
-              <AnalysisPanel analysis={latest} />
-            ) : (
-              <p className="text-muted-foreground text-sm">{decisionsT.analysis.report.empty}</p>
-            )}
-          </Panel>
+          <div className="grid items-start gap-[14px] @min-[64rem]:grid-cols-2">
+            <ReadingNotes strategyId={run.strategyId} />
+            <Panel title={decisionsT.analysis.report.title}>
+              {latest ? (
+                <AnalysisPanel analysis={latest} />
+              ) : (
+                <p className="text-muted-foreground text-sm">{decisionsT.analysis.report.empty}</p>
+              )}
+            </Panel>
+          </div>
         </>
       ) : isDiscardedRun(run) ? (
         <Panel>
