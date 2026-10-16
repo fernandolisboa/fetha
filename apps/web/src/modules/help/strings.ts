@@ -20,7 +20,7 @@ const en = {
       },
       rail: {
         title: "Navigation",
-        body: "Fetha's six destinations live here. On a computer, the button at the end of the side bar collapses it to give the content more room.",
+        body: "Fetha's six destinations live here. On a computer, the button at the end of the side bar collapses it to give the content more room; in Configurações › Aparência you can swap the side bar for tabs in the header (Studio layout).",
       },
       commandSearch: {
         title: "Search",
@@ -191,7 +191,7 @@ const en = {
         summary: "Your account and how the workstation looks, one tab per group.",
         steps: [
           "Risco: declare capital and risk limits; without them pricing shows the “sem perfil de risco” chip.",
-          "Aparência: pick a theme: Instrumento, Terminal or Amplo.",
+          "Aparência: pick a layout (Workspace, with the side bar, or Studio, with tabs in the header) and a theme: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo or Papel (light).",
           "Conta: export your data, review the access log or delete your account.",
         ],
       },
@@ -214,7 +214,7 @@ const ptBR = {
       },
       rail: {
         title: "Navegação",
-        body: "Os seis destinos da Fetha ficam aqui. No computador, o botão no fim da barra lateral a recolhe para dar mais espaço ao conteúdo.",
+        body: "Os seis destinos da Fetha ficam aqui. No computador, o botão no fim da barra lateral a recolhe para dar mais espaço ao conteúdo; em Configurações › Aparência você troca a barra lateral por abas no cabeçalho (layout Studio).",
       },
       commandSearch: {
         title: "Busca",
@@ -388,7 +388,7 @@ const ptBR = {
         summary: "Sua conta e a aparência da estação, separadas em abas.",
         steps: [
           "Risco: declare capital e limites de risco; sem eles, a precificação mostra a etiqueta “sem perfil de risco”.",
-          "Aparência: escolha um tema entre Instrumento, Terminal e Amplo.",
+          "Aparência: escolha o layout (Workspace, com a barra lateral, ou Studio, com abas no cabeçalho) e o tema: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo ou Papel (claro).",
           "Conta: exporte seus dados, confira o registro de acesso ou exclua sua conta.",
         ],
       },

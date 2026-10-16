@@ -309,6 +309,13 @@
       "when": 1792151430150,
       "tag": "0043_ai_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792173609018,
+      "tag": "0044_preferences_layout",
+      "breakpoints": true
     }
   ]
 }

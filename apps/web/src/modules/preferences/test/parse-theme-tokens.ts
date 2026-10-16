@@ -42,3 +42,7 @@ export function readGlobalsCss(): string {
 export function parseThemeTokens(css: string, theme: Theme): ThemeTokens {
   return parseDeclarations(extractBlock(css, `[data-theme="${theme}"]`));
 }
+
+export function parseThemeColorScheme(css: string, theme: Theme): string | undefined {
+  return /color-scheme:\s*([a-z]+)/.exec(extractBlock(css, `[data-theme="${theme}"]`))?.[1];
+}
