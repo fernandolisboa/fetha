@@ -1,8 +1,5 @@
 "use server";
 
-import { z } from "zod";
-import { instantSchema, sessionDateSchema } from "@fetha/contracts";
-
 import { getDb } from "@/db/client";
 import {
   AccountRateLimitExceededError,
@@ -17,31 +14,13 @@ import {
   type AccessLogCursor,
   type AccessLogEntry,
 } from "./access-log-repository";
-import { accessEventSchema } from "./events";
-
-export const ACCESS_LOG_PAGE_SIZE = 200;
+import {
+  ACCESS_LOG_PAGE_SIZE,
+  listAccessLogInputSchema,
+  type ListAccessLogInput,
+} from "./access-log-input";
 
 const RATE_LIMIT = { windowSeconds: 10, max: 30 };
-
-const cursorInputSchema = z.strictObject({
-  occurredAt: instantSchema,
-  id: z.uuid(),
-});
-
-export const listAccessLogInputSchema = z
-  .strictObject({
-    from: sessionDateSchema.optional(),
-    to: sessionDateSchema.optional(),
-    event: accessEventSchema.optional(),
-    ipAddress: z.string().max(64).optional(),
-    cursor: cursorInputSchema.optional(),
-  })
-  .refine((input) => !input.from || !input.to || input.from <= input.to, {
-    message: "from must not be after to",
-    path: ["to"],
-  });
-
-export type ListAccessLogInput = z.input<typeof listAccessLogInputSchema>;
 
 export type ListAccessLogActionResult =
   | {

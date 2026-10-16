@@ -27,7 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateRange } from "@/lib/format/date-range";
 import { formatDateTime } from "@/lib/format/date-time";
 
 import {
@@ -36,7 +35,6 @@ import {
   type ListAccessLogActionResult,
 } from "../actions";
 import { accessEventSchema, type AccessEvent } from "../events";
-import { groupAccessLog } from "../group-access-log";
 import { t } from "../strings";
 import { describeUserAgent } from "../user-agent";
 
@@ -55,6 +53,11 @@ interface Filters {
   event: AccessEvent | typeof ALL_EVENTS;
   ipAddress: string;
 }
+
+const eventItems = [
+  { value: ALL_EVENTS, label: dialogLabels.allEvents },
+  ...accessEventSchema.options.map((event) => ({ value: event, label: labels.events[event] })),
+];
 
 const emptyFilters: Filters = { from: "", to: "", event: ALL_EVENTS, ipAddress: ALL_ORIGINS };
 
@@ -131,9 +134,15 @@ export function AccessLogDialog() {
   }
 
   function reload(nextFilters: Filters) {
+    latestRequestId.current += 1;
     setEntries([]);
     setCursor(null);
     setTotal(null);
+    setLoading(false);
+    if (nextFilters.from && nextFilters.to && nextFilters.from > nextFilters.to) {
+      setError(dialogLabels.errors.range);
+      return;
+    }
     void load(nextFilters, null);
   }
 
@@ -160,12 +169,13 @@ export function AccessLogDialog() {
     reload(updated);
   }
 
-  const groups = groupAccessLog(entries);
-  const showEmptyFiltered = !loading && groups.length === 0 && !error;
+  const showEmpty = !loading && entries.length === 0 && !error;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button type="button" variant="outline" size="sm" />}>
+      <DialogTrigger
+        render={<Button type="button" variant="outline" size="sm" className="self-start" />}
+      >
         {labels.viewAll}
       </DialogTrigger>
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-4xl">
@@ -173,7 +183,7 @@ export function AccessLogDialog() {
           <DialogTitle>{dialogLabels.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
           <div className="flex flex-col gap-1">
             <Label htmlFor="access-log-from">{dialogLabels.from}</Label>
             <Input
@@ -201,6 +211,7 @@ export function AccessLogDialog() {
           <div className="flex flex-col gap-1">
             <Label>{dialogLabels.eventFilter}</Label>
             <Select
+              items={eventItems}
               value={filters.event}
               onValueChange={(next) => {
                 updateFilters({
@@ -211,7 +222,7 @@ export function AccessLogDialog() {
                 });
               }}
             >
-              <SelectTrigger aria-label={dialogLabels.eventFilter} className="w-48">
+              <SelectTrigger aria-label={dialogLabels.eventFilter} className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -227,12 +238,16 @@ export function AccessLogDialog() {
           <div className="flex flex-col gap-1">
             <Label>{dialogLabels.originFilter}</Label>
             <Select
+              items={[
+                { value: ALL_ORIGINS, label: dialogLabels.allOrigins },
+                ...origins.map((origin) => ({ value: origin, label: origin })),
+              ]}
               value={filters.ipAddress}
               onValueChange={(next) => {
                 updateFilters({ ipAddress: next ?? ALL_ORIGINS });
               }}
             >
-              <SelectTrigger aria-label={dialogLabels.originFilter} className="w-48">
+              <SelectTrigger aria-label={dialogLabels.originFilter} className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -272,13 +287,11 @@ export function AccessLogDialog() {
           tabIndex={0}
           className="min-h-0 flex-1 overflow-y-auto"
         >
-          {error ? (
-            <p role="alert" className="text-[13px]" style={{ color: "var(--danger)" }}>
-              {error}
+          {showEmpty ? (
+            <p className="text-muted-foreground text-[13px]">
+              {hasActiveFilters(filters) ? dialogLabels.emptyFiltered : labels.empty}
             </p>
-          ) : showEmptyFiltered ? (
-            <p className="text-muted-foreground text-[13px]">{dialogLabels.emptyFiltered}</p>
-          ) : (
+          ) : entries.length > 0 ? (
             <Table>
               <TableHeader className="bg-card sticky top-0 z-10">
                 <TableRow>
@@ -287,46 +300,53 @@ export function AccessLogDialog() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groups.map((group) => (
-                  <TableRow
-                    key={`${group.event}-${group.ipAddress ?? "none"}-${group.userAgent ?? "none"}-${group.last.toISOString()}`}
-                  >
+                {entries.map((entry) => (
+                  <TableRow key={entry.id}>
                     <TableCell className="py-1">
-                      <div>
-                        {labels.events[group.event]}
-                        {group.count > 1 ? (
-                          <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                            {" "}
-                            {group.count}×
-                          </span>
-                        ) : null}
-                      </div>
+                      <div>{labels.events[entry.event]}</div>
                       <div className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                        {group.count > 1
-                          ? formatDateRange(group.first, group.last)
-                          : formatDateTime(group.last)}
+                        {formatDateTime(entry.occurredAt)}
                       </div>
                     </TableCell>
                     <TableCell className="py-1">
                       <div className="font-mono tabular-nums">
-                        {group.ipAddress ?? labels.unknown}
+                        {entry.ipAddress ?? labels.unknown}
                       </div>
                       <div
                         className="text-muted-foreground text-[11px]"
-                        title={group.userAgent ?? undefined}
+                        title={entry.userAgent ?? undefined}
                       >
-                        {deviceLabel(group.userAgent)}
+                        {deviceLabel(entry.userAgent)}
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
+          ) : null}
+          {error ? (
+            <div className="flex flex-wrap items-center gap-3 p-2">
+              <p role="alert" className="text-[13px]" style={{ color: "var(--danger)" }}>
+                {error}
+              </p>
+              {error === dialogLabels.errors.range ? null : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void load(filters, cursor);
+                  }}
+                >
+                  {dialogLabels.retry}
+                </Button>
+              )}
+            </div>
+          ) : null}
           {loading ? (
             <p className="text-muted-foreground p-2 text-[12px]">{dialogLabels.loading}</p>
           ) : null}
-          {!loading && cursor ? (
+          {!loading && !error && cursor ? (
             <Button
               type="button"
               variant="outline"

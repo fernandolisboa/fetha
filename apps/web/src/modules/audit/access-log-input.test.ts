@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listAccessLogInputSchema } from "./actions";
+import { listAccessLogInputSchema } from "./access-log-input";
 
 describe("listAccessLogInputSchema", () => {
   it("accepts an empty input", () => {
