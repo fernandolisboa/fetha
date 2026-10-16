@@ -161,9 +161,10 @@ Confirm with the owner before creating any paid resource or paid data subscripti
   recorded fixtures.
 - **Isolation**: for every user-scoped table, a test proving a session from user A cannot read,
   write or trigger jobs for user B. Mandatory, blocking.
-- **E2E**: Playwright against the Vercel preview for the critical paths: registration, email
-  verification, login, data ingestion trigger, candle chart, backtest run and report, payoff
-  diagram, account deletion.
+- **E2E**: Playwright in CI against a production build (`next build` + `next start`) backed by the
+  same local Postgres behind Neon's local proxy as the `integration` job (ADR-0016 addendum), not
+  a Vercel preview, for the critical paths: registration, email verification, login, data
+  ingestion trigger, candle chart, backtest run and report, payoff diagram, account deletion.
 - Coverage gate on `packages/engine` (≥ 95% lines and branches); no gate on UI.
 - A ticket is not done without tests that fail before the change and pass after: `/tdd` is
   mandatory for engine tickets, tests-alongside for UI.

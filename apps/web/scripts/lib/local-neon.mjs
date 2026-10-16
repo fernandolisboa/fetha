@@ -8,6 +8,9 @@ const LOCAL_NEON_HOST = "db.localtest.me";
 const LOCAL_NEON_PROXY_PORT = 4444;
 
 export function routeToLocalNeonProxy(databaseUrl) {
+  if (!URL.canParse(databaseUrl)) {
+    return;
+  }
   const host = new URL(databaseUrl).hostname.toLowerCase().replace(/\.$/, "");
   if (host !== LOCAL_NEON_HOST) {
     return;
