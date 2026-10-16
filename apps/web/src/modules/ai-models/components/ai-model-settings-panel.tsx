@@ -31,10 +31,9 @@ import { modelDisplayName } from "../display-name";
 import { t } from "../strings";
 import type { ApiKeyStatus } from "../ai-settings-repository";
 
-// `serverKeyConfigured` stays in the props so the settings page's own view
-// (`AiSettingsView`) keeps carrying it for the listing policy it still
-// describes elsewhere (#325); the key section below no longer branches on
-// it, since the server key never bills a user-requested analysis.
+// `serverKeyConfigured` is still passed by the settings page but no longer
+// read (#325: the server key never bills a user analysis); it goes once the
+// page's tab restructure lands, to keep that change free of conflicts.
 export function AiModelSettingsPanel({
   modelFamilies,
   apiKey,
