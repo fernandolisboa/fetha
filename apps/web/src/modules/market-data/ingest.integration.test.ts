@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { zipSync } from "fflate";
@@ -960,6 +962,43 @@ describe("ingest", () => {
       .from(ingestionRuns)
       .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, TEST_SESSION)));
     expect(ivIndexRun?.status).toBe("failed");
+  });
+
+  it("replays the recorded instruments registry instead of calling B3 when given a recordings directory", async () => {
+    const db = getDb();
+    const recordings = await mkdtemp(path.join(tmpdir(), "instruments-recordings-"));
+    try {
+      await writeFile(
+        path.join(recordings, `${TEST_SESSION}.csv`),
+        buildInstrumentsFixture(TEST_SESSION),
+      );
+      const live = fakeFetch(TEST_SESSION);
+      const registryRequests: string[] = [];
+      const fetchImpl = ((input: string) => {
+        if (input.includes("arquivos.b3.com.br")) {
+          registryRequests.push(input);
+        }
+        return live(input);
+      }) as unknown as typeof fetch;
+
+      const result = await ingest(db, {
+        session: TEST_SESSION,
+        now: new Date(`${TEST_SESSION}T22:00:00.000Z`),
+        fetchImpl,
+        instrumentsRecordingsDirectory: recordings,
+      });
+
+      expect(registryRequests).toEqual([]);
+      const instruments = result.sources.find((s) => s.source === "instruments");
+      expect(instruments?.error).toBeUndefined();
+      const [series] = await db
+        .select()
+        .from(optionSeries)
+        .where(eq(optionSeries.isin, OPTION_ISIN));
+      expect(series?.ticker).toBe(OPTION_TICKER);
+    } finally {
+      await rm(recordings, { recursive: true, force: true });
+    }
   });
 
   it("still starts the sole (newest) iv_index session once its ordinary 40% start budget has elapsed, since only the 60% hard stop gates it", async () => {

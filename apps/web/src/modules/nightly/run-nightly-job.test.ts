@@ -11,6 +11,7 @@ const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
 const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
+const readE2EInstrumentsRecordingsDirectoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
 vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSignalsMock }));
@@ -25,6 +26,7 @@ vi.mock("@/modules/radar", () => ({
 }));
 vi.mock("@/modules/audit", () => ({ purgeExpiredAccessLog: purgeExpiredAccessLogMock }));
 vi.mock("@/modules/auth", () => ({
+  readE2EInstrumentsRecordingsDirectory: readE2EInstrumentsRecordingsDirectoryMock,
   purgeUnverifiedAccounts: purgeUnverifiedAccountsMock,
   purgeExpiredSessions: purgeExpiredSessionsMock,
 }));
@@ -42,6 +44,7 @@ const sentimentOutcome = {
 
 describe("runNightlyJob", () => {
   beforeEach(() => {
+    readE2EInstrumentsRecordingsDirectoryMock.mockReset().mockReturnValue(undefined);
     ingestMock.mockReset();
     ingestMock.mockResolvedValue({
       session: "2026-09-08",
@@ -116,6 +119,16 @@ describe("runNightlyJob", () => {
     const { runNightlyJob } = await import("./run-nightly-job");
     await runNightlyJob(fakeDb);
     expect(ingestMock).toHaveBeenCalledWith(fakeDb, {});
+  });
+
+  it("replays the recorded instruments registries when a recordings directory is configured", async () => {
+    readE2EInstrumentsRecordingsDirectoryMock.mockReturnValue("e2e/fixtures/b3-instruments");
+    const { runNightlyJob } = await import("./run-nightly-job");
+    await runNightlyJob(fakeDb, { session: "2026-09-08" });
+    expect(ingestMock).toHaveBeenCalledWith(fakeDb, {
+      session: "2026-09-08",
+      instrumentsRecordingsDirectory: "e2e/fixtures/b3-instruments",
+    });
   });
 
   it("runs every retention purge before ingestion", async () => {
