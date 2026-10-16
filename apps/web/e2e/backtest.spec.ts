@@ -17,7 +17,7 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
 
   // A backtest run refuses to create without a declared risk profile (its
   // limits are the user's own, never a fabricated unconstrained default).
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("10.000,00");
   await page.getByRole("button", { name: "Salvar perfil de risco" }).click();
   await expect(page.getByText("Perfil de risco salvo.")).toBeVisible();

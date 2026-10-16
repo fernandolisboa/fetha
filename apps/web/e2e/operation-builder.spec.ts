@@ -33,7 +33,7 @@ test("prices without a risk profile and shows the chip linking to settings", asy
   await expect(page.getByText("sem perfil de risco")).toBeVisible();
 
   await chip.locator("xpath=ancestor::a").click();
-  await expect(page).toHaveURL(/\/configuracoes$/);
+  await expect(page).toHaveURL(/\/configuracoes\/risco$/);
 });
 
 test("build a collar on PETR4, see the breach warning, and save it", async ({
@@ -46,7 +46,7 @@ test("build a collar on PETR4, see the breach warning, and save it", async ({
   // A tiny declared capital against real premiums guarantees the collar
   // breaches maxExposurePerOperation, so the RiskNotice is deterministic
   // regardless of the day's actual PETR4 price.
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/risco");
   await page.getByLabel("Capital declarado").fill("100,00");
   await page.getByLabel("Perda máxima por operação").fill("2");
   await page.getByLabel("Exposição máxima por operação").fill("1");

@@ -79,7 +79,7 @@ export async function triggerIngestionAsOwner(
 }
 
 export async function runIngestion(page: Page, session: string): Promise<void> {
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/administracao");
   await expect(page.getByRole("heading", { name: "Disparo manual da ingestão" })).toBeVisible();
   await page.getByLabel("Sessão (opcional)").fill(session);
   await page.getByRole("button", { name: "Rodar ingestão agora" }).click();

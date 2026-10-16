@@ -20,6 +20,14 @@ const en = {
   settings: {
     title: "Settings",
     overline: "Account",
+    tabsLabel: "Settings sections",
+    tabs: {
+      aparencia: "Appearance",
+      risco: "Risk",
+      ia: "AI",
+      conta: "Account",
+      administracao: "Administration",
+    },
   },
 };
 
@@ -45,6 +53,14 @@ const ptBR = {
   settings: {
     title: "Configurações",
     overline: "Conta",
+    tabsLabel: "Seções das configurações",
+    tabs: {
+      aparencia: "Aparência",
+      risco: "Risco",
+      ia: "IA",
+      conta: "Conta",
+      administracao: "Administração",
+    },
   },
 } satisfies typeof en;
 

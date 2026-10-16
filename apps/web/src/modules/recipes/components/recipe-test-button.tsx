@@ -48,7 +48,7 @@ export function RecipeTestButton({ recipeId, ticker }: { recipeId: string; ticke
           {failure.error === "no_risk_profile" ? (
             <>
               {" "}
-              <Link href="/configuracoes" className="underline-offset-4 hover:underline">
+              <Link href="/configuracoes/risco" className="underline-offset-4 hover:underline">
                 {t.picker.noRiskProfileLink}
               </Link>
             </>

@@ -12,7 +12,7 @@ test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the account data flows.")
 test("export my data as a JSON file", async ({ page, baseURL, request }) => {
   const email = await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/conta");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Exportar meus dados" }).click();
   const download = await downloadPromise;
@@ -32,7 +32,7 @@ test("export my data as a JSON file", async ({ page, baseURL, request }) => {
 test("delete my account and every piece of its data", async ({ page, baseURL, request }) => {
   const email = await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/conta");
   await page.getByRole("button", { name: "Excluir minha conta" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Senha").fill("not-the-password");
@@ -44,7 +44,7 @@ test("delete my account and every piece of its data", async ({ page, baseURL, re
   await expect(page).toHaveURL(/\/conta-excluida$/);
   await expect(page.getByRole("heading", { name: "Conta excluída" })).toBeVisible();
 
-  await page.goto("/configuracoes");
+  await page.goto("/configuracoes/conta");
   await expect(page).toHaveURL(/\/entrar/);
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill(password);

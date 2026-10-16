@@ -372,7 +372,7 @@ export function OperationBuilderForm({
         </div>
 
         {showNoRiskProfileChip ? (
-          <Link href="/configuracoes">
+          <Link href="/configuracoes/risco">
             <Badge
               variant="outline"
               style={{ borderColor: "var(--warning)", color: "var(--warning)" }}

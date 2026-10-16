@@ -62,6 +62,6 @@ export async function recordCorporateActionFactorAction(
   });
 
   await recordAccess("corporate_action_recorded");
-  revalidatePath("/configuracoes");
+  revalidatePath("/configuracoes", "layout");
   return { status: "ok", factor };
 }
