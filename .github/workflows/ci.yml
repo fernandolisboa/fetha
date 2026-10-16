@@ -71,17 +71,16 @@ jobs:
           npx --yes impeccable@4.1.0 detect $CHANGED
 
   # Keeps fetha-preview in step with the branch being built, for manual checks
-  # against Vercel previews only (docs/adr/0016). The whole job is
+  # against Vercel previews only (docs/adr/0016). Its database steps are
   # continue-on-error: the free Neon project's 5 GB/month transfer quota can
   # run out mid-month (as it did on 2026-10-16), and this job must never block
   # a PR merge now that the e2e gate (job `preview-database`) no longer
-  # depends on it. It still stops at its first failing step, so a migrate
-  # that fails after a reset does not run the seeds against a wiped database.
+  # depends on it. Each step runs only if the previous one succeeded, so a
+  # migrate that fails after a reset does not seed a wiped database.
   preview-database-maintenance:
     needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
     permissions:
       contents: read
     concurrency:
@@ -115,7 +114,9 @@ jobs:
           fi
 
       - name: Reset the shared preview database
+        id: reset
         if: steps.preview-db.outputs.configured == 'true'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -123,7 +124,9 @@ jobs:
         run: pnpm --filter @fetha/web run db:reset
 
       - name: Migrate the shared preview database
-        if: steps.preview-db.outputs.configured == 'true'
+        id: migrate
+        if: steps.reset.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -131,7 +134,9 @@ jobs:
         run: pnpm --filter @fetha/web run db:migrate
 
       - name: Seed the structure catalog
-        if: steps.preview-db.outputs.configured == 'true'
+        id: seed-structures
+        if: steps.migrate.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -141,7 +146,9 @@ jobs:
       # The owner-gated e2e specs sign this account in by magic link, which
       # never creates an account (docs/adr/0042); the reset above dropped it.
       - name: Seed the e2e owner account
-        if: steps.preview-db.outputs.configured == 'true'
+        id: seed-owner
+        if: steps.seed-structures.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}

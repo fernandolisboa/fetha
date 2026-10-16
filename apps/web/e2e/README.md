@@ -13,7 +13,7 @@ no e2e step.
 
 The shared `fetha-preview` project is no longer touched by this job: its own
 reset/migrate/seed-structures/seed-e2e-owner maintenance, for manual checks against Vercel
-previews, lives in the separate `preview-database-maintenance` job, which is
+previews, lives in the separate `preview-database-maintenance` job, whose database steps are
 `continue-on-error: true` so a Neon quota outage there never fails the check this job's own name
 gates merges on.
 

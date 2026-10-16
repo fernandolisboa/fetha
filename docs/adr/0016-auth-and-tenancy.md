@@ -405,8 +405,9 @@ deployment the value would need to match.
 
 The reset/migrate/seed-structures/seed-e2e-owner maintenance of the shared `fetha-preview` project
 moved to its own job, `preview-database-maintenance`, kept for Vercel preview deployments used for
-manual checks; the job is `continue-on-error: true` so a quota outage there never fails the check
-the owner's merge process gates on, and it stops at its first failing step.
+manual checks; its database steps are `continue-on-error: true` so a quota outage there never
+fails the check the owner's merge process gates on, and each runs only if the previous one
+succeeded.
 
 Known gap: no PR check exercises the app as Vercel runs it any more. A failure that only shows on
 Vercel (an env var missing from the Vercel project, `VERCEL_ENV`-dependent branches, the
