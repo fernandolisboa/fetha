@@ -599,3 +599,17 @@ decides its universe from the candles present on a session and never revisits on
 level landing after `iv_index` would lose `IBOV11`'s point for that session for good. It writes
 into `candles` under `IBOV11`, through the same `cotahist` write lock every other candle writer
 uses. ADR-0062 has the full decision, including the `iv_index` gate addendum on ADR-0054.
+
+## Addendum: the e2e job replays recorded instruments registries (2026-10-16)
+
+Since the e2e job moved into the GitHub runner (ADR-0016 addendum 2026-10-16), its setup failed
+in most runs on `instruments: falhou`: `arquivos.b3.com.br`'s token request answers 504 from the
+runners, and intermittently from elsewhere too. The e2e suite now never calls that host.
+`ingest()` takes an optional `instrumentsRegistry` loader in place of the live two-step fetch, and
+the nightly job passes `recordedInstrumentsRegistry(dir)` when `E2E_B3_INSTRUMENTS_DIR` is set and
+the deployment is not production; only CI's e2e job sets it. The recordings
+(`apps/web/e2e/fixtures/b3-instruments/<session>.csv`) are B3's real files for the suite's fixed
+sessions, cut to PETR4's option rows and the columns the parser reads; a session without its own
+recording replays the newest one before it. Production keeps fetching the live registry, with no
+retry added: a failed run leaves the session a gap, and the next cron entry (three a night,
+ADR-0010) fetches it again.

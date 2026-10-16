@@ -5,6 +5,7 @@ export {
   type CloseFreshness,
 } from "./close-freshness";
 export { ingest, type IngestOptions, type IngestOutcome, type SourceOutcome } from "./ingest";
+export { recordedInstrumentsRegistry } from "./adapters/b3-instruments/recorded";
 export { loadCandleSeries } from "./candle-series";
 export { loadAssetReading } from "./asset-reading";
 export { buildRadarView, radarUniverse, type LiquidityRule } from "./radar-view";
