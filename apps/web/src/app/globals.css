@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant studio (&:where([data-layout="studio"] *));
 
 @theme inline {
   --color-background: var(--bg);
@@ -41,8 +42,10 @@
 
 /*
  * Theme token sets (DESIGN.md). Each theme is a CSS variable set only: color,
- * type, radius, elevation and density. Component anatomy never changes
- * between themes (ADR-0015). `instrumento` is the default on `:root`, so an
+ * type, radius, elevation and density, plus the `color-scheme` that tells the
+ * browser to draw scrollbars and native controls light or dark. Component
+ * anatomy never changes between themes (ADR-0015); the layout does that
+ * (ADR-0069). `instrumento` is the default on `:root`, so an
  * unauthenticated visitor (no stored preference yet) still gets a themed
  * shell instead of a flash of unstyled content. `[data-theme="x"]` (not
  * scoped to `:root`) so a theme swatch can nest a themed subtree anywhere in
@@ -50,6 +53,7 @@
  */
 :root,
 [data-theme="instrumento"] {
+  color-scheme: dark;
   --bg: #0f1115;
   --surface: #151922;
   --surface-2: #1a1f29;
@@ -92,6 +96,7 @@
 }
 
 [data-theme="terminal"] {
+  color-scheme: dark;
   --bg: #0a0b0d;
   --surface: #0a0b0d;
   --surface-2: #111317;
@@ -134,6 +139,7 @@
 }
 
 [data-theme="amplo"] {
+  color-scheme: dark;
   --bg: #13151b;
   --surface: #191c24;
   --surface-2: #1f232d;
@@ -175,6 +181,183 @@
   --series-3: #199e70;
 }
 
+/* Grafite, Ouro Negro, Fósforo and Papel are the owner's Bardo and Mascate
+   interface themes carried over (ADR-0069): same palettes, mapped onto
+   Fetha's tokens. */
+[data-theme="grafite"] {
+  color-scheme: dark;
+  --bg: #0f1113;
+  --surface: #16191c;
+  --surface-2: #1e2226;
+  --line: #2a2f35;
+  --line-soft: #202428;
+  --ink: #e7e9ec;
+  --muted: #a3aab3;
+  --faint: #8a929c;
+  --accent: #f2a33a;
+  --accent-hover: #f5b661;
+  --accent-ink: #1a1206;
+  --accent-soft: #2c2416;
+  --up: #4cc38a;
+  --down: #f0716a;
+  --warning: #e5c454;
+  --danger: #f0716a;
+  --greek-delta: #f2a33a;
+  --greek-gamma: #b688e6;
+  --greek-theta: #e5c454;
+  --greek-vega: #6cb2f5;
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), Consolas, monospace;
+  --radius: 6px;
+  --elevation: none;
+  --density: 1;
+  --text-overline: 11px;
+  --text-meta: 12px;
+  --text-body: 13px;
+  --text-input: 15px;
+  --text-stat: 18px;
+  --text-headline: 22px;
+  --text-hero: 26px;
+  --row-height: 36px;
+  --panel-padding: 10px 12px;
+  --chart-stroke: var(--accent);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+}
+
+[data-theme="ouro-negro"] {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --surface: #121212;
+  --surface-2: #1d1a12;
+  --line: #4a3d22;
+  --line-soft: #2b2618;
+  --ink: #e0dfdb;
+  --muted: #a89c84;
+  --faint: #8f846e;
+  --accent: #d4af37;
+  --accent-hover: #dfc05a;
+  --accent-ink: #0d0d0d;
+  --accent-soft: #282003;
+  --up: #a3c46b;
+  --down: #e06c6c;
+  --warning: #f59e0b;
+  --danger: #e06c6c;
+  --greek-delta: #d4af37;
+  --greek-gamma: #b4a6d6;
+  --greek-theta: #f59e0b;
+  --greek-vega: #8db8d0;
+  --font-display: var(--font-jetbrains-mono), Consolas, monospace;
+  --font-body: var(--font-jetbrains-mono), Consolas, monospace;
+  --font-mono: var(--font-jetbrains-mono), Consolas, monospace;
+  --radius: 0px;
+  --elevation: none;
+  --density: 0.95;
+  --text-overline: 11px;
+  --text-meta: 12px;
+  --text-body: 12px;
+  --text-input: 14px;
+  --text-stat: 17px;
+  --text-headline: 21px;
+  --text-hero: 25px;
+  --row-height: 32px;
+  --panel-padding: 8px 10px;
+  --chart-stroke: var(--ink);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+}
+
+[data-theme="fosforo"] {
+  color-scheme: dark;
+  --bg: #040a06;
+  --surface: #08110b;
+  --surface-2: #0f2216;
+  --line: #1d4f30;
+  --line-soft: #163220;
+  --ink: #cbf7d5;
+  --muted: #86dba0;
+  --faint: #62b57f;
+  --accent: #3df57a;
+  --accent-hover: #6cf89a;
+  --accent-ink: #02100a;
+  --accent-soft: #0b2c16;
+  --up: #5fe0d0;
+  --down: #ff6b78;
+  --warning: #e8d35a;
+  --danger: #ff6b78;
+  --greek-delta: #3df57a;
+  --greek-gamma: #c59bf0;
+  --greek-theta: #e8d35a;
+  --greek-vega: #6cc8ff;
+  --font-display: var(--font-jetbrains-mono), Consolas, monospace;
+  --font-body: var(--font-jetbrains-mono), Consolas, monospace;
+  --font-mono: var(--font-jetbrains-mono), Consolas, monospace;
+  --radius: 0px;
+  --elevation: none;
+  --density: 0.95;
+  --text-overline: 11px;
+  --text-meta: 12px;
+  --text-body: 12px;
+  --text-input: 14px;
+  --text-stat: 17px;
+  --text-headline: 21px;
+  --text-hero: 25px;
+  --row-height: 32px;
+  --panel-padding: 8px 10px;
+  --chart-stroke: var(--ink);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+}
+
+/* The one light theme: Bardo's amber stays the accent, darkened to #9a5800
+   so links and the active destination keep 4.5:1 on the paper ground. */
+[data-theme="papel"] {
+  color-scheme: light;
+  --bg: #f2f2ef;
+  --surface: #ffffff;
+  --surface-2: #ecece8;
+  --line: #dcdcd7;
+  --line-soft: #e9e9e5;
+  --ink: #17181a;
+  --muted: #4a4e54;
+  --faint: #5f646b;
+  --accent: #9a5800;
+  --accent-hover: #7f4800;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbead0;
+  --up: #1c7a3d;
+  --down: #bf2f28;
+  --warning: #7f5b00;
+  --danger: #bf2f28;
+  --greek-delta: #9a5800;
+  --greek-gamma: #7b4bb8;
+  --greek-theta: #7f5b00;
+  --greek-vega: #1f5fb0;
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), Consolas, monospace;
+  --radius: 6px;
+  --elevation: none;
+  --density: 1;
+  --text-overline: 11px;
+  --text-meta: 12px;
+  --text-body: 13px;
+  --text-input: 15px;
+  --text-stat: 18px;
+  --text-headline: 22px;
+  --text-hero: 26px;
+  --row-height: 36px;
+  --panel-padding: 10px 12px;
+  --chart-stroke: var(--accent);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -193,12 +376,17 @@
   }
   :root {
     --shell-header-height: 3rem;
+    --shell-status-height: 1.75rem;
   }
   /* The shell header sticks from 768px up: focus and scrollIntoView must
      stop below it, not under it. */
   @media (width >= 48rem) {
     html {
       scroll-padding-top: calc(var(--shell-header-height) + env(safe-area-inset-top));
+    }
+    /* Studio's status bar is fixed to the bottom (ADR-0069). */
+    html[data-layout="studio"] {
+      scroll-padding-bottom: calc(var(--shell-status-height) + env(safe-area-inset-bottom));
     }
   }
 }

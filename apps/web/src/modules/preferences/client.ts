@@ -5,6 +5,7 @@
 export {
   dismissAssetTourAction,
   dismissTourAction,
+  setLayoutAction,
   setRailCollapsedAction,
   setThemeAction,
   type PreferencesActionResult,

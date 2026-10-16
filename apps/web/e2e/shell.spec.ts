@@ -284,6 +284,13 @@ const themeFontExpectations = [
     monoFamily: "jetbrainsmono",
   },
   { theme: "amplo", label: /Amplo/, bodyFamily: "sourcesans3", monoFamily: "sourcecodepro" },
+  {
+    theme: "ouro-negro",
+    label: /Ouro Negro/,
+    bodyFamily: "jetbrainsmono",
+    monoFamily: "jetbrainsmono",
+  },
+  { theme: "fosforo", label: /Fósforo/, bodyFamily: "jetbrainsmono", monoFamily: "jetbrainsmono" },
 ] as const;
 
 test("each theme resolves its own vendored font families", async ({ page, baseURL, request }) => {
@@ -325,6 +332,57 @@ test("each theme resolves its own vendored font families", async ({ page, baseUR
     expect(bodyLoaded, `${theme}: body font ${bodyFirstFamily ?? ""} did not load`).toBe(true);
     expect(monoLoaded, `${theme}: mono font ${monoFirstFamily ?? ""} did not load`).toBe(true);
   }
+});
+
+// ADR-0069: the light theme tells the browser to draw native controls light.
+test("Papel is a light theme down to the native controls", async ({ page, baseURL, request }) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/configuracoes/aparencia");
+
+  await page.getByRole("radio", { name: /Papel/ }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "papel");
+  await expect
+    .poll(() => page.locator("html").evaluate((el) => getComputedStyle(el).colorScheme))
+    .toBe("light");
+});
+
+// ADR-0069: Studio puts the destinations in the header and the market bar in
+// a status bar at the bottom; the rail is gone. The choice survives a reload.
+test("layout switch to Studio moves the navigation and the market bar, and persists", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/configuracoes/aparencia");
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+  await expect(navigation).toHaveAttribute("data-tour", "rail");
+
+  await page.getByRole("radio", { name: /Studio/ }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "studio");
+  await expect(navigation).toHaveAttribute("data-tour", "top-nav");
+  await expect(page.getByRole("button", { name: "Recolher a navegação" })).toHaveCount(0);
+  const statusBar = page.getByRole("contentinfo", { name: "Barra de status" });
+  await expect(statusBar.getByTestId("market-bar")).toBeVisible();
+  await expect(statusBar).toContainText("Nenhum sinal não lido");
+  await expect(statusBar.getByRole("link", { name: "não declarado" })).toHaveAttribute(
+    "href",
+    "/configuracoes/risco",
+  );
+  await expect(navigation.getByRole("link", { name: "Configurações" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "studio");
+  await expect(navigation).toHaveAttribute("data-tour", "top-nav");
+
+  await page.getByRole("radio", { name: /Workspace/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "workspace");
+  await expect(navigation).toHaveAttribute("data-tour", "rail");
 });
 
 test("account menu opens the Como usar guide, one section per destination", async ({

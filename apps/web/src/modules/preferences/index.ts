@@ -1,11 +1,13 @@
 export {
   dismissAssetTourAction,
   dismissTourAction,
+  setLayoutAction,
   setRailCollapsedAction,
   setThemeAction,
   type PreferencesActionResult,
 } from "./actions";
 export { SettingsTabs } from "./components/settings-tabs";
+export { LayoutPicker } from "./components/layout-picker";
 export { ThemePicker } from "./components/theme-picker";
 export { PreferencesRepository, type Preferences } from "./preferences-repository";
 export { getPreferences } from "./queries";

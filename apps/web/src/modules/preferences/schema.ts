@@ -11,6 +11,7 @@ export const preferences = pgTable("preferences", {
     .unique()
     .references(() => user.id, { onDelete: "cascade" }),
   theme: text("theme").notNull().default("instrumento"),
+  layout: text("layout").notNull().default("workspace"),
   railCollapsed: boolean("rail_collapsed").notNull().default(false),
   tourDismissedAt: timestamp("tour_dismissed_at", { withTimezone: true }),
   assetTourDismissedAt: timestamp("asset_tour_dismissed_at", { withTimezone: true }),

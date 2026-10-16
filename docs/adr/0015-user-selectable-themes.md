@@ -29,3 +29,10 @@ nest inside a page styled by a different theme (the theme picker's own preview).
   desktop-first with one shell.
 - Light mode: not at launch; the direction is dark by design, and a light theme is one more token
   set when wanted.
+
+## Addendum: layouts and more themes (2026-10-16, ADR-0069)
+
+Two of the options rejected above are now taken, at the owner's request: a per-user layout
+(Workspace, the shell described here, or Studio, with header tabs and a status bar) and a light
+theme (`papel`), alongside `grafite`, `ouro-negro` and `fosforo`. A theme still changes tokens
+only; moving the shell is the layout's job.

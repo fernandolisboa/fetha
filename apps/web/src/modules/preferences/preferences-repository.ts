@@ -3,10 +3,12 @@ import { eq, sql } from "drizzle-orm";
 import { preferences } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
+import { layoutSchema, type Layout } from "./layout";
 import { themeSchema, type Theme } from "./theme";
 
 export interface Preferences {
   theme: Theme;
+  layout: Layout;
   railCollapsed: boolean;
   tourDismissed: boolean;
   assetTourDismissed: boolean;
@@ -14,6 +16,7 @@ export interface Preferences {
 
 const defaults: Preferences = {
   theme: themeSchema.parse(undefined),
+  layout: layoutSchema.parse(undefined),
   railCollapsed: false,
   tourDismissed: false,
   assetTourDismissed: false,
@@ -24,6 +27,7 @@ export class PreferencesRepository extends UserScopedRepository {
     const [row] = await this.db
       .select({
         theme: preferences.theme,
+        layout: preferences.layout,
         railCollapsed: preferences.railCollapsed,
         tourDismissedAt: preferences.tourDismissedAt,
         assetTourDismissedAt: preferences.assetTourDismissedAt,
@@ -37,8 +41,10 @@ export class PreferencesRepository extends UserScopedRepository {
     }
 
     const parsedTheme = themeSchema.safeParse(row.theme);
+    const parsedLayout = layoutSchema.safeParse(row.layout);
     return {
       theme: parsedTheme.success ? parsedTheme.data : defaults.theme,
+      layout: parsedLayout.success ? parsedLayout.data : defaults.layout,
       railCollapsed: row.railCollapsed,
       tourDismissed: row.tourDismissedAt !== null,
       assetTourDismissed: row.assetTourDismissedAt !== null,
@@ -47,6 +53,10 @@ export class PreferencesRepository extends UserScopedRepository {
 
   async setTheme(theme: Theme): Promise<void> {
     await this.upsert({ theme });
+  }
+
+  async setLayout(layout: Layout): Promise<void> {
+    await this.upsert({ layout });
   }
 
   async setRailCollapsed(railCollapsed: boolean): Promise<void> {
@@ -84,7 +94,7 @@ export class PreferencesRepository extends UserScopedRepository {
   }
 
   private async upsert(
-    patch: Partial<Pick<Preferences, "theme" | "railCollapsed">>,
+    patch: Partial<Pick<Preferences, "theme" | "layout" | "railCollapsed">>,
   ): Promise<void> {
     await this.db
       .insert(preferences)

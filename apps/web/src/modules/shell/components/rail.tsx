@@ -7,10 +7,10 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Centavos } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
-import { formatBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { setRailCollapsedAction } from "@/modules/preferences/client";
 
+import { DeclaredCapitalValue } from "./declared-capital";
 import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
@@ -105,13 +105,7 @@ export function Rail({
         )}
       >
         <div>{t.rail.declaredCapital}</div>
-        {declaredCapital === null ? (
-          <Link href="/configuracoes/risco" className="text-primary font-mono hover:underline">
-            {t.rail.capitalNotDeclared}
-          </Link>
-        ) : (
-          <div className="text-foreground font-mono tabular-nums">{formatBRL(declaredCapital)}</div>
-        )}
+        <DeclaredCapitalValue declaredCapital={declaredCapital} />
       </div>
     </nav>
   );
