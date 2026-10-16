@@ -5,7 +5,7 @@ import { themeMode, themes } from "./theme";
 import { parseThemeColorScheme, parseThemeTokens, readGlobalsCss } from "./test/parse-theme-tokens";
 
 // Every token DESIGN.md lists under "Tokens" (CLAUDE.md mirrors the same
-// list) must exist as a CSS custom property in each of the three themes.
+// list) must exist as a CSS custom property in every shipped theme.
 const designTokens = [
   "--bg",
   "--surface",

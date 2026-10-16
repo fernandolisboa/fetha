@@ -32,7 +32,7 @@ export function TopNav({ unreadSignalCount }: { unreadSignalCount: number }) {
             className={cn(
               "flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius)] border px-2.5 text-[13px] transition-colors duration-[120ms]",
               active
-                ? "border-primary/60 bg-accent text-primary"
+                ? "border-primary bg-accent text-primary"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground border-transparent",
             )}
           >

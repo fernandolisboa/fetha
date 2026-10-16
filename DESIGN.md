@@ -11,7 +11,7 @@ numbers first: tabular figures everywhere, monospaced numerals, tight vertical r
 instead of shadows, one accent for actions and a separate, reserved color for risk. Hierarchy
 borrowed from good trading and analytics layouts; nothing copied. Not a fintech landing page.
 
-## Structure (one set of components; themes change tokens, never anatomy)
+## Structure (one set of components per layout; themes change tokens, never anatomy)
 
 - **App shell**: a CSS grid with named areas (header, nav, content). Header 48px: wordmark,
   command search (`Ctrl K`: instrument, option series or strategy; a series opens its own page,
@@ -219,7 +219,8 @@ shadcn/ui primitives (mandatory, restyled by tokens): Button, Input, Label, Sele
 (instrument and series search), Tabs, Dialog, DropdownMenu, Popover, Tooltip, Toast, Sheet, Table,
 Badge (chips), Progress, Skeleton, Switch, Form controls, Command (`Ctrl K` palette).
 
-Domain components (custom): AppShell (grid, rail, header), MarketBar, PageHeader, Panel,
+Domain components (custom): AppShell (grid, rail or top tabs, header, status bar), TopNav (Studio's
+header tabs), StatusBar (Studio's foot), MarketBar, PageHeader, Panel,
 StatBlock, LegsTable (side, quantity, instrument, type, strike, expiry, price, delta, IV),
 PayoffChart, GreeksPanel, ErrorNotice (the Error state over the shadcn Alert; field validation
 stays a plain inline message), RiskNotice (warning with the breached limit and the "record anyway"
@@ -229,7 +230,8 @@ instrument, evaluation time, late flag, proposal summary), StrategyEditor (close
 forms), BacktestReport (equity, drawdown, distribution, metrics table, walk-forward windows,
 declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score, and under it the
 AI analyses that informed it; an analysis with no decision is its own entry: subject, thesis,
-outlook with its horizon date, likelihood, outlook score), ThemePicker,
+outlook with its horizon date, likelihood, outlook score), ThemePicker and LayoutPicker (radio
+cards with a thumbnail of the shell in the option's own tokens or a wireframe of the layout),
 GuidedTour (a dim layer with a hairline `--accent` cutout around one element and a Popover step
 card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0046).
 
@@ -271,6 +273,6 @@ card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Pró
 ## Design gate
 
 Every UI ticket ships with: `npx impeccable detect` clean, `/impeccable critique` by `ui-critic`
-with no blocking findings in the default theme, and the token contrast test green for all three
-themes (4.5:1 text on `--bg` and `--surface`, 3:1 chart and semantic colors on `--bg`).
+with no blocking findings in the default theme, and the token contrast test green for every
+theme (4.5:1 text on `--bg` and `--surface`, 3:1 chart and semantic colors on `--bg`).
 `/impeccable audit` belongs to the owner.

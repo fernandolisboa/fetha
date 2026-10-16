@@ -51,5 +51,8 @@ shell") and light themes ("not at launch").
 - "Follow the system" light/dark pairing, as Bardo and Mascate do: needs a client script before
   first paint (the CSP takes a nonce, ADR-0035) and charts that re-read tokens on change; left
   out until a second light theme exists.
+- A per-theme PWA manifest: `manifest.ts` keeps the dark `background_color` and `theme_color`, so
+  an installed app shows a dark splash and title bar around `papel`; the manifest is per app and
+  cached, so following the theme there is left out with "follow the system".
 - Studio's tabs in a second header row: costs 36px of height on every screen for no gain at
   desktop widths, where one row fits wordmark, tabs, search and account.

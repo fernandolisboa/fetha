@@ -229,7 +229,7 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
 
 - Direction: dense, data-first workstation; dark by default; tabular monospaced numerals;
   hairlines, one action accent, a separate reserved color for risk. Not a fintech landing page.
-- Structure (not themeable): header 48px with command search and market bar; left rail 200px /
+- Structure (not themeable; Workspace, the default layout, see Layouts below): header 48px with command search and market bar; left rail 200px /
   56px collapsed, six destinations; page = overline + headline + chips + actions; content grid
   `minmax(0,1fr) 320px`; hairline panels and table rows (height by `--density`), one decision
   bar per screen.

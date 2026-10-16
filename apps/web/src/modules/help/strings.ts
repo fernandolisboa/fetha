@@ -20,7 +20,7 @@ const en = {
       },
       rail: {
         title: "Navigation",
-        body: "Fetha's six destinations live here. On a computer, the button at the end of the side bar collapses it to give the content more room; in Configurações › Aparência you can swap the side bar for tabs in the header (Studio layout).",
+        body: "Fetha's six destinations live here. In Configurações › Aparência you choose between the side bar (Workspace layout, which the button at its end collapses) and tabs in the header (Studio layout).",
       },
       commandSearch: {
         title: "Search",
@@ -214,7 +214,7 @@ const ptBR = {
       },
       rail: {
         title: "Navegação",
-        body: "Os seis destinos da Fetha ficam aqui. No computador, o botão no fim da barra lateral a recolhe para dar mais espaço ao conteúdo; em Configurações › Aparência você troca a barra lateral por abas no cabeçalho (layout Studio).",
+        body: "Os seis destinos da Fetha ficam aqui. Em Configurações › Aparência você escolhe entre a barra lateral (layout Workspace, que o botão no fim dela recolhe) e abas no cabeçalho (layout Studio).",
       },
       commandSearch: {
         title: "Busca",

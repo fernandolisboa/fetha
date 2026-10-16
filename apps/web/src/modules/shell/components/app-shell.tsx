@@ -41,7 +41,7 @@ export function AppShell({
       <div
         className={cn(
           "grid min-h-full grid-cols-1 grid-rows-[var(--shell-header-height)_1fr] max-md:pb-14",
-          studio && "md:pb-[calc(var(--shell-status-height)+env(safe-area-inset-bottom))]",
+          studio && "md:pb-[var(--shell-status-height)]",
         )}
       >
         <Header
