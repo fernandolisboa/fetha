@@ -3,6 +3,7 @@ import { decimalStringSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
+import { encryptApiKey, readBetterAuthSecret } from "@/modules/ai-models";
 import { aiSettings } from "@/modules/ai-models/schema";
 import { accessLog } from "@/modules/audit/schema";
 import { account, invites, session, termsAcceptances, user } from "@/modules/auth/schema";
@@ -93,7 +94,17 @@ export async function seedUserFootprint(
   await db.insert(accessLog).values({ userId, event: "portfolio_read" });
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });
-  await db.insert(aiSettings).values({ userId, modelFamilies: { signal: "haiku" } });
+  await db.insert(aiSettings).values({
+    userId,
+    modelFamilies: { signal: "haiku" },
+    apiKeyCiphertext: encryptApiKey(
+      "sk-ant-footprint-0123456789abcdef",
+      readBetterAuthSecret(),
+      userId,
+    ),
+    apiKeyLast4: "cdef",
+    apiKeyUpdatedAt: at,
+  });
 
   const strategy = only(
     await db
