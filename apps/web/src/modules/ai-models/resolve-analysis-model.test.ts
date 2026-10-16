@@ -18,29 +18,24 @@ describe("resolveAnalysisModelPolicy", () => {
     });
   });
 
-  it("falls back to the server key when there is no own key", () => {
+  it("answers own_key_missing when there is no own key, even with a server key", () => {
     const result = resolveAnalysisModelPolicy({
       serverKey: "sk-server",
       ownKey: { status: "none" },
       families: {},
       kind: "signal",
     });
-    expect(result).toEqual({
-      status: "ok",
-      apiKey: "sk-server",
-      listingKey: "sk-server",
-      family: "sonnet",
-    });
+    expect(result).toEqual({ status: "own_key_missing" });
   });
 
-  it("answers unavailable when neither key is present", () => {
+  it("answers own_key_missing when neither key is present", () => {
     const result = resolveAnalysisModelPolicy({
       serverKey: undefined,
       ownKey: { status: "none" },
       families: {},
       kind: "signal",
     });
-    expect(result).toEqual({ status: "unavailable" });
+    expect(result).toEqual({ status: "own_key_missing" });
   });
 
   it("answers own_key_unreadable when the stored key no longer decrypts, even with a server key", () => {
@@ -56,7 +51,7 @@ describe("resolveAnalysisModelPolicy", () => {
   it("uses the stored family override over the kind's default", () => {
     const result = resolveAnalysisModelPolicy({
       serverKey: "sk-server",
-      ownKey: { status: "none" },
+      ownKey: { status: "ok", key: "sk-own" },
       families: { signal: "opus" },
       kind: "signal",
     });

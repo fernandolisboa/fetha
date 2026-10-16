@@ -31,10 +31,13 @@ import { modelDisplayName } from "../display-name";
 import { t } from "../strings";
 import type { ApiKeyStatus } from "../ai-settings-repository";
 
+// `serverKeyConfigured` stays in the props so the settings page's own view
+// (`AiSettingsView`) keeps carrying it for the listing policy it still
+// describes elsewhere (#325); the key section below no longer branches on
+// it, since the server key never bills a user-requested analysis.
 export function AiModelSettingsPanel({
   modelFamilies,
   apiKey,
-  serverKeyConfigured,
   resolvedModels,
 }: {
   modelFamilies: AiSettingsModelFamilies;
@@ -54,7 +57,7 @@ export function AiModelSettingsPanel({
           />
         ))}
       </div>
-      <ApiKeySection apiKey={apiKey} serverKeyConfigured={serverKeyConfigured} />
+      <ApiKeySection apiKey={apiKey} />
     </div>
   );
 }
@@ -132,29 +135,23 @@ function FamilyRow({
   );
 }
 
-// Three distinct states, never conflated (#322 review A1): a stored key
-// that no longer decrypts says so and is still removable; a missing key
-// falls back to the server's, or says plainly that analyses are
-// unavailable when neither exists.
-function statusLine(apiKey: ApiKeyStatus, serverKeyConfigured: boolean): string {
+// Two distinct states, never conflated (#322 review A1): a stored key that
+// no longer decrypts says so and is still removable; a missing key says
+// plainly that analyses need one (#325) — the server key is never an
+// alternative for a user-requested analysis, so it plays no part here.
+function statusLine(apiKey: ApiKeyStatus): string {
   if (apiKey.configured && !apiKey.readable) {
     return t.apiKey.unreadable;
   }
   if (apiKey.configured && apiKey.last4) {
     return t.apiKey.ownKey(apiKey.last4);
   }
-  return serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.noKey;
+  return t.apiKey.noKey;
 }
 
-function ApiKeySection({
-  apiKey,
-  serverKeyConfigured,
-}: {
-  apiKey: ApiKeyStatus;
-  serverKeyConfigured: boolean;
-}) {
+function ApiKeySection({ apiKey }: { apiKey: ApiKeyStatus }) {
   const [input, setInput] = useState("");
-  const [status, setStatus] = useState(() => statusLine(apiKey, serverKeyConfigured));
+  const [status, setStatus] = useState(() => statusLine(apiKey));
   // Remove must stay enabled for a stored key even when it no longer
   // decrypts (#322 review A1); testing one is pointless (there is no
   // plaintext to send), so it alone tracks readability too.
@@ -221,7 +218,7 @@ function ApiKeySection({
           if (result.status === "ok_removed") {
             setStored(false);
             setReadable(false);
-            setStatus(serverKeyConfigured ? t.apiKey.serverKey : t.apiKey.noKey);
+            setStatus(t.apiKey.noKey);
             setMessage(t.apiKey.removed);
           } else if (result.status === "error") {
             setError(t.apiKey.errors[result.error]);

@@ -22,7 +22,7 @@ export type AnalysisModelResolution =
       // today) has no business holding it, only calling this back.
       markRejected: (modelId: string) => void;
     }
-  | { status: "unavailable" }
+  | { status: "own_key_missing" }
   | { status: "own_key_unreadable" };
 
 interface AnalysisModelPolicy {
@@ -33,12 +33,14 @@ interface AnalysisModelPolicy {
 
 type AnalysisModelPolicyResult =
   | ({ status: "ok" } & AnalysisModelPolicy)
-  | { status: "unavailable" }
+  | { status: "own_key_missing" }
   | { status: "own_key_unreadable" };
 
-// The server's own key always lists the catalog, so every user's own key
-// does not each make its own listing call; it also bills whenever the
-// user has no key of their own (docs/adr/0068).
+// Listing the catalog is free and reads only catalog metadata, not a
+// billed analysis, so it keeps its own, looser policy (#325): the server's
+// key lists for everyone so every user's own key does not each make its
+// own listing call, falling back to the user's own key only when there is
+// no server key (docs/adr/0068).
 export function resolveListingKey(
   serverKey: string | undefined,
   ownKey: OwnApiKey,
@@ -46,11 +48,14 @@ export function resolveListingKey(
   return serverKey ?? (ownKey.status === "ok" ? ownKey.key : undefined);
 }
 
-// Billing policy: a stored key that still decrypts is always preferred,
-// even when the server has its own key; a stored key that no longer
-// decrypts is reported as its own distinct outcome rather than silently
-// billed to the server key (ADR-0068 §4, #322 review A1) — the user needs
-// to know to re-save or remove it, not have their own key quietly ignored.
+// Billing policy (#325): a user-requested analysis is only ever billed to
+// that user's own key, never to the server's — the server key exists to
+// list the catalog and to run background jobs with no user to bill, not to
+// subsidize analyses the owner didn't opt into paying for. A missing own
+// key and an own key that no longer decrypts are reported as distinct
+// outcomes (ADR-0068 §4, #322 review A1) rather than silently billed to the
+// server key, so the user knows to save or re-save one, not find it quietly
+// ignored.
 export function resolveAnalysisModelPolicy(input: {
   serverKey: string | undefined;
   ownKey: OwnApiKey;
@@ -61,13 +66,12 @@ export function resolveAnalysisModelPolicy(input: {
   if (ownKey.status === "unreadable") {
     return { status: "own_key_unreadable" };
   }
-  const apiKey = ownKey.status === "ok" ? ownKey.key : serverKey;
-  if (!apiKey) {
-    return { status: "unavailable" };
+  if (ownKey.status !== "ok") {
+    return { status: "own_key_missing" };
   }
   const listingKey = resolveListingKey(serverKey, ownKey);
   const family = families[kind] ?? defaultAnalysisFamilies[kind];
-  return { status: "ok", apiKey, listingKey, family };
+  return { status: "ok", apiKey: ownKey.key, listingKey, family };
 }
 
 // The one entry point every caller that bills an analysis to a model must

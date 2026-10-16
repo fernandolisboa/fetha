@@ -184,6 +184,8 @@ const en = {
       triggerAgain: "Request new analysis",
       pending: "Analyzing…",
       usage: (used: number, cap: number) => `${String(used)} of ${String(cap)} analyses this month`,
+      ownKeyRequired: "Analyses need your Anthropic key. Save it in",
+      ownKeyRequiredLink: "Settings",
     },
     report: {
       title: "Analysis",
@@ -194,8 +196,8 @@ const en = {
       not_found: "This signal, operation, backtest run or suggestion no longer exists.",
       not_ready: "There is not enough data to analyze this yet.",
       unavailable: "AI analysis is not available in this environment.",
-      own_key_unreadable:
-        "Your Anthropic API key could not be read. Save it again in Settings, or remove it to use the server's key instead.",
+      own_key_missing: "The analysis needs your Anthropic key. Save it in Settings.",
+      own_key_unreadable: "Your Anthropic API key could not be read. Save it again in Settings.",
       rate_limited: "Too many requests recently. Try again in a moment.",
       rejected:
         "The reply did not pass Fetha's checks and was discarded. It still counted toward the monthly limit.",
@@ -388,6 +390,8 @@ const ptBR = {
       triggerAgain: "Pedir nova análise",
       pending: "Analisando…",
       usage: (used: number, cap: number) => `${String(used)} de ${String(cap)} análises este mês`,
+      ownKeyRequired: "As análises precisam da sua chave da Anthropic. Salve-a em",
+      ownKeyRequiredLink: "Configurações",
     },
     report: {
       title: "Análise",
@@ -398,8 +402,9 @@ const ptBR = {
       not_found: "Esse sinal, operação, backtest ou sugestão não existe mais.",
       not_ready: "Ainda não há dados suficientes para analisar isso.",
       unavailable: "A análise de IA não está disponível neste ambiente.",
+      own_key_missing: "A análise precisa da sua chave da Anthropic. Salve-a em Configurações.",
       own_key_unreadable:
-        "Não foi possível ler sua chave de API da Anthropic. Salve-a novamente em Configurações, ou remova-a para usar a chave do servidor.",
+        "Não foi possível ler sua chave de API da Anthropic. Salve-a novamente em Configurações.",
       rate_limited: "Muitos pedidos em pouco tempo. Tente novamente em instantes.",
       rejected:
         "A resposta não passou nas verificações do Fetha e foi descartada. Ainda assim, contou no limite mensal.",
