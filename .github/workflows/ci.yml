@@ -70,15 +70,19 @@ jobs:
           echo "$CHANGED"
           npx --yes impeccable@4.1.0 detect $CHANGED
 
-  preview-database:
+  # Keeps fetha-preview in step with the branch being built, for manual checks
+  # against Vercel previews only (docs/adr/0016). Its database steps are
+  # continue-on-error: the free Neon project's 5 GB/month transfer quota can
+  # run out mid-month (as it did on 2026-10-16), and this job must never block
+  # a PR merge now that the e2e gate (job `preview-database`) no longer
+  # depends on it. Each step runs only if the previous one succeeded, so a
+  # migrate that fails after a reset does not seed a wiped database.
+  preview-database-maintenance:
     needs: ci
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     permissions:
       contents: read
-      deployments: read
-      pull-requests: read
-      statuses: read
     concurrency:
       group: preview-db
       cancel-in-progress: false
@@ -110,7 +114,9 @@ jobs:
           fi
 
       - name: Reset the shared preview database
+        id: reset
         if: steps.preview-db.outputs.configured == 'true'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -118,7 +124,9 @@ jobs:
         run: pnpm --filter @fetha/web run db:reset
 
       - name: Migrate the shared preview database
-        if: steps.preview-db.outputs.configured == 'true'
+        id: migrate
+        if: steps.reset.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -126,7 +134,9 @@ jobs:
         run: pnpm --filter @fetha/web run db:migrate
 
       - name: Seed the structure catalog
-        if: steps.preview-db.outputs.configured == 'true'
+        id: seed-structures
+        if: steps.migrate.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -136,47 +146,128 @@ jobs:
       # The owner-gated e2e specs sign this account in by magic link, which
       # never creates an account (docs/adr/0042); the reset above dropped it.
       - name: Seed the e2e owner account
-        if: steps.preview-db.outputs.configured == 'true'
+        id: seed-owner
+        if: steps.seed-structures.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
           DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
         run: pnpm --filter @fetha/web run db:seed-e2e-owner
 
-      - name: Check e2e prerequisites
-        id: e2e-prereqs
-        if: github.event_name == 'pull_request'
+  # Runs the Playwright e2e suite in the runner itself, against a production
+  # build backed by the same local-Postgres-behind-Neon's-local-proxy setup
+  # as the `integration` job, instead of a Vercel preview deployment backed
+  # by the shared, quota-limited fetha-preview Neon project (docs/adr/0016
+  # addendum, 2026-10-16). The job id stays `preview-database`: it is the
+  # check the owner's process gates merges on.
+  preview-database:
+    needs: [ci, ci-images]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: ${{ needs.ci-images.outputs.postgres }}
         env:
-          E2E_SECRET: ${{ secrets.E2E_SECRET }}
-          VERCEL_PROTECTION_BYPASS: ${{ secrets.VERCEL_PROTECTION_BYPASS }}
-        run: |
-          if [ -n "$E2E_SECRET" ] && [ -n "$VERCEL_PROTECTION_BYPASS" ] \
-            && [ "${{ steps.preview-db.outputs.configured }}" = "true" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          fi
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: main
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      neon-proxy:
+        image: ${{ needs.ci-images.outputs.neon-proxy }}
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/main
+        ports:
+          - 4444:4444
+    env:
+      DATABASE_URL: postgres://postgres:postgres@db.localtest.me:5432/main
+      ALLOW_DISPOSABLE_DATABASE: "1"
+      DATABASE_PRODUCTION_HOST: ${{ vars.DATABASE_PRODUCTION_HOST }}
+      BETTER_AUTH_SECRET: ci-e2e-secret-ci-e2e-secret-ci-e2e-secret
+      BETTER_AUTH_URL: http://localhost:3000
+      # Never leaves the runner (no Vercel preview involved anymore), so a
+      # fixed, non-secret literal is as safe as the repository secret it
+      # replaces and needs no secrets-store round trip.
+      E2E_SECRET: ci-e2e-fixed-secret
+      OWNER_EMAILS: dono-e2e@example.com
+      REGISTRATION_MODE: open
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Wait for the Vercel preview deployment
-        id: wait-preview
-        if: github.event_name == 'pull_request' && steps.e2e-prereqs.outputs.configured == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/wait-for-vercel-preview.mjs
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pin db.localtest.me to the loopback address
+        run: echo "127.0.0.1 db.localtest.me" | sudo tee -a /etc/hosts
+
+      - name: Wait for the local Neon proxy
+        run: timeout 60 bash -c 'until curl -s -o /dev/null http://localhost:4444/; do sleep 1; done'
+
+      # The proxy image creates this table on start-up, but as a service it can
+      # start before Postgres accepts connections and then skip it.
+      - name: Register the local Neon proxy's endpoint table
+        run: >-
+          psql postgres://postgres:postgres@localhost:5432/main -v ON_ERROR_STOP=1
+          -c "CREATE SCHEMA IF NOT EXISTS neon_control_plane"
+          -c "CREATE TABLE IF NOT EXISTS neon_control_plane.endpoints
+          (endpoint_id VARCHAR(255) PRIMARY KEY, allowed_ips VARCHAR(255))"
+
+      - name: Migrate the local database
+        run: pnpm --filter @fetha/web run db:migrate
+
+      - name: Seed the structure catalog
+        run: pnpm --filter @fetha/web run db:seed-structures
+
+      - name: Seed the e2e owner account
+        run: pnpm --filter @fetha/web run db:seed-e2e-owner
+
+      - name: Build the app
+        run: pnpm --filter @fetha/web run build
+
+      - name: Start the app and wait for it
+        run: |
+          nohup pnpm --filter @fetha/web run start > next-start.log 2>&1 &
+          disown
+          timeout 60 bash -c 'until curl -sf http://localhost:3000 > /dev/null; do sleep 1; done' \
+            || { cat next-start.log; exit 1; }
 
       - name: Install Playwright browsers
-        if: steps.wait-preview.outputs.url != ''
         run: pnpm --filter @fetha/web exec playwright install --with-deps chromium
 
-      - name: Run the Playwright e2e suite against the PR preview
-        if: steps.wait-preview.outputs.url != ''
+      - name: Run the Playwright e2e suite
         env:
-          PLAYWRIGHT_BASE_URL: ${{ steps.wait-preview.outputs.url }}
-          E2E_SECRET: ${{ secrets.E2E_SECRET }}
-          VERCEL_PROTECTION_BYPASS: ${{ secrets.VERCEL_PROTECTION_BYPASS }}
-        run: pnpm --filter @fetha/web test:e2e --reporter=list
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm --filter @fetha/web test:e2e --reporter=list,html
+
+      - name: Upload the Playwright report and the server log
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/web/next-start.log
+          retention-days: 7
 
   ci-images:
     runs-on: ubuntu-latest
