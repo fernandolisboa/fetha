@@ -516,3 +516,33 @@ test("PWA manifest and service worker are served", async ({ request, baseURL }) 
   const swResponse = await request.get(`${baseURL ?? ""}/sw.js`);
   expect(swResponse.ok()).toBe(true);
 });
+
+test("Como usar lays its sections in two columns on a wide monitor", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/como-usar");
+  const main = page.getByRole("main");
+  const watchlist = main.getByRole("heading", { level: 2, name: "Watchlist" });
+  const portfolio = main.getByRole("heading", { level: 2, name: "Carteira" });
+
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect
+    .poll(async () => {
+      const watchlistBox = await watchlist.boundingBox();
+      const portfolioBox = await portfolio.boundingBox();
+      return (portfolioBox?.x ?? 0) > (watchlistBox?.x ?? 0) && portfolioBox?.y === watchlistBox?.y;
+    })
+    .toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => {
+      const watchlistBox = await watchlist.boundingBox();
+      const portfolioBox = await portfolio.boundingBox();
+      return (portfolioBox?.y ?? 0) > (watchlistBox?.y ?? 0);
+    })
+    .toBe(true);
+});

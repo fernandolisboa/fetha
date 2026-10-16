@@ -181,12 +181,12 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
   return (
     <div className="@container">
       <div className="grid items-start gap-[14px] @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-[14px]">
+        <div className="@container flex min-w-0 flex-col gap-[14px]">
           <Panel title={t.report.equityCurve}>
             <EquityCurveChart points={run.equityCurve} />
             <NotesFor run={run} codes={equityDrawdownCodes} />
           </Panel>
-          <div className="grid items-start gap-[14px] @min-[100rem]:grid-cols-2">
+          <div className="grid items-start gap-[14px] @min-[80rem]:grid-cols-2">
             <Panel title={t.report.drawdown}>
               <DrawdownChart points={run.equityCurve} />
             </Panel>

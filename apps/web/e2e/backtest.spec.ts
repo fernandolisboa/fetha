@@ -48,6 +48,17 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
   await page.getByRole("link", { name: "Rodar backtest" }).click();
   await expect(page).toHaveURL(/\/backtests\/novo$/);
 
+  // On a wide monitor the run form's fields flow across the page instead of one narrow column.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect
+    .poll(async () => {
+      const universeBox = await page.getByText("Universo", { exact: true }).boundingBox();
+      const fromBox = await page.getByLabel("De", { exact: true }).boundingBox();
+      return (fromBox?.x ?? 0) > (universeBox?.x ?? 0) + 200;
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   await page.locator("label", { hasText: TICKER }).getByRole("checkbox").check();
 
   // getByLabel matches by substring: "De" also matches "Modelo de custos"
@@ -81,7 +92,9 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
     })
     .toBe(true);
   const chartLeft = (await equityChart.boundingBox())?.x ?? 0;
-  for (const label of await equityChart.locator(".visx-axis-left .visx-axis-tick text").all()) {
+  const valueTicks = equityChart.locator(".visx-axis-left .visx-axis-tick text");
+  await expect(valueTicks).not.toHaveCount(0);
+  for (const label of await valueTicks.all()) {
     expect((await label.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(chartLeft);
   }
   const dateTicks = equityChart.locator(".visx-axis-bottom .visx-axis-tick text");

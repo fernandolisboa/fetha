@@ -19,8 +19,9 @@ function tickLabel(value: number): string {
 const MARGIN = { top: 12, right: 40, bottom: 28 };
 const HEIGHT = 200;
 const Y_TICKS = 4;
-// Every theme's mono font advances 0.6em per glyph at 11px; the left margin fits the widest y tick label.
-const TICK_CHAR_WIDTH = 6.6;
+// Every theme's mono font advances 0.6em (6.6px at 11px); 7px leaves room for renderers that draw it
+// wider, as the CI runner's headless Chromium does. The left margin fits the widest y tick label.
+const TICK_CHAR_WIDTH = 7;
 const TICK_GAP = 12;
 
 function Chart({ width, points }: { width: number; points: EquityPoint[] }) {

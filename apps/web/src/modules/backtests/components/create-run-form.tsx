@@ -109,7 +109,7 @@ export function CreateRunForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] items-start gap-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(14rem,100%),1fr))] items-start gap-4">
         <div>
           <Label>{t.create.universe}</Label>
           <p className="text-muted-foreground text-xs">{t.create.universeHint}</p>

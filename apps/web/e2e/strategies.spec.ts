@@ -1,6 +1,6 @@
 import { expect, test } from "./tour";
 
-import { registerAndSignIn } from "./helpers";
+import { registerAndSignIn, TEST_TIMEOUT_MS } from "./helpers";
 
 // Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
 const e2eSecret = process.env.E2E_SECRET;
@@ -14,6 +14,7 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   baseURL,
   request,
 }) => {
+  test.setTimeout(TEST_TIMEOUT_MS);
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   const runId = `${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
@@ -51,6 +52,27 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   // [^/]+ just as well as a real strategy id would.
   await expect(page).toHaveURL(/\/estrategias\/(?!nova$)[^/]+$/);
   await expect(page.getByText("v1", { exact: false })).toBeVisible();
+
+  // The strategy page puts its versions and backtests beside the editor on a wide monitor, and
+  // below it on a phone.
+  const versionsHeading = page.getByRole("heading", { level: 2, name: "Versões" });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect
+    .poll(async () => {
+      const entryBox = await entryHeading.boundingBox();
+      const versionsBox = await versionsHeading.boundingBox();
+      return (versionsBox?.x ?? 0) > (entryBox?.x ?? 0) + 1000;
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => {
+      const entryBox = await entryHeading.boundingBox();
+      const versionsBox = await versionsHeading.boundingBox();
+      return (versionsBox?.y ?? 0) > (entryBox?.y ?? 0);
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.getByLabel("Nome").fill(revisedName);
   await page.getByRole("button", { name: "Salvar nova versão" }).click();
