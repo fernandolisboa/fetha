@@ -159,6 +159,16 @@ export {
   type AnalysisSubjectKind,
 } from "./analysis";
 export {
+  aiSettingsModelFamiliesSchema,
+  analysisModelFamilyChoices,
+  analysisModelFamilyChoiceSchema,
+  modelFamilies,
+  modelFamilySchema,
+  type AiSettingsModelFamilies,
+  type AnalysisModelFamilyChoice,
+  type ModelFamily,
+} from "./model-family";
+export {
   checkFilingLabel,
   filingCategories,
   filingLabelInputsSchema,
