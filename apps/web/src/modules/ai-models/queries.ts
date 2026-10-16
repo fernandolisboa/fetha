@@ -19,10 +19,6 @@ import { readBetterAuthSecret } from "./env";
 export interface AiSettingsView {
   modelFamilies: AiSettingsModelFamilies;
   apiKey: ApiKeyStatus;
-  // Kept for the settings page's own prop, even though the panel no longer
-  // reads it (#325): the server key still lists the catalog, so the page
-  // may still want to say so elsewhere.
-  serverKeyConfigured: boolean;
   resolvedModels: Record<AnalysisSubjectKind, string>;
 }
 
@@ -56,7 +52,7 @@ export const getMyAiSettings = cache(async (): Promise<AiSettingsView> => {
   const resolvedModels = Object.fromEntries(
     analysisSubjectKinds.map((kind) => [kind, modelByFamily.get(familyOf(kind))]),
   ) as Record<AnalysisSubjectKind, string>;
-  return { modelFamilies, apiKey, serverKeyConfigured: serverKey !== undefined, resolvedModels };
+  return { modelFamilies, apiKey, resolvedModels };
 });
 
 // Whether this signed-in user can request an analysis at all (#325): only

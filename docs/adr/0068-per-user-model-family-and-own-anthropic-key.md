@@ -112,6 +112,11 @@ user-requested analysis: a user has to save their own key in Configurações, no
 The settings panel's "Usando a chave do servidor" status disappears along with it: a user with no
 own key now reads that analyses need one, not that the server is covering them.
 
+This retracts this ADR's own Consequences bullet "A user who never opens the new settings section
+sees no behavior change": that was true only while the server key could still bill a user-requested
+analysis. Such a user now gets `own_key_missing` on every analysis request instead of one silently
+billed to the server.
+
 ## Considered options
 
 - Keep pinning literal ids, bump them by hand on release: exactly the toil the owner asked to

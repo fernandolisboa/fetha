@@ -77,7 +77,6 @@ export default async function SettingsPage() {
               <AiModelSettingsPanel
                 modelFamilies={aiSettings.modelFamilies}
                 apiKey={aiSettings.apiKey}
-                serverKeyConfigured={aiSettings.serverKeyConfigured}
                 resolvedModels={aiSettings.resolvedModels}
               />
             </SettingsSection>

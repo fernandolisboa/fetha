@@ -17,8 +17,6 @@ import { testRequestHeaders, uniqueTestIp } from "@/modules/auth/test-support";
 import { saveAnthropicApiKeyAction, setAnalysisModelFamilyAction } from "./actions";
 import { getMyAiSettings, isAnalysisAvailable } from "./queries";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
-
 const createdEmails: string[] = [];
 
 function uniqueEmail(label: string): string {
@@ -114,14 +112,18 @@ describe("isAnalysisAvailable", () => {
   it("is true once the user saves a readable own key, server key or not", async () => {
     const { sessionHeaders } = await signUpAndVerify("available-own-key");
     vi.spyOn(Anthropic.Models.prototype, "list").mockResolvedValue({ data: [] } as never);
-    process.env.ANTHROPIC_API_KEY = "sk-server-test";
 
+    process.env.ANTHROPIC_API_KEY = "sk-server-test";
     currentHeaders = sessionHeaders;
     const saved = await saveAnthropicApiKeyAction({
       key: "sk-ant-api03-cccccccccccccccccccccccccccc",
     });
     expect(saved).toMatchObject({ status: "ok" });
 
+    currentHeaders = sessionHeaders;
+    expect(await isAnalysisAvailable()).toBe(true);
+
+    delete process.env.ANTHROPIC_API_KEY;
     currentHeaders = sessionHeaders;
     expect(await isAnalysisAvailable()).toBe(true);
   });

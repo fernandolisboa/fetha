@@ -31,9 +31,6 @@ import { modelDisplayName } from "../display-name";
 import { t } from "../strings";
 import type { ApiKeyStatus } from "../ai-settings-repository";
 
-// `serverKeyConfigured` is still passed by the settings page but no longer
-// read (#325: the server key never bills a user analysis); it goes once the
-// page's tab restructure lands, to keep that change free of conflicts.
 export function AiModelSettingsPanel({
   modelFamilies,
   apiKey,
@@ -41,7 +38,6 @@ export function AiModelSettingsPanel({
 }: {
   modelFamilies: AiSettingsModelFamilies;
   apiKey: ApiKeyStatus;
-  serverKeyConfigured: boolean;
   resolvedModels: Record<AnalysisSubjectKind, string>;
 }) {
   return (

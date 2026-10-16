@@ -184,7 +184,7 @@ const en = {
       triggerAgain: "Request new analysis",
       pending: "Analyzing…",
       usage: (used: number, cap: number) => `${String(used)} of ${String(cap)} analyses this month`,
-      ownKeyRequired: "Analyses need your Anthropic key. Save it in",
+      ownKeyRequired: "Analyses need a working Anthropic key, saved in",
       ownKeyRequiredLink: "Settings",
     },
     report: {
@@ -390,7 +390,7 @@ const ptBR = {
       triggerAgain: "Pedir nova análise",
       pending: "Analisando…",
       usage: (used: number, cap: number) => `${String(used)} de ${String(cap)} análises este mês`,
-      ownKeyRequired: "As análises precisam da sua chave da Anthropic. Salve-a em",
+      ownKeyRequired: "As análises precisam de uma chave da Anthropic válida, salva em",
       ownKeyRequiredLink: "Configurações",
     },
     report: {
