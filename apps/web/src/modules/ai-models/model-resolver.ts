@@ -1,6 +1,8 @@
 import { pinnedModels } from "@fetha/prompts";
 import type { ModelFamily } from "@fetha/contracts";
 
+import { matchModelId } from "./model-id";
+
 export interface CatalogModelInfo {
   id: string;
   createdAt: Date;
@@ -15,28 +17,20 @@ interface ParsedModelId {
   createdAt: Date;
 }
 
-// Matches a Claude model id of one of the three allowed families: a bare
-// major ("claude-opus-6"), a major.minor ("claude-opus-5-5") or a dated
-// snapshot of either ("claude-opus-5-5-20260815"). Any other model (Fable,
-// Mythos, anything outside these three families) never matches, so it is
-// silently ignored rather than picked (docs/adr/0068).
-const MODEL_ID_PATTERN = /^claude-(haiku|sonnet|opus)-(\d+)(?:-(\d{1,2}))?(?:-(\d{8}))?$/;
-
+// Any model outside the three allowed families (Fable, Mythos...) never
+// matches `matchModelId`, so it is silently ignored rather than picked
+// (docs/adr/0068).
 function parseModelId(id: string, createdAt: Date): ParsedModelId | null {
-  const match = MODEL_ID_PATTERN.exec(id);
+  const match = matchModelId(id);
   if (!match) {
-    return null;
-  }
-  const [, family, majorRaw, minorRaw, dateRaw] = match;
-  if (family === undefined || majorRaw === undefined) {
     return null;
   }
   return {
     id,
-    family: family as ModelFamily,
-    major: Number.parseInt(majorRaw, 10),
-    minor: minorRaw === undefined ? 0 : Number.parseInt(minorRaw, 10),
-    dated: dateRaw !== undefined,
+    family: match.family,
+    major: match.major,
+    minor: match.minor,
+    dated: match.dated,
     createdAt,
   };
 }
