@@ -37,7 +37,7 @@ function ratio(numerator: number, denominator: number): DecimalString {
 // A session-date string ("2026-10-17") to a stable, timezone-immune `Date`
 // for `scaleTime`'s domain: midday UTC so this chart's ordering can never
 // shift a point to the adjacent calendar day the way midnight-UTC would near
-// the São Paulo/UTC boundary (the same reasoning `journal-entry.tsx`'s own
+// the São Paulo/UTC boundary (the same reasoning `lib/format/date-time.ts`'s
 // `formatSessionDate` documents for display).
 function sessionDateToChartDate(session: string): Date {
   return new Date(`${session}T12:00:00.000Z`);

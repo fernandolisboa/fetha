@@ -36,7 +36,7 @@ export default async function NewOperationPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 py-8">
+    <div className="flex flex-col gap-6 px-5 py-8">
       <PageHeader overline={t.builder.overline} headline={t.builder.title} />
       <OperationBuilderForm
         structures={structures}
