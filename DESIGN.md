@@ -11,7 +11,7 @@ numbers first: tabular figures everywhere, monospaced numerals, tight vertical r
 instead of shadows, one accent for actions and a separate, reserved color for risk. Hierarchy
 borrowed from good trading and analytics layouts; nothing copied. Not a fintech landing page.
 
-## Structure (one set of components; themes change tokens, never anatomy)
+## Structure (one set of components per layout; themes change tokens, never anatomy)
 
 - **App shell**: a CSS grid with named areas (header, nav, content). Header 48px: wordmark,
   command search (`Ctrl K`: instrument, option series or strategy; a series opens its own page,
@@ -53,9 +53,19 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   per-row "Registrar decisão" trigger inside a Dialog, the kind buttons and the horizon field
   both inside the form; an answered row shows the recorded kind and date instead of the trigger.
   Requesting an analysis is the header's primary action.
-- **Themes** are per-user (`data-theme` on `<html>`, chosen in Configurações), three at launch:
-  `instrumento` (default), `terminal`, `amplo`. A theme changes color, type, radius, elevation and
-  density; every component keeps its anatomy (ADR-0015).
+- **Themes** are per-user (`data-theme` on `<html>`, chosen in Configurações › Aparência): three
+  at launch, `instrumento` (default), `terminal`, `amplo`, and four carried over from the owner's
+  Bardo and Mascate apps (ADR-0069), `grafite`, `ouro-negro`, `fosforo` and `papel`, the one light
+  theme. A theme changes color, type, radius, elevation, density and `color-scheme`; every
+  component keeps its anatomy (ADR-0015).
+- **Layouts** are per-user too (`data-layout` on `<html>`, chosen in Aparência, ADR-0069). The
+  shell above is **Workspace** (default). **Studio**, from 768px up, puts the six destinations in
+  the header as tabs (icon and label from 1280px, icon only below, the active one boxed in
+  `--accent` on `--accent-soft`, Sinais' unread count as a pill), renders no rail, moves the market
+  bar into a 28px status bar fixed to the bottom (unread-signal count on the left, market bar on
+  the right; the page keeps a gutter its height) and sets the page's overline and headline on one
+  line, the headline at 18px. Under 768px both layouts are the same phone shell. A layout never
+  changes a page's content or width.
 
 ## Tokens
 
@@ -127,6 +137,43 @@ the same way Terminal and Amplo do today.
 monospace` · radius 8px · elevation none · density: body 14px, row 40px, panel padding 12px 14px ·
 `--chart-stroke --ink`.
 
+### Grafite
+
+Bardo's Graphite. `--bg #0f1113` · `--surface #16191c` · `--surface-2 #1e2226` · `--line #2a2f35` ·
+`--line-soft #202428` · `--ink #e7e9ec` · `--muted #a3aab3` · `--faint #8a929c` · `--accent #f2a33a`
+· `--accent-hover #f5b661` · `--accent-ink #1a1206` · `--accent-soft #2c2416` · `--up #4cc38a` ·
+`--down #f0716a` · `--warning #e5c454` · `--danger #f0716a` · greeks delta `#f2a33a`, gamma
+`#b688e6`, theta `#e5c454`, vega `#6cb2f5` · display and body `"Segoe UI", system-ui, sans-serif` ·
+mono `"IBM Plex Mono"` · radius 6px · density as Instrumento · `--chart-stroke --accent`.
+
+### Ouro Negro
+
+Bardo's Black Gold. `--bg #0d0d0d` · `--surface #121212` · `--surface-2 #1d1a12` · `--line #4a3d22`
+(gold-tinted hairlines) · `--line-soft #2b2618` · `--ink #e0dfdb` · `--muted #a89c84` · `--faint
+#8f846e` · `--accent #d4af37` · `--accent-hover #dfc05a` · `--accent-ink #0d0d0d` · `--accent-soft
+#282003` · `--up #a3c46b` · `--down #e06c6c` · `--warning #f59e0b` · `--danger #e06c6c` · greeks
+delta `#d4af37`, gamma `#b4a6d6`, theta `#f59e0b`, vega `#8db8d0` · display, body and mono
+`"JetBrains Mono"` · radius 0 · density as Terminal · `--chart-stroke --ink`.
+
+### Fósforo
+
+Bardo's Phosphor. `--bg #040a06` · `--surface #08110b` · `--surface-2 #0f2216` · `--line #1d4f30` ·
+`--line-soft #163220` · `--ink #cbf7d5` · `--muted #86dba0` · `--faint #62b57f` · `--accent #3df57a`
+· `--accent-hover #6cf89a` · `--accent-ink #02100a` · `--accent-soft #0b2c16` · `--up #5fe0d0`
+(teal: green is the action accent) · `--down #ff6b78` · `--warning #e8d35a` · `--danger #ff6b78` ·
+greeks delta `#3df57a`, gamma `#c59bf0`, theta `#e8d35a`, vega `#6cc8ff` · display, body and mono
+`"JetBrains Mono"` · radius 0 · density as Terminal · `--chart-stroke --ink`.
+
+### Papel (light)
+
+Bardo's Paper. `--bg #f2f2ef` · `--surface #ffffff` · `--surface-2 #ecece8` · `--line #dcdcd7` ·
+`--line-soft #e9e9e5` · `--ink #17181a` · `--muted #4a4e54` · `--faint #5f646b` · `--accent #9a5800`
+(Bardo's amber text color: the token also colors links and must keep 4.5:1) · `--accent-hover
+#7f4800` · `--accent-ink #ffffff` · `--accent-soft #fbead0` · `--up #1c7a3d` · `--down #bf2f28` ·
+`--warning #7f5b00` · `--danger #bf2f28` · greeks delta `#9a5800`, gamma `#7b4bb8`, theta
+`#7f5b00`, vega `#1f5fb0` · display and body `"Segoe UI", system-ui, sans-serif` · mono `"IBM Plex
+Mono"` · radius 6px · density as Instrumento · `--chart-stroke --accent` · `color-scheme: light`.
+
 ### Type scale (px, Instrumento values)
 
 11 overline (uppercase, 0.06em tracking) · 12 meta · 13 body and panel title · 15 inputs · 18 stat
@@ -172,7 +219,8 @@ shadcn/ui primitives (mandatory, restyled by tokens): Button, Input, Label, Sele
 (instrument and series search), Tabs, Dialog, DropdownMenu, Popover, Tooltip, Toast, Sheet, Table,
 Badge (chips), Progress, Skeleton, Switch, Form controls, Command (`Ctrl K` palette).
 
-Domain components (custom): AppShell (grid, rail, header), MarketBar, PageHeader, Panel,
+Domain components (custom): AppShell (grid, rail or top tabs, header, status bar), TopNav (Studio's
+header tabs), StatusBar (Studio's foot), MarketBar, PageHeader, Panel,
 StatBlock, LegsTable (side, quantity, instrument, type, strike, expiry, price, delta, IV),
 PayoffChart, GreeksPanel, ErrorNotice (the Error state over the shadcn Alert; field validation
 stays a plain inline message), RiskNotice (warning with the breached limit and the "record anyway"
@@ -182,7 +230,8 @@ instrument, evaluation time, late flag, proposal summary), StrategyEditor (close
 forms), BacktestReport (equity, drawdown, distribution, metrics table, walk-forward windows,
 declared limits), PositionsTable, JournalEntry (decision, thesis, horizon, score, and under it the
 AI analyses that informed it; an analysis with no decision is its own entry: subject, thesis,
-outlook with its horizon date, likelihood, outlook score), ThemePicker,
+outlook with its horizon date, likelihood, outlook score), ThemePicker and LayoutPicker (radio
+cards with a thumbnail of the shell in the option's own tokens or a wireframe of the layout),
 GuidedTour (a dim layer with a hairline `--accent` cutout around one element and a Popover step
 card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Próximo" or "Concluir"; ADR-0046).
 
@@ -224,6 +273,6 @@ card: progress, title, one or two short sentences, "Pular tour", "Voltar", "Pró
 ## Design gate
 
 Every UI ticket ships with: `npx impeccable detect` clean, `/impeccable critique` by `ui-critic`
-with no blocking findings in the default theme, and the token contrast test green for all three
-themes (4.5:1 text on `--bg` and `--surface`, 3:1 chart and semantic colors on `--bg`).
+with no blocking findings in the default theme, and the token contrast test green for every
+theme (4.5:1 text on `--bg` and `--surface`, 3:1 chart and semantic colors on `--bg`).
 `/impeccable audit` belongs to the owner.

@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "layout" text DEFAULT 'workspace' NOT NULL;

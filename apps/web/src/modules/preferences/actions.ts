@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb } from "@/db/client";
 import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 
+import { layoutSchema } from "./layout";
 import { PreferencesRepository } from "./preferences-repository";
 import { themeSchema } from "./theme";
 
@@ -20,6 +21,21 @@ export async function setThemeAction(formData: FormData): Promise<PreferencesAct
   await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), PreferencesRepository);
     await repository.setTheme(parsed.data);
+  });
+
+  revalidatePath("/", "layout");
+  return { status: "ok" };
+}
+
+export async function setLayoutAction(formData: FormData): Promise<PreferencesActionResult> {
+  const parsed = layoutSchema.safeParse(formData.get("layout"));
+  if (!parsed.success) {
+    return { status: "error" };
+  }
+
+  await withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), PreferencesRepository);
+    await repository.setLayout(parsed.data);
   });
 
   revalidatePath("/", "layout");

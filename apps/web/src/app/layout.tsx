@@ -20,10 +20,15 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await getSession();
-  const theme = user ? (await getPreferences()).theme : undefined;
+  const preferences = user ? await getPreferences() : undefined;
 
   return (
-    <html lang="pt-BR" data-theme={theme} className={`${themeFontVariables} h-full antialiased`}>
+    <html
+      lang="pt-BR"
+      data-theme={preferences?.theme}
+      data-layout={preferences?.layout}
+      className={`${themeFontVariables} h-full antialiased`}
+    >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

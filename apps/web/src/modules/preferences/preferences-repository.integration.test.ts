@@ -73,6 +73,7 @@ describe("PreferencesRepository isolation", () => {
     expect((await new PreferencesRepository(db, userA).find()).tourDismissed).toBe(true);
     expect(await new PreferencesRepository(db, userB).find()).toEqual({
       theme: "amplo",
+      layout: "workspace",
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
@@ -102,6 +103,7 @@ describe("PreferencesRepository isolation", () => {
     expect(second?.at).toEqual(first?.at);
     expect(await repository.find()).toEqual({
       theme: "terminal",
+      layout: "workspace",
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: false,
@@ -122,6 +124,7 @@ describe("PreferencesRepository isolation", () => {
     expect((await new PreferencesRepository(db, userA).find()).assetTourDismissed).toBe(true);
     expect(await new PreferencesRepository(db, userB).find()).toEqual({
       theme: "amplo",
+      layout: "workspace",
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
@@ -151,6 +154,7 @@ describe("PreferencesRepository isolation", () => {
     expect(second?.at).toEqual(first?.at);
     expect(await repository.find()).toEqual({
       theme: "instrumento",
+      layout: "workspace",
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: true,
@@ -167,6 +171,7 @@ describe("PreferencesRepository isolation", () => {
 
     expect(result).toEqual({
       theme: "instrumento",
+      layout: "workspace",
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
@@ -186,6 +191,7 @@ describe("PreferencesRepository isolation", () => {
     const result = await repository.find();
     expect(result).toEqual({
       theme: "amplo",
+      layout: "workspace",
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
@@ -204,6 +210,7 @@ describe("PreferencesRepository isolation", () => {
     const result = await repository.find();
     expect(result).toEqual({
       theme: "terminal",
+      layout: "workspace",
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
@@ -220,5 +227,57 @@ describe("PreferencesRepository isolation", () => {
 
     const result = await new PreferencesRepository(db, testUser).find();
     expect(result.theme).toBe("instrumento");
+  });
+
+  it("user A switching to the studio layout leaves user B on workspace", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("layout-a");
+    const emailB = uniqueEmail("layout-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await new PreferencesRepository(db, userB).setTheme("papel");
+
+    await new PreferencesRepository(db, userA).setLayout("studio");
+
+    expect((await new PreferencesRepository(db, userA).find()).layout).toBe("studio");
+    expect(await new PreferencesRepository(db, userB).find()).toEqual({
+      theme: "papel",
+      layout: "workspace",
+      railCollapsed: false,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
+  });
+
+  it("persists the layout independently of the theme and the rail", async () => {
+    const db = getDb();
+    const email = uniqueEmail("layout");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new PreferencesRepository(db, testUser);
+
+    await repository.setTheme("ouro-negro");
+    await repository.setRailCollapsed(true);
+    await repository.setLayout("studio");
+
+    expect(await repository.find()).toEqual({
+      theme: "ouro-negro",
+      layout: "studio",
+      railCollapsed: true,
+      tourDismissed: false,
+      assetTourDismissed: false,
+    });
+  });
+
+  it("falls back to the workspace layout when the stored value is out of the enum", async () => {
+    const db = getDb();
+    const email = uniqueEmail("layout-out-of-enum");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+
+    await db.insert(preferences).values({ userId: testUser.id, layout: "cockpit" });
+
+    expect((await new PreferencesRepository(db, testUser).find()).layout).toBe("workspace");
   });
 });
