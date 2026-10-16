@@ -67,7 +67,14 @@ export async function requestAnalysisAction(
       const client = createAnthropicAnalysisClient(resolution.apiKey);
 
       return requestAnalysis(
-        { db: getDb(), user, client, model: resolution.model, family: resolution.family },
+        {
+          db: getDb(),
+          user,
+          client,
+          model: resolution.model,
+          family: resolution.family,
+          listingKey: resolution.listingKey,
+        },
         { subjectKind: parsed.data.subjectKind, subjectId: parsed.data.subjectId },
       );
     });

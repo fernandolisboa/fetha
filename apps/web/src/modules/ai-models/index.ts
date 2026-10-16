@@ -12,6 +12,7 @@ export {
   resolveAnalysisModelForCurrentUser,
   type AnalysisModelResolution,
 } from "./resolve-analysis-model";
+export { withPinnedFallback } from "./pinned-fallback";
 export {
   setAnalysisModelFamilyAction,
   saveAnthropicApiKeyAction,

@@ -10,7 +10,15 @@ import { readBetterAuthSecret } from "./env";
 import { readAnthropicApiKey } from "./server-key";
 
 export type AnalysisModelResolution =
-  | { status: "ok"; apiKey: string; model: string; family: ModelFamily }
+  | {
+      status: "ok";
+      apiKey: string;
+      model: string;
+      family: ModelFamily;
+      // Which cached listing a bad resolution's retry should mark the id
+      // rejected on (#322 review A2/A3) — the same key `resolveModel` used.
+      listingKey: string | undefined;
+    }
   | { status: "unavailable" }
   | { status: "own_key_unreadable" };
 
@@ -78,5 +86,11 @@ export async function resolveAnalysisModelForCurrentUser(
     return policy;
   }
   const model = await defaultModelCatalog.resolveModel(policy.family, policy.listingKey);
-  return { status: "ok", apiKey: policy.apiKey, model, family: policy.family };
+  return {
+    status: "ok",
+    apiKey: policy.apiKey,
+    model,
+    family: policy.family,
+    listingKey: policy.listingKey,
+  };
 }
