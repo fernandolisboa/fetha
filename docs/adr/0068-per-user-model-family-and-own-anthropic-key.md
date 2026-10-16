@@ -43,16 +43,23 @@ be picked up without an app change.
    `BETTER_AUTH_SECRET` by HKDF-SHA256 with a fixed salt and info string (never the raw secret),
    AAD the user's id. Saving validates the key with a live, one-page Models API call first (401/403
    → rejected as invalid, anything else → rejected as unreachable); nothing is written on a
-   rejection. A decrypt failure (the secret rotated, a tampered row) reads as `unreadable`, treated
-   as no usable own key — never silently falls back without telling the user. The plaintext never
-   leaves a server action's own scope: no query or export returns more than
-   `{ configured, last4, updatedAt, readable }`.
+   rejection. A decrypt failure (the secret rotated, a tampered row) reads as `unreadable`; an
+   analysis request then answers its own `own_key_unreadable` outcome rather than silently billing
+   the server key, so the user is told to re-save or remove it instead of having it quietly ignored.
+   The invariant actually enforced: the plaintext is never returned to a page, a client component
+   or a data export — no query or export returns more than
+   `{ configured, last4, updatedAt, readable }` — and it is used only server-side, inside a server
+   action or server function, for an analysis request, the "test this key" button and resolving the
+   model listing.
 5. **Which key, which listing.** An analysis request bills the user's own key when it is stored
-   and reads back, else the server's key; `isAnalysisAvailable` is true under either. The model
-   listing itself prefers the server's key when one is configured, else the requesting user's own
-   key — so the shared catalog cache serves every user from one listing call instead of each own
-   key paying for its own. The nightly filing-label job keeps the server key only, as ADR-0065 set,
-   now resolving `filingLabelFamily` instead of a pinned id.
+   and still decrypts; a stored key that no longer decrypts answers `own_key_unreadable` instead of
+   falling back; with no own key at all it bills the server's key, or answers `unavailable` with
+   neither. `isAnalysisAvailable` is true whenever either key would bill. The model listing itself
+   prefers the server's key when one is configured, else the requesting user's own key (only
+   decrypted when there is no server key to list with) — so the shared catalog cache serves every
+   user from one listing call instead of each own key paying for its own. The nightly filing-label
+   job keeps the server key only, as ADR-0065 set, now resolving `filingLabelFamily` instead of a
+   pinned id.
 6. **One retry on the pinned id for a bad resolution.** A resolved id can go stale (a dated
    snapshot Anthropic later removes, a release withdrawn): `createAnthropicAnalysisClient` and
    `createAnthropicFilingLabelClient` retry once, on the family's own pinned id, on a 400 or 404
