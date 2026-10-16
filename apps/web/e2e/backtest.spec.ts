@@ -69,4 +69,26 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
   await expect
     .poll(() => equityChart.evaluate((svg) => svg.parentElement?.clientHeight ?? 0))
     .toBeGreaterThan(0);
+
+  // On a wide monitor the metrics sit beside the charts, and the y-axis labels fit inside the chart.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const totalReturn = page.getByText("Retorno total", { exact: true });
+  await expect
+    .poll(async () => {
+      const chartBox = await equityChart.boundingBox();
+      const metricBox = await totalReturn.boundingBox();
+      return (metricBox?.x ?? 0) > (chartBox?.x ?? 0) + (chartBox?.width ?? 0);
+    })
+    .toBe(true);
+  const chartLeft = (await equityChart.boundingBox())?.x ?? 0;
+  for (const label of await equityChart.locator(".visx-axis-left .visx-axis-tick text").all()) {
+    expect((await label.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(chartLeft);
+  }
+  const dateTicks = equityChart.locator(".visx-axis-bottom .visx-axis-tick text");
+  await expect(dateTicks.first()).toHaveText(/^\d{2}\/\d{2}\/\d{4}$/);
+  const chartBox = await equityChart.boundingBox();
+  const lastTickBox = await dateTicks.last().boundingBox();
+  expect((lastTickBox?.x ?? 0) + (lastTickBox?.width ?? 0)).toBeLessThanOrEqual(
+    (chartBox?.x ?? 0) + (chartBox?.width ?? 0),
+  );
 });

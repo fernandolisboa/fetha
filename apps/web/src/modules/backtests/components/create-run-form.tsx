@@ -109,25 +109,25 @@ export function CreateRunForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <Label>{t.create.universe}</Label>
-        <p className="text-muted-foreground text-xs">{t.create.universeHint}</p>
-        <div className="mt-2 flex flex-col gap-1">
-          {watchlistTickers.map((ticker) => (
-            <label key={ticker} className="flex items-center gap-2 font-mono text-sm">
-              <Checkbox
-                checked={universe.includes(ticker)}
-                onCheckedChange={() => {
-                  toggleTicker(ticker);
-                }}
-              />
-              {ticker}
-            </label>
-          ))}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] items-start gap-4">
+        <div>
+          <Label>{t.create.universe}</Label>
+          <p className="text-muted-foreground text-xs">{t.create.universeHint}</p>
+          <div className="mt-2 flex flex-col gap-1">
+            {watchlistTickers.map((ticker) => (
+              <label key={ticker} className="flex items-center gap-2 font-mono text-sm">
+                <Checkbox
+                  checked={universe.includes(ticker)}
+                  onCheckedChange={() => {
+                    toggleTicker(ticker);
+                  }}
+                />
+                {ticker}
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="backtest-from">{t.create.from}</Label>
           <Input
@@ -150,86 +150,86 @@ export function CreateRunForm({
             }}
           />
         </div>
-      </div>
 
-      <div>
-        <Label htmlFor="backtest-capital">{t.create.capital}</Label>
-        <Input
-          id="backtest-capital"
-          inputMode="decimal"
-          value={capital}
-          onChange={(event) => {
-            setCapital(event.target.value);
-          }}
-        />
-      </div>
+        <div>
+          <Label htmlFor="backtest-capital">{t.create.capital}</Label>
+          <Input
+            id="backtest-capital"
+            inputMode="decimal"
+            value={capital}
+            onChange={(event) => {
+              setCapital(event.target.value);
+            }}
+          />
+        </div>
 
-      <div>
-        <Label htmlFor="backtest-cost-model">{t.create.costModel}</Label>
-        <Select
-          value={costModel}
-          onValueChange={(next) => {
-            if (next && (costModelPresetIds as string[]).includes(next)) {
-              setCostModel(next);
-            }
-          }}
-        >
-          <SelectTrigger id="backtest-cost-model" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {costModelPresetIds.map((presetId) => (
-              <SelectItem key={presetId} value={presetId}>
-                {t.create.costModelPresets[presetId]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        <div>
+          <Label htmlFor="backtest-cost-model">{t.create.costModel}</Label>
+          <Select
+            value={costModel}
+            onValueChange={(next) => {
+              if (next && (costModelPresetIds as string[]).includes(next)) {
+                setCostModel(next);
+              }
+            }}
+          >
+            <SelectTrigger id="backtest-cost-model" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {costModelPresetIds.map((presetId) => (
+                <SelectItem key={presetId} value={presetId}>
+                  {t.create.costModelPresets[presetId]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div>
-        <Label htmlFor="backtest-limits">{t.create.limits}</Label>
-        <Select
-          value={limits}
-          onValueChange={(next) => {
-            if (next === "enforce" || next === "warn") {
-              setLimits(next);
-            }
-          }}
-        >
-          <SelectTrigger id="backtest-limits" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="warn">{t.create.limitsWarn}</SelectItem>
-            <SelectItem value="enforce">{t.create.limitsEnforce}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        <div>
+          <Label htmlFor="backtest-limits">{t.create.limits}</Label>
+          <Select
+            value={limits}
+            onValueChange={(next) => {
+              if (next === "enforce" || next === "warn") {
+                setLimits(next);
+              }
+            }}
+          >
+            <SelectTrigger id="backtest-limits" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="warn">{t.create.limitsWarn}</SelectItem>
+              <SelectItem value="enforce">{t.create.limitsEnforce}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div>
-        <Label htmlFor="backtest-walk-forward">{t.create.walkForward}</Label>
-        <p className="text-muted-foreground text-xs">{t.create.walkForwardHint}</p>
-        <Select
-          value={String(windowSessions)}
-          onValueChange={(next) => {
-            const option = walkForwardWindowOptions.find((value) => String(value) === next);
-            if (option !== undefined) {
-              setWindowSessions(option);
-            }
-          }}
-        >
-          <SelectTrigger id="backtest-walk-forward" className="mt-1 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {walkForwardWindowOptions.map((option) => (
-              <SelectItem key={option} value={String(option)}>
-                {t.create.walkForwardOptions[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div>
+          <Label htmlFor="backtest-walk-forward">{t.create.walkForward}</Label>
+          <p className="text-muted-foreground text-xs">{t.create.walkForwardHint}</p>
+          <Select
+            value={String(windowSessions)}
+            onValueChange={(next) => {
+              const option = walkForwardWindowOptions.find((value) => String(value) === next);
+              if (option !== undefined) {
+                setWindowSessions(option);
+              }
+            }}
+          >
+            <SelectTrigger id="backtest-walk-forward" className="mt-1 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {walkForwardWindowOptions.map((option) => (
+                <SelectItem key={option} value={String(option)}>
+                  {t.create.walkForwardOptions[option]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {error ? (
@@ -246,7 +246,7 @@ export function CreateRunForm({
         </ErrorNotice>
       ) : null}
 
-      <Button onClick={submit} disabled={pending}>
+      <Button onClick={submit} disabled={pending} className="self-start">
         {t.create.submit}
       </Button>
     </div>

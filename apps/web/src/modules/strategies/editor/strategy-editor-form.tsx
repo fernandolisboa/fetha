@@ -150,11 +150,11 @@ export function StrategyEditorForm({
 
   return (
     <FieldValidityProvider onAnyInvalidChange={setAnyFieldInvalid}>
-      <div className="flex flex-col gap-6">
+      <div className="@container flex flex-col gap-6">
         {error && <ErrorNotice className="text-sm">{error}</ErrorNotice>}
 
         <div className="flex flex-wrap gap-4">
-          <div className="flex flex-1 flex-col gap-1.5">
+          <div className="flex max-w-xl min-w-60 flex-1 flex-col gap-1.5">
             <Label htmlFor="strategy-name">{t.editor.name.label}</Label>
             <Input
               id="strategy-name"
@@ -188,25 +188,76 @@ export function StrategyEditorForm({
           </div>
         </div>
 
-        <Panel title={t.editor.entry.title} subtitle={t.editor.entry.subtitle}>
-          {entry.editable ? (
-            <>
-              {entry.conditions.map((condition, index) => (
-                <ConditionRow
+        <div className="grid items-start gap-[14px] @min-[72rem]:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-[14px]">
+            <Panel title={t.editor.entry.title} subtitle={t.editor.entry.subtitle}>
+              {entry.editable ? (
+                <>
+                  {entry.conditions.map((condition, index) => (
+                    <ConditionRow
+                      key={index}
+                      value={condition}
+                      removable={entry.conditions.length > 1}
+                      onChange={(next) => {
+                        setEntry({
+                          editable: true,
+                          conditions: entry.conditions.map((c, i) => (i === index ? next : c)),
+                        });
+                      }}
+                      onRemove={() => {
+                        setEntry({
+                          editable: true,
+                          conditions: entry.conditions.filter((_, i) => i !== index),
+                        });
+                      }}
+                    />
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-start"
+                    onClick={() => {
+                      setEntry({
+                        editable: true,
+                        conditions: [...entry.conditions, defaultCompareCondition],
+                      });
+                    }}
+                  >
+                    {t.editor.entry.addCondition}
+                  </Button>
+                </>
+              ) : (
+                <p className="text-muted-foreground text-sm">{t.editor.entry.readOnlyNotice}</p>
+              )}
+            </Panel>
+
+            <Panel title={t.editor.strikes.title} subtitle={t.editor.strikes.subtitle}>
+              <StrikeList strikes={strikes} onChange={setStrikes} />
+              {strikes.length > 0 && (
+                <div>
+                  <h3 className="text-[13px] font-medium">{t.editor.expiry.title}</h3>
+                  <ExpiryFields value={expiry} onChange={setExpiry} />
+                </div>
+              )}
+            </Panel>
+          </div>
+          <div className="flex min-w-0 flex-col gap-[14px]">
+            <Panel title={t.editor.sizing.title}>
+              <SizingFields value={sizing} onChange={setSizing} />
+            </Panel>
+
+            <Panel title={t.editor.exit.title}>
+              {exit.map((rule, index) => (
+                <ExitRuleRow
                   key={index}
-                  value={condition}
-                  removable={entry.conditions.length > 1}
+                  index={index}
+                  value={rule}
                   onChange={(next) => {
-                    setEntry({
-                      editable: true,
-                      conditions: entry.conditions.map((c, i) => (i === index ? next : c)),
-                    });
+                    setExit(exit.map((r, i) => (i === index ? next : r)));
                   }}
                   onRemove={() => {
-                    setEntry({
-                      editable: true,
-                      conditions: entry.conditions.filter((_, i) => i !== index),
-                    });
+                    setExit(exit.filter((_, i) => i !== index));
                   }}
                 />
               ))}
@@ -216,95 +267,49 @@ export function StrategyEditorForm({
                 size="sm"
                 className="self-start"
                 onClick={() => {
-                  setEntry({
-                    editable: true,
-                    conditions: [...entry.conditions, defaultCompareCondition],
-                  });
+                  setExit([...exit, { kind: "days_before_expiry", businessDays: 3 }]);
                 }}
               >
-                {t.editor.entry.addCondition}
+                {t.editor.exit.addRule}
               </Button>
-            </>
-          ) : (
-            <p className="text-muted-foreground text-sm">{t.editor.entry.readOnlyNotice}</p>
-          )}
-        </Panel>
+            </Panel>
 
-        <Panel title={t.editor.strikes.title} subtitle={t.editor.strikes.subtitle}>
-          <StrikeList strikes={strikes} onChange={setStrikes} />
-          {strikes.length > 0 && (
-            <div>
-              <h3 className="text-[13px] font-medium">{t.editor.expiry.title}</h3>
-              <ExpiryFields value={expiry} onChange={setExpiry} />
-            </div>
-          )}
-        </Panel>
-
-        <Panel title={t.editor.sizing.title}>
-          <SizingFields value={sizing} onChange={setSizing} />
-        </Panel>
-
-        <Panel title={t.editor.exit.title}>
-          {exit.map((rule, index) => (
-            <ExitRuleRow
-              key={index}
-              index={index}
-              value={rule}
-              onChange={(next) => {
-                setExit(exit.map((r, i) => (i === index ? next : r)));
-              }}
-              onRemove={() => {
-                setExit(exit.filter((_, i) => i !== index));
-              }}
-            />
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onClick={() => {
-              setExit([...exit, { kind: "days_before_expiry", businessDays: 3 }]);
-            }}
-          >
-            {t.editor.exit.addRule}
-          </Button>
-        </Panel>
-
-        <Panel title={t.editor.adjustments.title} subtitle={t.editor.adjustments.subtitle}>
-          {adjustments.map((adjustment, index) => (
-            <AdjustmentRow
-              key={index}
-              index={index}
-              value={adjustment}
-              onChange={(next) => {
-                setAdjustments(adjustments.map((a, i) => (i === index ? next : a)));
-              }}
-              onRemove={() => {
-                setAdjustments(adjustments.filter((_, i) => i !== index));
-              }}
-            />
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onClick={() => {
-              setAdjustments([
-                ...adjustments,
-                {
-                  kind: "roll",
-                  when: { kind: "days_before_expiry", businessDays: 3 },
-                  expiry: defaultExpiry,
-                  strikes: [newStrikeForAdjustment()],
-                },
-              ]);
-            }}
-          >
-            {t.editor.adjustments.addAdjustment}
-          </Button>
-        </Panel>
+            <Panel title={t.editor.adjustments.title} subtitle={t.editor.adjustments.subtitle}>
+              {adjustments.map((adjustment, index) => (
+                <AdjustmentRow
+                  key={index}
+                  index={index}
+                  value={adjustment}
+                  onChange={(next) => {
+                    setAdjustments(adjustments.map((a, i) => (i === index ? next : a)));
+                  }}
+                  onRemove={() => {
+                    setAdjustments(adjustments.filter((_, i) => i !== index));
+                  }}
+                />
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => {
+                  setAdjustments([
+                    ...adjustments,
+                    {
+                      kind: "roll",
+                      when: { kind: "days_before_expiry", businessDays: 3 },
+                      expiry: defaultExpiry,
+                      strikes: [newStrikeForAdjustment()],
+                    },
+                  ]);
+                }}
+              >
+                {t.editor.adjustments.addAdjustment}
+              </Button>
+            </Panel>
+          </div>
+        </div>
 
         <div className="flex gap-2">
           <Button type="button" onClick={submit} disabled={pending || anyFieldInvalid}>

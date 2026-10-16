@@ -23,6 +23,19 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   await page.goto("/estrategias");
   await page.getByRole("link", { name: "Nova estratégia" }).click();
 
+  // On a wide monitor the editor's panels sit in two columns instead of one long narrow stack.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const entryHeading = page.getByRole("heading", { level: 2, name: "Condições de entrada" });
+  const sizingHeading = page.getByRole("heading", { level: 2, name: "Dimensionamento" });
+  await expect
+    .poll(async () => {
+      const entryBox = await entryHeading.boundingBox();
+      const sizingBox = await sizingHeading.boundingBox();
+      return (sizingBox?.x ?? 0) > (entryBox?.x ?? 0) && sizingBox?.y === entryBox?.y;
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   await page.getByLabel("Nome").fill(strategyName);
 
   // The editor defaults "Estrutura" to the catalog's first structure by

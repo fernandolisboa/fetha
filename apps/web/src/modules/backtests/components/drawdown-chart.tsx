@@ -8,7 +8,10 @@ import { AreaClosed } from "@visx/shape";
 import { Decimal } from "decimal.js";
 import type { EquityPoint } from "@fetha/engine";
 
-const MARGIN = { top: 8, right: 16, bottom: 28, left: 64 };
+import { formatSessionDate } from "@/lib/format/date-time";
+
+// The right margin holds half a dd/mm/yyyy tick label, centered on the last session.
+const MARGIN = { top: 8, right: 40, bottom: 28, left: 64 };
 const HEIGHT = 120;
 
 // True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
@@ -66,6 +69,7 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
           numTicks={Math.min(6, points.length)}
+          tickFormat={formatSessionDate}
         />
       </Group>
     </svg>

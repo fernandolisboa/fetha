@@ -179,179 +179,197 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
   const generalNotes = generalNotesFor(run);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Panel title={t.report.equityCurve}>
-        <EquityCurveChart points={run.equityCurve} />
-        <NotesFor run={run} codes={equityDrawdownCodes} />
-      </Panel>
+    <div className="@container">
+      <div className="grid items-start gap-[14px] @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-[14px]">
+          <Panel title={t.report.equityCurve}>
+            <EquityCurveChart points={run.equityCurve} />
+            <NotesFor run={run} codes={equityDrawdownCodes} />
+          </Panel>
+          <div className="grid items-start gap-[14px] @min-[100rem]:grid-cols-2">
+            <Panel title={t.report.drawdown}>
+              <DrawdownChart points={run.equityCurve} />
+            </Panel>
+            <Panel title={t.report.distribution} subtitle={t.report.distributionBasis}>
+              <DistributionChart returns={returns} />
+            </Panel>
+          </div>
+          <WalkForwardTable run={run} />
 
-      <Panel title={t.report.drawdown}>
-        <DrawdownChart points={run.equityCurve} />
-      </Panel>
+          <Panel title={t.report.operationsTable.title}>
+            {run.operations.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t.report.operationsTable.empty}</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                    <th className="py-2 font-normal">
+                      {t.report.operationsTable.columns.underlying}
+                    </th>
+                    <th className="py-2 font-normal">
+                      {t.report.operationsTable.columns.openedAt}
+                    </th>
+                    <th className="py-2 font-normal">
+                      {t.report.operationsTable.columns.closedAt}
+                    </th>
+                    <th className="py-2 text-right font-normal">
+                      {t.report.operationsTable.columns.pnl}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.operations.map((operation) => (
+                    <tr key={operation.id} className="border-line-soft border-b">
+                      <td className="py-2 font-mono uppercase">{operation.underlying}</td>
+                      <td className="py-2 font-mono tabular-nums">
+                        {formatDate(sessionDateToDisplayDate(operation.openedAt))}
+                      </td>
+                      <td className="py-2 font-mono tabular-nums">
+                        {formatDate(sessionDateToDisplayDate(operation.closedAt))}
+                      </td>
+                      <td
+                        className={`py-2 text-right font-mono tabular-nums ${operation.pnl < 0 ? "text-down" : "text-up"}`}
+                      >
+                        {formatBRL(operation.pnl)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
 
-      <Panel title={t.report.distribution} subtitle={t.report.distributionBasis}>
-        <DistributionChart returns={returns} />
-      </Panel>
+          <Panel title={t.report.missedEntries.title}>
+            {run.missedEntries.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t.report.missedEntries.empty}</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                    <th className="py-2 font-normal">{t.report.missedEntries.columns.ticker}</th>
+                    <th className="py-2 font-normal">{t.report.missedEntries.columns.signalAt}</th>
+                    <th className="py-2 font-normal">{t.report.missedEntries.columns.reason}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.missedEntries.map((entry, index) => (
+                    <tr
+                      key={`${entry.ticker}-${String(index)}`}
+                      className="border-line-soft border-b"
+                    >
+                      <td className="py-2 font-mono uppercase">{entry.ticker}</td>
+                      <td className="py-2 font-mono tabular-nums">
+                        {formatDateTime(new Date(entry.signalAt))}
+                      </td>
+                      <td className="py-2">{missedEntryReasonLabel[entry.reason]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
 
-      <Panel>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Stat
-            label={t.report.metrics.sessions}
-            value={String(metrics.sessions)}
-            notes={<NotesFor run={run} codes={sessionsCodes} />}
-          />
-          <Stat label={t.report.metrics.operations} value={String(metrics.operations)} />
-          <Stat label={t.report.metrics.totalReturn} value={formatPercent(metrics.totalReturn)} />
-          <Stat
-            label={t.report.metrics.cagr}
-            value={metrics.cagr ? formatPercent(metrics.cagr) : "—"}
-            notes={<NotesFor run={run} codes={annualizedCodes} />}
-          />
-          <Stat label={t.report.metrics.maxDrawdown} value={formatPercent(metrics.maxDrawdown)} />
-          <Stat
-            label={t.report.metrics.sharpe}
-            value={metrics.sharpe ? formatDecimal(metrics.sharpe) : "—"}
-            notes={<NotesFor run={run} codes={annualizedCodes} />}
-          />
-          <Stat
-            label={t.report.metrics.winRate}
-            value={metrics.winRate ? formatPercent(metrics.winRate) : "—"}
-          />
-          <Stat
-            label={t.report.metrics.profitFactor}
-            value={metrics.profitFactor ? formatDecimal(metrics.profitFactor) : "—"}
-          />
-          <Stat label={t.report.metrics.exposure} value={formatPercent(metrics.exposure)} />
-          <Stat label={t.report.metrics.fees} value={formatBRL(metrics.fees)} />
-          <Stat label={t.report.metrics.taxes} value={formatBRL(metrics.taxes)} />
-          <Stat label={t.report.metrics.slippage} value={formatBRL(metrics.slippage)} />
+          <Panel title={t.report.limitBreaches.title}>
+            <DeclaredLimits riskProfile={run.config.riskProfile} mode={run.config.limits} />
+            <NotesFor run={run} codes={limitBreachCodes} />
+            {run.limitBreaches.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t.report.limitBreaches.empty}</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.session}</th>
+                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.ticker}</th>
+                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.limit}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.limitBreaches.map((breach, index) => (
+                    <tr
+                      key={`${breach.session}-${String(index)}`}
+                      className="border-line-soft border-b"
+                    >
+                      <td className="py-2 font-mono tabular-nums">
+                        {formatDate(sessionDateToDisplayDate(breach.session))}
+                      </td>
+                      <td className="py-2 font-mono uppercase">{breach.ticker}</td>
+                      <td className="text-warning py-2">{riskLimitLabel[breach.limit]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
         </div>
-      </Panel>
+        <div className="flex min-w-0 flex-col gap-[14px]">
+          <Panel className="@container">
+            <div className="grid grid-cols-2 gap-4 @min-[36rem]:grid-cols-4">
+              <Stat
+                label={t.report.metrics.sessions}
+                value={String(metrics.sessions)}
+                notes={<NotesFor run={run} codes={sessionsCodes} />}
+              />
+              <Stat label={t.report.metrics.operations} value={String(metrics.operations)} />
+              <Stat
+                label={t.report.metrics.totalReturn}
+                value={formatPercent(metrics.totalReturn)}
+              />
+              <Stat
+                label={t.report.metrics.cagr}
+                value={metrics.cagr ? formatPercent(metrics.cagr) : "—"}
+                notes={<NotesFor run={run} codes={annualizedCodes} />}
+              />
+              <Stat
+                label={t.report.metrics.maxDrawdown}
+                value={formatPercent(metrics.maxDrawdown)}
+              />
+              <Stat
+                label={t.report.metrics.sharpe}
+                value={metrics.sharpe ? formatDecimal(metrics.sharpe) : "—"}
+                notes={<NotesFor run={run} codes={annualizedCodes} />}
+              />
+              <Stat
+                label={t.report.metrics.winRate}
+                value={metrics.winRate ? formatPercent(metrics.winRate) : "—"}
+              />
+              <Stat
+                label={t.report.metrics.profitFactor}
+                value={metrics.profitFactor ? formatDecimal(metrics.profitFactor) : "—"}
+              />
+              <Stat label={t.report.metrics.exposure} value={formatPercent(metrics.exposure)} />
+              <Stat label={t.report.metrics.fees} value={formatBRL(metrics.fees)} />
+              <Stat label={t.report.metrics.taxes} value={formatBRL(metrics.taxes)} />
+              <Stat label={t.report.metrics.slippage} value={formatBRL(metrics.slippage)} />
+            </div>
+          </Panel>
+          {generalNotes.length > 0 ? (
+            <Panel title={t.report.notes}>
+              <ul className="text-muted-foreground flex flex-col gap-1 text-xs">
+                {generalNotes.map((note, index) => (
+                  <li key={`${note.code}-${String(index)}`}>{noteMessage(note.code)}</li>
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
 
-      <WalkForwardTable run={run} />
-
-      <Panel title={t.report.operationsTable.title}>
-        {run.operations.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t.report.operationsTable.empty}</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.report.operationsTable.columns.underlying}</th>
-                <th className="py-2 font-normal">{t.report.operationsTable.columns.openedAt}</th>
-                <th className="py-2 font-normal">{t.report.operationsTable.columns.closedAt}</th>
-                <th className="py-2 text-right font-normal">
-                  {t.report.operationsTable.columns.pnl}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.operations.map((operation) => (
-                <tr key={operation.id} className="border-line-soft border-b">
-                  <td className="py-2 font-mono uppercase">{operation.underlying}</td>
-                  <td className="py-2 font-mono tabular-nums">
-                    {formatDate(sessionDateToDisplayDate(operation.openedAt))}
-                  </td>
-                  <td className="py-2 font-mono tabular-nums">
-                    {formatDate(sessionDateToDisplayDate(operation.closedAt))}
-                  </td>
-                  <td
-                    className={`py-2 text-right font-mono tabular-nums ${operation.pnl < 0 ? "text-down" : "text-up"}`}
-                  >
-                    {formatBRL(operation.pnl)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
-
-      <Panel title={t.report.missedEntries.title}>
-        {run.missedEntries.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t.report.missedEntries.empty}</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.report.missedEntries.columns.ticker}</th>
-                <th className="py-2 font-normal">{t.report.missedEntries.columns.signalAt}</th>
-                <th className="py-2 font-normal">{t.report.missedEntries.columns.reason}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.missedEntries.map((entry, index) => (
-                <tr key={`${entry.ticker}-${String(index)}`} className="border-line-soft border-b">
-                  <td className="py-2 font-mono uppercase">{entry.ticker}</td>
-                  <td className="py-2 font-mono tabular-nums">
-                    {formatDateTime(new Date(entry.signalAt))}
-                  </td>
-                  <td className="py-2">{missedEntryReasonLabel[entry.reason]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
-
-      <Panel title={t.report.limitBreaches.title}>
-        <DeclaredLimits riskProfile={run.config.riskProfile} mode={run.config.limits} />
-        <NotesFor run={run} codes={limitBreachCodes} />
-        {run.limitBreaches.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t.report.limitBreaches.empty}</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.report.limitBreaches.columns.session}</th>
-                <th className="py-2 font-normal">{t.report.limitBreaches.columns.ticker}</th>
-                <th className="py-2 font-normal">{t.report.limitBreaches.columns.limit}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.limitBreaches.map((breach, index) => (
-                <tr
-                  key={`${breach.session}-${String(index)}`}
-                  className="border-line-soft border-b"
-                >
-                  <td className="py-2 font-mono tabular-nums">
-                    {formatDate(sessionDateToDisplayDate(breach.session))}
-                  </td>
-                  <td className="py-2 font-mono uppercase">{breach.ticker}</td>
-                  <td className="text-warning py-2">{riskLimitLabel[breach.limit]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
-
-      {generalNotes.length > 0 ? (
-        <Panel title={t.report.notes}>
-          <ul className="text-muted-foreground flex flex-col gap-1 text-xs">
-            {generalNotes.map((note, index) => (
-              <li key={`${note.code}-${String(index)}`}>{noteMessage(note.code)}</li>
-            ))}
-          </ul>
-        </Panel>
-      ) : null}
-
-      <Panel title={t.report.provenance.title}>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-          <span>
-            <span className="text-muted-foreground">{t.report.provenance.engineVersion}: </span>
-            <span className="font-mono">{run.provenance.engineVersion}</span>
-          </span>
-          <span>
-            <span className="text-muted-foreground">{t.report.provenance.dataVersion}: </span>
-            <span className="font-mono tabular-nums">
-              {run.provenance.dataVersion
-                ? formatDateTime(new Date(run.provenance.dataVersion))
-                : t.report.provenance.dataVersionUnknown}
-            </span>
-          </span>
+          <Panel title={t.report.provenance.title}>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+              <span>
+                <span className="text-muted-foreground">{t.report.provenance.engineVersion}: </span>
+                <span className="font-mono">{run.provenance.engineVersion}</span>
+              </span>
+              <span>
+                <span className="text-muted-foreground">{t.report.provenance.dataVersion}: </span>
+                <span className="font-mono tabular-nums">
+                  {run.provenance.dataVersion
+                    ? formatDateTime(new Date(run.provenance.dataVersion))
+                    : t.report.provenance.dataVersionUnknown}
+                </span>
+              </span>
+            </div>
+          </Panel>
         </div>
-      </Panel>
+      </div>
     </div>
   );
 }
