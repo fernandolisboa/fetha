@@ -11,7 +11,7 @@ import { formatDateTime } from "@/lib/format/date-time";
 
 import { t } from "../strings";
 
-import { analysisModelDisplayName } from "./analysis-model-name";
+import { modelDisplayName } from "@/modules/ai-models/client";
 
 export interface AnalysisPanelData {
   output: StoredAnalysisOutput;
@@ -147,7 +147,7 @@ export function AnalysisPanel({ analysis }: { analysis: AnalysisPanelData }) {
         {labels.metadata(
           formatDateTime(analysis.requestedAt),
           analysis.promptVersion,
-          analysisModelDisplayName(analysis.model),
+          modelDisplayName(analysis.model),
         )}
       </p>
 

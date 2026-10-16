@@ -9,6 +9,7 @@ describe("analysisErrorMessage", () => {
     "not_found",
     "not_ready",
     "unavailable",
+    "own_key_unreadable",
     "rate_limited",
     "rejected",
     "failed",

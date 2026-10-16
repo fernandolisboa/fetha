@@ -1,4 +1,7 @@
+import { filingLabelFamily } from "@fetha/prompts";
+
 import type { Database } from "@/db/client";
+import { defaultModelCatalog } from "@/modules/ai-models";
 
 import { createAnthropicFilingLabelClient, type FilingLabelClient } from "./filing-label-model";
 import { labelFilings, type LabelFilingsOutcome } from "./label-filings";
@@ -72,11 +75,18 @@ export async function runSentimentJob(
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
   const settings = readSentimentSettings();
+  const labelApiKey = settings.labelApiKey;
   const labelClient =
     options.labelClient !== undefined
       ? options.labelClient
-      : settings.labelApiKey
-        ? createAnthropicFilingLabelClient(settings.labelApiKey)
+      : labelApiKey
+        ? createAnthropicFilingLabelClient(
+            labelApiKey,
+            await defaultModelCatalog.resolveModel(filingLabelFamily, labelApiKey),
+            (modelId) => {
+              defaultModelCatalog.markRejected(labelApiKey, modelId);
+            },
+          )
         : null;
   const provider =
     options.provider !== undefined

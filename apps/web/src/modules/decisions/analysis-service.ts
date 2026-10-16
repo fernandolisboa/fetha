@@ -3,9 +3,10 @@ import {
   checkAnalysisVerdict,
   resolveAnalysisOutlook,
   type AnalysisOutlookHorizon,
+  type ModelFamily,
   type SessionDate,
 } from "@fetha/contracts";
-import { analysisModels, analysisPrompt } from "@fetha/prompts";
+import { analysisPrompt } from "@fetha/prompts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -42,6 +43,12 @@ export interface RequestAnalysisDeps {
   db: Database;
   user: ScopedUser;
   client: AnalysisModelClient | null;
+  // The id and family resolved by the caller (docs/adr/0068): the action
+  // layer is the one with the user's own key and model-family choice, so
+  // resolution happens there, not here.
+  model: string;
+  family: ModelFamily;
+  onRejected?: (modelId: string) => void;
   // Injected for the unit tests this file's own test suite runs (CLAUDE.md
   // /tdd): the live default goes through each owning module's real
   // user-scoped query (docs/adr/0057's own ownership check), the fake used
@@ -116,7 +123,7 @@ export async function requestAnalysis(
 
   const repository: AnalysisRepositoryPort =
     deps.repository ?? new AnalysesRepository(deps.db, deps.user);
-  const model = analysisModels[input.subjectKind];
+  const model = deps.model;
 
   let requestId: string;
   let requestedAt: Date;
@@ -139,8 +146,10 @@ export async function requestAnalysis(
 
   const reply = await deps.client.analyze({
     model,
+    family: deps.family,
     system: analysisPrompt.system,
     user: analysisPrompt.render(assembled.inputs),
+    onRejected: deps.onRejected,
   });
 
   if (reply.kind === "refusal") {

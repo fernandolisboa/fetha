@@ -133,3 +133,10 @@ justification, words never a number) for a suggestion, `null` for every other su
 presence or absence is `rejected` with reason kind `verdict`. Cap, citation check and storage are
 unchanged. The owner lifted the "not a recommendation" stance the same day; `analysis@1`'s system
 text keeps its wording because a released prompt version is frozen. See docs/adr/0067.
+
+## Amendment (2026-10-16, ADR-0068)
+
+"Model per subject" is now a family resolved to its newest release (`claude-opus-5-5`/
+`claude-sonnet-5-5` become the pinned floor, not the literal id sent), overridable per user per
+kind, billed to the user's own Anthropic key when one is stored and readable, else the server's.
+Caps, facts discipline and storage are unchanged. See docs/adr/0068.

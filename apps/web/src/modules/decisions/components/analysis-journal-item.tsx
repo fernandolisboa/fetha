@@ -9,7 +9,7 @@ import type { JournalAnalysis } from "../analyses-repository";
 import type { AnalysisScoreRow } from "../analysis-scores-repository";
 import { t } from "../strings";
 
-import { analysisModelDisplayName } from "./analysis-model-name";
+import { modelDisplayName } from "@/modules/ai-models/client";
 import { formatSessionDate, unscorableReasonLabel } from "./journal-entry";
 
 const labels = t.journal.analysis;
@@ -137,7 +137,7 @@ export function AnalysisJournalItem({
         ) : null}
         <ScoreLine analysis={analysis} score={score} />
         <span>
-          {analysis.promptVersion} · {analysisModelDisplayName(analysis.model)}
+          {analysis.promptVersion} · {modelDisplayName(analysis.model)}
         </span>
       </div>
     </div>

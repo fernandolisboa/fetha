@@ -11,8 +11,9 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
+import { resolveAnalysisModelForCurrentUser } from "@/modules/ai-models";
 
-import { createAnthropicAnalysisClient, readAnthropicApiKey } from "./analysis-model";
+import { createAnthropicAnalysisClient } from "./analysis-model";
 import { requestAnalysis, type AcceptedAnalysisView } from "./analysis-service";
 
 const requestInputSchema = z.strictObject({
@@ -31,6 +32,7 @@ export type RequestAnalysisActionResult =
         | "not_found"
         | "not_ready"
         | "unavailable"
+        | "own_key_unreadable"
         | "cap_reached"
         | "rate_limited"
         | "rejected"
@@ -55,11 +57,24 @@ export async function requestAnalysisAction(
       const user = await requireUser();
       await enforceAccountRateLimit(getDb(), user.email, "analyses/request", REQUEST_RATE_LIMIT);
 
-      const apiKey = readAnthropicApiKey();
-      const client = apiKey ? createAnthropicAnalysisClient(apiKey) : null;
+      const resolution = await resolveAnalysisModelForCurrentUser(parsed.data.subjectKind);
+      if (resolution.status === "unavailable") {
+        return { status: "unavailable" as const };
+      }
+      if (resolution.status === "own_key_unreadable") {
+        return { status: "own_key_unreadable" as const };
+      }
+      const client = createAnthropicAnalysisClient(resolution.apiKey);
 
       return requestAnalysis(
-        { db: getDb(), user, client },
+        {
+          db: getDb(),
+          user,
+          client,
+          model: resolution.model,
+          family: resolution.family,
+          onRejected: resolution.markRejected,
+        },
         { subjectKind: parsed.data.subjectKind, subjectId: parsed.data.subjectId },
       );
     });

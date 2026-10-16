@@ -210,3 +210,9 @@ updated nightly for the assets on a watchlist.
 - GDELT may answer rate limited from Vercel's egress as it does from this session's. The panel
   then says so and the company stays due. If it never succeeds from Vercel, the fallback is
   fewer companies per run, not another source.
+
+## Amendment (2026-10-16, ADR-0068)
+
+The filing-label job now resolves `claude-haiku-5-5`'s family to its newest release instead of
+sending that literal id, keeping the server key only; a 400/404 on the resolved id retries once on
+the pinned id before the filing is marked `bad_request`. See docs/adr/0068.

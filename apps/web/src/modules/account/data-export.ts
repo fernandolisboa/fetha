@@ -4,6 +4,7 @@ import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { AuditDataExport } from "@/modules/audit";
 import { AuthDataExport } from "@/modules/auth";
+import { AiSettingsDataExport } from "@/modules/ai-models";
 import { BacktestsDataExport } from "@/modules/backtests";
 import { DecisionsDataExport } from "@/modules/decisions";
 import { PortfolioDataExport } from "@/modules/portfolio";
@@ -21,6 +22,7 @@ type DataExportSource = new (
 const SOURCES: readonly DataExportSource[] = [
   AuthDataExport,
   AuditDataExport,
+  AiSettingsDataExport,
   PreferencesDataExport,
   WatchlistDataExport,
   StrategiesDataExport,

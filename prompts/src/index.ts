@@ -4,6 +4,7 @@ import {
   type FilingLabelInputs,
   type AnalysisInputs,
   type AnalysisSubjectKind,
+  type ModelFamily,
 } from "@fetha/contracts";
 
 import * as analysisV3 from "./analysis/v3";
@@ -24,17 +25,27 @@ export const analysisPrompt: AnalysisPrompt = {
   outputSchema: analysisOutputV3Schema,
 };
 
-export type AnalysisModel = "claude-opus-5-5" | "claude-sonnet-5-5";
+// The 5.5-generation id of each family: the floor `apps/web`'s model
+// resolver never returns anything older than, and what every call falls
+// back to when the Models API is unreachable or no key is configured
+// (docs/adr/0068).
+export const pinnedModels: Record<ModelFamily, string> = {
+  haiku: "claude-haiku-5-5",
+  sonnet: "claude-sonnet-5-5",
+  opus: "claude-opus-5-5",
+};
 
 // ADR-0009: Opus for thesis and counter-thesis on capital at stake and for
 // strategy critique, Sonnet for the routine daily report a signal is. A
-// suggestion puts capital at stake like an operation (docs/adr/0067).
-export const analysisModels: Record<AnalysisSubjectKind, AnalysisModel> = {
-  signal: "claude-sonnet-5-5",
-  contemplated_operation: "claude-opus-5-5",
-  held_operation: "claude-opus-5-5",
-  backtest_run: "claude-opus-5-5",
-  suggestion: "claude-opus-5-5",
+// suggestion puts capital at stake like an operation (docs/adr/0067). A
+// family rather than a pinned id, so a user who keeps the default picks up
+// a newer release automatically (docs/adr/0068).
+export const defaultAnalysisFamilies: Record<AnalysisSubjectKind, ModelFamily> = {
+  signal: "sonnet",
+  contemplated_operation: "opus",
+  held_operation: "opus",
+  backtest_run: "opus",
+  suggestion: "opus",
 };
 
 export interface FilingLabelPrompt {
@@ -49,6 +60,7 @@ export const filingLabelPrompt: FilingLabelPrompt = {
   outputSchema: filingLabelOutputSchema,
 };
 
-// docs/adr/0065: the cheapest current model; a label is a closed-list
-// classification and one plain sentence.
-export const filingLabelModel = "claude-haiku-5-5";
+// docs/adr/0065 / docs/adr/0068: the cheapest family; a label is a
+// closed-list classification and one plain sentence. Haiku has no
+// server-side fallback, so its client sends no `fallbacks`.
+export const filingLabelFamily: ModelFamily = "haiku";

@@ -1,3 +1,4 @@
+export * from "../modules/ai-models/schema";
 export * from "../modules/audit/schema";
 export * from "../modules/auth/schema";
 export * from "../modules/backtests/schema";

@@ -17,7 +17,6 @@ export {
   getMyJournalAnalyses,
   getMyLatestAnalyses,
   getMyTrackRecordStats,
-  isAnalysisAvailable,
 } from "./queries";
 export {
   defaultHorizonsForHeldOperations,

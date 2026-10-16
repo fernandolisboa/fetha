@@ -105,6 +105,28 @@ describe("account data export", () => {
     expect(document.tables.user).toEqual([expect.objectContaining({ id: userA.id })]);
   });
 
+  it("never exports the AI settings ciphertext, only configured/last4/updatedAt", async () => {
+    const { userA } = await twoSeededUsers("ai-settings");
+
+    const { text, document } = await readExport(userA);
+
+    expect(text).not.toContain("apiKeyCiphertext");
+    expect(text).not.toContain("v1:");
+    const [row] = document.tables.ai_settings ?? [];
+    expect(
+      typeof (row as { apiKey?: { updatedAt?: unknown } } | undefined)?.apiKey?.updatedAt,
+    ).toBe("string");
+    expect(row).toMatchObject({
+      modelFamilies: { signal: "haiku" },
+      apiKey: { configured: true, last4: "cdef" },
+    });
+    expect(Object.keys((row as { apiKey: object }).apiKey)).toEqual([
+      "configured",
+      "last4",
+      "updatedAt",
+    ]);
+  });
+
   it("never exports password hashes or session tokens", async () => {
     const { userA } = await twoSeededUsers("secrets");
 

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
+import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   allowedDecisionKinds,
   defaultHorizonsForHeldOperations,
@@ -20,7 +21,6 @@ import {
   getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
   getMyLatestAnalyses,
-  isAnalysisAvailable,
   t as decisionsT,
   type DecisionListItem,
 } from "@/modules/decisions";
@@ -55,7 +55,7 @@ export default async function PortfolioPage() {
       )
       .map(({ operation, heldExpiry }) => [operation.id, { ...operation, expiry: heldExpiry }]),
   );
-  const analysisAvailable = isAnalysisAvailable();
+  const analysisAvailable = await isAnalysisAvailable();
   const [
     decisionsByOperation,
     defaultHorizons,

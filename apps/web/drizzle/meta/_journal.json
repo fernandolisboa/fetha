@@ -302,6 +302,13 @@
       "when": 1791934338709,
       "tag": "0042_option_series_price_factor_settlement_style",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792151430150,
+      "tag": "0043_ai_settings",
+      "breakpoints": true
     }
   ]
 }

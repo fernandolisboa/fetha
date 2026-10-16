@@ -17,6 +17,8 @@ export function analysisErrorMessage(error: AnalysisErrorCode, cap: number): str
       return errors.not_ready;
     case "unavailable":
       return errors.unavailable;
+    case "own_key_unreadable":
+      return errors.own_key_unreadable;
     case "rate_limited":
       return errors.rate_limited;
     case "rejected":
