@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { analysisSubjectKindSchema } from "./analysis";
+
 // A model family, not a pinned id: picking one lets the resolver follow
 // Anthropic's own newest release of that family (docs/adr/0068) instead of
 // naming a version here that goes stale.
@@ -14,15 +16,11 @@ export const analysisModelFamilyChoices = ["default", ...modelFamilies] as const
 export const analysisModelFamilyChoiceSchema = z.enum(analysisModelFamilyChoices);
 export type AnalysisModelFamilyChoice = z.infer<typeof analysisModelFamilyChoiceSchema>;
 
-// Stored as a partial record: a kind absent here simply has no override.
-export const aiSettingsModelFamiliesSchema = z
-  .object({
-    signal: modelFamilySchema,
-    contemplated_operation: modelFamilySchema,
-    held_operation: modelFamilySchema,
-    backtest_run: modelFamilySchema,
-    suggestion: modelFamilySchema,
-  })
-  .partial()
-  .strict();
+// Stored as a partial record over every analysis subject kind: a kind
+// absent here simply has no override. Derived from
+// `analysisSubjectKindSchema` so a new subject kind needs no change here.
+export const aiSettingsModelFamiliesSchema = z.partialRecord(
+  analysisSubjectKindSchema,
+  modelFamilySchema,
+);
 export type AiSettingsModelFamilies = z.infer<typeof aiSettingsModelFamiliesSchema>;
