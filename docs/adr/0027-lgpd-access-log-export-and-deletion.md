@@ -91,6 +91,24 @@ no operator path rewrites decision data today.
 - An operator path that ever writes a user's decision data must log to `access_log`, adding an
   actor column then.
 
+## Addendum 2026-10-16: browsing the log
+
+The Conta panel listed the last 500 entries and grew the page with every "Ver mais". It now shows
+the 50 most recent entries, grouped as before, inside a fixed-height region that scrolls on its own,
+so the page never grows. "Ver registro completo" opens a dialog, the only place the whole log is
+browsed:
+
+- `AccessLogRepository.listPage` keyset-paginates on `(occurred_at desc, id desc)`, 200 rows per
+  page, so a page never shifts under a concurrent insert; `count` gives the running total and
+  `listOrigins` the distinct addresses (newest first, at most 100) for the origin filter.
+- `from`/`to` are São Paulo calendar days, inclusive, compared as
+  `occurred_at >= from::date::timestamp at time zone 'America/Sao_Paulo'` (and `< to + 1`), which
+  keeps the existing `(user_id, occurred_at)` index usable; no new index.
+- The dialog lists one row per access, not grouped: grouping identical consecutive accesses would
+  fold a filtered page from one device into a single row and hide what "Carregar mais" added.
+- `listMyAccessLogAction` and `listMyAccessOriginsAction` take the user from the session and share
+  one per-account rate limit (30 requests per 10 s).
+
 ## Addendum (2026-10-16): the rail's declared capital is not logged
 
 The rail foot shows the user's declared capital on every signed-in page (DESIGN.md). Its read,
