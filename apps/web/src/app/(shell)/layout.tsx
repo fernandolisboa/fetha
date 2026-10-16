@@ -12,6 +12,7 @@ import {
   type CandleRow,
 } from "@/modules/market-data";
 import { TourProvider } from "@/modules/help";
+import { getMyDeclaredCapital } from "@/modules/portfolio";
 import { getPreferences } from "@/modules/preferences";
 import { AppShell } from "@/modules/shell";
 import { getMyUnreadSignalCount, searchMyStrategiesAction } from "@/modules/strategies";
@@ -38,9 +39,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect("/aceitar-termos");
   }
 
-  const [preferences, unreadSignalCount, usdBrl, ibov] = await Promise.all([
+  const [preferences, unreadSignalCount, declaredCapital, usdBrl, ibov] = await Promise.all([
     getPreferences(),
     getMyUnreadSignalCount(),
+    getMyDeclaredCapital(),
     readLatestUsdBrl(),
     readLatestIbov(),
   ]);
@@ -51,6 +53,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
         user={user}
         preferences={preferences}
         unreadSignalCount={unreadSignalCount}
+        declaredCapital={declaredCapital}
         search={{
           instruments: searchInstrumentsAction,
           optionSeries: searchOptionSeriesAction,
