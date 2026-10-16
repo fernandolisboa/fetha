@@ -3,12 +3,12 @@ import { tickerSchema } from "@fetha/contracts";
 
 import { buttonVariants } from "@/components/ui/button";
 import { formatDate } from "@/lib/format/date-time";
+import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   allowedDecisionKinds,
   getMyAnalysisUsage,
   getMyDecisionsBySuggestionId,
   getMyLatestAnalyses,
-  isAnalysisAvailable,
   t as decisionsT,
 } from "@/modules/decisions";
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
@@ -64,7 +64,7 @@ export async function SuggestionList({
       })),
     ),
   ]);
-  const available = isAnalysisAvailable();
+  const available = await isAnalysisAvailable();
 
   return suggestions.map((suggestion, index) => {
     const decision = decisions.get(suggestion.id);

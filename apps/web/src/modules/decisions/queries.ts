@@ -16,7 +16,6 @@ import {
   type AnalysisScoreRow,
   type AnalysisTrackRecordStats,
 } from "./analysis-scores-repository";
-import { readAnthropicApiKey } from "./analysis-model";
 import {
   DecisionScoresRepository,
   type DecisionScoreRow,
@@ -127,10 +126,3 @@ export const getMyAnalysisUsage = cache(async (): Promise<AnalysisUsage> => {
   await recordAccess("decisions_read");
   return repository.usageThisMonth();
 });
-
-// Whether `ANTHROPIC_API_KEY` is configured at all (docs/adr/0057): the
-// screen shows the analysis feature as unavailable rather than offering an
-// action that would always answer `unavailable`.
-export function isAnalysisAvailable(): boolean {
-  return readAnthropicApiKey() !== undefined;
-}

@@ -1,10 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { analysisPrompt, type AnalysisModel } from "@fetha/prompts";
+import { analysisPrompt, pinnedModels } from "@fetha/prompts";
+import type { ModelFamily } from "@fetha/contracts";
 
 export interface AnalysisModelRequest {
-  model: AnalysisModel;
+  // The id the resolver picked (docs/adr/0068); may be newer than the
+  // family's pinned floor.
+  model: string;
+  family: ModelFamily;
   system: string;
   user: string;
 }
@@ -22,19 +26,6 @@ export interface AnalysisUsage {
 
 export interface AnalysisModelClient {
   analyze(request: AnalysisModelRequest): Promise<AnalysisModelReply>;
-}
-
-interface AnthropicEnv {
-  ANTHROPIC_API_KEY?: string;
-  [key: string]: string | undefined;
-}
-
-// Never logged, never returned: the only thing this function does with the
-// key is hand it to the SDK client (docs/adr/0057's own "never a raw
-// centavo or fraction" discipline extends to secrets too).
-export function readAnthropicApiKey(env: AnthropicEnv = process.env): string | undefined {
-  const raw = env.ANTHROPIC_API_KEY;
-  return raw === undefined || raw === "" ? undefined : raw;
 }
 
 const MAX_OUTPUT_TOKENS = 8000;
@@ -84,37 +75,84 @@ function parseJson(text: string): unknown {
   }
 }
 
+function apiErrorFrom(error: unknown): AnalysisModelReply {
+  if (error instanceof Anthropic.APIError) {
+    const status: unknown = error.status;
+    return { kind: "api_error", status: typeof status === "number" ? status : null };
+  }
+  throw error;
+}
+
 // The one real I/O boundary in this module (CLAUDE.md principle 7): the
 // decisions module depends on this interface, never on the SDK directly,
 // so the service's own tests use a fake instead of a live key.
 export function createAnthropicAnalysisClient(apiKey: string): AnalysisModelClient {
   const anthropic = new Anthropic({ apiKey });
-  return {
-    async analyze({ model, system, user }): Promise<AnalysisModelReply> {
-      try {
-        const message = await anthropic.beta.messages.create(
-          {
-            model,
-            max_tokens: MAX_OUTPUT_TOKENS,
-            system,
-            messages: [{ role: "user", content: user }],
-            thinking: { type: "adaptive" },
-            output_config: {
-              effort: "medium",
-              format: { type: outputFormat.type, schema: outputFormat.schema },
+
+  async function attempt(
+    model: string,
+    family: ModelFamily,
+    system: string,
+    user: string,
+  ): Promise<AnalysisModelReply> {
+    // Haiku 5.5 has no server-side fallback (docs/adr/0068): sending the
+    // beta and `fallbacks` for it would be rejected by the API.
+    const message =
+      family === "haiku"
+        ? await anthropic.beta.messages.create(
+            {
+              model,
+              max_tokens: MAX_OUTPUT_TOKENS,
+              system,
+              messages: [{ role: "user", content: user }],
+              thinking: { type: "adaptive" },
+              output_config: {
+                effort: "medium",
+                format: { type: outputFormat.type, schema: outputFormat.schema },
+              },
             },
-            betas: ["server-side-fallback-2026-07-01"],
-            fallbacks: "default",
-          },
-          { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
-        );
-        return replyFromMessage(message);
+            { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
+          )
+        : await anthropic.beta.messages.create(
+            {
+              model,
+              max_tokens: MAX_OUTPUT_TOKENS,
+              system,
+              messages: [{ role: "user", content: user }],
+              thinking: { type: "adaptive" },
+              output_config: {
+                effort: "medium",
+                format: { type: outputFormat.type, schema: outputFormat.schema },
+              },
+              betas: ["server-side-fallback-2026-07-01"],
+              fallbacks: "default",
+            },
+            { timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 },
+          );
+    return replyFromMessage(message);
+  }
+
+  return {
+    async analyze({ model, family, system, user }): Promise<AnalysisModelReply> {
+      try {
+        return await attempt(model, family, system, user);
       } catch (error) {
-        if (error instanceof Anthropic.APIError) {
-          const status: unknown = error.status;
-          return { kind: "api_error", status: typeof status === "number" ? status : null };
+        // The resolved model's id can be wrong (a release Anthropic later
+        // withdrew, a dated snapshot that expired): one retry on the
+        // family's own pinned floor instead of failing an analysis for a
+        // reason the user never caused (docs/adr/0068).
+        const pinnedId = pinnedModels[family];
+        const retryable =
+          model !== pinnedId &&
+          (error instanceof Anthropic.BadRequestError || error instanceof Anthropic.NotFoundError);
+        if (!retryable) {
+          return apiErrorFrom(error);
         }
-        throw error;
+        try {
+          return await attempt(pinnedId, family, system, user);
+        } catch (retryError) {
+          return apiErrorFrom(retryError);
+        }
       }
     },
   };

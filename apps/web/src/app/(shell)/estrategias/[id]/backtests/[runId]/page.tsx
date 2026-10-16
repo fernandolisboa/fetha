@@ -15,11 +15,11 @@ import {
 } from "@/modules/backtests";
 import { DiscardRunButton, RunBacktestButton } from "@/modules/backtests/client";
 import { ErrorNotice } from "@/components/error-notice";
+import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   AnalysisPanel,
   getMyAnalysisUsage,
   getMyLatestAnalyses,
-  isAnalysisAvailable,
   t as decisionsT,
 } from "@/modules/decisions";
 import { RequestAnalysisButton } from "@/modules/decisions/client";
@@ -56,7 +56,7 @@ export default async function BacktestReportPage({
     getMyAnalysisUsage(),
   ]);
   const latest = latestAnalyses.get(run.id) ?? null;
-  const analysisAvailable = isAnalysisAvailable();
+  const analysisAvailable = await isAnalysisAvailable();
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-5 py-8">

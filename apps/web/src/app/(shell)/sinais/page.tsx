@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 
 import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
+import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   allowedDecisionKinds,
   defaultHorizonsForSignals,
   getMyAnalysisUsage,
   getMyDecisionsBySignalId,
   getMyLatestAnalyses,
-  isAnalysisAvailable,
   t as decisionsT,
 } from "@/modules/decisions";
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
@@ -37,7 +37,7 @@ export default async function SignalsPage() {
 
   const signalIds = signals.map((signal) => signal.id);
   const anchors = reevaluationAnchors(evaluationLog);
-  const analysisAvailable = isAnalysisAvailable();
+  const analysisAvailable = await isAnalysisAvailable();
   const [decisionsBySignal, defaultHorizons, latestAnalyses, analysisUsage] = await Promise.all([
     getMyDecisionsBySignalId(signalIds),
     defaultHorizonsForSignals(getDb(), signals),

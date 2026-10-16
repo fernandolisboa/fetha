@@ -3,7 +3,7 @@ import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/mess
 import { analysisOutputSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
 
-import { readAnthropicApiKey, replyFromMessage } from "./analysis-model";
+import { replyFromMessage } from "./analysis-model";
 
 function message(
   stopReason: string,
@@ -19,20 +19,6 @@ function message(
     usage: { input_tokens: 1200, output_tokens: 300 },
   } as unknown as BetaMessage;
 }
-
-describe("readAnthropicApiKey", () => {
-  it("returns undefined when the key is missing", () => {
-    expect(readAnthropicApiKey({})).toBeUndefined();
-  });
-
-  it("returns undefined when the key is an empty string", () => {
-    expect(readAnthropicApiKey({ ANTHROPIC_API_KEY: "" })).toBeUndefined();
-  });
-
-  it("returns the key when present", () => {
-    expect(readAnthropicApiKey({ ANTHROPIC_API_KEY: "sk-test" })).toBe("sk-test");
-  });
-});
 
 describe("betaZodOutputFormat(analysisOutputSchema)", () => {
   it("builds without throwing", () => {

@@ -40,6 +40,8 @@ function baseDeps(overrides: Partial<RequestAnalysisDeps> = {}): RequestAnalysis
   return {
     db: {} as RequestAnalysisDeps["db"],
     user: { id: "user-1" },
+    model: "claude-sonnet-5-5",
+    family: "sonnet",
     client: fakeClient({
       kind: "refusal",
       model: "claude-sonnet-5-5",
