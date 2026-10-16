@@ -21,7 +21,6 @@ export async function declareRiskProfileAction(input: unknown): Promise<RiskProf
     await repository.declare(parsed.data);
   });
 
-  revalidatePath("/configuracoes", "layout");
-  revalidatePath("/carteira/nova-operacao");
+  revalidatePath("/", "layout");
   return { status: "ok" };
 }

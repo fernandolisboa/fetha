@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Centavos } from "@fetha/contracts";
 
 import type { CurrentUser } from "@/modules/auth";
 import type { Preferences } from "@/modules/preferences";
@@ -21,6 +22,7 @@ export function AppShell({
   user,
   preferences,
   unreadSignalCount,
+  declaredCapital,
   search,
   usdBrl,
   ibov,
@@ -29,6 +31,7 @@ export function AppShell({
   user: CurrentUser;
   preferences: Preferences;
   unreadSignalCount: number;
+  declaredCapital: Centavos | null;
   search: SearchSources;
   usdBrl: UsdBrlMarketBarQuote | null;
   ibov: IbovMarketBarQuote | null;
@@ -56,12 +59,18 @@ export function AppShell({
             <Rail
               initialCollapsed={preferences.railCollapsed}
               unreadSignalCount={unreadSignalCount}
+              declaredCapital={declaredCapital}
             />
           )}
           <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
         </div>
         {studio ? (
-          <StatusBar unreadSignalCount={unreadSignalCount} usdBrl={usdBrl} ibov={ibov} />
+          <StatusBar
+            unreadSignalCount={unreadSignalCount}
+            declaredCapital={declaredCapital}
+            usdBrl={usdBrl}
+            ibov={ibov}
+          />
         ) : null}
         <TabBar unreadSignalCount={unreadSignalCount} />
       </div>

@@ -4,20 +4,24 @@ import { startTransition, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { Centavos } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { setRailCollapsedAction } from "@/modules/preferences/client";
 
+import { DeclaredCapitalValue } from "./declared-capital";
 import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
 export function Rail({
   initialCollapsed,
   unreadSignalCount,
+  declaredCapital,
 }: {
   initialCollapsed: boolean;
   unreadSignalCount: number;
+  declaredCapital: Centavos | null;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const pathname = usePathname();
@@ -101,7 +105,7 @@ export function Rail({
         )}
       >
         <div>{t.rail.declaredCapital}</div>
-        <div className="font-mono">{t.rail.capitalNotDeclared}</div>
+        <DeclaredCapitalValue declaredCapital={declaredCapital} />
       </div>
     </nav>
   );
