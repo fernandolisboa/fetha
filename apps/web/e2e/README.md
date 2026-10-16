@@ -13,9 +13,12 @@ no e2e step.
 
 The shared `fetha-preview` project is no longer touched by this job: its own
 reset/migrate/seed-structures/seed-e2e-owner maintenance, for manual checks against Vercel
-previews, lives in the separate `preview-database-maintenance` job, whose database-touching steps
-are `continue-on-error: true` so a Neon quota outage there never fails the check this job's own
-name gates merges on.
+previews, lives in the separate `preview-database-maintenance` job, which is
+`continue-on-error: true` so a Neon quota outage there never fails the check this job's own name
+gates merges on.
+
+When a spec fails in CI, the run uploads a `playwright-report` artifact with the HTML report, the
+failing tests' traces (`test-results/`) and the server log (`next-start.log`).
 
 ## Setup project
 

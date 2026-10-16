@@ -71,15 +71,17 @@ jobs:
           npx --yes impeccable@4.1.0 detect $CHANGED
 
   # Keeps fetha-preview in step with the branch being built, for manual checks
-  # against Vercel previews only (docs/adr/0016). Every step below is
+  # against Vercel previews only (docs/adr/0016). The whole job is
   # continue-on-error: the free Neon project's 5 GB/month transfer quota can
   # run out mid-month (as it did on 2026-10-16), and this job must never block
   # a PR merge now that the e2e gate (job `preview-database`) no longer
-  # depends on it.
+  # depends on it. It still stops at its first failing step, so a migrate
+  # that fails after a reset does not run the seeds against a wiped database.
   preview-database-maintenance:
     needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    continue-on-error: true
     permissions:
       contents: read
     concurrency:
@@ -114,7 +116,6 @@ jobs:
 
       - name: Reset the shared preview database
         if: steps.preview-db.outputs.configured == 'true'
-        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -123,7 +124,6 @@ jobs:
 
       - name: Migrate the shared preview database
         if: steps.preview-db.outputs.configured == 'true'
-        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -132,7 +132,6 @@ jobs:
 
       - name: Seed the structure catalog
         if: steps.preview-db.outputs.configured == 'true'
-        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -143,7 +142,6 @@ jobs:
       # never creates an account (docs/adr/0042); the reset above dropped it.
       - name: Seed the e2e owner account
         if: steps.preview-db.outputs.configured == 'true'
-        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
           DATABASE_RESET_ALLOWED_HOST: ${{ vars.DATABASE_RESET_ALLOWED_HOST }}
@@ -249,14 +247,19 @@ jobs:
         run: pnpm --filter @fetha/web exec playwright install --with-deps chromium
 
       - name: Run the Playwright e2e suite
-        run: pnpm --filter @fetha/web test:e2e --reporter=list
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm --filter @fetha/web test:e2e --reporter=list,html
 
-      - name: Upload the Playwright report
+      - name: Upload the Playwright report and the server log
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
-          path: apps/web/playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/web/next-start.log
           retention-days: 7
 
   ci-images:

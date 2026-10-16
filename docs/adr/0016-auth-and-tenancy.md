@@ -405,7 +405,12 @@ deployment the value would need to match.
 
 The reset/migrate/seed-structures/seed-e2e-owner maintenance of the shared `fetha-preview` project
 moved to its own job, `preview-database-maintenance`, kept for Vercel preview deployments used for
-manual checks; each of its database-touching steps is `continue-on-error: true` so a quota outage
-there never fails the check the owner's merge process gates on. `scripts/wait-for-vercel-preview.mjs`
+manual checks; the job is `continue-on-error: true` so a quota outage there never fails the check
+the owner's merge process gates on, and it stops at its first failing step.
+
+Known gap: no PR check exercises the app as Vercel runs it any more. A failure that only shows on
+Vercel (an env var missing from the Vercel project, `VERCEL_ENV`-dependent branches, the
+serverless runtime, the `VERCEL_PROTECTION_BYPASS` path in `playwright.config.ts`) first shows in
+production, unless someone runs the suite by hand against a preview (`e2e/README.md`). `scripts/wait-for-vercel-preview.mjs`
 is no longer called from any workflow; it is left in place, unused, rather than removed, since
 nothing about this change needed its deletion.
