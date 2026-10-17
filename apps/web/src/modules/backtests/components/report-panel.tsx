@@ -200,42 +200,56 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
             {run.operations.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t.report.operationsTable.empty}</p>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                    <th className="py-2 font-normal">
-                      {t.report.operationsTable.columns.underlying}
-                    </th>
-                    <th className="py-2 font-normal">
-                      {t.report.operationsTable.columns.openedAt}
-                    </th>
-                    <th className="py-2 font-normal">
-                      {t.report.operationsTable.columns.closedAt}
-                    </th>
-                    <th className="py-2 text-right font-normal">
-                      {t.report.operationsTable.columns.pnl}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {run.operations.map((operation) => (
-                    <tr key={operation.id} className="border-line-soft border-b">
-                      <td className="py-2 font-mono uppercase">{operation.underlying}</td>
-                      <td className="py-2 font-mono tabular-nums">
-                        {formatDate(sessionDateToDisplayDate(operation.openedAt))}
-                      </td>
-                      <td className="py-2 font-mono tabular-nums">
-                        {formatDate(sessionDateToDisplayDate(operation.closedAt))}
-                      </td>
-                      <td
-                        className={`py-2 text-right font-mono tabular-nums ${operation.pnl < 0 ? "text-down" : "text-up"}`}
-                      >
-                        {formatBRL(operation.pnl)}
-                      </td>
+              <div className="@container/table">
+                <table
+                  className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3"
+                  data-stacked=""
+                >
+                  <thead>
+                    <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                      <th className="py-2 font-normal">
+                        {t.report.operationsTable.columns.underlying}
+                      </th>
+                      <th className="py-2 font-normal">
+                        {t.report.operationsTable.columns.openedAt}
+                      </th>
+                      <th className="py-2 font-normal">
+                        {t.report.operationsTable.columns.closedAt}
+                      </th>
+                      <th className="py-2 text-right font-normal">
+                        {t.report.operationsTable.columns.pnl}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {run.operations.map((operation) => (
+                      <tr key={operation.id} className="border-line-soft border-b">
+                        <td className="py-2 font-mono uppercase" data-stack="title">
+                          {operation.underlying}
+                        </td>
+                        <td
+                          className="py-2 font-mono tabular-nums"
+                          data-label={t.report.operationsTable.columns.openedAt}
+                        >
+                          {formatDate(sessionDateToDisplayDate(operation.openedAt))}
+                        </td>
+                        <td
+                          className="py-2 font-mono tabular-nums"
+                          data-label={t.report.operationsTable.columns.closedAt}
+                        >
+                          {formatDate(sessionDateToDisplayDate(operation.closedAt))}
+                        </td>
+                        <td
+                          data-label={t.report.operationsTable.columns.pnl}
+                          className={`py-2 text-right font-mono whitespace-nowrap tabular-nums ${operation.pnl < 0 ? "text-down" : "text-up"}`}
+                        >
+                          {formatBRL(operation.pnl)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Panel>
 
@@ -243,7 +257,7 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
             {run.missedEntries.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t.report.missedEntries.empty}</p>
             ) : (
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3">
                 <thead>
                   <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                     <th className="py-2 font-normal">{t.report.missedEntries.columns.ticker}</th>
@@ -275,29 +289,44 @@ export function ReportPanel({ run }: { run: BacktestRun }) {
             {run.limitBreaches.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t.report.limitBreaches.empty}</p>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.session}</th>
-                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.ticker}</th>
-                    <th className="py-2 font-normal">{t.report.limitBreaches.columns.limit}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {run.limitBreaches.map((breach, index) => (
-                    <tr
-                      key={`${breach.session}-${String(index)}`}
-                      className="border-line-soft border-b"
-                    >
-                      <td className="py-2 font-mono tabular-nums">
-                        {formatDate(sessionDateToDisplayDate(breach.session))}
-                      </td>
-                      <td className="py-2 font-mono uppercase">{breach.ticker}</td>
-                      <td className="text-warning py-2">{riskLimitLabel[breach.limit]}</td>
+              <div className="@container/table">
+                <table
+                  className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3"
+                  data-stacked=""
+                >
+                  <thead>
+                    <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                      <th className="py-2 font-normal">{t.report.limitBreaches.columns.session}</th>
+                      <th className="py-2 font-normal">{t.report.limitBreaches.columns.ticker}</th>
+                      <th className="py-2 font-normal">{t.report.limitBreaches.columns.limit}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {run.limitBreaches.map((breach, index) => (
+                      <tr
+                        key={`${breach.session}-${String(index)}`}
+                        className="border-line-soft border-b"
+                      >
+                        <td
+                          className="py-2 font-mono tabular-nums"
+                          data-label={t.report.limitBreaches.columns.session}
+                        >
+                          {formatDate(sessionDateToDisplayDate(breach.session))}
+                        </td>
+                        <td className="py-2 font-mono uppercase" data-stack="title">
+                          {breach.ticker}
+                        </td>
+                        <td
+                          className="text-warning py-2"
+                          data-label={t.report.limitBreaches.columns.limit}
+                        >
+                          {riskLimitLabel[breach.limit]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Panel>
         </div>

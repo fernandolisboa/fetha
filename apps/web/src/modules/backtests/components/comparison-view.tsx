@@ -82,7 +82,7 @@ function ComparisonTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3">
         <thead>
           <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
             <th scope="col" className="py-2 font-normal">
@@ -111,7 +111,12 @@ export function ComparisonView({ runs }: { runs: ComparedRun[] }) {
         `${displayDate(run.config.period.from)} – ${displayDate(run.config.period.to)}`,
     },
     { label: setup.universe, render: (run) => run.config.universe.join(", ") },
-    { label: setup.capital, render: (run) => formatBRL(run.config.initialCapital) },
+    {
+      label: setup.capital,
+      render: (run) => (
+        <span className="whitespace-nowrap">{formatBRL(run.config.initialCapital)}</span>
+      ),
+    },
     { label: setup.limits, render: (run) => limitModeLabel(run.config.limits) },
     {
       label: setup.walkForward,
@@ -164,7 +169,10 @@ export function ComparisonView({ runs }: { runs: ComparedRun[] }) {
                 {row.label}
               </th>
               {runs.map((run) => (
-                <td key={run.id} className="py-2 pl-4 text-right font-mono tabular-nums">
+                <td
+                  key={run.id}
+                  className="py-2 pl-4 text-right font-mono whitespace-nowrap tabular-nums"
+                >
                   {row.render(run.result.metrics)}
                 </td>
               ))}

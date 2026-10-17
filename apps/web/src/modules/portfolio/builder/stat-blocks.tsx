@@ -2,14 +2,32 @@ import type { Centavos, DecimalString } from "@fetha/contracts";
 
 import { formatBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
+import { cn } from "@/lib/utils";
 
 import { t } from "../strings";
 
-export function StatBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
+export function StatBlock({
+  label,
+  value,
+  sub,
+  className,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  className?: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="border-line-soft flex flex-col gap-1 border-t pt-3 first:border-t-0 first:pt-0">
+    <div
+      className={cn(
+        "border-line-soft flex flex-col gap-1 border-t pt-3 first:border-t-0 first:pt-0",
+        className,
+      )}
+    >
       <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</p>
-      <p className="font-mono text-[18px] tabular-nums">{value}</p>
+      <p className={cn("font-mono text-[18px] tabular-nums", valueClassName)}>{value}</p>
       {sub && <p className="text-muted-foreground text-[12px]">{sub}</p>}
     </div>
   );

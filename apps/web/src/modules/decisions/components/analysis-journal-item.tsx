@@ -104,7 +104,7 @@ export function AnalysisJournalItem({
   const sentence = outlookSentence(analysis);
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="outline">{labels.badge}</Badge>
           <span className="text-sm">{analysisOrigin(analysis)}</span>

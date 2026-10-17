@@ -105,6 +105,10 @@ export function RecordFillDialog({ today }: { today: string }) {
             <div className="flex flex-col gap-1">
               <Label>{labels.side}</Label>
               <Select
+                items={[
+                  { value: "buy", label: t.dashboard.fills.buy },
+                  { value: "sell", label: t.dashboard.fills.sell },
+                ]}
                 value={side}
                 onValueChange={(next) => {
                   if (next === "buy" || next === "sell") setSide(next);

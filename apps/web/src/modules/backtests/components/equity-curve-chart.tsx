@@ -8,6 +8,7 @@ import { AreaClosed, LinePath } from "@visx/shape";
 import type { Centavos } from "@fetha/contracts";
 import type { EquityPoint } from "@fetha/engine";
 
+import { DATE_TICK_SPACING, evenlySpaced, ticksThatFit } from "@/lib/chart-ticks";
 import { formatBRL } from "@/lib/format/brl";
 import { formatSessionDate } from "@/lib/format/date-time";
 
@@ -75,7 +76,10 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-          numTicks={Math.min(6, points.length)}
+          tickValues={evenlySpaced(
+            points.map((point) => point.session),
+            ticksThatFit(innerWidth, DATE_TICK_SPACING, 6),
+          )}
           tickFormat={formatSessionDate}
         />
       </Group>

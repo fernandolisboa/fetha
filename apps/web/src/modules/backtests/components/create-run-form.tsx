@@ -166,6 +166,10 @@ export function CreateRunForm({
         <div>
           <Label htmlFor="backtest-cost-model">{t.create.costModel}</Label>
           <Select
+            items={costModelPresetIds.map((presetId) => ({
+              value: presetId,
+              label: t.create.costModelPresets[presetId],
+            }))}
             value={costModel}
             onValueChange={(next) => {
               if (next && (costModelPresetIds as string[]).includes(next)) {
@@ -189,6 +193,10 @@ export function CreateRunForm({
         <div>
           <Label htmlFor="backtest-limits">{t.create.limits}</Label>
           <Select
+            items={[
+              { value: "warn", label: t.create.limitsWarn },
+              { value: "enforce", label: t.create.limitsEnforce },
+            ]}
             value={limits}
             onValueChange={(next) => {
               if (next === "enforce" || next === "warn") {
@@ -210,6 +218,10 @@ export function CreateRunForm({
           <Label htmlFor="backtest-walk-forward">{t.create.walkForward}</Label>
           <p className="text-muted-foreground text-xs">{t.create.walkForwardHint}</p>
           <Select
+            items={walkForwardWindowOptions.map((option) => ({
+              value: String(option),
+              label: t.create.walkForwardOptions[option],
+            }))}
             value={String(windowSessions)}
             onValueChange={(next) => {
               const option = walkForwardWindowOptions.find((value) => String(value) === next);

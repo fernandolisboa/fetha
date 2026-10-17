@@ -195,6 +195,10 @@ export function DecisionBar({
           <div className="flex flex-col gap-1">
             <Label>{t.claim.label}</Label>
             <Select
+              items={CLAIM_KINDS.map((candidate) => ({
+                value: candidate,
+                label: t.claim[candidate],
+              }))}
               value={claimKind}
               onValueChange={(next) => {
                 if (typeof next === "string") {

@@ -55,7 +55,7 @@ export function WalkForwardTable({ run }: { run: BacktestRun }) {
         <p className="text-muted-foreground text-sm">{t.walkForward.unavailable}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3">
             <thead>
               <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                 <th className="py-2 font-normal">{columns.window}</th>

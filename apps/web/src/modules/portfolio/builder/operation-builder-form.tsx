@@ -337,6 +337,7 @@ export function OperationBuilderForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="structure">{t.builder.structure}</Label>
           <Select
+            items={structures.map((candidate) => ({ value: candidate.id, label: candidate.name }))}
             value={structureId}
             onValueChange={(value) => {
               if (value) selectStructure(value);

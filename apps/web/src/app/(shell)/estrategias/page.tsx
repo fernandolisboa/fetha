@@ -53,7 +53,7 @@ export default async function StrategiesPage() {
         overline={t.list.overline}
         headline={t.list.title}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/estrategias/comparar" className={buttonVariants({ variant: "outline" })}>
               {backtestsStrings.compare.link}
             </Link>
@@ -69,7 +69,7 @@ export default async function StrategiesPage() {
           {active.length === 0 ? (
             <p className="text-muted-foreground text-sm">{backtestsStrings.inProgress.empty}</p>
           ) : (
-            <Table>
+            <Table stacked>
               <TableHeader>
                 <TableRow>
                   <TableHead>{backtestsStrings.inProgress.columns.strategy}</TableHead>
@@ -81,7 +81,7 @@ export default async function StrategiesPage() {
               <TableBody>
                 {active.map((run) => (
                   <TableRow key={run.id}>
-                    <TableCell>
+                    <TableCell data-stack="title">
                       <Link
                         href={`/estrategias/${run.strategyId}/backtests/${run.id}`}
                         className="underline-offset-4 hover:underline"
@@ -89,8 +89,15 @@ export default async function StrategiesPage() {
                         {run.strategyName}
                       </Link>
                     </TableCell>
-                    <TableCell className="font-mono tabular-nums">{run.period}</TableCell>
-                    <TableCell>{backtestsStrings.inProgress.statusLabels[run.status]}</TableCell>
+                    <TableCell
+                      data-label={backtestsStrings.inProgress.columns.period}
+                      className="font-mono tabular-nums"
+                    >
+                      {run.period}
+                    </TableCell>
+                    <TableCell data-label={backtestsStrings.inProgress.columns.status}>
+                      {backtestsStrings.inProgress.statusLabels[run.status]}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DiscardRunButton
                         runId={run.id}
@@ -111,7 +118,7 @@ export default async function StrategiesPage() {
         {mine.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.mine.empty}</p>
         ) : (
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.list.mine.columns.name}</TableHead>
@@ -124,7 +131,7 @@ export default async function StrategiesPage() {
             <TableBody>
               {mine.map((strategy) => (
                 <TableRow key={strategy.id}>
-                  <TableCell>
+                  <TableCell data-stack="title">
                     <Link
                       href={`/estrategias/${strategy.id}`}
                       className="underline-offset-4 hover:underline"
@@ -132,8 +139,13 @@ export default async function StrategiesPage() {
                       {strategy.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{t.list.visibility[strategy.visibility]}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
+                  <TableCell data-label={t.list.mine.columns.visibility}>
+                    {t.list.visibility[strategy.visibility]}
+                  </TableCell>
+                  <TableCell
+                    data-label={t.list.mine.columns.version}
+                    className="text-right font-mono tabular-nums"
+                  >
                     v{strategy.latestVersionNumber}
                   </TableCell>
                   <TableCell className="text-right">
@@ -157,7 +169,7 @@ export default async function StrategiesPage() {
         {archived.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.archived.empty}</p>
         ) : (
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.list.mine.columns.name}</TableHead>
@@ -168,7 +180,7 @@ export default async function StrategiesPage() {
             <TableBody>
               {archived.map((strategy) => (
                 <TableRow key={strategy.id}>
-                  <TableCell>
+                  <TableCell data-stack="title">
                     <Link
                       href={`/estrategias/${strategy.id}`}
                       className="underline-offset-4 hover:underline"
@@ -176,7 +188,10 @@ export default async function StrategiesPage() {
                       {strategy.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
+                  <TableCell
+                    data-label={t.list.mine.columns.version}
+                    className="text-right font-mono tabular-nums"
+                  >
                     v{strategy.latestVersionNumber}
                   </TableCell>
                   <TableCell className="text-right">
@@ -196,7 +211,7 @@ export default async function StrategiesPage() {
         {shared.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.list.shared.empty}</p>
         ) : (
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.list.mine.columns.name}</TableHead>
@@ -207,8 +222,11 @@ export default async function StrategiesPage() {
             <TableBody>
               {shared.map((strategy) => (
                 <TableRow key={strategy.id}>
-                  <TableCell>{strategy.name}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
+                  <TableCell data-stack="title">{strategy.name}</TableCell>
+                  <TableCell
+                    data-label={t.list.mine.columns.version}
+                    className="text-right font-mono tabular-nums"
+                  >
                     v{strategy.latestVersionNumber}
                   </TableCell>
                   <TableCell className="text-right">

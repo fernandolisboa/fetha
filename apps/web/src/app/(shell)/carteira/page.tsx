@@ -114,7 +114,7 @@ export default async function PortfolioPage() {
         headline={t.dashboard.title}
         actionsWrapperClassName="flex-wrap items-end gap-3"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
               {t.list.newOperation}
             </Link>
@@ -134,7 +134,7 @@ export default async function PortfolioPage() {
         {operations.length === 0 ? (
           <p className="text-muted-foreground text-[13px]">{t.list.empty}</p>
         ) : (
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.list.columns.underlying}</TableHead>
@@ -150,19 +150,27 @@ export default async function PortfolioPage() {
                 const decision = decisionsByOperation.get(operation.id) ?? null;
                 return (
                   <TableRow key={operation.id}>
-                    <TableCell className="font-mono uppercase">{operation.underlying}</TableCell>
-                    <TableCell className="font-mono tabular-nums">
+                    <TableCell data-stack="title" className="font-mono uppercase">
+                      {operation.underlying}
+                    </TableCell>
+                    <TableCell data-label={t.list.columns.date} className="font-mono tabular-nums">
                       {formatDate(operation.createdAt)}
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
+                    <TableCell
+                      data-label={t.list.columns.netPremium}
+                      className="text-right font-mono tabular-nums"
+                    >
                       {formatBRL(operation.netPremiumCentavos)}
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
+                    <TableCell
+                      data-label={t.list.columns.maxLoss}
+                      className="text-right font-mono tabular-nums"
+                    >
                       {operation.maxLossCentavos === null
                         ? "—"
                         : formatBRL(operation.maxLossCentavos)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label={t.list.columns.breach} className="text-right">
                       {operation.breachedLimits.length > 0 ? (
                         <span
                           className="font-mono text-[12px] tabular-nums"
@@ -174,8 +182,8 @@ export default async function PortfolioPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <span className="inline-flex items-center justify-end gap-2">
+                    <TableCell data-stack="full" className="text-right">
+                      <span className="inline-flex flex-wrap items-center justify-end gap-2">
                         <AnalysisDialog
                           subjectKind="contemplated_operation"
                           subjectId={operation.id}

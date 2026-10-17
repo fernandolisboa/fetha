@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 // from 768px up like the rest of the layout.
 const DEFAULT_HEADLINE_CLASS_NAME =
   "text-[22px] font-semibold tracking-tight md:studio:text-[18px] md:studio:leading-tight";
-const DEFAULT_ACTIONS_WRAPPER_CLASS_NAME = "flex items-center justify-between";
+const DEFAULT_ACTIONS_WRAPPER_CLASS_NAME = "flex flex-wrap items-center justify-between gap-3";
 
 export function PageHeader({
   overline,

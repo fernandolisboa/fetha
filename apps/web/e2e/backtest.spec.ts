@@ -99,9 +99,16 @@ test("run a backtest and open its report", async ({ page, baseURL, request }) =>
   }
   const dateTicks = equityChart.locator(".visx-axis-bottom .visx-axis-tick text");
   await expect(dateTicks.first()).toHaveText(/^\d{2}\/\d{2}\/\d{4}$/);
-  const chartBox = await equityChart.boundingBox();
-  const lastTickBox = await dateTicks.last().boundingBox();
-  expect((lastTickBox?.x ?? 0) + (lastTickBox?.width ?? 0)).toBeLessThanOrEqual(
-    (chartBox?.x ?? 0) + (chartBox?.width ?? 0),
-  );
+  // ParentSize re-measures on a debounce after the resize, so both boxes are read in one poll:
+  // reading them one after the other can catch the chart before and its ticks after.
+  await expect
+    .poll(async () => {
+      const chartBox = await equityChart.boundingBox();
+      const lastTickBox = await dateTicks.last().boundingBox();
+      return (
+        (lastTickBox?.x ?? 0) + (lastTickBox?.width ?? 0) <=
+        (chartBox?.x ?? 0) + (chartBox?.width ?? 0)
+      );
+    })
+    .toBe(true);
 });

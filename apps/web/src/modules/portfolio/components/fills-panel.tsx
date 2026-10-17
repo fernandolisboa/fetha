@@ -118,6 +118,10 @@ export function FillsPanel({
           {openOperations.length > 0 && (
             <>
               <Select
+                items={openOperations.map((operation) => ({
+                  value: operation.id,
+                  label: operation.label,
+                }))}
                 value={target}
                 onValueChange={(next) => {
                   if (typeof next === "string") setTarget(next);
@@ -154,7 +158,7 @@ export function FillsPanel({
           {error}
         </p>
       )}
-      <Table>
+      <Table stacked>
         <TableHeader>
           <TableRow>
             <TableHead className="w-8" />
@@ -174,7 +178,7 @@ export function FillsPanel({
             const assignable = fill.operationLabel === null;
             return (
               <TableRow key={fill.id}>
-                <TableCell>
+                <TableCell data-label={assignable ? labels.select : undefined}>
                   {assignable && (
                     <Checkbox
                       aria-label={`${labels.select} ${fill.ticker} ${fill.date}`}
@@ -185,24 +189,37 @@ export function FillsPanel({
                     />
                   )}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">{fill.date}</TableCell>
-                <TableCell style={{ color: fill.side === "buy" ? "var(--up)" : "var(--down)" }}>
+                <TableCell data-label={labels.date} className="font-mono tabular-nums">
+                  {fill.date}
+                </TableCell>
+                <TableCell
+                  data-label={labels.side}
+                  style={{ color: fill.side === "buy" ? "var(--up)" : "var(--down)" }}
+                >
                   {fill.side === "buy" ? labels.buy : labels.sell}
                 </TableCell>
-                <TableCell className="font-mono uppercase">{fill.ticker}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
+                <TableCell data-stack="title" className="font-mono uppercase">
+                  {fill.ticker}
+                </TableCell>
+                <TableCell
+                  data-label={labels.quantity}
+                  className="text-right font-mono tabular-nums"
+                >
                   {formatDecimal(String(fill.quantity) as DecimalString, 0)}
                 </TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
+                <TableCell data-label={labels.price} className="text-right font-mono tabular-nums">
                   {formatDecimal(fill.price)}
                 </TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
+                <TableCell data-label={labels.costs} className="text-right font-mono tabular-nums">
                   {fill.costsCentavos === 0 ? "—" : formatBRL(fill.costsCentavos as Centavos)}
                 </TableCell>
-                <TableCell className="text-muted-foreground text-[12px]">
+                <TableCell data-label={labels.source} className="text-muted-foreground text-[12px]">
                   {labels.sources[fill.source]}
                 </TableCell>
-                <TableCell className="font-mono text-[12px] uppercase">
+                <TableCell
+                  data-label={labels.operation}
+                  className="font-mono text-[12px] uppercase"
+                >
                   {fill.operationLabel ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell className="text-right">
