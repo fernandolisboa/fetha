@@ -391,6 +391,55 @@
   }
 }
 
+/* A stacked table (`<Table stacked>`) turns each row into a small card when its own width is
+   phone-sized: the header row hides, each cell shows its column name from `data-label`, and
+   `data-stack="title"` / `data-stack="full"` cells take the whole card width. */
+@container table (width < 36rem) {
+  table[data-stacked],
+  table[data-stacked] tbody {
+    display: block;
+  }
+  table[data-stacked] thead {
+    display: none;
+  }
+  table[data-stacked] tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 0;
+  }
+  table[data-stacked] td {
+    height: auto;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  table[data-stacked] td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  table[data-stacked] td[data-stack="title"],
+  table[data-stacked] td[data-stack="full"] {
+    grid-column: 1 / -1;
+  }
+  table[data-stacked] td[data-stack="title"] {
+    order: -1;
+    font-weight: 500;
+  }
+  table[data-stacked] td:not([data-label], [data-stack]) {
+    align-self: end;
+  }
+  table[data-stacked] td:empty {
+    display: none;
+  }
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }

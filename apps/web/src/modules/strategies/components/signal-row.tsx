@@ -60,12 +60,16 @@ export function SignalRow({
 }) {
   return (
     <tr className="border-line-soft border-b" data-signal-id={signal.id}>
-      <td className="py-2">{signal.strategyName}</td>
-      <td className="py-2 font-mono uppercase tabular-nums">{signal.ticker}</td>
+      <td className="py-2" data-label={t.inbox.columns.strategy} data-stack="full">
+        {signal.strategyName}
+      </td>
+      <td className="py-2 font-mono uppercase tabular-nums" data-stack="title">
+        {signal.ticker}
+      </td>
       <td className="py-2">
         <Badge variant="secondary">{t.inbox.kind[signal.kind]}</Badge>
       </td>
-      <td className="py-2 font-mono tabular-nums">
+      <td className="py-2 font-mono tabular-nums" data-label={t.inbox.columns.evaluatedAt}>
         {formatDateTime(signal.at)}
         {late && (
           <Badge variant="outline" className="ml-2 border-[var(--warning)] text-[var(--warning)]">
@@ -73,9 +77,15 @@ export function SignalRow({
           </Badge>
         )}
       </td>
-      <td className="text-muted-foreground py-2">{proposalSummary(signal)}</td>
-      <td className="py-2 text-right">
-        <span className="inline-flex items-center justify-end gap-2">
+      <td
+        className="text-muted-foreground py-2"
+        data-label={t.inbox.columns.proposal}
+        data-stack="full"
+      >
+        {proposalSummary(signal)}
+      </td>
+      <td className="py-2 text-right" data-stack="full">
+        <span className="inline-flex flex-wrap items-center justify-end gap-2">
           {analysisSlot}
           {decisionSlot}
         </span>

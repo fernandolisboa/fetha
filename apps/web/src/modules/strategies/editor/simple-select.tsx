@@ -33,6 +33,7 @@ export function SimpleSelect<T extends string>({
   const values = new Set<string>(options.map((option) => option.value));
   return (
     <Select
+      items={options}
       value={value}
       onValueChange={(next) => {
         if (typeof next === "string" && values.has(next)) {

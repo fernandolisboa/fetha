@@ -26,6 +26,11 @@ import { SettlementDialog, type SettlementLegView } from "./settlement-dialog";
 
 const labels = t.dashboard;
 
+// Stacked above the tables on a narrow screen, the stats sit side by side in a grid, where the
+// divider between consecutive blocks would cut across a row.
+const SUMMARY_STAT = "@max-[64rem]:border-t-0 @max-[64rem]:pt-0";
+const SUMMARY_VALUE = "@max-[40rem]:text-[15px]";
+
 function session(date: SessionDate): string {
   return formatDate(sessionDateToDisplayDate(date));
 }
@@ -55,7 +60,7 @@ function PriceCell({ row }: { row: PositionRow }) {
     return <span className="text-muted-foreground">{labels.positions.noPrice}</span>;
   }
   return (
-    <span className="flex flex-col items-end">
+    <span className="inline-flex flex-col items-end">
       <span>{formatDecimal(valuation.price)}</span>
       {valuation.stale && (
         <span className="text-[11px]" style={{ color: "var(--warning)" }}>
@@ -76,7 +81,7 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
     return <p className="text-muted-foreground text-[13px]">{labels.positions.empty}</p>;
   }
   return (
-    <Table>
+    <Table stacked>
       <TableHeader>
         <TableRow>
           <TableHead>{labels.positions.instrument}</TableHead>
@@ -94,7 +99,7 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
           const notice = corporateActionNotice(row.corporateActionNormalizationSkipped);
           return (
             <TableRow key={`${row.holding.ticker}-${row.holding.expiry ?? ""}`}>
-              <TableCell className="font-mono uppercase">
+              <TableCell data-stack="title" className="font-mono uppercase">
                 {row.holding.ticker}
                 {row.holding.expiry && (
                   <span className="text-muted-foreground ml-2 text-[11px] normal-case">
@@ -107,27 +112,41 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
                   </span>
                 )}
               </TableCell>
-              <TableCell className="text-muted-foreground text-[12px]">
+              <TableCell
+                data-label={labels.positions.type}
+                className="text-muted-foreground text-[12px]"
+              >
                 {instrumentType(row)}
               </TableCell>
               <TableCell
+                data-label={labels.positions.quantity}
                 className="text-right font-mono tabular-nums"
                 style={{ color: quantity > 0 ? "var(--up)" : "var(--down)" }}
               >
                 {formatDecimal(String(quantity) as DecimalString, 0)}
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={labels.positions.averageCost}
+                className="text-right font-mono tabular-nums"
+              >
                 {formatDecimal(row.holding.position.averageCost)}
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={labels.positions.price}
+                className="text-right font-mono tabular-nums"
+              >
                 <PriceCell row={row} />
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={labels.positions.value}
+                className="text-right font-mono tabular-nums"
+              >
                 {row.valuation?.value === null || row.valuation === null
                   ? "—"
                   : formatBRL(row.valuation.value)}
               </TableCell>
               <TableCell
+                data-label={labels.positions.unrealizedPnl}
                 className="text-right font-mono tabular-nums"
                 style={{ color: tone(row.valuation?.unrealizedPnl ?? null) }}
               >
@@ -241,7 +260,7 @@ function OperationsTable({
     return <p className="text-muted-foreground text-[13px]">{labels.operations.empty}</p>;
   }
   return (
-    <Table>
+    <Table stacked>
       <TableHeader>
         <TableRow>
           <TableHead>{labels.operations.underlying}</TableHead>
@@ -258,7 +277,7 @@ function OperationsTable({
           const notice = corporateActionNotice(state?.corporateActionNormalizationSkipped);
           return (
             <TableRow key={operation.id}>
-              <TableCell className="font-mono uppercase">
+              <TableCell data-stack="title" className="font-mono uppercase">
                 {operation.underlying}
                 {notice && (
                   <span className="text-muted-foreground mt-1 block max-w-[220px] font-sans text-[11px] whitespace-normal normal-case">
@@ -266,7 +285,7 @@ function OperationsTable({
                   </span>
                 )}
               </TableCell>
-              <TableCell className="text-[12px]">
+              <TableCell data-label={labels.operations.status} className="text-[12px]">
                 {pendingSettlement ? (
                   <span style={{ color: "var(--warning)" }}>
                     {labels.operations.pendingSettlement}
@@ -275,13 +294,17 @@ function OperationsTable({
                   labels.operations.statuses[operation.status]
                 )}
               </TableCell>
-              <TableCell className="font-mono tabular-nums">
+              <TableCell data-label={labels.operations.opened} className="font-mono tabular-nums">
                 {session(operation.openedAt)}
               </TableCell>
-              <TableCell className="font-mono tabular-nums">
+              <TableCell data-label={labels.operations.expiry} className="font-mono tabular-nums">
                 {operation.expiry ? session(operation.expiry) : "—"}
               </TableCell>
-              <TableCell className="font-mono text-[12px]">
+              <TableCell
+                data-label={labels.operations.legs}
+                data-stack="full"
+                className="font-mono text-[12px]"
+              >
                 {state && state.legs.length > 0
                   ? state.legs
                       .map(
@@ -292,14 +315,15 @@ function OperationsTable({
                   : "—"}
               </TableCell>
               <TableCell
+                data-label={labels.operations.unrealizedPnl}
                 className="text-right font-mono tabular-nums"
                 style={{ color: tone(valuation?.unrealizedPnl ?? null) }}
               >
                 {signedMoney(valuation?.unrealizedPnl ?? null)}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell data-stack="full" className="text-right">
                 {operation.status === "open" && !pendingSettlement && (
-                  <span className="inline-flex items-start justify-end gap-2">
+                  <span className="inline-flex flex-wrap items-start justify-end gap-2">
                     {analysisSlot?.(operation.id)}
                     {decisionSlot?.(operation.id)}
                     <UngroupButton operationId={operation.id} />
@@ -318,30 +342,45 @@ function Summary({ model }: { model: PortfolioReadModel }) {
   const valuation = model.valuation?.ok ? model.valuation.value : null;
   const totals = valuation?.totals;
   return (
-    <div className="flex flex-col gap-[14px]">
+    <div className="order-1 flex flex-col gap-[14px] @min-[64rem]:order-2">
       <Panel>
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 @min-[40rem]:grid-cols-3 @min-[64rem]:flex @min-[64rem]:flex-col">
           <StatBlock
+            className={SUMMARY_STAT}
+            valueClassName={SUMMARY_VALUE}
             label={labels.stats.equity}
             value={formatBRL(totals?.equity ?? (model.cash as Centavos))}
           />
           <StatBlock
+            className={SUMMARY_STAT}
+            valueClassName={SUMMARY_VALUE}
             label={labels.stats.cash}
             value={formatBRL(model.cash as Centavos)}
             sub={labels.stats.cashSub}
           />
           <StatBlock
+            className={SUMMARY_STAT}
+            valueClassName={SUMMARY_VALUE}
             label={labels.stats.unrealizedPnl}
             value={signedMoney(totals?.unrealizedPnl ?? null)}
           />
           {model.greeks && (
             <>
-              <StatBlock label={labels.stats.delta} value={formatDecimal(model.greeks.delta, 0)} />
               <StatBlock
+                className={SUMMARY_STAT}
+                valueClassName={SUMMARY_VALUE}
+                label={labels.stats.delta}
+                value={formatDecimal(model.greeks.delta, 0)}
+              />
+              <StatBlock
+                className={SUMMARY_STAT}
+                valueClassName={SUMMARY_VALUE}
                 label={labels.stats.theta}
                 value={`${formatPriceBRL(model.greeks.theta)} ${t.builder.greeksPanel.thetaUnit}`}
               />
               <StatBlock
+                className={SUMMARY_STAT}
+                valueClassName={SUMMARY_VALUE}
                 label={labels.stats.vega}
                 value={`${formatPriceBRL(model.greeks.vega)} ${t.builder.greeksPanel.vegaUnit}`}
               />
@@ -402,28 +441,34 @@ export function PortfolioDashboard({
     }));
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
-      <div className="flex min-w-0 flex-col gap-[14px]">
-        <PendingSettlements model={model} />
-        <Panel title={labels.positions.title}>
-          <PositionsTable rows={model.positions} />
-          {model.unknownSeries.length > 0 && (
-            <p className="text-muted-foreground text-[12px]">
-              <span className="font-mono uppercase">
-                {model.unknownSeries.map((holding) => holding.ticker).join(", ")}
-              </span>
-              : {labels.positions.unknownSeries}
-            </p>
-          )}
-        </Panel>
-        <Panel title={labels.operations.title}>
-          <OperationsTable model={model} decisionSlot={decisionSlot} analysisSlot={analysisSlot} />
-        </Panel>
-        <Panel title={labels.fills.title}>
-          <FillsPanel fills={fills} openOperations={openOperations} />
-        </Panel>
+    <div className="@container">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-[14px] @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="order-2 flex min-w-0 flex-col gap-[14px] @min-[64rem]:order-1">
+          <PendingSettlements model={model} />
+          <Panel title={labels.positions.title}>
+            <PositionsTable rows={model.positions} />
+            {model.unknownSeries.length > 0 && (
+              <p className="text-muted-foreground text-[12px]">
+                <span className="font-mono uppercase">
+                  {model.unknownSeries.map((holding) => holding.ticker).join(", ")}
+                </span>
+                : {labels.positions.unknownSeries}
+              </p>
+            )}
+          </Panel>
+          <Panel title={labels.operations.title}>
+            <OperationsTable
+              model={model}
+              decisionSlot={decisionSlot}
+              analysisSlot={analysisSlot}
+            />
+          </Panel>
+          <Panel title={labels.fills.title}>
+            <FillsPanel fills={fills} openOperations={openOperations} />
+          </Panel>
+        </div>
+        <Summary model={model} />
       </div>
-      <Summary model={model} />
     </div>
   );
 }

@@ -8,16 +8,29 @@ import { AreaClosed } from "@visx/shape";
 import { Decimal } from "decimal.js";
 import type { EquityPoint } from "@fetha/engine";
 
+import { DATE_TICK_SPACING, evenlySpaced, ticksThatFit } from "@/lib/chart-ticks";
 import { formatSessionDate } from "@/lib/format/date-time";
 
 // The right margin holds half a dd/mm/yyyy tick label, centered on the last session.
 const MARGIN = { top: 8, right: 40, bottom: 28, left: 64 };
 const HEIGHT = 120;
 
-// True minus (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus
+const Y_TICKS = 3;
+
+// True minus and decimal comma (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus and point
 // `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
-function percentTick(value: number): string {
-  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(0)}%`;
+export function percentTick(value: number, decimals: number): string {
+  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(decimals).replace(".", ",")}%`;
+}
+
+// A run whose deepest drawdown is a couple of percent gets ticks half a point apart: whole
+// percents would print the same label twice.
+export function percentTickDecimals(ticks: number[]): number {
+  const [first, second] = ticks;
+  if (first === undefined || second === undefined) return 0;
+  const stepPercent = Math.abs(second - first) * 100;
+  if (stepPercent >= 1) return 0;
+  return Math.min(2, Math.ceil(-Math.log10(stepPercent)));
 }
 
 // EquityPoint.drawdown is a non-negative fraction (magnitude of the drop
@@ -43,6 +56,8 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
     nice: true,
   });
 
+  const decimals = percentTickDecimals(yScale.ticks(Y_TICKS));
+
   return (
     <svg width={width} height={HEIGHT} role="img" aria-label="Drawdown">
       <Group left={MARGIN.left} top={MARGIN.top}>
@@ -59,8 +74,8 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-          tickFormat={(value) => percentTick(-Number(value) * 100)}
-          numTicks={3}
+          tickFormat={(value) => percentTick(-Number(value) * 100, decimals)}
+          numTicks={Y_TICKS}
         />
         <AxisBottom
           top={innerHeight}
@@ -68,7 +83,10 @@ function Chart({ width, points }: { width: number; points: EquityPoint[] }) {
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickLabelProps={{ fill: "var(--muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-          numTicks={Math.min(6, points.length)}
+          tickValues={evenlySpaced(
+            points.map((point) => point.session),
+            ticksThatFit(innerWidth, DATE_TICK_SPACING, 6),
+          )}
           tickFormat={formatSessionDate}
         />
       </Group>

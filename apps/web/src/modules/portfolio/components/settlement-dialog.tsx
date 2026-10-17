@@ -190,6 +190,10 @@ export function SettlementDialog({
                 ) : (
                   <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] items-end gap-2">
                     <Select
+                      items={[
+                        { value: allowed, label: labels.outcomes[allowed] },
+                        { value: "expired_worthless", label: labels.outcomes.expired_worthless },
+                      ]}
                       value={choice.outcome}
                       onValueChange={(next) => {
                         if (next === allowed || next === "expired_worthless") {

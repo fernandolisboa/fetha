@@ -68,7 +68,7 @@ export function LegsTable({
 }) {
   const expiry = lockedExpiry(legs, chain);
   return (
-    <Table>
+    <Table stacked>
       <TableHeader>
         <TableRow>
           <TableHead>{t.builder.legsTable.side}</TableHead>
@@ -97,13 +97,20 @@ export function LegsTable({
           return (
             <TableRow key={index}>
               <TableCell
+                data-stack="title"
                 className="font-medium"
                 style={{ color: template.side === "buy" ? "var(--up)" : "var(--down)" }}
               >
                 {template.side === "buy" ? t.builder.legsTable.buy : t.builder.legsTable.sell}
               </TableCell>
-              <TableCell>{roleLabel(template.role)}</TableCell>
-              <TableCell className="font-mono uppercase">
+              <TableCell data-label={t.builder.legsTable.type}>
+                {roleLabel(template.role)}
+              </TableCell>
+              <TableCell
+                data-label={t.builder.legsTable.instrument}
+                data-stack="full"
+                className="font-mono uppercase"
+              >
                 {isStock ? (
                   underlying
                 ) : (
@@ -144,13 +151,16 @@ export function LegsTable({
                   </Select>
                 )}
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={t.builder.legsTable.strike}
+                className="text-right font-mono tabular-nums"
+              >
                 {selected ? formatDecimal(decimalStringSchema.parse(selected.strike)) : "—"}
               </TableCell>
-              <TableCell className="font-mono tabular-nums">
+              <TableCell data-label={t.builder.legsTable.expiry} className="font-mono tabular-nums">
                 {selected ? formatSessionDate(selected.expiry) : "—"}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell data-label={t.builder.legsTable.quantity} className="text-right">
                 <Input
                   aria-label={`${t.builder.legsTable.quantity} ${String(index + 1)}`}
                   inputMode="numeric"
@@ -164,7 +174,10 @@ export function LegsTable({
                   }}
                 />
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={t.builder.legsTable.price}
+                className="text-right font-mono tabular-nums"
+              >
                 {valuation?.price ? formatDecimal(valuation.price) : "—"}
                 {valuation?.stale ? (
                   <span className="ml-1 text-[10px]" style={{ color: "var(--warning)" }}>
@@ -172,10 +185,16 @@ export function LegsTable({
                   </span>
                 ) : null}
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={t.builder.legsTable.delta}
+                className="text-right font-mono tabular-nums"
+              >
                 {valuation?.greeks ? formatDecimal(valuation.greeks.delta, 4) : "—"}
               </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              <TableCell
+                data-label={t.builder.legsTable.iv}
+                className="text-right font-mono tabular-nums"
+              >
                 {valuation?.impliedVolatility ? formatPercent(valuation.impliedVolatility) : "—"}
               </TableCell>
             </TableRow>

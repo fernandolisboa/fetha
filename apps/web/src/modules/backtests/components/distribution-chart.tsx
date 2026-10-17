@@ -6,11 +6,16 @@ import { ParentSize } from "@visx/responsive";
 import { scaleBand, scaleLinear } from "@visx/scale";
 import { Bar } from "@visx/shape";
 
+import { evenlySpaced, ticksThatFit } from "@/lib/chart-ticks";
+
 import { t } from "../strings";
 
 const MARGIN = { top: 8, right: 16, bottom: 28, left: 40 };
 const HEIGHT = 180;
 const BIN_COUNT = 10;
+// Bin labels are 10px mono, 0.6em a glyph, kept a few pixels apart.
+const BIN_LABEL_CHAR_WIDTH = 6;
+const BIN_LABEL_GAP = 10;
 
 interface Bin {
   id: string;
@@ -107,6 +112,12 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
     nice: true,
   });
   const labelById = new Map(bins.map((bin) => [bin.id, bin.label]));
+  const labelSpacing =
+    Math.max(...bins.map((bin) => bin.label.length)) * BIN_LABEL_CHAR_WIDTH + BIN_LABEL_GAP;
+  const labelledBins = evenlySpaced(
+    bins.map((bin) => bin.id),
+    ticksThatFit(innerWidth, labelSpacing, BIN_COUNT),
+  );
 
   return (
     <svg width={width} height={HEIGHT} role="img" aria-label="Distribuição de retornos">
@@ -134,6 +145,7 @@ function Chart({ width, returns }: { width: number; returns: number[] }) {
           scale={xScale}
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
+          tickValues={labelledBins}
           tickFormat={(id) => labelById.get(id) ?? id}
           tickLabelProps={{ fill: "var(--muted)", fontSize: 10, fontFamily: "var(--font-mono)" }}
         />

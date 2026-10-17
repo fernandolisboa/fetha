@@ -121,7 +121,7 @@ export function JournalEntry({
 }) {
   return (
     <li className="border-line-soft flex flex-col gap-2 border-b py-4 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{t.kind[decision.kind]}</Badge>
           <span className="text-sm">{origin(decision)}</span>

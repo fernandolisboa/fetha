@@ -8,6 +8,7 @@ import { scaleLinear, scaleUtc } from "@visx/scale";
 import { Line, LinePath } from "@visx/shape";
 import type { DecimalString } from "@fetha/contracts";
 
+import { DATE_TICK_SPACING, ticksThatFit } from "@/lib/chart-ticks";
 import { formatDate } from "@/lib/format/date-time";
 import { formatPercent } from "@/lib/format/percent";
 
@@ -27,6 +28,10 @@ const LABEL_FONT_SIZE = 11;
 const LABEL_CHAR_WIDTH = LABEL_FONT_SIZE * 0.6;
 const LABEL_GAP = 6;
 const LABEL_LINE = 13;
+// Below this width the end-of-line names would squeeze the plot; the legend above names each line.
+const END_LABELS_MIN_WIDTH = 480;
+// Half a dd/mm/yyyy tick label, centered on the last session.
+const DATE_LABEL_HALF = 40;
 
 function toDate(session: string): Date {
   return new Date(`${session}T12:00:00Z`);
@@ -48,8 +53,11 @@ function valueAt(points: CumulativeReturnPoint[], session: string): number | nul
 function Chart({ width, series }: { width: number; series: ComparisonSeries[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const longest = Math.max(...series.map((s) => s.label.length));
+  const endLabels = width >= END_LABELS_MIN_WIDTH;
   const labelChars = Math.min(longest, Math.floor((width * 0.3) / LABEL_CHAR_WIDTH));
-  const marginRight = Math.ceil(labelChars * LABEL_CHAR_WIDTH) + LABEL_GAP * 2;
+  const marginRight = endLabels
+    ? Math.ceil(labelChars * LABEL_CHAR_WIDTH) + LABEL_GAP * 2
+    : DATE_LABEL_HALF;
   const innerWidth = Math.max(0, width - MARGIN.left - marginRight);
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
 
@@ -112,7 +120,7 @@ function Chart({ width, series }: { width: number; series: ComparisonSeries[] })
           ))}
           {series.map((s, index) => {
             const end = s.points.at(-1);
-            if (!end) return null;
+            if (!end || !endLabels) return null;
             return (
               <text
                 key={`${s.id}-label`}
@@ -153,7 +161,7 @@ function Chart({ width, series }: { width: number; series: ComparisonSeries[] })
             tickFormat={(value) =>
               formatDate(value instanceof Date ? value : new Date(Number(value)))
             }
-            numTicks={Math.min(5, sessions.length)}
+            numTicks={Math.min(sessions.length, ticksThatFit(innerWidth, DATE_TICK_SPACING, 5))}
           />
           <rect
             width={innerWidth}

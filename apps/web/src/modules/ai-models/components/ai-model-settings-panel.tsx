@@ -102,6 +102,10 @@ function FamilyRow({
           </span>
         </div>
         <Select
+          items={analysisModelFamilyChoices.map((choice) => ({
+            value: choice,
+            label: t.families[choice],
+          }))}
           value={value}
           onValueChange={(next) => {
             if (

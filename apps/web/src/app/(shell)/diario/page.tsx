@@ -40,10 +40,10 @@ export default async function JournalPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-8 px-5 py-8">
+    <div className="@container flex flex-col gap-8 px-5 py-8">
       <PageHeader overline={t.journal.overline} headline={t.journal.title} />
 
-      <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-[14px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-[14px] @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
         <Panel>
           <JournalTimeline
             decisions={decisions}

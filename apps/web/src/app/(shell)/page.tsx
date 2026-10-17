@@ -67,8 +67,8 @@ async function WatchlistTable() {
           </Link>
         </p>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="@container/table overflow-x-auto">
+        <table className="w-full text-left text-sm" data-stacked="">
           <thead>
             <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
               <th className="py-2 pr-4 font-normal whitespace-nowrap">{t.table.columns.ticker}</th>
@@ -85,7 +85,7 @@ async function WatchlistTable() {
           <tbody>
             {items.map((item) => (
               <tr key={item.ticker} className="border-line-soft border-b">
-                <td className="py-2 pr-4 whitespace-nowrap">
+                <td className="py-2 pr-4 whitespace-nowrap" data-stack="title">
                   <Link
                     href={`/ativos/${item.ticker}`}
                     className="font-mono uppercase underline-offset-4 hover:underline"
@@ -93,17 +93,23 @@ async function WatchlistTable() {
                     {item.ticker}
                   </Link>
                 </td>
-                <td className="py-2 pr-4">
+                <td className="py-2 pr-4" data-stack="full">
                   {item.reading && <AssetReadingChips reading={item.reading} />}
                 </td>
-                <td className="py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
+                <td
+                  className="py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums"
+                  data-label={t.table.columns.lastClose}
+                >
                   {item.lastClose
                     ? isMarketIndex(item.ticker)
                       ? formatDecimal(item.lastClose.close)
                       : formatPriceBRL(item.lastClose.close)
                     : t.table.noClose}
                 </td>
-                <td className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums">
+                <td
+                  className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums"
+                  data-label={t.table.columns.session}
+                >
                   {item.lastClose
                     ? formatDate(new Date(`${item.lastClose.session}T12:00:00Z`))
                     : "—"}

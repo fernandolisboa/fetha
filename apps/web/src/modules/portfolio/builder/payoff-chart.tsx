@@ -8,6 +8,7 @@ import { AxisBottom, AxisLeft } from "@visx/axis";
 import { centavosSchema, type DecimalString } from "@fetha/contracts";
 import type { PayoffPoint } from "@fetha/engine";
 
+import { ticksThatFit } from "@/lib/chart-ticks";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 
@@ -34,8 +35,11 @@ function formatAxisBRL(value: number): string {
 }
 
 // DESIGN.md's 800×340 aspect, capped so a wide monitor gets a wider chart, not a taller one
-// that pushes the stat blocks below the fold.
+// that pushes the stat blocks below the fold, and floored so a phone still gets a readable one.
 const MAX_HEIGHT = 420;
+const MIN_HEIGHT = 220;
+// An 11px label plus room for d3 returning more ticks than asked when it rounds to a nicer step.
+const Y_TICK_SPACING = 32;
 
 function Chart({
   width,
@@ -48,8 +52,9 @@ function Chart({
   spot: number;
   breakEvens: DecimalString[];
 }) {
-  const height = Math.min(Math.round((width * 340) / 800), MAX_HEIGHT);
+  const height = Math.max(MIN_HEIGHT, Math.min(Math.round((width * 340) / 800), MAX_HEIGHT));
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
+  const yTicks = ticksThatFit(innerHeight, Y_TICK_SPACING, 10);
 
   const plot = plotPoints(points);
   const underlyings = plot.map((point) => point.underlying);
@@ -62,7 +67,7 @@ function Chart({
   });
   const left =
     Math.ceil(
-      Math.max(...yScale.ticks().map((tick) => formatAxisBRL(tick).length)) * TICK_CHAR_WIDTH,
+      Math.max(...yScale.ticks(yTicks).map((tick) => formatAxisBRL(tick).length)) * TICK_CHAR_WIDTH,
     ) + TICK_GAP;
   const innerWidth = Math.max(1, width - left - MARGIN.right);
   const xScale = scaleLinear({
@@ -152,6 +157,7 @@ function Chart({
           stroke="var(--line-soft)"
           tickStroke="var(--line-soft)"
           tickFormat={(value) => formatAxisBRL(Number(value))}
+          numTicks={yTicks}
           tickLabelProps={() => ({
             fill: "var(--muted)",
             fontSize: 11,
@@ -179,7 +185,17 @@ export function PayoffChart({
     return null;
   }
   return (
-    <ParentSize style={{ height: "auto", aspectRatio: "800 / 340", maxHeight: MAX_HEIGHT }}>
+    <ParentSize
+      style={{
+        height: "auto",
+        aspectRatio: "800 / 340",
+        // Without it the min height turns into a min width through the aspect ratio, and the
+        // chart overflows a phone-width grid column.
+        minWidth: 0,
+        minHeight: MIN_HEIGHT,
+        maxHeight: MAX_HEIGHT,
+      }}
+    >
       {({ width }) =>
         width > 0 ? (
           <Chart width={width} points={points} spot={Number(spot)} breakEvens={breakEvens} />

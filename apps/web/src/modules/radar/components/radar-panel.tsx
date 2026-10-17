@@ -56,7 +56,7 @@ export async function RadarPanel() {
         <>
           <p className="text-muted-foreground text-xs">{t.panel.order}</p>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm [&_td:not(:first-child)]:pl-3 [&_th:not(:first-child)]:pl-3">
               <thead>
                 <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
                   <th className="py-2 pr-4 font-normal whitespace-nowrap">

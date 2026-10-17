@@ -55,54 +55,59 @@ export default async function SignalsPage() {
             {shellStrings.emptyStates.signals.sentence}
           </p>
         ) : (
-          <table className="w-full text-left text-sm" aria-label={t.inbox.title}>
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
-                <th className="py-2 font-normal">{t.inbox.columns.instrument}</th>
-                <th className="py-2 font-normal" />
-                <th className="py-2 font-normal">{t.inbox.columns.evaluatedAt}</th>
-                <th className="py-2 font-normal">{t.inbox.columns.proposal}</th>
-                <th className="py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
-              {signals.map((signal) => {
-                const decision = decisionsBySignal.get(signal.id) ?? null;
-                const decisionSlot = decision ? (
-                  <span className="text-muted-foreground text-xs">
-                    {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
-                  </span>
-                ) : (
-                  <DecisionBar
-                    originKind="signal"
-                    targetId={signal.id}
-                    allowedKinds={allowedDecisionKinds({ kind: "signal", signalKind: signal.kind })}
-                    defaultHorizon={defaultHorizons.get(signal.id) ?? null}
-                    defaultInstrument={signal.ticker}
-                  />
-                );
-                const latest = latestAnalyses.get(signal.id) ?? null;
-                const analysisSlot = (
-                  <AnalysisDialog
-                    subjectKind="signal"
-                    subjectId={signal.id}
-                    latest={latest}
-                    usage={analysisUsage}
-                    available={analysisAvailable}
-                  />
-                );
-                return (
-                  <SignalRow
-                    key={signal.id}
-                    signal={signal}
-                    decisionSlot={decisionSlot}
-                    analysisSlot={analysisSlot}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="@container/table">
+            <table className="w-full text-left text-sm" aria-label={t.inbox.title} data-stacked="">
+              <thead>
+                <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                  <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
+                  <th className="py-2 font-normal">{t.inbox.columns.instrument}</th>
+                  <th className="py-2 font-normal" />
+                  <th className="py-2 font-normal">{t.inbox.columns.evaluatedAt}</th>
+                  <th className="py-2 font-normal">{t.inbox.columns.proposal}</th>
+                  <th className="py-2 font-normal" />
+                </tr>
+              </thead>
+              <tbody>
+                {signals.map((signal) => {
+                  const decision = decisionsBySignal.get(signal.id) ?? null;
+                  const decisionSlot = decision ? (
+                    <span className="text-muted-foreground text-xs">
+                      {decisionsT.kind[decision.kind]} · {formatDate(decision.decidedAt)}
+                    </span>
+                  ) : (
+                    <DecisionBar
+                      originKind="signal"
+                      targetId={signal.id}
+                      allowedKinds={allowedDecisionKinds({
+                        kind: "signal",
+                        signalKind: signal.kind,
+                      })}
+                      defaultHorizon={defaultHorizons.get(signal.id) ?? null}
+                      defaultInstrument={signal.ticker}
+                    />
+                  );
+                  const latest = latestAnalyses.get(signal.id) ?? null;
+                  const analysisSlot = (
+                    <AnalysisDialog
+                      subjectKind="signal"
+                      subjectId={signal.id}
+                      latest={latest}
+                      usage={analysisUsage}
+                      available={analysisAvailable}
+                    />
+                  );
+                  return (
+                    <SignalRow
+                      key={signal.id}
+                      signal={signal}
+                      decisionSlot={decisionSlot}
+                      analysisSlot={analysisSlot}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
 
@@ -110,40 +115,55 @@ export default async function SignalsPage() {
         {evaluationLog.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t.inbox.evaluationLog.empty}</p>
         ) : (
-          <table className="w-full text-left text-sm" aria-label={t.inbox.evaluationLog.title}>
-            <thead>
-              <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
-                <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
-                <th className="py-2 font-normal">{t.inbox.columns.instrument}</th>
-                <th className="py-2 font-normal">{t.inbox.columns.evaluatedAt}</th>
-                <th className="py-2 font-normal">{t.inbox.outcomes.signal}</th>
-                <th className="py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
-              {evaluationLog.map((row) => (
-                <tr key={row.id} className="border-line-soft border-b">
-                  <td className="py-2">{row.strategyName}</td>
-                  <td className="py-2 font-mono uppercase tabular-nums">{row.ticker}</td>
-                  <td className="py-2 font-mono tabular-nums">{formatDateTime(row.at)}</td>
-                  <td className="text-muted-foreground py-2">
-                    {evaluationLabel(row)}
-                    {row.reevaluated && ` · ${t.inbox.evaluationLog.reevaluated}`}
-                  </td>
-                  <td className="py-2 text-right">
-                    {anchors.has(row.id) && (
-                      <ReevaluateSessionButton
-                        strategyId={row.strategyId}
-                        strategyName={row.strategyName}
-                        session={row.session}
-                        sessionLabel={formatDate(row.at)}
-                      />
-                    )}
-                  </td>
+          <div className="@container/table">
+            <table
+              className="w-full text-left text-sm"
+              aria-label={t.inbox.evaluationLog.title}
+              data-stacked=""
+            >
+              <thead>
+                <tr className="text-muted-foreground border-line-soft border-b text-[11px] uppercase">
+                  <th className="py-2 font-normal">{t.inbox.columns.strategy}</th>
+                  <th className="py-2 font-normal">{t.inbox.columns.instrument}</th>
+                  <th className="py-2 font-normal">{t.inbox.columns.evaluatedAt}</th>
+                  <th className="py-2 font-normal">{t.inbox.outcomes.signal}</th>
+                  <th className="py-2 font-normal" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {evaluationLog.map((row) => (
+                  <tr key={row.id} className="border-line-soft border-b">
+                    <td className="py-2" data-label={t.inbox.columns.strategy} data-stack="full">
+                      {row.strategyName}
+                    </td>
+                    <td className="py-2 font-mono uppercase tabular-nums" data-stack="title">
+                      {row.ticker}
+                    </td>
+                    <td
+                      className="py-2 font-mono tabular-nums"
+                      data-label={t.inbox.columns.evaluatedAt}
+                    >
+                      {formatDateTime(row.at)}
+                    </td>
+                    <td className="text-muted-foreground py-2">
+                      {evaluationLabel(row)}
+                      {row.reevaluated && ` · ${t.inbox.evaluationLog.reevaluated}`}
+                    </td>
+                    <td className="py-2 text-right">
+                      {anchors.has(row.id) && (
+                        <ReevaluateSessionButton
+                          strategyId={row.strategyId}
+                          strategyName={row.strategyName}
+                          session={row.session}
+                          sessionLabel={formatDate(row.at)}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
     </div>
