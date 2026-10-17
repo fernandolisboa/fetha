@@ -18,9 +18,12 @@ const HEIGHT = 120;
 const Y_TICKS = 3;
 
 // True minus and decimal comma (DESIGN.md "Formatting (pt-BR)"), not the hyphen-minus and point
-// `Number.prototype.toFixed` produces, to match formatBRL/formatPercent.
+// `Number.prototype.toFixed` produces, to match formatBRL/formatPercent. A value that rounds to
+// zero never carries the sign: DESIGN.md never shows a signed zero.
 export function percentTick(value: number, decimals: number): string {
-  return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(decimals).replace(".", ",")}%`;
+  const magnitude = Math.abs(value).toFixed(decimals);
+  const sign = value < 0 && Number(magnitude) !== 0 ? "−" : "";
+  return `${sign}${magnitude.replace(".", ",")}%`;
 }
 
 // A run whose deepest drawdown is a couple of percent gets ticks half a point apart: whole
@@ -30,7 +33,7 @@ export function percentTickDecimals(ticks: number[]): number {
   if (first === undefined || second === undefined) return 0;
   const stepPercent = Math.abs(second - first) * 100;
   if (stepPercent >= 1) return 0;
-  return Math.min(2, Math.ceil(-Math.log10(stepPercent)));
+  return Math.min(4, Math.ceil(-Math.log10(stepPercent)));
 }
 
 // EquityPoint.drawdown is a non-negative fraction (magnitude of the drop

@@ -36,6 +36,21 @@ describe("percentTick", () => {
     expect(labels).toEqual(["0,0%", "−0,5%", "−1,0%", "−1,5%"]);
   });
 
+  it.each([0.00005, 0.0001, 0.0002, 0.003, 0.02, 0.5])(
+    "prints distinct labels and no signed zero for a %s drawdown",
+    (maxDrawdown) => {
+      const yScale = scaleLinear<number>({
+        domain: [0, maxDrawdown],
+        range: [0, 120],
+        nice: true,
+      });
+      const ticks = yScale.ticks(3);
+      const labels = ticks.map((tick) => percentTick(-tick * 100, percentTickDecimals(ticks)));
+      expect(new Set(labels).size).toBe(labels.length);
+      expect(labels.some((label) => /^−0(,0+)?%$/.test(label))).toBe(false);
+    },
+  );
+
   it("keeps whole percents for a deep drawdown", () => {
     expect(percentTickDecimals([0, 0.1, 0.2])).toBe(0);
     expect(percentTick(-10, 0)).toBe("−10%");

@@ -62,6 +62,21 @@ function formatSignedBRL(value: Centavos): string {
   return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
 }
 
+// ADR-0062: an ITM cash-settled leg's cash flow is never zero, so "expired worthless" is never a
+// legitimate choice for it. The trigger's labels and the listed options come from this one list.
+function outcomeItems(
+  leg: SettlementLegView,
+  allowed: OptionOutcome,
+): { value: OptionOutcome; label: string }[] {
+  const items: { value: OptionOutcome; label: string }[] = [
+    { value: allowed, label: labels.outcomes[allowed] },
+  ];
+  if (leg.cashSettlementValue === null || leg.cashSettlementValue === 0) {
+    items.push({ value: "expired_worthless", label: labels.outcomes.expired_worthless });
+  }
+  return items;
+}
+
 export function SettlementDialog({
   operationId,
   underlying,
@@ -190,10 +205,7 @@ export function SettlementDialog({
                 ) : (
                   <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] items-end gap-2">
                     <Select
-                      items={[
-                        { value: allowed, label: labels.outcomes[allowed] },
-                        { value: "expired_worthless", label: labels.outcomes.expired_worthless },
-                      ]}
+                      items={outcomeItems(leg, allowed)}
                       value={choice.outcome}
                       onValueChange={(next) => {
                         if (next === allowed || next === "expired_worthless") {
@@ -208,14 +220,11 @@ export function SettlementDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={allowed}>{labels.outcomes[allowed]}</SelectItem>
-                        {/* ADR-0062: an ITM cash-settled leg's cash flow is never zero, so
-                            "expired worthless" is never a legitimate choice for it. */}
-                        {!(leg.cashSettlementValue !== null && leg.cashSettlementValue !== 0) && (
-                          <SelectItem value="expired_worthless">
-                            {labels.outcomes.expired_worthless}
+                        {outcomeItems(leg, allowed).map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
                           </SelectItem>
-                        )}
+                        ))}
                       </SelectContent>
                     </Select>
                     {choice.outcome !== "expired_worthless" && (
