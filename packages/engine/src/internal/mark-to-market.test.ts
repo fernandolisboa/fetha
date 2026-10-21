@@ -1835,7 +1835,7 @@ describe("markToMarket", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
-    expect(result.error).toMatchObject({ path: "view.corporateActions" });
+    expect(result.error).toMatchObject({ path: "operations[0]" });
   });
 
   it("returns insufficient_data when an expired operation's expiry session is missing from the calendar", () => {

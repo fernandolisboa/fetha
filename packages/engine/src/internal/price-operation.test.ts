@@ -3782,3 +3782,97 @@ describe("payoff slope at infinity scales by an index option's priceFactor (#307
     );
   });
 });
+
+describe("priceOperation (centavos bound and tied candle asOf, #285)", () => {
+  const tiedCandle = (session: string) => ({
+    ticker: "PETR4",
+    timeframe: "D1" as const,
+    session,
+    asOf: "2024-01-03T21:00:00.000Z",
+    open: decimalString("30.00"),
+    high: decimalString("30.00"),
+    low: decimalString("30.00"),
+    close: decimalString("30.00"),
+    tradedQuantity: 1000,
+  });
+
+  it("returns invalid_input, never throwing, when a stock leg's stale window is wider than the spot's because two candles share an asOf", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: dailyCalendar(2, 20),
+      quotes: [],
+      candles: [tiedCandle("2024-01-02"), tiedCandle("2024-01-03")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T13:00:00.000Z",
+          factor: decimalString("0"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at: "2024-01-05T21:00:00.000Z",
+        legs: [{ role: "stock", side: "buy", ticker: "PETR4", quantity: quantity(100) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "corporateActions[].factor",
+    });
+  });
+
+  function callView(priceFactor: string): MarketView {
+    return {
+      ...baseView,
+      calendar: dailyCalendar(2, 20),
+      optionSeries: [
+        {
+          ticker: "PETR4C28",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("28.00"),
+          expiry: "2024-01-21",
+          style: "european",
+          asOf: at,
+          priceFactor: decimalString(priceFactor),
+        },
+      ],
+      quotes: [
+        { ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null },
+        { ticker: "PETR4C28", asOf: at, last: decimalString("2.00"), bid: null, ask: null },
+      ],
+    };
+  }
+
+  it("returns invalid_input, never throwing, when a sub-unit priceFactor makes the payoff overflow a safe integer of centavos", () => {
+    const result = priceOperation(
+      {
+        view: callView("0.000000001"),
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(100_000) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "legs[0]" });
+  });
+
+  it("still prices a million index-priced contracts with a priceFactor of 100", () => {
+    const result = priceOperation(
+      {
+        view: callView("100"),
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1_000_000) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+  });
+});

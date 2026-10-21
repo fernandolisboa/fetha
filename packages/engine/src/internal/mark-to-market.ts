@@ -284,7 +284,7 @@ function priceExistingOperation(
     return {
       ok: false,
       error: invalidInput(
-        "view.corporateActions",
+        path,
         `the unrealized P&L for ${operation.underlying} overflows a safe integer of centavos (a corrupt corporate-action factor or entry price)`,
       ),
     };

@@ -149,13 +149,9 @@ function valueOneLeg(
       resolved?.stale?.session ?? null,
       atSession,
     );
-    // A stock leg's own stale reading is the underlying's spot reading (same ticker, same
-    // ladder), whose rescale over this same window `resolveSpotOnSessionScale` already
-    // refused before any leg is valued.
-    invariant(
-      premium.ok,
-      "price-operation: the spot rescale already refused a non-positive factor",
-    );
+    // The leg's stale window can be wider than the spot's: two candles sharing an `asOf` resolve
+    // to different rows for the leg and for the spot.
+    if (!premium.ok) return { ok: false, error: premium.error };
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
       price,
@@ -631,8 +627,9 @@ function valueLegs(
   }
 
   // Net premium, every payoff sample and max loss/gain are each bounded by the sum of
-  // `quantity x (premium + the largest underlying a payoff is sampled at)`; checking that one sum
-  // here keeps each of their `toCentavos` conversions from throwing on a huge rebased quantity.
+  // `quantity x (premium + the largest underlying a payoff is sampled at / the leg's price
+  // factor)`; checking that one sum here keeps each of their `toCentavos` conversions from
+  // throwing on a huge rebased quantity.
   const maxUnderlying = Decimal.max(
     parseDecimal(spot).mul(PAYOFF_SPOT_RANGE_UPPER),
     ...priced.map((leg) => (leg.strike === null ? new Decimal(0) : parseDecimal(leg.strike))),
@@ -640,7 +637,10 @@ function valueLegs(
   let centavosBound = new Decimal(0);
   for (const [index, leg] of priced.entries()) {
     centavosBound = centavosBound.add(
-      leg.premiumPerUnit.add(maxUnderlying).mul(CENTAVOS_PER_REAL).mul(leg.valuation.leg.quantity),
+      leg.premiumPerUnit
+        .add(maxUnderlying.div(leg.priceFactor))
+        .mul(CENTAVOS_PER_REAL)
+        .mul(leg.valuation.leg.quantity),
     );
     if (!isSafeCentavosAmount(centavosBound)) {
       return {
