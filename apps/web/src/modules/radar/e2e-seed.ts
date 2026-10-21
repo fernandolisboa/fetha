@@ -38,16 +38,13 @@ export async function seedE2ERadar(db: Database, underlying: Ticker): Promise<Se
   const reading = await engine.assetReading({ view, ticker: underlying, at });
   if (!reading.ok || reading.value.close === null) return { ok: false, reason: "no_market_data" };
 
-  const close = Number(reading.value.close);
-  const calls = view.optionSeries
-    .filter((series) => series.right === "call" && series.expiry > trading.date)
-    .sort((a, b) => a.expiry.localeCompare(b.expiry) || Number(a.strike) - Number(b.strike));
-  const nearestExpiry = calls[0]?.expiry;
-  const ladder = calls.filter((series) => series.expiry === nearestExpiry);
-  const atTheMoney = ladder.findIndex((series) => Number(series.strike) >= close);
-  const bought = ladder[atTheMoney];
-  const sold = ladder.slice(atTheMoney + 1).find((series) => series.strike !== bought?.strike);
-  if (atTheMoney < 0 || !bought || !sold) return { ok: false, reason: "no_market_data" };
+  const spread = nearestBullCallSpread(
+    view.optionSeries,
+    Number(reading.value.close),
+    trading.date,
+  );
+  if (!spread) return { ok: false, reason: "no_market_data" };
+  const { bought, sold } = spread;
 
   const legs: RadarLeg[] = [bought, sold].map((series, index) => ({
     role: "call",
@@ -85,4 +82,26 @@ export async function seedE2ERadar(db: Database, underlying: Ticker): Promise<Se
   });
   const suggestionId = await suggestionIdFor(db, underlying, trading.date, FIXTURE_RECIPE_ID);
   return { ok: true, session: trading.date, suggestionId };
+}
+
+// The first expiry after `session` whose ladder lists a strike at or above `close` and a higher
+// one: a short weekly ladder can stop below a close that has rallied since it was listed.
+export function nearestBullCallSpread<
+  Series extends { right: string; expiry: string; strike: string },
+>(
+  series: readonly Series[],
+  close: number,
+  session: string,
+): { bought: Series; sold: Series } | null {
+  const calls = series
+    .filter((row) => row.right === "call" && row.expiry > session)
+    .sort((a, b) => a.expiry.localeCompare(b.expiry) || Number(a.strike) - Number(b.strike));
+  for (const expiry of new Set(calls.map((row) => row.expiry))) {
+    const ladder = calls.filter((row) => row.expiry === expiry);
+    const atTheMoney = ladder.findIndex((row) => Number(row.strike) >= close);
+    const bought = ladder[atTheMoney];
+    const sold = ladder.slice(atTheMoney + 1).find((row) => row.strike !== bought?.strike);
+    if (bought && sold) return { bought, sold };
+  }
+  return null;
 }
