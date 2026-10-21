@@ -519,5 +519,6 @@ function runScenario(
     .mul(100)
     .round()
     .toNumber();
-  return { pnl, expectedPnl };
+  // decimal.js keeps a zero's sign (a short leg netting exactly zero is -0); centavos have none.
+  return { pnl, expectedPnl: expectedPnl + 0 };
 }
