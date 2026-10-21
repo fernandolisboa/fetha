@@ -187,6 +187,16 @@ describe("rescaleStalePrice (#279)", () => {
     expect(result.ok && result.value.rescaled).toBe(false);
   });
 
+  it("leaves a stale price untouched when no session is known to rescale it onto (#285)", () => {
+    const result = rescaleStalePrice(
+      [factor("2024-01-05", "0.5")],
+      new Decimal(20),
+      "2024-01-03",
+      null,
+    );
+    expect(result).toEqual({ ok: true, value: { price: new Decimal(20), rescaled: false } });
+  });
+
   it("refuses a non-positive factor inside the window", () => {
     const result = rescaleStalePrice(
       [factor("2024-01-05", "0")],

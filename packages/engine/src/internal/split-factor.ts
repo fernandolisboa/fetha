@@ -40,18 +40,22 @@ export function splitFactorProduct(
   return { ok: true, value: acc };
 }
 
-// Issue #273/#279: a carried-forward price (`stale`, ADR-0014 Q42) sits on the scale of its own
-// session, which a factor ex-dated since then has already moved the rebased quantity away from.
-// Rescaling by the product over `(staleSession, through]` puts it back on the scale the caller's
-// effective quantity expects. Shared by mark-to-market.ts and score.ts so neither measures the
-// window its own way; runBacktest keeps its own copy over its pre-indexed factors.
+// Issue #273/#279/#285: a carried-forward price (`stale`, ADR-0014 Q42) sits on the scale of its
+// own session, which a factor ex-dated since then has already moved the rebased quantity away
+// from. Rescaling by the product over `(staleSession, through]` puts it back on the scale the
+// caller's effective quantity expects. The one place that window is measured: mark-to-market.ts,
+// score.ts, price-operation.ts (a leg's premium and the underlying's spot) and runBacktest's
+// marks all call it. A `through` of null (no session known for the reading instant) leaves
+// nothing to rescale against.
 export function rescaleStalePrice(
   factors: readonly CorporateActionFactor[],
   price: Decimal,
   staleSession: SessionDate | null,
-  through: SessionDate,
+  through: SessionDate | null,
 ): { ok: true; value: { price: Decimal; rescaled: boolean } } | { ok: false; error: EngineError } {
-  if (staleSession === null) return { ok: true, value: { price, rescaled: false } };
+  if (staleSession === null || through === null) {
+    return { ok: true, value: { price, rescaled: false } };
+  }
   const factor = splitFactorProduct(factors, staleSession, through);
   if (!factor.ok) return factor;
   if (factor.value.eq(1)) return { ok: true, value: { price, rescaled: false } };

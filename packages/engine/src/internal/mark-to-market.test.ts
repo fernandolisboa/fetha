@@ -559,6 +559,143 @@ describe("markToMarket", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  const twoForOne: CorporateActionFactor = {
+    ticker: "PETR4",
+    exDate: "2024-01-02",
+    asOf: "2024-01-02T13:00:00.000Z",
+    factor: decimalString("0.5"),
+  };
+
+  it("prices the pricing aggregates from a stale pre-split price on the post-split scale (#285)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [preSplitCandle("20.00")],
+      corporateActions: [twoForOne],
+    };
+    const riskProfile: RiskProfile = {
+      declaredCapital: centavos(10_000_00),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("0.3"),
+        maxOpenOperations: 5,
+        maxPremiumBought: decimalString("1"),
+      },
+    };
+    const result = markToMarket(
+      { view, at, positions: [], operations: [stockOperation()], cash: centavos(0), riskProfile },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const pricing = result.value.operations[0]?.pricing;
+    // 200 effective shares at the rescaled 10.00, not at the 20.00 they last traded at.
+    expect(pricing?.spot).toBe(decimalString("10.00"));
+    expect(pricing?.netPremium).toBe(centavos(-2_000_00));
+    expect(pricing?.maxLoss).toBe(centavos(2_000_00));
+    expect(pricing?.breakEvens).toEqual([decimalString("10.00")]);
+    expect(pricing?.payoff).toContainEqual({
+      underlying: decimalString("10.00"),
+      pnl: centavos(0),
+    });
+    expect(pricing?.limitBreaches).toEqual([]);
+    expect(result.value.limitBreaches).toEqual([]);
+    expect(pricing?.legs[0]?.price).toBe(decimalString("20.00"));
+    expect(pricing?.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("solves an option leg against a stale pre-split spot rescaled onto the post-split strike's scale (#285)", () => {
+    const series: OptionSeries = {
+      ...callSeries("PETR4C56", "56.00"),
+      asOf: "2024-01-01T21:00:00.000Z",
+    };
+    const freshOptionPrice = {
+      ticker: "PETR4C56",
+      session: "2024-01-02",
+      asOf: at,
+      average: null,
+      close: decimalString("3.00"),
+      trades: 1,
+      tradedQuantity: 1,
+    };
+    const op = stockOperation({
+      id: "op-call",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C56",
+          quantity: quantity(100),
+          entryPrice: decimalString("5.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const markWith = (candles: MarketView["candles"]) =>
+      markToMarket(
+        {
+          view: {
+            ...baseView,
+            candles,
+            corporateActions: [twoForOne],
+            optionSeries: [series],
+            optionPrices: [freshOptionPrice],
+          },
+          at,
+          positions: [],
+          operations: [op],
+          cash: centavos(0),
+        },
+        provenanceBase,
+      );
+    // The underlying did not trade on the ex-date: its spot is carried from 60.00 the session
+    // before, while the strike is already derived onto the post-split 28.00.
+    const stale = markWith([preSplitCandle("60.00")]);
+    const fresh = markWith([
+      { ...preSplitCandle("30.00"), session: "2024-01-02", asOf: "2024-01-02T21:00:00.000Z" },
+    ]);
+    expect(stale.ok && fresh.ok).toBe(true);
+    if (!stale.ok || !fresh.ok) return;
+    const staleLeg = stale.value.operations[0]?.pricing.legs[0];
+    const freshLeg = fresh.value.operations[0]?.pricing.legs[0];
+    expect(stale.value.operations[0]?.pricing.spot).toBe(decimalString("30.00"));
+    expect(staleLeg?.notes).toContainEqual(
+      expect.objectContaining({ code: "option_strike_derived_across_corporate_action" }),
+    );
+    expect(freshLeg?.impliedVolatility).not.toBeNull();
+    expect(staleLeg?.impliedVolatility).toBe(freshLeg?.impliedVolatility);
+    expect(staleLeg?.fairValue).toBe(freshLeg?.fairValue);
+    expect(staleLeg?.greeks).toEqual(freshLeg?.greeks);
+    expect(stale.value.operations[0]?.pricing.payoff).toEqual(
+      fresh.value.operations[0]?.pricing.payoff,
+    );
+    expect(stale.value.operations[0]?.unrealizedPnl).toBe(fresh.value.operations[0]?.unrealizedPnl);
+  });
+
+  it("refuses a non-positive factor between a stale spot and the mark session (#285)", () => {
+    const view: MarketView = {
+      ...baseView,
+      candles: [preSplitCandle("20.00")],
+      corporateActions: [{ ...twoForOne, factor: decimalString("-1") }],
+    };
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [],
+        operations: [stockOperation({ openedAt: "2024-01-02" })],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual(
+      expect.objectContaining({ code: "invalid_input", path: "corporateActions[].factor" }),
+    );
+  });
+
   it("rebases a covered call's stock leg quantity across a 2:1 split (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...baseView,

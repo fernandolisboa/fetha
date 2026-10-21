@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import type { Centavos, DecimalString, RiskProfile, SessionDate } from "@fetha/contracts";
 import type {
+  CorporateActionFactor,
   EngineError,
   Greeks,
   LegInput,
@@ -24,6 +25,7 @@ import {
   RATIO_SCALE,
   parseDecimal,
   toDecimalString,
+  toDecimalStringAtLeastScale,
 } from "./decimal";
 import { invalidInput, err } from "./errors";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
@@ -32,6 +34,7 @@ import {
   NO_RISK_PROFILE_NOTE,
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STALE_PRICE_NOTE,
 } from "./notes";
 import { resolveOptionStrike } from "./option-strike";
@@ -40,9 +43,10 @@ import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
-import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpotReading } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
+import { rescaleStalePrice } from "./split-factor";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 function sign(side: "buy" | "sell"): 1 | -1 {
@@ -60,6 +64,55 @@ function sessionDateAtOrBefore(
   at: string,
 ): SessionDate | null {
   return sessionAtOrBefore(calendar, at)?.date ?? null;
+}
+
+function visibleUnderlyingFactors(
+  view: MarketView,
+  underlying: string,
+  at: string,
+): CorporateActionFactor[] {
+  return view.corporateActions.filter((f) => f.ticker === underlying && isAtOrBefore(f.asOf, at));
+}
+
+type SpotReading = { spot: DecimalString; rescaled: boolean };
+
+// Issue #285: a spot carried forward from a session before an ex-date (the underlying did not
+// trade on it) sits on the pre-factor scale, while every strike derived for that same session
+// and every rebased quantity sits on the post-factor one. Rescaled over the same
+// `(spot session, session of at]` window a stale leg price is, through the shared
+// `rescaleStalePrice`, so the model, the strike selection and the payoff samples all read one
+// scale. Kept at full precision, like a rescaled mark (#273).
+function resolveSpotOnSessionScale(
+  view: MarketView,
+  underlying: string,
+  at: string,
+): { ok: true; value: SpotReading | null } | { ok: false; error: EngineError } {
+  const reading = resolveUnderlyingSpotReading(view, underlying, at);
+  if (!reading) return { ok: true, value: null };
+  const rescaled = rescaleStalePrice(
+    visibleUnderlyingFactors(view, underlying, at),
+    parseDecimal(reading.value),
+    reading.session,
+    sessionDateAtOrBefore(view.calendar, at),
+  );
+  if (!rescaled.ok) return rescaled;
+  if (!rescaled.value.rescaled)
+    return { ok: true, value: { spot: reading.value, rescaled: false } };
+  return {
+    ok: true,
+    value: {
+      spot: toDecimalStringAtLeastScale(rescaled.value.price, PRICE_SCALE),
+      rescaled: true,
+    },
+  };
+}
+
+// The web reads notes by code, so a rescale already named on the operation (an option leg's
+// IV-suppression note shares the code) is never named twice.
+function withStaleRescaleNote(notes: readonly Note[]): Note[] {
+  return notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
+    ? [...notes]
+    : [...notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE];
 }
 
 // Exported for score's own max-loss computation (ADR-0014 Q46/Q13): score builds this same
@@ -93,11 +146,25 @@ function valueOneLeg(
   leg: LegInput,
   legPath: string,
   expiredIntrinsicBasis: DecimalString | null = null,
-): { ok: true; leg: PricedLeg } | { ok: false; error: EngineError } {
+): { ok: true; leg: PricedLeg; premiumRescaled: boolean } | { ok: false; error: EngineError } {
   const atSession = sessionDateAtOrBefore(view.calendar, at);
   if (leg.role === "stock") {
     const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession, "stock");
     const price = resolved?.value ?? null;
+    // Issue #285: `LegValuation.price` reports the price as it traded; the premium every
+    // aggregate (net premium, payoff, limits) multiplies by the effective quantity is rescaled
+    // onto the session's scale, the same way markToMarket's unrealized P&L already is (#279).
+    const premium = rescaleStalePrice(
+      visibleUnderlyingFactors(view, underlying, at),
+      price ? parseDecimal(price) : new Decimal(0),
+      resolved?.stale?.session ?? null,
+      atSession,
+    );
+    // A stock leg's own stale reading is the underlying's spot reading (same ticker, same
+    // ladder), whose rescale over this same window `resolveSpotOnSessionScale` already
+    // refused before any leg is valued.
+    /* v8 ignore next */
+    if (!premium.ok) return premium;
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
       price,
@@ -119,9 +186,10 @@ function valueOneLeg(
       leg: {
         valuation,
         strike: null,
-        premiumPerUnit: price ? parseDecimal(price) : new Decimal(0),
+        premiumPerUnit: premium.value.price,
         priceFactor: new Decimal(1),
       },
+      premiumRescaled: premium.value.rescaled,
     };
   }
 
@@ -181,6 +249,7 @@ function valueOneLeg(
     return {
       ok: true,
       leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic, priceFactor },
+      premiumRescaled: false,
     };
   }
 
@@ -221,19 +290,16 @@ function valueOneLeg(
   // A stale price whose own session predates a corporate-action ex-date visible on the
   // underlying sits on a pre-action scale the current spot no longer shares: solving implied
   // volatility from it would read the split itself as a phantom volatility move, not a real
-  // market view. `resolveLegMarketPrice` already gives the stale row's own
-  // session; suppress the solve whenever an ex-date falls strictly after it and at or before
-  // the mark session.
-  const staleSession = marketPrice?.stale?.session ?? null;
-  const suppressStaleImpliedVolatility =
-    staleSession !== null &&
-    view.corporateActions.some(
-      (f) =>
-        f.ticker === underlying &&
-        f.exDate > staleSession &&
-        (atSession === null || f.exDate <= atSession) &&
-        isAtOrBefore(f.asOf, at),
-    );
+  // market view, so the solve is suppressed whenever `rescaleStalePrice` finds a factor over
+  // `(stale session, session of at]`. Issue #285: the premium the aggregates read is that
+  // rescaled price; `LegValuation.price` still reports the price as it traded.
+  const premium = rescaleStalePrice(
+    visibleUnderlyingFactors(view, underlying, at),
+    marketPrice ? parseDecimal(marketPrice.value) : new Decimal(0),
+    marketPrice?.stale?.session ?? null,
+    atSession,
+  );
+  if (!premium.ok) return premium;
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: strikeString,
@@ -243,17 +309,21 @@ function valueOneLeg(
     timeToExpiryYears: tte.years,
     marketPrice,
     givenVolatility: leg.volatility ?? null,
-    suppressStaleImpliedVolatility,
+    suppressStaleImpliedVolatility: premium.value.rescaled,
     priceFactor: series.priceFactor,
   });
   if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
   const premiumPerUnit = valuation.price
-    ? parseDecimal(valuation.price)
+    ? premium.value.price
     : valuation.fairValue
       ? parseDecimal(valuation.fairValue)
       : new Decimal(0);
 
-  return { ok: true, leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor } };
+  return {
+    ok: true,
+    leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor },
+    premiumRescaled: premium.value.rescaled,
+  };
 }
 
 // A leg's payoff slope as the underlying goes to infinity, in reais per point of the
@@ -491,6 +561,7 @@ type ValuedLegs = {
   priced: PricedLeg[];
   notes: Note[];
   netPremiumCentavos: Decimal;
+  anyPremiumRescaled: boolean;
 };
 
 // The per-leg valuation, its notes and the net premium are what a sizing preview needs:
@@ -520,6 +591,7 @@ function valueLegs(
   const notes: Note[] = [];
   let anyLegUnpriced = false;
   let anyLegSettlementPending = false;
+  let anyPremiumRescaled = false;
   for (const [index, leg] of legs.entries()) {
     const result = valueOneLeg(
       view,
@@ -534,6 +606,7 @@ function valueLegs(
     );
     if (!result.ok) return { ok: false, error: result.error };
     priced.push(result.leg);
+    anyPremiumRescaled ||= result.premiumRescaled;
     notes.push(...result.leg.valuation.notes.filter((n) => n.code === "european_pricing"));
     if (result.leg.valuation.notes.some((n) => n.code === "no_market_price")) {
       anyLegUnpriced = true;
@@ -571,7 +644,7 @@ function valueLegs(
     new Decimal(0),
   );
 
-  return { ok: true, value: { priced, notes, netPremiumCentavos } };
+  return { ok: true, value: { priced, notes, netPremiumCentavos, anyPremiumRescaled } };
 }
 
 // Resolved once per `priceOperation` call and threaded through, rather than re-resolved
@@ -627,8 +700,8 @@ function priceConcreteLegs(
     legPathAt,
   );
   if (!valued.ok) return err(valued.error);
-  const { priced, notes: legNotes, netPremiumCentavos } = valued.value;
-  const notes: Note[] = [...rateNotes, ...legNotes];
+  const { priced, notes: legNotes, netPremiumCentavos, anyPremiumRescaled } = valued.value;
+  let notes: Note[] = [...rateNotes, ...legNotes];
 
   // A priced leg (it has a market price) with null greeks means the model could not
   // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
@@ -656,6 +729,7 @@ function priceConcreteLegs(
         "at least one priced leg's implied volatility was suppressed across a corporate action; the aggregate excludes it",
     });
   }
+  if (anyPremiumRescaled) notes = withStaleRescaleNote(notes);
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 
@@ -760,17 +834,19 @@ export function priceLegsAt(
   expiredIntrinsicBasis: DecimalString | null = null,
   legPathAt?: (index: number) => string,
 ): Result<OperationPricing> {
-  const spot = resolveUnderlyingSpot(view, underlying, at);
-  if (!spot) return err({ code: "missing_instrument", ticker: underlying });
-  if (!isPositive(spot)) {
+  const spotResult = resolveSpotOnSessionScale(view, underlying, at);
+  if (!spotResult.ok) return err(spotResult.error);
+  const reading = spotResult.value;
+  if (!reading) return err({ code: "missing_instrument", ticker: underlying });
+  if (!isPositive(reading.spot)) {
     return err(invalidInput(spotPath, "the underlying's spot must be positive"));
   }
 
-  return priceLegsAtSpot(
+  const priced = priceLegsAtSpot(
     view,
     at,
     underlying,
-    spot,
+    reading.spot,
     legs,
     riskProfile,
     openOperationCount,
@@ -778,6 +854,8 @@ export function priceLegsAt(
     expiredIntrinsicBasis,
     legPathAt,
   );
+  if (!priced.ok || !reading.rescaled) return priced;
+  return { ok: true, value: { ...priced.value, notes: withStaleRescaleNote(priced.value.notes) } };
 }
 
 // Concrete `LegInput[]` legs are not built by `resolveLegSelection`, so nothing else
@@ -915,8 +993,11 @@ function priceSelection(
   selection: LegSelection,
   provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
-  const spot = resolveUnderlyingSpot(input.view, selection.underlying, input.at);
-  if (!spot) return err({ code: "missing_instrument", ticker: selection.underlying });
+  const spotResult = resolveSpotOnSessionScale(input.view, selection.underlying, input.at);
+  if (!spotResult.ok) return err(spotResult.error);
+  const reading = spotResult.value;
+  if (!reading) return err({ code: "missing_instrument", ticker: selection.underlying });
+  const spot = reading.spot;
   if (!isPositive(spot)) {
     return err(invalidInput("spot", "the underlying's spot must be positive"));
   }
@@ -964,7 +1045,7 @@ function priceSelection(
   );
   if (!sizing.ok) return err(sizing.error);
 
-  return priceConcreteLegs(
+  const priced = priceConcreteLegs(
     input.view,
     input.at,
     selection.underlying,
@@ -977,6 +1058,8 @@ function priceSelection(
     input.openOperationCount,
     provenanceBase,
   );
+  if (!priced.ok || !reading.rescaled) return priced;
+  return { ok: true, value: { ...priced.value, notes: withStaleRescaleNote(priced.value.notes) } };
 }
 
 export function priceOperation(
