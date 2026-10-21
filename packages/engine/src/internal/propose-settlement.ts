@@ -232,7 +232,7 @@ export interface TruncatedUnits {
 // this is exactly `Math.floor`; a signed residual truncates the same way on either side of zero,
 // never rounding a small short residual away. The caller supplies its own `onUnsafe` error (an
 // adversarial or corrupt factor, e.g. 1e-15, can blow the unit count past what a real count can
-// be, and one around 1e-12 the centavos that count is worth, #285) since each names its own
+// be, and one around 1e-12 the centavos that count is worth) since each names its own
 // ticker and path in its own words.
 export function truncateToWholeUnits(
   rawQuantity: Decimal,

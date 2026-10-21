@@ -28,7 +28,7 @@ import {
 import { invalidInput, err } from "./errors";
 import { isSafeCentavosAmount } from "./fill-pricing";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
-import { assertDefined } from "./invariant";
+import { assertDefined, invariant } from "./invariant";
 import {
   NO_RISK_PROFILE_NOTE,
   OPTION_STRIKE_DERIVED_NOTE,
@@ -68,12 +68,10 @@ function sessionDateAtOrBefore(
 
 type SpotReading = { spot: DecimalString; rescaled: boolean };
 
-// Issue #285: a spot carried forward from a session before an ex-date (the underlying did not
-// trade on it) sits on the pre-factor scale, while every strike derived for that same session
-// and every rebased quantity sits on the post-factor one. Rescaled over the same
-// `(spot session, session of at]` window a stale leg price is, through the shared
-// `rescaleStalePrice`, so the model, the strike selection and the payoff samples all read one
-// scale. Kept at full precision, like a rescaled mark (#273).
+// A spot carried forward from before an ex-date sits on the pre-factor scale, while the strikes
+// derived for the session of `at` and the rebased quantities sit on the post-factor one; the
+// pricing model and the payoff samples read it rescaled, at full precision. Delta-based strike
+// selection does not rescale its implied-volatility premium and so can still read the old scale.
 function resolveSpotOnSessionScale(
   view: MarketView,
   underlying: string,
@@ -143,9 +141,8 @@ function valueOneLeg(
   if (leg.role === "stock") {
     const resolved = resolveLegMarketPrice(view, leg.ticker, at, leg.price, atSession, "stock");
     const price = resolved?.value ?? null;
-    // Issue #285: `LegValuation.price` reports the price as it traded; the premium every
-    // aggregate (net premium, payoff, limits) multiplies by the effective quantity is rescaled
-    // onto the session's scale, the same way markToMarket's unrealized P&L already is (#279).
+    // `LegValuation.price` reports the price as it traded; the aggregates multiply the rescaled
+    // premium by the effective quantity.
     const premium = rescaleStalePrice(
       visibleFactorsFor(view.corporateActions, underlying, at),
       price ? parseDecimal(price) : new Decimal(0),
@@ -155,8 +152,10 @@ function valueOneLeg(
     // A stock leg's own stale reading is the underlying's spot reading (same ticker, same
     // ladder), whose rescale over this same window `resolveSpotOnSessionScale` already
     // refused before any leg is valued.
-    /* v8 ignore next */
-    if (!premium.ok) return premium;
+    invariant(
+      premium.ok,
+      "price-operation: the spot rescale already refused a non-positive factor",
+    );
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
       price,
@@ -283,8 +282,7 @@ function valueOneLeg(
   // underlying sits on a pre-action scale the current spot no longer shares: solving implied
   // volatility from it would read the split itself as a phantom volatility move, not a real
   // market view, so the solve is suppressed whenever `rescaleStalePrice` finds a factor over
-  // `(stale session, session of at]`. Issue #285: the premium the aggregates read is that
-  // rescaled price; `LegValuation.price` still reports the price as it traded.
+  // `(stale session, session of at]`.
   const premium = rescaleStalePrice(
     visibleFactorsFor(view.corporateActions, underlying, at),
     marketPrice ? parseDecimal(marketPrice.value) : new Decimal(0),
@@ -293,8 +291,10 @@ function valueOneLeg(
   );
   // `resolveOptionStrike` above already refused every non-positive visible factor up to the
   // session of at (an unexpired leg's own window), so this window has none left to refuse.
-  /* v8 ignore next */
-  if (!premium.ok) return premium;
+  invariant(
+    premium.ok,
+    "price-operation: resolveOptionStrike already refused a non-positive factor",
+  );
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: strikeString,

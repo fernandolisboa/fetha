@@ -369,10 +369,10 @@ function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
-// Issue #279/#285: the mark rebases a held quantity the same way a fill does, so it refuses the
-// same unit counts and the same centavos amounts the fill path refuses, on a zero-volume session
-// where no fill ran first. `closePeriodEnd` reads the same legs and residuals at the same prices
-// right after `computeMarkValue` on the same session, so this guard covers it too.
+// A mark rebases a held quantity the way a fill does, so it refuses the same unit counts and
+// centavos amounts, on a zero-volume session where no fill ran first to refuse them.
+// `closePeriodEnd` reads the same legs and prices right after `computeMarkValue`, so this
+// guard covers it too.
 function isSafeMarkAmount(price: DecimalString, quantity: Decimal): boolean {
   return (
     Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber()) &&
@@ -726,8 +726,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // whose own session predates `uptoSession` — sits on whatever price scale its own session had,
   // which a corporate action ex-dated since then has already moved the held quantity away from
   // (keyed by the operation's own underlying the same way every other leg rebase in this file
-  // is). Rescaling through the shared `rescaleStalePrice` (#285: the one place that window is
-  // measured, for markToMarket and score too) keeps the mark on the scale the caller's own
+  // is). Rescaling through the shared `rescaleStalePrice` keeps the mark on the scale the caller's own
   // effective quantity expects; a fresh row (its own session already `uptoSession`) has an
   // empty window and comes back unrescaled. The rescaled value is kept at
   // full decimal.js precision (`toDecimalStringAtLeastScale`, never rounded to `PRICE_SCALE`
@@ -1066,7 +1065,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
         // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
-        // a real unit count can be, or (around 1e-12, #285) the centavos it is worth; that is
+        // a real unit count can be, or (around 1e-12) the centavos it is worth; that is
         // invalid input, not a value toQuantity or toCentavos should throw an invariant over.
         if (
           (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) ||

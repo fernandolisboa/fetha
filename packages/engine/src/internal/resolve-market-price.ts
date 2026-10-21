@@ -75,7 +75,7 @@ export function resolveLegMarketPrice(
 // instead of an option series' day price, which the underlying itself never has. Shared
 // by price-operation.ts and the implied-volatility index. `session` names the candle a close
 // came from (null for a quote), so a caller can tell a spot carried forward across an ex-date
-// (issue #285) the same way `resolveLegMarketPrice`'s `stale` does.
+// the same way `resolveLegMarketPrice`'s `stale` does.
 export function resolveUnderlyingSpotReading(
   view: MarketView,
   ticker: Ticker,
