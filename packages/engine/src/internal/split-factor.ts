@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
-import type { SessionDate } from "@fetha/contracts";
+import type { Instant, SessionDate } from "@fetha/contracts";
 import type { CorporateActionFactor, EngineError } from "../api";
+import { isAtOrBefore } from "./instant";
 
 export type SplitFactorResult = { ok: true; value: Decimal } | { ok: false; error: EngineError };
 
@@ -60,4 +61,12 @@ export function rescaleStalePrice(
   if (!factor.ok) return factor;
   if (factor.value.eq(1)) return { ok: true, value: { price, rescaled: false } };
   return { ok: true, value: { price: price.mul(factor.value), rescaled: true } };
+}
+
+export function visibleFactorsFor(
+  corporateActions: readonly CorporateActionFactor[],
+  underlying: string,
+  at: Instant,
+): CorporateActionFactor[] {
+  return corporateActions.filter((f) => f.ticker === underlying && isAtOrBefore(f.asOf, at));
 }

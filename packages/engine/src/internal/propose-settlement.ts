@@ -30,7 +30,6 @@ import {
 } from "./decimal";
 import { err, invalidInput } from "./errors";
 import { grossCentavos, isSafeCentavosAmount, isSafeGrossCentavos } from "./fill-pricing";
-import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
 import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
@@ -38,7 +37,7 @@ import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveExpiryClose } from "./resolve-expiry-close";
 import { toCentavos, toQuantity } from "./scalars";
-import { splitFactorProduct } from "./split-factor";
+import { splitFactorProduct, visibleFactorsFor } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
@@ -354,8 +353,10 @@ export function proposeSettlement(
     // below, is settleLeg's at the leg's nominal `quantity`; rebased here by the same window's
     // factor, since cash — unlike a fill — never needs a whole-unit floor or its own residual.
     if (settled.value.cashSettlementValue !== null) {
-      const visibleFactors = input.view.corporateActions.filter(
-        (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, expiryClose),
+      const visibleFactors = visibleFactorsFor(
+        input.view.corporateActions,
+        operation.underlying,
+        expiryClose,
       );
       const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, operation.expiry);
       // `settled.ok` above already ran every one of these same `corporateActions` rows
@@ -391,8 +392,10 @@ export function proposeSettlement(
     // mark-to-market and score rebase an option leg through: every factor visible by the
     // expiry close, between the operation's own `openedAt` and the leg's own expiry (an option
     // leg never outlives it).
-    const visibleFactors = input.view.corporateActions.filter(
-      (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, expiryClose),
+    const visibleFactors = visibleFactorsFor(
+      input.view.corporateActions,
+      operation.underlying,
+      expiryClose,
     );
     const factorResult = splitFactorProduct(visibleFactors, operation.openedAt, operation.expiry);
     if (!factorResult.ok) return err(factorResult.error);

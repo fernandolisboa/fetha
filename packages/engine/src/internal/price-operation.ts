@@ -1,7 +1,6 @@
 import Decimal from "decimal.js";
 import type { Centavos, DecimalString, RiskProfile, SessionDate } from "@fetha/contracts";
 import type {
-  CorporateActionFactor,
   EngineError,
   Greeks,
   LegInput,
@@ -18,7 +17,6 @@ import type {
 } from "../api";
 import { sessionAtOrBefore } from "./calendar";
 import { calendarIntegrityError, corporateActionIntegrityError } from "./validate-view-integrity";
-import { isAtOrBefore } from "./instant";
 import {
   CENTAVOS_PER_REAL,
   PRICE_SCALE,
@@ -35,6 +33,7 @@ import {
   NO_RISK_PROFILE_NOTE,
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  pushNoteOnce,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STALE_PRICE_NOTE,
 } from "./notes";
@@ -47,7 +46,7 @@ import { resolveLegSelection } from "./resolve-leg-selection";
 import { resolveLegMarketPrice, resolveUnderlyingSpotReading } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
-import { rescaleStalePrice } from "./split-factor";
+import { rescaleStalePrice, visibleFactorsFor } from "./split-factor";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 function sign(side: "buy" | "sell"): 1 | -1 {
@@ -67,14 +66,6 @@ function sessionDateAtOrBefore(
   return sessionAtOrBefore(calendar, at)?.date ?? null;
 }
 
-function visibleUnderlyingFactors(
-  view: MarketView,
-  underlying: string,
-  at: string,
-): CorporateActionFactor[] {
-  return view.corporateActions.filter((f) => f.ticker === underlying && isAtOrBefore(f.asOf, at));
-}
-
 type SpotReading = { spot: DecimalString; rescaled: boolean };
 
 // Issue #285: a spot carried forward from a session before an ex-date (the underlying did not
@@ -91,7 +82,7 @@ function resolveSpotOnSessionScale(
   const reading = resolveUnderlyingSpotReading(view, underlying, at);
   if (!reading) return { ok: true, value: null };
   const rescaled = rescaleStalePrice(
-    visibleUnderlyingFactors(view, underlying, at),
+    visibleFactorsFor(view.corporateActions, underlying, at),
     parseDecimal(reading.value),
     reading.session,
     sessionDateAtOrBefore(view.calendar, at),
@@ -111,9 +102,9 @@ function resolveSpotOnSessionScale(
 // The web reads notes by code, so a rescale already named on the operation (an option leg's
 // IV-suppression note shares the code) is never named twice.
 function withStaleRescaleNote(notes: readonly Note[]): Note[] {
-  return notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
-    ? [...notes]
-    : [...notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE];
+  const next = [...notes];
+  pushNoteOnce(next, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
+  return next;
 }
 
 // Exported for score's own max-loss computation (ADR-0014 Q46/Q13): score builds this same
@@ -156,7 +147,7 @@ function valueOneLeg(
     // aggregate (net premium, payoff, limits) multiplies by the effective quantity is rescaled
     // onto the session's scale, the same way markToMarket's unrealized P&L already is (#279).
     const premium = rescaleStalePrice(
-      visibleUnderlyingFactors(view, underlying, at),
+      visibleFactorsFor(view.corporateActions, underlying, at),
       price ? parseDecimal(price) : new Decimal(0),
       resolved?.stale?.session ?? null,
       atSession,
@@ -295,7 +286,7 @@ function valueOneLeg(
   // `(stale session, session of at]`. Issue #285: the premium the aggregates read is that
   // rescaled price; `LegValuation.price` still reports the price as it traded.
   const premium = rescaleStalePrice(
-    visibleUnderlyingFactors(view, underlying, at),
+    visibleFactorsFor(view.corporateActions, underlying, at),
     marketPrice ? parseDecimal(marketPrice.value) : new Decimal(0),
     marketPrice?.stale?.session ?? null,
     atSession,
@@ -730,7 +721,7 @@ function priceConcreteLegs(
   );
   if (!valued.ok) return err(valued.error);
   const { priced, notes: legNotes, netPremiumCentavos, anyPremiumRescaled } = valued.value;
-  let notes: Note[] = [...rateNotes, ...legNotes];
+  const notes: Note[] = [...rateNotes, ...legNotes];
 
   // A priced leg (it has a market price) with null greeks means the model could not
   // solve one (`iv_not_converged`, `below_intrinsic`): the aggregate below still has to
@@ -758,7 +749,7 @@ function priceConcreteLegs(
         "at least one priced leg's implied volatility was suppressed across a corporate action; the aggregate excludes it",
     });
   }
-  if (anyPremiumRescaled) notes = withStaleRescaleNote(notes);
+  if (anyPremiumRescaled) pushNoteOnce(notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
 

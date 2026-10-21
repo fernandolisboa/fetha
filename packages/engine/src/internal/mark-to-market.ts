@@ -22,6 +22,7 @@ import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
 import {
   NO_RISK_PROFILE_NOTE,
+  pushNoteOnce,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STALE_PRICE_NOTE,
 } from "./notes";
@@ -33,7 +34,7 @@ import { resolveExpiryClose } from "./resolve-expiry-close";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
-import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct, visibleFactorsFor } from "./split-factor";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
 
@@ -124,9 +125,7 @@ function priceExistingOperation(
     through: SessionDate;
   }[] = [];
   for (const [legIndex, leg] of operation.legs.entries()) {
-    const visibleFactors = view.corporateActions.filter(
-      (f) => f.ticker === operation.underlying && isAtOrBefore(f.asOf, at),
-    );
+    const visibleFactors = visibleFactorsFor(view.corporateActions, operation.underlying, at);
     // an option leg ceases to exist at its own listed expiry, so a
     // corporate action ex-dated after it rebases whatever stock position the exercise or
     // assignment produced, never this leg — capped the same way option-strike.ts caps the
@@ -301,12 +300,7 @@ function priceExistingOperation(
   }
   // `priceLegsAt` can already carry this code (its own spot/premium rescale or IV-suppression
   // note, same situation): the web reads notes by code, so one is enough.
-  if (
-    anyStaleMarkRescaled &&
-    !notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
-  ) {
-    notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
-  }
+  if (anyStaleMarkRescaled) pushNoteOnce(notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   if (unpricedExpiredLegIndexes.size > 0) {
     notes.push({
       code: "no_market_price",
