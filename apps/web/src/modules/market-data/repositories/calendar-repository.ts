@@ -300,3 +300,26 @@ export async function calendarWindowThroughExpiry(
 
   return [...pastRows.reverse(), ...futureRows];
 }
+
+// `calendarWindowThroughExpiry` with the forward leg left open: the IV index loads it once
+// per session and slices it per underlying instead of re-reading the same rows (#334).
+export async function calendarWindowWithFuture(
+  db: Database,
+  at: Date,
+  pastWindow: number,
+): Promise<Array<{ date: string; open: Date; close: Date; asOf: Date }>> {
+  const pastRows = await db
+    .select()
+    .from(tradingSessions)
+    .where(lte(tradingSessions.open, at))
+    .orderBy(desc(tradingSessions.date))
+    .limit(pastWindow);
+
+  const futureRows = await db
+    .select()
+    .from(tradingSessions)
+    .where(gt(tradingSessions.open, at))
+    .orderBy(asc(tradingSessions.date));
+
+  return [...pastRows.reverse(), ...futureRows];
+}

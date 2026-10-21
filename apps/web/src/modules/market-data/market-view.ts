@@ -10,6 +10,7 @@ import {
   tickerSchema,
   type DecimalString,
   type Instant,
+  type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
 import {
@@ -28,6 +29,7 @@ import type { Database } from "@/db/client";
 
 import {
   calendarWindowThroughExpiry,
+  calendarWindowWithFuture,
   latestSessionOnOrBefore,
   nthSessionAfter,
   sessionBefore,
@@ -54,7 +56,9 @@ import {
   latestOptionPricesAt,
   optionPricesInSessionRange,
   optionSeriesForUnderlyingAt,
+  optionSeriesForUnderlyingThroughExpiryAfter,
   optionSeriesInWindow,
+  type OptionSeriesEpochRow,
 } from "./repositories/option-repository";
 
 const CANDLE_WINDOW_SESSIONS = 30;
@@ -492,6 +496,23 @@ function isEarlierOnExactTie(a: SeriesRow, b: SeriesRow): boolean {
   return a.ticker < b.ticker;
 }
 
+function latestSeriesRowByTicker(
+  rows: readonly OptionSeriesEpochRow[],
+): Map<string, OptionSeriesEpochRow> {
+  const latest = new Map<string, OptionSeriesEpochRow>();
+  for (const row of rows) {
+    const existing = latest.get(row.ticker);
+    if (
+      !existing ||
+      row.asOf > existing.asOf ||
+      (row.asOf.getTime() === existing.asOf.getTime() && isEarlierOnExactTie(row, existing))
+    ) {
+      latest.set(row.ticker, row);
+    }
+  }
+  return latest;
+}
+
 function furthestExpiry(seriesExpiries: readonly string[]): string | null {
   return seriesExpiries.reduce<string | null>(
     (furthest, expiry) => (furthest === null || expiry > furthest ? expiry : furthest),
@@ -534,6 +555,31 @@ export async function buildOperationMarketView(
   options: BuildOperationMarketViewOptions = {},
 ): Promise<MarketView> {
   const atDate = new Date(at);
+  return assembleOperationMarketView(db, underlying, at, options, {
+    calendarWindow: (pastWindow, throughExpiry) =>
+      calendarWindowThroughExpiry(db, atDate, pastWindow, throughExpiry),
+    seriesRows: (calendarFloor) =>
+      optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
+    priceFloor: (calendarFloor) => calendarFloor,
+  });
+}
+
+type CalendarRow = Awaited<ReturnType<typeof calendarWindowThroughExpiry>>[number];
+
+interface OperationMarketViewSources {
+  calendarWindow: (pastWindow: number, throughExpiry: string | null) => Promise<CalendarRow[]>;
+  seriesRows: (calendarFloor: string | undefined) => Promise<OptionSeriesEpochRow[]>;
+  priceFloor: (calendarFloor: string | undefined) => string | undefined;
+}
+
+async function assembleOperationMarketView(
+  db: Database,
+  underlying: Ticker,
+  at: Instant,
+  options: BuildOperationMarketViewOptions,
+  sources: OperationMarketViewSources,
+): Promise<MarketView> {
+  const atDate = new Date(at);
   const extraInstruments = options.extraInstruments ?? [];
 
   // The trailing edge of the calendar window, computed once up front so the
@@ -544,12 +590,7 @@ export async function buildOperationMarketView(
   // still extend the calendar forward past this floor (below); it can never
   // move the floor itself, which only depends on `at` (and, for a caller
   // that passes `options.from`, on that earlier instant too).
-  const pastCalendarRows = await calendarWindowThroughExpiry(
-    db,
-    atDate,
-    CALENDAR_WINDOW_SESSIONS,
-    null,
-  );
+  const pastCalendarRows = await sources.calendarWindow(CALENDAR_WINDOW_SESSIONS, null);
   let calendarFloor = pastCalendarRows[0]?.date;
   let pastWindowSessions = CALENDAR_WINDOW_SESSIONS;
 
@@ -580,7 +621,7 @@ export async function buildOperationMarketView(
 
   const [seriesRows, candleRows, extraCandleRows, latestCdi, corporateActionRows] =
     await Promise.all([
-      optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
+      sources.seriesRows(calendarFloor),
       candlesAtOrBefore(
         db,
         [underlying],
@@ -599,9 +640,7 @@ export async function buildOperationMarketView(
       corporateActionsForTicker(db, underlying),
     ]);
 
-  const calendarRows = await calendarWindowThroughExpiry(
-    db,
-    atDate,
+  const calendarRows = await sources.calendarWindow(
     pastWindowSessions,
     furthestExpiry(seriesRows.map((row) => row.expiry)),
   );
@@ -622,23 +661,13 @@ export async function buildOperationMarketView(
     settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
   }));
 
-  const latestSeriesByTicker = new Map<string, (typeof seriesRows)[number]>();
-  for (const row of seriesRows) {
-    const existing = latestSeriesByTicker.get(row.ticker);
-    if (
-      !existing ||
-      row.asOf > existing.asOf ||
-      (row.asOf.getTime() === existing.asOf.getTime() && isEarlierOnExactTie(row, existing))
-    ) {
-      latestSeriesByTicker.set(row.ticker, row);
-    }
-  }
+  const latestSeriesByTicker = latestSeriesRowByTicker(seriesRows);
 
   const optionTickers = [...latestSeriesByTicker.keys()];
   const priceRows =
     optionTickers.length === 0
       ? []
-      : await latestOptionPricesAt(db, optionTickers, atDate, calendarFloor);
+      : await latestOptionPricesAt(db, optionTickers, atDate, sources.priceFloor(calendarFloor));
 
   // The latest visible price row per ticker, admitted only when its own
   // expiry and strike match the series row the engine will actually resolve
@@ -703,4 +732,113 @@ export async function buildOperationMarketView(
     macro,
     ...(dataVersion ? { dataVersion } : {}),
   };
+}
+
+// What `computeIvIndexForSession` reads once per session and shares across every underlying
+// (#334): the same calendar rows each underlying's view used to re-read on its own.
+export interface IvIndexSessionCalendar {
+  at: Instant;
+  rows: CalendarRow[];
+}
+
+export async function loadIvIndexSessionCalendar(
+  db: Database,
+  at: Instant,
+): Promise<IvIndexSessionCalendar> {
+  return { at, rows: await calendarWindowWithFuture(db, new Date(at), CALENDAR_WINDOW_SESSIONS) };
+}
+
+// The rows `calendarWindowThroughExpiry(db, at, pastWindow, throughExpiry)` would return, taken
+// from a calendar loaded once with the same past window and every future session.
+export function sliceCalendarWindow(
+  calendar: IvIndexSessionCalendar,
+  pastWindow: number,
+  throughExpiry: string | null,
+): CalendarRow[] {
+  if (pastWindow > CALENDAR_WINDOW_SESSIONS) {
+    throw new Error("sliceCalendarWindow: past window wider than the loaded calendar");
+  }
+  const atMs = new Date(calendar.at).getTime();
+  const past = calendar.rows.filter((row) => row.open.getTime() <= atMs).slice(-pastWindow);
+  const future =
+    throughExpiry === null
+      ? []
+      : calendar.rows.filter((row) => row.open.getTime() > atMs && row.date <= throughExpiry);
+  return [...past, ...future];
+}
+
+const IV_INDEX_TARGET_CALENDAR_DAYS = 30;
+
+// The session ADR-0013's `atm_30d_variance_interpolated` targets: the first session on or after
+// 30 calendar days from the session `at` falls in (`open <= at`).
+function ivIndexTargetSession(calendar: IvIndexSessionCalendar): SessionDate | null {
+  const atMs = new Date(calendar.at).getTime();
+  const atSession = calendar.rows.findLast((row) => row.open.getTime() <= atMs);
+  if (!atSession) return null;
+  const target = new Date(`${atSession.date}T00:00:00.000Z`);
+  target.setUTCDate(target.getUTCDate() + IV_INDEX_TARGET_CALENDAR_DAYS);
+  const targetDate = target.toISOString().slice(0, 10);
+  const session = calendar.rows.find((row) => row.date >= targetDate);
+  return session ? sessionDateSchema.parse(session.date) : null;
+}
+
+// The narrowed chain is exact only when its own collapsed series still list the first expiry
+// after the target (the bracket's upper leg): every expiry on or before it is read in full,
+// so the lower leg and an exact-tenor expiry are the full read's too. Otherwise the upper leg
+// may sit on a ticker the narrowing dropped, and only the full read can tell.
+function narrowedChainBrackets(
+  rows: readonly OptionSeriesEpochRow[],
+  target: SessionDate,
+  sessionDates: ReadonlySet<string>,
+): boolean {
+  const firstAfter = rows.reduce<string | null>(
+    (first, row) =>
+      row.expiry > target && (first === null || row.expiry < first) ? row.expiry : first,
+    null,
+  );
+  if (firstAfter === null || !sessionDates.has(firstAfter)) return false;
+  for (const row of latestSeriesRowByTicker(rows).values()) {
+    if (row.expiry === firstAfter) return true;
+  }
+  return false;
+}
+
+// `buildOperationMarketView` for one underlying's IV index point at a session's close (#334):
+// the calendar comes from `loadIvIndexSessionCalendar` instead of two reads per underlying,
+// the chain stops at the first expiry past the 30-day target (falling back to the full chain
+// when that narrowed read no longer brackets), and option prices are read for the session
+// itself only, the one `computeIvIndexForSession` keeps.
+export async function buildIvIndexMarketView(
+  db: Database,
+  underlying: Ticker,
+  session: SessionDate,
+  calendar: IvIndexSessionCalendar,
+): Promise<MarketView> {
+  const atDate = new Date(calendar.at);
+  const target = ivIndexTargetSession(calendar);
+  const sessionDates = new Set(calendar.rows.map((row) => row.date));
+  return assembleOperationMarketView(
+    db,
+    underlying,
+    calendar.at,
+    {},
+    {
+      calendarWindow: (pastWindow, throughExpiry) =>
+        Promise.resolve(sliceCalendarWindow(calendar, pastWindow, throughExpiry)),
+      seriesRows: async (calendarFloor) => {
+        if (target) {
+          const narrowed = await optionSeriesForUnderlyingThroughExpiryAfter(
+            db,
+            underlying,
+            atDate,
+            calendarFloor,
+            target,
+          );
+          if (narrowedChainBrackets(narrowed, target, sessionDates)) return narrowed;
+        }
+        return optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor);
+      },
+      priceFloor: () => session,
+    },
+  );
 }

@@ -203,3 +203,29 @@ rather than waiting one more cron for it. Sessions `indexes` never attempted thi
 backfill batch, outside its own recent window) are unaffected and keep draining on their own
 schedule. The cost is the same shape as the existing CDI gate: while B3's index file lags past a
 cron, every underlying's IV point for that session waits for the next one, not only `IBOV11`'s.
+
+## Addendum: each underlying reads only the chain the 30-day bracket can use (2026-10-21, #334)
+
+Each underlying's view used to re-read the session's calendar twice (the past window and the
+forward leg through its own furthest expiry, LEAPS included), its whole option chain, and every
+option's latest price over the trailing window, only to keep one number. `computeIvIndexForSession`
+now loads the calendar once per session (`loadIvIndexSessionCalendar`, the past window plus every
+future session) and builds each view with `buildIvIndexMarketView`, which:
+
+1. slices that calendar exactly as `calendarWindowThroughExpiry` would have answered;
+2. reads the chain only for the tickers with a visible row expiring on or before the first expiry
+   past the target session (the first session on or after 30 calendar days from the session `at`
+   falls in, ADR-0013's `atm_30d_variance_interpolated`), each ticker with every one of its own
+   rows, so a ticker B3 reused for a later cycle (ADR-0017) still collapses to the epoch the full
+   read would pick;
+3. keeps that narrowed chain only when one of its collapsed series still lists that first expiry
+   and it is a calendar session: every expiry on or before it is then read in full, so the lower
+   leg, the upper leg and an exact-tenor expiry are the full read's own. Otherwise (the first
+   expiry survives only on an older cycle of a reused ticker, it is not a session, or there is
+   none) it falls back to the full chain;
+4. reads option prices from the session itself only, the one the compute step keeps anyway.
+
+The engine and its frozen interface are unchanged; the point is the same value the full view
+produces (an integration test compares both, including the reused-ticker fallback). Measured on
+the recorded PETR4 fixture sessions: about 55–60% less data sent by the database per underlying,
+more once the per-session calendar is shared across ~175 underlyings.

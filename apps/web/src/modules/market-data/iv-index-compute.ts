@@ -1,9 +1,13 @@
-import { instantSchema, tickerSchema } from "@fetha/contracts";
+import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
 import { engine } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 
-import { buildOperationMarketView, MarketViewUnavailableError } from "./market-view";
+import {
+  buildIvIndexMarketView,
+  loadIvIndexSessionCalendar,
+  MarketViewUnavailableError,
+} from "./market-view";
 import { latestSessionOnOrBefore } from "./repositories/calendar-repository";
 import { latestMacroPointAtOrBefore } from "./repositories/macro-repository";
 import {
@@ -54,6 +58,8 @@ export async function computeIvIndexForSession(
   const remaining = allUnderlyings.filter((underlying) => !done.has(underlying));
 
   const at = instantSchema.parse(sessionClose.toISOString());
+  const sessionDate = sessionDateSchema.parse(session);
+  const calendar = await loadIvIndexSessionCalendar(db, at);
   const rows: Parameters<typeof upsertIvIndexPoints>[1] = [];
   let pending = false;
 
@@ -66,7 +72,7 @@ export async function computeIvIndexForSession(
     const ticker = tickerSchema.parse(underlying);
     let view;
     try {
-      view = await buildOperationMarketView(db, ticker, at);
+      view = await buildIvIndexMarketView(db, ticker, sessionDate, calendar);
     } catch (error) {
       if (error instanceof MarketViewUnavailableError) {
         pending = true;
