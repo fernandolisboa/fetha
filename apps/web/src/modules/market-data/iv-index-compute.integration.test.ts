@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { quantitySchema, tickerSchema } from "@fetha/contracts";
+import { instantSchema, quantitySchema, tickerSchema } from "@fetha/contracts";
 import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
@@ -16,21 +16,25 @@ import {
 } from "./schema";
 
 import { computeIvIndexForSession } from "./iv-index-compute";
-import { buildOperationMarketView } from "./market-view";
+import {
+  buildIvIndexMarketView,
+  buildOperationMarketView,
+  loadIvIndexSessionCalendar,
+} from "./market-view";
 import { DAILY_TIMEFRAME } from "./repositories/candle-repository";
 import { ivIndexPointsInRange, upsertIvIndexPoints } from "./repositories/iv-index-repository";
 import { ensureMonthlyPartition } from "./repositories/partitions";
 
 // Wraps the real implementation by default (mirrors
 // strategies/evaluate-signals.integration.test.ts's own pattern): every
-// test keeps using genuine `buildOperationMarketView` behaviour except the
+// test keeps using genuine `buildIvIndexMarketView` behaviour except the
 // one below that overrides a single call to prove an unexpected error
 // propagates instead of being swallowed as "0 rows, succeeded".
 vi.mock("./market-view", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./market-view")>();
-  return { ...actual, buildOperationMarketView: vi.fn(actual.buildOperationMarketView) };
+  return { ...actual, buildIvIndexMarketView: vi.fn(actual.buildIvIndexMarketView) };
 });
-const buildOperationMarketViewMock = vi.mocked(buildOperationMarketView);
+const buildIvIndexMarketViewMock = vi.mocked(buildIvIndexMarketView);
 
 const SESSION_OPEN_UTC = "13:00:00.000Z";
 const SESSION_CLOSE_UTC = "21:00:00.000Z";
@@ -363,7 +367,7 @@ describe("computeIvIndexForSession", () => {
     cleanupOptionTickers.push(optionTicker);
     await seedCallSeries(underlying, optionTicker, session0, expiry, "50.00000000", "1.000000");
 
-    buildOperationMarketViewMock.mockRejectedValueOnce(new Error("boom"));
+    buildIvIndexMarketViewMock.mockRejectedValueOnce(new Error("boom"));
 
     const sessionClose = new Date(`${session0}T${SESSION_CLOSE_UTC}`);
     await expect(computeIvIndexForSession(db, session0, sessionClose)).rejects.toThrow("boom");
@@ -372,12 +376,12 @@ describe("computeIvIndexForSession", () => {
     expect(points).toEqual([]);
   });
 
-  // `buildOperationMarketView` (market-view.ts) takes no cap options and
+  // `buildIvIndexMarketView` (market-view.ts) takes no cap options and
   // never throws MarketViewTooLargeError/MarketViewUnavailableError today —
   // only `loadMarketView`'s own chain and price-row caps do. There is
   // nothing to seed here that would exercise that skip branch through real
-  // code; it exists for the day buildOperationMarketView grows one, not for
-  // a reachable case today.
+  // code; it exists for the day the view grows one, not for a reachable
+  // case today.
 
   it("never solves from a bracket leg whose only premium is stale (priced on a prior session), even though buildOperationMarketView still carries it", async () => {
     const db = getDb();
@@ -876,5 +880,232 @@ describe("computeIvIndexForSession", () => {
     expect(leg?.impliedVolatility).not.toBeNull();
     expect(Number(leg?.impliedVolatility)).toBeCloseTo(flatSigma, 1);
     expect(leg?.greeks).not.toBeNull();
+  });
+
+  describe("buildIvIndexMarketView", () => {
+    async function seedCdi(date: string): Promise<void> {
+      await getDb()
+        .insert(macroPoints)
+        .values({
+          series: "cdi",
+          date,
+          asOf: new Date(`${date}T${SESSION_OPEN_UTC}`),
+          annualRate: "0.00000000",
+        });
+    }
+
+    async function ivFrom(
+      view: Awaited<ReturnType<typeof buildOperationMarketView>>,
+      underlying: string,
+      session: string,
+      at: string,
+    ) {
+      const optionPrices = view.optionPrices.filter((price) => price.session === session);
+      const result = await engine.impliedVolatilityIndex({
+        view: { ...view, optionPrices },
+        underlying: tickerSchema.parse(underlying),
+        at: instantSchema.parse(at),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return null;
+      return {
+        impliedVolatility: result.value.impliedVolatility,
+        seriesUsed: [...result.value.seriesUsed].sort(),
+      };
+    }
+
+    it("reads the chain only through the bracket's upper expiry and solves the same point as the full view (#334)", async () => {
+      const db = getDb();
+      const sessions = dailySessions(75);
+      cleanupSessionDates.push(...sessions);
+      await seedSessions(sessions);
+
+      const session0 = sessions[0] ?? "";
+      await seedCdi(session0);
+
+      const underlying = uniqueTicker("NRW");
+      cleanupUnderlyings.push(underlying);
+      await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+      const tickerLower = `${underlying}CL`;
+      const tickerUpper = `${underlying}CH`;
+      const tickerLeaps = `${underlying}CZ`;
+      cleanupOptionTickers.push(tickerLower, tickerUpper, tickerLeaps);
+      for (const [ticker, index, sigma] of [
+        [tickerLower, 20, 0.2],
+        [tickerUpper, 40, 0.4],
+        [tickerLeaps, 70, 0.3],
+      ] as const) {
+        await seedCallSeries(
+          underlying,
+          ticker,
+          session0,
+          sessions[index] ?? "",
+          "50.00000000",
+          bsCall(50, 50, index / 252, sigma).toFixed(6),
+        );
+      }
+
+      const at = new Date(`${session0}T${SESSION_CLOSE_UTC}`).toISOString();
+      const full = await buildOperationMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        instantSchema.parse(at),
+      );
+      const narrowed = await buildIvIndexMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
+      );
+
+      expect(full.optionSeries.map((series) => series.ticker)).toContain(tickerLeaps);
+      expect(narrowed.optionSeries.map((series) => series.ticker).sort()).toEqual(
+        [tickerUpper, tickerLower].sort(),
+      );
+      const fromNarrowed = await ivFrom(narrowed, underlying, session0, at);
+      expect(fromNarrowed?.impliedVolatility).not.toBeNull();
+      expect(fromNarrowed).toEqual(await ivFrom(full, underlying, session0, at));
+    });
+
+    it("falls back to the full chain when the first expiry past the target only survives on a ticker B3 relisted for a later cycle (#334, ADR-0017)", async () => {
+      const db = getDb();
+      const sessions = dailySessions(75);
+      cleanupSessionDates.push(...sessions);
+      await seedSessions(sessions);
+
+      const prevSession = sessions[0] ?? "";
+      const session0 = sessions[1] ?? "";
+      await seedCdi(prevSession);
+
+      const underlying = uniqueTicker("RLS");
+      cleanupUnderlyings.push(underlying);
+      await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+      const tickerLower = `${underlying}CL`;
+      const tickerUpper = `${underlying}CH`;
+      const tickerReused = `${underlying}CR`;
+      cleanupOptionTickers.push(tickerLower, tickerUpper, tickerReused);
+      await seedCallSeries(
+        underlying,
+        tickerLower,
+        session0,
+        sessions[21] ?? "",
+        "50.00000000",
+        bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+      );
+      await seedCallSeries(
+        underlying,
+        tickerUpper,
+        session0,
+        sessions[51] ?? "",
+        "50.00000000",
+        bsCall(50, 50, 50 / 252, 0.4).toFixed(6),
+      );
+      // The reused ticker's earlier cycle expires right after the target, ahead of the true
+      // upper leg; its latest epoch (the one the engine resolves) moved to a far expiry.
+      await db.insert(optionSeries).values({
+        isin: `ISIN-${tickerReused}-OLD`,
+        ticker: tickerReused,
+        underlying,
+        right: "call",
+        strike: "50.00000000",
+        expiry: sessions[41] ?? "",
+        style: "european",
+        asOf: new Date(`${prevSession}T${SESSION_OPEN_UTC}`),
+        priceFactor: "1",
+        settlementStyle: "physical",
+      });
+      await seedCallSeries(
+        underlying,
+        tickerReused,
+        session0,
+        sessions[71] ?? "",
+        "50.00000000",
+        bsCall(50, 50, 70 / 252, 0.3).toFixed(6),
+      );
+      const tickerStale = `${underlying}CS`;
+      cleanupOptionTickers.push(tickerStale);
+      await seedCallSeries(
+        underlying,
+        tickerStale,
+        prevSession,
+        sessions[21] ?? "",
+        "80.00000000",
+        "0.010000",
+      );
+
+      const at = new Date(`${session0}T${SESSION_CLOSE_UTC}`).toISOString();
+      const full = await buildOperationMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        instantSchema.parse(at),
+      );
+      const narrowed = await buildIvIndexMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
+      );
+
+      expect(narrowed.optionSeries.map((series) => series.ticker)).toContain(tickerUpper);
+      expect(full.optionPrices.map((price) => price.ticker)).toContain(tickerStale);
+      expect(narrowed.optionPrices.map((price) => price.session)).toEqual(
+        narrowed.optionPrices.map(() => session0),
+      );
+      expect(narrowed.optionPrices.map((price) => price.ticker)).not.toContain(tickerStale);
+      const fromNarrowed = await ivFrom(narrowed, underlying, session0, at);
+      expect(fromNarrowed?.impliedVolatility).not.toBeNull();
+      expect(fromNarrowed?.seriesUsed).toEqual([tickerUpper, tickerLower].sort());
+      expect(fromNarrowed).toEqual(await ivFrom(full, underlying, session0, at));
+    });
+
+    it("falls back to the full chain when no expiry follows the 30-day target (#334)", async () => {
+      const db = getDb();
+      const sessions = dailySessions(45);
+      cleanupSessionDates.push(...sessions);
+      await seedSessions(sessions);
+
+      const session0 = sessions[0] ?? "";
+      await seedCdi(session0);
+
+      const underlying = uniqueTicker("NOB");
+      cleanupUnderlyings.push(underlying);
+      await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+      const tickerNear = `${underlying}CN`;
+      const tickerMid = `${underlying}CM`;
+      cleanupOptionTickers.push(tickerNear, tickerMid);
+      for (const [ticker, index] of [
+        [tickerNear, 10],
+        [tickerMid, 20],
+      ] as const) {
+        await seedCallSeries(
+          underlying,
+          ticker,
+          session0,
+          sessions[index] ?? "",
+          "50.00000000",
+          bsCall(50, 50, index / 252, 0.2).toFixed(6),
+        );
+      }
+
+      const at = new Date(`${session0}T${SESSION_CLOSE_UTC}`).toISOString();
+      const full = await buildOperationMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        instantSchema.parse(at),
+      );
+      const narrowed = await buildIvIndexMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
+      );
+
+      expect(narrowed.optionSeries.map((series) => series.ticker).sort()).toEqual(
+        [tickerMid, tickerNear].sort(),
+      );
+      const fromNarrowed = await ivFrom(narrowed, underlying, session0, at);
+      expect(fromNarrowed?.impliedVolatility).toBeNull();
+      expect(fromNarrowed).toEqual(await ivFrom(full, underlying, session0, at));
+    });
   });
 });

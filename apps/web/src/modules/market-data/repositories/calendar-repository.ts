@@ -282,14 +282,8 @@ export async function calendarWindowThroughExpiry(
   at: Date,
   pastWindow: number,
   throughExpiry: string | null,
-): Promise<Array<{ date: string; open: Date; close: Date; asOf: Date }>> {
-  const pastRows = await db
-    .select()
-    .from(tradingSessions)
-    .where(lte(tradingSessions.open, at))
-    .orderBy(desc(tradingSessions.date))
-    .limit(pastWindow);
-
+): Promise<CalendarWindowRow[]> {
+  const pastRows = await pastSessions(db, at, pastWindow);
   const futureRows = throughExpiry
     ? await db
         .select()
@@ -298,5 +292,36 @@ export async function calendarWindowThroughExpiry(
         .orderBy(asc(tradingSessions.date))
     : [];
 
-  return [...pastRows.reverse(), ...futureRows];
+  return [...pastRows, ...futureRows];
+}
+
+type CalendarWindowRow = { date: string; open: Date; close: Date; asOf: Date };
+
+async function pastSessions(
+  db: Database,
+  at: Date,
+  pastWindow: number,
+): Promise<CalendarWindowRow[]> {
+  const rows = await db
+    .select()
+    .from(tradingSessions)
+    .where(lte(tradingSessions.open, at))
+    .orderBy(desc(tradingSessions.date))
+    .limit(pastWindow);
+  return rows.reverse();
+}
+
+export async function calendarWindowWithFuture(
+  db: Database,
+  at: Date,
+  pastWindow: number,
+): Promise<CalendarWindowRow[]> {
+  const pastRows = await pastSessions(db, at, pastWindow);
+  const futureRows = await db
+    .select()
+    .from(tradingSessions)
+    .where(gt(tradingSessions.open, at))
+    .orderBy(asc(tradingSessions.date));
+
+  return [...pastRows, ...futureRows];
 }
