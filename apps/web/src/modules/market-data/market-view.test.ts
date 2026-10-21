@@ -38,7 +38,11 @@ describe("sliceCalendarWindow", () => {
     close: new Date(`${date}T21:00:00.000Z`),
     asOf: new Date("2026-01-01T00:00:00.000Z"),
   }));
-  const calendar = { at: instantSchema.parse("2026-05-13T13:00:00.000Z"), rows };
+  const calendar = {
+    at: instantSchema.parse("2026-05-13T13:00:00.000Z"),
+    session: sessionDateSchema.parse("2026-05-13"),
+    rows,
+  };
 
   it("keeps the latest past sessions by open, the session `at` opens included, and no future without an expiry", () => {
     expect(sliceCalendarWindow(calendar, 2, null).map((row) => row.date)).toEqual([

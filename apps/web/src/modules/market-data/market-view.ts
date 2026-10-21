@@ -734,10 +734,9 @@ async function assembleOperationMarketView(
   };
 }
 
-// What `computeIvIndexForSession` reads once per session and shares across every underlying
-// (#334): the same calendar rows each underlying's view used to re-read on its own.
 export interface IvIndexSessionCalendar {
   at: Instant;
+  session: SessionDate;
   rows: CalendarRow[];
 }
 
@@ -745,11 +744,13 @@ export async function loadIvIndexSessionCalendar(
   db: Database,
   at: Instant,
 ): Promise<IvIndexSessionCalendar> {
-  return { at, rows: await calendarWindowWithFuture(db, new Date(at), CALENDAR_WINDOW_SESSIONS) };
+  const rows = await calendarWindowWithFuture(db, new Date(at), CALENDAR_WINDOW_SESSIONS);
+  const atMs = new Date(at).getTime();
+  const atSession = rows.findLast((row) => row.open.getTime() <= atMs);
+  if (!atSession) throw new Error("loadIvIndexSessionCalendar: no session opens at or before at");
+  return { at, session: sessionDateSchema.parse(atSession.date), rows };
 }
 
-// The rows `calendarWindowThroughExpiry(db, at, pastWindow, throughExpiry)` would return, taken
-// from a calendar loaded once with the same past window and every future session.
 export function sliceCalendarWindow(
   calendar: IvIndexSessionCalendar,
   pastWindow: number,
@@ -767,15 +768,14 @@ export function sliceCalendarWindow(
   return [...past, ...future];
 }
 
+// Mirrors the engine's `CALENDAR_DAYS_TO_TARGET` rule (implied-volatility-index.ts, ADR-0013
+// `atm_30d_variance_interpolated`): the first session on or after 30 calendar days from the
+// session `at` falls in. A change there must change this too; the full-read fallback below
+// does not cover a different target.
 const IV_INDEX_TARGET_CALENDAR_DAYS = 30;
 
-// The session ADR-0013's `atm_30d_variance_interpolated` targets: the first session on or after
-// 30 calendar days from the session `at` falls in (`open <= at`).
 function ivIndexTargetSession(calendar: IvIndexSessionCalendar): SessionDate | null {
-  const atMs = new Date(calendar.at).getTime();
-  const atSession = calendar.rows.findLast((row) => row.open.getTime() <= atMs);
-  if (!atSession) return null;
-  const target = new Date(`${atSession.date}T00:00:00.000Z`);
+  const target = new Date(`${calendar.session}T00:00:00.000Z`);
   target.setUTCDate(target.getUTCDate() + IV_INDEX_TARGET_CALENDAR_DAYS);
   const targetDate = target.toISOString().slice(0, 10);
   const session = calendar.rows.find((row) => row.date >= targetDate);
@@ -803,15 +803,11 @@ function narrowedChainBrackets(
   return false;
 }
 
-// `buildOperationMarketView` for one underlying's IV index point at a session's close (#334):
-// the calendar comes from `loadIvIndexSessionCalendar` instead of two reads per underlying,
-// the chain stops at the first expiry past the 30-day target (falling back to the full chain
-// when that narrowed read no longer brackets), and option prices are read for the session
-// itself only, the one `computeIvIndexForSession` keeps.
+// Option prices are read for the session itself only: `computeIvIndexForSession` keeps no
+// other (docs/adr/0054 #334 addendum).
 export async function buildIvIndexMarketView(
   db: Database,
   underlying: Ticker,
-  session: SessionDate,
   calendar: IvIndexSessionCalendar,
 ): Promise<MarketView> {
   const atDate = new Date(calendar.at);
@@ -838,7 +834,7 @@ export async function buildIvIndexMarketView(
         }
         return optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor);
       },
-      priceFloor: () => session,
+      priceFloor: () => calendar.session,
     },
   );
 }

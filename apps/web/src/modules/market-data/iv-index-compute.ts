@@ -1,4 +1,4 @@
-import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import { instantSchema, tickerSchema } from "@fetha/contracts";
 import { engine } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
@@ -58,7 +58,6 @@ export async function computeIvIndexForSession(
   const remaining = allUnderlyings.filter((underlying) => !done.has(underlying));
 
   const at = instantSchema.parse(sessionClose.toISOString());
-  const sessionDate = sessionDateSchema.parse(session);
   const calendar = await loadIvIndexSessionCalendar(db, at);
   const rows: Parameters<typeof upsertIvIndexPoints>[1] = [];
   let pending = false;
@@ -72,7 +71,7 @@ export async function computeIvIndexForSession(
     const ticker = tickerSchema.parse(underlying);
     let view;
     try {
-      view = await buildIvIndexMarketView(db, ticker, sessionDate, calendar);
+      view = await buildIvIndexMarketView(db, ticker, calendar);
     } catch (error) {
       if (error instanceof MarketViewUnavailableError) {
         pending = true;
@@ -81,10 +80,10 @@ export async function computeIvIndexForSession(
       throw error;
     }
 
-    // `buildOperationMarketView` carries each option's latest price over a
-    // trailing window (`latestOptionPricesAt`), not just `session`'s own: a
-    // bracket with no trade on `session` must be treated as unpriced here,
-    // not solved from a stale premium.
+    // A bracket with no trade on `session` must be treated as unpriced, not
+    // solved from a stale premium. `buildIvIndexMarketView` already reads
+    // `session`'s prices only; this keeps that invariant here, where the
+    // point is stamped.
     const optionPrices = view.optionPrices.filter((price) => price.session === session);
 
     const result = await engine.impliedVolatilityIndex({

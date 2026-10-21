@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { instantSchema, quantitySchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import { instantSchema, quantitySchema, tickerSchema } from "@fetha/contracts";
 import { engine } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
@@ -955,7 +955,6 @@ describe("computeIvIndexForSession", () => {
       const narrowed = await buildIvIndexMarketView(
         db,
         tickerSchema.parse(underlying),
-        sessionDateSchema.parse(session0),
         await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
       );
 
@@ -1024,6 +1023,16 @@ describe("computeIvIndexForSession", () => {
         "50.00000000",
         bsCall(50, 50, 70 / 252, 0.3).toFixed(6),
       );
+      const tickerStale = `${underlying}CS`;
+      cleanupOptionTickers.push(tickerStale);
+      await seedCallSeries(
+        underlying,
+        tickerStale,
+        prevSession,
+        sessions[21] ?? "",
+        "80.00000000",
+        "0.010000",
+      );
 
       const at = new Date(`${session0}T${SESSION_CLOSE_UTC}`).toISOString();
       const full = await buildOperationMarketView(
@@ -1034,14 +1043,68 @@ describe("computeIvIndexForSession", () => {
       const narrowed = await buildIvIndexMarketView(
         db,
         tickerSchema.parse(underlying),
-        sessionDateSchema.parse(session0),
         await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
       );
 
       expect(narrowed.optionSeries.map((series) => series.ticker)).toContain(tickerUpper);
+      expect(full.optionPrices.map((price) => price.ticker)).toContain(tickerStale);
+      expect(narrowed.optionPrices.map((price) => price.session)).toEqual(
+        narrowed.optionPrices.map(() => session0),
+      );
+      expect(narrowed.optionPrices.map((price) => price.ticker)).not.toContain(tickerStale);
       const fromNarrowed = await ivFrom(narrowed, underlying, session0, at);
       expect(fromNarrowed?.impliedVolatility).not.toBeNull();
       expect(fromNarrowed?.seriesUsed).toEqual([tickerUpper, tickerLower].sort());
+      expect(fromNarrowed).toEqual(await ivFrom(full, underlying, session0, at));
+    });
+
+    it("falls back to the full chain when no expiry follows the 30-day target (#334)", async () => {
+      const db = getDb();
+      const sessions = dailySessions(45);
+      cleanupSessionDates.push(...sessions);
+      await seedSessions(sessions);
+
+      const session0 = sessions[0] ?? "";
+      await seedCdi(session0);
+
+      const underlying = uniqueTicker("NOB");
+      cleanupUnderlyings.push(underlying);
+      await seedUnderlyingSpot(underlying, session0, "50.000000");
+
+      const tickerNear = `${underlying}CN`;
+      const tickerMid = `${underlying}CM`;
+      cleanupOptionTickers.push(tickerNear, tickerMid);
+      for (const [ticker, index] of [
+        [tickerNear, 10],
+        [tickerMid, 20],
+      ] as const) {
+        await seedCallSeries(
+          underlying,
+          ticker,
+          session0,
+          sessions[index] ?? "",
+          "50.00000000",
+          bsCall(50, 50, index / 252, 0.2).toFixed(6),
+        );
+      }
+
+      const at = new Date(`${session0}T${SESSION_CLOSE_UTC}`).toISOString();
+      const full = await buildOperationMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        instantSchema.parse(at),
+      );
+      const narrowed = await buildIvIndexMarketView(
+        db,
+        tickerSchema.parse(underlying),
+        await loadIvIndexSessionCalendar(db, instantSchema.parse(at)),
+      );
+
+      expect(narrowed.optionSeries.map((series) => series.ticker).sort()).toEqual(
+        [tickerMid, tickerNear].sort(),
+      );
+      const fromNarrowed = await ivFrom(narrowed, underlying, session0, at);
+      expect(fromNarrowed?.impliedVolatility).toBeNull();
       expect(fromNarrowed).toEqual(await ivFrom(full, underlying, session0, at));
     });
   });

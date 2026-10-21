@@ -42,7 +42,8 @@ in `ingest()`. For each session it drains:
    own stock candle on that session — the minimum a spot and a chain give the engine to solve for.
    `underlyingsWithPointOnSession` narrows that list to the ones still missing a point, so a call
    that starts after an earlier one was cut short by the hard stop (below) only recomputes what is
-   left, never redoing an underlying already written this session. For each remaining underlying,
+   left, never redoing an underlying already written this session. For each remaining underlying
+   (view assembly superseded by the #334 addendum below),
    `buildOperationMarketView(db, underlying, sessionClose)` builds the same shape of view
    `priceOperation` uses, but the option prices it carries are filtered down to rows stamped for
    `session` itself before the engine ever sees them: `buildOperationMarketView`'s own
@@ -226,6 +227,10 @@ future session) and builds each view with `buildIvIndexMarketView`, which:
 4. reads option prices from the session itself only, the one the compute step keeps anyway.
 
 The engine and its frozen interface are unchanged; the point is the same value the full view
-produces (an integration test compares both, including the reused-ticker fallback). Measured on
-the recorded PETR4 fixture sessions: about 55–60% less data sent by the database per underlying,
-more once the per-session calendar is shared across ~175 underlyings.
+produces (integration tests compare both, including the reused-ticker and no-upper-expiry
+fallbacks). The target rule in step 2 mirrors the engine's `CALENDAR_DAYS_TO_TARGET`
+(`ivIndexTargetSession`, market-view.ts): a change to the engine's tenor must change both, since
+the fallback does not cover a different target (a mismatch would drop points, not alter them).
+Measured by the Postgres container's `tx_bytes` around one `computeIvIndexForSession` call on the
+e2e recorded sessions (PETR4 chain only): 662 → 253 KiB on 2026-09-08 and 760 → 355 KiB on
+2026-09-18, identical stored points; more once the shared calendar spans ~175 underlyings.
