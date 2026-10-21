@@ -73,24 +73,37 @@ export function resolveLegMarketPrice(
 // The underlying's own spot uses the same mid-before-last precedence as a leg's market
 // price, falling back to the latest visible D1 candle close
 // instead of an option series' day price, which the underlying itself never has. Shared
-// by price-operation.ts and the implied-volatility index.
-export function resolveUnderlyingSpot(
+// by price-operation.ts and the implied-volatility index. `session` names the candle a close
+// came from (null for a quote), so a caller can tell a spot carried forward across an ex-date
+// the same way `resolveLegMarketPrice`'s `stale` does.
+export function resolveUnderlyingSpotReading(
   view: MarketView,
   ticker: Ticker,
   at: Instant,
-): DecimalString | null {
+): { value: DecimalString; session: SessionDate | null } | null {
   const quote = latestVisibleIndexed(rowsWithKey(view.quotes, tickerOf, ticker), at);
   if (quote?.bid && quote.ask) {
-    return toDecimalString(
-      parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
-      PRICE_SCALE,
-    );
+    return {
+      value: toDecimalString(
+        parseDecimal(quote.bid).add(parseDecimal(quote.ask)).div(2),
+        PRICE_SCALE,
+      ),
+      session: null,
+    };
   }
-  if (quote?.last) return quote.last;
+  if (quote?.last) return { value: quote.last, session: null };
   const candle = latestSessionVersion(
     rowsWithKey(view.candles, dailyCandleTickerOf, ticker),
     at,
     lastVisibleByAsOfString,
   );
-  return candle?.close ?? null;
+  return candle ? { value: candle.close, session: candle.session } : null;
+}
+
+export function resolveUnderlyingSpot(
+  view: MarketView,
+  ticker: Ticker,
+  at: Instant,
+): DecimalString | null {
+  return resolveUnderlyingSpotReading(view, ticker, at)?.value ?? null;
 }

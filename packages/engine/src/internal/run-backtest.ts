@@ -14,6 +14,7 @@ import {
   type BacktestProgress,
   type BacktestRun,
   type Candle,
+  type CorporateActionFactor,
   type DataWindow,
   type EquityPoint,
   type EvaluationOutcome,
@@ -58,7 +59,14 @@ import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
 import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
 import { groupBy } from "./search";
-import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
+import {
+  fillCosts,
+  grossCentavos,
+  isSafeCentavosAmount,
+  isSafeGrossCentavos,
+  slippageCentavos,
+  slippedOptionPrice,
+} from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import {
@@ -71,7 +79,7 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { rebaseExerciseFillUnits, settleLeg, truncateToWholeUnits } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { corporateActionIntegrityError } from "./validate-view-integrity";
 import { computeWalkForward } from "./walk-forward";
 
@@ -361,19 +369,21 @@ function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
-// Issue #279: the mark rebases a held quantity the same way a fill does, so it refuses the same
-// unit counts the fill path's `truncateToWholeUnits` refuses, on a zero-volume session where no
-// fill ran first. `closePeriodEnd` reads the same legs and residuals right after
-// `computeMarkValue` on the same session, so this guard covers it too. Like the fill path, it
-// bounds the unit count, not the centavos that count times a price can reach.
-function isSafeUnitCount(quantity: Decimal): boolean {
-  return Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber());
+// A mark rebases a held quantity the way a fill does, so it refuses the same unit counts and
+// centavos amounts, on a zero-volume session where no fill ran first to refuse them.
+// `closePeriodEnd` reads the same legs and prices right after `computeMarkValue`, so this
+// guard covers it too.
+function isSafeMarkAmount(price: DecimalString, quantity: Decimal): boolean {
+  return (
+    Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber()) &&
+    isSafeGrossCentavos(price, quantity)
+  );
 }
 
-function unsafeMarkQuantity<T>(underlying: Ticker): Result<T> {
+function unsafeRebasedAmount<T>(underlying: Ticker): Result<T> {
   return invalidInput(
     "view.corporateActions",
-    `split factor produces a non-integer-safe effective unit count for ${underlying}`,
+    `split factor produces a non-integer-safe effective unit count or amount for ${underlying}`,
   );
 }
 
@@ -684,16 +694,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // close, the one reading instant Q51 settles on so no two of them can disagree over which
   // factors are visible yet (I1); a factor not yet visible there is excluded, matching
   // provenance.truncated for the same rows.
+  function visibleFactorsOf(ticker: Ticker, visibleAt: Instant): CorporateActionFactor[] {
+    return (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
+      isAtOrBefore(f.asOf, visibleAt),
+    );
+  }
+
   function corporateActionFactorThrough(
     ticker: Ticker,
     openedAt: SessionDate,
     through: SessionDate,
     visibleAt: Instant,
   ): Decimal {
-    const factors = (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
-      isAtOrBefore(f.asOf, visibleAt),
-    );
-    const result = splitFactorProduct(factors, openedAt, through);
+    const result = splitFactorProduct(visibleFactorsOf(ticker, visibleAt), openedAt, through);
     // runBacktest's own upfront validation above rejects the whole, unfiltered
     // view.corporateActions with invalid_input before the session loop below ever starts
     // (a resumed chunk's first session fills and marks before evaluateStrategy
@@ -712,10 +725,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // this, every one of them at the same reading instant (I1). Issue #273: a stale row — one
   // whose own session predates `uptoSession` — sits on whatever price scale its own session had,
   // which a corporate action ex-dated since then has already moved the held quantity away from
-  // (`corporateActionFactorThrough`, keyed by the operation's own underlying the same way every
-  // other leg rebase in this file is). Rescaling by that same factor keeps the mark on the scale
-  // the caller's own effective quantity expects; a fresh row (its own session already
-  // `uptoSession`) is never stale by definition and skips this. The rescaled value is kept at
+  // (keyed by the operation's own underlying the same way every other leg rebase in this file
+  // is). Rescaling through the shared `rescaleStalePrice` keeps the mark on the scale the caller's own
+  // effective quantity expects; a fresh row (its own session already `uptoSession`) has an
+  // empty window and comes back unrescaled. The rescaled value is kept at
   // full decimal.js precision (`toDecimalStringAtLeastScale`, never rounded to `PRICE_SCALE`
   // here): rounding before the caller multiplies by its own effective quantity would manufacture
   // or drop P&L the unrounded multiplication never would (correctness round 1, #273 follow-up).
@@ -731,11 +744,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         ? lastKnownCloseRow(candlesByTicker, ticker, uptoSession, visibleAt)
         : lastKnownOptionPriceRow(optionPricesByTicker, ticker, uptoSession, visibleAt);
     if (known === null) return null;
-    if (known.session === uptoSession) return known.price;
-    const rescale = corporateActionFactorThrough(underlying, known.session, uptoSession, visibleAt);
-    if (rescale.eq(1)) return known.price;
+    const rescaled = rescaleStalePrice(
+      visibleFactorsOf(underlying, visibleAt),
+      parseDecimal(known.price),
+      known.session,
+      uptoSession,
+    );
+    invariant(
+      rescaled.ok,
+      "run-backtest: the upfront corporateActions validation already rejected a non-positive factor",
+    );
+    if (!rescaled.value.rescaled) return known.price;
     state.stalePriceRescaledAcrossCorporateActionNoted = true;
-    return toDecimalStringAtLeastScale(parseDecimal(known.price).mul(rescale), PRICE_SCALE);
+    return toDecimalStringAtLeastScale(rescaled.value.price, PRICE_SCALE);
   }
 
   function lastKnownLegPrice(
@@ -883,14 +904,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         );
         // Every leg's signal-time quantity is rescaled the same way.
         const rescaledQuantities: number[] = [];
-        for (const leg of pending.legs) {
+        for (const [legIndex, leg] of pending.legs.entries()) {
+          const legFill = assertDefined(
+            legFills[legIndex],
+            "run-backtest: legFills has one entry per leg",
+          );
+          invariant(legFill.ready, "run-backtest: allLegsReady already checked every leg");
           const rescaled = entryFactor.eq(1)
             ? leg.quantity
             : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
-          if (!Number.isSafeInteger(rescaled) || rescaled <= 0) {
+          if (
+            !Number.isSafeInteger(rescaled) ||
+            rescaled <= 0 ||
+            !isSafeGrossCentavos(legFill.price, rescaled)
+          ) {
             return invalidInput(
               "view.corporateActions",
-              `split factor produces a non-integer-safe entry quantity for ${ticker}`,
+              `split factor produces a non-integer-safe entry quantity or amount for ${ticker}`,
             );
           }
           rescaledQuantities.push(rescaled);
@@ -1035,13 +1065,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
         // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
-        // a real unit count can be; that is invalid input, not a value toQuantity should throw
-        // an invariant over.
-        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
-          return invalidInput(
-            "view.corporateActions",
-            `split factor produces a non-integer-safe effective unit count for ${tradedTicker}`,
-          );
+        // a real unit count can be, or (around 1e-12) the centavos it is worth; that is
+        // invalid input, not a value toQuantity or toCentavos should throw an invariant over.
+        if (
+          (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) ||
+          !isSafeGrossCentavos(legFill.price, rawEffectiveQuantity)
+        ) {
+          return unsafeRebasedAmount(tradedTicker);
         }
         const residue = rawEffectiveQuantity.sub(effectiveUnits);
         let costs = toCentavos(0);
@@ -1177,7 +1207,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const truncated = truncateToWholeUnits(rawEffectiveResidual, candle.open, () => ({
         code: "invalid_input",
         path: "view.corporateActions",
-        message: `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
+        message: `split factor produces a non-integer-safe effective unit count or amount for ${pending.op.underlying}`,
       }));
       if (!truncated.ok) return { ok: false, error: truncated.error };
       const { units: effectiveUnits, residualValueCentavos, residualSign } = truncated.value;
@@ -1355,9 +1385,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // exercise/assignment fill's own quantity already is, below, so a factor that moved
         // between entry and expiry is reflected the same way on either settlement path.
         if (settled.value.cashSettlementValue !== null) {
-          const rebasedCashSettlementValue = toCentavos(
-            new Decimal(settled.value.cashSettlementValue).div(splitFactor).round().toNumber(),
-          );
+          const rebasedCashAmount = new Decimal(settled.value.cashSettlementValue).div(splitFactor);
+          if (!isSafeCentavosAmount(rebasedCashAmount)) return unsafeRebasedAmount(op.underlying);
+          const rebasedCashSettlementValue = toCentavos(rebasedCashAmount.round().toNumber());
           const cashValue = new Decimal(rebasedCashSettlementValue);
           state.cash += rebasedCashSettlementValue;
           optionsPnl = optionsPnl.add(cashValue);
@@ -1584,7 +1614,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const markPrice = markPriceOrNull;
         const sign = leg.side === "buy" ? 1 : -1;
         const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
-        if (!isSafeUnitCount(effectiveQuantity)) return unsafeMarkQuantity(op.underlying);
+        if (!isSafeMarkAmount(markPrice, effectiveQuantity)) {
+          return unsafeRebasedAmount(op.underlying);
+        }
         markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
@@ -1620,8 +1652,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       const effectiveResidualQuantity = new Decimal(pending.residualQuantity).div(residualFactor);
-      if (!isSafeUnitCount(effectiveResidualQuantity)) {
-        return unsafeMarkQuantity(pending.op.underlying);
+      if (!isSafeMarkAmount(markPriceOrNull, effectiveResidualQuantity)) {
+        return unsafeRebasedAmount(pending.op.underlying);
       }
       markValue += grossCentavos(markPriceOrNull, effectiveResidualQuantity).round().toNumber();
     }

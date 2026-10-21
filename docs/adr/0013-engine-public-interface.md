@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.14.0";
+export const ENGINE_VERSION = "0.15.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -3184,3 +3184,55 @@ Persisted reads: `packages/contracts`' `legSettlementSchema` mirror defaults `ca
 to `null` (the `residualValue` default-`0` precedent, #271 addendum above) — a run persisted
 before this change never had a cash-settled leg by construction. `backtest-run-type-pin.test.ts`'s
 existing `operations` exclusion covers this without any change to that test.
+
+## Addendum: the stale scale beyond unrealized P&L; `ENGINE_VERSION` bumped to `0.15.0` (2026-10-21, #285)
+
+Follow-ups to the #279 addendum, which rescaled only `unrealizedPnl`:
+
+- **The spot.** `priceLegsAt` (markToMarket, `priceOperation`'s concrete legs, evaluateStrategy)
+  and `priceOperation`'s selection path read the underlying's spot with the session its candle
+  came from (`resolveUnderlyingSpotReading`; a quote carries none) and rescale a spot carried
+  forward from before an ex-date by the factors over `(spot session, session of at]`. Fair value,
+  implied volatility, greeks and the payoff samples now read the same scale as the derived strike
+  and the rebased quantity. `OperationPricing.spot` reports the rescaled spot, the one the model
+  used.
+- **The pricing aggregates.** `valueOneLeg` rescales a stale leg premium over the same window
+  before `netPremium`, the payoff, `breakEvens`, `maxLoss`/`maxGain` and `limitBreaches`
+  multiply it by the leg's quantity. `LegValuation.price` still reports the price as it traded.
+  An option leg's implied-volatility solve is suppressed exactly when that rescale applies (a
+  window whose factors multiply to 1 no longer suppresses it). The operation's notes carry
+  `stale_price_across_corporate_action` once when either rescale applies; no new note code.
+- **One window.** `runBacktest`'s stale mark delegates the multiply-and-flag to
+  `rescaleStalePrice`, now the only place `(stale session, through]` is measured. A `through` of
+  null (no session for the reading instant) rescales nothing.
+- **A centavos bound.** A corrupt factor around 1e-12 leaves a safe unit count whose centavos at
+  its price pass a safe integer, which `toCentavos` threw on. `isSafeGrossCentavos` and
+  `isSafeCentavosAmount` (`fill-pricing.ts`) refuse it with `invalid_input` wherever a rebased
+  amount is about to reach `toCentavos`:
+  - `runBacktest`: the entry and exit fills, the mark and a pending residual's mark (which
+    `closePeriodEnd` reads at the same prices on the same session), `truncateToWholeUnits` (a
+    pending residual's fill, an exercise or assignment fill) and a cash-settled leg's rebased
+    cash flow at expiry (`view.corporateActions`).
+  - `proposeSettlement`: the same `truncateToWholeUnits` check and a cash-settled leg's rebased
+    cash flow (`operation.legs[i]`).
+  - `markToMarket` (and `priceOperation`): `valueLegs` bounds the sum over legs of
+    `quantity x (premium + the largest underlying a payoff is sampled at / the leg's price
+factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`maxGain`
+    (`operations[i].legs[j]`), and each operation's unrealized P&L is checked before conversion
+    (`operations[i]`).
+
+  Like the unit-count bound, each bounds one leg, fill or operation, not a sum across them.
+
+- **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
+  index, delta-based strike selection and quotes (which carry no session) still read an
+  unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
+  `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
+  stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
+  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
+- **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
+  `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
+  (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
+  so `configDigest` stays a digest of `BacktestConfig` alone.
+
+Marks and pricing outputs change for a stale price or spot across a split, so `ENGINE_VERSION`
+moves from `"0.14.0"` to `"0.15.0"`.

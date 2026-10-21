@@ -1195,6 +1195,69 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  // Issue #285: 500 shares / 1e-12 is a safe 5e14 effective units, but 5e14 x R$10.00 is 5e17
+  // centavos, past a safe integer.
+  const centavosOverflowFactor: CorporateActionFactor = {
+    ticker: "PETR4",
+    exDate: "2024-01-04",
+    asOf: "2024-01-04T13:00:00.000Z",
+    factor: decimalString("0.000000000001"),
+  };
+
+  it("returns invalid_input, never throws, when a factor leaves a safe unit count but overflows an exit fill's centavos (#285)", () => {
+    const alwaysTrue: Condition = {
+      kind: "compare",
+      left: { kind: "price", field: "close" },
+      comparator: ">",
+      right: { kind: "constant", value: decimalString("0") },
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        definition({ entry: closeAbove9, exit: [{ kind: "condition", condition: alwaysTrue }] }),
+      ),
+      period: { from: "2024-01-02", to: "2024-01-04" },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: ["2024-01-02", "2024-01-03", "2024-01-04"].map(session),
+      corporateActions: [centavosOverflowFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+        candle("PETR4", "2024-01-04", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  it.each([
+    ["the period-end sweep", "2024-01-04"],
+    ["a mid-run equity point", "2024-01-05"],
+  ])(
+    "returns invalid_input, never throws, when a factor leaves a safe unit count but overflows the mark's centavos at %s (#285)",
+    (_, periodTo) => {
+      const config = baseConfig({ period: { from: "2024-01-02", to: periodTo } });
+      const view: MarketView = {
+        ...emptyView,
+        calendar: fourSessionCalendar,
+        corporateActions: [centavosOverflowFactor],
+        candles: [
+          candle("PETR4", "2024-01-02", "10.00", "10.00"),
+          candle("PETR4", "2024-01-03", "10.00", "10.00"),
+          candle("PETR4", "2024-01-04", "10.00", "10.00", 0),
+          candle("PETR4", "2024-01-05", "10.00", "10.00", 0),
+        ],
+      };
+      const result = runBacktest({ view, config });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("invalid_input");
+    },
+  );
+
   it("rescales a stale pre-split mark read from before the ex-date to the post-split scale (#273), no phantom gain", () => {
     const calendar = ["2024-01-02", "2024-01-03", "2024-01-04"].map(session);
     const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-04" } });
@@ -1449,6 +1512,31 @@ describe("runBacktest — corporate actions on entry fills", () => {
       ...emptyView,
       calendar,
       corporateActions: [microFactor],
+      candles: [
+        candle("PETR4", "2024-01-02", "10.00", "10.00"),
+        candle("PETR4", "2024-01-03", "10.00", "10.00"),
+      ],
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+});
+
+describe("runBacktest — centavos bound on a rescaled entry (#285)", () => {
+  it("returns invalid_input, never a throw, when a factor leaves a pending entry's quantity safe but overflows its centavos", () => {
+    const factor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.000000000001"),
+    };
+    const config = baseConfig({ period: { from: "2024-01-02", to: "2024-01-03" } });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: ["2024-01-02", "2024-01-03"].map(session),
+      corporateActions: [factor],
       candles: [
         candle("PETR4", "2024-01-02", "10.00", "10.00"),
         candle("PETR4", "2024-01-03", "10.00", "10.00"),
@@ -3176,58 +3264,67 @@ describe("runBacktest — option structures (#23)", () => {
     expect(expiryEquityPoint).toMatchObject({ cash: centavos(672647), equity: centavos(672647) });
   });
 
-  it("settlement reports invalid_input, never throwing, when a corporate-action factor blows an exercised leg's effective unit count past a safe integer", () => {
-    const days = businessDays(20);
-    const expiry = days[10] as string;
-    const hugeStrikeBase = "100000000000000.00";
-    // Ex-dated exactly at expiry, asOf visible only once this same session settles: every
-    // earlier session's own mark never sees this factor, so only `resolveExpiringOperations`'s
-    // own guard is exercised here, never an intermediate daily mark overflowing `toCentavos` first.
-    const tinyFactor: CorporateActionFactor = {
-      ticker: "PETR4",
-      exDate: expiry,
-      asOf: `${expiry}T13:00:00.000Z`,
-      factor: decimalString("0.0000000000000001"),
-    };
-    const config = baseConfig({
-      strategy: strategyVersion(
-        {
-          ...definition({
-            entry: closeAbove9,
-            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
-          }),
-          structureId: "single_call",
-          strikes: [{ kind: "nearest", price: decimalString(hugeStrikeBase) }],
-          expiry: { kind: "business_days", min: 1, max: 12 },
-        },
-        singleCall,
-      ),
-      period: { from: days[0] as string, to: days[12] as string },
-      // A tiny initial capital against a ~R$1.00 premium buys exactly one contract
-      // (fixed_fractional sizes off the run's own current equity, never riskProfile.declaredCapital).
-      initialCapital: centavos(100),
-    });
-    const view: MarketView = {
-      ...emptyView,
-      calendar: optionCalendar,
-      corporateActions: [tinyFactor],
-      candles: days.map((d) => candle("PETR4", d, "50.00", "50.00")),
-      optionSeries: [
-        callOrPutSeries(
-          "PETR4CHUGE",
-          "call",
-          hugeStrikeBase,
-          expiry,
-          `${days[0] as string}T20:00:00.000Z`,
+  it.each([
+    // 1 / 1e-16 = 1e16 effective units, past a safe integer.
+    ["effective unit count", "0.0000000000000001"],
+    // Issue #285: 1 / 1e-13 = 1e13 units is safe, but at the derived 10.00 strike that is 1e16
+    // centavos, past a safe integer.
+    ["centavos", "0.0000000000001"],
+  ])(
+    "settlement reports invalid_input, never throwing, when a corporate-action factor blows an exercised leg's %s past a safe integer",
+    (_, tinyFactorValue) => {
+      const days = businessDays(20);
+      const expiry = days[10] as string;
+      const hugeStrikeBase = "100000000000000.00";
+      // Ex-dated exactly at expiry, asOf visible only once this same session settles: every
+      // earlier session's own mark never sees this factor, so only `resolveExpiringOperations`'s
+      // own guard is exercised here, never an intermediate daily mark overflowing `toCentavos` first.
+      const tinyFactor: CorporateActionFactor = {
+        ticker: "PETR4",
+        exDate: expiry,
+        asOf: `${expiry}T13:00:00.000Z`,
+        factor: decimalString(tinyFactorValue),
+      };
+      const config = baseConfig({
+        strategy: strategyVersion(
+          {
+            ...definition({
+              entry: closeAbove9,
+              sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+            }),
+            structureId: "single_call",
+            strikes: [{ kind: "nearest", price: decimalString(hugeStrikeBase) }],
+            expiry: { kind: "business_days", min: 1, max: 12 },
+          },
+          singleCall,
         ),
-      ],
-      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4CHUGE", d, "1.00")),
-    };
-    const result = runBacktest({ view, config });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("invalid_input");
-  });
+        period: { from: days[0] as string, to: days[12] as string },
+        // A tiny initial capital against a ~R$1.00 premium buys exactly one contract
+        // (fixed_fractional sizes off the run's own current equity, never riskProfile.declaredCapital).
+        initialCapital: centavos(100),
+      });
+      const view: MarketView = {
+        ...emptyView,
+        calendar: optionCalendar,
+        corporateActions: [tinyFactor],
+        candles: days.map((d) => candle("PETR4", d, "50.00", "50.00")),
+        optionSeries: [
+          callOrPutSeries(
+            "PETR4CHUGE",
+            "call",
+            hugeStrikeBase,
+            expiry,
+            `${days[0] as string}T20:00:00.000Z`,
+          ),
+        ],
+        optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4CHUGE", d, "1.00")),
+      };
+      const result = runBacktest({ view, config });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("invalid_input");
+    },
+  );
 
   it("drops an exercised leg's fill, never reporting a trade that never happened, when a factor floors its effective unit count to zero", () => {
     const days = businessDays(20);
@@ -3680,6 +3777,67 @@ describe("runBacktest — option structures (#23)", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
   });
+
+  // Issue #285: one exercised share / 1e-14 is a safe 1e14 effective units, but 1e14 x R$5.00
+  // or R$12.00 is 5e16 or 1.2e17 centavos, past a safe integer.
+  function singleCallWithCentavosOverflowAt(
+    exDateIndex: number,
+    residualVolume: number,
+  ): RunBacktestInput {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const exDate = days[exDateIndex] as string;
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("5.00") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      period: { from: days[0] as string, to: days[12] as string },
+      initialCapital: centavos(100),
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate,
+          asOf: `${exDate}T13:00:00.000Z`,
+          factor: decimalString("0.00000000000001"),
+        },
+      ],
+      candles: days.map((d, i) => {
+        if (i === 11) return candle("PETR4", d, "12.00", "12.00", residualVolume);
+        return candle("PETR4", d, i < 5 ? "10.00" : "20.00", i < 5 ? "10.00" : "20.00");
+      }),
+      optionSeries: [
+        callOrPutSeries("PETR4C5", "call", "5.00", expiry, `${days[0] as string}T20:00:00.000Z`),
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("PETR4C5", d, "1.00")),
+    };
+    return { view, config };
+  }
+
+  it.each([
+    ["the pending residual's fill", 11, 1000],
+    ["the pending residual's mark on a zero-volume session", 11, 0],
+  ])(
+    "returns invalid_input, never throwing, when a factor leaves a safe unit count but overflows the centavos of %s (#285)",
+    (_, exDateIndex, residualVolume) => {
+      const result = runBacktest(singleCallWithCentavosOverflowAt(exDateIndex, residualVolume));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("invalid_input");
+    },
+  );
 
   const bullCallSpread: Structure = {
     id: "bull_call_spread",
@@ -4985,5 +5143,70 @@ describe("runBacktest — option structures (#23)", () => {
     if (finalCash === undefined) throw new Error("expected a non-empty equity curve");
     expect(totalPnl).toBe(finalCash - config.initialCapital);
     expect(run.taxes.every((t) => t.stockSales === 0)).toBe(true);
+  });
+
+  it("returns invalid_input, never throws, when a factor ex-dated before expiry leaves a cash-settled leg's rebased cash flow past a safe integer of centavos", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const zeroFeeCostModel = {
+      b3FeeRate: decimalString("0"),
+      brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("183000") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      initialCapital: centavos(200_00),
+      universe: ["IBOV"],
+      period: { from: days[0] as string, to: days[11] as string },
+      costModel: zeroFeeCostModel,
+      riskProfile: { ...generousRiskProfile, declaredCapital: centavos(200_00) },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d, i) =>
+        candle("IBOV", d, i < 10 ? "180000" : "185000", i < 10 ? "180000" : "185000"),
+      ),
+      corporateActions: [
+        {
+          ticker: "IBOV",
+          exDate: days[5] as string,
+          asOf: `${days[5] as string}T13:00:00.000Z`,
+          factor: decimalString("0.00000000001"),
+        },
+      ],
+      optionSeries: [
+        {
+          ticker: "IBOVA183",
+          underlying: "IBOV",
+          right: "call",
+          strike: decimalString("183000"),
+          expiry,
+          style: "european",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          priceFactor: decimalString("100"),
+          settlementStyle: "cash",
+        },
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("IBOVA183", d, "2.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "view.corporateActions" });
   });
 });

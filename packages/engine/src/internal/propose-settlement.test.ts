@@ -1232,6 +1232,39 @@ describe("proposeSettlement with an index option's priceFactor (#307)", () => {
     expect(settled?.cashSettlementValue).toBe(2000);
   });
 
+  it("returns invalid_input, never throwing, when a factor leaves a cash-settled leg's rebased cash flow past a safe integer of centavos", () => {
+    const corruptSplit: CorporateActionFactor = {
+      ticker: "IBOV",
+      exDate: "2024-01-03",
+      asOf: "2024-01-03T13:00:00.000Z",
+      factor: decimalString("0.00000000001"),
+    };
+    const view: MarketView = {
+      ...baseView,
+      candles: [ibovCandle],
+      optionSeries: [{ ...ibovaSeries, settlementStyle: "cash" }],
+      corporateActions: [corruptSplit],
+    };
+    const op = operation({
+      underlying: "IBOV",
+      openedAt: "2024-01-01",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "IBOVA183",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+    });
+    const result = proposeSettlement({ view, operation: op }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "operation.legs[0]" });
+  });
+
   it("cash-settles a short call's loss as a negative cash flow, with no stock fill", () => {
     const view: MarketView = {
       ...baseView,

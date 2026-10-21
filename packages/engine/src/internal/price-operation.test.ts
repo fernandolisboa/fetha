@@ -934,6 +934,47 @@ describe("priceOperation (concrete legs)", () => {
     );
   });
 
+  it("prices a stale pre-split option premium on the post-split scale in netPremium and the payoff (#285)", () => {
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-01",
+          asOf: at,
+          average: null,
+          close: decimalString("2.50"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.5"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(100) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 100 calls at the rescaled 1.25, not at the 2.50 they last traded at before the split.
+    expect(result.value.legs[0]?.price).toBe(decimalString("2.50"));
+    expect(result.value.netPremium).toBe(centavos(-125_00));
+    expect(result.value.maxLoss).toBe(centavos(125_00));
+    expect(result.value.breakEvens).toEqual([decimalString("29.25")]);
+  });
+
   it("does not suppress the implied-volatility solve for a corporate action not yet visible at `at`", () => {
     const view: MarketView = {
       ...baseView,
@@ -2224,6 +2265,75 @@ describe("priceOperation (selection: strike ranks, degenerate strikes, expiry wi
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("degenerate_strikes");
+  });
+
+  const preSplitSpotView: MarketView = {
+    ...baseView,
+    quotes: [],
+    candles: [
+      {
+        ticker: "PETR4",
+        timeframe: "D1",
+        session: "2024-01-01",
+        asOf: "2024-01-01T21:00:00.000Z",
+        open: decimalString("60.00"),
+        high: decimalString("60.00"),
+        low: decimalString("60.00"),
+        close: decimalString("60.00"),
+        tradedQuantity: 1000,
+      },
+    ],
+    corporateActions: [
+      {
+        ticker: "PETR4",
+        exDate: "2024-01-02",
+        asOf: "2024-01-02T13:00:00.000Z",
+        factor: decimalString("0.5"),
+      },
+    ],
+    optionSeries: [callSeries("PETR4C28", "28.00"), callSeries("PETR4C32", "32.00")],
+  };
+  const moneynessSelection = {
+    structure,
+    underlying: "PETR4",
+    strikes: [
+      { kind: "moneyness" as const, percent: decimalString("-0.06") },
+      { kind: "moneyness" as const, percent: decimalString("0.07") },
+    ],
+    expiry: { kind: "business_days" as const, min: 1, max: 30 },
+    quantity: quantity(1),
+  };
+
+  it("selects moneyness strikes around a stale pre-split spot rescaled onto the post-split listing (#285)", () => {
+    const result = priceOperation(
+      { view: preSplitSpotView, at, legs: moneynessSelection },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.spot).toBe(decimalString("30.00"));
+    expect(result.value.legs.map((l) => l.leg.ticker)).toEqual(["PETR4C28", "PETR4C32"]);
+    expect(result.value.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("refuses a non-positive factor between a stale spot and the selection's session (#285)", () => {
+    const view: MarketView = {
+      ...preSplitSpotView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0"),
+        },
+      ],
+    };
+    const result = priceOperation({ view, at, legs: moneynessSelection }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
   });
 
   it("reports no_series_matches when no listed expiry falls inside the business-day window", () => {
@@ -3670,5 +3780,99 @@ describe("payoff slope at infinity scales by an index option's priceFactor (#307
       ),
       { numRuns: 200 },
     );
+  });
+});
+
+describe("priceOperation (centavos bound and tied candle asOf, #285)", () => {
+  const tiedCandle = (session: string) => ({
+    ticker: "PETR4",
+    timeframe: "D1" as const,
+    session,
+    asOf: "2024-01-03T21:00:00.000Z",
+    open: decimalString("30.00"),
+    high: decimalString("30.00"),
+    low: decimalString("30.00"),
+    close: decimalString("30.00"),
+    tradedQuantity: 1000,
+  });
+
+  it("returns invalid_input, never throwing, when a stock leg's stale window is wider than the spot's because two candles share an asOf", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar: dailyCalendar(2, 20),
+      quotes: [],
+      candles: [tiedCandle("2024-01-02"), tiedCandle("2024-01-03")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T13:00:00.000Z",
+          factor: decimalString("0"),
+        },
+      ],
+    };
+    const result = priceOperation(
+      {
+        view,
+        at: "2024-01-05T21:00:00.000Z",
+        legs: [{ role: "stock", side: "buy", ticker: "PETR4", quantity: quantity(100) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "corporateActions[].factor",
+    });
+  });
+
+  function callView(priceFactor: string): MarketView {
+    return {
+      ...baseView,
+      calendar: dailyCalendar(2, 20),
+      optionSeries: [
+        {
+          ticker: "PETR4C28",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("28.00"),
+          expiry: "2024-01-21",
+          style: "european",
+          asOf: at,
+          priceFactor: decimalString(priceFactor),
+        },
+      ],
+      quotes: [
+        { ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null },
+        { ticker: "PETR4C28", asOf: at, last: decimalString("2.00"), bid: null, ask: null },
+      ],
+    };
+  }
+
+  it("returns invalid_input, never throwing, when a sub-unit priceFactor makes the payoff overflow a safe integer of centavos", () => {
+    const result = priceOperation(
+      {
+        view: callView("0.000000001"),
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(100_000) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "legs[0]" });
+  });
+
+  it("still prices a million index-priced contracts with a priceFactor of 100", () => {
+    const result = priceOperation(
+      {
+        view: callView("100"),
+        at,
+        legs: [{ role: "call", side: "buy", ticker: "PETR4C28", quantity: quantity(1_000_000) }],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(true);
   });
 });

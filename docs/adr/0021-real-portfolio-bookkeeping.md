@@ -289,6 +289,12 @@ the underlying or the series did not trade on the ex-date. The mechanism is in t
 addendum (`ENGINE_VERSION` 0.13.0); the operation's notes carry
 `stale_price_across_corporate_action` when it applies.
 
+### Addendum: pricing across a split (#285)
+
+An operation's `pricing` (spot, net premium, payoff, break-evens, max loss and gain, limit
+breaches) now reads a carried-forward price and spot on the post-split scale too, not only its
+`unrealizedPnl`. The mechanism is in the ADR-0013 #285 addendum (`ENGINE_VERSION` 0.15.0).
+
 ### Addendum: one closing count per option leg (#282)
 
 `closingQuantities` (`settlement-plan.ts`) computes the count each option leg closes at: the

@@ -46,12 +46,13 @@ import { proposeSettlement as computeProposeSettlement } from "./propose-settlem
 import {
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  pushNoteOnce,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STRIKE_ADJUSTMENT_CODES,
 } from "./notes";
 import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
-import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct, visibleFactorsFor } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
 import { validateViewIntegrity } from "./validate-view-integrity";
 import { latestVisible } from "./visible";
@@ -136,10 +137,11 @@ function legSplitFactor(
   through: SessionDate,
   at: Instant,
 ): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
-  const factors = view.corporateActions.filter(
-    (f) => f.ticker === underlying && isAtOrBefore(f.asOf, at),
+  return splitFactorProduct(
+    visibleFactorsFor(view.corporateActions, underlying, at),
+    openedAt,
+    through,
   );
-  return splitFactorProduct(factors, openedAt, through);
 }
 
 // Issue #273's same gap, in this file's own horizon-mark path (`markLegsToHorizon`,
@@ -155,22 +157,15 @@ function rescaleStaleMark(
   at: Instant,
   notes: Note[],
 ): { ok: true; value: Decimal } | { ok: false; error: EngineError } {
-  const factors = view.corporateActions.filter(
-    (f) => f.ticker === underlying && isAtOrBefore(f.asOf, at),
-  );
   const rescaled = rescaleStalePrice(
-    factors,
+    visibleFactorsFor(view.corporateActions, underlying, at),
     parseDecimal(resolved.value),
     resolved.stale?.session ?? null,
     through,
   );
   if (!rescaled.ok) return rescaled;
-  if (
-    rescaled.value.rescaled &&
-    !notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
-  ) {
-    notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
-  }
+  if (rescaled.value.rescaled)
+    pushNoteOnce(notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   return { ok: true, value: rescaled.value.price };
 }
 

@@ -69,3 +69,7 @@ export function strikeAdjustmentNotesOf(legs: readonly Pick<LegValuation, "notes
   if (codes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
   return notes;
 }
+
+export function pushNoteOnce(notes: Note[], note: Note): void {
+  if (!notes.some((n) => n.code === note.code)) notes.push(note);
+}
