@@ -200,6 +200,8 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
     flag already named the carried-forward session, but the mark itself was never rescaled against
     it — and is fixed the same way, sharing `legSplitFactor` rather than inventing a second
     calculation.
+    The note is no longer run-wide and mark-only: it is also emitted for pricing and spot
+    rescales (ADR-0013, the #285 addendum).
 - **Exit-fill retry has no cap (Q52; permanent, not a #16 stopgap).** Q38's three-session retry
   window is explicit about _entries_ only. An exit signal that cannot fill (no trade at the next
   session's open) is retried at every following session's open — the same pending exit, the same

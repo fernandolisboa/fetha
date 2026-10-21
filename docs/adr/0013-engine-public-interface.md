@@ -3193,9 +3193,9 @@ Follow-ups to the #279 addendum, which rescaled only `unrealizedPnl`:
   and `priceOperation`'s selection path read the underlying's spot with the session its candle
   came from (`resolveUnderlyingSpotReading`; a quote carries none) and rescale a spot carried
   forward from before an ex-date by the factors over `(spot session, session of at]`. Fair value,
-  implied volatility, greeks, strike selection and the payoff samples now read the same scale as
-  the derived strike and the rebased quantity. `OperationPricing.spot` reports the rescaled spot,
-  the one the model used.
+  implied volatility, greeks and the payoff samples now read the same scale as the derived strike
+  and the rebased quantity. `OperationPricing.spot` reports the rescaled spot, the one the model
+  used.
 - **The pricing aggregates.** `valueOneLeg` rescales a stale leg premium over the same window
   before `netPremium`, the payoff, `breakEvens`, `maxLoss`/`maxGain` and `limitBreaches`
   multiply it by the leg's quantity. `LegValuation.price` still reports the price as it traded.
@@ -3206,13 +3206,26 @@ Follow-ups to the #279 addendum, which rescaled only `unrealizedPnl`:
   `rescaleStalePrice`, now the only place `(stale session, through]` is measured. A `through` of
   null (no session for the reading instant) rescales nothing.
 - **A centavos bound.** A corrupt factor around 1e-12 leaves a safe unit count whose centavos at
-  its price pass a safe integer, which `toCentavos` threw on. `isSafeGrossCentavos`
-  (`fill-pricing.ts`) refuses it with `invalid_input` (`view.corporateActions`) wherever
-  `runBacktest` meets a rebased quantity and a price: the entry and exit fills, the mark and a
-  pending residual's mark (which `closePeriodEnd` reads at the same prices on the same session),
-  and `truncateToWholeUnits` (a pending residual's fill, an exercise or assignment fill). Like the
-  unit-count bound, it bounds each leg and each fill, not a sum of several. `markToMarket`'s own
-  pricing still converts with `toCentavos` and is not covered here.
+  its price pass a safe integer, which `toCentavos` threw on. `isSafeGrossCentavos` and
+  `isSafeCentavosAmount` (`fill-pricing.ts`) refuse it with `invalid_input` wherever a rebased
+  amount is about to reach `toCentavos`:
+  - `runBacktest`: the entry and exit fills, the mark and a pending residual's mark (which
+    `closePeriodEnd` reads at the same prices on the same session), `truncateToWholeUnits` (a
+    pending residual's fill, an exercise or assignment fill) and a cash-settled leg's rebased
+    cash flow at expiry (`view.corporateActions`).
+  - `proposeSettlement`: the same `truncateToWholeUnits` check and a cash-settled leg's rebased
+    cash flow (`operation.legs[i]`).
+  - `markToMarket` (and `priceOperation`): `valueLegs` bounds the sum over legs of
+    `quantity x (premium + the largest underlying a payoff is sampled at)`, which covers the net
+    premium, every payoff sample and `maxLoss`/`maxGain` (`operations[i].legs[j]`), and each
+    operation's unrealized P&L is checked before conversion (`view.corporateActions`).
+
+  Like the unit-count bound, each bounds one leg, fill or operation, not a sum across them.
+
+- **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
+  index, delta-based strike selection and quotes (which carry no session) still read an
+  unrescaled spot or premium (#343). `evaluateNumericExitRule` has a confirmed stale-scale
+  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
 - **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
   `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
   (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
