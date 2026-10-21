@@ -913,6 +913,41 @@ export async function optionSeriesForUnderlyingAt(
     );
 }
 
+// `optionSeriesForUnderlyingAt` narrowed for the IV index (#334): only the tickers with a
+// visible row expiring on or before the first expiry strictly after `after`, each with every
+// one of its own rows, so a ticker's latest epoch stays the one the full read would collapse
+// to even when B3 reused it for a later cycle (ADR-0017). `buildIvIndexMarketView` checks the
+// result still brackets and falls back to the full read when it does not.
+export async function optionSeriesForUnderlyingThroughExpiryAfter(
+  db: Database,
+  underlying: string,
+  at: Date,
+  expiryFloor: string | undefined,
+  after: string,
+): Promise<OptionSeriesEpochRow[]> {
+  const visible = and(
+    eq(optionSeries.underlying, underlying),
+    epochAsOfCondition(at),
+    ...(expiryFloor ? [gte(optionSeries.expiry, expiryFloor)] : []),
+  );
+  const firstExpiryAfter = db
+    .select({ expiry: min(optionSeries.expiry) })
+    .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
+    .where(and(visible, gt(optionSeries.expiry, after)));
+  const tickersThrough = db
+    .selectDistinct({ ticker: optionSeries.ticker })
+    .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
+    .where(and(visible, lte(optionSeries.expiry, sql`(${firstExpiryAfter})`)));
+
+  return db
+    .select(epochColumns)
+    .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
+    .where(and(visible, inArray(optionSeries.ticker, tickersThrough)));
+}
+
 // The latest day price per ticker visible at `at`, collapsed in SQL and bounded below by the
 // same calendar floor as the chain: an option's price history since inception is not needed.
 export async function latestOptionPricesAt(
