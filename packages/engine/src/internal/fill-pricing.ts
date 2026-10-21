@@ -12,6 +12,15 @@ export function grossCentavos(price: DecimalString, quantity: number | Decimal):
   return parseDecimal(price).mul(CENTAVOS_PER_REAL).mul(quantity);
 }
 
+// Issue #285: a corrupt corporate-action factor (around 1e-12) can leave a rebased unit count
+// safe while that count times a price overflows a safe integer of centavos, which `toCentavos`
+// would only throw on later. Every place a split-rebased quantity meets a price (a fill, a mark,
+// a cash-settled residue) checks it here, once, so the caller can refuse it as invalid input;
+// the fees and slippage derived from a safe gross stay safe.
+export function isSafeGrossCentavos(price: DecimalString, quantity: number | Decimal): boolean {
+  return Number.isSafeInteger(grossCentavos(price, quantity).abs().round().toNumber());
+}
+
 export function fillCosts(
   costModel: CostModel,
   price: DecimalString,

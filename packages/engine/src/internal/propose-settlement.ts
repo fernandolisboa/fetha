@@ -29,7 +29,7 @@ import {
   toDecimalStringAtLeastScale,
 } from "./decimal";
 import { err, invalidInput } from "./errors";
-import { grossCentavos } from "./fill-pricing";
+import { grossCentavos, isSafeGrossCentavos } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
@@ -231,17 +231,18 @@ export interface TruncatedUnits {
 // whose residual can run either long or short) — so neither can drift from the other. Truncates
 // toward zero, never rounds: for a non-negative quantity (every `rebaseExerciseFillUnits` call)
 // this is exactly `Math.floor`; a signed residual truncates the same way on either side of zero,
-// never rounding a small short residual away. The caller supplies its own `onUnsafeInteger`
-// error (an adversarial or corrupt factor, e.g. 1e-15, can blow the unit count past what a real
-// count can be) since each names its own ticker and path in its own words.
+// never rounding a small short residual away. The caller supplies its own `onUnsafe` error (an
+// adversarial or corrupt factor, e.g. 1e-15, can blow the unit count past what a real count can
+// be, and one around 1e-12 the centavos that count is worth, #285) since each names its own
+// ticker and path in its own words.
 export function truncateToWholeUnits(
   rawQuantity: Decimal,
   price: DecimalString,
-  onUnsafeInteger: () => EngineError,
+  onUnsafe: () => EngineError,
 ): { ok: true; value: TruncatedUnits } | { ok: false; error: EngineError } {
   const units = rawQuantity.toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber();
-  if (units !== 0 && !Number.isSafeInteger(units)) {
-    return { ok: false, error: onUnsafeInteger() };
+  if ((units !== 0 && !Number.isSafeInteger(units)) || !isSafeGrossCentavos(price, rawQuantity)) {
+    return { ok: false, error: onUnsafe() };
   }
   const residue = rawQuantity.sub(units);
   if (residue.isZero()) {
@@ -272,7 +273,7 @@ export function rebaseExerciseFillUnits(
   const truncated = truncateToWholeUnits(effectiveQuantity, fill.price, () =>
     invalidInput(
       path,
-      "a corporate-action factor produces a non-integer-safe effective quantity for this leg",
+      "a corporate-action factor produces a non-integer-safe effective quantity or amount for this leg",
     ),
   );
   if (!truncated.ok) return truncated;

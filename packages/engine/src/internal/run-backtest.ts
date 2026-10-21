@@ -59,7 +59,13 @@ import { dataWindow as computeDataWindow } from "./data-window";
 import { createStrategyEvaluator } from "./evaluate-strategy";
 import { indexBySession, lastKnownRow, rowOnSession, type SessionRows } from "./session-rows";
 import { groupBy } from "./search";
-import { fillCosts, grossCentavos, slippageCentavos, slippedOptionPrice } from "./fill-pricing";
+import {
+  fillCosts,
+  grossCentavos,
+  isSafeGrossCentavos,
+  slippageCentavos,
+  slippedOptionPrice,
+} from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import {
@@ -362,19 +368,21 @@ function invalidInput<T>(path: string, message: string): Result<T> {
   return { ok: false, error: { code: "invalid_input", path, message } };
 }
 
-// Issue #279: the mark rebases a held quantity the same way a fill does, so it refuses the same
-// unit counts the fill path's `truncateToWholeUnits` refuses, on a zero-volume session where no
-// fill ran first. `closePeriodEnd` reads the same legs and residuals right after
-// `computeMarkValue` on the same session, so this guard covers it too. Like the fill path, it
-// bounds the unit count, not the centavos that count times a price can reach.
-function isSafeUnitCount(quantity: Decimal): boolean {
-  return Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber());
+// Issue #279/#285: the mark rebases a held quantity the same way a fill does, so it refuses the
+// same unit counts and the same centavos amounts the fill path refuses, on a zero-volume session
+// where no fill ran first. `closePeriodEnd` reads the same legs and residuals at the same prices
+// right after `computeMarkValue` on the same session, so this guard covers it too.
+function isSafeMarkAmount(price: DecimalString, quantity: Decimal): boolean {
+  return (
+    Number.isSafeInteger(quantity.abs().toDecimalPlaces(0, Decimal.ROUND_DOWN).toNumber()) &&
+    isSafeGrossCentavos(price, quantity)
+  );
 }
 
-function unsafeMarkQuantity<T>(underlying: Ticker): Result<T> {
+function unsafeRebasedAmount<T>(underlying: Ticker): Result<T> {
   return invalidInput(
     "view.corporateActions",
-    `split factor produces a non-integer-safe effective unit count for ${underlying}`,
+    `split factor produces a non-integer-safe effective unit count or amount for ${underlying}`,
   );
 }
 
@@ -896,14 +904,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         );
         // Every leg's signal-time quantity is rescaled the same way.
         const rescaledQuantities: number[] = [];
-        for (const leg of pending.legs) {
+        for (const [legIndex, leg] of pending.legs.entries()) {
+          const legFill = assertDefined(
+            legFills[legIndex],
+            "run-backtest: legFills has one entry per leg",
+          );
+          invariant(legFill.ready, "run-backtest: allLegsReady already checked every leg");
           const rescaled = entryFactor.eq(1)
             ? leg.quantity
             : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
-          if (!Number.isSafeInteger(rescaled) || rescaled <= 0) {
+          if (
+            !Number.isSafeInteger(rescaled) ||
+            rescaled <= 0 ||
+            !isSafeGrossCentavos(legFill.price, rescaled)
+          ) {
             return invalidInput(
               "view.corporateActions",
-              `split factor produces a non-integer-safe entry quantity for ${ticker}`,
+              `split factor produces a non-integer-safe entry quantity or amount for ${ticker}`,
             );
           }
           rescaledQuantities.push(rescaled);
@@ -1048,13 +1065,13 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
         // An adversarial or corrupt factor (near-zero, e.g. 1e-15) blows this count up past what
-        // a real unit count can be; that is invalid input, not a value toQuantity should throw
-        // an invariant over.
-        if (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) {
-          return invalidInput(
-            "view.corporateActions",
-            `split factor produces a non-integer-safe effective unit count for ${tradedTicker}`,
-          );
+        // a real unit count can be, or (around 1e-12, #285) the centavos it is worth; that is
+        // invalid input, not a value toQuantity or toCentavos should throw an invariant over.
+        if (
+          (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) ||
+          !isSafeGrossCentavos(legFill.price, rawEffectiveQuantity)
+        ) {
+          return unsafeRebasedAmount(tradedTicker);
         }
         const residue = rawEffectiveQuantity.sub(effectiveUnits);
         let costs = toCentavos(0);
@@ -1190,7 +1207,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       const truncated = truncateToWholeUnits(rawEffectiveResidual, candle.open, () => ({
         code: "invalid_input",
         path: "view.corporateActions",
-        message: `split factor produces a non-integer-safe effective unit count for ${pending.op.underlying}`,
+        message: `split factor produces a non-integer-safe effective unit count or amount for ${pending.op.underlying}`,
       }));
       if (!truncated.ok) return { ok: false, error: truncated.error };
       const { units: effectiveUnits, residualValueCentavos, residualSign } = truncated.value;
@@ -1597,7 +1614,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         const markPrice = markPriceOrNull;
         const sign = leg.side === "buy" ? 1 : -1;
         const effectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
-        if (!isSafeUnitCount(effectiveQuantity)) return unsafeMarkQuantity(op.underlying);
+        if (!isSafeMarkAmount(markPrice, effectiveQuantity)) {
+          return unsafeRebasedAmount(op.underlying);
+        }
         markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
       }
     }
@@ -1633,8 +1652,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         session.close,
       );
       const effectiveResidualQuantity = new Decimal(pending.residualQuantity).div(residualFactor);
-      if (!isSafeUnitCount(effectiveResidualQuantity)) {
-        return unsafeMarkQuantity(pending.op.underlying);
+      if (!isSafeMarkAmount(markPriceOrNull, effectiveResidualQuantity)) {
+        return unsafeRebasedAmount(pending.op.underlying);
       }
       markValue += grossCentavos(markPriceOrNull, effectiveResidualQuantity).round().toNumber();
     }
