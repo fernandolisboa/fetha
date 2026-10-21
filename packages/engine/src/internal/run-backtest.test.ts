@@ -5144,4 +5144,69 @@ describe("runBacktest — option structures (#23)", () => {
     expect(totalPnl).toBe(finalCash - config.initialCapital);
     expect(run.taxes.every((t) => t.stockSales === 0)).toBe(true);
   });
+
+  it("returns invalid_input, never throws, when a factor ex-dated before expiry leaves a cash-settled leg's rebased cash flow past a safe integer of centavos", () => {
+    const days = businessDays(20);
+    const expiry = days[10] as string;
+    const zeroFeeCostModel = {
+      b3FeeRate: decimalString("0"),
+      brokerage: { stockPerOrder: centavos(0), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            sizing: { kind: "fixed_fractional", fraction: decimalString("1") },
+          }),
+          structureId: "single_call",
+          strikes: [{ kind: "nearest", price: decimalString("183000") }],
+          expiry: { kind: "business_days", min: 1, max: 12 },
+        },
+        singleCall,
+      ),
+      initialCapital: centavos(200_00),
+      universe: ["IBOV"],
+      period: { from: days[0] as string, to: days[11] as string },
+      costModel: zeroFeeCostModel,
+      riskProfile: { ...generousRiskProfile, declaredCapital: centavos(200_00) },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar: optionCalendar,
+      candles: days.map((d, i) =>
+        candle("IBOV", d, i < 10 ? "180000" : "185000", i < 10 ? "180000" : "185000"),
+      ),
+      corporateActions: [
+        {
+          ticker: "IBOV",
+          exDate: days[5] as string,
+          asOf: `${days[5] as string}T13:00:00.000Z`,
+          factor: decimalString("0.00000000001"),
+        },
+      ],
+      optionSeries: [
+        {
+          ticker: "IBOVA183",
+          underlying: "IBOV",
+          right: "call",
+          strike: decimalString("183000"),
+          expiry,
+          style: "european",
+          asOf: `${days[0] as string}T20:00:00.000Z`,
+          priceFactor: decimalString("100"),
+          settlementStyle: "cash",
+        },
+      ],
+      optionPrices: days.slice(0, 11).map((d) => optionDayPrice("IBOVA183", d, "2.00")),
+    };
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "view.corporateActions" });
+  });
 });

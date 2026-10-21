@@ -28,6 +28,7 @@ import {
   toDecimalStringAtLeastScale,
 } from "./decimal";
 import { invalidInput, err } from "./errors";
+import { isSafeCentavosAmount } from "./fill-pricing";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import {
@@ -343,6 +344,8 @@ function legIntrinsicSlopeAtInfinity(
   return new Decimal(1).div(priceFactor);
 }
 
+const PAYOFF_SPOT_RANGE_UPPER = 1.2;
+
 function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
   return legs.reduce((acc, leg) => {
     const role = leg.valuation.leg.role;
@@ -471,7 +474,7 @@ export function computePayoffProfile(
   // capped/floored payoff as if it were unprotected. Emit each leg's
   // strike and each break-even as additional samples, sorted ascending and de-duplicated by
   // their rounded decimal value; `PayoffPoint[]` itself is unchanged.
-  const sampleSpots = [0.8, 1, 1.2].map((factor) =>
+  const sampleSpots = [0.8, 1, PAYOFF_SPOT_RANGE_UPPER].map((factor) =>
     parseDecimal(spot).mul(factor).toDecimalPlaces(PRICE_SCALE),
   );
   const strikeSpots = strikes.map((s) => s.toDecimalPlaces(PRICE_SCALE));
@@ -634,6 +637,29 @@ function valueLegs(
       message:
         "at least one leg's listed expiry has passed; valued at intrinsic pending settlement",
     });
+  }
+
+  // Net premium, every payoff sample and max loss/gain are each bounded by the sum of
+  // `quantity x (premium + the largest underlying a payoff is sampled at)`; checking that one sum
+  // here keeps each of their `toCentavos` conversions from throwing on a huge rebased quantity.
+  const maxUnderlying = Decimal.max(
+    parseDecimal(spot).mul(PAYOFF_SPOT_RANGE_UPPER),
+    ...priced.map((leg) => (leg.strike === null ? new Decimal(0) : parseDecimal(leg.strike))),
+  );
+  let centavosBound = new Decimal(0);
+  for (const [index, leg] of priced.entries()) {
+    centavosBound = centavosBound.add(
+      leg.premiumPerUnit.add(maxUnderlying).mul(CENTAVOS_PER_REAL).mul(leg.valuation.leg.quantity),
+    );
+    if (!isSafeCentavosAmount(centavosBound)) {
+      return {
+        ok: false,
+        error: invalidInput(
+          legPathAt(index),
+          "this leg's quantity and price overflow a safe integer of centavos",
+        ),
+      };
+    }
   }
 
   const netPremiumCentavos = priced.reduce(

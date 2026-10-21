@@ -16,6 +16,7 @@ import type {
 import { sessionAtOrBefore } from "./calendar";
 import { CENTAVOS_PER_REAL, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { invalidInput, err } from "./errors";
+import { isSafeCentavosAmount } from "./fill-pricing";
 import { GREEK_KEYS, zeroGreeks } from "./greeks";
 import { assertDefined } from "./invariant";
 import { isAtOrBefore } from "./instant";
@@ -278,6 +279,16 @@ function priceExistingOperation(
         .mul(CENTAVOS_PER_REAL)
         .mul(rawEffectiveQuantity),
     );
+  }
+
+  if (!isSafeCentavosAmount(unrealizedPnl)) {
+    return {
+      ok: false,
+      error: invalidInput(
+        "view.corporateActions",
+        `the unrealized P&L for ${operation.underlying} overflows a safe integer of centavos (a corrupt corporate-action factor or entry price)`,
+      ),
+    };
   }
 
   const notes: Note[] = [...pricing.notes];

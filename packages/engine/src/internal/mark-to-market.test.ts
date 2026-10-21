@@ -1775,6 +1775,69 @@ describe("markToMarket", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  it("returns invalid_input, never throwing, when a corrupt corporate-action factor leaves a safe unit count whose centavos overflow a safe integer", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: "2024-01-02",
+          asOf: "2024-01-02T21:00:00.000Z",
+          open: decimalString("12.00"),
+          high: decimalString("12.00"),
+          low: decimalString("12.00"),
+          close: decimalString("12.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T13:00:00.000Z",
+          factor: decimalString("0.000000000001"),
+        } satisfies CorporateActionFactor,
+      ],
+    };
+    const op = stockOperation({ openedAt: "2024-01-01" });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "operations[0].legs[0]" });
+  });
+
+  it("returns invalid_input, never throwing, when a leg's entry price makes its unrealized P&L overflow a safe integer of centavos", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("12.00"), bid: null, ask: null }],
+    };
+    const op = stockOperation({
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("99999999999999.99"),
+        },
+      ],
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+    expect(result.error).toMatchObject({ path: "view.corporateActions" });
+  });
+
   it("returns insufficient_data when an expired operation's expiry session is missing from the calendar", () => {
     const shortCalendar: TradingSession[] = [
       { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T21:00:00.000Z" },

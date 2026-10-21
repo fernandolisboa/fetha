@@ -29,7 +29,7 @@ import {
   toDecimalStringAtLeastScale,
 } from "./decimal";
 import { err, invalidInput } from "./errors";
-import { grossCentavos, isSafeGrossCentavos } from "./fill-pricing";
+import { grossCentavos, isSafeCentavosAmount, isSafeGrossCentavos } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
 import { validateOperationCoherence } from "./operation-coherence";
 import { resolveOptionStrike, type OptionStrikeAdjustment } from "./option-strike";
@@ -364,9 +364,18 @@ export function proposeSettlement(
       // one's): a non-positive factor here would already have failed there first.
       /* v8 ignore next */
       if (!factorResult.ok) return err(factorResult.error);
-      const rebasedCashSettlementValue = toCentavos(
-        new Decimal(settled.value.cashSettlementValue).div(factorResult.value).round().toNumber(),
+      const rebasedCashAmount = new Decimal(settled.value.cashSettlementValue).div(
+        factorResult.value,
       );
+      if (!isSafeCentavosAmount(rebasedCashAmount)) {
+        return err(
+          invalidInput(
+            `operation.legs[${String(legIndex)}]`,
+            "a corporate-action factor produces a non-integer-safe cash settlement amount for this leg",
+          ),
+        );
+      }
+      const rebasedCashSettlementValue = toCentavos(rebasedCashAmount.round().toNumber());
       legs.push({ ...settled.value, cashSettlementValue: rebasedCashSettlementValue });
       continue;
     }

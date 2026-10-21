@@ -62,6 +62,7 @@ import { groupBy } from "./search";
 import {
   fillCosts,
   grossCentavos,
+  isSafeCentavosAmount,
   isSafeGrossCentavos,
   slippageCentavos,
   slippedOptionPrice,
@@ -1385,9 +1386,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // exercise/assignment fill's own quantity already is, below, so a factor that moved
         // between entry and expiry is reflected the same way on either settlement path.
         if (settled.value.cashSettlementValue !== null) {
-          const rebasedCashSettlementValue = toCentavos(
-            new Decimal(settled.value.cashSettlementValue).div(splitFactor).round().toNumber(),
-          );
+          const rebasedCashAmount = new Decimal(settled.value.cashSettlementValue).div(splitFactor);
+          if (!isSafeCentavosAmount(rebasedCashAmount)) return unsafeRebasedAmount(op.underlying);
+          const rebasedCashSettlementValue = toCentavos(rebasedCashAmount.round().toNumber());
           const cashValue = new Decimal(rebasedCashSettlementValue);
           state.cash += rebasedCashSettlementValue;
           optionsPnl = optionsPnl.add(cashValue);
