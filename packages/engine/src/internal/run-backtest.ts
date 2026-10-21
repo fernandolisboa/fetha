@@ -14,6 +14,7 @@ import {
   type BacktestProgress,
   type BacktestRun,
   type Candle,
+  type CorporateActionFactor,
   type DataWindow,
   type EquityPoint,
   type EvaluationOutcome,
@@ -71,7 +72,7 @@ import { codeUnitCompare, sortUnique } from "./order";
 import { rebaseExerciseFillUnits, settleLeg, truncateToWholeUnits } from "./propose-settlement";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { corporateActionIntegrityError } from "./validate-view-integrity";
 import { computeWalkForward } from "./walk-forward";
 
@@ -684,16 +685,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // close, the one reading instant Q51 settles on so no two of them can disagree over which
   // factors are visible yet (I1); a factor not yet visible there is excluded, matching
   // provenance.truncated for the same rows.
+  function visibleFactorsOf(ticker: Ticker, visibleAt: Instant): CorporateActionFactor[] {
+    return (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
+      isAtOrBefore(f.asOf, visibleAt),
+    );
+  }
+
   function corporateActionFactorThrough(
     ticker: Ticker,
     openedAt: SessionDate,
     through: SessionDate,
     visibleAt: Instant,
   ): Decimal {
-    const factors = (corporateActionsByTicker.get(ticker) ?? []).filter((f) =>
-      isAtOrBefore(f.asOf, visibleAt),
-    );
-    const result = splitFactorProduct(factors, openedAt, through);
+    const result = splitFactorProduct(visibleFactorsOf(ticker, visibleAt), openedAt, through);
     // runBacktest's own upfront validation above rejects the whole, unfiltered
     // view.corporateActions with invalid_input before the session loop below ever starts
     // (a resumed chunk's first session fills and marks before evaluateStrategy
@@ -712,10 +716,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // this, every one of them at the same reading instant (I1). Issue #273: a stale row — one
   // whose own session predates `uptoSession` — sits on whatever price scale its own session had,
   // which a corporate action ex-dated since then has already moved the held quantity away from
-  // (`corporateActionFactorThrough`, keyed by the operation's own underlying the same way every
-  // other leg rebase in this file is). Rescaling by that same factor keeps the mark on the scale
-  // the caller's own effective quantity expects; a fresh row (its own session already
-  // `uptoSession`) is never stale by definition and skips this. The rescaled value is kept at
+  // (keyed by the operation's own underlying the same way every other leg rebase in this file
+  // is). Rescaling through the shared `rescaleStalePrice` (#285: the one place that window is
+  // measured, for markToMarket and score too) keeps the mark on the scale the caller's own
+  // effective quantity expects; a fresh row (its own session already `uptoSession`) has an
+  // empty window and comes back unrescaled. The rescaled value is kept at
   // full decimal.js precision (`toDecimalStringAtLeastScale`, never rounded to `PRICE_SCALE`
   // here): rounding before the caller multiplies by its own effective quantity would manufacture
   // or drop P&L the unrounded multiplication never would (correctness round 1, #273 follow-up).
@@ -731,11 +736,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         ? lastKnownCloseRow(candlesByTicker, ticker, uptoSession, visibleAt)
         : lastKnownOptionPriceRow(optionPricesByTicker, ticker, uptoSession, visibleAt);
     if (known === null) return null;
-    if (known.session === uptoSession) return known.price;
-    const rescale = corporateActionFactorThrough(underlying, known.session, uptoSession, visibleAt);
-    if (rescale.eq(1)) return known.price;
+    const rescaled = rescaleStalePrice(
+      visibleFactorsOf(underlying, visibleAt),
+      parseDecimal(known.price),
+      known.session,
+      uptoSession,
+    );
+    invariant(
+      rescaled.ok,
+      "run-backtest: the upfront corporateActions validation already rejected a non-positive factor",
+    );
+    if (!rescaled.value.rescaled) return known.price;
     state.stalePriceRescaledAcrossCorporateActionNoted = true;
-    return toDecimalStringAtLeastScale(parseDecimal(known.price).mul(rescale), PRICE_SCALE);
+    return toDecimalStringAtLeastScale(rescaled.value.price, PRICE_SCALE);
   }
 
   function lastKnownLegPrice(
