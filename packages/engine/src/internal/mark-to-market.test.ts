@@ -696,6 +696,82 @@ describe("markToMarket", () => {
     );
   });
 
+  function residueOnlyCallMark(priceSession: string, factors: CorporateActionFactor[]) {
+    const markAt = "2024-01-04T21:00:00.000Z";
+    const view: MarketView = {
+      ...baseView,
+      quotes: [
+        { ticker: "PETR4", asOf: markAt, last: decimalString("30.00"), bid: null, ask: null },
+      ],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: priceSession,
+          asOf: `${priceSession}T21:00:00.000Z`,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 1,
+          tradedQuantity: 1,
+        },
+      ],
+      corporateActions: factors,
+    };
+    const op = stockOperation({
+      id: "op-call",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.00"),
+        },
+      ],
+      expiry: "2024-01-21",
+      openedAt: "2024-01-03",
+    });
+    return markToMarket(
+      { view, at: markAt, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+  }
+
+  const thousandToOne: CorporateActionFactor = {
+    ticker: "PETR4",
+    exDate: "2024-01-04",
+    asOf: "2024-01-04T13:00:00.000Z",
+    factor: decimalString("1000"),
+  };
+
+  it("names the rescale of a residue-only leg's stale mark even when the spot itself is fresh (#285)", () => {
+    const result = residueOnlyCallMark("2024-01-03", [thousandToOne]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 0.1 effective calls bought at an effective 2,000.00, last traded at 3.00 before the
+    // grouping, 3,000.00 after it: R$100.00.
+    expect(result.value.operations[0]?.pricing.spot).toBe(decimalString("30.00"));
+    expect(result.value.operations[0]?.unrealizedPnl).toBe(centavos(100_00));
+    expect(result.value.operations[0]?.pricing.notes).toContainEqual(
+      expect.objectContaining({ code: "stale_price_across_corporate_action" }),
+    );
+  });
+
+  it("refuses a non-positive factor between a residue-only leg's stale mark and its opening (#285)", () => {
+    const result = residueOnlyCallMark("2024-01-02", [
+      {
+        ...thousandToOne,
+        exDate: "2024-01-03",
+        asOf: "2024-01-03T13:00:00.000Z",
+        factor: decimalString("0"),
+      },
+      thousandToOne,
+    ]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("rebases a covered call's stock leg quantity across a 2:1 split (ADR-0014 Q51)", () => {
     const view: MarketView = {
       ...baseView,

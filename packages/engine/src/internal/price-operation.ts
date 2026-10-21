@@ -299,6 +299,9 @@ function valueOneLeg(
     marketPrice?.stale?.session ?? null,
     atSession,
   );
+  // `resolveOptionStrike` above already refused every non-positive visible factor up to the
+  // session of at (an unexpired leg's own window), so this window has none left to refuse.
+  /* v8 ignore next */
   if (!premium.ok) return premium;
   const valuation = priceOptionLeg({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
