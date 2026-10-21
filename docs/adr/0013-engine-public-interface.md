@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.14.0";
+export const ENGINE_VERSION = "0.15.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -3184,3 +3184,39 @@ Persisted reads: `packages/contracts`' `legSettlementSchema` mirror defaults `ca
 to `null` (the `residualValue` default-`0` precedent, #271 addendum above) — a run persisted
 before this change never had a cash-settled leg by construction. `backtest-run-type-pin.test.ts`'s
 existing `operations` exclusion covers this without any change to that test.
+
+## Addendum: the stale scale beyond unrealized P&L; `ENGINE_VERSION` bumped to `0.15.0` (2026-10-21, #285)
+
+Follow-ups to the #279 addendum, which rescaled only `unrealizedPnl`:
+
+- **The spot.** `priceLegsAt` (markToMarket, `priceOperation`'s concrete legs, evaluateStrategy)
+  and `priceOperation`'s selection path read the underlying's spot with the session its candle
+  came from (`resolveUnderlyingSpotReading`; a quote carries none) and rescale a spot carried
+  forward from before an ex-date by the factors over `(spot session, session of at]`. Fair value,
+  implied volatility, greeks, strike selection and the payoff samples now read the same scale as
+  the derived strike and the rebased quantity. `OperationPricing.spot` reports the rescaled spot,
+  the one the model used.
+- **The pricing aggregates.** `valueOneLeg` rescales a stale leg premium over the same window
+  before `netPremium`, the payoff, `breakEvens`, `maxLoss`/`maxGain` and `limitBreaches`
+  multiply it by the leg's quantity. `LegValuation.price` still reports the price as it traded.
+  An option leg's implied-volatility solve is suppressed exactly when that rescale applies (a
+  window whose factors multiply to 1 no longer suppresses it). The operation's notes carry
+  `stale_price_across_corporate_action` once when either rescale applies; no new note code.
+- **One window.** `runBacktest`'s stale mark delegates the multiply-and-flag to
+  `rescaleStalePrice`, now the only place `(stale session, through]` is measured. A `through` of
+  null (no session for the reading instant) rescales nothing.
+- **A centavos bound.** A corrupt factor around 1e-12 leaves a safe unit count whose centavos at
+  its price pass a safe integer, which `toCentavos` threw on. `isSafeGrossCentavos`
+  (`fill-pricing.ts`) refuses it with `invalid_input` (`view.corporateActions`) wherever
+  `runBacktest` meets a rebased quantity and a price: the entry and exit fills, the mark and a
+  pending residual's mark (which `closePeriodEnd` reads at the same prices on the same session),
+  and `truncateToWholeUnits` (a pending residual's fill, an exercise or assignment fill). Like the
+  unit-count bound, it bounds each leg and each fill, not a sum of several. `markToMarket`'s own
+  pricing still converts with `toCentavos` and is not covered here.
+- **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
+  `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
+  (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
+  so `configDigest` stays a digest of `BacktestConfig` alone.
+
+Marks and pricing outputs change for a stale price or spot across a split, so `ENGINE_VERSION`
+moves from `"0.14.0"` to `"0.15.0"`.

@@ -288,8 +288,8 @@ function priceExistingOperation(
         "a corporate-action factor leaves at least one leg with less than one effective unit; excluded from pricing.legs and the aggregate greeks/payoff, its residual value is folded into unrealizedPnl",
     });
   }
-  // `priceLegsAt` can already carry this code (its IV-suppression note, same situation): the
-  // web reads notes by code, so one is enough.
+  // `priceLegsAt` can already carry this code (its own spot/premium rescale or IV-suppression
+  // note, same situation): the web reads notes by code, so one is enough.
   if (
     anyStaleMarkRescaled &&
     !notes.some((n) => n.code === STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE.code)
