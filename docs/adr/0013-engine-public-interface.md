@@ -3216,15 +3216,18 @@ Follow-ups to the #279 addendum, which rescaled only `unrealizedPnl`:
   - `proposeSettlement`: the same `truncateToWholeUnits` check and a cash-settled leg's rebased
     cash flow (`operation.legs[i]`).
   - `markToMarket` (and `priceOperation`): `valueLegs` bounds the sum over legs of
-    `quantity x (premium + the largest underlying a payoff is sampled at)`, which covers the net
-    premium, every payoff sample and `maxLoss`/`maxGain` (`operations[i].legs[j]`), and each
-    operation's unrealized P&L is checked before conversion (`view.corporateActions`).
+    `quantity x (premium + the largest underlying a payoff is sampled at / the leg's price
+factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`maxGain`
+    (`operations[i].legs[j]`), and each operation's unrealized P&L is checked before conversion
+    (`operations[i]`).
 
   Like the unit-count bound, each bounds one leg, fill or operation, not a sum across them.
 
 - **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
   index, delta-based strike selection and quotes (which carry no session) still read an
-  unrescaled spot or premium (#343). `evaluateNumericExitRule` has a confirmed stale-scale
+  unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
+  `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
+  stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
   double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
 - **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
   `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
