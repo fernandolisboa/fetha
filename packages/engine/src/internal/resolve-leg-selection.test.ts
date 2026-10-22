@@ -890,6 +890,59 @@ describe("resolveLegSelection", () => {
       if (!result.ok) return;
       expect(result.legs[0]).toMatchObject({ role: "call", series: { ticker: "PETR4CA" } });
     });
+
+    it("never solves a delta from a premium last traded before the ex-date (#343)", () => {
+      // `PETR4CA`'s only print is from the session before the bonus, on the 55.56-strike scale:
+      // read against the post-bonus spot and its derived 50.00 strike it solves a phantom
+      // volatility whose delta lands nearest the target. Like `valueOneLeg`, selection does not
+      // solve from it, so it picks exactly what it picks when that print is absent.
+      const t = 7 / 252;
+      const bonusFactor: CorporateActionFactor = {
+        ticker: "PETR4",
+        exDate: "2024-01-05",
+        asOf: "2024-01-05T13:00:00.000Z",
+        factor: decimalString("0.9"),
+      };
+      const close = (ticker: string, session: string, value: number) => ({
+        ticker,
+        session,
+        asOf: `${session}T21:00:00.000Z`,
+        average: null,
+        close: decimalString(value.toFixed(2)),
+        trades: 1,
+        tradedQuantity: 1,
+      });
+      const freshB = close(
+        "PETR4CB",
+        "2024-01-05",
+        bsmPriceRaw({ s: 50, k: 45, t, r: 0, q: 0, sigma: 0.3, right: "call" }),
+      );
+      const staleA = close(
+        "PETR4CA",
+        "2024-01-04",
+        bsmPriceRaw({ s: 55.56, k: 55.56, t, r: 0, q: 0, sigma: 0.3, right: "call" }),
+      );
+      const select = (optionPrices: MarketView["optionPrices"]) =>
+        resolveLegSelection({
+          structure: singleCall,
+          underlying: "PETR4",
+          strikes: [{ kind: "delta", target: decimalString("0.5") }],
+          expiry: { kind: "business_days", min: 1, max: 30 },
+          view: {
+            ...baseView,
+            optionSeries: [callSeries("PETR4CA", "55.56"), callSeries("PETR4CB", "50.00")],
+            corporateActions: [bonusFactor],
+            optionPrices,
+          },
+          at: evalAt,
+          spot: decimalString("50.00"),
+          riskFreeRate: decimalString("0"),
+          dividendYield: decimalString("0"),
+        });
+      const result = select([staleA, freshB]);
+      expect(result).toEqual(select([freshB]));
+      expect(result.ok && result.legs[0]).toMatchObject({ series: { ticker: "PETR4CB" } });
+    });
   });
 });
 

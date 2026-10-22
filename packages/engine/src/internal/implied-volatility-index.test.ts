@@ -1049,3 +1049,121 @@ describe("computeImpliedVolatilityIndex with an index option's priceFactor (#307
     expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
   });
 });
+
+describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluation session (#343)", () => {
+  const evalAt = sessionAt(5).close;
+  const expiry = sessionAt(35).date;
+  const atmPrice = bsmPriceRaw({
+    s: 50,
+    k: 50,
+    t: 30 / 252,
+    r: 0,
+    q: 0,
+    sigma: 0.3,
+    right: "call",
+  });
+  const optionPrice = (session: TradingSession, close: number) => ({
+    ticker: "PETR4C100",
+    session: session.date,
+    asOf: session.close,
+    average: null,
+    close: decimalString(close.toFixed(2)),
+    trades: 1,
+    tradedQuantity: 1,
+  });
+  const splitView: MarketView = {
+    ...baseView,
+    quotes: [{ ticker: "PETR4", asOf: evalAt, last: decimalString("50.00"), bid: null, ask: null }],
+    optionSeries: [{ ...callSeries("PETR4C100", "100.00", expiry), asOf: sessionAt(0).close }],
+    corporateActions: [
+      {
+        ticker: "PETR4",
+        exDate: sessionAt(5).date,
+        asOf: sessionAt(5).open,
+        factor: decimalString("0.5"),
+      },
+    ],
+    optionPrices: [optionPrice(sessionAt(5), atmPrice)],
+  };
+  const fresh = computeImpliedVolatilityIndex(splitView, "PETR4", evalAt, testProvenanceBase);
+
+  it("solves against a pre-split candle spot rescaled onto the derived strike", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: sessionAt(4).date,
+          asOf: sessionAt(4).close,
+          open: decimalString("100.00"),
+          high: decimalString("100.00"),
+          low: decimalString("100.00"),
+          close: decimalString("100.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    expect(fresh.ok && fresh.value.impliedVolatility).toBeTruthy();
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(fresh);
+  });
+
+  it("solves against a day-old pre-split spot quote rescaled onto the derived strike", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: sessionAt(4).close,
+          last: decimalString("100.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(fresh);
+  });
+
+  it("refuses a non-positive factor between a stale spot and the evaluation session", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: sessionAt(4).close,
+          last: decimalString("100.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(5).date,
+          asOf: sessionAt(5).open,
+          factor: decimalString("-1"),
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "corporateActions[].factor",
+    });
+  });
+
+  it("leaves out a premium last traded before the ex-date", () => {
+    const view: MarketView = {
+      ...splitView,
+      optionPrices: [optionPrice(sessionAt(4), atmPrice * 2)],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.impliedVolatility).toBeNull();
+    expect(result.value.seriesUsed).toEqual([]);
+  });
+});

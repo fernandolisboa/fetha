@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, MarketView } from "../api";
 import { decimalString } from "../test/support";
-import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpotReading } from "./resolve-market-price";
+
+const resolveUnderlyingSpot = (view: MarketView, ticker: string, at: string) =>
+  resolveUnderlyingSpotReading(view, ticker, at)?.value ?? null;
 
 const at = "2024-01-02T21:00:00.000Z";
 
@@ -190,5 +193,77 @@ describe("a restated daily candle (#38)", () => {
         resolveLegMarketPrice(view, "PETR4", "2024-01-03T12:00:00.000Z", undefined, null, "stock"),
       ).toEqual({ value: decimalString("12.00"), source: "close", stale: null });
     }
+  });
+});
+
+describe("a quote's session (#343)", () => {
+  const calendar = [
+    { date: "2024-01-02", open: "2024-01-02T13:00:00.000Z", close: "2024-01-02T21:00:00.000Z" },
+    { date: "2024-01-03", open: "2024-01-03T13:00:00.000Z", close: "2024-01-03T21:00:00.000Z" },
+  ];
+  const dayOld = { asOf: "2024-01-02T20:00:00.000Z", bid: null, ask: null };
+  const later = "2024-01-03T21:00:00.000Z";
+
+  it("flags a last quote taken in an earlier session stale", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar,
+      quotes: [{ ...dayOld, ticker: "PETR4C28", last: decimalString("2.50") }],
+    };
+    expect(resolveLegMarketPrice(view, "PETR4C28", later, undefined, "2024-01-03")).toEqual({
+      value: decimalString("2.50"),
+      source: "last",
+      stale: { session: "2024-01-02" },
+    });
+  });
+
+  it("flags a mid quote taken in an earlier session stale", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar,
+      quotes: [
+        {
+          ...dayOld,
+          ticker: "PETR4C28",
+          last: null,
+          bid: decimalString("2.40"),
+          ask: decimalString("2.60"),
+        },
+      ],
+    };
+    expect(resolveLegMarketPrice(view, "PETR4C28", later, undefined, "2024-01-03")?.stale).toEqual({
+      session: "2024-01-02",
+    });
+  });
+
+  it("does not flag a quote taken in the session being valued", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar,
+      quotes: [
+        {
+          ticker: "PETR4C28",
+          asOf: "2024-01-03T14:00:00.000Z",
+          last: decimalString("2.50"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    expect(
+      resolveLegMarketPrice(view, "PETR4C28", later, undefined, "2024-01-03")?.stale,
+    ).toBeNull();
+  });
+
+  it("names the session a spot quote was taken in", () => {
+    const view: MarketView = {
+      ...baseView,
+      calendar,
+      quotes: [{ ...dayOld, ticker: "PETR4", last: decimalString("30.00") }],
+    };
+    expect(resolveUnderlyingSpotReading(view, "PETR4", later)).toEqual({
+      value: decimalString("30.00"),
+      session: "2024-01-02",
+    });
   });
 });

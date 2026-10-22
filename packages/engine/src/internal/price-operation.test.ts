@@ -2318,6 +2318,28 @@ describe("priceOperation (selection: strike ranks, degenerate strikes, expiry wi
     );
   });
 
+  it("rescales a day-old pre-split spot quote onto the post-split listing (#343)", () => {
+    const view: MarketView = {
+      ...preSplitSpotView,
+      calendar: dailyCalendar(1, 21),
+      candles: [],
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: "2024-01-01T20:00:00.000Z",
+          last: decimalString("60.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    const result = priceOperation({ view, at, legs: moneynessSelection }, provenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.spot).toBe(decimalString("30.00"));
+    expect(result.value.legs.map((l) => l.leg.ticker)).toEqual(["PETR4C28", "PETR4C32"]);
+  });
+
   it("refuses a non-positive factor between a stale spot and the selection's session (#285)", () => {
     const view: MarketView = {
       ...preSplitSpotView,
@@ -3796,19 +3818,14 @@ describe("priceOperation (centavos bound and tied candle asOf, #285)", () => {
     tradedQuantity: 1000,
   });
 
-  it("returns invalid_input, never throwing, when a stock leg's stale window is wider than the spot's because two candles share an asOf", () => {
+  it("reads the same candle for the spot and a stock leg when two candles share an asOf (#343)", () => {
     const view: MarketView = {
       ...baseView,
       calendar: dailyCalendar(2, 20),
       quotes: [],
-      candles: [tiedCandle("2024-01-02"), tiedCandle("2024-01-03")],
-      corporateActions: [
-        {
-          ticker: "PETR4",
-          exDate: "2024-01-03",
-          asOf: "2024-01-03T13:00:00.000Z",
-          factor: decimalString("0"),
-        },
+      candles: [
+        tiedCandle("2024-01-02"),
+        { ...tiedCandle("2024-01-03"), close: decimalString("31.00") },
       ],
     };
     const result = priceOperation(
@@ -3819,12 +3836,11 @@ describe("priceOperation (centavos bound and tied candle asOf, #285)", () => {
       },
       provenanceBase,
     );
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toMatchObject({
-      code: "invalid_input",
-      path: "corporateActions[].factor",
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.spot).toBe("31.00");
+    expect(result.value.legs[0]?.price).toBe(result.value.spot);
+    expect(result.value.legs[0]?.stale).toEqual({ session: "2024-01-03" });
   });
 
   function callView(priceFactor: string): MarketView {
