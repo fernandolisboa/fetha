@@ -541,6 +541,40 @@ describe("resolveOptionStrike", () => {
     expect(result.value.adjustment).toBe("none");
   });
 
+  it("an epoch bounded to the ex-date's own open (#272) reads as already reflected from that open on, never derived twice", () => {
+    const bounded = series({ asOf: "2024-01-08T13:00:00.000Z", strike: decimalString("14.98") });
+    const preSplit = series({ asOf: "2024-01-02T21:00:00.000Z", strike: decimalString("29.95") });
+    const view: MarketView = {
+      ...baseView,
+      optionSeries: [preSplit, bounded],
+      corporateActions: [factor()],
+    };
+    const atOpen = resolveOptionStrike(
+      view,
+      ticker,
+      underlying,
+      "2024-01-08",
+      "2024-01-08T13:00:00.000Z",
+    );
+    expect(atOpen.ok && atOpen.value).toMatchObject({
+      strike: decimalString("14.98"),
+      adjustment: "none",
+    });
+
+    const lone: MarketView = { ...view, optionSeries: [bounded] };
+    const loneAtOpen = resolveOptionStrike(
+      lone,
+      ticker,
+      underlying,
+      "2024-01-08",
+      "2024-01-08T13:00:00.000Z",
+    );
+    expect(loneAtOpen.ok && loneAtOpen.value).toMatchObject({
+      strike: decimalString("14.98"),
+      adjustment: "none",
+    });
+  });
+
   it("a reused B3 ticker's older, unrelated cycle never joins the chain, even when its strike coincidentally matches a factor's own multiplier", () => {
     // The same ticker string reused for an elapsed, unrelated cycle (a different expiry) sits
     // between the current cycle's own two epochs by asOf alone. Its strike (13.60) coincides

@@ -280,3 +280,44 @@ and the expiry; a corporate action changes the strike alone, in place.
   (ADR-0052), and COTAHIST/the registry already hand over the adjusted strike directly, needing no
   factor or rebasing arithmetic at all. Revisit if a future engine change (the #69 follow-up) needs
   a factor rather than a resolved strike.
+
+## Addendum: a recorded corporate action bounds a backfilled epoch (2026-10-22, #272)
+
+The trade-off "an inferred current-strike epoch's visibility can predate the real ex-date" is now
+closed for every underlying that has a `corporate_action_factors` row (ADR-0052). Two backfill
+shapes were wrong in practice: step 3 dated the new strike at the session after the last old-strike
+trade, and step 2 dated a series that only traded after the event at the registry's first
+sighting. Both let the post-event strike show before the event. The step-2 shape also broke the
+engine's strike rule: a lone early epoch read on the ex-date itself was derived a second time
+(14.98 × 0.5 = 7.49), and on later sessions it was flagged
+`option_strike_unadjusted_across_corporate_action` for good.
+
+- **`option_series_strikes.not_before`** (migration 0045), nullable. An epoch is visible from
+  `greatest(as_of, not_before)`; every loader that filtered or emitted `as_of` reads that
+  expression instead (`epochVisibleFrom`, `option-repository.ts`). `as_of` keeps the observed
+  date and the live writers still fold it with `LEAST`; they never touch `not_before`.
+- **`bound_option_strike_epochs(underlyings text[])`**, a SQL function created by the migration,
+  so the migration and the app run the same rule. For each listing cycle of those underlyings,
+  epochs ordered by `as_of`, it sets `not_before` to a factor's `as_of` (the ex-date's open) when
+  the factor is not neutralized (`factor <> 1`), its ex-date is on or before the cycle's expiry,
+  the epoch's `as_of` is earlier than that open, and the next epoch (if any) is later than it, and
+  either:
+  - **transition**: the previous epoch is earlier than that open and
+    `round(previous strike × factor, 2)` equals this strike (the engine's own match). The earliest
+    such factor wins, the one that followed the previous strike;
+  - **first epoch**: the cycle has no price row before the ex-date and has one at this strike on or
+    after it. The latest such factor wins. A cycle that never traded is left alone: nothing tells
+    its registry strike apart from a pre-event one.
+
+  Every other epoch of those cycles gets `not_before = null`. The function recomputes from `as_of`
+  and the current factors on every call and is idempotent.
+
+- **Callers.** The migration runs it once over every underlying with a factor.
+  `recordCorporateActionFactorAction` runs it for the ticker in the same transaction as the factor
+  write, so `recorded_at` moves with it and a chunked run in progress sees `dataVersion` change.
+  Neutralizing a factor ("1 para 1") clears the bounds it set, so the observed dates come back.
+- **Residuals.** The migration's own run moves no `recorded_at`, so a chunked run already in
+  progress at deploy time is not invalidated by it. A cycle that first trades after the factor is
+  recorded is bounded only the next time a factor for that ticker is written. A live
+  disagreement between the registry and COTAHIST on the ex-date itself is unchanged (both epochs
+  land on that session's close, after the open the bound would set).

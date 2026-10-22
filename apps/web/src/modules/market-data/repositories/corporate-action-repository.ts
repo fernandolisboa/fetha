@@ -8,7 +8,7 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { corporateActionFactors } from "../schema";
 
 export interface CorporateActionFactorRow {
@@ -59,7 +59,7 @@ export interface UpsertCorporateActionFactorInput {
 // `upsertTradingSessions`'s own guard): an identical resubmission is then a
 // true no-op that cannot fail a chunked run in progress on its own.
 export async function upsertCorporateActionFactor(
-  db: Database,
+  db: Database | Transaction,
   input: UpsertCorporateActionFactorInput,
 ): Promise<void> {
   await db
