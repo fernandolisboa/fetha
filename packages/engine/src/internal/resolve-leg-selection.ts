@@ -18,6 +18,7 @@ import { resolvePriceFactor } from "./price-factor";
 import { resolveLegMarketPrice } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
 import { toQuantity } from "./scalars";
+import { rescaleStalePrice, visibleFactorsFor } from "./split-factor";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 
 export type ResolvedStructureLeg =
@@ -91,6 +92,7 @@ function nearestSeriesByAbsDelta(
   timeToExpiryYears: number,
   strikeOf: StrikeResolver,
   priceFactorPath: string,
+  atSession: SessionDate,
 ): SeriesSelectionResult {
   let best: OptionSeries | null = null;
   let bestStrike: DecimalString | null = null;
@@ -101,8 +103,16 @@ function nearestSeriesByAbsDelta(
     const strike = resolved.value.strike;
     const priceFactorResult = resolvePriceFactor(series.priceFactor, priceFactorPath);
     if (!priceFactorResult.ok) return priceFactorResult;
-    const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
+    const marketPrice = resolveLegMarketPrice(view, series.ticker, at, undefined, atSession);
     if (!marketPrice) continue;
+    const premium = rescaleStalePrice(
+      visibleFactorsFor(view.corporateActions, series.underlying, at),
+      parseDecimal(marketPrice.value),
+      marketPrice.stale?.session ?? null,
+      atSession,
+    );
+    // `strikeOf` above already refused every non-positive factor up to the session of at.
+    invariant(premium.ok, "resolve-leg-selection: strikeOf already refused this factor");
     // Delta is unit-free and crosses the priceFactor seam unchanged (ADR-0063); `priceFactor`
     // is still threaded through so the market price behind it solves implied volatility
     // against the right scale for an index option, the same as every other IV solve site.
@@ -115,6 +125,7 @@ function nearestSeriesByAbsDelta(
       timeToExpiryYears,
       marketPrice,
       givenVolatility: null,
+      suppressStaleImpliedVolatility: premium.value.rescaled,
       priceFactor: series.priceFactor,
     });
     if (!valuation.greeks) continue;
@@ -290,6 +301,7 @@ export function resolveLegSelection(input: ResolveLegSelectionInput): SelectionR
         timeToExpiryYears,
         strikeOf,
         `legs.strikes[${String(i)}].priceFactor`,
+        atSession.date,
       );
     }
     if (!selection.ok) return { ok: false, error: selection.error };

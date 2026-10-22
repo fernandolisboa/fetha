@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.16.0";
+export const ENGINE_VERSION = "0.17.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -3227,7 +3227,8 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 
 - **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
   index, delta-based strike selection and quotes (which carry no session) still read an
-  unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
+  unrescaled spot or premium (#343; the #343 addendum closes all but `score`, which needs no
+  change). `score`'s `computeOperationMaxLoss` calls
   `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
   stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
   double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
@@ -3252,3 +3253,35 @@ the #342 item of the #285 addendum's follow-ups.
 
 Exit signals change for a stale premium across a split, so `ENGINE_VERSION` moves from `"0.15.0"`
 to `"0.16.0"`.
+
+## Addendum: the remaining readers on one scale; `ENGINE_VERSION` bumped to `0.17.0` (2026-10-22, #343)
+
+The #285 addendum listed readers that still mixed a pre-split spot or premium with post-split
+strikes. Each now reads one scale:
+
+- **A quote's session.** A quote carries no session of its own; it is now the calendar session at
+  or before its `asOf`. `resolveLegMarketPrice` flags a mid or last quote from an earlier session
+  `stale`, as it already did for a close, and `resolveUnderlyingSpotReading` names that session, so
+  a day-old quote carried past an ex-date is rescaled like a carried candle. A quote before the
+  calendar's first session has no session and is not rescaled.
+- **One candle for the spot and a stock leg.** The spot took the last of two daily candles sharing
+  an `asOf` and a stock leg's close took the first, so one pricing call could read two closes for
+  the same ticker. Both now read the spot's selector (`lastVisibleByAsOfString`). A stock leg is
+  the underlying itself, so its stale window is the spot's and the spot's rescale refuses a
+  non-positive factor first.
+- **The implied-volatility index.** It reads the spot through
+  `resolveUnderlyingSpotOnSessionScale` (moved from `price-operation.ts` to
+  `resolve-market-price.ts`, now shared) and leaves out an ATM premium last traded before an
+  ex-date, as `valueOneLeg` suppresses its implied-volatility solve. An index built from a
+  rescaled spot or with a premium left out carries `stale_price_across_corporate_action`.
+- **Delta-based strike selection.** It reads each candidate's premium with the session of `at` and
+  suppresses the implied-volatility solve exactly when `rescaleStalePrice` finds a factor over
+  `(stale session, session of at]`, so a series whose only print predates the ex-date is not
+  selectable by delta, the same as a series with no print.
+- **`score` is left as it is.** `computeOperationMaxLoss` still reads the unrescaled spot, which
+  only places the payoff's coarse samples. `score` discards them, and `maxLoss` is the minimum
+  over zero and the strikes plus the slope at infinity, so the spot cannot change any `score`
+  output.
+
+The IV index, delta selection and a quote-led stale flag change, so `ENGINE_VERSION` moves from
+`"0.16.0"` to `"0.17.0"`.

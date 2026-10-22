@@ -4,7 +4,11 @@ import { bsmPriceRaw } from "./black-scholes";
 import { decimalString } from "../test/support";
 import { assertDefined } from "./invariant";
 import { computeImpliedVolatilityIndex } from "./implied-volatility-index";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import {
+  IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+} from "./notes";
 
 function dailyCalendar(fromIso: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
@@ -1047,5 +1051,169 @@ describe("computeImpliedVolatilityIndex with an index option's priceFactor (#307
     if (result.ok) return;
     expect(result.error.code).toBe("invalid_input");
     expect(result.error).toMatchObject({ message: "a series price factor must be positive" });
+  });
+});
+
+describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluation session (#343)", () => {
+  const evalAt = sessionAt(5).close;
+  const expiry = sessionAt(35).date;
+  const atmPrice = bsmPriceRaw({
+    s: 50,
+    k: 50,
+    t: 30 / 252,
+    r: 0,
+    q: 0,
+    sigma: 0.3,
+    right: "call",
+  });
+  const optionPrice = (session: TradingSession, close: number) => ({
+    ticker: "PETR4C100",
+    session: session.date,
+    asOf: session.close,
+    average: null,
+    close: decimalString(close.toFixed(2)),
+    trades: 1,
+    tradedQuantity: 1,
+  });
+  const splitView: MarketView = {
+    ...baseView,
+    quotes: [{ ticker: "PETR4", asOf: evalAt, last: decimalString("50.00"), bid: null, ask: null }],
+    optionSeries: [{ ...callSeries("PETR4C100", "100.00", expiry), asOf: sessionAt(0).close }],
+    corporateActions: [
+      {
+        ticker: "PETR4",
+        exDate: sessionAt(5).date,
+        asOf: sessionAt(5).open,
+        factor: decimalString("0.5"),
+      },
+    ],
+    optionPrices: [optionPrice(sessionAt(5), atmPrice)],
+  };
+  const fresh = computeImpliedVolatilityIndex(splitView, "PETR4", evalAt, testProvenanceBase);
+  const withStaleNote = (result: typeof fresh) =>
+    result.ok
+      ? {
+          ...result,
+          value: {
+            ...result.value,
+            notes: [...result.value.notes, IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE],
+          },
+        }
+      : result;
+
+  it("solves against a pre-split candle spot rescaled onto the derived strike", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [],
+      candles: [
+        {
+          ticker: "PETR4",
+          timeframe: "D1",
+          session: sessionAt(4).date,
+          asOf: sessionAt(4).close,
+          open: decimalString("100.00"),
+          high: decimalString("100.00"),
+          low: decimalString("100.00"),
+          close: decimalString("100.00"),
+          tradedQuantity: 1000,
+        },
+      ],
+    };
+    expect(fresh.ok && fresh.value.impliedVolatility).toBeTruthy();
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(
+      withStaleNote(fresh),
+    );
+  });
+
+  it("solves against a day-old pre-split spot quote rescaled onto the derived strike", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: sessionAt(4).close,
+          last: decimalString("100.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+    };
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(
+      withStaleNote(fresh),
+    );
+  });
+
+  it("propagates the spot rescale's refusal of a non-positive factor", () => {
+    const view: MarketView = {
+      ...splitView,
+      quotes: [
+        {
+          ticker: "PETR4",
+          asOf: sessionAt(4).close,
+          last: decimalString("100.00"),
+          bid: null,
+          ask: null,
+        },
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(5).date,
+          asOf: sessionAt(5).open,
+          factor: decimalString("-1"),
+        },
+      ],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      code: "invalid_input",
+      path: "corporateActions[].factor",
+    });
+  });
+
+  it("leaves out a premium last traded before the ex-date and solves from the other right", () => {
+    const putSeries: OptionSeries = {
+      ...callSeries("PETR4P100", "100.00", expiry),
+      right: "put",
+      asOf: sessionAt(0).close,
+    };
+    const putPrice = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: 0.3,
+      right: "put",
+    });
+    const freshPut = { ...optionPrice(sessionAt(5), putPrice), ticker: "PETR4P100" };
+    const putOnly = computeImpliedVolatilityIndex(
+      { ...splitView, optionSeries: [putSeries], optionPrices: [freshPut] },
+      "PETR4",
+      evalAt,
+      testProvenanceBase,
+    );
+    const view: MarketView = {
+      ...splitView,
+      optionSeries: [...splitView.optionSeries, putSeries],
+      optionPrices: [optionPrice(sessionAt(4), atmPrice * 2), freshPut],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(putOnly.ok && putOnly.value.seriesUsed).toEqual(["PETR4P100"]);
+    expect(result).toEqual(withStaleNote(putOnly));
+  });
+
+  it("returns no index when the only premium was last traded before the ex-date", () => {
+    const view: MarketView = {
+      ...splitView,
+      optionPrices: [optionPrice(sessionAt(4), atmPrice * 2)],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.impliedVolatility).toBeNull();
+    expect(result.value.seriesUsed).toEqual([]);
   });
 });
