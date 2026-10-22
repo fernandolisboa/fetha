@@ -23,7 +23,6 @@ import {
   RATIO_SCALE,
   parseDecimal,
   toDecimalString,
-  toDecimalStringAtLeastScale,
 } from "./decimal";
 import { invalidInput, err } from "./errors";
 import { isSafeCentavosAmount } from "./fill-pricing";
@@ -43,7 +42,7 @@ import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
-import { resolveLegMarketPrice, resolveUnderlyingSpotReading } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpotOnSessionScale } from "./resolve-market-price";
 import { resolveSeries } from "./resolve-series";
 import { toCentavos, toQuantity } from "./scalars";
 import { rescaleStalePrice, visibleFactorsFor } from "./split-factor";
@@ -64,37 +63,6 @@ function sessionDateAtOrBefore(
   at: string,
 ): SessionDate | null {
   return sessionAtOrBefore(calendar, at)?.date ?? null;
-}
-
-type SpotReading = { spot: DecimalString; rescaled: boolean };
-
-// A spot carried forward from before an ex-date sits on the pre-factor scale, while the strikes
-// derived for the session of `at` and the rebased quantities sit on the post-factor one; the
-// pricing model and the payoff samples read it rescaled, at full precision. Delta-based strike
-// selection does not rescale its implied-volatility premium and so can still read the old scale.
-function resolveSpotOnSessionScale(
-  view: MarketView,
-  underlying: string,
-  at: string,
-): { ok: true; value: SpotReading | null } | { ok: false; error: EngineError } {
-  const reading = resolveUnderlyingSpotReading(view, underlying, at);
-  if (!reading) return { ok: true, value: null };
-  const rescaled = rescaleStalePrice(
-    visibleFactorsFor(view.corporateActions, underlying, at),
-    parseDecimal(reading.value),
-    reading.session,
-    sessionDateAtOrBefore(view.calendar, at),
-  );
-  if (!rescaled.ok) return rescaled;
-  if (!rescaled.value.rescaled)
-    return { ok: true, value: { spot: reading.value, rescaled: false } };
-  return {
-    ok: true,
-    value: {
-      spot: toDecimalStringAtLeastScale(rescaled.value.price, PRICE_SCALE),
-      rescaled: true,
-    },
-  };
 }
 
 // The web reads notes by code, so a rescale already named on the operation (an option leg's
@@ -149,9 +117,9 @@ function valueOneLeg(
       resolved?.stale?.session ?? null,
       atSession,
     );
-    // The leg's stale window can be wider than the spot's: two candles sharing an `asOf` resolve
-    // to different rows for the leg and for the spot.
-    if (!premium.ok) return { ok: false, error: premium.error };
+    // A stock leg is the underlying itself, so it reads the spot's own quote or candle (#343),
+    // whose rescale over the same window already refused every non-positive factor.
+    invariant(premium.ok, "price-operation: the spot's rescale already refused this factor");
     const valuation: LegValuation = {
       leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
       price,
@@ -864,7 +832,7 @@ export function priceLegsAt(
   expiredIntrinsicBasis: DecimalString | null = null,
   legPathAt?: (index: number) => string,
 ): Result<OperationPricing> {
-  const spotResult = resolveSpotOnSessionScale(view, underlying, at);
+  const spotResult = resolveUnderlyingSpotOnSessionScale(view, underlying, at);
   if (!spotResult.ok) return err(spotResult.error);
   const reading = spotResult.value;
   if (!reading) return err({ code: "missing_instrument", ticker: underlying });
@@ -1023,7 +991,11 @@ function priceSelection(
   selection: LegSelection,
   provenanceBase: ProvenanceBase,
 ): Result<OperationPricing> {
-  const spotResult = resolveSpotOnSessionScale(input.view, selection.underlying, input.at);
+  const spotResult = resolveUnderlyingSpotOnSessionScale(
+    input.view,
+    selection.underlying,
+    input.at,
+  );
   if (!spotResult.ok) return err(spotResult.error);
   const reading = spotResult.value;
   if (!reading) return err({ code: "missing_instrument", ticker: selection.underlying });

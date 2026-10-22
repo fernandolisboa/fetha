@@ -47,6 +47,12 @@ export const STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE: Note = {
     "a leg's stale mark predated a corporate-action ex-date visible on its underlying; it was rescaled by the factor(s) since the price's own session (ADR-0014 Q51)",
 };
 
+export const IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE: Note = {
+  code: "stale_price_across_corporate_action",
+  message:
+    "the spot or an at-the-money premium predated a corporate-action ex-date visible on the underlying; the spot was rescaled and such a premium left out (ADR-0014 Q51)",
+};
+
 // The only two codes a single leg's own strike adjustment can ever repeat under (forwarded from
 // a settlement proposal computed against the same leg/session by more than one caller, #69 part
 // 2 correctness rounds 3-5): safe to dedup by code alone, unlike every other note code (e.g.

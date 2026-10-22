@@ -12,12 +12,18 @@ import { sessionAtOrBefore, sortedCalendar } from "./calendar";
 import { calendarIntegrityError } from "./validate-view-integrity";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import { invariant } from "./invariant";
+import {
+  IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+} from "./notes";
 import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
 import { resolvePriceFactor } from "./price-factor";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
-import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpotOnSessionScale } from "./resolve-market-price";
 import { collapseSeriesByTicker, isEarlierByStrikeThenTicker } from "./resolve-series";
+import { rescaleStalePrice, visibleFactorsFor } from "./split-factor";
 import { resolveTimeToExpiryYears } from "./time-to-expiry";
 import { err } from "./errors";
 
@@ -88,6 +94,8 @@ function solveAtmVolatility(
   riskFreeRate: number,
   dividendYield: number,
   strikeOf: StrikeResolver,
+  atSession: SessionDate,
+  premiumsLeftOut: Set<Ticker>,
 ): AtmOutcome {
   const listed = collapsedSeries.filter(
     (series) => series.underlying === underlying && series.expiry === expiry,
@@ -112,8 +120,23 @@ function solveAtmVolatility(
   let anyUnconfirmed = false;
   for (const series of [callResult.series, putResult.series]) {
     if (!series) continue;
-    const marketPrice = resolveLegMarketPrice(view, series.ticker, at);
+    const marketPrice = resolveLegMarketPrice(view, series.ticker, at, undefined, atSession);
     if (!marketPrice) continue;
+    // A premium last traded before an ex-date would read the split itself as a volatility move
+    // against the rescaled spot and the derived strike; it is left out, as `valueOneLeg` does.
+    const premium = rescaleStalePrice(
+      visibleFactorsFor(view.corporateActions, underlying, at),
+      new Decimal(marketPrice.value),
+      marketPrice.stale?.session ?? null,
+      atSession,
+    );
+    // `strikeOf` already refused every non-positive factor up to the session of at for this
+    // series, a window that holds this one.
+    invariant(premium.ok, "implied-volatility-index: strikeOf already refused this factor");
+    if (premium.value.rescaled) {
+      premiumsLeftOut.add(series.ticker);
+      continue;
+    }
     const resolvedStrike = strikeOf(series);
     if (!resolvedStrike.ok) return resolvedStrike;
     const priceFactorResult = resolvePriceFactor(
@@ -177,10 +200,12 @@ function toResult(
   provenanceBase: ProvenanceBase,
   anyDerived: boolean,
   anyUnconfirmed: boolean,
+  anyStaleAcrossAction: boolean,
 ): Result<ImpliedVolatilityIndex> {
   const notes = [];
   if (anyDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
   if (anyUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  if (anyStaleAcrossAction) notes.push(IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE);
   return {
     ok: true,
     value: {
@@ -206,15 +231,17 @@ export function computeImpliedVolatilityIndex(
 ): Result<ImpliedVolatilityIndex> {
   const calendarError = calendarIntegrityError(view.calendar);
   if (calendarError) return err(calendarError);
-  const spotValue = resolveUnderlyingSpot(view, underlying, at);
-  if (!spotValue) return err({ code: "missing_instrument", ticker: underlying });
+  const spotResult = resolveUnderlyingSpotOnSessionScale(view, underlying, at);
+  if (!spotResult.ok) return err(spotResult.error);
+  if (!spotResult.value) return err({ code: "missing_instrument", ticker: underlying });
 
   const riskFreeRateResolution = resolveRiskFreeRate(view.macro, at);
   if (!riskFreeRateResolution.ok) return err(riskFreeRateResolution.error);
   const dividendResolution = resolveDividendYield(view.dividendYields, underlying, at);
   if (!dividendResolution.ok) return err(dividendResolution.error);
 
-  const spot = Number(spotValue);
+  const spot = Number(spotResult.value.spot);
+  const spotRescaled = spotResult.value.rescaled;
   const riskFreeRate = Number(riskFreeRateResolution.value);
   const dividendYield = Number(dividendResolution.value);
 
@@ -258,6 +285,8 @@ export function computeImpliedVolatilityIndex(
   }
   brackets.sort((a, b) => a.years - b.years);
 
+  const premiumsLeftOut = new Set<Ticker>();
+  const staleAcrossAction = (): boolean => spotRescaled || premiumsLeftOut.size > 0;
   const strikeOf = createOptionStrikeResolver(view, underlying, atSession.date, at);
   const solve = (bracket: AtmBracket): AtmOutcome =>
     solveAtmVolatility(
@@ -271,6 +300,8 @@ export function computeImpliedVolatilityIndex(
       riskFreeRate,
       dividendYield,
       strikeOf,
+      atSession.date,
+      premiumsLeftOut,
     );
 
   const exact = brackets.find((b) => Math.abs(b.years - t30) < 1e-12);
@@ -286,6 +317,7 @@ export function computeImpliedVolatilityIndex(
       provenanceBase,
       solved.value.anyDerived,
       solved.value.anyUnconfirmed,
+      staleAcrossAction(),
     );
   }
 
@@ -319,5 +351,6 @@ export function computeImpliedVolatilityIndex(
     provenanceBase,
     solvedLower.value.anyDerived || solvedUpper.value.anyDerived,
     solvedLower.value.anyUnconfirmed || solvedUpper.value.anyUnconfirmed,
+    staleAcrossAction(),
   );
 }
