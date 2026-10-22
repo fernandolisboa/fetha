@@ -11,8 +11,9 @@ import {
 import { latestSessionOnOrBefore } from "./repositories/calendar-repository";
 import { latestMacroPointAtOrBefore } from "./repositories/macro-repository";
 import {
+  deleteStaleIvIndexPoints,
+  ivIndexPointStatesOnSession,
   underlyingsToComputeForSession,
-  underlyingsWithPointOnSession,
   upsertIvIndexPoints,
 } from "./repositories/iv-index-repository";
 
@@ -24,8 +25,8 @@ export interface ComputeIvIndexResult {
 // A session whose only visible CDI point predates the previous trading
 // session would make the engine default r=0 silently (`resolveRiskFreeRate`),
 // baking a wrong rate into a point that is never recomputed once persisted
-// (docs/adr/0054). Left pending instead, so the next run retries it once the
-// rate lands. A session with no earlier trading session is the floor of the
+// unless marked stale (docs/adr/0054). Left pending instead, so the next run
+// retries it once the rate lands. A session with no earlier trading session is the floor of the
 // history: CDI is ingested from the calendar's own first day
 // (`SGS_DEFAULT_SINCE`, ingest.ts) and each point is visible only from the
 // next session's open, so no rate can ever be visible at its close. It is
@@ -54,8 +55,16 @@ export async function computeIvIndexForSession(
   }
 
   const allUnderlyings = await underlyingsToComputeForSession(db, session);
-  const done = new Set(await underlyingsWithPointOnSession(db, session));
+  const pointStates = await ivIndexPointStatesOnSession(db, session);
+  const done = new Set(
+    pointStates.filter((point) => !point.stale).map((point) => point.underlying),
+  );
   const remaining = allUnderlyings.filter((underlying) => !done.has(underlying));
+  // A stale point (#275) is overwritten in place, never deleted first; one the
+  // current rules no longer produce goes only once the session completes.
+  const staleNotReproduced = new Set(
+    pointStates.filter((point) => point.stale).map((point) => point.underlying),
+  );
 
   const at = instantSchema.parse(sessionClose.toISOString());
   const calendar = await loadIvIndexSessionCalendar(db, at);
@@ -100,6 +109,7 @@ export async function computeIvIndexForSession(
       continue;
     }
 
+    staleNotReproduced.delete(ticker);
     rows.push({
       underlying: ticker,
       session,
@@ -110,5 +120,8 @@ export async function computeIvIndexForSession(
   }
 
   const rowCount = await upsertIvIndexPoints(db, rows);
+  if (!pending) {
+    await deleteStaleIvIndexPoints(db, session, [...staleNotReproduced]);
+  }
   return { rowCount, pending };
 }

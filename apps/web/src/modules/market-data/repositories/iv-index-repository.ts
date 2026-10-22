@@ -1,6 +1,6 @@
 import { and, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { candles, impliedVolatilityIndexPoints, optionDailyPrices, optionSeries } from "../schema";
 import { DAILY_TIMEFRAME } from "./candle-repository";
 
@@ -35,10 +35,48 @@ export async function upsertIvIndexPoints(db: Database, rows: IvIndexPointRow[])
         impliedVolatility: sql`excluded.implied_volatility`,
         method: sql`excluded.method`,
         computedAt: sql`now()`,
+        stale: false,
       },
     });
 
   return rows.length;
+}
+
+export async function deleteStaleIvIndexPoints(
+  db: Database,
+  session: string,
+  underlyings: readonly string[],
+): Promise<void> {
+  if (underlyings.length === 0) {
+    return;
+  }
+  await db
+    .delete(impliedVolatilityIndexPoints)
+    .where(
+      and(
+        eq(impliedVolatilityIndexPoints.session, session),
+        inArray(impliedVolatilityIndexPoints.underlying, [...underlyings]),
+        eq(impliedVolatilityIndexPoints.stale, true),
+      ),
+    );
+}
+
+export async function markIvIndexPointsStale(
+  db: Database | Transaction,
+  underlying: string,
+): Promise<void> {
+  await db
+    .update(impliedVolatilityIndexPoints)
+    .set({ stale: true })
+    .where(eq(impliedVolatilityIndexPoints.underlying, underlying));
+}
+
+export async function sessionsWithStaleIvIndexPoints(db: Database): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ session: impliedVolatilityIndexPoints.session })
+    .from(impliedVolatilityIndexPoints)
+    .where(eq(impliedVolatilityIndexPoints.stale, true));
+  return rows.map((row) => row.session);
 }
 
 export async function ivIndexPointsInRange(
@@ -84,16 +122,17 @@ export async function underlyingsToComputeForSession(
   return rows.map((row) => row.underlying);
 }
 
-export async function underlyingsWithPointOnSession(
+export async function ivIndexPointStatesOnSession(
   db: Database,
   session: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ underlying: impliedVolatilityIndexPoints.underlying })
+): Promise<{ underlying: string; stale: boolean }[]> {
+  return db
+    .select({
+      underlying: impliedVolatilityIndexPoints.underlying,
+      stale: impliedVolatilityIndexPoints.stale,
+    })
     .from(impliedVolatilityIndexPoints)
     .where(eq(impliedVolatilityIndexPoints.session, session));
-
-  return rows.map((row) => row.underlying);
 }
 
 // The radar's universe (docs/adr/0066): every underlying with an IV index point on `session`

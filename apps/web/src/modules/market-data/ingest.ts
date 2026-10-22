@@ -31,6 +31,7 @@ import {
 } from "./repositories/exchange-rate-repository";
 import {
   deleteRun,
+  deleteSucceededRuns,
   finishRun,
   findSucceededRun,
   reapStaleRunningRuns,
@@ -39,6 +40,7 @@ import {
 } from "./repositories/ingestion-run-repository";
 import { ingestCvmFilings } from "./cvm-filings-source";
 import { computeIvIndexForSession } from "./iv-index-compute";
+import { sessionsWithStaleIvIndexPoints } from "./repositories/iv-index-repository";
 import { latestMacroPointDate, upsertMacroPoints } from "./repositories/macro-repository";
 import { upsertOptionDailyPrices, upsertOptionSeries } from "./repositories/option-repository";
 
@@ -657,6 +659,12 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   // for that reason is `pending`, never `failed` (`ivIndexRun` below), so it
   // keeps retrying every night rather than aging into a permanent gap.
   const ivIndexRecentSessions = await resolveSessions("iv_index");
+  // A session holding a stale point (#275) is reopened here, every night, rather than once by
+  // the migration that marked it: a deployment that predates the flag and runs after it would
+  // mark the session succeeded again without recomputing anything.
+  if (!options.session) {
+    await deleteSucceededRuns(db, "iv_index", await sessionsWithStaleIvIndexPoints(db));
+  }
   const ivIndexBackfillCandidates = options.session
     ? []
     : (await succeededSessionsMissingRun(db, ["cotahist", "instruments"], "iv_index")).filter(

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { filingCategories } from "@fetha/contracts";
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -118,6 +119,11 @@ export const optionSeriesStrikes = pgTable(
     right: text("right").notNull(),
     strike: numeric("strike", { precision: 18, scale: 8 }).notNull(),
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    // The open of a recorded corporate action's ex-date (#272), set only by
+    // `bound_option_strike_epochs` when `as_of` dates this strike before the
+    // event that produced it. Kept beside `as_of`, never folded into it, so
+    // neutralizing the factor clears it and the observed date comes back.
+    notBefore: timestamp("not_before", { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.ticker, table.expiry, table.right, table.strike] }),
@@ -178,6 +184,10 @@ export const impliedVolatilityIndexPoints = pgTable(
     // cannot tell a MarketView that new IV data has landed for a window it
     // already read (docs/adr/0054).
     computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+    // Marks a point computed under rules since corrected (#275). It keeps
+    // serving reads until the nightly step recomputes it in place, so an
+    // `iv_rank` window never loses a session while the recompute drains.
+    stale: boolean("stale").notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.underlying, table.session] }),
