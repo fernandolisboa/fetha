@@ -91,7 +91,8 @@ factor for a long-past ex-date at any time, so `as_of` (that ex-date session's o
 ADR-0013 regardless of when the row is written) can already sit inside a window a chunked backtest
 loaded before the correction landed. Migration 0032 adds `corporate_action_factors.recorded_at`
 (`timestamptz`, `default now()`, bumped by the database clock whenever the upsert changes the stored
-`(factor, as_of)`; an identical resubmission is a no-op and moves nothing) and
+`(factor, as_of)`; an identical resubmission is a no-op and moves nothing, unless it moves an
+option strike epoch bound, ADR-0056's #272 addendum) and
 `loadMarketView`'s `dataVersion` folds it in alongside every collection's own `as_of`, exactly the
 way ADR-0054 folds `implied_volatility_index.computed_at` in for the same reason: a resumed run
 that would otherwise mix a pre- and post-correction view instead fails with

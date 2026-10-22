@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.15.0";
+export const ENGINE_VERSION = "0.16.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -2711,7 +2711,9 @@ factor`, `effectiveEntryPrice = entryPrice * factor`. A listed option series its
     source-side remedy, a follow-up and not made here: bound ADR-0056's own backfill step so a
     registry-sourced epoch's `asOf` never predates the corporate-action factor's own ex-date
     session open when a matching factor row exists, closing the ambiguity at the source instead of
-    flagging around it here. Tracked as issue #272.
+    flagging around it here. Tracked as issue #272. Closed for underlyings with a recorded factor
+    by ADR-0056's #272 addendum (`option_series_strikes.not_before`, migration 0045); a cycle the
+    bound leaves alone (never traded, or traded before the ex-date) keeps this residual.
   - **A second residual, newly documented (correctness round 3, advisory 6): a non-split re-strike
     can coincide numerically with the one-to-one match.** A cash-dividend epoch (no factor of its
     own) can land, by coincidence, on exactly `round_half_up(P.strike * F, 2)` for some unrelated,
@@ -3227,9 +3229,9 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
   index, delta-based strike selection and quotes (which carry no session) still read an
   unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
   `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
-  stock leg still throws there (#344; fixed, see the #344 addendum below). `evaluateNumericExitRule` has a confirmed stale-scale
-  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344; fixed, see the #344
-  addendum below).
+  stock leg still throws there (#344; fixed, see the #344 addendum below).
+  `evaluateNumericExitRule` has a confirmed stale-scale double rescale (#342). Summed centavos
+  (the mark value, cash) are not bounded yet (#344; fixed, see the #344 addendum below).
 - **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
   `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
   (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
@@ -3237,6 +3239,20 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 
 Marks and pricing outputs change for a stale price or spot across a split, so `ENGINE_VERSION`
 moves from `"0.14.0"` to `"0.15.0"`.
+
+## Addendum: a stale premium in a numeric exit rule; `ENGINE_VERSION` bumped to `0.16.0` (2026-10-22, #342)
+
+`evaluateNumericExitRule` divides a leg's current premium by the factor product over
+`(openedAt, session]` to compare it with the entry price. `LegValuation.price` is the price as it
+traded, so a premium carried from before an ex-date was already on the pre-split scale and that
+division rescaled it a second time: a long call entered at 2.50, untraded on a 2:1 ex-date, read
+5.00 and fired `profit_target` on a phantom +100%; a reverse split fired `stop_loss` on a phantom
+loss. The premium now goes through `rescaleStalePrice` over `(stale session, session]` first, so a
+stale print gives the same outcome as the same trade printed on the post-split scale. This closes
+the #342 item of the #285 addendum's follow-ups.
+
+Exit signals change for a stale premium across a split, so `ENGINE_VERSION` moves from `"0.15.0"`
+to `"0.16.0"`.
 
 ## Addendum: summed centavos are bounded too (2026-10-22, #344)
 

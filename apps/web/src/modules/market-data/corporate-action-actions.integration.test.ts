@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.REGISTRATION_MODE = "open";
@@ -17,7 +17,14 @@ import { testRequestHeaders, uniqueTestIp } from "@/modules/auth/test-support";
 import { cotahistStockRowSchema } from "./adapters/cotahist/schema";
 import { loadCandleSeries } from "./candle-series";
 import { upsertDailyCandles } from "./repositories/candle-repository";
-import { candles, corporateActionFactors, tradingSessions } from "./schema";
+import {
+  candles,
+  corporateActionFactors,
+  impliedVolatilityIndexPoints,
+  optionSeries,
+  optionSeriesStrikes,
+  tradingSessions,
+} from "./schema";
 
 const originalOwnerEmails = process.env.OWNER_EMAILS;
 const createdEmails: string[] = [];
@@ -295,6 +302,177 @@ describe("recordCorporateActionFactorAction against real sessions", () => {
       expect(restored?.recordedAt.getTime()).toBe(firstRecordedAt);
     } finally {
       await cleanupTicker(ticker, [session]);
+    }
+  });
+
+  it("marks the ticker's IV index points stale when the factor changes, not on an identical resubmission (#275)", async () => {
+    const db = getDb();
+    const [session] = businessDaysFrom("2099-06-22", 1);
+    if (!session) throw new Error("fixture setup failed");
+    await seedSession(session);
+    const ticker = uniqueTicker("IVS");
+    const bystander = uniqueTicker("IVB");
+    await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session,
+        ticker,
+        open: "10.00",
+        high: "10.00",
+        low: "10.00",
+        average: "10.00",
+        close: "10.00",
+        trades: 1,
+        tradedQuantity: 100,
+      }),
+    ]);
+    await db.insert(impliedVolatilityIndexPoints).values(
+      [ticker, bystander].map((underlying) => ({
+        underlying,
+        session,
+        asOf: new Date(`${session}T20:00:00.000Z`),
+        impliedVolatility: "0.30000000",
+        method: "atm_30d_variance_interpolated",
+      })),
+    );
+    const staleByUnderlying = async (): Promise<Map<string, boolean>> => {
+      const rows = await db
+        .select({
+          underlying: impliedVolatilityIndexPoints.underlying,
+          stale: impliedVolatilityIndexPoints.stale,
+        })
+        .from(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, [ticker, bystander]));
+      return new Map(rows.map((row) => [row.underlying, row.stale]));
+    };
+
+    try {
+      const { email, sessionHeaders } = await signUpAndVerify("owner-iv-stale");
+      process.env.OWNER_EMAILS = email;
+      currentHeaders = sessionHeaders;
+      const { recordCorporateActionFactorAction } = await import("./corporate-action-actions");
+      const split = { ticker, exDate: session, sharesBefore: 1, sharesAfter: 2 };
+
+      await recordCorporateActionFactorAction(split);
+      expect(await staleByUnderlying()).toEqual(
+        new Map([
+          [ticker, true],
+          [bystander, false],
+        ]),
+      );
+
+      await db
+        .update(impliedVolatilityIndexPoints)
+        .set({ stale: false })
+        .where(eq(impliedVolatilityIndexPoints.underlying, ticker));
+      await recordCorporateActionFactorAction(split);
+      expect((await staleByUnderlying()).get(ticker)).toBe(false);
+    } finally {
+      await db
+        .delete(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, [ticker, bystander]));
+      await cleanupTicker(ticker, [session]);
+    }
+  });
+});
+
+describe("recordCorporateActionFactorAction bounds the underlying's strike epochs (#272)", () => {
+  it("re-dates an early-dated post-split epoch to the ex-date's open, and neutralizing the factor clears it", async () => {
+    const db = getDb();
+    const sessions = businessDaysFrom("2099-07-06", 4);
+    const [firstSession, earlySession, , exDate] = sessions;
+    if (!firstSession || !earlySession || !exDate) throw new Error("fixture setup failed");
+    for (const session of sessions) {
+      await seedSession(session);
+    }
+    const ticker = uniqueTicker("BND");
+    const option = `${ticker}B310`;
+    await upsertDailyCandles(db, firstSession, new Date(`${firstSession}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: firstSession,
+        ticker,
+        open: "10.00",
+        high: "10.00",
+        low: "10.00",
+        average: "10.00",
+        close: "10.00",
+        trades: 1,
+        tradedQuantity: 100,
+      }),
+    ]);
+    await db.insert(optionSeries).values({
+      isin: `ISIN-${option}`,
+      ticker: option,
+      underlying: ticker,
+      right: "call",
+      strike: "14.98000000",
+      expiry: "2099-12-18",
+      style: "european",
+      asOf: new Date(`${firstSession}T13:00:00.000Z`),
+    });
+    await db.insert(optionSeriesStrikes).values([
+      {
+        ticker: option,
+        expiry: "2099-12-18",
+        right: "call",
+        strike: "29.95000000",
+        asOf: new Date(`${firstSession}T20:00:00.000Z`),
+      },
+      {
+        ticker: option,
+        expiry: "2099-12-18",
+        right: "call",
+        strike: "14.98000000",
+        asOf: new Date(`${earlySession}T13:00:00.000Z`),
+      },
+    ]);
+
+    const notBefore = async () => {
+      const [row] = await db
+        .select({ notBefore: optionSeriesStrikes.notBefore })
+        .from(optionSeriesStrikes)
+        .where(
+          and(
+            eq(optionSeriesStrikes.ticker, option),
+            eq(optionSeriesStrikes.strike, "14.98000000"),
+          ),
+        );
+      return row?.notBefore;
+    };
+
+    try {
+      const { email, sessionHeaders } = await signUpAndVerify("owner-bound");
+      process.env.OWNER_EMAILS = email;
+      currentHeaders = sessionHeaders;
+      const { recordCorporateActionFactorAction } = await import("./corporate-action-actions");
+
+      await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 2 });
+      expect(await notBefore()).toEqual(new Date(`${exDate}T13:00:00.000Z`));
+
+      // An identical resubmission that moves a bound still moves recordedAt (dataVersion).
+      await db
+        .update(optionSeriesStrikes)
+        .set({ notBefore: null })
+        .where(eq(optionSeriesStrikes.ticker, option));
+      const recordedAt = async () => {
+        const [row] = await db
+          .select({ recordedAt: corporateActionFactors.recordedAt })
+          .from(corporateActionFactors)
+          .where(eq(corporateActionFactors.ticker, ticker));
+        return row?.recordedAt.getTime() ?? 0;
+      };
+      const beforeResubmit = await recordedAt();
+      await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 2 });
+      expect(await notBefore()).toEqual(new Date(`${exDate}T13:00:00.000Z`));
+      expect(await recordedAt()).toBeGreaterThan(beforeResubmit);
+
+      await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 1 });
+      expect(await notBefore()).toBeNull();
+    } finally {
+      await db.delete(optionSeriesStrikes).where(eq(optionSeriesStrikes.ticker, option));
+      await db.delete(optionSeries).where(eq(optionSeries.ticker, option));
+      await cleanupTicker(ticker, sessions);
     }
   });
 });

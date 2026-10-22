@@ -316,6 +316,20 @@
       "when": 1792173609018,
       "tag": "0044_preferences_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792679898183,
+      "tag": "0045_strike_epoch_not_before",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792684642661,
+      "tag": "0046_iv_index_stale",
+      "breakpoints": true
     }
   ]
 }

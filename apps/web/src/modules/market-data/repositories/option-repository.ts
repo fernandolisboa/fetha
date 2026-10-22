@@ -28,7 +28,7 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import {
   candles,
   optionDailyPrices,
@@ -57,6 +57,10 @@ function chunk<T>(items: T[], size: number): T[][] {
   }
   return chunks;
 }
+
+// An epoch is visible from `as_of`, or from `not_before` when a recorded
+// corporate action bounds it later (#272); `greatest` ignores a null bound.
+const epochVisibleFrom = sql<Date>`greatest(${optionSeriesStrikes.asOf}, ${optionSeriesStrikes.notBefore})`;
 
 function dedupeByKey<T>(rows: T[], keyOf: (row: T) => string): T[] {
   const byKey = new Map<string, T>();
@@ -113,6 +117,21 @@ async function upsertStrikeEpochs(db: Database, epochs: StrikeEpoch[]): Promise<
         setWhere: sql`${optionSeriesStrikes.asOf} > excluded.as_of`,
       });
   }
+}
+
+// Re-dates the strike epochs of `underlying` that the ADR-0056 backfill dated
+// before the recorded corporate action that produced them (#272): the rule
+// lives in `bound_option_strike_epochs` (migration 0045) so the migration and
+// this caller run the same statement. Recomputed from `as_of` and the current
+// factors on every call, so a neutralized factor ("1 para 1") clears its bound.
+export async function boundOptionStrikeEpochs(
+  db: Database | Transaction,
+  underlying: string,
+): Promise<number> {
+  const result = await db.execute<{ updated: number }>(
+    sql`select bound_option_strike_epochs(array[${underlying}]::text[]) as updated`,
+  );
+  return result.rows[0]?.updated ?? 0;
 }
 
 // isin is the registry's stable natural key (B3 reuses option tickers and
@@ -385,9 +404,7 @@ export async function optionChainForUnderlying(
             strike: optionSeriesStrikes.strike,
           })
           .from(optionSeriesStrikes)
-          .where(
-            and(inArray(optionSeriesStrikes.ticker, tickers), lte(optionSeriesStrikes.asOf, at)),
-          ),
+          .where(and(inArray(optionSeriesStrikes.ticker, tickers), lte(epochVisibleFrom, at))),
   ]);
 
   const latestPriceByTicker = new Map<string, (typeof priceRows)[number]>();
@@ -747,7 +764,7 @@ function epochJoin() {
 }
 
 function epochAsOfCondition(asOfCeiling: Date) {
-  return sql`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf}) <= ${asOfCeiling}`;
+  return sql`coalesce(${epochVisibleFrom}, ${optionSeries.asOf}) <= ${asOfCeiling}`;
 }
 
 function cycleKey(ticker: string, expiry: string, right: string): string {
@@ -808,9 +825,7 @@ const epochColumns = {
   strike: sql<string>`coalesce(${optionSeriesStrikes.strike}, ${optionSeries.strike})`.mapWith(
     optionSeries.strike,
   ),
-  asOf: sql<Date>`coalesce(${optionSeriesStrikes.asOf}, ${optionSeries.asOf})`.mapWith(
-    optionSeries.asOf,
-  ),
+  asOf: sql<Date>`coalesce(${epochVisibleFrom}, ${optionSeries.asOf})`.mapWith(optionSeries.asOf),
   priceFactor: optionSeries.priceFactor,
   settlementStyle: optionSeries.settlementStyle,
 };

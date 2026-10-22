@@ -59,7 +59,9 @@ changing its ticker or ISIN; the strike's own history is a **strike epoch** — 
 listing cycle is known to have carried a given strike (ADR-0056), so the engine can see the strike
 that was actually live at a given instant rather than only the latest one — bounded by what has
 been ingested (ADR-0056's trade-offs): a strike never traded and never re-fetched by the registry
-before an event has no epoch to recover it from.
+before an event has no epoch to recover it from. When a corporate action is recorded for the
+underlying, an epoch the backfill dated before that event is not visible until the ex-date's open
+(ADR-0056 #272 addendum).
 _Avoid_: option contract, series code, option ticker (that is its identifier, not the concept)
 
 **Price factor**:

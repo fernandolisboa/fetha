@@ -1158,152 +1158,183 @@ describe("ingest", () => {
     expect(runs).toEqual([]);
   });
 
-  it("backfills iv_index for an old session whose cotahist and instruments already succeeded outside the current recent window", async () => {
-    const db = getDb();
-    const now = new Date(`${TEST_SESSION}T22:00:00.000Z`);
+  it.each([
+    { staleBehindSucceededRun: false, label: "with no iv_index run" },
+    {
+      staleBehindSucceededRun: true,
+      label: "whose stale point sits behind a succeeded iv_index run (#275)",
+    },
+  ])(
+    "backfills iv_index for an old session whose cotahist and instruments already succeeded outside the current recent window, $label",
+    async ({ staleBehindSucceededRun }) => {
+      const db = getDb();
+      const now = new Date(`${TEST_SESSION}T22:00:00.000Z`);
 
-    await ingest(db, { session: TEST_SESSION, now, fetchImpl: fakeFetch(TEST_SESSION) });
+      await ingest(db, { session: TEST_SESSION, now, fetchImpl: fakeFetch(TEST_SESSION) });
 
-    const oldSessions = await db
-      .select()
-      .from(tradingSessions)
-      .where(lte(tradingSessions.date, "2024-06-01"))
-      .orderBy(asc(tradingSessions.date))
-      .limit(50);
-    const oldSession = oldSessions[0]?.date ?? "";
-    const expiryLower = oldSessions[20]?.date ?? "";
-    const expiryUpper = oldSessions[40]?.date ?? "";
-    const oldSessionClose = oldSessions[0]?.close ?? new Date(0);
-
-    const underlying = `ZBF${crypto.randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()}`;
-    const tickerLower = `${underlying}CL`;
-    const tickerUpper = `${underlying}CH`;
-
-    await db.insert(ingestionRuns).values([
-      {
-        source: "cotahist",
-        session: oldSession,
-        status: "succeeded",
-        startedAt: now,
-        finishedAt: now,
-        rowCount: 1,
-      },
-      {
-        source: "instruments",
-        session: oldSession,
-        status: "succeeded",
-        startedAt: now,
-        finishedAt: now,
-        rowCount: 1,
-      },
-    ]);
-    await db.insert(macroPoints).values({
-      series: "cdi",
-      date: oldSession,
-      asOf: oldSessionClose,
-      annualRate: "0.00000000",
-    });
-    await ensureMonthlyPartition(db, "candles", oldSession);
-    await db.insert(candles).values({
-      ticker: underlying,
-      timeframe: "1d",
-      session: oldSession,
-      asOf: oldSessionClose,
-      open: "50",
-      high: "50",
-      low: "50",
-      close: "50",
-      tradedQuantity: 1,
-    });
-    await db.insert(optionSeries).values([
-      {
-        isin: `ISIN-${tickerLower}`,
-        ticker: tickerLower,
-        underlying,
-        right: "call",
-        strike: "50.00000000",
-        expiry: expiryLower,
-        style: "european",
-        asOf: oldSessionClose,
-      },
-      {
-        isin: `ISIN-${tickerUpper}`,
-        ticker: tickerUpper,
-        underlying,
-        right: "call",
-        strike: "50.00000000",
-        expiry: expiryUpper,
-        style: "european",
-        asOf: oldSessionClose,
-      },
-    ]);
-    await ensureMonthlyPartition(db, "option_daily_prices", oldSession);
-    await db.insert(optionDailyPrices).values([
-      {
-        ticker: tickerLower,
-        session: oldSession,
-        asOf: oldSessionClose,
-        right: "call",
-        strike: "50.00000000",
-        expiry: expiryLower,
-        average: "1.500000",
-        close: "1.500000",
-        trades: 1,
-        tradedQuantity: 100,
-      },
-      {
-        ticker: tickerUpper,
-        session: oldSession,
-        asOf: oldSessionClose,
-        right: "call",
-        strike: "50.00000000",
-        expiry: expiryUpper,
-        average: "2.500000",
-        close: "2.500000",
-        trades: 1,
-        tradedQuantity: 100,
-      },
-    ]);
-
-    try {
-      const candidatesBefore = await succeededSessionsMissingRun(
-        db,
-        ["cotahist", "instruments"],
-        "iv_index",
-      );
-      expect(candidatesBefore).toContain(oldSession);
-      expect(candidatesBefore).toEqual([...candidatesBefore].sort().reverse());
-
-      await ingest(db, { now, fetchImpl: fakeFetchAnySession() });
-
-      const [ivIndexRun] = await db
+      const oldSessions = await db
         .select()
-        .from(ingestionRuns)
-        .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, oldSession)));
-      expect(ivIndexRun?.status).toBe("succeeded");
+        .from(tradingSessions)
+        .where(lte(tradingSessions.date, "2024-06-01"))
+        .orderBy(asc(tradingSessions.date))
+        .limit(50);
+      const oldSession = oldSessions[0]?.date ?? "";
+      const expiryLower = oldSessions[20]?.date ?? "";
+      const expiryUpper = oldSessions[40]?.date ?? "";
+      const oldSessionClose = oldSessions[0]?.close ?? new Date(0);
 
-      const points = await ivIndexPointsInRange(db, [underlying], oldSession, oldSession);
-      expect(points).toHaveLength(1);
-    } finally {
-      await db
-        .delete(ingestionRuns)
-        .where(
-          and(
-            inArray(ingestionRuns.source, ["cotahist", "instruments", "iv_index"]),
-            eq(ingestionRuns.session, oldSession),
-          ),
+      const underlying = `ZBF${crypto.randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()}`;
+      const tickerLower = `${underlying}CL`;
+      const tickerUpper = `${underlying}CH`;
+
+      await db.insert(ingestionRuns).values([
+        {
+          source: "cotahist",
+          session: oldSession,
+          status: "succeeded",
+          startedAt: now,
+          finishedAt: now,
+          rowCount: 1,
+        },
+        {
+          source: "instruments",
+          session: oldSession,
+          status: "succeeded",
+          startedAt: now,
+          finishedAt: now,
+          rowCount: 1,
+        },
+      ]);
+      await db.insert(macroPoints).values({
+        series: "cdi",
+        date: oldSession,
+        asOf: oldSessionClose,
+        annualRate: "0.00000000",
+      });
+      await ensureMonthlyPartition(db, "candles", oldSession);
+      await db.insert(candles).values({
+        ticker: underlying,
+        timeframe: "1d",
+        session: oldSession,
+        asOf: oldSessionClose,
+        open: "50",
+        high: "50",
+        low: "50",
+        close: "50",
+        tradedQuantity: 1,
+      });
+      await db.insert(optionSeries).values([
+        {
+          isin: `ISIN-${tickerLower}`,
+          ticker: tickerLower,
+          underlying,
+          right: "call",
+          strike: "50.00000000",
+          expiry: expiryLower,
+          style: "european",
+          asOf: oldSessionClose,
+        },
+        {
+          isin: `ISIN-${tickerUpper}`,
+          ticker: tickerUpper,
+          underlying,
+          right: "call",
+          strike: "50.00000000",
+          expiry: expiryUpper,
+          style: "european",
+          asOf: oldSessionClose,
+        },
+      ]);
+      await ensureMonthlyPartition(db, "option_daily_prices", oldSession);
+      await db.insert(optionDailyPrices).values([
+        {
+          ticker: tickerLower,
+          session: oldSession,
+          asOf: oldSessionClose,
+          right: "call",
+          strike: "50.00000000",
+          expiry: expiryLower,
+          average: "1.500000",
+          close: "1.500000",
+          trades: 1,
+          tradedQuantity: 100,
+        },
+        {
+          ticker: tickerUpper,
+          session: oldSession,
+          asOf: oldSessionClose,
+          right: "call",
+          strike: "50.00000000",
+          expiry: expiryUpper,
+          average: "2.500000",
+          close: "2.500000",
+          trades: 1,
+          tradedQuantity: 100,
+        },
+      ]);
+
+      if (staleBehindSucceededRun) {
+        await db.insert(ingestionRuns).values({
+          source: "iv_index",
+          session: oldSession,
+          status: "succeeded",
+          startedAt: now,
+          finishedAt: now,
+          rowCount: 1,
+        });
+        await db.insert(impliedVolatilityIndexPoints).values({
+          underlying,
+          session: oldSession,
+          asOf: oldSessionClose,
+          impliedVolatility: "0.99000000",
+          method: "atm_30d_variance_interpolated",
+          stale: true,
+        });
+      }
+
+      try {
+        const candidatesBefore = await succeededSessionsMissingRun(
+          db,
+          ["cotahist", "instruments"],
+          "iv_index",
         );
-      await db.delete(macroPoints).where(eq(macroPoints.date, oldSession));
-      await db.delete(candles).where(eq(candles.ticker, underlying));
-      await db.delete(optionSeries).where(eq(optionSeries.underlying, underlying));
-      await db
-        .delete(optionDailyPrices)
-        .where(inArray(optionDailyPrices.ticker, [tickerLower, tickerUpper]));
-      await db
-        .delete(impliedVolatilityIndexPoints)
-        .where(eq(impliedVolatilityIndexPoints.underlying, underlying));
-    }
-  }, 120_000);
+        expect(candidatesBefore.includes(oldSession)).toBe(!staleBehindSucceededRun);
+        expect(candidatesBefore).toEqual([...candidatesBefore].sort().reverse());
+
+        await ingest(db, { now, fetchImpl: fakeFetchAnySession() });
+
+        const ivIndexRuns = await db
+          .select()
+          .from(ingestionRuns)
+          .where(and(eq(ingestionRuns.source, "iv_index"), eq(ingestionRuns.session, oldSession)));
+        expect(ivIndexRuns.map((run) => run.status)).toEqual(["succeeded"]);
+
+        const points = await ivIndexPointsInRange(db, [underlying], oldSession, oldSession);
+        expect(points).toHaveLength(1);
+        expect(points[0]?.stale).toBe(false);
+        expect(points[0]?.impliedVolatility).not.toBe("0.99000000");
+      } finally {
+        await db
+          .delete(ingestionRuns)
+          .where(
+            and(
+              inArray(ingestionRuns.source, ["cotahist", "instruments", "iv_index"]),
+              eq(ingestionRuns.session, oldSession),
+            ),
+          );
+        await db.delete(macroPoints).where(eq(macroPoints.date, oldSession));
+        await db.delete(candles).where(eq(candles.ticker, underlying));
+        await db.delete(optionSeries).where(eq(optionSeries.underlying, underlying));
+        await db
+          .delete(optionDailyPrices)
+          .where(inArray(optionDailyPrices.ticker, [tickerLower, tickerUpper]));
+        await db
+          .delete(impliedVolatilityIndexPoints)
+          .where(eq(impliedVolatilityIndexPoints.underlying, underlying));
+      }
+    },
+    120_000,
+  );
 
   it("two concurrent invocations for the same session never both record a failed run", async () => {
     const db = getDb();
