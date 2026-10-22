@@ -39,7 +39,7 @@ import { assertPresent, invariant } from "./invariant";
 import { isAfter, isAtOrBefore } from "./instant";
 import type { ResolvedMarketPrice } from "./option-pricing";
 import { resolveOptionStrike } from "./option-strike";
-import { computePayoffProfile, type PricedLeg } from "./price-operation";
+import { computePayoffProfile, firstLegPastCentavosBound, type PricedLeg } from "./price-operation";
 import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { proposeSettlement as computeProposeSettlement } from "./propose-settlement";
@@ -192,8 +192,11 @@ function buildEntryPricedLegs(
   through: SessionDate,
   legs: readonly OperationLeg[],
   expiry: SessionDate | null,
-): { ok: true; value: PricedLeg[]; notes: Note[] } | { ok: false; error: EngineError } {
+):
+  | { ok: true; value: PricedLeg[]; legIndexes: number[]; notes: Note[] }
+  | { ok: false; error: EngineError } {
   const priced: PricedLeg[] = [];
+  const legIndexes: number[] = [];
   // a max loss built on a derived or unconfirmed
   // strike is flagged here too, not only once the operation has actually settled — the same two
   // notes `propose-settlement.ts`'s own forwarding uses, deduplicated so several legs sharing
@@ -228,6 +231,7 @@ function buildEntryPricedLegs(
       entryPrice: toDecimalString(parseDecimal(leg.entryPrice).mul(factor), PRICE_SCALE),
     };
     if (leg.role === "stock") {
+      legIndexes.push(legIndex);
       priced.push({
         valuation: dummyValuation(effectiveLeg),
         strike: null,
@@ -248,6 +252,7 @@ function buildEntryPricedLegs(
       `operation.legs[${String(legIndex)}].priceFactor`,
     );
     if (!priceFactorResult.ok) return { ok: false, error: priceFactorResult.error };
+    legIndexes.push(legIndex);
     priced.push({
       valuation: dummyValuation(effectiveLeg),
       strike: resolvedStrike.value.strike,
@@ -258,7 +263,7 @@ function buildEntryPricedLegs(
   const notes: Note[] = [];
   if (anyDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
   if (anyUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
-  return { ok: true, value: priced, notes };
+  return { ok: true, value: priced, legIndexes, notes };
 }
 
 function computeOperationMaxLoss(
@@ -280,6 +285,16 @@ function computeOperationMaxLoss(
     operation.expiry,
   );
   if (!legsResult.ok) return legsResult;
+  const overflowingLeg = firstLegPastCentavosBound(legsResult.value, spot);
+  if (overflowingLeg !== null) {
+    return {
+      ok: false,
+      error: invalidInput(
+        `operation.legs[${String(legsResult.legIndexes[overflowingLeg])}]`,
+        "a corporate-action factor makes this leg's max loss overflow a safe integer of centavos",
+      ),
+    };
+  }
   const { maxLoss } = computePayoffProfile(legsResult.value, spot);
   return { ok: true, value: maxLoss, notes: legsResult.notes };
 }

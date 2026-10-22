@@ -2002,3 +2002,51 @@ describe("markToMarket with an index option's priceFactor (#307)", () => {
     expect(optionLeg?.fairValue).toBe(decimalString("20.00"));
   });
 });
+
+describe("markToMarket totals past a safe integer of centavos (#344)", () => {
+  const view: MarketView = {
+    ...baseView,
+    quotes: [
+      { ticker: "PETR4", asOf: at, last: decimalString("10000.00"), bid: null, ask: null },
+      { ticker: "VALE3", asOf: at, last: decimalString("10000.00"), bid: null, ask: null },
+    ],
+  };
+  const position = (ticker: string, units: number): Position => ({
+    ticker,
+    quantity: signedQuantity(units),
+    averageCost: decimalString("0.01"),
+  });
+
+  // 5e9 shares x R$10,000.00 = 5e15 centavos each, a safe integer; the two summed are not.
+  it("refuses equity and unrealized P&L totals whose sum overflows, never throwing", () => {
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [position("PETR4", 5_000_000_000), position("VALE3", 5_000_000_000)],
+        operations: [],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "positions" });
+  });
+
+  it("refuses a single position whose value overflows, never throwing", () => {
+    const result = markToMarket(
+      {
+        view,
+        at,
+        positions: [position("PETR4", 1_000_000_000_000)],
+        operations: [],
+        cash: centavos(0),
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "positions[0]" });
+  });
+});

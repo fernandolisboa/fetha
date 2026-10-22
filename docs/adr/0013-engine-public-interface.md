@@ -3236,3 +3236,27 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 
 Marks and pricing outputs change for a stale price or spot across a split, so `ENGINE_VERSION`
 moves from `"0.14.0"` to `"0.15.0"`.
+
+## Addendum: summed centavos are bounded too (2026-10-22, #344)
+
+The #285 addendum bounded each leg, fill and operation before `toCentavos`, not a sum across them,
+and left `score`'s `computeOperationMaxLoss` without a bound. Both now return `invalid_input` where
+they threw:
+
+- **One payoff bound.** `firstLegPastCentavosBound` (`price-operation.ts`) is the bound
+  `valueLegs` already applied, extracted. `score` checks its entry-priced legs with it before
+  `computePayoffProfile` (`operation.legs[j]`).
+- **`runBacktest` totals.** The mark of every open leg and pending residual is summed as a
+  `Decimal`, and every total that reaches `toCentavos` (an operation's P&L at an exit, a settlement
+  or the period end, a month's three tax bases, cash, and cash plus the mark) goes through one
+  checked conversion. A total past a safe integer is recorded as 0 and flags the run; the session
+  refuses it as `invalid_input` (`view.corporateActions`) right after its equity point, before
+  anything is reported or checkpointed. `state.cash` stays a `number` (it is checkpointed), so a
+  cash total that passes a safe integer and comes back within one session is not caught; it takes
+  two offsetting amounts past 2^53 centavos in the same session.
+- **`markToMarket` totals.** Each position's value and unrealized P&L (`positions[i]`) and the
+  portfolio's equity and unrealized P&L totals (`positions`) are checked before conversion.
+
+No successful output changes (the `Decimal` mark sum equals the `number` sum while it is a safe
+integer, and the goldens are unchanged); only inputs that used to throw now return
+`invalid_input`. `ENGINE_VERSION` therefore stays where it is.

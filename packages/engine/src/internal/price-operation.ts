@@ -550,6 +550,32 @@ function applyRiskLimits(
   return limitBreaches;
 }
 
+// Net premium, every payoff sample and max loss/gain are each bounded by the sum of
+// `quantity x (premium + the largest underlying a payoff is sampled at / the leg's price
+// factor)`; checking that one sum before `computePayoffProfile` keeps each of their `toCentavos`
+// conversions from throwing on a huge rebased quantity. Returns the index of the leg that takes
+// the running sum past a safe integer.
+export function firstLegPastCentavosBound(
+  priced: readonly PricedLeg[],
+  spot: DecimalString,
+): number | null {
+  const maxUnderlying = Decimal.max(
+    parseDecimal(spot).mul(PAYOFF_SPOT_RANGE_UPPER),
+    ...priced.map((leg) => (leg.strike === null ? new Decimal(0) : parseDecimal(leg.strike))),
+  );
+  let centavosBound = new Decimal(0);
+  for (const [index, leg] of priced.entries()) {
+    centavosBound = centavosBound.add(
+      leg.premiumPerUnit
+        .add(maxUnderlying.div(leg.priceFactor))
+        .mul(CENTAVOS_PER_REAL)
+        .mul(leg.valuation.leg.quantity),
+    );
+    if (!isSafeCentavosAmount(centavosBound)) return index;
+  }
+  return null;
+}
+
 type ValuedLegs = {
   priced: PricedLeg[];
   notes: Note[];
@@ -626,31 +652,15 @@ function valueLegs(
     });
   }
 
-  // Net premium, every payoff sample and max loss/gain are each bounded by the sum of
-  // `quantity x (premium + the largest underlying a payoff is sampled at / the leg's price
-  // factor)`; checking that one sum here keeps each of their `toCentavos` conversions from
-  // throwing on a huge rebased quantity.
-  const maxUnderlying = Decimal.max(
-    parseDecimal(spot).mul(PAYOFF_SPOT_RANGE_UPPER),
-    ...priced.map((leg) => (leg.strike === null ? new Decimal(0) : parseDecimal(leg.strike))),
-  );
-  let centavosBound = new Decimal(0);
-  for (const [index, leg] of priced.entries()) {
-    centavosBound = centavosBound.add(
-      leg.premiumPerUnit
-        .add(maxUnderlying.div(leg.priceFactor))
-        .mul(CENTAVOS_PER_REAL)
-        .mul(leg.valuation.leg.quantity),
-    );
-    if (!isSafeCentavosAmount(centavosBound)) {
-      return {
-        ok: false,
-        error: invalidInput(
-          legPathAt(index),
-          "this leg's quantity and price overflow a safe integer of centavos",
-        ),
-      };
-    }
+  const overflowingLeg = firstLegPastCentavosBound(priced, spot);
+  if (overflowingLeg !== null) {
+    return {
+      ok: false,
+      error: invalidInput(
+        legPathAt(overflowingLeg),
+        "this leg's quantity and price overflow a safe integer of centavos",
+      ),
+    };
   }
 
   const netPremiumCentavos = priced.reduce(

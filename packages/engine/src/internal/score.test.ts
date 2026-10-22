@@ -805,6 +805,25 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     expect(result.value.normalizedPnl).toBe(decimalString("0.300000"));
   });
 
+  it("refuses a factor whose rebased max loss overflows a safe integer of centavos (#344)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0.000000000001"),
+        },
+      ],
+      candles: [stockCandle("2024-01-05", "13.00", "13.00")],
+    };
+    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "operation.legs[0]" });
+  });
+
   it("propagates a non-positive corporate-action factor as invalid_input", () => {
     const view: MarketView = {
       ...emptyView,

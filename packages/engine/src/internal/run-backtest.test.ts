@@ -1233,6 +1233,43 @@ describe("runBacktest — corporate actions across an open position", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  // Issue #344: each leg's own mark, 500 / 1e-10 = 5e12 units x R$10.00 = 5e15 centavos, is a
+  // safe integer; the two operations' marks summed, 1e16, are not.
+  it.each([
+    ["the period-end sweep", "2024-01-04"],
+    ["a mid-run equity point", "2024-01-05"],
+  ])(
+    "returns invalid_input, never throws, when every leg's mark is safe but their sum overflows at %s (#344)",
+    (_, periodTo) => {
+      const config = baseConfig({
+        universe: ["PETR4", "VALE3"],
+        period: { from: "2024-01-02", to: periodTo },
+      });
+      const factor = (ticker: string): CorporateActionFactor => ({
+        ticker,
+        exDate: "2024-01-04",
+        asOf: "2024-01-04T13:00:00.000Z",
+        factor: decimalString("0.0000000001"),
+      });
+      const candles = (ticker: string) => [
+        candle(ticker, "2024-01-02", "10.00", "10.00"),
+        candle(ticker, "2024-01-03", "10.00", "10.00"),
+        candle(ticker, "2024-01-04", "10.00", "10.00", 0),
+        candle(ticker, "2024-01-05", "10.00", "10.00", 0),
+      ];
+      const view: MarketView = {
+        ...emptyView,
+        calendar: fourSessionCalendar,
+        corporateActions: [factor("PETR4"), factor("VALE3")],
+        candles: [...candles("PETR4"), ...candles("VALE3")],
+      };
+      const result = runBacktest({ view, config });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatchObject({ code: "invalid_input", path: "view.corporateActions" });
+    },
+  );
+
   it.each([
     ["the period-end sweep", "2024-01-04"],
     ["a mid-run equity point", "2024-01-05"],
