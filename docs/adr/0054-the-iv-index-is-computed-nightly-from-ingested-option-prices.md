@@ -234,3 +234,32 @@ the fallback does not cover a different target (a mismatch would drop points, no
 Measured by the Postgres container's `tx_bytes` around one `computeIvIndexForSession` call on the
 e2e recorded sessions (PETR4 chain only): 662 → 253 KiB on 2026-09-08 and 760 → 355 KiB on
 2026-09-18, identical stored points; more once the shared calendar spans ~175 underlyings.
+
+## Addendum: points computed before point-in-time strikes are recomputed in place (2026-10-22, #275)
+
+Points computed before ENGINE_VERSION 0.9.0 reached production (#270, PR #277, deployed
+2026-10-01 07:50Z) used each series' latest registry strike around a strike change, before
+ADR-0056's epochs and the engine's adjusted-strike resolution existed. That covers a split and
+every cash-dividend re-strike, so the affected set is "computed too early", not "has a split". The
+owner approved overwriting them on 2026-10-22: they are derived data, recomputable from stored
+option prices, and no user-entered row depends on them.
+
+- **`implied_volatility_index.stale`** (boolean, default false). Migration 0046 sets it on every
+  point with `computed_at < 2026-10-01T09:00:00Z`, the first nightly cron after that deploy (a
+  point computed between the deploy and the cron is recomputed needlessly, never missed), and
+  deletes the `succeeded` `iv_index` run of each session holding one, so those sessions re-enter
+  the backfill list (`succeededSessionsMissingRun`, newest first) under the existing 40%/60%
+  budget. No new scheduling.
+- **In place, never deleted first.** `computeIvIndexForSession` treats a stale point as not done,
+  recomputes it and upserts over it (`stale = false`, `computed_at = now()`). A stale point keeps
+  serving `iv_rank`, the radar and the suggestions until then, so no window loses a session while
+  the recompute drains. A stale point the current rules no longer produce (the engine now returns
+  no value, or the underlying no longer qualifies) is deleted only when the session completes; a
+  pending session keeps it and retries the next night.
+- **Cost.** The recompute reads what the original backfill read for those sessions, within the
+  same nightly start budget, so a night's database traffic stays within a normal backfill night.
+- **Side effect.** `computed_at` feeds `dataVersion`, so a chunked `iv_rank` backtest resumed while
+  its window is being recomputed fails with `data_version_changed` once, as during the original
+  backfill; rerunning it fixes it. Stored backtest runs, analyses and signals are not rewritten.
+- The flag is generic: a later rule change that alters stored points can mark its own set stale in
+  a migration and reuse this path.

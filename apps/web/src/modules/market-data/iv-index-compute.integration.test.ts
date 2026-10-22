@@ -882,6 +882,127 @@ describe("computeIvIndexForSession", () => {
     expect(leg?.greeks).not.toBeNull();
   });
 
+  describe("stale points (#275)", () => {
+    async function seedBracketedSession(labels: string[]) {
+      const db = getDb();
+      const sessions = dailySessions(45);
+      cleanupSessionDates.push(...sessions);
+      await seedSessions(sessions);
+      const session0 = sessions[0] ?? "";
+      const expiryLower = sessions[20] ?? "";
+      const expiryUpper = sessions[40] ?? "";
+      await db.insert(macroPoints).values({
+        series: "cdi",
+        date: session0,
+        asOf: new Date(`${session0}T${SESSION_OPEN_UTC}`),
+        annualRate: "0.00000000",
+      });
+      const underlyings = labels.map(uniqueTicker);
+      cleanupUnderlyings.push(...underlyings);
+      for (const underlying of underlyings) {
+        await seedUnderlyingSpot(underlying, session0, "50.000000");
+        await seedCallSeries(
+          underlying,
+          `${underlying}CL`,
+          session0,
+          expiryLower,
+          "50.00000000",
+          bsCall(50, 50, 20 / 252, 0.2).toFixed(6),
+        );
+        await seedCallSeries(
+          underlying,
+          `${underlying}CH`,
+          session0,
+          expiryUpper,
+          "50.00000000",
+          bsCall(50, 50, 40 / 252, 0.4).toFixed(6),
+        );
+        cleanupOptionTickers.push(`${underlying}CL`, `${underlying}CH`);
+      }
+      return {
+        session0,
+        sessionClose: new Date(`${session0}T${SESSION_CLOSE_UTC}`),
+        underlyings,
+      };
+    }
+
+    async function seedPoint(
+      underlying: string,
+      session: string,
+      sessionClose: Date,
+      impliedVolatility: string,
+      stale: boolean,
+    ): Promise<void> {
+      await getDb()
+        .insert(impliedVolatilityIndexPoints)
+        .values({
+          underlying,
+          session,
+          asOf: sessionClose,
+          impliedVolatility,
+          method: "atm_30d_variance_interpolated",
+          computedAt: new Date("2026-09-30T12:00:00.000Z"),
+          stale,
+        });
+    }
+
+    it("recomputes a stale point in place and leaves a fresh one alone", async () => {
+      const db = getDb();
+      const { session0, sessionClose, underlyings } = await seedBracketedSession(["STL", "FRS"]);
+      const [stale = "", fresh = ""] = underlyings;
+      await seedPoint(stale, session0, sessionClose, "0.99000000", true);
+      await seedPoint(fresh, session0, sessionClose, "0.77000000", false);
+
+      const result = await computeIvIndexForSession(db, session0, sessionClose);
+      expect(result).toEqual({ rowCount: 1, pending: false });
+
+      const points = await ivIndexPointsInRange(db, underlyings, session0, session0);
+      const byUnderlying = new Map(points.map((point) => [point.underlying, point]));
+      const recomputed = byUnderlying.get(stale);
+      expect(Number(recomputed?.impliedVolatility)).toBeCloseTo(Math.sqrt(0.12), 3);
+      expect(recomputed?.stale).toBe(false);
+      expect(recomputed?.computedAt.getTime()).toBeGreaterThan(
+        new Date("2026-09-30T12:00:00.000Z").getTime(),
+      );
+      expect(byUnderlying.get(fresh)?.impliedVolatility).toBe("0.77000000");
+    });
+
+    it("keeps serving a stale point while the session is still pending", async () => {
+      const db = getDb();
+      const { session0, sessionClose, underlyings } = await seedBracketedSession(["SPD"]);
+      const [stale = ""] = underlyings;
+      await seedPoint(stale, session0, sessionClose, "0.99000000", true);
+
+      const result = await computeIvIndexForSession(db, session0, sessionClose, Date.now() - 1);
+      expect(result).toEqual({ rowCount: 0, pending: true });
+
+      const [point] = await ivIndexPointsInRange(db, [stale], session0, session0);
+      expect(point?.impliedVolatility).toBe("0.99000000");
+      expect(point?.stale).toBe(true);
+    });
+
+    it("deletes a stale point the current rules no longer produce once the session completes", async () => {
+      const db = getDb();
+      const { session0, sessionClose, underlyings } = await seedBracketedSession(["SKP"]);
+      const gone = uniqueTicker("GON");
+      const kept = uniqueTicker("KPT");
+      cleanupUnderlyings.push(gone, kept);
+      await seedPoint(gone, session0, sessionClose, "0.50000000", true);
+      await seedPoint(kept, session0, sessionClose, "0.40000000", false);
+
+      const result = await computeIvIndexForSession(db, session0, sessionClose);
+      expect(result).toEqual({ rowCount: 1, pending: false });
+
+      const points = await ivIndexPointsInRange(
+        db,
+        [...underlyings, gone, kept],
+        session0,
+        session0,
+      );
+      expect(points.map((point) => point.underlying).sort()).toEqual([...underlyings, kept].sort());
+    });
+  });
+
   describe("buildIvIndexMarketView", () => {
     async function seedCdi(date: string): Promise<void> {
       await getDb()

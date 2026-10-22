@@ -35,10 +35,30 @@ export async function upsertIvIndexPoints(db: Database, rows: IvIndexPointRow[])
         impliedVolatility: sql`excluded.implied_volatility`,
         method: sql`excluded.method`,
         computedAt: sql`now()`,
+        stale: false,
       },
     });
 
   return rows.length;
+}
+
+export async function deleteStaleIvIndexPoints(
+  db: Database,
+  session: string,
+  underlyings: readonly string[],
+): Promise<void> {
+  if (underlyings.length === 0) {
+    return;
+  }
+  await db
+    .delete(impliedVolatilityIndexPoints)
+    .where(
+      and(
+        eq(impliedVolatilityIndexPoints.session, session),
+        inArray(impliedVolatilityIndexPoints.underlying, [...underlyings]),
+        eq(impliedVolatilityIndexPoints.stale, true),
+      ),
+    );
 }
 
 export async function ivIndexPointsInRange(
@@ -84,16 +104,17 @@ export async function underlyingsToComputeForSession(
   return rows.map((row) => row.underlying);
 }
 
-export async function underlyingsWithPointOnSession(
+export async function ivIndexPointStatesOnSession(
   db: Database,
   session: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ underlying: impliedVolatilityIndexPoints.underlying })
+): Promise<{ underlying: string; stale: boolean }[]> {
+  return db
+    .select({
+      underlying: impliedVolatilityIndexPoints.underlying,
+      stale: impliedVolatilityIndexPoints.stale,
+    })
     .from(impliedVolatilityIndexPoints)
     .where(eq(impliedVolatilityIndexPoints.session, session));
-
-  return rows.map((row) => row.underlying);
 }
 
 // The radar's universe (docs/adr/0066): every underlying with an IV index point on `session`
