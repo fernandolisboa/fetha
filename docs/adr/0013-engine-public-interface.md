@@ -3238,6 +3238,20 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 Marks and pricing outputs change for a stale price or spot across a split, so `ENGINE_VERSION`
 moves from `"0.14.0"` to `"0.15.0"`.
 
+## Addendum: a stale premium in a numeric exit rule; `ENGINE_VERSION` bumped to `0.16.0` (2026-10-22, #342)
+
+`evaluateNumericExitRule` divides a leg's current premium by the factor product over
+`(openedAt, session]` to compare it with the entry price. `LegValuation.price` is the price as it
+traded, so a premium carried from before an ex-date was already on the pre-split scale and that
+division rescaled it a second time: a long call entered at 2.50, untraded on a 2:1 ex-date, read
+5.00 and fired `profit_target` on a phantom +100%; a reverse split fired `stop_loss` on a phantom
+loss. The premium now goes through `rescaleStalePrice` over `(stale session, session]` first, so a
+stale print gives the same outcome as the same trade printed on the post-split scale. This closes
+the #342 item of the #285 addendum's follow-ups.
+
+Exit signals change for a stale premium across a split, so `ENGINE_VERSION` moves from `"0.15.0"`
+to `"0.16.0"`.
+
 ## Addendum: the remaining readers on one scale; `ENGINE_VERSION` bumped to `0.17.0` (2026-10-22, #343)
 
 The #285 addendum listed readers that still mixed a pre-split spot or premium with post-split
