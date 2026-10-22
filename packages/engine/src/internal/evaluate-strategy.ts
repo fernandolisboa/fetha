@@ -313,7 +313,8 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
 // own scale before the diff (ADR-0013 "Exit rule evaluation", extended to option legs by #69
 // part 2: B3 re-strikes a listed option series by the same factor as the underlying, rather
 // than forcing a series rollover) — `splitFactor` is 1 when no corporate action is visible, so
-// dividing by it is a no-op then.
+// dividing by it is a no-op then. A premium carried from before an ex-date is first put on the
+// session's own scale (#342), so the division never rescales it twice.
 function evaluateNumericExitRule(
   rule: Extract<ExitRule, { kind: "profit_target" | "stop_loss" }>,
   op: Operation,
@@ -369,9 +370,6 @@ function evaluateNumericExitRule(
         ? parseDecimal(valuation.fairValue)
         : null;
     if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true, notes: [] };
-    // A price carried from before an ex-date already sits on the pre-split scale: it is put on
-    // the session's own scale first (#342), or dividing by `splitFactor` rescales it twice and
-    // reads the split itself as a phantom gain or loss.
     const onSessionScale = rescaleStalePrice(
       visibleFactors,
       rawPremium,
