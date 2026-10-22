@@ -340,6 +340,45 @@ describe("score — do_not_enter", () => {
     // (16.00, a 60% gain past the 50% profit target) and fills at the session-6 open (16.00).
     expect(result.value.counterfactualPnl).toBe(centavos(60_000));
   });
+  it("refuses a counterfactual exit whose rebased P&L overflows a safe integer of centavos (#344)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-03",
+          asOf: "2024-01-03T00:00:00.000Z",
+          factor: decimalString("0.0000000001"),
+        },
+      ],
+      candles: [
+        stockCandle("2024-01-02", "10.00", "10.00"),
+        stockCandle("2024-01-03", "10.00", "100.00"),
+        stockCandle("2024-01-04", "100.00", "100.00"),
+        stockCandle("2024-01-05", "10.00", "10.00"),
+      ],
+    };
+    const strategyWithExit: StrategyVersion = {
+      id: "v1",
+      definition: strategyDefinition({
+        exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.5") }],
+      }),
+      structure: stockStructure,
+    };
+    const result = score(
+      {
+        ...baseInput,
+        view,
+        subject: "do_not_enter",
+        operation: stockOperation(),
+        origin: { kind: "signal", strategy: strategyWithExit },
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.corporateActions" });
+  });
 });
 
 describe("score — thesis claim", () => {
@@ -822,6 +861,37 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatchObject({ code: "invalid_input", path: "operation.legs[0]" });
+  });
+
+  it("refuses a realized fill whose rebased P&L overflows a safe integer of centavos (#344)", () => {
+    const view: MarketView = {
+      ...emptyView,
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-02",
+          asOf: "2024-01-02T00:00:00.000Z",
+          factor: decimalString("0.0000000001"),
+        },
+      ],
+      candles: [stockCandle("2024-01-05", "10.00", "10.00")],
+    };
+    const realizedFill: Fill = {
+      ticker: "PETR4",
+      side: "sell",
+      quantity: quantity(100),
+      price: decimalString("100.00"),
+      session: "2024-01-03",
+      at: "2024-01-03T15:00:00.000Z",
+      costs: centavos(0),
+    };
+    const result = score(
+      { ...baseInput, view, operation: stockOperation(), realizedFills: [realizedFill] },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ code: "invalid_input", path: "view.corporateActions" });
   });
 
   it("propagates a non-positive corporate-action factor as invalid_input", () => {

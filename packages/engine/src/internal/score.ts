@@ -33,7 +33,7 @@ import {
   toDecimalString,
 } from "./decimal";
 import { evaluateStrategy as computeEvaluateStrategy } from "./evaluate-strategy";
-import { fillCosts, resolveFillOpportunity } from "./fill-pricing";
+import { fillCosts, isSafeCentavosAmount, resolveFillOpportunity } from "./fill-pricing";
 import { invalidInput, err } from "./errors";
 import { assertPresent, invariant } from "./invariant";
 import { isAfter, isAtOrBefore } from "./instant";
@@ -488,6 +488,21 @@ function settlementPnl(
   return { ok: true, value: pnl, notes };
 }
 
+function pnlCentavos(
+  pnl: Decimal,
+): { ok: true; value: Centavos } | { ok: false; error: EngineError } {
+  if (!isSafeCentavosAmount(pnl)) {
+    return {
+      ok: false,
+      error: invalidInput(
+        "view.corporateActions",
+        "a corporate-action factor makes this P&L overflow a safe integer of centavos",
+      ),
+    };
+  }
+  return { ok: true, value: toCentavos(pnl.round().toNumber()) };
+}
+
 function computeOperationPnl(
   view: MarketView,
   costModel: CostModel,
@@ -594,7 +609,9 @@ function computeOperationPnl(
   }
   pnl = pnl.sub(entryCosts);
 
-  return { ok: true, value: toCentavos(pnl.round().toNumber()), notes };
+  const total = pnlCentavos(pnl);
+  if (!total.ok) return total;
+  return { ok: true, value: total.value, notes };
 }
 
 type FillLeg = { leg: OperationLeg; price: DecimalString; costs: Centavos };
@@ -715,8 +732,9 @@ function settleOrMarkCounterfactualToHorizon(
       provenanceBase,
     );
     if (!settled.ok) return { ok: false, error: settled.error };
-    const pnl = settled.value.sub(entryCosts);
-    return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: settled.notes };
+    const pnl = pnlCentavos(settled.value.sub(entryCosts));
+    if (!pnl.ok) return pnl;
+    return { ok: true, pnl: pnl.value, notes: settled.notes };
   }
   const marked = markLegsToHorizon(
     view,
@@ -726,8 +744,9 @@ function settleOrMarkCounterfactualToHorizon(
     horizonSession,
   );
   if (!marked.ok) return marked;
-  const pnl = marked.value.sub(entryCosts);
-  return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: marked.notes };
+  const pnl = pnlCentavos(marked.value.sub(entryCosts));
+  if (!pnl.ok) return pnl;
+  return { ok: true, pnl: pnl.value, notes: marked.notes };
 }
 
 function computeCounterfactual(
@@ -831,8 +850,9 @@ function computeCounterfactual(
             .mul(new Decimal(f.leg.quantity).div(factor)),
         );
       }
-      pnl = pnl.sub(entryCosts).sub(exitCosts);
-      return { ok: true, pnl: toCentavos(pnl.round().toNumber()), notes: [] };
+      const total = pnlCentavos(pnl.sub(entryCosts).sub(exitCosts));
+      if (!total.ok) return total;
+      return { ok: true, pnl: total.value, notes: [] };
     }
     return settleOrMarkCounterfactualToHorizon(
       input.view,

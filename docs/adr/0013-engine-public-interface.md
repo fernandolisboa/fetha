@@ -3227,8 +3227,9 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
   index, delta-based strike selection and quotes (which carry no session) still read an
   unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
   `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
-  stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
-  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
+  stock leg still throws there (#344; fixed, see the #344 addendum below). `evaluateNumericExitRule` has a confirmed stale-scale
+  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344; fixed, see the #344
+  addendum below).
 - **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
   `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
   (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
@@ -3246,6 +3247,10 @@ they threw:
 - **One payoff bound.** `firstLegPastCentavosBound` (`price-operation.ts`) is the bound
   `valueLegs` already applied, extracted. `score` checks its entry-priced legs with it before
   `computePayoffProfile` (`operation.legs[j]`).
+- **`score` P&L.** The taken operation's P&L (realized fills priced at their own fill price, plus
+  the marked or settled remainder) and the counterfactual's P&L (marked, settled, or realized at
+  an exit fill) are checked before conversion (`view.corporateActions`); the max-loss bound does
+  not cover a fill priced above the horizon spot.
 - **`runBacktest` totals.** The mark of every open leg and pending residual is summed as a
   `Decimal`, and every total that reaches `toCentavos` (an operation's P&L at an exit, a settlement
   or the period end, a month's three tax bases, cash, and cash plus the mark) goes through one
@@ -3257,6 +3262,8 @@ they threw:
 - **`markToMarket` totals.** Each position's value and unrealized P&L (`positions[i]`) and the
   portfolio's equity and unrealized P&L totals (`positions`) are checked before conversion.
 
-No successful output changes (the `Decimal` mark sum equals the `number` sum while it is a safe
-integer, and the goldens are unchanged); only inputs that used to throw now return
+No successful output changes while every partial sum stays a safe integer (the `Decimal` mark sum
+then equals the `number` sum, and the goldens are unchanged; a `number` sum that crossed 2^53 and
+came back lost precision the `Decimal` sum keeps, which takes legs worth tens of trillions of
+reais); only inputs that used to throw now return
 `invalid_input`. `ENGINE_VERSION` therefore stays where it is.
