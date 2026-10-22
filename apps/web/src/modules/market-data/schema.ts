@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { filingCategories } from "@fetha/contracts";
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -183,6 +184,10 @@ export const impliedVolatilityIndexPoints = pgTable(
     // cannot tell a MarketView that new IV data has landed for a window it
     // already read (docs/adr/0054).
     computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+    // Marks a point computed under rules since corrected (#275). It keeps
+    // serving reads until the nightly step recomputes it in place, so an
+    // `iv_rank` window never loses a session while the recompute drains.
+    stale: boolean("stale").notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.underlying, table.session] }),

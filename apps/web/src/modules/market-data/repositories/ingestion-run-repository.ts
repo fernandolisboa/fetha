@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import type { IngestionSource, IngestionStatus } from "../schema";
@@ -125,6 +125,25 @@ export async function succeededSessionsMissingRun(
     (session) => restSets.every((set) => set.has(session)) && !missingSet.has(session),
   );
   return sessions.sort().reverse();
+}
+
+export async function deleteSucceededRuns(
+  db: Database,
+  source: IngestionSource,
+  sessions: readonly string[],
+): Promise<void> {
+  if (sessions.length === 0) {
+    return;
+  }
+  await db
+    .delete(ingestionRuns)
+    .where(
+      and(
+        eq(ingestionRuns.source, source),
+        eq(ingestionRuns.status, "succeeded"),
+        inArray(ingestionRuns.session, [...sessions]),
+      ),
+    );
 }
 
 async function succeededSessionSet(db: Database, source: IngestionSource): Promise<Set<string>> {

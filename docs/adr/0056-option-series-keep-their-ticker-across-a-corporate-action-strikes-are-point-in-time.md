@@ -330,3 +330,5 @@ engine's strike rule: a lone early epoch read on the ex-date itself was derived 
   only the next time a factor for that ticker is written. A live disagreement between the registry
   and COTAHIST on the ex-date itself is unchanged (both epochs land on that session's close, after
   the open the bound would set).
+- IV index points stored before this bound (or before a later factor or bound change) are
+  marked stale and recomputed in place: ADR-0054, #275 addendum.
