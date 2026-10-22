@@ -53,7 +53,7 @@ import { toQuantity } from "./scalars";
 import { groupBy, upperBound } from "./search";
 import { latestVisible } from "./visible";
 import { sizeStockEntry } from "./sizing";
-import { splitFactorProduct } from "./split-factor";
+import { rescaleStalePrice, splitFactorProduct } from "./split-factor";
 import { priceStockLegs } from "./stock-pricing";
 import { validateViewIntegrity } from "./validate-view-integrity";
 
@@ -321,6 +321,8 @@ function evaluateNumericExitRule(
   at: Instant,
   bases: ExitRuleBases,
   splitFactor: Decimal,
+  visibleFactors: readonly CorporateActionFactor[],
+  session: SessionDate,
 ): { fired: boolean; zeroBase: boolean; unknown: boolean; notes: Note[] } {
   const legs: LegInput[] = op.legs.map((leg) => ({
     role: leg.role,
@@ -367,7 +369,18 @@ function evaluateNumericExitRule(
         ? parseDecimal(valuation.fairValue)
         : null;
     if (rawPremium === null) return { fired: false, zeroBase: false, unknown: true, notes: [] };
-    const currentPremium = rawPremium.div(splitFactor);
+    // A price carried from before an ex-date already sits on the pre-split scale: it is put on
+    // the session's own scale first (#342), or dividing by `splitFactor` rescales it twice and
+    // reads the split itself as a phantom gain or loss.
+    const onSessionScale = rescaleStalePrice(
+      visibleFactors,
+      rawPremium,
+      valuation?.stale?.session ?? null,
+      session,
+    );
+    // validateViewContents already refused every non-positive factor in the view.
+    invariant(onSessionScale.ok, "evaluateStrategy: a visible factor is non-positive");
+    const currentPremium = onSessionScale.value.price.div(splitFactor);
     const legSign = leg.side === "buy" ? 1 : -1;
     const entry = parseDecimal(leg.entryPrice);
     pnlCentavos = pnlCentavos.add(
@@ -1029,7 +1042,16 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
             switch (rule.kind) {
               case "profit_target":
               case "stop_loss": {
-                const outcome = evaluateNumericExitRule(rule, op, view, c, bases, splitFactor);
+                const outcome = evaluateNumericExitRule(
+                  rule,
+                  op,
+                  view,
+                  c,
+                  bases,
+                  splitFactor,
+                  visibleFactors,
+                  nominalCandle.session,
+                );
                 for (const note of outcome.notes) strikeAdjustmentCodes.add(note.code);
                 if (outcome.unknown) {
                   instantUnknown = true;

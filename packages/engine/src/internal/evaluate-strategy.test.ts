@@ -3257,3 +3257,83 @@ describe("evaluateStrategy — restated daily candles (#38)", () => {
     ]);
   });
 });
+
+describe("evaluateStrategy — numeric exit rules on a premium carried across a split (#342)", () => {
+  const exitOutcome = (
+    factor: string,
+    optionPrices: OptionDayPrice[],
+    exit: StrategyDefinition["exit"],
+  ) => {
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [dailyCandle("PETR4", 3, "20.00")],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: "2024-01-04",
+          asOf: "2024-01-04T13:00:00.000Z",
+          factor: decimalString(factor),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [callSeries("PETR4C40", "40.00", "2024-02-01", "2024-01-01T21:00:00.000Z")],
+      optionPrices,
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C40",
+          quantity: quantity(100),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+      expiry: "2024-02-01",
+      openedAt: "2024-01-01",
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const result = evaluateStrategy({
+      view,
+      strategy: strategyVersion(definition({ entry: closeAboveSma(3), exit })),
+      instruments: ["PETR4"],
+      at: "2024-01-04T21:00:00.000Z",
+      openOperations: [operation],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    return {
+      outcome: result.value.evaluations[0]?.outcome,
+      exits: result.value.signals.filter((s) => s.kind === "exit").length,
+    };
+  };
+
+  // The untraded series' last print (2024-01-03) sits on the pre-split scale; the same trade
+  // printed on the ex-date's own post-split scale is the oracle (#285's own property).
+  it("does not fire profit_target on a stale pre-split premium a 2:1 split would double", () => {
+    const exit = [{ kind: "profit_target" as const, fractionOfPremium: decimalString("0.5") }];
+    const stale = exitOutcome("0.5", [optionClose("PETR4C40", "2024-01-03", "2.50")], exit);
+    const fresh = exitOutcome("0.5", [optionClose("PETR4C40", "2024-01-04", "1.25")], exit);
+    expect(stale).toEqual(fresh);
+    expect(stale.exits).toBe(0);
+  });
+
+  it("does not fire stop_loss on a stale pre-split premium a 1:2 reverse split would halve", () => {
+    const exit = [{ kind: "stop_loss" as const, multipleOfMaxLoss: decimalString("0.4") }];
+    const stale = exitOutcome("2", [optionClose("PETR4C40", "2024-01-03", "2.50")], exit);
+    const fresh = exitOutcome("2", [optionClose("PETR4C40", "2024-01-04", "5.00")], exit);
+    expect(stale).toEqual(fresh);
+    expect(stale.exits).toBe(0);
+  });
+
+  it("still fires profit_target on a real gain carried by a stale pre-split premium", () => {
+    const exit = [{ kind: "profit_target" as const, fractionOfPremium: decimalString("0.5") }];
+    const stale = exitOutcome("0.5", [optionClose("PETR4C40", "2024-01-03", "4.00")], exit);
+    const fresh = exitOutcome("0.5", [optionClose("PETR4C40", "2024-01-04", "2.00")], exit);
+    expect(stale).toEqual(fresh);
+    expect(stale.exits).toBe(1);
+  });
+});
