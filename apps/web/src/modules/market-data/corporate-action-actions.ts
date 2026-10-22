@@ -11,7 +11,11 @@ import { sharesRatioToFactor } from "./corporate-action-factor";
 import { recordCorporateActionFactorInputSchema } from "./corporate-action-validation";
 import { sessionByDate } from "./repositories/calendar-repository";
 import { latestCandle } from "./repositories/candle-repository";
-import { upsertCorporateActionFactor } from "./repositories/corporate-action-repository";
+import {
+  touchCorporateActionFactor,
+  upsertCorporateActionFactor,
+} from "./repositories/corporate-action-repository";
+import { boundOptionStrikeEpochs } from "./repositories/option-repository";
 
 export type RecordCorporateActionFactorResult =
   | { status: "forbidden" }
@@ -54,11 +58,16 @@ export async function recordCorporateActionFactorAction(
   }
 
   const factor = sharesRatioToFactor(sharesBefore, sharesAfter);
-  await upsertCorporateActionFactor(db, {
-    ticker,
-    exDate,
-    asOf: session.open,
-    factor,
+  await db.transaction(async (tx) => {
+    await upsertCorporateActionFactor(tx, {
+      ticker,
+      exDate,
+      asOf: session.open,
+      factor,
+    });
+    if ((await boundOptionStrikeEpochs(tx, ticker)) > 0) {
+      await touchCorporateActionFactor(tx, ticker, exDate);
+    }
   });
 
   await recordAccess("corporate_action_recorded");

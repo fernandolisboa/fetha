@@ -207,7 +207,8 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
   result entirely, it does not fall back to showing that epoch's strike early. A cycle whose strike
   never changes keeps its registry `as_of` from the first sighting onward via step 2's `LEAST`, so
   this blind window only ever applies to a cycle a corporate action actually touches.
-- **An inferred current-strike epoch's visibility can predate the real ex-date.** Step 3 dates the
+- **An inferred current-strike epoch's visibility can predate the real ex-date** (bounded by a
+  recorded factor since the #272 addendum below). Step 3 dates the
   current strike from the session after the _last observed old-strike trade_, not from the
   corporate action's actual ex-date; if the old strike stopped trading days before the real event
   (a common illiquid-series pattern), the new strike becomes visible in `MarketView` earlier than
@@ -229,7 +230,8 @@ close`): if the registry and COTAHIST ever disagreed about a session's strike fo
 - **Dividend-driven strike adjustments are covered for free**, the same epoch mechanism, no extra
   work: B3 lowers a strike for a cash dividend the same way it does for a split, and any such change
   the registry or COTAHIST ever reports becomes its own epoch.
-- **Visibility is decided by the epoch's own `as_of` alone.** The loaders' `epochAsOfCondition`
+- **Visibility is decided by the epoch's own `as_of` alone** (amended by the #272 addendum:
+  `greatest(as_of, not_before)`). The loaders' `epochAsOfCondition`
   reads `coalesce(option_series_strikes.as_of, option_series.as_of)`; `option_series.as_of` no
   longer gates visibility once an epoch row exists for that strike. A strike is visible from its
   own epoch, full stop — there is no second, independent check against the series row's own
@@ -280,3 +282,51 @@ and the expiry; a corporate action changes the strike alone, in place.
   (ADR-0052), and COTAHIST/the registry already hand over the adjusted strike directly, needing no
   factor or rebasing arithmetic at all. Revisit if a future engine change (the #69 follow-up) needs
   a factor rather than a resolved strike.
+
+## Addendum: a recorded corporate action bounds a backfilled epoch (2026-10-22, #272)
+
+The trade-off "an inferred current-strike epoch's visibility can predate the real ex-date" is now
+closed for every underlying that has a `corporate_action_factors` row (ADR-0052). Two backfill
+shapes were wrong in practice: step 3 dated the new strike at the session after the last old-strike
+trade, and step 2 dated a series that only traded after the event at the registry's first
+sighting. Both let the post-event strike show before the event. The step-2 shape also broke the
+engine's strike rule: a lone early epoch read on the ex-date itself was derived a second time
+(14.98 × 0.5 = 7.49), and on later sessions it was flagged
+`option_strike_unadjusted_across_corporate_action` for good.
+
+- **`option_series_strikes.not_before`** (migration 0045), nullable. An epoch is visible from
+  `greatest(as_of, not_before)`; every loader that filtered or emitted `as_of` reads that
+  expression instead (`epochVisibleFrom`, `option-repository.ts`). `as_of` keeps the observed
+  date and the live writers still fold it with `LEAST`; they never touch `not_before`.
+- **`bound_option_strike_epochs(underlyings text[])`**, a SQL function created by the migration,
+  so the migration and the app run the same rule. For each listing cycle of those underlyings,
+  epochs ordered by `as_of`, only non-neutralized factors (`factor <> 1`) ex-dated on or before the
+  cycle's expiry count. An epoch first gets the factor that explains it, then is bounded to that
+  factor's `as_of` (the ex-date's open) only if its own `as_of` is earlier than that open and the
+  next epoch (if any) is later:
+  - **transition**: the explaining factor is the earliest one ex-dated after the previous epoch
+    whose `round(previous strike × factor, 2)` equals this strike (the match `consumedFactors` in
+    `packages/engine/src/internal/option-strike.ts` uses; a change to either must change both).
+    Picked before the dating checks, so a correctly dated transition is never handed to a later
+    factor with the same ratio. Also skipped when this strike traded before that ex-date: an
+    adjusted strike cannot, so the match is a dividend re-strike coinciding to the cent;
+  - **first epoch**: the latest factor such that the cycle has no price before its ex-date, has one
+    at this strike on or after it, and has no later epoch at `round(strike × factor, 2)` (which
+    would make this the pre-event strike). A cycle that never traded is left alone: nothing tells
+    its registry strike apart from a pre-event one.
+
+  Every other epoch of those cycles gets `not_before = null`. The function recomputes from `as_of`
+  and the current factors on every call and is idempotent.
+
+- **Callers.** The migration runs it once over every underlying with a factor.
+  `recordCorporateActionFactorAction` runs it for the ticker in the same transaction as the factor
+  write and, when it changes any bound, bumps that factor's `recorded_at` too (an identical
+  resubmission included), so a chunked run in progress sees `dataVersion` change. Neutralizing a
+  factor ("1 para 1") clears the bounds it set, so the observed dates come back.
+- **Residuals.** The migration's own run moves no `recorded_at`, so a chunked run already in
+  progress at deploy time is not invalidated by it. Two epochs of one cycle sharing an exact `as_of`
+  before the ex-date are ordered by strike, so a split there may stay unbounded (only seen on the
+  ex-date itself so far, #274). A cycle that first trades after the factor is recorded is bounded
+  only the next time a factor for that ticker is written. A live disagreement between the registry
+  and COTAHIST on the ex-date itself is unchanged (both epochs land on that session's close, after
+  the open the bound would set).

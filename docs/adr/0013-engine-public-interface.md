@@ -2711,7 +2711,9 @@ factor`, `effectiveEntryPrice = entryPrice * factor`. A listed option series its
     source-side remedy, a follow-up and not made here: bound ADR-0056's own backfill step so a
     registry-sourced epoch's `asOf` never predates the corporate-action factor's own ex-date
     session open when a matching factor row exists, closing the ambiguity at the source instead of
-    flagging around it here. Tracked as issue #272.
+    flagging around it here. Tracked as issue #272. Closed for underlyings with a recorded factor
+    by ADR-0056's #272 addendum (`option_series_strikes.not_before`, migration 0045); a cycle the
+    bound leaves alone (never traded, or traded before the ex-date) keeps this residual.
   - **A second residual, newly documented (correctness round 3, advisory 6): a non-split re-strike
     can coincide numerically with the one-to-one match.** A cash-dividend epoch (no factor of its
     own) can land, by coincidence, on exactly `round_half_up(P.strike * F, 2)` for some unrelated,

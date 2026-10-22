@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   decimalStringSchema,
   sessionDateSchema,
@@ -8,7 +8,7 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { corporateActionFactors } from "../schema";
 
 export interface CorporateActionFactorRow {
@@ -59,7 +59,7 @@ export interface UpsertCorporateActionFactorInput {
 // `upsertTradingSessions`'s own guard): an identical resubmission is then a
 // true no-op that cannot fail a chunked run in progress on its own.
 export async function upsertCorporateActionFactor(
-  db: Database,
+  db: Database | Transaction,
   input: UpsertCorporateActionFactorInput,
 ): Promise<void> {
   await db
@@ -79,6 +79,21 @@ export async function upsertCorporateActionFactor(
       },
       setWhere: sql`(${corporateActionFactors.factor}, ${corporateActionFactors.asOf}) is distinct from (excluded.factor, excluded.as_of)`,
     });
+}
+
+// An identical resubmission leaves the factor alone but can still move strike
+// epoch bounds (#272); `recorded_at` is what `dataVersion` sees, so it moves too.
+export async function touchCorporateActionFactor(
+  db: Database | Transaction,
+  ticker: string,
+  exDate: string,
+): Promise<void> {
+  await db
+    .update(corporateActionFactors)
+    .set({ recordedAt: sql`now()` })
+    .where(
+      and(eq(corporateActionFactors.ticker, ticker), eq(corporateActionFactors.exDate, exDate)),
+    );
 }
 
 // The most recently *recorded* factors across every ticker, for the
