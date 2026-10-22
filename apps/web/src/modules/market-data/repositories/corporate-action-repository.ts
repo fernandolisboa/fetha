@@ -61,8 +61,8 @@ export interface UpsertCorporateActionFactorInput {
 export async function upsertCorporateActionFactor(
   db: Database | Transaction,
   input: UpsertCorporateActionFactorInput,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const written = await db
     .insert(corporateActionFactors)
     .values({
       ticker: input.ticker,
@@ -78,7 +78,9 @@ export async function upsertCorporateActionFactor(
         recordedAt: sql`now()`,
       },
       setWhere: sql`(${corporateActionFactors.factor}, ${corporateActionFactors.asOf}) is distinct from (excluded.factor, excluded.as_of)`,
-    });
+    })
+    .returning({ ticker: corporateActionFactors.ticker });
+  return written.length > 0;
 }
 
 // An identical resubmission leaves the factor alone but can still move strike

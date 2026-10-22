@@ -20,6 +20,7 @@ import { upsertDailyCandles } from "./repositories/candle-repository";
 import {
   candles,
   corporateActionFactors,
+  impliedVolatilityIndexPoints,
   optionSeries,
   optionSeriesStrikes,
   tradingSessions,
@@ -300,6 +301,76 @@ describe("recordCorporateActionFactorAction against real sessions", () => {
 
       expect(restored?.recordedAt.getTime()).toBe(firstRecordedAt);
     } finally {
+      await cleanupTicker(ticker, [session]);
+    }
+  });
+
+  it("marks the ticker's IV index points stale when the factor changes, not on an identical resubmission (#275)", async () => {
+    const db = getDb();
+    const [session] = businessDaysFrom("2099-06-22", 1);
+    if (!session) throw new Error("fixture setup failed");
+    await seedSession(session);
+    const ticker = uniqueTicker("IVS");
+    const bystander = uniqueTicker("IVB");
+    await upsertDailyCandles(db, session, new Date(`${session}T20:00:00.000Z`), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session,
+        ticker,
+        open: "10.00",
+        high: "10.00",
+        low: "10.00",
+        average: "10.00",
+        close: "10.00",
+        trades: 1,
+        tradedQuantity: 100,
+      }),
+    ]);
+    await db.insert(impliedVolatilityIndexPoints).values(
+      [ticker, bystander].map((underlying) => ({
+        underlying,
+        session,
+        asOf: new Date(`${session}T20:00:00.000Z`),
+        impliedVolatility: "0.30000000",
+        method: "atm_30d_variance_interpolated",
+      })),
+    );
+    const staleByUnderlying = async (): Promise<Map<string, boolean>> => {
+      const rows = await db
+        .select({
+          underlying: impliedVolatilityIndexPoints.underlying,
+          stale: impliedVolatilityIndexPoints.stale,
+        })
+        .from(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, [ticker, bystander]));
+      return new Map(rows.map((row) => [row.underlying, row.stale]));
+    };
+
+    try {
+      const { email, sessionHeaders } = await signUpAndVerify("owner-iv-stale");
+      process.env.OWNER_EMAILS = email;
+      currentHeaders = sessionHeaders;
+      const { recordCorporateActionFactorAction } = await import("./corporate-action-actions");
+      const split = { ticker, exDate: session, sharesBefore: 1, sharesAfter: 2 };
+
+      await recordCorporateActionFactorAction(split);
+      expect(await staleByUnderlying()).toEqual(
+        new Map([
+          [ticker, true],
+          [bystander, false],
+        ]),
+      );
+
+      await db
+        .update(impliedVolatilityIndexPoints)
+        .set({ stale: false })
+        .where(eq(impliedVolatilityIndexPoints.underlying, ticker));
+      await recordCorporateActionFactorAction(split);
+      expect((await staleByUnderlying()).get(ticker)).toBe(false);
+    } finally {
+      await db
+        .delete(impliedVolatilityIndexPoints)
+        .where(inArray(impliedVolatilityIndexPoints.underlying, [ticker, bystander]));
       await cleanupTicker(ticker, [session]);
     }
   });

@@ -1,10 +1,10 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import { loadMigrationStatements } from "@/db/test/migration-sql";
 
-import { impliedVolatilityIndexPoints, ingestionRuns } from "../schema";
+import { corporateActionFactors, impliedVolatilityIndexPoints } from "../schema";
 
 const BEFORE_FIX = new Date("2026-09-30T12:00:00.000Z");
 const AFTER_FIX = new Date("2026-10-01T09:00:00.000Z");
@@ -14,7 +14,6 @@ function uniqueTicker(label: string): string {
 }
 
 const cleanupUnderlyings: string[] = [];
-const cleanupSessions: string[] = [];
 
 afterEach(async () => {
   const db = getDb();
@@ -23,61 +22,43 @@ afterEach(async () => {
     await db
       .delete(impliedVolatilityIndexPoints)
       .where(inArray(impliedVolatilityIndexPoints.underlying, underlyings));
-  }
-  const sessions = cleanupSessions.splice(0);
-  if (sessions.length > 0) {
-    await db.delete(ingestionRuns).where(inArray(ingestionRuns.session, sessions));
+    await db
+      .delete(corporateActionFactors)
+      .where(inArray(corporateActionFactors.ticker, underlyings));
   }
 });
 
 describe("migration 0046", () => {
-  it("marks points computed before the point-in-time strike fix stale and reopens their sessions", async () => {
+  it("marks stale the points computed before point-in-time strikes and every point of an underlying with a recorded factor", async () => {
     const db = getDb();
     const early = uniqueTicker("EAR");
     const late = uniqueTicker("LAT");
-    cleanupUnderlyings.push(early, late);
-    const staleSession = "2083-03-01";
-    const freshSession = "2083-03-02";
-    cleanupSessions.push(staleSession, freshSession);
+    const split = uniqueTicker("SPL");
+    cleanupUnderlyings.push(early, late, split);
+    const session = "2083-03-01";
 
-    await db.insert(impliedVolatilityIndexPoints).values([
-      {
-        underlying: early,
-        session: staleSession,
-        asOf: new Date(`${staleSession}T21:00:00.000Z`),
+    await db.insert(impliedVolatilityIndexPoints).values(
+      [
+        { underlying: early, computedAt: BEFORE_FIX },
+        { underlying: late, computedAt: AFTER_FIX },
+        { underlying: split, computedAt: AFTER_FIX },
+      ].map((point) => ({
+        ...point,
+        session,
+        asOf: new Date(`${session}T21:00:00.000Z`),
         impliedVolatility: "0.30000000",
         method: "atm_30d_variance_interpolated",
-        computedAt: BEFORE_FIX,
-      },
-      {
-        underlying: late,
-        session: freshSession,
-        asOf: new Date(`${freshSession}T21:00:00.000Z`),
-        impliedVolatility: "0.31000000",
-        method: "atm_30d_variance_interpolated",
-        computedAt: AFTER_FIX,
-      },
-    ]);
-    await db.insert(ingestionRuns).values(
-      [staleSession, freshSession].flatMap((session) => [
-        {
-          source: "iv_index" as const,
-          session,
-          status: "succeeded" as const,
-          startedAt: AFTER_FIX,
-        },
-        {
-          source: "cotahist" as const,
-          session,
-          status: "succeeded" as const,
-          startedAt: AFTER_FIX,
-        },
-      ]),
+      })),
     );
+    await db.insert(corporateActionFactors).values({
+      ticker: split,
+      exDate: "2083-04-01",
+      asOf: new Date("2083-04-01T13:00:00.000Z"),
+      factor: "0.50000000",
+    });
 
-    const [, markStale, reopenSessions] = loadMigrationStatements("0046_iv_index_stale");
+    const [, markStale] = loadMigrationStatements("0046_iv_index_stale");
     await db.execute(sql.raw(markStale ?? ""));
-    await db.execute(sql.raw(reopenSessions ?? ""));
 
     const points = await db
       .select({
@@ -86,28 +67,14 @@ describe("migration 0046", () => {
         impliedVolatility: impliedVolatilityIndexPoints.impliedVolatility,
       })
       .from(impliedVolatilityIndexPoints)
-      .where(inArray(impliedVolatilityIndexPoints.underlying, [early, late]));
+      .where(inArray(impliedVolatilityIndexPoints.underlying, [early, late, split]));
     expect(new Map(points.map((point) => [point.underlying, point.stale]))).toEqual(
       new Map([
         [early, true],
         [late, false],
+        [split, true],
       ]),
     );
-    expect(points.find((point) => point.underlying === early)?.impliedVolatility).toBe(
-      "0.30000000",
-    );
-
-    const runs = await db
-      .select({ source: ingestionRuns.source, session: ingestionRuns.session })
-      .from(ingestionRuns)
-      .where(
-        and(
-          inArray(ingestionRuns.session, [staleSession, freshSession]),
-          eq(ingestionRuns.status, "succeeded"),
-        ),
-      );
-    expect(runs.map((run) => `${run.source}|${run.session}`).sort()).toEqual(
-      [`cotahist|${freshSession}`, `cotahist|${staleSession}`, `iv_index|${freshSession}`].sort(),
-    );
+    expect(points.every((point) => point.impliedVolatility === "0.30000000")).toBe(true);
   });
 });

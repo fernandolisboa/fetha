@@ -237,29 +237,52 @@ e2e recorded sessions (PETR4 chain only): 662 → 253 KiB on 2026-09-08 and 760 
 
 ## Addendum: points computed before point-in-time strikes are recomputed in place (2026-10-22, #275)
 
+This amends rule 1's "never recomputed once persisted" and rule 2's narrowing: a point marked
+`stale` is recomputed, and `ivIndexPointStatesOnSession` (formerly
+`underlyingsWithPointOnSession`) counts only non-stale points as done.
+
 Points computed before ENGINE_VERSION 0.9.0 reached production (#270, PR #277, deployed
-2026-10-01 07:50Z) used each series' latest registry strike around a strike change, before
-ADR-0056's epochs and the engine's adjusted-strike resolution existed. That covers a split and
-every cash-dividend re-strike, so the affected set is "computed too early", not "has a split". The
-owner approved overwriting them on 2026-10-22: they are derived data, recomputable from stored
-option prices, and no user-entered row depends on them.
+2026-10-01 07:50Z) resolved strikes without the engine's adjusted-strike resolution (and, for most
+of them, before ADR-0056's epochs landed with PR #268 at 01:38Z that day). That covers a split and
+every cash-dividend re-strike, so this set is "computed too early", not "has a split". Separately,
+#272 (PR #347, ADR-0056 addendum) re-dated early backfilled epochs, so a point computed after
+that deploy can still have read a post-event strike before its ex-date; it only happens for an
+underlying with a recorded corporate action factor. The owner approved overwriting both sets on
+2026-10-22: they are derived data, recomputable from stored option prices, and no user-entered
+row depends on them.
 
 - **`implied_volatility_index.stale`** (boolean, default false). Migration 0046 sets it on every
-  point with `computed_at < 2026-10-01T09:00:00Z`, the first nightly cron after that deploy (a
-  point computed between the deploy and the cron is recomputed needlessly, never missed), and
-  deletes the `succeeded` `iv_index` run of each session holding one, so those sessions re-enter
-  the backfill list (`succeededSessionsMissingRun`, newest first) under the existing 40%/60%
-  budget. No new scheduling.
+  point with `computed_at < 2026-10-01T09:00:00Z` (the first nightly cron after that deploy; a
+  point computed between the deploy and the cron is recomputed needlessly, never missed) and on
+  every point of an underlying with a `corporate_action_factors` row. Recomputing a point that was
+  already right only rewrites the same value.
+- **Recording a factor marks the ticker's points stale.** `recordCorporateActionFactorAction`
+  sets the flag on every point of that ticker when the factor or the strike epoch bounds change,
+  in the same transaction: either change moves the strike a stored point resolved, for sessions
+  before and after the ex-date. An identical resubmission marks nothing.
+- **Reopened by the nightly run, not by the migration.** Each nightly run (not a single-session
+  run) first deletes the `succeeded` `iv_index` run of every session holding a stale point, so
+  those sessions re-enter the backfill list (`succeededSessionsMissingRun`, newest first) under
+  the existing 40%/60% budget. No new scheduling. Doing it in the migration would race the
+  previous deployment: code that predates the flag counts a stale point as done and would mark
+  the session succeeded again without recomputing it. A session drops out once it has no stale
+  point left.
 - **In place, never deleted first.** `computeIvIndexForSession` treats a stale point as not done,
   recomputes it and upserts over it (`stale = false`, `computed_at = now()`). A stale point keeps
   serving `iv_rank`, the radar and the suggestions until then, so no window loses a session while
-  the recompute drains. A stale point the current rules no longer produce (the engine now returns
-  no value, or the underlying no longer qualifies) is deleted only when the session completes; a
-  pending session keeps it and retries the next night.
-- **Cost.** The recompute reads what the original backfill read for those sessions, within the
-  same nightly start budget, so a night's database traffic stays within a normal backfill night.
+  the recompute drains; until it does, a window can mix recomputed and stale points, and nothing
+  flags a reading taken in that time. A stale point the current rules no longer produce (the
+  engine now returns no value, or the underlying no longer qualifies) is deleted only when the
+  session completes; a pending session (including one whose recompute keeps failing) keeps it and
+  retries the next night. Recompute covers existing points only: an underlying with no point on a
+  session is filled as before, by the session's own backfill.
+- **Cost.** A reopened session recomputes only its stale underlyings and reads what the original
+  backfill read for them, within the same nightly start budget, so a night's database traffic
+  stays within a normal backfill night; the drain takes as many nights as the budget needs. The
+  size of the set in production (sessions before 2026-10-01 plus the history of each underlying
+  with a recorded factor) was not measured from here.
 - **Side effect.** `computed_at` feeds `dataVersion`, so a chunked `iv_rank` backtest resumed while
   its window is being recomputed fails with `data_version_changed` once, as during the original
   backfill; rerunning it fixes it. Stored backtest runs, analyses and signals are not rewritten.
-- The flag is generic: a later rule change that alters stored points can mark its own set stale in
-  a migration and reuse this path.
+- The flag is generic: a later rule change that alters stored points can mark its own set stale
+  and reuse this path.

@@ -15,6 +15,7 @@ import {
   touchCorporateActionFactor,
   upsertCorporateActionFactor,
 } from "./repositories/corporate-action-repository";
+import { markIvIndexPointsStale } from "./repositories/iv-index-repository";
 import { boundOptionStrikeEpochs } from "./repositories/option-repository";
 
 export type RecordCorporateActionFactorResult =
@@ -59,14 +60,19 @@ export async function recordCorporateActionFactorAction(
 
   const factor = sharesRatioToFactor(sharesBefore, sharesAfter);
   await db.transaction(async (tx) => {
-    await upsertCorporateActionFactor(tx, {
+    const factorChanged = await upsertCorporateActionFactor(tx, {
       ticker,
       exDate,
       asOf: session.open,
       factor,
     });
-    if ((await boundOptionStrikeEpochs(tx, ticker)) > 0) {
+    const boundsChanged = (await boundOptionStrikeEpochs(tx, ticker)) > 0;
+    if (boundsChanged) {
       await touchCorporateActionFactor(tx, ticker, exDate);
+    }
+    // Either change moves the strike a stored IV index point resolved (#275).
+    if (factorChanged || boundsChanged) {
+      await markIvIndexPointsStale(tx, ticker);
     }
   });
 
