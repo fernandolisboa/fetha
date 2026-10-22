@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, MarketView } from "../api";
 import { decimalString } from "../test/support";
-import { resolveLegMarketPrice, resolveUnderlyingSpotReading } from "./resolve-market-price";
-
-const resolveUnderlyingSpot = (view: MarketView, ticker: string, at: string) =>
-  resolveUnderlyingSpotReading(view, ticker, at)?.value ?? null;
+import {
+  resolveLegMarketPrice,
+  resolveUnderlyingSpot,
+  resolveUnderlyingSpotReading,
+} from "./resolve-market-price";
 
 const at = "2024-01-02T21:00:00.000Z";
 

@@ -48,10 +48,9 @@ function staleAgainst(
 // latest-visible price for a ticker, or a selection could resolve a different strike than
 // the one that gets priced a moment later from the same view (I3, order-invariance).
 //
-// `atSession` is the session of `at`, when the caller has it: it is what lets the
-// close/average branch flag `stale` (ADR-0014 Q42, an untraded series marked at its last
-// trade). Callers that only need a price for computation, not to report staleness on a
-// `LegValuation` (delta selection, the implied-volatility index), omit it.
+// `atSession` is the session of `at`, when the caller has it: it is what lets every rung flag
+// `stale` (ADR-0014 Q42, an untraded series marked at its last trade or a quote taken in an
+// earlier session), which a caller needs to rescale or suppress a price across an ex-date.
 //
 // `kind` selects the day-price rung: `optionPrices` for an option leg (`OptionDayPrice`
 // carries the close/average an option series trades at), the latest visible D1 candle
@@ -102,10 +101,9 @@ export function resolveLegMarketPrice(
 
 // The underlying's own spot uses the same mid-before-last precedence as a leg's market
 // price, falling back to the latest visible D1 candle close
-// instead of an option series' day price, which the underlying itself never has. Shared
-// by price-operation.ts and the implied-volatility index. `session` names the session the
-// candle or quote came from, so a caller can tell a spot carried forward across an ex-date the
-// same way `resolveLegMarketPrice`'s `stale` does.
+// instead of an option series' day price, which the underlying itself never has. `session`
+// names the session the candle or quote came from, so a caller can tell a spot carried forward
+// across an ex-date the same way `resolveLegMarketPrice`'s `stale` does.
 export function resolveUnderlyingSpotReading(
   view: MarketView,
   ticker: Ticker,
@@ -126,7 +124,15 @@ export function resolveUnderlyingSpotReading(
   return candle ? { value: candle.close, session: candle.session } : null;
 }
 
-export type SpotReading = { spot: DecimalString; rescaled: boolean };
+export function resolveUnderlyingSpot(
+  view: MarketView,
+  ticker: Ticker,
+  at: Instant,
+): DecimalString | null {
+  return resolveUnderlyingSpotReading(view, ticker, at)?.value ?? null;
+}
+
+type SpotReading = { spot: DecimalString; rescaled: boolean };
 
 // A spot carried forward from before an ex-date sits on the pre-factor scale, while the strikes
 // derived for the session of `at` and the rebased quantities sit on the post-factor one; the

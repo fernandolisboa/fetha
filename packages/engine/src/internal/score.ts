@@ -50,7 +50,7 @@ import {
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   STRIKE_ADJUSTMENT_CODES,
 } from "./notes";
-import { resolveLegMarketPrice, resolveUnderlyingSpotOnSessionScale } from "./resolve-market-price";
+import { resolveLegMarketPrice, resolveUnderlyingSpot } from "./resolve-market-price";
 import { toCentavos, toQuantity } from "./scalars";
 import { rescaleStalePrice, splitFactorProduct, visibleFactorsFor } from "./split-factor";
 import { validateOperationCoherence } from "./operation-coherence";
@@ -267,9 +267,8 @@ function computeOperationMaxLoss(
   horizonSession: SessionDate,
   operation: Operation,
 ): { ok: true; value: Centavos | "unbounded"; notes: Note[] } | { ok: false; error: EngineError } {
-  const spot = resolveUnderlyingSpotOnSessionScale(view, operation.underlying, at);
-  if (!spot.ok) return spot;
-  if (!spot.value)
+  const spot = resolveUnderlyingSpot(view, operation.underlying, at);
+  if (!spot)
     return { ok: false, error: { code: "missing_instrument", ticker: operation.underlying } };
   const legsResult = buildEntryPricedLegs(
     view,
@@ -281,7 +280,7 @@ function computeOperationMaxLoss(
     operation.expiry,
   );
   if (!legsResult.ok) return legsResult;
-  const { maxLoss } = computePayoffProfile(legsResult.value, spot.value.spot);
+  const { maxLoss } = computePayoffProfile(legsResult.value, spot);
   return { ok: true, value: maxLoss, notes: legsResult.notes };
 }
 

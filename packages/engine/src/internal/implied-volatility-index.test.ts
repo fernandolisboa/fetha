@@ -4,7 +4,11 @@ import { bsmPriceRaw } from "./black-scholes";
 import { decimalString } from "../test/support";
 import { assertDefined } from "./invariant";
 import { computeImpliedVolatilityIndex } from "./implied-volatility-index";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import {
+  IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+} from "./notes";
 
 function dailyCalendar(fromIso: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
@@ -1086,6 +1090,16 @@ describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluatio
     optionPrices: [optionPrice(sessionAt(5), atmPrice)],
   };
   const fresh = computeImpliedVolatilityIndex(splitView, "PETR4", evalAt, testProvenanceBase);
+  const withStaleNote = (result: typeof fresh) =>
+    result.ok
+      ? {
+          ...result,
+          value: {
+            ...result.value,
+            notes: [...result.value.notes, IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE],
+          },
+        }
+      : result;
 
   it("solves against a pre-split candle spot rescaled onto the derived strike", () => {
     const view: MarketView = {
@@ -1106,7 +1120,9 @@ describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluatio
       ],
     };
     expect(fresh.ok && fresh.value.impliedVolatility).toBeTruthy();
-    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(fresh);
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(
+      withStaleNote(fresh),
+    );
   });
 
   it("solves against a day-old pre-split spot quote rescaled onto the derived strike", () => {
@@ -1122,10 +1138,12 @@ describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluatio
         },
       ],
     };
-    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(fresh);
+    expect(computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase)).toEqual(
+      withStaleNote(fresh),
+    );
   });
 
-  it("refuses a non-positive factor between a stale spot and the evaluation session", () => {
+  it("propagates the spot rescale's refusal of a non-positive factor", () => {
     const view: MarketView = {
       ...splitView,
       quotes: [
@@ -1155,7 +1173,39 @@ describe("computeImpliedVolatilityIndex across a split ex-dated on the evaluatio
     });
   });
 
-  it("leaves out a premium last traded before the ex-date", () => {
+  it("leaves out a premium last traded before the ex-date and solves from the other right", () => {
+    const putSeries: OptionSeries = {
+      ...callSeries("PETR4P100", "100.00", expiry),
+      right: "put",
+      asOf: sessionAt(0).close,
+    };
+    const putPrice = bsmPriceRaw({
+      s: 50,
+      k: 50,
+      t: 30 / 252,
+      r: 0,
+      q: 0,
+      sigma: 0.3,
+      right: "put",
+    });
+    const freshPut = { ...optionPrice(sessionAt(5), putPrice), ticker: "PETR4P100" };
+    const putOnly = computeImpliedVolatilityIndex(
+      { ...splitView, optionSeries: [putSeries], optionPrices: [freshPut] },
+      "PETR4",
+      evalAt,
+      testProvenanceBase,
+    );
+    const view: MarketView = {
+      ...splitView,
+      optionSeries: [...splitView.optionSeries, putSeries],
+      optionPrices: [optionPrice(sessionAt(4), atmPrice * 2), freshPut],
+    };
+    const result = computeImpliedVolatilityIndex(view, "PETR4", evalAt, testProvenanceBase);
+    expect(putOnly.ok && putOnly.value.seriesUsed).toEqual(["PETR4P100"]);
+    expect(result).toEqual(withStaleNote(putOnly));
+  });
+
+  it("returns no index when the only premium was last traded before the ex-date", () => {
     const view: MarketView = {
       ...splitView,
       optionPrices: [optionPrice(sessionAt(4), atmPrice * 2)],

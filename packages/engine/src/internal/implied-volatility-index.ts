@@ -13,7 +13,11 @@ import { calendarIntegrityError } from "./validate-view-integrity";
 import { RATIO_SCALE, toDecimalString } from "./decimal";
 import { solveImpliedVolatilityRaw } from "./implied-volatility";
 import { invariant } from "./invariant";
-import { OPTION_STRIKE_DERIVED_NOTE, OPTION_STRIKE_UNCONFIRMED_NOTE } from "./notes";
+import {
+  IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE,
+  OPTION_STRIKE_DERIVED_NOTE,
+  OPTION_STRIKE_UNCONFIRMED_NOTE,
+} from "./notes";
 import { createOptionStrikeResolver, type StrikeResolver } from "./option-strike";
 import { resolvePriceFactor } from "./price-factor";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -91,6 +95,7 @@ function solveAtmVolatility(
   dividendYield: number,
   strikeOf: StrikeResolver,
   atSession: SessionDate,
+  premiumsLeftOut: Set<Ticker>,
 ): AtmOutcome {
   const listed = collapsedSeries.filter(
     (series) => series.underlying === underlying && series.expiry === expiry,
@@ -128,7 +133,10 @@ function solveAtmVolatility(
     // `strikeOf` already refused every non-positive factor up to the session of at for this
     // series, a window that holds this one.
     invariant(premium.ok, "implied-volatility-index: strikeOf already refused this factor");
-    if (premium.value.rescaled) continue;
+    if (premium.value.rescaled) {
+      premiumsLeftOut.add(series.ticker);
+      continue;
+    }
     const resolvedStrike = strikeOf(series);
     if (!resolvedStrike.ok) return resolvedStrike;
     const priceFactorResult = resolvePriceFactor(
@@ -192,10 +200,12 @@ function toResult(
   provenanceBase: ProvenanceBase,
   anyDerived: boolean,
   anyUnconfirmed: boolean,
+  anyStaleAcrossAction: boolean,
 ): Result<ImpliedVolatilityIndex> {
   const notes = [];
   if (anyDerived) notes.push(OPTION_STRIKE_DERIVED_NOTE);
   if (anyUnconfirmed) notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+  if (anyStaleAcrossAction) notes.push(IV_INDEX_STALE_ACROSS_CORPORATE_ACTION_NOTE);
   return {
     ok: true,
     value: {
@@ -231,6 +241,7 @@ export function computeImpliedVolatilityIndex(
   if (!dividendResolution.ok) return err(dividendResolution.error);
 
   const spot = Number(spotResult.value.spot);
+  const spotRescaled = spotResult.value.rescaled;
   const riskFreeRate = Number(riskFreeRateResolution.value);
   const dividendYield = Number(dividendResolution.value);
 
@@ -274,6 +285,8 @@ export function computeImpliedVolatilityIndex(
   }
   brackets.sort((a, b) => a.years - b.years);
 
+  const premiumsLeftOut = new Set<Ticker>();
+  const staleAcrossAction = (): boolean => spotRescaled || premiumsLeftOut.size > 0;
   const strikeOf = createOptionStrikeResolver(view, underlying, atSession.date, at);
   const solve = (bracket: AtmBracket): AtmOutcome =>
     solveAtmVolatility(
@@ -288,6 +301,7 @@ export function computeImpliedVolatilityIndex(
       dividendYield,
       strikeOf,
       atSession.date,
+      premiumsLeftOut,
     );
 
   const exact = brackets.find((b) => Math.abs(b.years - t30) < 1e-12);
@@ -303,6 +317,7 @@ export function computeImpliedVolatilityIndex(
       provenanceBase,
       solved.value.anyDerived,
       solved.value.anyUnconfirmed,
+      staleAcrossAction(),
     );
   }
 
@@ -336,5 +351,6 @@ export function computeImpliedVolatilityIndex(
     provenanceBase,
     solvedLower.value.anyDerived || solvedUpper.value.anyDerived,
     solvedLower.value.anyUnconfirmed || solvedUpper.value.anyUnconfirmed,
+    staleAcrossAction(),
   );
 }

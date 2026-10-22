@@ -805,28 +805,6 @@ describe("score — split-factor rebasing (ADR-0014 Q51)", () => {
     expect(result.value.normalizedPnl).toBe(decimalString("0.300000"));
   });
 
-  it("refuses a non-positive factor between a stale spot and the horizon session (#343)", () => {
-    const view: MarketView = {
-      ...emptyView,
-      corporateActions: [
-        {
-          ticker: "PETR4",
-          exDate: "2024-01-03",
-          asOf: "2024-01-03T00:00:00.000Z",
-          factor: decimalString("0"),
-        },
-      ],
-      candles: [stockCandle("2024-01-02", "13.00", "13.00")],
-    };
-    const result = score({ ...baseInput, view, operation: stockOperation() }, provenanceBase);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toMatchObject({
-      code: "invalid_input",
-      path: "corporateActions[].factor",
-    });
-  });
-
   it("propagates a non-positive corporate-action factor as invalid_input", () => {
     const view: MarketView = {
       ...emptyView,

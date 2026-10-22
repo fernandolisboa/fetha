@@ -3225,7 +3225,8 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 
 - **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
   index, delta-based strike selection and quotes (which carry no session) still read an
-  unrescaled spot or premium (#343). `score`'s `computeOperationMaxLoss` calls
+  unrescaled spot or premium (#343; the #343 addendum closes all but `score`, which needs no
+  change). `score`'s `computeOperationMaxLoss` calls
   `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
   stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
   double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
@@ -3255,14 +3256,16 @@ strikes. Each now reads one scale:
 - **The implied-volatility index.** It reads the spot through
   `resolveUnderlyingSpotOnSessionScale` (moved from `price-operation.ts` to
   `resolve-market-price.ts`, now shared) and leaves out an ATM premium last traded before an
-  ex-date, as `valueOneLeg` suppresses its implied-volatility solve.
+  ex-date, as `valueOneLeg` suppresses its implied-volatility solve. An index built from a
+  rescaled spot or with a premium left out carries `stale_price_across_corporate_action`.
 - **Delta-based strike selection.** It reads each candidate's premium with the session of `at` and
   suppresses the implied-volatility solve exactly when `rescaleStalePrice` finds a factor over
   `(stale session, session of at]`, so a series whose only print predates the ex-date is not
   selectable by delta, the same as a series with no print.
-- **`score`.** `computeOperationMaxLoss` reads the spot on the session's scale too. The spot only
-  places the payoff's coarse samples, which `score` discards; `maxLoss` comes from the strikes and
-  slopes, so no `score` output changes.
+- **`score` is left as it is.** `computeOperationMaxLoss` still reads the unrescaled spot, which
+  only places the payoff's coarse samples. `score` discards them, and `maxLoss` is the minimum
+  over zero and the strikes plus the slope at infinity, so the spot cannot change any `score`
+  output.
 
 The IV index, delta selection and a quote-led stale flag change, so `ENGINE_VERSION` moves from
 `"0.16.0"` to `"0.17.0"`.
