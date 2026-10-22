@@ -21,28 +21,37 @@ LANGUAGE sql AS $$
 		JOIN cycles c ON c."ticker" = e."ticker" AND c."expiry" = e."expiry" AND c."right" = e."right"
 		WINDOW w AS (PARTITION BY e."ticker", e."expiry", e."right" ORDER BY e."as_of", e."strike")
 	),
-	transition_bounds AS (
+	transition_factors AS (
 		SELECT DISTINCT ON (ep."ticker", ep."expiry", ep."right", ep."strike")
-			ep."ticker", ep."expiry", ep."right", ep."strike", f.ex_open AS bound
+			ep."ticker", ep."expiry", ep."right", ep."strike", ep."as_of", ep.next_as_of,
+			f."ex_date", f.ex_open
 		FROM epochs ep
 		JOIN factors f ON f.underlying = ep."underlying"
 		WHERE ep.prev_strike IS NOT NULL
 			AND f."ex_date" <= ep."expiry"
 			AND ep.prev_as_of < f.ex_open
-			AND ep."as_of" < f.ex_open
-			AND (ep.next_as_of IS NULL OR ep.next_as_of > f.ex_open)
 			AND round(ep.prev_strike * f."factor", 2) = ep."strike"
 		ORDER BY ep."ticker", ep."expiry", ep."right", ep."strike", f."ex_date" ASC
 	),
-	first_bounds AS (
+	transition_bounds AS (
+		SELECT tf."ticker", tf."expiry", tf."right", tf."strike", tf.ex_open AS bound
+		FROM transition_factors tf
+		WHERE tf."as_of" < tf.ex_open
+			AND (tf.next_as_of IS NULL OR tf.next_as_of > tf.ex_open)
+			AND NOT EXISTS (
+				SELECT 1 FROM "option_daily_prices" dp
+				WHERE dp."ticker" = tf."ticker" AND dp."expiry" = tf."expiry"
+					AND dp."right" = tf."right" AND dp."strike" = tf."strike"
+					AND dp."session" < tf."ex_date"
+			)
+	),
+	first_factors AS (
 		SELECT DISTINCT ON (ep."ticker", ep."expiry", ep."right", ep."strike")
-			ep."ticker", ep."expiry", ep."right", ep."strike", f.ex_open AS bound
+			ep."ticker", ep."expiry", ep."right", ep."strike", ep."as_of", ep.next_as_of, f.ex_open
 		FROM epochs ep
 		JOIN factors f ON f.underlying = ep."underlying"
 		WHERE ep.prev_strike IS NULL
 			AND f."ex_date" <= ep."expiry"
-			AND ep."as_of" < f.ex_open
-			AND (ep.next_as_of IS NULL OR ep.next_as_of > f.ex_open)
 			AND EXISTS (
 				SELECT 1 FROM "option_daily_prices" dp
 				WHERE dp."ticker" = ep."ticker" AND dp."expiry" = ep."expiry"
@@ -54,7 +63,19 @@ LANGUAGE sql AS $$
 				WHERE dp."ticker" = ep."ticker" AND dp."expiry" = ep."expiry"
 					AND dp."right" = ep."right" AND dp."session" < f."ex_date"
 			)
+			AND NOT EXISTS (
+				SELECT 1 FROM epochs later
+				WHERE later."ticker" = ep."ticker" AND later."expiry" = ep."expiry"
+					AND later."right" = ep."right" AND later."as_of" > ep."as_of"
+					AND later."strike" = round(ep."strike" * f."factor", 2)
+			)
 		ORDER BY ep."ticker", ep."expiry", ep."right", ep."strike", f."ex_date" DESC
+	),
+	first_bounds AS (
+		SELECT ff."ticker", ff."expiry", ff."right", ff."strike", ff.ex_open AS bound
+		FROM first_factors ff
+		WHERE ff."as_of" < ff.ex_open
+			AND (ff.next_as_of IS NULL OR ff.next_as_of > ff.ex_open)
 	),
 	bounds AS (
 		SELECT * FROM transition_bounds

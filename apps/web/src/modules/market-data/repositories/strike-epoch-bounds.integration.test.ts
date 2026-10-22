@@ -80,8 +80,6 @@ afterEach(async () => {
   }
 });
 
-// A 2-for-1 split of `underlying` ex-dated on `sessions[5]`, one call series
-// listed on it, ten sessions of calendar.
 async function splitFixture(label: string) {
   const db = getDb();
   const underlying = uniqueTicker(label);
@@ -348,6 +346,51 @@ describe("boundOptionStrikeEpochs", () => {
       );
     expect(row?.asOf).toEqual(earlier);
     expect(row?.notBefore).toEqual(open(f.exDate));
+
+    // The strike now traded before the ex-date, so it was genuinely live then.
+    expect(await boundOptionStrikeEpochs(db, f.underlying)).toBe(1);
+    expect(await f.notBefore("14.98000000")).toBeNull();
+  });
+
+  it("leaves a correctly dated transition to the factor that produced it when a later equal factor follows", async () => {
+    const db = getDb();
+    const f = await splitFixture("BTW");
+    const firstEx = at(f.sessions, 3);
+    const secondEx = at(f.sessions, 6);
+    await f.epoch("100.00000000", close(at(f.sessions, 0)));
+    await f.epoch("50.00000000", close(firstEx));
+    await f.epoch("25.00000000", close(secondEx));
+    await f.recordFactor("0.50000000", firstEx);
+    await f.recordFactor("0.50000000", secondEx);
+
+    expect(await boundOptionStrikeEpochs(db, f.underlying)).toBe(0);
+    expect(await f.notBefore("50.00000000")).toBeNull();
+    expect(await f.notBefore("25.00000000")).toBeNull();
+  });
+
+  it("leaves a dividend re-strike alone when it coincides with a later factor to the cent", async () => {
+    const db = getDb();
+    const f = await splitFixture("BCO");
+    await f.epoch("27.19000000", close(at(f.sessions, 0)));
+    await f.epoch("24.72000000", close(at(f.sessions, 2)));
+    await f.trade(at(f.sessions, 2), "24.72000000");
+    await f.trade(at(f.sessions, 4), "24.72000000");
+    await f.recordFactor("0.90909091");
+
+    expect(await boundOptionStrikeEpochs(db, f.underlying)).toBe(0);
+    expect(await f.notBefore("24.72000000")).toBeNull();
+  });
+
+  it("leaves a first epoch alone when its own factor transition follows it", async () => {
+    const db = getDb();
+    const f = await splitFixture("BFT");
+    await f.epoch("29.95000000", open(at(f.sessions, 0)));
+    await f.trade(f.exDate, "29.95000000");
+    await f.epoch("14.98000000", close(at(f.sessions, 6)));
+    await f.recordFactor("0.50000000");
+
+    expect(await boundOptionStrikeEpochs(db, f.underlying)).toBe(0);
+    expect(await f.notBefore("29.95000000")).toBeNull();
   });
 });
 

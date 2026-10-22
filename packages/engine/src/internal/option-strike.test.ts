@@ -573,6 +573,18 @@ describe("resolveOptionStrike", () => {
       strike: decimalString("14.98"),
       adjustment: "none",
     });
+
+    const loneLater = resolveOptionStrike(
+      lone,
+      ticker,
+      underlying,
+      settlementSession,
+      settlementAt,
+    );
+    expect(loneLater.ok && loneLater.value).toMatchObject({
+      strike: decimalString("14.98"),
+      adjustment: "none",
+    });
   });
 
   it("a reused B3 ticker's older, unrelated cycle never joins the chain, even when its strike coincidentally matches a factor's own multiplier", () => {

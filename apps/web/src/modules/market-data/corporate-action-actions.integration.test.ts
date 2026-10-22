@@ -379,6 +379,23 @@ describe("recordCorporateActionFactorAction bounds the underlying's strike epoch
       await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 2 });
       expect(await notBefore()).toEqual(new Date(`${exDate}T13:00:00.000Z`));
 
+      // An identical resubmission that moves a bound still moves recordedAt (dataVersion).
+      await db
+        .update(optionSeriesStrikes)
+        .set({ notBefore: null })
+        .where(eq(optionSeriesStrikes.ticker, option));
+      const recordedAt = async () => {
+        const [row] = await db
+          .select({ recordedAt: corporateActionFactors.recordedAt })
+          .from(corporateActionFactors)
+          .where(eq(corporateActionFactors.ticker, ticker));
+        return row?.recordedAt.getTime() ?? 0;
+      };
+      const beforeResubmit = await recordedAt();
+      await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 2 });
+      expect(await notBefore()).toEqual(new Date(`${exDate}T13:00:00.000Z`));
+      expect(await recordedAt()).toBeGreaterThan(beforeResubmit);
+
       await recordCorporateActionFactorAction({ ticker, exDate, sharesBefore: 1, sharesAfter: 1 });
       expect(await notBefore()).toBeNull();
     } finally {

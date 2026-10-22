@@ -11,7 +11,10 @@ import { sharesRatioToFactor } from "./corporate-action-factor";
 import { recordCorporateActionFactorInputSchema } from "./corporate-action-validation";
 import { sessionByDate } from "./repositories/calendar-repository";
 import { latestCandle } from "./repositories/candle-repository";
-import { upsertCorporateActionFactor } from "./repositories/corporate-action-repository";
+import {
+  touchCorporateActionFactor,
+  upsertCorporateActionFactor,
+} from "./repositories/corporate-action-repository";
 import { boundOptionStrikeEpochs } from "./repositories/option-repository";
 
 export type RecordCorporateActionFactorResult =
@@ -62,7 +65,9 @@ export async function recordCorporateActionFactorAction(
       asOf: session.open,
       factor,
     });
-    await boundOptionStrikeEpochs(tx, ticker);
+    if ((await boundOptionStrikeEpochs(tx, ticker)) > 0) {
+      await touchCorporateActionFactor(tx, ticker, exDate);
+    }
   });
 
   await recordAccess("corporate_action_recorded");
