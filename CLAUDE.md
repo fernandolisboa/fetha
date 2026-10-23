@@ -237,7 +237,8 @@ Canonical values live in `DESIGN.md`; this is the summary `/design` and `/design
 - Themes (per-user, `data-theme`, ADR-0015, ADR-0069): `instrumento` (default) · `terminal` ·
   `amplo` · `grafite` · `ouro-negro` · `fosforo` · `papel` (light; the last four from Bardo and
   Mascate). Layouts (per-user, `data-layout`, ADR-0069): `workspace` (default, left rail) ·
-  `studio` (header tabs, bottom status bar with the market bar, compact page header).
+  `studio` (header tabs, bottom status bar with the market bar, compact page header) · `dock`
+  (ADR-0071: floating left menu over the page, labels on hover; floating tab bar on phones).
   Tokens: `--bg --surface --surface-2 --line --line-soft --ink --muted --faint --accent
 --accent-hover --accent-ink --accent-soft --up --down --warning --danger --greek-delta
 --greek-gamma --greek-theta --greek-vega --font-display --font-body --font-mono --radius

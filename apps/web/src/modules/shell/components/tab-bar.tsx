@@ -8,14 +8,26 @@ import { cn } from "@/lib/utils";
 import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
-export function TabBar({ unreadSignalCount }: { unreadSignalCount: number }) {
+export function TabBar({
+  unreadSignalCount,
+  floating = false,
+}: {
+  unreadSignalCount: number;
+  floating?: boolean;
+}) {
   const pathname = usePathname();
 
   return (
     <nav
       aria-label={t.rail.navigationLabel}
       data-tour="tab-bar"
-      className="border-border bg-card fixed inset-x-0 bottom-0 z-30 grid h-[calc(3.5rem+env(safe-area-inset-bottom))] grid-cols-6 border-t pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] md:hidden"
+      data-floating={floating}
+      className={cn(
+        "border-border bg-card fixed z-30 grid grid-cols-6 md:hidden",
+        floating
+          ? "right-[calc(var(--shell-float-inset)+env(safe-area-inset-right))] bottom-[calc(var(--shell-float-inset)+env(safe-area-inset-bottom))] left-[calc(var(--shell-float-inset)+env(safe-area-inset-left))] h-14 overflow-hidden rounded-[calc(var(--radius)*2)] border shadow-[var(--shell-float-shadow)]"
+          : "inset-x-0 bottom-0 h-[calc(3.5rem+env(safe-area-inset-bottom))] border-t pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]",
+      )}
     >
       {destinations().map((destination) => {
         const active = isActiveDestination(pathname, destination.href);

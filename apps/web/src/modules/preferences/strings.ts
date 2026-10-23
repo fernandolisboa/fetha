@@ -41,7 +41,7 @@ const en = {
   layoutPicker: {
     title: "Layout",
     subtitle:
-      "Where the navigation and the market bar sit. Every screen does the same things in both layouts.",
+      "Where the navigation and the market bar sit. Every screen does the same things in every layout.",
     options: {
       workspace: {
         label: "Workspace",
@@ -51,6 +51,11 @@ const en = {
         label: "Studio",
         description:
           "Denser: destinations as tabs in the header, compact page titles, market bar in a status bar at the bottom.",
+      },
+      dock: {
+        label: "Dock",
+        description:
+          "Floating menu over the page's left edge: icons at rest, names when you hover it. No column of its own, so the page gets almost all the width.",
       },
     },
   },
@@ -113,7 +118,7 @@ const ptBR = {
   layoutPicker: {
     title: "Layout",
     subtitle:
-      "Onde ficam a navegação e a barra de mercado. Toda tela faz as mesmas coisas nos dois layouts.",
+      "Onde ficam a navegação e a barra de mercado. Toda tela faz as mesmas coisas em qualquer layout.",
     options: {
       workspace: {
         label: "Workspace",
@@ -123,6 +128,11 @@ const ptBR = {
         label: "Studio",
         description:
           "Mais denso: destinos em abas no cabeçalho, títulos compactos e a barra de mercado numa barra de status embaixo.",
+      },
+      dock: {
+        label: "Dock",
+        description:
+          "Menu flutuante sobre a borda esquerda: só ícones e, ao passar o mouse, os nomes. Não ocupa coluna própria, então a tela fica com quase toda a largura.",
       },
     },
   },
