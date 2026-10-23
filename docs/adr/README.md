@@ -75,3 +75,4 @@ supersedes or amends them and says so.
 | 0067 | Suggestions are priced radar matches, spoken in direct voice and scored like decisions (#311, amends 0014, 0057, 0058, 0066)                                                |
 | 0069 | Two layouts, Workspace and Studio, and four themes carried over from Bardo and Mascate (amends 0015)                                                                        |
 | 0070 | B3 options are dividend-protected, so the engine prices them with `q = 0`; no dividend source (#81, amends 0013, 0054)                                                      |
+| 0071 | A third layout, Dock, floats the navigation over the page (amends 0069)                                                                                                     |

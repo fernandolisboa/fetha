@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { layoutSchema, layouts } from "./layout";
 
 describe("layoutSchema", () => {
-  it("accepts both shipped layouts", () => {
+  it("accepts every shipped layout", () => {
     for (const layout of layouts) {
       expect(layoutSchema.parse(layout)).toBe(layout);
     }

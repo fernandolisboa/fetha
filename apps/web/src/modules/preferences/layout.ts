@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const layouts = ["workspace", "studio"] as const;
+export const layouts = ["workspace", "studio", "dock"] as const;
 
 export const layoutSchema = z.enum(layouts).default("workspace");
 

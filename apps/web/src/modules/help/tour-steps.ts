@@ -10,9 +10,10 @@ export interface TourTarget {
 }
 
 // Targets in order of preference: the first one on screen anchors the card,
-// so a rail step points at the left rail on a wide screen, at the header tabs
-// in the Studio layout (ADR-0069) and at the bottom tab bar under 768px,
-// where both are hidden (#243).
+// so a rail step points at the left rail on a wide screen, at the floating
+// dock in the Dock layout (ADR-0071), at the header tabs in the Studio layout
+// (ADR-0069) and at the bottom tab bar under 768px, where all three are hidden
+// (#243).
 export interface TourStep {
   id: string;
   targets: readonly TourTarget[];
@@ -21,12 +22,14 @@ export interface TourStep {
 }
 
 const RAIL = '[data-tour="rail"]';
+const DOCK = '[data-tour="dock"]';
 const TOP_NAV = '[data-tour="top-nav"]';
 const TAB_BAR = '[data-tour="tab-bar"]';
 
 function navigation(link = ""): readonly TourTarget[] {
   return [
     { selector: `${RAIL}${link}`, side: "right" },
+    { selector: `${DOCK}${link}`, side: "right" },
     { selector: `${TOP_NAV}${link}`, side: "bottom" },
     { selector: `${TAB_BAR}${link}`, side: "top" },
   ];

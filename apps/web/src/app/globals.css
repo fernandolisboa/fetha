@@ -377,6 +377,14 @@
   :root {
     --shell-header-height: 3rem;
     --shell-status-height: 1.75rem;
+    /* The Dock layout's floating surfaces (ADR-0071): the one place the shell
+       casts a shadow, because a panel over the page needs to read as above it. */
+    --shell-float-inset: 0.75rem;
+    --shell-dock-width: 3.125rem;
+    --shell-float-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  }
+  [data-theme="papel"] {
+    --shell-float-shadow: 0 8px 24px -8px rgb(60 40 10 / 0.22), 0 2px 6px -2px rgb(60 40 10 / 0.14);
   }
   /* The shell header sticks from 768px up: focus and scrollIntoView must
      stop below it, not under it. */

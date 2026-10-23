@@ -20,7 +20,7 @@ const en = {
       },
       rail: {
         title: "Navigation",
-        body: "Fetha's six destinations live here. In Configurações › Aparência you choose between the side bar (Workspace layout, which the button at its end collapses) and tabs in the header (Studio layout).",
+        body: "Fetha's six destinations live here. In Configurações › Aparência you choose between the side bar (Workspace layout, which the button at its end collapses), tabs in the header (Studio layout) and a floating menu that shows the names when you hover it (Dock layout).",
       },
       commandSearch: {
         title: "Search",
@@ -191,7 +191,7 @@ const en = {
         summary: "Your account and how the workstation looks, one tab per group.",
         steps: [
           "Risco: declare capital and risk limits; without them pricing shows the “sem perfil de risco” chip.",
-          "Aparência: pick a layout (Workspace, with the side bar, or Studio, with tabs in the header) and a theme: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo or Papel (light).",
+          "Aparência: pick a layout (Workspace, with the side bar, Studio, with tabs in the header, or Dock, with a floating menu) and a theme: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo or Papel (light).",
           "Conta: export your data, review the access log or delete your account.",
         ],
       },
@@ -214,7 +214,7 @@ const ptBR = {
       },
       rail: {
         title: "Navegação",
-        body: "Os seis destinos da Fetha ficam aqui. Em Configurações › Aparência você escolhe entre a barra lateral (layout Workspace, que o botão no fim dela recolhe) e abas no cabeçalho (layout Studio).",
+        body: "Os seis destinos da Fetha ficam aqui. Em Configurações › Aparência você escolhe entre a barra lateral (layout Workspace, que o botão no fim dela recolhe), abas no cabeçalho (layout Studio) e um menu flutuante que mostra os nomes quando você passa o mouse (layout Dock).",
       },
       commandSearch: {
         title: "Busca",
@@ -388,7 +388,7 @@ const ptBR = {
         summary: "Sua conta e a aparência da estação, separadas em abas.",
         steps: [
           "Risco: declare capital e limites de risco; sem eles, a precificação mostra a etiqueta “sem perfil de risco”.",
-          "Aparência: escolha o layout (Workspace, com a barra lateral, ou Studio, com abas no cabeçalho) e o tema: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo ou Papel (claro).",
+          "Aparência: escolha o layout (Workspace, com a barra lateral, Studio, com abas no cabeçalho, ou Dock, com um menu flutuante) e o tema: Instrumento, Terminal, Amplo, Grafite, Ouro Negro, Fósforo ou Papel (claro).",
           "Conta: exporte seus dados, confira o registro de acesso ou exclua sua conta.",
         ],
       },
