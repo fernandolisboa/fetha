@@ -139,6 +139,13 @@ neutralize a mistaken entry (there is no delete) and is kept out of every collec
 reads, though the row itself, and its write-time `recorded_at`, stay in storage.
 _Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
 
+**Dividend protection**:
+B3 lowers the strike of every listed option on an underlying by each cash distribution (dividend,
+JCP), rounded to the cent, on its ex-date, so the payment neither helps nor hurts the option
+holder. The engine therefore prices B3 options with dividend yield `q = 0` by design (ADR-0070);
+the strike change itself is a strike epoch (ADR-0056).
+_Avoid_: dividend adjustment (ambiguous with an adjusted series)
+
 **Adjusted series / nominal series**:
 The two forms of an instrument's candle history: nominal keeps the prices as traded and is the
 basis for option strikes, prices, fills and settlement; adjusted is derived by the engine from

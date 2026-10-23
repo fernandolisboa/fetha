@@ -286,3 +286,11 @@ row depends on them.
   backfill; rerunning it fixes it. Stored backtest runs, analyses and signals are not rewritten.
 - The flag is generic: a later rule change that alters stored points can mark its own set stale
   and reuse this path.
+
+## Addendum: no dividend source is needed; `q = 0` is correct (2026-10-23, #81, ADR-0070)
+
+The Context's "dividend yields need a per-stock licensed source" no longer holds. B3 lowers every
+listed option's strike by each cash distribution on its ex-date, so its options are
+dividend-protected and price at `q = 0`. The Ibovespa is a total return index, so its options do
+too. The IV index computed under this ADR was therefore already on the right yield, and nothing
+is recomputed.

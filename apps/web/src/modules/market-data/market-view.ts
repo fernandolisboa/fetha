@@ -545,9 +545,9 @@ export interface BuildOperationMarketViewOptions {
 // covers both the trailing window (indicator-style lookback, widened by
 // `options.from` when given) and every session through the furthest expiry
 // in the chain, or `resolveTimeToExpiryYears` reports `calendar_gap` for
-// every option leg. Watchlists, quotes and dividend yields
-// are the intraday tier, omitted here only costs the engine's own
-// defaulting notes (`dividend_yield_defaulted`), never a wrong price.
+// every option leg. Watchlists and quotes are the intraday tier. Dividend
+// yields stay empty by design: B3 options are dividend-protected, so `q = 0`
+// is the right price (docs/adr/0070).
 export async function buildOperationMarketView(
   db: Database,
   underlying: Ticker,

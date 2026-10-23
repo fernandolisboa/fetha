@@ -3315,3 +3315,11 @@ No successful output changes while every partial sum stays a safe integer (the `
 then equals the `number` sum, and the goldens are unchanged; a `number` sum that crossed 2^53 and
 came back lost precision the `Decimal` sum keeps, which takes legs worth tens of trillions of
 reais); only inputs that used to throw now return `invalid_input`. `ENGINE_VERSION` therefore stays where it is.
+
+## Addendum: `dividendYields` stays empty for B3 options (2026-10-23, #81, ADR-0070)
+
+B3 options are dividend-protected: their strikes fall by each cash distribution on its ex-date,
+which the strike epochs of ADR-0056 already carry. Their fair value is the `q = 0` value, so
+`apps/web` fills no `dividendYields`. `resolveDividendYield` and its `dividend_yield_defaulted`
+note are unchanged, and the note now reads as the model's choice, not a missing input. The
+collection stays in the interface for an unprotected option, should the app ever price one.
