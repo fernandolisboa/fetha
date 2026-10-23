@@ -385,9 +385,6 @@ test("layout switch to Studio moves the navigation and the market bar, and persi
   await expect(navigation).toHaveAttribute("data-tour", "rail");
 });
 
-// ADR-0071: Dock floats the destinations over the page's left edge, icons at
-// rest and labels while hovered; the page starts right of it, never under it.
-// Under 768px the tab bar floats inset from the screen edges.
 test("layout switch to Dock floats the navigation beside the page, and persists", async ({
   page,
   baseURL,
@@ -413,7 +410,7 @@ test("layout switch to Dock floats the navigation beside the page, and persists"
   const headline = page.getByRole("main").getByRole("heading", { level: 1 });
   const restingBox = await navigation.boundingBox();
   const headlineBox = await headline.boundingBox();
-  expect(restingBox?.width ?? 0).toBeLessThanOrEqual(56);
+  expect(restingBox?.width).toBe(50);
   expect(restingBox?.x ?? 0).toBeGreaterThan(0);
   expect(restingBox?.y ?? 0).toBeGreaterThan(48);
   expect(headlineBox?.x ?? 0).toBeGreaterThan((restingBox?.x ?? 0) + (restingBox?.width ?? 0));
@@ -423,6 +420,20 @@ test("layout switch to Dock floats the navigation beside the page, and persists"
   await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBe(200);
   await expect(navigation.getByText("Capital declarado")).toBeVisible();
   expect((await headline.boundingBox())?.x).toBe(headlineBox?.x);
+
+  await page.mouse.move(900, 500);
+  await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBe(50);
+  await navigation.getByRole("link", { name: "Carteira" }).click();
+  await expect(page).toHaveURL(/\/carteira$/);
+  await page.mouse.move(900, 500);
+  await page.keyboard.press("PageDown");
+  await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBe(50);
+
+  await navigation.getByRole("link", { name: "Watchlist" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(navigation.getByRole("link", { name: "Sinais" })).toBeFocused();
+  await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBe(200);
+  await expect(navigation.getByText("Capital declarado")).toBeVisible();
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-layout", "dock");
@@ -436,6 +447,7 @@ test("layout switch to Dock floats the navigation beside the page, and persists"
   expect((tabBarBox?.y ?? 0) + (tabBarBox?.height ?? 0)).toBeLessThan(844);
 
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/configuracoes/aparencia");
   await page.getByRole("radio", { name: /Workspace/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-layout", "workspace");
   await expect(navigation).toHaveAttribute("data-tour", "rail");

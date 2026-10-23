@@ -8,7 +8,7 @@ so `/design` and `/design-sync` agree with this file. Mockups: the Fetha Worksta
 
 A dense, data-first workstation for one person deciding about their own money. Dark by default,
 numbers first: tabular figures everywhere, monospaced numerals, tight vertical rhythm, hairlines
-instead of shadows, one accent for actions and a separate, reserved color for risk. Hierarchy
+instead of shadows (the Dock layout's floating panels aside, ADR-0071), one accent for actions and a separate, reserved color for risk. Hierarchy
 borrowed from good trading and analytics layouts; nothing copied. Not a fintech landing page.
 
 ## Structure (one set of components per layout; themes change tokens, never anatomy)
@@ -67,9 +67,9 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   line, the headline at 18px. **Dock** (ADR-0071), from 768px up, floats the six destinations in
   a panel over the page's left edge instead of a rail column: 12px below the header and from the
   left edge, radius twice `--radius`, hairline border plus `--shell-float-shadow` (the one shadow
-  in the shell: a surface over the page must read as above it), 50px wide with icons at rest; from
-  1024px it widens to 200px over the content, showing labels and the declared capital, while
-  hovered or holding a keyboard focus, and never pushes the page, which keeps a left gutter the
+  in the shell: a surface over the page must read as above it), 50px wide with icons at rest; it
+  widens to 200px over the content, showing labels and the declared capital, while hovered or
+  holding a keyboard focus, and never pushes the page, which keeps a left gutter the
   resting dock's width plus its inset. The header and market bar are Workspace's. Under 768px all
   layouts share the phone shell; in Dock the tab bar floats as a rounded panel 12px from the screen
   edges. A layout never changes a page's content or width.

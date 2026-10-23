@@ -55,7 +55,7 @@ const en = {
       dock: {
         label: "Dock",
         description:
-          "Floating menu over the page's left edge: icons at rest, labels when you hover it. The page gets the whole width.",
+          "Floating menu over the page's left edge: icons at rest, names when you hover it. No column of its own, so the page gets almost all the width.",
       },
     },
   },
@@ -132,7 +132,7 @@ const ptBR = {
       dock: {
         label: "Dock",
         description:
-          "Menu flutuante sobre a borda esquerda: só ícones e, ao passar o mouse, os nomes. A tela fica com a largura toda.",
+          "Menu flutuante sobre a borda esquerda: só ícones e, ao passar o mouse, os nomes. Não ocupa coluna própria, então a tela fica com quase toda a largura.",
       },
     },
   },

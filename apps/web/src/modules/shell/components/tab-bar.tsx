@@ -8,8 +8,6 @@ import { cn } from "@/lib/utils";
 import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
-// `floating` is the Dock layout's phone shell (ADR-0071): the same six cells in
-// a rounded panel inset from the screen edges instead of a full-width bar.
 export function TabBar({
   unreadSignalCount,
   floating = false,

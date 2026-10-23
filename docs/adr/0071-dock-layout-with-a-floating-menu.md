@@ -21,9 +21,11 @@ six destinations one click away.
 2. **From 768px up the destinations float in a panel over the page's left edge** (`Dock` in
    `modules/shell`): fixed 12px below the header and 12px from the left edge, radius twice the
    theme's `--radius` (square themes stay square), a hairline border and a shadow. At rest it is
-   50px wide with icons only, the label as each link's accessible name and `title`; from 1024px it
-   widens to 200px over the content to show the labels and the declared capital while the pointer
-   is on it or a keyboard focus (`:focus-visible`) is inside. It never reflows the page: `<main>`
+   50px wide with icons only, the label (faded out) as each link's accessible name; it widens to
+   200px over the content to show the labels and the declared capital while the pointer is on it
+   or a keyboard focus (`:focus-visible`) is inside. A pointer click blurs the link it activated,
+   because the link keeps focus after a client-side navigation and the next key press would make
+   it match `:focus-visible` and hold the dock wide. It never reflows the page: `<main>`
    keeps a left gutter the width of the resting dock plus its inset, and the widened dock
    overlaps the page instead of pushing it. The header and its market bar stay as in Workspace;
    there is no rail column, collapse button or status bar.
@@ -42,7 +44,7 @@ six destinations one click away.
 
 - A horizontal dock centered at the bottom (macOS style): frees the left edge too, but it would
   sit over the bottom of every table and the decision bar, the very place the owner reads and acts;
-  a left panel only covers a gutter the page already leaves.
+  the left panel costs a 62px gutter, about the width of Workspace's collapsed rail.
 - A dock that only expands on click and remembers it (like the rail's collapse): duplicates
   Workspace's collapsed rail; the point of a floating menu is that it takes no width either way.
 - Expanding on any focus inside, not just `:focus-visible`: a mouse click leaves focus on the link

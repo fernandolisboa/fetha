@@ -72,8 +72,7 @@ export function AppShell({
           <main
             className={cn(
               "min-w-0 flex-1 overflow-y-auto",
-              dock &&
-                "md:pl-[calc(var(--shell-dock-width)+var(--shell-float-inset)+env(safe-area-inset-left))]",
+              dock && "md:pl-[calc(var(--shell-dock-width)+var(--shell-float-inset))]",
             )}
           >
             {children}
