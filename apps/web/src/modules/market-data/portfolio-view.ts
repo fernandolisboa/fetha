@@ -29,6 +29,7 @@ export function mergeMarketViews(views: readonly MarketView[]): MarketView {
     merged.optionSeries.push(...view.optionSeries);
     merged.optionPrices.push(...view.optionPrices);
     merged.macro.push(...view.macro);
+    merged.dividendYields.push(...view.dividendYields);
     if (view.dataVersion) {
       dataVersions.push(view.dataVersion);
     }
@@ -50,6 +51,7 @@ export function mergeMarketViews(views: readonly MarketView[]): MarketView {
     ),
     optionPrices: uniqueBy(merged.optionPrices, (row) => `${row.ticker}|${row.asOf}`),
     macro: uniqueBy(merged.macro, (row) => `${row.series}|${row.date}`),
+    dividendYields: uniqueBy(merged.dividendYields, (row) => `${row.underlying}|${row.asOf}`),
     ...(dataVersion ? { dataVersion } : {}),
   };
 }

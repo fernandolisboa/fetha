@@ -3315,3 +3315,11 @@ No successful output changes while every partial sum stays a safe integer (the `
 then equals the `number` sum, and the goldens are unchanged; a `number` sum that crossed 2^53 and
 came back lost precision the `Decimal` sum keeps, which takes legs worth tens of trillions of
 reais); only inputs that used to throw now return `invalid_input`. `ENGINE_VERSION` therefore stays where it is.
+
+## Addendum: where dividend yields come from (2026-10-23, #81, ADR-0070)
+
+`MarketView.dividendYields` is now filled by `apps/web` from cash distributions detected in
+COTAHIST (ADR-0070): one point per D1 candle of an underlying with a detected distribution, at
+that candle's `asOf`, the trailing twelve months of distributions over its close. "The publication
+time for dividend yields" under Visibility is that session close. Nothing in the engine changed;
+`resolveDividendYield` reads these points exactly as it read none before.

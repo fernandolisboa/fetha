@@ -38,6 +38,7 @@ import {
   startRun,
   succeededSessionsMissingRun,
 } from "./repositories/ingestion-run-repository";
+import { detectCashDistributionsForSession } from "./cash-distributions-source";
 import { ingestCvmFilings } from "./cvm-filings-source";
 import { computeIvIndexForSession } from "./iv-index-compute";
 import { sessionsWithStaleIvIndexPoints } from "./repositories/iv-index-repository";
@@ -63,6 +64,10 @@ const IV_INDEX_HARD_STOP_FRACTION = 0.6;
 // push tonight's iv_index session past its hard stop; that run still ends in
 // time to record itself, and the next run retries both.
 const SGS_START_BUDGET_FRACTION = 0.4;
+// `dividends` reads two sessions' option rows already stored, a few queries per session, and
+// runs right after `instruments` (docs/adr/0070). The recent window always runs; the one-time
+// history backfill stops starting at 15% so it never costs the sources after it their budget.
+const DIVIDENDS_BACKFILL_START_BUDGET_FRACTION = 0.15;
 // `indexes` runs after `instruments` and before `sgs` (docs/adr/0062): `iv_index` decides which
 // underlyings to compute from the candles present on the session and never revisits a skipped
 // one once the session succeeded, so a level landing after `iv_index` would lose `IBOV11`'s
@@ -445,6 +450,8 @@ export interface IngestOptions {
   // Overrides `maxDurationMs * INDEXES_START_BUDGET_FRACTION`, for the same
   // reason as `ivIndexBudgetMs`.
   indexesBudgetMs?: number;
+  // Overrides `maxDurationMs * DIVIDENDS_BACKFILL_START_BUDGET_FRACTION`, likewise.
+  dividendsBackfillBudgetMs?: number;
 }
 
 export async function ingest(db: Database, options: IngestOptions = {}): Promise<IngestOutcome> {
@@ -503,6 +510,33 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
       return { rowCount, skippedRows: skipped };
     },
   );
+
+  const dividendsRecentSessions = await resolveSessions("dividends");
+  const dividendsRecentResult = await runSessionBoundSource(
+    db,
+    "dividends",
+    dividendsRecentSessions,
+    maxDurationMs,
+    (session) => detectCashDistributionsForSession(db, session),
+  );
+  const dividendsBackfillResult = await runSessionBoundSource(
+    db,
+    "dividends",
+    options.session
+      ? []
+      : (await succeededSessionsMissingRun(db, ["cotahist", "instruments"], "dividends")).filter(
+          (session) => !dividendsRecentSessions.includes(session),
+        ),
+    maxDurationMs,
+    (session) => detectCashDistributionsForSession(db, session),
+    startedAt +
+      (options.dividendsBackfillBudgetMs ??
+        maxDurationMs * DIVIDENDS_BACKFILL_START_BUDGET_FRACTION),
+  );
+  const dividendsOutcome = mergeOutcomes("dividends", [
+    dividendsRecentResult.outcome,
+    dividendsBackfillResult.outcome,
+  ]);
 
   const ivIndexHardStopAt = startedAt + maxDurationMs * IV_INDEX_HARD_STOP_FRACTION;
 
@@ -844,6 +878,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     calendarOutcome,
     cotahistResult.outcome,
     instrumentsResult.outcome,
+    dividendsOutcome,
     indexesResult.outcome,
     sgsOutcome,
     session ? await withNewestSessionComputed(db, ivIndexOutcome, session) : ivIndexOutcome,
@@ -855,6 +890,7 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
   // sgs/instruments failures from blocking evaluation (run-nightly-job.ts):
   // it is computed reference data derived from the other sources, never
   // itself a dependency the cron response should 500 on (docs/adr/0054).
+  // dividends is derived the same way (docs/adr/0070).
   // A ptax error flips `ok` the same way an sgs/instruments one does
   // (docs/adr/0061) — `cotahistSucceeded` already gates evaluation on
   // cotahist alone, not on `ok`, so this never blocks it either.
@@ -862,7 +898,12 @@ export async function ingest(db: Database, options: IngestOptions = {}): Promise
     session,
     okSessions,
     ok: sources
-      .filter((outcome) => outcome.source !== "iv_index" && outcome.source !== "cvm_filings")
+      .filter(
+        (outcome) =>
+          outcome.source !== "iv_index" &&
+          outcome.source !== "cvm_filings" &&
+          outcome.source !== "dividends",
+      )
       .every((outcome) => outcome.error === undefined),
     sources,
   };

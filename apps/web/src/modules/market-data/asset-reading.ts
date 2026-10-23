@@ -12,7 +12,12 @@ import { assetReadingThresholds, engine, type AssetReading, type MarketView } fr
 
 import type { Database } from "@/db/client";
 
-import { toEngineCandle, toEngineCorporateActions, toTradingSession } from "./market-view";
+import {
+  dividendYieldsForCandles,
+  toEngineCandle,
+  toEngineCorporateActions,
+  toTradingSession,
+} from "./market-view";
 import { recentSessions } from "./repositories/calendar-repository";
 import { candlesInSessionRange, latestCandle } from "./repositories/candle-repository";
 import { corporateActionsForTicker } from "./repositories/corporate-action-repository";
@@ -87,11 +92,14 @@ export async function buildAssetReadingView(
           DEFAULT_OPTION_PRICE_ROW_CAP,
         );
   const priceRows = prices.ok ? prices.rows : [];
+  const candleView = candleRows.map(toEngineCandle);
+  const corporateActions = toEngineCorporateActions(corporateActionRows);
+  const dividendYields = await dividendYieldsForCandles(db, candleView, corporateActions);
 
   return {
     calendar: sessionRows.map(toTradingSession),
-    candles: candleRows.map(toEngineCandle),
-    corporateActions: toEngineCorporateActions(corporateActionRows),
+    candles: candleView,
+    corporateActions,
     optionSeries: seriesRows.map((row) => ({
       ticker: tickerSchema.parse(row.ticker),
       underlying: tickerSchema.parse(row.underlying),
@@ -114,7 +122,7 @@ export async function buildAssetReadingView(
     })),
     quotes: [],
     macro: [],
-    dividendYields: [],
+    dividendYields: dividendYields.points,
     impliedVolatilityIndex: ivRows.map((row) => ({
       underlying: tickerSchema.parse(row.underlying),
       session: sessionDateSchema.parse(row.session),

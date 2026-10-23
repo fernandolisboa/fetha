@@ -17,6 +17,7 @@ import {
   type Candle,
   type CorporateActionFactor,
   type DataWindow,
+  type DividendYieldPoint,
   type ImpliedVolatilityIndexPoint,
   type MacroPoint,
   type MarketView,
@@ -44,6 +45,11 @@ import {
   type CandleRow,
 } from "./repositories/candle-repository";
 import { isNeutralFactor } from "./corporate-action-factor";
+import { dividendYieldPoints, oneYearBefore } from "./dividend-yield";
+import {
+  cashDistributionsInRange,
+  distributionHistories,
+} from "./repositories/cash-distribution-repository";
 import {
   corporateActionsForTicker,
   type CorporateActionFactorRow,
@@ -185,6 +191,38 @@ function maxAsOf(instants: Iterable<Instant>): Instant | undefined {
   return max;
 }
 
+// The trailing dividend yield at every D1 candle's close (docs/adr/0070), from the cash
+// distributions of the twelve months before the earliest candle through the latest one.
+// Each underlying's latest `detected_at` goes into `dataVersion` for the reason `computed_at`
+// does (docs/adr/0054): a distribution detected late keeps its past `asOf`.
+export async function dividendYieldsForCandles(
+  db: Database,
+  candles: readonly Candle[],
+  corporateActions: readonly CorporateActionFactor[],
+): Promise<{ points: DividendYieldPoint[]; detectedAt: Instant[] }> {
+  const daily = candles.filter((candle) => candle.timeframe === "D1");
+  const sessions = daily.map((candle) => candle.session).sort();
+  const first = sessions[0];
+  const last = sessions.at(-1);
+  if (!first || !last) {
+    return { points: [], detectedAt: [] };
+  }
+  const tickers = [...new Set(daily.map((candle) => candle.ticker))];
+  const [distributions, histories] = await Promise.all([
+    cashDistributionsInRange(db, tickers, oneYearBefore(first), last),
+    distributionHistories(db, tickers, last),
+  ]);
+  const firstExDates = new Map(
+    [...histories].map(([underlying, history]) => [underlying, history.firstExDate]),
+  );
+  return {
+    points: dividendYieldPoints(daily, distributions, corporateActions, firstExDates),
+    detectedAt: [...histories.values()].map((history) =>
+      instantSchema.parse(history.lastDetectedAt.toISOString()),
+    ),
+  };
+}
+
 export interface LoadMarketViewCaps {
   // Overridable only for tests that need a tractable number of seeded rows
   // to cross it; every production caller gets DEFAULT_OPTION_CHAIN_TICKER_CAP.
@@ -266,6 +304,7 @@ export async function loadMarketViewWithCalendarVersion(
   const wantOptionSeries = collections.includes("optionSeries");
   const wantOptionPrices = collections.includes("optionPrices");
   const wantIvIndex = collections.includes("impliedVolatilityIndex");
+  const wantDividendYields = collections.includes("dividendYields");
 
   const [candleRows, corporateActionRows, macroRows, seriesResult, ivIndexRows] = await Promise.all(
     [
@@ -302,6 +341,10 @@ export async function loadMarketViewWithCalendarVersion(
   const candleView = candleRows.map(toEngineCandle);
 
   const corporateActions = toEngineCorporateActions(corporateActionRows);
+
+  const dividendYields = wantDividendYields
+    ? await dividendYieldsForCandles(db, candleView, corporateActions)
+    : { points: [], detectedAt: [] };
 
   // The engine rejects an exact `(series, asOf)` collision outright
   // (`evaluateStrategy`'s own `sortUnique(view.macro, ...)`, run before
@@ -409,6 +452,7 @@ export async function loadMarketViewWithCalendarVersion(
     ...optionSeriesView.map((row) => row.asOf),
     ...optionPrices.map((row) => row.asOf),
     ...ivIndexRows.map((row) => instantSchema.parse(row.computedAt.toISOString())),
+    ...dividendYields.detectedAt,
   ]);
 
   return {
@@ -420,7 +464,7 @@ export async function loadMarketViewWithCalendarVersion(
       optionPrices,
       quotes: [],
       macro,
-      dividendYields: [],
+      dividendYields: dividendYields.points,
       impliedVolatilityIndex,
       ...(dataVersion ? { dataVersion } : {}),
     },
@@ -545,9 +589,9 @@ export interface BuildOperationMarketViewOptions {
 // covers both the trailing window (indicator-style lookback, widened by
 // `options.from` when given) and every session through the furthest expiry
 // in the chain, or `resolveTimeToExpiryYears` reports `calendar_gap` for
-// every option leg. Watchlists, quotes and dividend yields
-// are the intraday tier, omitted here only costs the engine's own
-// defaulting notes (`dividend_yield_defaulted`), never a wrong price.
+// every option leg. The underlying's own dividend yields come from its
+// detected cash distributions (docs/adr/0070); watchlists and quotes are the
+// intraday tier, omitted here.
 export async function buildOperationMarketView(
   db: Database,
   underlying: Ticker,
@@ -561,6 +605,7 @@ export async function buildOperationMarketView(
     seriesRows: (calendarFloor) =>
       optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor),
     priceFloor: (calendarFloor) => calendarFloor,
+    dividendYields: true,
   });
 }
 
@@ -570,6 +615,8 @@ interface OperationMarketViewSources {
   calendarWindow: (pastWindow: number, throughExpiry: string | null) => Promise<CalendarRow[]>;
   seriesRows: (calendarFloor: string | undefined) => Promise<OptionSeriesEpochRow[]>;
   priceFloor: (calendarFloor: string | undefined) => string | undefined;
+  // The IV index keeps q = 0 so its whole history stays on one basis (docs/adr/0070).
+  dividendYields: boolean;
 }
 
 async function assembleOperationMarketView(
@@ -711,6 +758,10 @@ async function assembleOperationMarketView(
 
   const corporateActions = toEngineCorporateActions(corporateActionRows);
 
+  const dividendYields = sources.dividendYields
+    ? await dividendYieldsForCandles(db, candleRows.map(toEngineCandle), corporateActions)
+    : { points: [], detectedAt: [] };
+
   // `recorded_at`, not `asOf`, for the same reason as `loadMarketView`'s own
   // `dataVersion` above (docs/adr/0052).
   const dataVersion = maxAsOf([
@@ -720,6 +771,7 @@ async function assembleOperationMarketView(
     ...macro.map((row) => row.asOf),
     ...corporateActions.map((row) => row.asOf),
     ...corporateActionRows.map((row) => instantSchema.parse(row.recordedAt.toISOString())),
+    ...dividendYields.detectedAt,
   ]);
 
   return {
@@ -730,6 +782,7 @@ async function assembleOperationMarketView(
     optionSeries: optionSeriesView,
     optionPrices,
     macro,
+    dividendYields: dividendYields.points,
     ...(dataVersion ? { dataVersion } : {}),
   };
 }
@@ -835,6 +888,7 @@ export async function buildIvIndexMarketView(
         return optionSeriesForUnderlyingAt(db, underlying, atDate, calendarFloor);
       },
       priceFloor: () => calendar.session,
+      dividendYields: false,
     },
   );
 }

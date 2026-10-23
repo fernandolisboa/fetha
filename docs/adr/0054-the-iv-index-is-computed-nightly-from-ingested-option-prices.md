@@ -286,3 +286,12 @@ row depends on them.
   backfill; rerunning it fixes it. Stored backtest runs, analyses and signals are not rewritten.
 - The flag is generic: a later rule change that alters stored points can mark its own set stale
   and reuse this path.
+
+## Addendum: dividend yields come from strike adjustments; the IV index stays on `q = 0` (2026-10-23, #81, ADR-0070)
+
+The Context's "dividend yields need a per-stock licensed source" no longer holds: ADR-0070 reads
+cash distributions off the uniform strike drops B3 applies to every listed option on the ex-date,
+from COTAHIST, and derives each view's trailing yield from them. `buildIvIndexMarketView` does not
+load those yields, so every stored and future IV point stays on `q = 0` and an `iv_rank` window
+never mixes the two bases. Moving the index to `q > 0` is a separate change: mark every point
+stale and let the #275 path recompute it.

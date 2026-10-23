@@ -330,6 +330,13 @@
       "when": 1792684642661,
       "tag": "0046_iv_index_stale",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792749969290,
+      "tag": "0047_cash_distributions",
+      "breakpoints": true
     }
   ]
 }
