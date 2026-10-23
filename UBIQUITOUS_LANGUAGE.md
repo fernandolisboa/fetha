@@ -139,18 +139,12 @@ neutralize a mistaken entry (there is no delete) and is kept out of every collec
 reads, though the row itself, and its write-time `recorded_at`, stay in storage.
 _Avoid_: adjustment ratio, FATCOT (that is the COTAHIST field, not the concept)
 
-**Cash distribution** (pt-BR: _Provento em dinheiro_):
-A dividend, JCP or income payment per share of an underlying, keyed by its ex-date. Read off the
-equal drop B3 applies to every listed option strike of the underlying on that session (ADR-0070),
-so only optionable underlyings have them, and an amount is what B3 applied to strikes, rounded to
-the cent. Not a corporate-action factor: it lowers strikes by an amount, a factor scales them.
-_Avoid_: dividend (when JCP is meant too), provento (alone, which also covers bonuses)
-
-**Dividend yield**:
-The trailing twelve months of an underlying's cash distributions, restated per share of the
-session by later factors, over that session's close (ADR-0070). The engine prices options with
-its continuous form `q = ln(1 + yield)`; an underlying with no distribution detected yet reads
-`q = 0` with a `dividend_yield_defaulted` note. The IV index does not use it (ADR-0054 addendum).
+**Dividend protection**:
+B3 lowers the strike of every listed option on an underlying by each cash distribution (dividend,
+JCP), rounded to the cent, on its ex-date, so the payment neither helps nor hurts the option
+holder. The engine therefore prices B3 options with dividend yield `q = 0` by design (ADR-0070);
+the strike change itself is a strike epoch (ADR-0056).
+_Avoid_: dividend adjustment (ambiguous with an adjusted series)
 
 **Adjusted series / nominal series**:
 The two forms of an instrument's candle history: nominal keeps the prices as traded and is the

@@ -166,26 +166,6 @@ export const corporateActionFactors = pgTable(
   (table) => [primaryKey({ columns: [table.ticker, table.exDate] })],
 );
 
-// One cash distribution (dividend, JCP) per underlying and ex-date, read off the uniform
-// drop B3 applies to every listed option strike of the underlying on that session
-// (docs/adr/0070). `amount` is reais per share as of the ex-date, before any later split;
-// `as_of` is the ex-date session's close, when COTAHIST first shows the lowered strikes.
-export const cashDistributions = pgTable(
-  "cash_distributions",
-  {
-    underlying: text("underlying").notNull(),
-    exDate: date("ex_date", { mode: "string" }).notNull(),
-    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
-    amount: numeric("amount", { precision: 18, scale: 8 }).notNull(),
-    seriesCount: integer("series_count").notNull(),
-    // Write-time stamp folded into `MarketView.dataVersion`, like
-    // `implied_volatility_index.computed_at`: a backfilled distribution carries a past
-    // `as_of` a chunked run may already have read (docs/adr/0054).
-    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [primaryKey({ columns: [table.underlying, table.exDate] })],
-);
-
 // One implied-volatility index point per underlying and session, computed by
 // the engine from that session's own chain (docs/adr/0054). `as_of` is the
 // session's close, the instant its candles carry (docs/adr/0051). Shared
@@ -280,7 +260,6 @@ export const ingestionSourceValues = [
   "cvm_filings",
   "ptax",
   "indexes",
-  "dividends",
 ] as const;
 export type IngestionSource = (typeof ingestionSourceValues)[number];
 

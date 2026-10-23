@@ -25,7 +25,6 @@ and fixed fixtures and adapters to match them.
 | Bacen SGS            | `bacen-sgs`                                            | `(series, date)` macro points                                             | incremental since the last stored point       |
 | ANBIMA calendar      | `anbima-calendar`                                      | `(date)` trading sessions                                                 | committed once, re-ingested per calendar year |
 | IV index             | none — computed from the sources above                 | `(underlying, session)` implied-volatility points                         | one session at a time, backfilled (ADR-0054)  |
-| Cash distributions   | none — read off COTAHIST strike changes (`dividends`)  | `(underlying, ex_date)` cash distributions                                | one session at a time, backfilled (ADR-0070)  |
 
 Every write is an `INSERT ... ON CONFLICT (natural key) DO UPDATE`, so re-ingesting the same file
 twice changes nothing (tested: `ingest.integration.test.ts`, "is idempotent", and

@@ -17,7 +17,8 @@ const en = {
     notes: {
       no_market_price: "No market price for one or more legs; using the fair value estimate.",
       risk_free_rate_defaulted: "No CDI rate found; a default risk-free rate was used.",
-      dividend_yield_defaulted: "No dividend yield found; assuming zero.",
+      dividend_yield_defaulted:
+        "No dividend yield: B3 lowers option strikes by each cash distribution, so dividends do not change these prices.",
       iv_not_converged: "Implied volatility did not converge for one or more legs.",
       stale_price: "The market price used is from a previous session.",
     },
@@ -265,7 +266,8 @@ const ptBR = {
       no_market_price:
         "Faltou preço de mercado para uma ou mais pernas; usando a estimativa de valor justo.",
       risk_free_rate_defaulted: "CDI não encontrado; foi usada uma taxa livre de risco padrão.",
-      dividend_yield_defaulted: "Dividend yield não encontrado; assumindo zero.",
+      dividend_yield_defaulted:
+        "Sem dividend yield: a B3 desconta cada provento do strike das opções, então os dividendos não mudam estes preços.",
       iv_not_converged: "A volatilidade implícita não convergiu para uma ou mais pernas.",
       stale_price: "O preço de mercado usado é de uma sessão anterior.",
     },

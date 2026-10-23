@@ -3316,10 +3316,10 @@ then equals the `number` sum, and the goldens are unchanged; a `number` sum that
 came back lost precision the `Decimal` sum keeps, which takes legs worth tens of trillions of
 reais); only inputs that used to throw now return `invalid_input`. `ENGINE_VERSION` therefore stays where it is.
 
-## Addendum: where dividend yields come from (2026-10-23, #81, ADR-0070)
+## Addendum: `dividendYields` stays empty for B3 options (2026-10-23, #81, ADR-0070)
 
-`MarketView.dividendYields` is now filled by `apps/web` from cash distributions detected in
-COTAHIST (ADR-0070): one point per D1 candle of an underlying with a detected distribution, at
-that candle's `asOf`, the trailing twelve months of distributions over its close. "The publication
-time for dividend yields" under Visibility is that session close. Nothing in the engine changed;
-`resolveDividendYield` reads these points exactly as it read none before.
+B3 options are dividend-protected: their strikes fall by each cash distribution on its ex-date,
+which the strike epochs of ADR-0056 already carry. Their fair value is the `q = 0` value, so
+`apps/web` fills no `dividendYields`. `resolveDividendYield` and its `dividend_yield_defaulted`
+note are unchanged, and the note now reads as the model's choice, not a missing input. The
+collection stays in the interface for an unprotected option, should the app ever price one.

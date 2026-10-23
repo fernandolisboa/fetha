@@ -37,7 +37,6 @@ import type { BuilderLeg, ChainSeries } from "./types";
 const DISPLAYED_NOTE_CODES = [
   "no_market_price",
   "risk_free_rate_defaulted",
-  "dividend_yield_defaulted",
   "iv_not_converged",
   "stale_price",
 ] as const satisfies readonly NoteCode[];

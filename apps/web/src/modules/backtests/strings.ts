@@ -145,7 +145,8 @@ const en = {
   },
   notes: {
     european_pricing: "Priced as a European option; early exercise is not modeled.",
-    dividend_yield_defaulted: "Dividend yield not given; assumed zero.",
+    dividend_yield_defaulted:
+      "No dividend yield: B3 lowers option strikes by each cash distribution, so dividends do not change these prices.",
     no_market_price: "No market price visible for this leg.",
     iv_from_average_price: "Implied volatility computed from the day's average price.",
     iv_not_converged: "The implied-volatility calculation did not converge.",
@@ -379,7 +380,8 @@ const ptBR = {
   // (DESIGN.md "Approximation notes").
   notes: {
     european_pricing: "Precificado como opção europeia; o exercício antecipado não é modelado.",
-    dividend_yield_defaulted: "Dividend yield não informado; assumido zero.",
+    dividend_yield_defaulted:
+      "Sem dividend yield: a B3 desconta cada provento do strike das opções, então os dividendos não mudam estes preços.",
     no_market_price: "Sem preço de mercado visível para esta perna.",
     iv_from_average_price: "Volatilidade implícita calculada a partir do preço médio do dia.",
     iv_not_converged: "O cálculo da volatilidade implícita não convergiu.",
