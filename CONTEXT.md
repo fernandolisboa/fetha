@@ -218,4 +218,5 @@ an outlook scored at its horizon (0058), the asset reading from engine defaults 
 shared strategy definitions chosen by expected move (0064), the nightly radar over liquid
 underlyings (0066), and suggestions as priced radar matches spoken in direct voice and scored like
 decisions, with the "not a recommendation" stance lifted by the owner (0067), and the Workspace
-and Studio layouts with four themes carried over from Bardo and Mascate (0069).
+and Studio layouts with four themes carried over from Bardo and Mascate (0069), and the Dock
+layout's floating menu (0071).

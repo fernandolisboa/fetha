@@ -7,7 +7,7 @@ import { t as preferencesStrings } from "../strings";
 export function LayoutPicker({ current }: { current: Layout }) {
   return (
     <div
-      className="grid gap-2 @min-[40rem]:grid-cols-2"
+      className="grid gap-2 @min-[40rem]:grid-cols-3"
       role="radiogroup"
       aria-label={preferencesStrings.layoutPicker.title}
     >
@@ -57,7 +57,30 @@ function LayoutPreview({ layout }: { layout: Layout }) {
       aria-hidden
       className="border-border bg-background flex h-20 w-full flex-col overflow-hidden rounded-[var(--radius)] border"
     >
-      {layout === "workspace" ? (
+      {layout === "dock" ? (
+        <>
+          <span className="border-border bg-card flex h-3.5 shrink-0 items-center gap-1.5 border-b px-1.5">
+            <Bar className="w-3" />
+            <Bar className="w-10" />
+            <span className="bg-primary/70 ml-auto block h-1 w-6 rounded-full" />
+          </span>
+          <span className="flex min-h-0 flex-1 items-start gap-1.5 p-1.5">
+            <span className="border-border bg-card flex w-3 flex-col items-center gap-1 rounded-[calc(var(--radius)*2)] border py-1 shadow-[var(--shell-float-shadow)]">
+              <span className="bg-primary block size-1 rounded-full" />
+              <Bar className="w-1" />
+              <Bar className="w-1" />
+              <Bar className="w-1" />
+            </span>
+            <span className="flex flex-1 flex-col gap-1 self-stretch">
+              <Bar className="w-1/3" />
+              <span className="flex flex-1 gap-1">
+                <span className="border-border flex-1 rounded-[2px] border" />
+                <span className="border-border w-1/4 rounded-[2px] border" />
+              </span>
+            </span>
+          </span>
+        </>
+      ) : layout === "workspace" ? (
         <>
           <span className="border-border bg-card flex h-3.5 shrink-0 items-center gap-1.5 border-b px-1.5">
             <Bar className="w-3" />

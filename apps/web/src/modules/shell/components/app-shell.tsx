@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/modules/auth";
 import type { Preferences } from "@/modules/preferences";
 import { cn } from "@/lib/utils";
 
+import { Dock } from "./dock";
 import { Header } from "./header";
 import type { IbovMarketBarQuote, UsdBrlMarketBarQuote } from "./market-bar";
 import { MarketBarProvider } from "./market-bar-context";
@@ -14,10 +15,11 @@ import { TabBar } from "./tab-bar";
 import { TopNav } from "./top-nav";
 import type { SearchSources } from "../search";
 
-// Two layouts place the same parts (ADR-0069): Workspace keeps the left rail
-// and the header's market bar; Studio puts the destinations in the header as
-// tabs and the market bar in a status bar at the bottom. Under 768px both are
-// the same phone shell with the bottom tab bar.
+// Three layouts place the same parts (ADR-0069, ADR-0071): Workspace keeps
+// the left rail and the header's market bar; Studio puts the destinations in
+// the header as tabs and the market bar in a status bar at the bottom; Dock
+// floats the destinations in a panel over the page's left edge. Under 768px
+// all three are the phone shell with the bottom tab bar, which floats in Dock.
 export function AppShell({
   user,
   preferences,
@@ -38,12 +40,14 @@ export function AppShell({
   children: ReactNode;
 }) {
   const studio = preferences.layout === "studio";
+  const dock = preferences.layout === "dock";
 
   return (
     <MarketBarProvider>
       <div
         className={cn(
-          "grid min-h-full grid-cols-1 grid-rows-[var(--shell-header-height)_1fr] max-md:pb-14",
+          "grid min-h-full grid-cols-1 grid-rows-[var(--shell-header-height)_1fr]",
+          dock ? "max-md:pb-[calc(3.5rem+2*var(--shell-float-inset))]" : "max-md:pb-14",
           studio && "md:pb-[var(--shell-status-height)]",
         )}
       >
@@ -55,14 +59,25 @@ export function AppShell({
           navigation={studio ? <TopNav unreadSignalCount={unreadSignalCount} /> : undefined}
         />
         <div className="flex min-h-0 flex-1">
-          {studio ? null : (
+          {studio || dock ? null : (
             <Rail
               initialCollapsed={preferences.railCollapsed}
               unreadSignalCount={unreadSignalCount}
               declaredCapital={declaredCapital}
             />
           )}
-          <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+          {dock ? (
+            <Dock unreadSignalCount={unreadSignalCount} declaredCapital={declaredCapital} />
+          ) : null}
+          <main
+            className={cn(
+              "min-w-0 flex-1 overflow-y-auto",
+              dock &&
+                "md:pl-[calc(var(--shell-dock-width)+var(--shell-float-inset)+env(safe-area-inset-left))]",
+            )}
+          >
+            {children}
+          </main>
         </div>
         {studio ? (
           <StatusBar
@@ -72,7 +87,7 @@ export function AppShell({
             ibov={ibov}
           />
         ) : null}
-        <TabBar unreadSignalCount={unreadSignalCount} />
+        <TabBar unreadSignalCount={unreadSignalCount} floating={dock} />
       </div>
     </MarketBarProvider>
   );

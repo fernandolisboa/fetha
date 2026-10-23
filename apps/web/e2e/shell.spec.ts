@@ -385,6 +385,62 @@ test("layout switch to Studio moves the navigation and the market bar, and persi
   await expect(navigation).toHaveAttribute("data-tour", "rail");
 });
 
+// ADR-0071: Dock floats the destinations over the page's left edge, icons at
+// rest and labels while hovered; the page starts right of it, never under it.
+// Under 768px the tab bar floats inset from the screen edges.
+test("layout switch to Dock floats the navigation beside the page, and persists", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/configuracoes/aparencia");
+  const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+
+  await page.getByRole("radio", { name: /Dock/ }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "dock");
+  await expect(navigation).toHaveAttribute("data-tour", "dock");
+  await expect(page.getByRole("button", { name: "Recolher a navegação" })).toHaveCount(0);
+  await expect(page.getByRole("contentinfo", { name: "Barra de status" })).toHaveCount(0);
+  await expect(page.locator("header").getByTestId("market-bar")).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Configurações" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  const headline = page.getByRole("main").getByRole("heading", { level: 1 });
+  const restingBox = await navigation.boundingBox();
+  const headlineBox = await headline.boundingBox();
+  expect(restingBox?.width ?? 0).toBeLessThanOrEqual(56);
+  expect(restingBox?.x ?? 0).toBeGreaterThan(0);
+  expect(restingBox?.y ?? 0).toBeGreaterThan(48);
+  expect(headlineBox?.x ?? 0).toBeGreaterThan((restingBox?.x ?? 0) + (restingBox?.width ?? 0));
+  await expect(navigation.getByText("Capital declarado")).toBeHidden();
+
+  await navigation.hover();
+  await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBe(200);
+  await expect(navigation.getByText("Capital declarado")).toBeVisible();
+  expect((await headline.boundingBox())?.x).toBe(headlineBox?.x);
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "dock");
+  await expect(navigation).toHaveAttribute("data-tour", "dock");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(navigation).toHaveAttribute("data-tour", "tab-bar");
+  await expect(navigation).toHaveAttribute("data-floating", "true");
+  const tabBarBox = await navigation.boundingBox();
+  expect(tabBarBox?.x ?? 0).toBeGreaterThan(0);
+  expect((tabBarBox?.y ?? 0) + (tabBarBox?.height ?? 0)).toBeLessThan(844);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("radio", { name: /Workspace/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-layout", "workspace");
+  await expect(navigation).toHaveAttribute("data-tour", "rail");
+});
+
 test("account menu opens the Como usar guide, one section per destination", async ({
   page,
   baseURL,
