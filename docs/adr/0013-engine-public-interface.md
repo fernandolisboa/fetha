@@ -3228,10 +3228,11 @@ factor)`, an upper bound on the net premium, every payoff sample and `maxLoss`/`
 - **Not yet covered (follow-ups).** `score` (the payoff grid centre), the implied-volatility
   index, delta-based strike selection and quotes (which carry no session) still read an
   unrescaled spot or premium (#343; the #343 addendum closes all but `score`, which needs no
-  change). `score`'s `computeOperationMaxLoss` calls
-  `computePayoffProfile` directly, so it has no centavos bound and a 1e-12 factor on a single
-  stock leg still throws there (#344). `evaluateNumericExitRule` has a confirmed stale-scale
-  double rescale (#342). Summed centavos (the mark value, cash) are not bounded yet (#344).
+  change). `score`'s `computeOperationMaxLoss` calls `computePayoffProfile` directly, so it has
+  no centavos bound and a 1e-12 factor on a single stock leg still throws there (#344; fixed, see
+  the #344 addendum below). `evaluateNumericExitRule` has a confirmed stale-scale double rescale
+  (#342). Summed centavos (the mark value, cash) are not bounded yet (#344; fixed, see the #344
+  addendum below).
 - **Resuming across a version needs no change.** `runBacktest` already refuses a checkpoint whose
   `engineVersion` differs from `ENGINE_VERSION` with `checkpoint_mismatch`
   (`engineVersion:<expected>` / `engineVersion:<received>`) before it compares the config digest,
@@ -3285,3 +3286,32 @@ strikes. Each now reads one scale:
 
 The IV index, delta selection and a quote-led stale flag change, so `ENGINE_VERSION` moves from
 `"0.16.0"` to `"0.17.0"`.
+
+## Addendum: summed centavos are bounded too (2026-10-22, #344)
+
+The #285 addendum bounded each leg, fill and operation before `toCentavos`, not a sum across them,
+and left `score`'s `computeOperationMaxLoss` without a bound. Both now return `invalid_input` where
+they threw:
+
+- **One payoff bound.** `firstLegPastCentavosBound` (`price-operation.ts`) is the bound
+  `valueLegs` already applied, extracted. `score` checks its entry-priced legs with it before
+  `computePayoffProfile` (`operation.legs[j]`).
+- **`score` P&L.** The taken operation's P&L (realized fills priced at their own fill price, plus
+  the marked or settled remainder) and the counterfactual's P&L (marked, settled, or realized at
+  an exit fill) are checked before conversion (`view.corporateActions`); the max-loss bound does
+  not cover a fill priced above the horizon spot.
+- **`runBacktest` totals.** The mark of every open leg and pending residual is summed as a
+  `Decimal`, and every total that reaches `toCentavos` (an operation's P&L at an exit, a settlement
+  or the period end, a month's three tax bases, cash, and cash plus the mark) goes through one
+  checked conversion. A total past a safe integer is recorded as 0 and flags the run; the session
+  refuses it as `invalid_input` (`view.corporateActions`) right after its equity point, before
+  anything is reported or checkpointed. `state.cash` stays a `number` (it is checkpointed), so a
+  cash total that passes a safe integer and comes back within one session is not caught; it takes
+  two offsetting amounts past 2^53 centavos in the same session.
+- **`markToMarket` totals.** Each position's value and unrealized P&L (`positions[i]`) and the
+  portfolio's equity and unrealized P&L totals (`positions`) are checked before conversion.
+
+No successful output changes while every partial sum stays a safe integer (the `Decimal` mark sum
+then equals the `number` sum, and the goldens are unchanged; a `number` sum that crossed 2^53 and
+came back lost precision the `Decimal` sum keeps, which takes legs worth tens of trillions of
+reais); only inputs that used to throw now return `invalid_input`. `ENGINE_VERSION` therefore stays where it is.

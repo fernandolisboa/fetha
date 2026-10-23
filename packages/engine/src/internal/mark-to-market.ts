@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { DecimalString, Instant, RiskProfile, SessionDate } from "@fetha/contracts";
+import type { Centavos, DecimalString, Instant, RiskProfile, SessionDate } from "@fetha/contracts";
 import type {
   CorporateActionFactor,
   EngineError,
@@ -407,7 +407,7 @@ export function markToMarket(
   const positionValuations: PortfolioValuation["positions"] = [];
   const optionPositionTickers = new Set<string>();
   const unpricedPositionTickers: string[] = [];
-  for (const position of input.positions) {
+  for (const [positionIndex, position] of input.positions.entries()) {
     // A position in a listed series is marked from that series' day price, not from candles
     // (#26: every option position was unpriced while this was hard-coded to "stock").
     const isOption = resolveSeries(input.view, position.ticker, input.at) !== null;
@@ -434,23 +434,25 @@ export function markToMarket(
       positionNotes.push(STALE_PRICE_NOTE);
     }
 
-    const value =
-      price !== null
-        ? toCentavos(
-            parseDecimal(price).mul(position.quantity).mul(CENTAVOS_PER_REAL).round().toNumber(),
-          )
-        : null;
-    const unrealizedPnl =
-      price !== null
-        ? toCentavos(
-            parseDecimal(price)
-              .sub(parseDecimal(position.averageCost))
-              .mul(position.quantity)
-              .mul(CENTAVOS_PER_REAL)
-              .round()
-              .toNumber(),
-          )
-        : null;
+    let value: Centavos | null = null;
+    let unrealizedPnl: Centavos | null = null;
+    if (price !== null) {
+      const rawValue = parseDecimal(price).mul(position.quantity).mul(CENTAVOS_PER_REAL);
+      const rawUnrealizedPnl = parseDecimal(price)
+        .sub(parseDecimal(position.averageCost))
+        .mul(position.quantity)
+        .mul(CENTAVOS_PER_REAL);
+      if (!isSafeCentavosAmount(rawValue) || !isSafeCentavosAmount(rawUnrealizedPnl)) {
+        return err(
+          invalidInput(
+            `positions[${String(positionIndex)}]`,
+            "this position's value overflows a safe integer of centavos",
+          ),
+        );
+      }
+      value = toCentavos(rawValue.round().toNumber());
+      unrealizedPnl = toCentavos(rawUnrealizedPnl.round().toNumber());
+    }
 
     positionValuations.push({
       position,
@@ -483,12 +485,21 @@ export function markToMarket(
   // begin with (`valueOneLeg`'s stock branch only ever sets `delta`), so restricting them to
   // option legs changes nothing for them; they stay operations-only, the only artifact with
   // the structured leg information they need.
-  const equity = toCentavos(
-    input.cash + positionValuations.reduce((acc, p) => acc + (p.value ?? 0), 0),
+  const equityTotal = positionValuations.reduce(
+    (acc, p) => acc.add(p.value ?? 0),
+    new Decimal(input.cash),
   );
-  const unrealizedPnlTotal = toCentavos(
-    positionValuations.reduce((acc, p) => acc + (p.unrealizedPnl ?? 0), 0),
+  const unrealizedPnlSum = positionValuations.reduce(
+    (acc, p) => acc.add(p.unrealizedPnl ?? 0),
+    new Decimal(0),
   );
+  if (!isSafeCentavosAmount(equityTotal) || !isSafeCentavosAmount(unrealizedPnlSum)) {
+    return err(
+      invalidInput("positions", "the portfolio's totals overflow a safe integer of centavos"),
+    );
+  }
+  const equity = toCentavos(equityTotal.toNumber());
+  const unrealizedPnlTotal = toCentavos(unrealizedPnlSum.toNumber());
   const positionsDelta = positionValuations.reduce(
     (sum, p) =>
       p.price !== null && !optionPositionTickers.has(p.position.ticker)

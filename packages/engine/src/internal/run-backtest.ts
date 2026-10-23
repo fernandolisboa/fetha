@@ -387,6 +387,13 @@ function unsafeRebasedAmount<T>(underlying: Ticker): Result<T> {
   );
 }
 
+function unsafeTotal<T>(): Result<T> {
+  return invalidInput(
+    "view.corporateActions",
+    "split factors produce a cash, equity or P&L total past a safe integer of centavos",
+  );
+}
+
 function checkpointMismatch(
   expectedDigest: string,
   receivedDigest: string,
@@ -822,6 +829,19 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       ? initialState(config.initialCapital)
       : (clonedResumeState as BacktestState);
 
+  // Each leg, fill and mark is bounded on its own (#285); a total across them (an operation's
+  // P&L, cash plus every open mark, a month's tax bases) can still pass a safe integer of
+  // centavos under a corrupt factor (#344). Such a total is recorded as 0 and flags the run,
+  // which every session refuses as invalid_input right after its equity point, before any of it
+  // is reported or checkpointed.
+  const totals = { overflowed: false };
+  function centavosOf(amount: Decimal | number): Centavos {
+    const rounded = typeof amount === "number" ? Math.round(amount) : amount.round().toNumber();
+    if (Number.isSafeInteger(rounded)) return toCentavos(rounded);
+    totals.overflowed = true;
+    return toCentavos(0);
+  }
+
   // A digest and schema match only prove the checkpoint targets this same config; a state whose
   // own equity curve does not already cover every session up to (not including) the resume
   // cursor is corrupt or was produced against a different calendar slice, and would silently
@@ -847,9 +867,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   function finalizeMonth(monthKey: string): void {
     const tax = computeMonthlyTax(
       monthKey,
-      toCentavos(state.currentMonthStockSales),
-      toCentavos(state.currentMonthStockGain),
-      toCentavos(state.currentMonthOptionGain),
+      centavosOf(state.currentMonthStockSales),
+      centavosOf(state.currentMonthStockGain),
+      centavosOf(state.currentMonthOptionGain),
       config.costModel,
     );
     state.taxesFinalized.push(tax);
@@ -1113,7 +1133,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           optionPnl = optionPnl.add(legPnl);
         }
       }
-      const pnlCentavos = toCentavos(stockPnl.add(optionPnl).round().toNumber());
+      const pnlCentavos = centavosOf(stockPnl.add(optionPnl));
       state.currentMonthStockGain += stockPnl.round().toNumber();
       state.currentMonthOptionGain += optionPnl.round().toNumber();
       const pendingExit = assertDefined(
@@ -1156,7 +1176,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       openedAt: pending.op.openedAt,
       strategyVersionId: pending.op.strategyVersionId,
       rolledFrom: pending.op.rolledFrom,
-      pnl: toCentavos(Math.round(pnl)),
+      pnl: centavosOf(pnl),
       // entryMaxLoss is set for every id in state.openOperations at entry time and only
       // deleted here, so a settling operation always has one; the fallback only guards the
       // type, mirroring the same pattern at every other operation-closing call site.
@@ -1591,8 +1611,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // closing cleared the state it was computed from.
   function computeMarkValue(
     session: TradingSession,
-  ): Result<{ markValue: number; hasPendingSettlementResidual: boolean }> {
-    let markValue = 0;
+  ): Result<{ markValue: Decimal; hasPendingSettlementResidual: boolean }> {
+    let markValue = new Decimal(0);
     for (const op of state.openOperations) {
       const splitFactor = corporateActionFactorThrough(
         op.underlying,
@@ -1617,7 +1637,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         if (!isSafeMarkAmount(markPrice, effectiveQuantity)) {
           return unsafeRebasedAmount(op.underlying);
         }
-        markValue += sign * grossCentavos(markPrice, effectiveQuantity).round().toNumber();
+        markValue = markValue.add(grossCentavos(markPrice, effectiveQuantity).round().mul(sign));
       }
     }
     // A settlement whose residual stock has not yet been closed (traded away at the next
@@ -1655,7 +1675,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       if (!isSafeMarkAmount(markPriceOrNull, effectiveResidualQuantity)) {
         return unsafeRebasedAmount(pending.op.underlying);
       }
-      markValue += grossCentavos(markPriceOrNull, effectiveResidualQuantity).round().toNumber();
+      markValue = markValue.add(grossCentavos(markPriceOrNull, effectiveResidualQuantity).round());
     }
     return { ok: true, value: { markValue, hasPendingSettlementResidual } };
   }
@@ -1668,10 +1688,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   // silently omit it, since there is no later session to correct it on).
   function recordEquityPoint(
     session: TradingSession,
-    markValue: number,
+    markValue: Decimal,
     hasPendingSettlementResidual: boolean,
   ): Centavos {
-    const equity = toCentavos(state.cash + markValue);
+    const equity = centavosOf(markValue.add(state.cash));
     state.runningPeak = Math.max(state.runningPeak, equity);
     const drawdown =
       state.runningPeak <= 0
@@ -1683,7 +1703,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     state.equityCurve.push({
       session: session.date,
       equity,
-      cash: toCentavos(state.cash),
+      cash: centavosOf(state.cash),
       drawdown,
     });
     state.held.push(state.openOperations.length > 0 || hasPendingSettlementResidual);
@@ -1774,7 +1794,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         openedAt: op.openedAt,
         strategyVersionId: op.strategyVersionId,
         rolledFrom: op.rolledFrom,
-        pnl: toCentavos(pnl.round().toNumber()),
+        pnl: centavosOf(pnl),
         maxLoss: state.entryMaxLoss[op.id] ?? toCentavos(0),
         status: "closed",
         closedAt: session.date,
@@ -1996,6 +2016,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         markResult.value.markValue,
         markResult.value.hasPendingSettlementResidual,
       );
+      if (totals.overflowed) return unsafeTotal();
       // No signal is ever queued on the final session (there is no next session to fill it),
       // but a run that never left warm-up before now still needs this session's own evaluation
       // to learn whether it, at least, was tradable (ADR-0041) — skipped once
@@ -2022,6 +2043,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       markResult.value.markValue,
       markResult.value.hasPendingSettlementResidual,
     );
+    if (totals.overflowed) return unsafeTotal();
     const next = queueNextSignals(session, equity, failedEntryTickers);
     if (!next.ok) return { ok: false, error: next.error };
   }
