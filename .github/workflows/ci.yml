@@ -202,6 +202,10 @@ jobs:
       # arquivos.b3.com.br times out from the runners, so the nightly job replays the instruments
       # registries recorded in the repo instead (docs/adr/0017 addendum 2026-10-16).
       E2E_B3_INSTRUMENTS_DIR: e2e/fixtures/b3-instruments
+      # The suite only ingests past sessions, so a suggestion seeded at the newest one would be
+      # archived by the real date (docs/adr/0072): "today" is pinned to the session after the
+      # newest fixed one, which keeps every suggestion the specs seed open.
+      E2E_TODAY: "2026-09-21"
       PLAYWRIGHT_BASE_URL: http://localhost:3000
     steps:
       - name: Checkout

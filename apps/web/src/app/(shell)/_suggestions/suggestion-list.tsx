@@ -3,7 +3,7 @@ import Link from "next/link";
 import { tickerSchema } from "@fetha/contracts";
 
 import { buttonVariants } from "@/components/ui/button";
-import { formatDate } from "@/lib/format/date-time";
+import { formatDate, formatSessionDate } from "@/lib/format/date-time";
 import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   allowedDecisionKinds,
@@ -41,8 +41,9 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
 }
 
 // The suggestion cards with the viewer's own layer on top (docs/adr/0067): their risk check,
-// their decision on each and the analysis they may ask for. `onPage` drops the link to the
-// suggestion's own page, and the card's headline, when the card is that page.
+// their decision on each (none on an archived one, docs/adr/0072) and the analysis they may ask
+// for. `onPage` drops the link to the suggestion's own page, and the card's headline, when the
+// card is that page.
 export async function SuggestionList({
   suggestions,
   onPage = false,
@@ -106,6 +107,10 @@ export async function SuggestionList({
                   decisionsT.kind[decision.kind],
                   formatDate(decision.decidedAt),
                 )}
+              </span>
+            ) : suggestion.validity.archived ? (
+              <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
+                {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.openThrough))}
               </span>
             ) : (
               <DecisionBar

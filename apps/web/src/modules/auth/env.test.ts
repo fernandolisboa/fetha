@@ -6,6 +6,7 @@ import {
   readAuthBaseUrl,
   readE2EInstrumentsRecordingsDirectory,
   readE2ESecret,
+  readE2EToday,
   readOwnerEmails,
 } from "./env";
 
@@ -72,6 +73,30 @@ describe("readE2EInstrumentsRecordingsDirectory", () => {
     expect(
       readE2EInstrumentsRecordingsDirectory({
         E2E_B3_INSTRUMENTS_DIR: "e2e/fixtures/b3-instruments",
+        DATABASE_URL: "postgres://user:pass@db.example.com/main",
+        DATABASE_PRODUCTION_HOST: "db.example.com",
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("readE2EToday", () => {
+  it("reads E2E_TODAY outside production", () => {
+    expect(readE2EToday({ E2E_TODAY: "2026-09-21" })).toBe("2026-09-21");
+    expect(readE2EToday({})).toBeUndefined();
+    expect(readE2EToday({ E2E_TODAY: " " })).toBeUndefined();
+    expect(readE2EToday({ E2E_TODAY: "21/09/2026" })).toBeUndefined();
+    expect(readE2EToday({ E2E_TODAY: "2026-02-30" })).toBeUndefined();
+  });
+
+  it("is ignored in production", () => {
+    expect(readE2EToday({ E2E_TODAY: "2026-09-21", VERCEL_ENV: "production" })).toBeUndefined();
+  });
+
+  it("is ignored against the production database", () => {
+    expect(
+      readE2EToday({
+        E2E_TODAY: "2026-09-21",
         DATABASE_URL: "postgres://user:pass@db.example.com/main",
         DATABASE_PRODUCTION_HOST: "db.example.com",
       }),

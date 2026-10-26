@@ -60,6 +60,7 @@ export type RecordDecisionResult =
         | "not_found"
         | "not_allowed"
         | "duplicate"
+        | "archived"
         | "horizon_in_past"
         | "horizon_session_closed"
         | "rate_limited"
@@ -70,6 +71,15 @@ export type RecordDecisionResult =
 // bulk-write endpoint: the same shape and window as `operations/save`
 // (portfolio's operations-actions.ts).
 const RECORD_RATE_LIMIT = { windowSeconds: 60, max: 20 };
+
+// docs/adr/0072: a decision is scored at the suggestion's scanned close, so answering one after
+// its window closed would be answering with hindsight.
+class SuggestionArchivedError extends Error {
+  constructor() {
+    super("This suggestion is archived");
+    this.name = "SuggestionArchivedError";
+  }
+}
 
 class KindNotAllowedError extends Error {
   constructor() {
@@ -160,6 +170,9 @@ export async function recordDecisionAction(
     }
     if (error instanceof DuplicateSignalDecisionError) {
       return { status: "error", error: "duplicate" };
+    }
+    if (error instanceof SuggestionArchivedError) {
+      return { status: "error", error: "archived" };
     }
     if (error instanceof InvalidHorizonError) {
       return { status: "error", error: "horizon_in_past" };
@@ -262,6 +275,9 @@ async function buildRecordInput({
     const suggestion = await getSuggestion(targetId);
     if (!allowedDecisionKinds({ kind: "suggestion" }).includes(kind)) {
       throw new KindNotAllowedError();
+    }
+    if (suggestion.validity.archived) {
+      throw new SuggestionArchivedError();
     }
     const inputs: DecisionInputs = {
       originKind: "suggestion",

@@ -153,3 +153,10 @@ only" is about execution, not about voice, and is unchanged.
   subject check keeps one stored shape per version and one citation check over all its prose.
 - Recipe provenance on copied strategies for the "cached" run: a migration and a new column for a
   lookup the strategy name already answers for the only user; revisit if the name rule changes.
+
+## Amendment (2026-10-26, ADR-0072)
+
+"Sugestões de hoje" no longer shows the newest read session's suggestions indefinitely: a
+suggestion is open through the São Paulo day of the trading session after its close, then
+archived. An archived suggestion leaves the panel, keeps its page and its score, and takes no new
+decision (item 5); its page shows no decision bar (item 8).
