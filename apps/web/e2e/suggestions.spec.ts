@@ -34,9 +34,13 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(card.getByRole("list", { name: "O lote" })).toContainText("100 ×");
   await expect(card.getByText(/^A tese: /)).toBeVisible();
 
+  // The preview holds a few sessions, far short of the history the recipe's rule reads, so the
+  // engine cannot evaluate it: the idea is dropped as not evaluable, never called stale.
   await page.getByRole("button", { name: "Obter sugestões" }).click();
   const research = page.getByTestId("research-result");
-  await expect(research).toContainText(/Olhei \d+ ideias? de \d+ pregões?/);
+  await expect(research).toContainText(/Olhei \d+ ideias? de \d+ preg(ão|ões)/);
+  await expect(research).toContainText("sem dados para avaliar a regra hoje");
+  await expect(research.getByText("Deixaram de valer")).toHaveCount(0);
   await expect(
     research.getByRole("link", { name: "Declare o seu em Configurações" }),
   ).toBeVisible();

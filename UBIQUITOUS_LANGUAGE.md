@@ -482,12 +482,15 @@ _Avoid_: benchmark, tournament, optimization
 **Risk profile**:
 A user's declared capital for operations and their limits: max loss per operation, max
 exposure per operation, max open operations, max option premium bought, all as fractions of
-that capital.
+that capital. The suggestion research (ADR-0075) uses a default one (R$ 50.000,00 and the form's
+proposed limits) when the user has declared none: only for that computation, never saved, said on
+screen.
 _Avoid_: risk settings, limits (alone), appetite
 
 **Declared capital**:
 The amount of money a user states they dedicate to the operations modeled in Fetha. It is
-entered and edited by the user; Fetha never reads it from a bank or broker.
+entered and edited by the user; Fetha never reads it from a bank or broker. The suggestion
+research falls back to R$ 50.000,00 when none is declared, for that computation only (ADR-0075).
 _Avoid_: balance, net worth, account value, allocated capital
 
 **Sizing rule**:

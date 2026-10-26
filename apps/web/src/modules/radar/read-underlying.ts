@@ -18,9 +18,10 @@ import {
   type OperationPricing,
 } from "@fetha/engine";
 
-import { catalog, recipes } from "@/modules/strategies";
+import { recipes } from "@/modules/strategies";
 
 import type { RadarFacts, RadarLeg } from "./match";
+import { recipeStructure } from "./recipe-structure";
 import { SUGGESTION_LOT, suggestionFrom, type SuggestionDraft } from "./suggestion";
 
 export interface RadarMatch {
@@ -97,11 +98,9 @@ interface ResolvedRecipe {
 }
 
 function resolveRecipe(recipe: Recipe): ResolvedRecipe | null {
-  const { definition } = recipe;
-  const structure = catalog.find(
-    (entry) => entry.structure.id === definition.structureId,
-  )?.structure;
-  return structure && definition.expiry ? { structure, expiry: definition.expiry } : null;
+  const structure = recipeStructure(recipe);
+  const { expiry } = recipe.definition;
+  return structure && expiry ? { structure, expiry } : null;
 }
 
 export interface RecipeEvaluationInput {
@@ -111,17 +110,25 @@ export interface RecipeEvaluationInput {
   at: Instant;
 }
 
-// Whether the recipe's entry condition held for `ticker` at `at`, exactly as the engine
-// evaluates the recipe as a strategy; null when the book cannot resolve the recipe or the engine
-// cannot evaluate it on this view.
-export async function recipeEntryHeld({
+// `not_evaluable` is the engine saying it cannot tell (`insufficient_data`: a warm-up, a missing
+// IV point), which is not the same as the conditions not holding.
+export type EntryState = "held" | "conditions_not_met" | "not_evaluable";
+
+export function entryStateOf(outcome: EvaluationOutcome): EntryState {
+  if (conditionHeldOutcomes.has(outcome)) return "held";
+  return outcome === "conditions_not_met" ? "conditions_not_met" : "not_evaluable";
+}
+
+// The recipe's entry condition for `ticker` at `at`, exactly as the engine evaluates the recipe
+// as a strategy.
+export async function recipeEntryState({
   recipe,
   view,
   ticker,
   at,
-}: RecipeEvaluationInput): Promise<boolean | null> {
+}: RecipeEvaluationInput): Promise<EntryState> {
   const resolved = resolveRecipe(recipe);
-  if (!resolved) return null;
+  if (!resolved) return "not_evaluable";
   const evaluation = await engine.evaluateStrategy({
     view,
     strategy: {
@@ -132,9 +139,9 @@ export async function recipeEntryHeld({
     instruments: [ticker],
     at,
   });
-  if (!evaluation.ok) return null;
+  if (!evaluation.ok) return "not_evaluable";
   const record = evaluation.value.evaluations.findLast((entry) => entry.ticker === ticker);
-  return record ? conditionHeldOutcomes.has(record.outcome) : null;
+  return record ? entryStateOf(record.outcome) : "not_evaluable";
 }
 
 export interface PricedLot {
@@ -181,7 +188,7 @@ async function matchRecipe(
   input: RecipeEvaluationInput,
   series: IndicatorSeries,
 ): Promise<RadarMatch | null> {
-  if (!(await recipeEntryHeld(input))) return null;
+  if ((await recipeEntryState(input)) !== "held") return null;
   const lot = await priceRecipeLot(input);
   if (!lot) return null;
   const facts = factsFor(input.recipe, series);

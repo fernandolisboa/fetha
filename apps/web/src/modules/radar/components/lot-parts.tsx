@@ -1,16 +1,11 @@
-import { decimalStringSchema, type Centavos, type DecimalString } from "@fetha/contracts";
+import { decimalStringSchema, type Centavos } from "@fetha/contracts";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 
-import type { RadarLeg } from "../match";
+import type { LotLeg } from "../lot-legs";
 import { t } from "../strings";
 import { legText } from "./radar-facts";
-
-interface LotLeg extends RadarLeg {
-  quantity: number;
-  price: DecimalString;
-}
 
 export function lotLegText(leg: LotLeg): string {
   const quantity = formatDecimal(decimalStringSchema.parse(String(leg.quantity)), 0);

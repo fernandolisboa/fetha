@@ -71,8 +71,6 @@ function ResearchResultView({ result }: { result: ResearchResult }) {
   );
 }
 
-// "Obter sugestões" (docs/adr/0075): the button re-checks the radar's recent findings for the
-// signed-in user and shows the answer below it. Nothing is stored; a new click asks again.
 export function SuggestionResearch() {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [pending, setPending] = useState(false);

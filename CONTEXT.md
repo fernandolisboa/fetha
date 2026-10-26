@@ -148,7 +148,8 @@ exposing module's interface, never through its tables.
     operations. What still holds and what no longer does come back as two groups of cards with
     computed alerts (rule no longer holds, limit breach, near expiry); what could not be priced,
     expires in fewer than 5 sessions or loses more than the declared capital is only counted, by
-    reason. Rate limited per account, stops at about 45 s, stores nothing; ideas get an id, a
+    reason. The declared capital only drops ideas whose max loss exceeds it; it never sizes a lot.
+    Rate limited per account, stops at about 45 s, stores nothing; ideas get an id, a
     decision bar and an AI verdict only in part 2.
 
 ## Invariants
@@ -231,5 +232,6 @@ shared strategy definitions chosen by expected move (0064), the nightly radar ov
 underlyings (0066), and suggestions as priced radar matches spoken in direct voice and scored like
 decisions, with the "not a recommendation" stance lifted by the owner (0067), and the Workspace
 and Studio layouts with four themes carried over from Bardo and Mascate (0069), and the Dock
-layout's floating menu (0071), and a suggestion open through the next trading day, then
-archived (0072).
+layout's floating menu (0071), a suggestion open through the next trading day, then
+archived (0072), and the on-demand re-check of the radar's last 5 sessions against the user's
+risk limits (0075).

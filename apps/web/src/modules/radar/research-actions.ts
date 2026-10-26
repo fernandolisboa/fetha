@@ -20,8 +20,6 @@ export type ResearchSuggestionsActionResult =
   | { status: "ok"; result: ResearchResult }
   | { status: "error"; error: "rate_limited" | "unavailable" };
 
-// docs/adr/0075: the signed-in user's own risk profile and open operations, read through their
-// scoped repositories; everything else the research reads is shared reference data.
 export async function researchSuggestionsAction(): Promise<ResearchSuggestionsActionResult> {
   const user = await withAuthenticatedAction(() => requireUser());
   const deadlineAt = Date.now() + RESEARCH_BUDGET_MS;

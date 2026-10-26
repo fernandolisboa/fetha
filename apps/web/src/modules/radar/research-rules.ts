@@ -9,7 +9,12 @@ export const MIN_SESSIONS_TO_EXPIRY = 5;
 // Two trading weeks: where time decay speeds up enough to deserve a warning on the card.
 export const NEAR_EXPIRY_SESSIONS = 10;
 
-export const dropReasons = ["unpriced", "expires_too_soon", "exceeds_capital"] as const;
+export const dropReasons = [
+  "unpriced",
+  "expires_too_soon",
+  "exceeds_capital",
+  "not_evaluable",
+] as const;
 export type DropReason = (typeof dropReasons)[number];
 
 export type IdeaAlert =
@@ -25,11 +30,9 @@ export interface Candidate {
 }
 
 export function emptyDropped(): Record<DropReason, number> {
-  return { unpriced: 0, expires_too_soon: 0, exceeds_capital: 0 };
+  return { unpriced: 0, expires_too_soon: 0, exceeds_capital: 0, not_evaluable: 0 };
 }
 
-// The newest finding of each (underlying, recipe) wins, newest session first, then ticker and
-// recipe id.
 export function dedupeCandidates(rows: readonly Candidate[]): Candidate[] {
   const ordered = [...rows].sort(
     (a, b) =>
@@ -57,8 +60,8 @@ export function sessionsAfter(
 export interface AssessmentInput {
   ruleHolds: boolean;
   foundOn: SessionDate;
-  lot: { maxLoss: Centavos } | null;
-  sessionsToExpiry: number | null;
+  maxLoss: Centavos;
+  sessionsToExpiry: number;
   declaredCapital: Centavos;
   breaches: readonly LimitBreach[];
 }
@@ -67,12 +70,11 @@ export type Assessment =
   { kind: "drop"; reason: DropReason } | { kind: "idea"; holding: boolean; alerts: IdeaAlert[] };
 
 export function assessIdea(input: AssessmentInput): Assessment {
-  const { lot, sessionsToExpiry } = input;
-  if (!lot || sessionsToExpiry === null) return { kind: "drop", reason: "unpriced" };
+  const { sessionsToExpiry } = input;
   if (sessionsToExpiry < MIN_SESSIONS_TO_EXPIRY) {
     return { kind: "drop", reason: "expires_too_soon" };
   }
-  if (lot.maxLoss > input.declaredCapital) return { kind: "drop", reason: "exceeds_capital" };
+  if (input.maxLoss > input.declaredCapital) return { kind: "drop", reason: "exceeds_capital" };
 
   const alerts: IdeaAlert[] = [];
   if (!input.ruleHolds) alerts.push({ kind: "rule_no_longer_holds", foundOn: input.foundOn });

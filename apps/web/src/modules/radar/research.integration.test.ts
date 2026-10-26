@@ -72,6 +72,13 @@ const BREAKS: Scenario = {
   iv: (index) => (index <= SCAN_INDEX ? 0.5 - 0.002 * index : 0.9),
 };
 
+// The IV index has no point at the newest close, as before the night's IV step ran.
+const IV_GAP: Scenario = {
+  ...HOLDS,
+  ticker: ticker("ZQG"),
+  ivPointOn: (index) => index !== SCAN_INDEX + 2,
+};
+
 const BULL_CALL = "bull-call-spread-low-iv";
 const LONG_CALL = "long-call-low-iv";
 
@@ -115,9 +122,9 @@ async function insertUser(label: string): Promise<CurrentUser> {
 }
 
 beforeAll(async () => {
-  await seedRadarFixture([HOLDS, BREAKS]);
+  await seedRadarFixture([HOLDS, BREAKS, IV_GAP]);
   const outcome = await scanRadar(getDb(), { session: SCAN_SESSION, ivIndexComputed: true });
-  expect(outcome).toMatchObject({ status: "ok", universe: 2, errors: 0 });
+  expect(outcome).toMatchObject({ status: "ok", universe: 3, errors: 0 });
 }, 240_000);
 
 afterEach(async () => {
@@ -176,6 +183,21 @@ describe("researchSuggestions (#356)", () => {
           (idea.recipeId === BULL_CALL || idea.recipeId === LONG_CALL),
       ),
     ).toBe(false);
+  }, 120_000);
+
+  it("does not call an idea stale when the engine cannot tell: it is dropped as not evaluable", async () => {
+    const result = await research();
+
+    const ideasOfGap = [...result.holding, ...result.noLongerHolding].filter(
+      (idea) => idea.underlying === IV_GAP.ticker,
+    );
+    expect(ideasOfGap.map((idea) => idea.recipeId)).not.toContain(LONG_CALL);
+    expect(
+      result.noLongerHolding.some(
+        (idea) => idea.underlying === IV_GAP.ticker && idea.recipeId === LONG_CALL,
+      ),
+    ).toBe(false);
+    expect(result.dropped.not_evaluable).toBeGreaterThanOrEqual(1);
   }, 120_000);
 
   it("accounts for every candidate: holding, no longer holding or dropped", async () => {
@@ -259,7 +281,9 @@ describe("researchSuggestions (#356)", () => {
     expect(result.holding).toHaveLength(0);
     expect(result.noLongerHolding).toHaveLength(0);
     expect(result.dropped.exceeds_capital).toBeGreaterThan(0);
-    expect(result.dropped.exceeds_capital + result.dropped.unpriced).toBe(result.candidates);
+    expect(
+      result.dropped.exceeds_capital + result.dropped.unpriced + result.dropped.not_evaluable,
+    ).toBe(result.candidates);
   }, 120_000);
 
   it("drops what no listed series prices today, as unpriced", async () => {
@@ -267,15 +291,16 @@ describe("researchSuggestions (#356)", () => {
 
     expect(result.holding).toHaveLength(0);
     expect(result.noLongerHolding).toHaveLength(0);
-    expect(result.dropped.unpriced).toBe(result.candidates);
+    expect(result.dropped.unpriced).toBeGreaterThan(0);
+    expect(result.dropped.unpriced + result.dropped.not_evaluable).toBe(result.candidates);
   }, 120_000);
 
   it("stops at the deadline and says so", async () => {
-    const result = await research({ deadlineAt: 0, clock: () => 1 });
+    const result = await research({ deadlineAt: 0 });
 
     expect(result.timedOut).toBe(true);
     expect(result.holding).toHaveLength(0);
-    expect(result.candidates).toBeGreaterThanOrEqual(4);
+    expect(result.candidates).toBe(0);
   }, 120_000);
 });
 

@@ -38,9 +38,16 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
    scan and the research share this code (`recipeEntryHeld` and `priceRecipeLot` in
    `read-underlying.ts`); the scan passes no profile. An underlying with no candle at the newest
    close, or that the engine cannot read, counts as `unpriced`.
+
+   The entry check has three results, not two: held, conditions not met (the engine's
+   `conditions_not_met`) and not evaluable (`insufficient_data`, e.g. the IV index has no point
+   at the newest close yet, so `iv_rank` is unknown). Only the second raises
+   `rule_no_longer_holds`; the third is dropped as `not_evaluable`, since the rule did not stop
+   holding, it could not be checked. The scan treats both non-held results as no match, as before.
+
 4. **Drops, counted by reason, never shown as cards.** `unpriced`: not every leg priced, max loss
    unbounded, no shared expiry (the conditions of a suggestion, ADR-0067 item 1) or no data at the
-   newest close. `expires_too_soon`: fewer than **5** trading sessions between the newest close
+   newest close. `not_evaluable`: the rule could not be checked (item 3). `expires_too_soon`: fewer than **5** trading sessions between the newest close
    and the expiry (a lot that near expiry leaves no time to decide and order). `exceeds_capital`:
    the lot's max loss is greater than the whole declared capital (equal is kept). The reasons apply
    in that order, once per candidate. 5 is this project's default (`MIN_SESSIONS_TO_EXPIRY`).
@@ -56,6 +63,13 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
    and the research both read, since the two must change together. The result carries
    `usingDefaultProfile` and the screen says so with a link to `/configuracoes/risco`. It is a
    working assumption for the research only; it is never saved as the user's profile.
+
+   This does not reopen ADR-0066's rejected "reference risk profile": that option sized a
+   proposal's quantity from invented capital. Here nothing is sized: the lot stays
+   `SUGGESTION_LOT`, the capital only drops an idea whose max loss exceeds it and sets the limits
+   the engine reports breaches against, the screen says the default is in use, and nothing is
+   stored.
+
 7. **Order and bound.** Within each group: option series traded at the newest close (descending),
    then ticker, then recipe id, the radar's rule, never a score (ADR-0066, ADR-0067 item 7). The
    Server Action is rate limited per account (`radar/research`, 6 per 60 s) and stops itself after
@@ -67,8 +81,12 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
    groups of cards: "Ainda valem hoje" and "Deixaram de valer", each card with the re-priced lot,
    its alerts, a link to the original suggestion when one was stored and one to the asset. No
    decision bar and no builder link in this part: a research idea has no id until part 2 stores it.
-9. **Terms.** The research is a computation over the engine's own outputs like a suggestion; it
-   adds no AI call, no recommendation language beyond ADR-0067's and no new personal data.
+9. **Result contract.** The action takes no input, and its result is an engine product built on
+   the server from engine types (`AssetReading`, `OperationPricing`) that have no Zod schema, so
+   it is typed but not schema-validated at the boundary. Part 2, which stores a research, will
+   validate what it writes.
+10. **Terms.** The research is a computation over the engine's own outputs like a suggestion; it
+    adds no AI call, no recommendation language beyond ADR-0067's and no new personal data.
 
 ## Consequences
 

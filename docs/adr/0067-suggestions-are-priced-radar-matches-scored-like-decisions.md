@@ -160,3 +160,10 @@ only" is about execution, not about voice, and is unchanged.
 suggestion is open through the São Paulo day of the trading session after its close, then
 archived. An archived suggestion leaves the panel, keeps its page and its score, and takes no new
 decision (item 5); its page shows no decision bar (item 8).
+
+## Amendment (2026-10-26, ADR-0075)
+
+Item 1's one-lot pricing also runs on demand for the signed-in user, with their risk profile (or
+the risk form's defaults when none is declared) and their open-operation count passed to the
+engine. Nothing is stored, and the declared capital only drops an idea whose max loss exceeds it:
+it never sizes the lot, which stays `SUGGESTION_LOT`. See docs/adr/0075.

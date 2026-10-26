@@ -81,7 +81,7 @@ function input(overrides: Partial<AssessmentInput> = {}): AssessmentInput {
   return {
     ruleHolds: true,
     foundOn: session("2026-10-21"),
-    lot: { maxLoss: centavos(100_000) },
+    maxLoss: centavos(100_000),
     sessionsToExpiry: 20,
     declaredCapital: centavos(5_000_000),
     breaches: [],
@@ -92,13 +92,6 @@ function input(overrides: Partial<AssessmentInput> = {}): AssessmentInput {
 describe("assessIdea", () => {
   it("holds with no alert when the rule holds, the lot is priced and nothing is near", () => {
     expect(assessIdea(input())).toEqual({ kind: "idea", holding: true, alerts: [] });
-  });
-
-  it("drops an idea whose lot could not be priced, bounded and on one expiry", () => {
-    expect(assessIdea(input({ lot: null, sessionsToExpiry: null }))).toEqual({
-      kind: "drop",
-      reason: "unpriced",
-    });
   });
 
   it("drops an idea expiring in fewer than 5 sessions and keeps one expiring in exactly 5", () => {
@@ -112,18 +105,18 @@ describe("assessIdea", () => {
 
   it("drops a lot whose max loss is above the whole declared capital, not one equal to it", () => {
     const capital = centavos(5_000_000);
-    expect(
-      assessIdea(input({ declaredCapital: capital, lot: { maxLoss: centavos(5_000_001) } })),
-    ).toEqual({ kind: "drop", reason: "exceeds_capital" });
-    expect(assessIdea(input({ declaredCapital: capital, lot: { maxLoss: capital } })).kind).toBe(
-      "idea",
-    );
+    expect(assessIdea(input({ declaredCapital: capital, maxLoss: centavos(5_000_001) }))).toEqual({
+      kind: "drop",
+      reason: "exceeds_capital",
+    });
+    expect(assessIdea(input({ declaredCapital: capital, maxLoss: capital })).kind).toBe("idea");
   });
 
-  it("reports the first reason when several apply: unpriced, then too soon, then capital", () => {
-    expect(
-      assessIdea(input({ sessionsToExpiry: 2, lot: { maxLoss: centavos(9_000_000) } })),
-    ).toEqual({ kind: "drop", reason: "expires_too_soon" });
+  it("reports the first reason when several apply: too soon, then capital", () => {
+    expect(assessIdea(input({ sessionsToExpiry: 2, maxLoss: centavos(9_000_000) }))).toEqual({
+      kind: "drop",
+      reason: "expires_too_soon",
+    });
   });
 
   it("alerts near expiry within 10 sessions and not at 11", () => {

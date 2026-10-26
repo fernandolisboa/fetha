@@ -100,3 +100,9 @@ and a match the engine fully priced with a bounded max loss and one shared expir
 as a suggestion (`suggestions`, scored at its horizon). Item 7's deferral of the direct voice to
 #311 is fulfilled: the home shows "Sugestões de hoje" in Fetha's own voice; the radar tab keeps
 the recipe's voice. See docs/adr/0067.
+
+## Amendment (2026-10-26, ADR-0075)
+
+Item 3's evaluation also runs on demand: "Obter sugestões" re-evaluates the matches of the last 5
+read sessions at the newest close, with the same code as the scan (`recipeEntryState` in
+`read-underlying.ts`). The nightly scan is unchanged. See docs/adr/0075.

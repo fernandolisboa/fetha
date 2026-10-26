@@ -1,7 +1,6 @@
 import { MIN_SESSIONS_TO_EXPIRY, dropReasons, type DropReason } from "./research-rules";
 import { t } from "./strings";
 
-// "Olhei 16 ideias de 3 pregões; 4 descartadas: 2 sem preço hoje, 1 vence em menos de 5 pregões."
 export function researchSummary(input: {
   candidates: number;
   sessionsLooked: number;

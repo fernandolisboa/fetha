@@ -8,7 +8,7 @@ import {
   type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
-import { engine, type AssetReading, type MarketView } from "@fetha/engine";
+import { engine, type AssetReading, type MarketView, type OperationPricing } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
@@ -19,14 +19,16 @@ import {
   tradingSessionForDate,
 } from "@/modules/market-data";
 import { DEFAULT_RISK_PROFILE, type RiskContext } from "@/modules/portfolio";
-import { catalog, recipeById } from "@/modules/strategies";
+import { recipeById } from "@/modules/strategies";
 
-import type { RadarLeg } from "./match";
+import { lotLegsOf, type LotLeg } from "./lot-legs";
 import { recentFindings } from "./radar-repository";
-import { priceRecipeLot, recipeEntryHeld, type PricedLot } from "./read-underlying";
+import { recipeStructure } from "./recipe-structure";
+import { priceRecipeLot, recipeEntryState, type PricedLot } from "./read-underlying";
 import {
   assessIdea,
   dedupeCandidates,
+  dropReasons,
   emptyDropped,
   RESEARCH_WINDOW_SESSIONS,
   sessionsAfter,
@@ -36,11 +38,6 @@ import {
   type IdeaAlert,
 } from "./research-rules";
 
-export interface IdeaLeg extends RadarLeg {
-  quantity: number;
-  price: DecimalString;
-}
-
 export interface Idea {
   underlying: Ticker;
   recipeId: string;
@@ -48,7 +45,7 @@ export interface Idea {
   foundOn: SessionDate;
   expiry: SessionDate;
   sessionsToExpiry: number;
-  legs: IdeaLeg[];
+  legs: LotLeg[];
   netPremium: Centavos;
   maxLoss: Centavos;
   maxGain: Centavos | "unbounded";
@@ -72,20 +69,9 @@ export interface ResearchResult {
 export interface ResearchInput extends RiskContext {
   now: Date;
   deadlineAt: number;
-  clock?: () => number;
 }
 
-function ideaLegs(lot: PricedLot): IdeaLeg[] | null {
-  const legs: IdeaLeg[] = [];
-  for (const [index, valuation] of lot.pricing.legs.entries()) {
-    const radarLeg = lot.legs[index];
-    if (!radarLeg || valuation.price === null) return null;
-    legs.push({ ...radarLeg, quantity: valuation.leg.quantity, price: valuation.price });
-  }
-  return legs;
-}
-
-interface Researcher {
+interface UnderlyingContext {
   candidate: Candidate;
   view: MarketView;
   reading: AssetReading;
@@ -94,50 +80,65 @@ interface Researcher {
   at: Instant;
 }
 
+interface ResearchLot {
+  pricing: OperationPricing;
+  maxLoss: Centavos;
+  legs: LotLeg[];
+  expiry: SessionDate;
+}
+
+function researchLot(lot: PricedLot | null): ResearchLot | null {
+  const draft = lot?.suggestion;
+  if (!lot || !draft) return null;
+  const { maxLoss } = draft.pricing;
+  const legs = lotLegsOf(
+    draft.pricing.legs.map((valuation) => valuation.leg),
+    draft.pricing.legs.map((valuation) => valuation.price),
+    lot.legs,
+  );
+  if (maxLoss === "unbounded" || !legs) return null;
+  return { pricing: draft.pricing, maxLoss, legs, expiry: draft.horizon };
+}
+
 type Outcome =
   { kind: "drop"; reason: DropReason } | { kind: "idea"; holding: boolean; idea: Idea };
 
-async function researchCandidate(input: ResearchInput, context: Researcher): Promise<Outcome> {
+async function researchCandidate(
+  input: ResearchInput,
+  context: UnderlyingContext,
+): Promise<Outcome> {
   const { candidate, view, reading, ticker, close, at } = context;
   const recipe = recipeById(candidate.recipeId);
-  const structure = catalog.find(
-    (entry) => entry.structure.id === recipe?.definition.structureId,
-  )?.structure;
+  const structure = recipe ? recipeStructure(recipe) : null;
   if (!recipe || !structure) return { kind: "drop", reason: "unpriced" };
 
   const profile = input.riskProfile ?? DEFAULT_RISK_PROFILE;
   const entry = { recipe, view, ticker, at };
-  const ruleHolds = await recipeEntryHeld(entry);
-  if (ruleHolds === null) return { kind: "drop", reason: "unpriced" };
-  const lot = await priceRecipeLot({
-    ...entry,
-    riskProfile: profile,
-    openOperationCount: input.openOperationCount,
-  });
-  const draft = lot?.suggestion ?? null;
-  const legs = lot && draft ? ideaLegs(lot) : null;
-  const pricing = draft?.pricing;
-  const maxLoss = pricing?.maxLoss;
+  const state = await recipeEntryState(entry);
+  if (state === "not_evaluable") return { kind: "drop", reason: "not_evaluable" };
+  const lot = researchLot(
+    await priceRecipeLot({
+      ...entry,
+      riskProfile: profile,
+      openOperationCount: input.openOperationCount,
+    }),
+  );
+  if (!lot) return { kind: "drop", reason: "unpriced" };
 
-  const sessionsToExpiry = draft
-    ? sessionsAfter(
-        view.calendar.map((session) => session.date),
-        close,
-        draft.horizon,
-      )
-    : null;
+  const sessionsToExpiry = sessionsAfter(
+    view.calendar.map((session) => session.date),
+    close,
+    lot.expiry,
+  );
   const assessment = assessIdea({
-    ruleHolds,
+    ruleHolds: state === "held",
     foundOn: candidate.session,
-    lot: legs && typeof maxLoss === "number" ? { maxLoss } : null,
+    maxLoss: lot.maxLoss,
     sessionsToExpiry,
     declaredCapital: profile.declaredCapital,
-    breaches: pricing?.limitBreaches ?? [],
+    breaches: lot.pricing.limitBreaches,
   });
   if (assessment.kind === "drop") return assessment;
-  if (!draft || !pricing || !legs || typeof maxLoss !== "number" || sessionsToExpiry === null) {
-    return { kind: "drop", reason: "unpriced" };
-  }
 
   return {
     kind: "idea",
@@ -147,13 +148,13 @@ async function researchCandidate(input: ResearchInput, context: Researcher): Pro
       recipeId: recipe.id,
       structure: { id: structure.id, name: structure.name },
       foundOn: candidate.session,
-      expiry: draft.horizon,
+      expiry: lot.expiry,
       sessionsToExpiry,
-      legs,
-      netPremium: pricing.netPremium,
-      maxLoss,
-      maxGain: pricing.maxGain,
-      breakEvens: pricing.breakEvens,
+      legs: lot.legs,
+      netPremium: lot.pricing.netPremium,
+      maxLoss: lot.maxLoss,
+      maxGain: lot.pricing.maxGain,
+      breakEvens: lot.pricing.breakEvens,
       reading,
       alerts: assessment.alerts,
       suggestionId: candidate.suggestionId,
@@ -169,14 +170,10 @@ function groupByUnderlying(candidates: readonly Candidate[]): Map<string, Candid
   return groups;
 }
 
-// docs/adr/0075: the radar's findings of its last few read sessions, re-checked at the newest
-// close against `riskProfile` (or the default one), on demand and never stored. One market view
-// per underlying; the work stops at `deadlineAt` and says so.
 export async function researchSuggestions(
   db: Database,
   input: ResearchInput,
 ): Promise<ResearchResult> {
-  const clock = input.clock ?? Date.now;
   const dropped = emptyDropped();
   const holding: Idea[] = [];
   const noLongerHolding: Idea[] = [];
@@ -188,7 +185,10 @@ export async function researchSuggestions(
   const result = (newestClose: SessionDate | null): ResearchResult => ({
     newestClose,
     sessionsLooked: sessions.length,
-    candidates: candidates.length,
+    candidates:
+      holding.length +
+      noLongerHolding.length +
+      dropReasons.reduce((sum, reason) => sum + dropped[reason], 0),
     holding: sortIdeas(holding),
     noLongerHolding: sortIdeas(noLongerHolding),
     dropped,
@@ -212,7 +212,7 @@ export async function researchSuggestions(
   const at = instantSchema.parse(trading.close);
 
   for (const [underlying, group] of groups) {
-    if (clock() >= input.deadlineAt) {
+    if (Date.now() >= input.deadlineAt) {
       timedOut = true;
       break;
     }
@@ -221,6 +221,7 @@ export async function researchSuggestions(
       dropped.unpriced += group.length;
       continue;
     }
+    let researched = 0;
     try {
       const view = await buildRadarView(db, ticker.data, new Date(at));
       const reading = await engine.assetReading({ view, ticker: ticker.data, at });
@@ -239,10 +240,11 @@ export async function researchSuggestions(
         });
         if (outcome.kind === "drop") dropped[outcome.reason] += 1;
         else (outcome.holding ? holding : noLongerHolding).push(outcome.idea);
+        researched += 1;
       }
     } catch (error) {
       console.error("suggestion research failed for an underlying", safeDbErrorMessage(error));
-      dropped.unpriced += group.length;
+      dropped.unpriced += group.length - researched;
     }
   }
   return result(trading.date);

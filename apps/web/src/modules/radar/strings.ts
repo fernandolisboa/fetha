@@ -107,6 +107,7 @@ const en = {
       expires_too_soon: (count: number, sessions: number) =>
         `${String(count)} ${count === 1 ? "expires" : "expire"} in fewer than ${String(sessions)} sessions`,
       exceeds_capital: (count: number) => `${String(count)} with a loss above your capital`,
+      not_evaluable: (count: number) => `${String(count)} without data to check the rule today`,
     },
     empty: (sessions: number) =>
       `No idea from the last ${String(sessions)} sessions is valid today.`,
@@ -279,6 +280,7 @@ const ptBR = {
         `${String(count)} ${count === 1 ? "vence" : "vencem"} em menos de ${String(sessions)} pregões`,
       exceeds_capital: (count: number) =>
         `${String(count)} ${count === 1 ? "perda maior" : "perdas maiores"} que o seu capital`,
+      not_evaluable: (count: number) => `${String(count)} sem dados para avaliar a regra hoje`,
     },
     empty: (sessions: number) => `Nenhuma ideia dos últimos ${String(sessions)} pregões vale hoje.`,
     noRadar: "O radar ainda não leu nenhum pregão.",
