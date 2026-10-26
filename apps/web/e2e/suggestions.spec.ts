@@ -80,7 +80,7 @@ test("choose when seen suggestions leave today's suggestions", async ({
   await expect(toggle).not.toBeChecked();
   await toggle.click();
   await expect(toggle).toBeChecked();
-  await expect(page.getByText("Vista agora, às")).toBeVisible();
+  await expect(page.getByTestId("suggestion-archive-example")).toContainText("Sai do quadro");
 
   const amount = page.getByRole("textbox", { name: "Quantos" });
   await amount.fill("90");

@@ -62,8 +62,9 @@ const en = {
   suggestionArchive: {
     title: "Seen suggestions",
     subtitle:
-      "Take a suggestion off Today's suggestions some time after you first see it. While this is on, Fetha records when each suggestion first shows on your screen; while it is off, nothing is recorded, and turning it off erases what was recorded. An archived suggestion keeps its own page, and you can still decide on it while it is open.",
+      "Take a suggestion off Today's suggestions, for you only, once you have seen it for a while.",
     toggle: "Archive the suggestions I have already seen",
+    toggleHint: "The delay counts from the first time a suggestion shows on your screen.",
     delayLabel: "Take a suggestion off the panel after",
     amountLabel: "How many",
     unitLabel: "Unit",
@@ -81,8 +82,14 @@ const en = {
     saved: "Saved.",
     invalidAmount: "Use a whole number, 1 or more.",
     tooLong: "The longest is 1 year.",
-    example: (seenAt: string, day: string, time: string) =>
-      `Seen now, at ${seenAt}, a suggestion leaves the panel on ${day} at ${time}.`,
+    exampleLabel: "Example",
+    seenNow: "Seen now",
+    leaves: "Leaves the panel",
+    stays: "Stays on the panel",
+    noDelay: "no delay",
+    at: (day: string, time: string) => `${day} at ${time}`,
+    privacy:
+      "While this is on, Fetha records when each suggestion first shows on your screen; turning it off erases that record. An archived suggestion keeps its own page, and you can still decide on it while it is open.",
     off: "Off: every open suggestion stays on the panel, and nothing about what you see is recorded.",
     failed: "Could not save. Try again.",
   },
@@ -165,9 +172,9 @@ const ptBR = {
   },
   suggestionArchive: {
     title: "Sugestões já vistas",
-    subtitle:
-      "Tira uma sugestão de Sugestões de hoje algum tempo depois que você a viu pela primeira vez. Com a opção ligada, o Fetha guarda quando cada sugestão apareceu na sua tela pela primeira vez; desligada, nada é guardado, e desligar apaga o que já tinha sido guardado. A sugestão arquivada continua com a página dela, e você ainda pode decidir sobre ela enquanto estiver aberta.",
+    subtitle: "Tira de Sugestões de hoje, só para você, a sugestão que você já viu há algum tempo.",
     toggle: "Arquivar as sugestões que eu já vi",
+    toggleHint: "O prazo conta da primeira vez que a sugestão aparece na sua tela.",
     delayLabel: "Tirar a sugestão do quadro depois de",
     amountLabel: "Quantos",
     unitLabel: "Unidade",
@@ -185,8 +192,14 @@ const ptBR = {
     saved: "Salvo.",
     invalidAmount: "Use um número inteiro, de 1 para cima.",
     tooLong: "O máximo é 1 ano.",
-    example: (seenAt: string, day: string, time: string) =>
-      `Vista agora, às ${seenAt}, uma sugestão sai do quadro em ${day}, às ${time}.`,
+    exampleLabel: "Exemplo",
+    seenNow: "Vista agora",
+    leaves: "Sai do quadro",
+    stays: "Continua no quadro",
+    noDelay: "sem prazo",
+    at: (day: string, time: string) => `${day} às ${time}`,
+    privacy:
+      "Com a opção ligada, o Fetha guarda quando cada sugestão apareceu na sua tela pela primeira vez; desligar apaga esse registro. A sugestão arquivada continua com a página dela, e você ainda pode decidir sobre ela enquanto estiver aberta.",
     off: "Desligado: toda sugestão aberta continua no quadro, e nada do que você vê é guardado.",
     failed: "Não deu para salvar. Tente de novo.",
   },
