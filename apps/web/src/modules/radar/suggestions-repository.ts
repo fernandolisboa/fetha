@@ -1,11 +1,12 @@
 import { thesisClaimSchema, type SessionDate, type ThesisClaim } from "@fetha/contracts";
 import type { AssetReading, Leg, OperationPricing, Score } from "@fetha/engine";
-import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "@/db/client";
 
 import { radarFactsSchema, radarLegsSchema, type RadarFacts, type RadarLeg } from "./match";
+import { newestReadSession } from "./radar-repository";
 import { radarMatches, radarReadings, suggestions, suggestionScores } from "./schema";
 
 const suggestionLegsSchema = z
@@ -130,15 +131,10 @@ export async function suggestionIdFor(
 // The suggestions of the radar's newest read session (the session `latestRadar` shows), so the
 // cards and the radar tab never disagree on which close they speak for.
 export async function latestSuggestions(db: Database): Promise<SuggestionInContext[]> {
-  const [latest] = await db
-    .select({ session: radarReadings.session })
-    .from(radarReadings)
-    .where(isNotNull(radarReadings.reading))
-    .orderBy(desc(radarReadings.session))
-    .limit(1);
-  if (!latest) return [];
+  const session = await newestReadSession(db);
+  if (!session) return [];
   const rows = await withContext(db)
-    .where(eq(suggestions.session, latest.session))
+    .where(eq(suggestions.session, session))
     .orderBy(asc(suggestions.underlying), asc(suggestions.recipeId));
   return rows.flatMap((row) => inContext(row) ?? []);
 }

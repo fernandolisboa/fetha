@@ -7,34 +7,25 @@ import { Panel } from "@/modules/shell";
 import { SuggestionList } from "./suggestion-list";
 
 // "Sugestões de hoje" (docs/adr/0067): on the watchlist tab the first `limit` cards with a link
-// to the rest; on the radar tab all of them. Once the newest ones are archived (docs/adr/0072)
-// the panel says so instead of showing them again.
+// to the rest; on the radar tab all of them. They stay until the radar reads a newer close, with
+// a note when that close is overdue (docs/adr/0073).
 export async function TodaySuggestions({ limit }: { limit?: number }) {
   const today = await getTodaySuggestions();
   if (today.kind === "none") return null;
-  if (today.kind === "archived") {
-    return (
-      <Panel title={t.suggestions.title}>
-        <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
-          {t.suggestions.archived(
-            formatSessionDate(today.session),
-            formatSessionDate(today.openThrough),
-          )}
-        </p>
-      </Panel>
-    );
-  }
 
-  const { suggestions } = today;
-  const [first] = suggestions;
-  if (!first) return null;
+  const { suggestions, session, overdueSessions } = today;
   const shown = limit === undefined ? suggestions : suggestions.slice(0, limit);
 
   return (
     <Panel
       title={t.suggestions.title}
-      subtitle={`${t.suggestions.subtitle(formatSessionDate(first.session))} ${t.suggestions.order}`}
+      subtitle={`${t.suggestions.subtitle(formatSessionDate(session))} ${t.suggestions.order}`}
     >
+      {overdueSessions > 0 && (
+        <p className="text-warning text-xs text-pretty" data-testid="today-suggestions-overdue">
+          {t.suggestions.overdue(overdueSessions)}
+        </p>
+      )}
       <div className="flex flex-col gap-3" data-testid="today-suggestions">
         <SuggestionList suggestions={shown} />
       </div>

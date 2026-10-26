@@ -1,5 +1,3 @@
-import { sessionDateSchema, type SessionDate } from "@fetha/contracts";
-
 export interface AuthEnv {
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
@@ -63,17 +61,6 @@ export function readE2EInstrumentsRecordingsDirectory(
     return undefined;
   }
   return readOptionalEnvValue(env, "E2E_B3_INSTRUMENTS_DIR")?.trim() || undefined;
-}
-
-// The e2e suite only ingests fixed past sessions, so "today" for a suggestion's window
-// (docs/adr/0072) is pinned to the trading day after them. Never in production, by deployment or
-// by database, where it would reopen archived suggestions.
-export function readE2EToday(env: AuthEnv = process.env): SessionDate | undefined {
-  if (isProductionDeployment(env) || isProductionDatabaseHost(env)) {
-    return undefined;
-  }
-  const parsed = sessionDateSchema.safeParse(readOptionalEnvValue(env, "E2E_TODAY")?.trim());
-  return parsed.success ? parsed.data : undefined;
 }
 
 // The manual ingestion trigger's allowlist (#51): comma-separated, trimmed
