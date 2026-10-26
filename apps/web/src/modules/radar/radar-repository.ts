@@ -135,9 +135,9 @@ export async function newestReadSession(db: Database): Promise<string | null> {
   return latest?.session ?? null;
 }
 
-// That session, with every reading (null
-// while pending) and every match of that session. A session seeded but not read yet would claim
-// that no recipe found an entry at a close nothing was read at.
+// That session, with every reading (null while pending) and every match of that session. A
+// session seeded but not read yet would claim that no recipe found an entry at a close nothing
+// was read at.
 export async function latestRadar(db: Database): Promise<StoredRadar | null> {
   const session = await newestReadSession(db);
   if (!session) return null;

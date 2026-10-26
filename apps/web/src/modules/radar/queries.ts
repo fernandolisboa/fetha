@@ -57,7 +57,7 @@ export const getTodaySuggestions = cache(async (): Promise<TodaySuggestionsResul
     first.session,
     new Date(Date.now() - OVERDUE_AFTER_CLOSE_MS),
   );
-  const current = suggestionValidity(first.session, first.session);
+  const current = { archived: false } as const;
   return todaySuggestions(
     first.session,
     overdueSessions,

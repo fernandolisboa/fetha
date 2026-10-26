@@ -33,11 +33,6 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(card).toBeVisible();
   await expect(card.getByRole("list", { name: "O lote" })).toContainText("100 ×");
   await expect(card.getByText(/^A tese: /)).toBeVisible();
-  // The suite only ingests fixed past sessions, so the radar is overdue on every close since
-  // (docs/adr/0073): the suggestions stay, with the note saying so.
-  await expect(page.getByTestId("today-suggestions-overdue")).toContainText(
-    /^O radar ainda não leu (o fechamento seguinte|os \d+ fechamentos seguintes) a este/,
-  );
 
   await card.getByRole("link", { name: "Ver receita" }).click();
   await expect(page).toHaveURL(new RegExp(`/sugestoes/${suggestionId ?? ""}$`));

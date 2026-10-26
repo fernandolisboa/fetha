@@ -78,7 +78,8 @@ describe("getTodaySuggestions (docs/adr/0073)", () => {
       };
 
       expect(await overdue("2041-03-11T22:00:00.000Z")).toBe(0);
-      expect(await overdue("2041-03-12T15:00:00.000Z")).toBe(1);
+      expect(await overdue("2041-03-12T13:59:59.999Z")).toBe(0);
+      expect(await overdue("2041-03-12T14:00:00.000Z")).toBe(1);
       expect(await overdue("2041-03-30T12:00:00.000Z")).toBe(1);
     } finally {
       await removeRead();

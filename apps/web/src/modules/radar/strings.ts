@@ -46,8 +46,8 @@ const en = {
     more: (count: number) => `See all ${String(count)} suggestions in the radar`,
     overdue: (count: number) =>
       count === 1
-        ? "The radar has not read the close after this one yet, so today's prices may differ."
-        : `The radar has not read the ${String(count)} closes after this one yet, so today's prices may differ.`,
+        ? "The radar has not read the next close yet. Today's prices may have moved."
+        : `The radar has not read the next ${String(count)} closes yet. Today's prices may have moved.`,
     headline: {
       "bull-call-spread-low-iv": (ticker: string) => `A bull call spread on ${ticker} fits now.`,
       "long-call-low-iv": (ticker: string) => `Buying a call on ${ticker} fits now.`,
@@ -171,8 +171,8 @@ const ptBR = {
     more: (count: number) => `Ver as ${String(count)} sugestões no radar`,
     overdue: (count: number) =>
       count === 1
-        ? "O radar ainda não leu o fechamento seguinte a este, então os preços de hoje podem ser outros."
-        : `O radar ainda não leu os ${String(count)} fechamentos seguintes a este, então os preços de hoje podem ser outros.`,
+        ? "O radar ainda não leu o fechamento seguinte. Os preços de hoje podem ter mudado."
+        : `O radar ainda não leu os ${String(count)} fechamentos seguintes. Os preços de hoje podem ter mudado.`,
     headline: {
       "bull-call-spread-low-iv": (ticker: string) =>
         `Uma trava de alta com calls em ${ticker} cabe agora.`,
