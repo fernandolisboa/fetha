@@ -7,7 +7,7 @@ import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 import {
   getPreferences,
   PreferencesRepository,
-  suggestionArchiveDelaySchema,
+  suggestionArchiveInputSchema,
   type PreferencesActionResult,
 } from "@/modules/preferences";
 import { revalidatePath } from "next/cache";
@@ -29,7 +29,7 @@ export async function markSuggestionsSeenAction(ids: unknown): Promise<MarkSugge
 
   await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), SuggestionSightingsRepository);
-    if ((await getPreferences()).suggestionArchive === "off") return;
+    if (!(await getPreferences()).suggestionArchive.enabled) return;
     await repository.markSeen([...new Set(parsed.data)]);
   });
   return { status: "ok" };
@@ -37,15 +37,15 @@ export async function markSuggestionsSeenAction(ids: unknown): Promise<MarkSugge
 
 // docs/adr/0074: turning the option off also erases the user's sightings, which have no purpose
 // without it.
-export async function setSuggestionArchiveAction(delay: unknown): Promise<PreferencesActionResult> {
-  const parsed = suggestionArchiveDelaySchema.safeParse(delay);
+export async function setSuggestionArchiveAction(input: unknown): Promise<PreferencesActionResult> {
+  const parsed = suggestionArchiveInputSchema.safeParse(input);
   if (!parsed.success) return { status: "error" };
 
   await withAuthenticatedAction(async () => {
     const db = getDb();
     const preferences = await forCurrentUser(db, PreferencesRepository);
     await preferences.setSuggestionArchive(parsed.data);
-    if (parsed.data === "off") {
+    if (!parsed.data.enabled) {
       await (await forCurrentUser(db, SuggestionSightingsRepository)).clear();
     }
   });

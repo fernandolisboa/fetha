@@ -5,7 +5,7 @@ import { getDb, type Database } from "@/db/client";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { forCurrentUser, readE2EToday } from "@/modules/auth";
 import { nthTradingSessionAfter } from "@/modules/market-data";
-import { hoursFromDelay, getPreferences, type SuggestionArchiveDelay } from "@/modules/preferences";
+import { archiveAfterMinutes, getPreferences, type SuggestionArchive } from "@/modules/preferences";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { suggestionCalibration, type SuggestionCalibration } from "./calibration";
@@ -73,7 +73,7 @@ export type MyTodaySuggestions =
   | Exclude<TodaySuggestionsResult, { kind: "open" }>
   | (Extract<TodaySuggestionsResult, { kind: "open" }> & {
       archivedSeen: SuggestionView[];
-      archive: SuggestionArchiveDelay;
+      archive: SuggestionArchive;
     });
 
 // Today's suggestions as the signed-in user's panel shows them (docs/adr/0074): the open ones
@@ -87,7 +87,7 @@ export const getMyTodaySuggestions = cache(async (): Promise<MyTodaySuggestions>
   ]);
   const { shown, archivedSeen } = await sightings.splitSeen(
     today.suggestions,
-    hoursFromDelay(suggestionArchive),
+    archiveAfterMinutes(suggestionArchive),
     new Date(),
   );
   return { ...today, suggestions: shown, archivedSeen, archive: suggestionArchive };

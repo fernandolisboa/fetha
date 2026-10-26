@@ -1,5 +1,5 @@
 {
-  "id": "85db6db7-6295-4dcf-b7d5-96aa8196edb7",
+  "id": "8ef6c2d5-cd5d-43d1-a5e5-9948a783cadf",
   "prevId": "9501d492-5641-4cc8-b093-23cba2c8b419",
   "version": "7",
   "dialect": "postgresql",
@@ -3633,11 +3633,19 @@
           "primaryKey": false,
           "notNull": false
         },
-        "suggestion_archive_after_hours": {
-          "name": "suggestion_archive_after_hours",
+        "suggestion_archive_enabled": {
+          "name": "suggestion_archive_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "suggestion_archive_after_minutes": {
+          "name": "suggestion_archive_after_minutes",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 1440
         },
         "created_at": {
           "name": "created_at",
@@ -3682,9 +3690,9 @@
       },
       "policies": {},
       "checkConstraints": {
-        "preferences_suggestion_archive_after_hours_positive": {
-          "name": "preferences_suggestion_archive_after_hours_positive",
-          "value": "\"preferences\".\"suggestion_archive_after_hours\" > 0"
+        "preferences_suggestion_archive_after_minutes_range": {
+          "name": "preferences_suggestion_archive_after_minutes_range",
+          "value": "\"preferences\".\"suggestion_archive_after_minutes\" between 1 and 525600"
         }
       },
       "isRLSEnabled": false

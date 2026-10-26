@@ -175,14 +175,14 @@ describe("SuggestionSightingsRepository.splitSeen (docs/adr/0074)", () => {
     ]);
     const items = [{ id: old }, { id: recent }, { id: unseen }];
 
-    const forA = await new SuggestionSightingsRepository(db, userA).splitSeen(items, 24, now);
+    const forA = await new SuggestionSightingsRepository(db, userA).splitSeen(items, 24 * 60, now);
     expect(forA.shown.map(({ id }) => id)).toEqual([recent, unseen]);
     expect(forA.archivedSeen.map(({ id }) => id)).toEqual([old]);
 
     const off = await new SuggestionSightingsRepository(db, userA).splitSeen(items, null, now);
     expect(off.archivedSeen).toEqual([]);
 
-    const forB = await new SuggestionSightingsRepository(db, userB).splitSeen(items, 12, now);
+    const forB = await new SuggestionSightingsRepository(db, userB).splitSeen(items, 12 * 60, now);
     expect(forB.archivedSeen.map(({ id }) => id)).toEqual([unseen]);
   });
 });
@@ -192,7 +192,10 @@ describe("markSuggestionsSeenAction", () => {
     const email = uniqueEmail("action");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
-    await new PreferencesRepository(getDb(), currentUser).setSuggestionArchive("24");
+    await new PreferencesRepository(getDb(), currentUser).setSuggestionArchive({
+      enabled: true,
+      afterMinutes: 1440,
+    });
     const id = await suggestion();
 
     expect(await markSuggestionsSeenAction([id, id])).toEqual({ status: "ok" });
@@ -248,21 +251,51 @@ describe("setSuggestionArchiveAction", () => {
     ]);
     currentUser = userA;
 
-    expect(await setSuggestionArchiveAction("72")).toEqual({ status: "ok" });
-    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toBe("72");
+    expect(await setSuggestionArchiveAction({ enabled: true, amount: 3, unit: "days" })).toEqual({
+      status: "ok",
+    });
+    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toEqual({
+      enabled: true,
+      afterMinutes: 3 * 1440,
+    });
     expect((await new SuggestionSightingsRepository(db, userA).firstSeen([id])).size).toBe(1);
 
-    expect(await setSuggestionArchiveAction("off")).toEqual({ status: "ok" });
-    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toBe("off");
+    expect(await setSuggestionArchiveAction({ enabled: false, amount: 3, unit: "days" })).toEqual({
+      status: "ok",
+    });
+    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toEqual({
+      enabled: false,
+      afterMinutes: 3 * 1440,
+    });
     expect((await new SuggestionSightingsRepository(db, userA).firstSeen([id])).size).toBe(0);
     expect((await new SuggestionSightingsRepository(db, userB).firstSeen([id])).size).toBe(1);
   });
 
-  it("rejects a delay that is not an option", async () => {
+  it("rejects a delay that is not a whole number of units up to one year", async () => {
     const email = uniqueEmail("bad-delay");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
 
-    expect(await setSuggestionArchiveAction("5")).toEqual({ status: "error" });
+    expect(await setSuggestionArchiveAction("72")).toEqual({ status: "error" });
+    expect(await setSuggestionArchiveAction({ enabled: true, amount: 0, unit: "days" })).toEqual({
+      status: "error",
+    });
+    expect(await setSuggestionArchiveAction({ enabled: true, amount: 1.5, unit: "hours" })).toEqual(
+      {
+        status: "error",
+      },
+    );
+    expect(await setSuggestionArchiveAction({ enabled: true, amount: 53, unit: "weeks" })).toEqual({
+      status: "error",
+    });
+    expect(await setSuggestionArchiveAction({ enabled: true, amount: 2, unit: "months" })).toEqual({
+      status: "error",
+    });
+    expect(
+      (await new PreferencesRepository(getDb(), currentUser).find()).suggestionArchive,
+    ).toEqual({
+      enabled: false,
+      afterMinutes: 1440,
+    });
   });
 });

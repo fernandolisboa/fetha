@@ -77,7 +77,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -108,7 +108,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -130,7 +130,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -161,7 +161,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: true,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -179,7 +179,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -200,7 +200,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -220,7 +220,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -254,7 +254,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -275,7 +275,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
-      suggestionArchive: "off",
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -290,7 +290,7 @@ describe("PreferencesRepository isolation", () => {
     expect((await new PreferencesRepository(db, testUser).find()).layout).toBe("workspace");
   });
 
-  it("persists the suggestion archive delay per user, and off clears it", async () => {
+  it("persists the suggestion archive per user, and turning it off keeps the chosen delay", async () => {
     const db = getDb();
     const emailA = uniqueEmail("archive-a");
     const emailB = uniqueEmail("archive-b");
@@ -300,28 +300,46 @@ describe("PreferencesRepository isolation", () => {
     const repositoryA = new PreferencesRepository(db, userA);
     await new PreferencesRepository(db, userB).setTheme("amplo");
 
-    await repositoryA.setSuggestionArchive("48");
+    await repositoryA.setSuggestionArchive({ enabled: true, afterMinutes: 90 });
 
-    expect((await repositoryA.find()).suggestionArchive).toBe("48");
-    expect((await new PreferencesRepository(db, userB).find()).suggestionArchive).toBe("off");
+    expect((await repositoryA.find()).suggestionArchive).toEqual({
+      enabled: true,
+      afterMinutes: 90,
+    });
+    expect((await new PreferencesRepository(db, userB).find()).suggestionArchive).toEqual({
+      enabled: false,
+      afterMinutes: 1440,
+    });
     const [row] = await db
-      .select({ hours: preferences.suggestionArchiveAfterHours })
+      .select({
+        enabled: preferences.suggestionArchiveEnabled,
+        minutes: preferences.suggestionArchiveAfterMinutes,
+      })
       .from(preferences)
       .where(eq(preferences.userId, userA.id));
-    expect(row?.hours).toBe(48);
+    expect(row).toEqual({ enabled: true, minutes: 90 });
 
-    await repositoryA.setSuggestionArchive("off");
-    expect((await repositoryA.find()).suggestionArchive).toBe("off");
+    await repositoryA.setSuggestionArchive({ enabled: false, afterMinutes: 90 });
+    expect((await repositoryA.find()).suggestionArchive).toEqual({
+      enabled: false,
+      afterMinutes: 90,
+    });
+    expect((await repositoryA.find()).theme).toBe("instrumento");
   });
 
-  it("rejects a non-positive archive delay at the database", async () => {
+  it("rejects an archive delay outside one minute to one year at the database", async () => {
     const db = getDb();
     const email = uniqueEmail("archive-check");
     createdEmails.push(email);
     const testUser = await insertBareUser(email);
 
     await expect(
-      db.insert(preferences).values({ userId: testUser.id, suggestionArchiveAfterHours: 0 }),
+      db.insert(preferences).values({ userId: testUser.id, suggestionArchiveAfterMinutes: 0 }),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .insert(preferences)
+        .values({ userId: testUser.id, suggestionArchiveAfterMinutes: 525_601 }),
     ).rejects.toThrow();
   });
 });

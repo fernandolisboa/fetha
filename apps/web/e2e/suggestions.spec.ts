@@ -76,18 +76,31 @@ test("choose when seen suggestions leave today's suggestions", async ({
   await setting.getByRole("link", { name: "Ajustar" }).click();
 
   await expect(page).toHaveURL(/\/configuracoes\/aparencia#sugestoes$/);
-  const group = page.getByRole("radiogroup", { name: "Arquivar uma sugestão já vista" });
-  await expect(group.getByRole("radio", { name: "Não arquivar" })).toBeChecked();
-  await group.getByRole("radio", { name: "Depois de 1 dia" }).click();
-  await expect(group.getByRole("radio", { name: "Depois de 1 dia" })).toBeChecked();
-  await expect(group).not.toHaveAttribute("data-disabled");
+  const toggle = page.getByRole("switch", { name: "Arquivar as sugestões que eu já vi" });
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
+  await expect(toggle).toBeChecked();
+  await expect(page.getByText("Vista agora, às")).toBeVisible();
+
+  const amount = page.getByRole("textbox", { name: "Quantos" });
+  await amount.fill("90");
+  await page.getByRole("combobox", { name: "Unidade" }).click();
+  await page.getByRole("option", { name: "minutos" }).click();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Salvo." })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Quantos" })).toHaveValue("90");
+  await expect(page.getByRole("combobox", { name: "Unidade" })).toHaveText(/minutos/);
+
+  await page.getByRole("button", { name: "1 dia" }).click();
+  await expect(page.getByRole("button", { name: "1 dia" })).toHaveAttribute("aria-pressed", "true");
 
   await page.reload();
   await expect(
-    page
-      .getByRole("radiogroup", { name: "Arquivar uma sugestão já vista" })
-      .getByRole("radio", { name: "Depois de 1 dia" }),
+    page.getByRole("switch", { name: "Arquivar as sugestões que eu já vi" }),
   ).toBeChecked();
+  await expect(page.getByRole("textbox", { name: "Quantos" })).toHaveValue("1");
 
   await page.goto("/");
   await expect(page.getByTestId("today-suggestions").getByRole("article").first()).toBeVisible();

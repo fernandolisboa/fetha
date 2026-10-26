@@ -48,13 +48,13 @@ export class SuggestionSightingsRepository extends UserScopedRepository {
   // docs/adr/0074: the viewer's split of `items` at `now`; with no delay nothing is read.
   async splitSeen<T extends { id: string }>(
     items: readonly T[],
-    afterHours: number | null,
+    afterMinutes: number | null,
     now: Date,
   ): Promise<SeenArchiveSplit<T>> {
     const firstSeen =
-      afterHours === null
+      afterMinutes === null
         ? new Map<string, Date>()
         : await this.firstSeen(items.map(({ id }) => id));
-    return splitSeenSuggestions(items, firstSeen, afterHours, now);
+    return splitSeenSuggestions(items, firstSeen, afterMinutes, now);
   }
 }

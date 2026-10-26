@@ -18,7 +18,10 @@ export const preferences = pgTable(
     railCollapsed: boolean("rail_collapsed").notNull().default(false),
     tourDismissedAt: timestamp("tour_dismissed_at", { withTimezone: true }),
     assetTourDismissedAt: timestamp("asset_tour_dismissed_at", { withTimezone: true }),
-    suggestionArchiveAfterHours: integer("suggestion_archive_after_hours"),
+    suggestionArchiveEnabled: boolean("suggestion_archive_enabled").notNull().default(false),
+    suggestionArchiveAfterMinutes: integer("suggestion_archive_after_minutes")
+      .notNull()
+      .default(1440),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -27,8 +30,8 @@ export const preferences = pgTable(
   },
   (table) => [
     check(
-      "preferences_suggestion_archive_after_hours_positive",
-      sql`${table.suggestionArchiveAfterHours} > 0`,
+      "preferences_suggestion_archive_after_minutes_range",
+      sql`${table.suggestionArchiveAfterMinutes} between 1 and 525600`,
     ),
   ],
 );

@@ -1,11 +1,7 @@
 import Link from "next/link";
 
 import { formatSessionDate } from "@/lib/format/date-time";
-import {
-  settingsTabHref,
-  t as preferencesT,
-  type SuggestionArchiveDelay,
-} from "@/modules/preferences";
+import { archiveDelayText, settingsTabHref, type SuggestionArchive } from "@/modules/preferences";
 import { getMyTodaySuggestions, suggestionHeadline, t, type SuggestionView } from "@/modules/radar";
 import { Panel } from "@/modules/shell";
 
@@ -91,11 +87,10 @@ function ArchivedSeen({ suggestions }: { suggestions: SuggestionView[] }) {
   );
 }
 
-function ArchiveSetting({ archive }: { archive: SuggestionArchiveDelay }) {
-  const sentence =
-    archive === "off"
-      ? t.suggestions.seenArchive.off
-      : t.suggestions.seenArchive.on(preferencesT.suggestionArchive.delay[archive]);
+function ArchiveSetting({ archive }: { archive: SuggestionArchive }) {
+  const sentence = archive.enabled
+    ? t.suggestions.seenArchive.on(archiveDelayText(archive.afterMinutes))
+    : t.suggestions.seenArchive.off;
   return (
     <p
       className="text-muted-foreground text-xs text-pretty"

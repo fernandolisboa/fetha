@@ -140,7 +140,7 @@ export async function SuggestionList({
       </div>
     );
   });
-  return preferences.suggestionArchive === "off" ? (
+  return !preferences.suggestionArchive.enabled ? (
     cards
   ) : (
     <SeenTracker ids={ids}>{cards}</SeenTracker>

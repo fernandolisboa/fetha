@@ -25,8 +25,13 @@ time, with automatic archiving on or off and the delay chosen by the user.
    test), in the account export, deleted with the account, gone when its suggestion is, and
    listed in the privacy policy (terms version 2026-10-26.1). `radar` thus owns one user-scoped
    table next to its reference data (amending ADR-0066 item 2 and ADR-0067's "no user_id").
-2. **The setting.** `preferences.suggestion_archive_after_hours` (null = off, the default) takes
-   12, 24, 48, 72 or 168 hours, chosen in Configurações › Aparência › Sugestões já vistas.
+2. **The setting.** `preferences.suggestion_archive_enabled` (off by default) and
+   `preferences.suggestion_archive_after_minutes` (1440 by default, a check keeps it between one
+   minute and one year). The user types a whole number and picks minutes, hours, days or weeks in
+   Configurações › Aparência › Sugestões já vistas, or taps a shortcut (12 hours, 1 day, 3 days,
+   1 week); the server converts it to minutes and the screen shows it back in the largest unit
+   that divides it exactly. Turning the option off keeps the delay, so turning it back on restores
+   it.
 3. **The rule.** With a delay set, a suggestion leaves that user's "Sugestões de hoje" once the
    delay has passed since its first sighting; one never seen stays. A pure function decides it
    (`splitSeenSuggestions` in `modules/radar/seen-archive.ts`) on every read; nothing is written
@@ -52,4 +57,7 @@ time, with automatic archiving on or off and the delay chosen by the user.
   revalidations after an unrelated action), and the delay would start before the user looked.
 - A per-user `archived_at` written when the delay passes: a write for a fact the sighting and the
   setting already answer, and it needs a job.
-- Any delay in free form: a handful of fixed choices keeps the setting one tap and the copy plain.
+- A handful of fixed delays (12, 24, 48, 72, 168 hours): the first version of this ADR; the owner
+  asked for a typed value with its unit instead, and the shortcuts keep the common ones one tap.
+- Months as a unit: their length varies, and a week count covers the range up to a year.
+- Null delay meaning off: a separate flag keeps the chosen delay when the user pauses the option.

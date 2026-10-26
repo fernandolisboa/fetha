@@ -17,8 +17,13 @@ export { settingsTabHref, type SettingsTab } from "./settings-tabs";
 export { themeSchema, themes, type Theme } from "./theme";
 export { PreferencesDataExport } from "./data-export";
 export {
-  suggestionArchiveDelays,
-  hoursFromDelay,
-  suggestionArchiveDelaySchema,
-  type SuggestionArchiveDelay,
+  archiveAfterMinutes,
+  durationOf,
+  durationUnits,
+  suggestionArchiveInputSchema,
+  type Duration,
+  type DurationUnit,
+  type SuggestionArchive,
+  type SuggestionArchiveInput,
 } from "./suggestion-archive";
+export { archiveDelayText } from "./duration-text";

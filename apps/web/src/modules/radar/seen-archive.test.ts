@@ -15,13 +15,13 @@ describe("splitSeenSuggestions (docs/adr/0074)", () => {
       ["b", hoursAgo(23)],
       ["c", hoursAgo(24)],
     ]);
-    const split = splitSeenSuggestions(suggestions, firstSeen, 24, now);
+    const split = splitSeenSuggestions(suggestions, firstSeen, 24 * 60, now);
     expect(ids(split.shown)).toEqual(["b"]);
     expect(ids(split.archivedSeen)).toEqual(["a", "c"]);
   });
 
   it("keeps a suggestion never seen, however long the delay has run", () => {
-    const split = splitSeenSuggestions(suggestions, new Map([["a", hoursAgo(500)]]), 12, now);
+    const split = splitSeenSuggestions(suggestions, new Map([["a", hoursAgo(500)]]), 12 * 60, now);
     expect(ids(split.shown)).toEqual(["b", "c"]);
     expect(ids(split.archivedSeen)).toEqual(["a"]);
   });
