@@ -36,6 +36,11 @@ Every project depends on `setup` (`owner.setup.ts`), which runs first and does t
   newest closed B3 session, which the E2E-only route `/api/e2e/recent-session` reads from the
   ingested calendar (the inbox only takes entries from its newest few sessions, so a fixed date
   would age out).
+- A suggestion is only open through the day of the trading session after its close (ADR-0072),
+  and the suite's newest fixed session is long past, so the job sets `E2E_TODAY=2026-09-21` (the
+  session after `2026-09-18`): the suggestion window reads that date as today, and every
+  suggestion `/api/e2e/seed-radar` files, at the fixed session or at the recent one, stays open.
+  Ignored in production and against the production database.
 - The instruments registry is not fetched from B3 in CI. `arquivos.b3.com.br` times out from
   GitHub's runners (504 on the token request), so the job sets `E2E_B3_INSTRUMENTS_DIR` to
   `e2e/fixtures/b3-instruments` and the nightly job replays those recordings instead: one

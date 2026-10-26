@@ -13,6 +13,7 @@ import {
   t as decisionsT,
 } from "@/modules/decisions";
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
+import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { getMyLimitBreaches, RiskNotice, type LimitCheckResult } from "@/modules/portfolio";
 import { SuggestionCard, t, type SuggestionView } from "@/modules/radar";
 
@@ -41,8 +42,9 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
 }
 
 // The suggestion cards with the viewer's own layer on top (docs/adr/0067): their risk check,
-// their decision on each and the analysis they may ask for. `onPage` drops the link to the
-// suggestion's own page, and the card's headline, when the card is that page.
+// their decision on each (none on an archived one, docs/adr/0072) and the analysis they may ask
+// for. `onPage` drops the link to the suggestion's own page, and the card's headline, when the
+// card is that page.
 export async function SuggestionList({
   suggestions,
   onPage = false,
@@ -105,6 +107,12 @@ export async function SuggestionList({
                 {t.suggestions.answered(
                   decisionsT.kind[decision.kind],
                   formatDate(decision.decidedAt),
+                )}
+              </span>
+            ) : suggestion.window.archived ? (
+              <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
+                {t.suggestions.archivedCard(
+                  formatDate(sessionDateToDisplayDate(suggestion.window.openThrough)),
                 )}
               </span>
             ) : (

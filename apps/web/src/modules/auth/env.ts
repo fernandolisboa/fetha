@@ -63,6 +63,16 @@ export function readE2EInstrumentsRecordingsDirectory(
   return readOptionalEnvValue(env, "E2E_B3_INSTRUMENTS_DIR")?.trim() || undefined;
 }
 
+// The e2e suite only ingests fixed past sessions, so "today" for a suggestion's window
+// (docs/adr/0072) is pinned to the trading day after them. Never in production, by deployment or
+// by database, where it would reopen archived suggestions.
+export function readE2EToday(env: AuthEnv = process.env): string | undefined {
+  if (isProductionDeployment(env) || isProductionDatabaseHost(env)) {
+    return undefined;
+  }
+  return readOptionalEnvValue(env, "E2E_TODAY")?.trim() || undefined;
+}
+
 // The manual ingestion trigger's allowlist (#51): comma-separated, trimmed
 // and lower-cased so "Owner@Example.com, other@example.com" and
 // "owner@example.com,other@example.com" mean the same thing. Unset or empty

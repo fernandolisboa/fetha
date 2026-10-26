@@ -719,4 +719,20 @@ describe("recordDecisionAction on a suggestion (docs/adr/0067)", () => {
     });
     expect(await decide(crypto.randomUUID())).toEqual({ status: "error", error: "not_found" });
   });
+
+  it("refuses a decision once the suggestion is archived (docs/adr/0072)", async () => {
+    const email = uniqueEmail("suggestion-archived");
+    createdEmails.push(email);
+    const archivedUser = await insertBareUser(email);
+    currentUser = archivedUser;
+    const suggestionId = await suggestion();
+
+    vi.stubEnv("E2E_TODAY", "2099-01-01");
+    try {
+      expect(await decide(suggestionId)).toEqual({ status: "error", error: "archived" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(await new DecisionsRepository(getDb(), archivedUser).listMine()).toEqual([]);
+  });
 });

@@ -87,6 +87,10 @@ const en = {
       builder: "Study in the builder",
     },
     answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
+    archived: (session: string, day: string) =>
+      `The suggestions from the close of ${session} were archived at the end of ${day}. New ones show up here once the radar reads the next close.`,
+    archivedCard: (day: string) =>
+      `Archived at the end of ${day}: it no longer takes a decision. It is still scored at expiry.`,
   },
   calibration: {
     title: "Fetha's suggestions",
@@ -100,6 +104,8 @@ const en = {
   page: {
     overline: (date: string) => `Suggestion · close of ${date}`,
     expires: (date: string) => `Expires ${date}`,
+    openThrough: (date: string) => `Open through ${date}`,
+    archived: (date: string) => `Archived after ${date}`,
     lot: "One standard lot",
     notesTitle: "How to read a suggestion",
     notes: [
@@ -108,6 +114,7 @@ const en = {
       "Max loss and max gain are at expiry, before costs. The break-even is the underlying's price at expiry where the result is zero.",
       "The thesis is what Fetha scores at expiry: it shows up in the journal, under Fetha's suggestions, as right or wrong, with the result of the lot.",
       "Your limits are checked against the risk profile you declared in Settings and the operations you have open now.",
+      "A suggestion is open until the end of the day (Brasília time) of the trading session after the close the radar read. Then it is archived: it leaves today's suggestions and takes no more decisions, but it is still scored at expiry.",
     ],
   },
 };
@@ -208,6 +215,10 @@ const ptBR = {
       builder: "Montar no simulador",
     },
     answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
+    archived: (session: string, day: string) =>
+      `As sugestões do fechamento de ${session} foram arquivadas no fim do dia ${day}. As novas aparecem aqui assim que o radar ler o próximo fechamento.`,
+    archivedCard: (day: string) =>
+      `Arquivada no fim do dia ${day}: não recebe mais decisão. Ela continua sendo avaliada no vencimento.`,
   },
   calibration: {
     title: "Sugestões do Fetha",
@@ -226,6 +237,8 @@ const ptBR = {
   page: {
     overline: (date: string) => `Sugestão · fechamento de ${date}`,
     expires: (date: string) => `Vence em ${date}`,
+    openThrough: (date: string) => `Vale até ${date}`,
+    archived: (date: string) => `Valeu até ${date}`,
     lot: "Um lote padrão",
     notesTitle: "Como ler uma sugestão",
     notes: [
@@ -234,6 +247,7 @@ const ptBR = {
       "Perda máxima e ganho máximo valem para o vencimento, antes dos custos. O break-even é o preço do ativo no vencimento em que o resultado fica zero.",
       "A tese é o que o Fetha confere no vencimento: ela aparece no diário, em Sugestões do Fetha, como acerto ou erro, com o resultado do lote.",
       "Os seus limites são conferidos com o perfil de risco que você declarou em Configurações e com as operações que você tem abertas agora.",
+      "Uma sugestão vale até o fim do dia do pregão seguinte ao fechamento que o radar leu, no horário de Brasília. Depois disso, ela é arquivada: sai das sugestões de hoje e não recebe mais decisões, mas continua sendo avaliada no vencimento.",
     ],
   },
 } satisfies typeof en;

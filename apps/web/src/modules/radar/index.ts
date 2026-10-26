@@ -9,6 +9,7 @@ export {
   getSuggestionCalibration,
   getTodaySuggestions,
   SuggestionNotFoundError,
+  type TodaySuggestions,
 } from "./queries";
 export type { SuggestionView } from "./suggestion-view";
 export { scoreDueSuggestions, type ScoreSuggestionsOutcome } from "./suggestion-scoring";

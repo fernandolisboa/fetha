@@ -39,6 +39,13 @@ export default async function SuggestionPage({ params }: { params: Promise<{ id:
           </Badge>
         </li>
         <li>
+          <Badge variant="secondary" className="font-mono tabular-nums">
+            {(suggestion.window.archived ? t.page.archived : t.page.openThrough)(
+              formatDate(sessionDateToDisplayDate(suggestion.window.openThrough)),
+            )}
+          </Badge>
+        </li>
+        <li>
           <Badge variant="secondary">{t.page.lot}</Badge>
         </li>
       </ul>
