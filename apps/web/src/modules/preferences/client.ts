@@ -7,6 +7,7 @@ export {
   dismissTourAction,
   setLayoutAction,
   setRailCollapsedAction,
+  setSuggestionArchiveAction,
   setThemeAction,
   type PreferencesActionResult,
 } from "./actions";

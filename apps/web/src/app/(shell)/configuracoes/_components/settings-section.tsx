@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export function SettingsSection({
+  id,
   title,
   subtitle,
   className,
   children,
 }: {
+  id?: string;
   title: ReactNode;
   subtitle: ReactNode;
   className?: string;
@@ -15,6 +17,7 @@ export function SettingsSection({
 }) {
   return (
     <section
+      id={id}
       className={cn(
         "border-border bg-card flex flex-col gap-3 rounded-[var(--radius)] border p-4",
         className,

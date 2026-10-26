@@ -56,3 +56,42 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(page.getByText(RATIONALE)).toBeVisible();
   await expect(page.getByText(/Sugestão do Fetha · /).first()).toBeVisible();
 });
+
+test("choose when seen suggestions leave today's suggestions", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+
+  await page.goto("/");
+  const setting = page.getByTestId("suggestion-archive-setting");
+  await expect(setting).toContainText("As sugestões que você já viu continuam aqui.");
+  await setting.getByRole("link", { name: "Ajustar" }).click();
+
+  await expect(page).toHaveURL(/\/configuracoes\/aparencia#sugestoes$/);
+  const group = page.getByRole("radiogroup", { name: "Arquivar uma sugestão já vista" });
+  await expect(group.getByRole("radio", { name: "Não arquivar" })).toBeChecked();
+  await group.getByRole("radio", { name: "Depois de 1 dia" }).click();
+  await expect(group.getByRole("radio", { name: "Depois de 1 dia" })).toBeChecked();
+  await expect(group).not.toHaveAttribute("data-disabled");
+
+  await page.reload();
+  await expect(
+    page
+      .getByRole("radiogroup", { name: "Arquivar uma sugestão já vista" })
+      .getByRole("radio", { name: "Depois de 1 dia" }),
+  ).toBeChecked();
+
+  await page.goto("/");
+  await expect(page.getByTestId("today-suggestions").getByRole("article").first()).toBeVisible();
+  await expect(page.getByTestId("suggestion-archive-setting")).toContainText(
+    "As sugestões que você já viu saem daqui 1 dia depois da primeira vez.",
+  );
+});

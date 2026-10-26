@@ -17,6 +17,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { user } from "../auth/schema";
 import type { RadarFacts, RadarLeg } from "./match";
 
 // Reference data (docs/adr/0066): no user_id, written only by the nightly radar scan and read
@@ -118,5 +119,25 @@ export const suggestionScores = pgTable(
       sql`(${table.score} is not null and ${table.unscorableReason} is null)
         or (${table.score} is null and ${table.unscorableReason} is not null)`,
     ),
+  ],
+);
+
+// When a user first had a suggestion on screen (docs/adr/0074): the one fact of theirs the radar
+// keeps, so a suggestion they already saw can leave their "Sugestões de hoje" after the delay
+// they chose. One row per user and suggestion; the first sighting is never moved.
+export const suggestionSightings = pgTable(
+  "suggestion_sightings",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    suggestionId: text("suggestion_id")
+      .notNull()
+      .references(() => suggestions.id, { onDelete: "cascade" }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.suggestionId] }),
+    index("suggestion_sightings_suggestion_id_idx").on(table.suggestionId),
   ],
 );

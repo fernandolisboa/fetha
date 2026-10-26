@@ -2,6 +2,7 @@ import { requireUser } from "@/modules/auth";
 import {
   getPreferences,
   LayoutPicker,
+  SuggestionArchivePicker,
   ThemePicker,
   t as preferencesStrings,
 } from "@/modules/preferences";
@@ -27,6 +28,14 @@ export default async function AppearanceSettingsPage() {
         className="@container"
       >
         <ThemePicker current={preferences.theme} />
+      </SettingsSection>
+      <SettingsSection
+        id="sugestoes"
+        title={preferencesStrings.suggestionArchive.title}
+        subtitle={preferencesStrings.suggestionArchive.subtitle}
+        className="@container scroll-mt-20"
+      >
+        <SuggestionArchivePicker current={preferences.suggestionArchive} />
       </SettingsSection>
     </div>
   );

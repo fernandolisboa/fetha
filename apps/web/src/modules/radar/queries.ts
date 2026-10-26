@@ -5,11 +5,18 @@ import { getDb, type Database } from "@/db/client";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { forCurrentUser, readE2EToday } from "@/modules/auth";
 import { nthTradingSessionAfter } from "@/modules/market-data";
+import {
+  archiveAfterHours,
+  getPreferences,
+  type SuggestionArchiveDelay,
+} from "@/modules/preferences";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { suggestionCalibration, type SuggestionCalibration } from "./calibration";
 import { latestRadar } from "./radar-repository";
 import { radarView, type RadarView } from "./radar-view";
+import { splitSeenSuggestions } from "./seen-archive";
+import { SuggestionSightingsRepository } from "./suggestion-sightings-repository";
 import { suggestionView, type SuggestionView } from "./suggestion-view";
 import { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
 import { todaySuggestions, type TodaySuggestionsResult } from "./today-suggestions";
@@ -65,6 +72,36 @@ export const getTodaySuggestions = cache(async (): Promise<TodaySuggestionsResul
     validity,
     stored.flatMap((row) => suggestionView(row, validity) ?? []),
   );
+});
+
+export type MyTodaySuggestions =
+  | Exclude<TodaySuggestionsResult, { kind: "open" }>
+  | (Extract<TodaySuggestionsResult, { kind: "open" }> & {
+      archivedSeen: SuggestionView[];
+      archive: SuggestionArchiveDelay;
+    });
+
+// Today's suggestions as the signed-in user's panel shows them (docs/adr/0074): the open ones
+// they already saw longer ago than their chosen delay move to `archivedSeen`.
+export const getMyTodaySuggestions = cache(async (): Promise<MyTodaySuggestions> => {
+  const today = await getTodaySuggestions();
+  if (today.kind !== "open") return today;
+  const [{ suggestionArchive }, sightings] = await Promise.all([
+    getPreferences(),
+    forCurrentUser(getDb(), SuggestionSightingsRepository),
+  ]);
+  const afterHours = archiveAfterHours(suggestionArchive);
+  const firstSeen =
+    afterHours === null
+      ? new Map<string, Date>()
+      : await sightings.firstSeen(today.suggestions.map((suggestion) => suggestion.id));
+  const { shown, archivedSeen } = splitSeenSuggestions(
+    today.suggestions,
+    firstSeen,
+    afterHours,
+    new Date(),
+  );
+  return { ...today, suggestions: shown, archivedSeen, archive: suggestionArchive };
 });
 
 // Shared reference data like the suggestions themselves: the same calibration for every user.

@@ -77,3 +77,4 @@ supersedes or amends them and says so.
 | 0070 | B3 options are dividend-protected, so the engine prices them with `q = 0`; no dividend source (#81, amends 0013, 0054)                                                      |
 | 0071 | A third layout, Dock, floats the navigation over the page (amends 0069)                                                                                                     |
 | 0072 | A suggestion is open through the next trading day, then archived (amends 0067)                                                                                              |
+| 0074 | A suggestion the user has seen leaves their panel after a delay they choose (amends 0067)                                                                                   |

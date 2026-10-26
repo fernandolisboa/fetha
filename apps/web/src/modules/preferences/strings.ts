@@ -59,6 +59,28 @@ const en = {
       },
     },
   },
+  suggestionArchive: {
+    title: "Seen suggestions",
+    subtitle:
+      "Take a suggestion off Today's suggestions some time after you first see it. It keeps its own page, and you can still decide on it while it is open.",
+    label: "Archive a seen suggestion",
+    options: {
+      off: "Don't archive",
+      "12": "After 12 hours",
+      "24": "After 1 day",
+      "48": "After 2 days",
+      "72": "After 3 days",
+      "168": "After 1 week",
+    },
+    delay: {
+      "12": "12 hours",
+      "24": "1 day",
+      "48": "2 days",
+      "72": "3 days",
+      "168": "1 week",
+    },
+    failed: "Could not save. Try again.",
+  },
   settings: {
     title: "Settings",
     overline: "Account",
@@ -135,6 +157,28 @@ const ptBR = {
           "Menu flutuante sobre a borda esquerda: só ícones e, ao passar o mouse, os nomes. Não ocupa coluna própria, então a tela fica com quase toda a largura.",
       },
     },
+  },
+  suggestionArchive: {
+    title: "Sugestões já vistas",
+    subtitle:
+      "Tira uma sugestão de Sugestões de hoje algum tempo depois que você a viu pela primeira vez. Ela continua tendo a página dela, e você ainda pode decidir sobre ela enquanto valer.",
+    label: "Arquivar uma sugestão já vista",
+    options: {
+      off: "Não arquivar",
+      "12": "Depois de 12 horas",
+      "24": "Depois de 1 dia",
+      "48": "Depois de 2 dias",
+      "72": "Depois de 3 dias",
+      "168": "Depois de 1 semana",
+    },
+    delay: {
+      "12": "12 horas",
+      "24": "1 dia",
+      "48": "2 dias",
+      "72": "3 dias",
+      "168": "1 semana",
+    },
+    failed: "Não deu para salvar. Tente de novo.",
   },
   settings: {
     title: "Configurações",

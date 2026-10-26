@@ -91,6 +91,15 @@ const en = {
       `The suggestions from the close of ${session} were archived at the end of ${day}. New ones show up here once the radar reads the next close.`,
     archivedCard: (day: string) =>
       `Archived at the end of ${day}: it no longer takes decisions. It is still scored at expiry.`,
+    seenArchive: {
+      allArchived:
+        "You have already seen every suggestion from this close, and they left this panel after the time you chose.",
+      archivedTitle: "Seen, archived for you",
+      on: (delay: string) =>
+        `Suggestions you have seen leave this panel ${delay} after the first time.`,
+      off: "Suggestions you have seen stay on this panel.",
+      adjust: "Change",
+    },
   },
   calibration: {
     title: "Fetha's suggestions",
@@ -219,6 +228,15 @@ const ptBR = {
       `As sugestões do fechamento de ${session} foram arquivadas no fim do dia ${day}. As novas aparecem aqui assim que o radar ler o próximo fechamento.`,
     archivedCard: (day: string) =>
       `Arquivada no fim do dia ${day}: não recebe mais decisões. Ela continua sendo avaliada no vencimento.`,
+    seenArchive: {
+      allArchived:
+        "Você já viu todas as sugestões deste fechamento, e elas saíram daqui depois do tempo que você escolheu.",
+      archivedTitle: "Já vistas, arquivadas para você",
+      on: (delay: string) =>
+        `As sugestões que você já viu saem daqui ${delay} depois da primeira vez.`,
+      off: "As sugestões que você já viu continuam aqui.",
+      adjust: "Ajustar",
+    },
   },
   calibration: {
     title: "Sugestões do Fetha",
