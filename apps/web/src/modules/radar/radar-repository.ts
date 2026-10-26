@@ -123,23 +123,30 @@ export async function saveRead(
   });
 }
 
-// The newest session the radar has read at least one underlying of, with every reading (null
-// while pending) and every match of that session. A session seeded but not read yet would claim
-// that no recipe found an entry at a close nothing was read at.
-export async function latestRadar(db: Database): Promise<StoredRadar | null> {
+// The newest session the radar has read at least one underlying of: the close the radar tab, the
+// suggestion cards and a suggestion's archiving (docs/adr/0073) all speak for.
+export async function newestReadSession(db: Database): Promise<string | null> {
   const [latest] = await db
     .select({ session: radarReadings.session })
     .from(radarReadings)
     .where(isNotNull(radarReadings.reading))
     .orderBy(desc(radarReadings.session))
     .limit(1);
-  if (!latest) return null;
+  return latest?.session ?? null;
+}
+
+// That session, with every reading (null
+// while pending) and every match of that session. A session seeded but not read yet would claim
+// that no recipe found an entry at a close nothing was read at.
+export async function latestRadar(db: Database): Promise<StoredRadar | null> {
+  const session = await newestReadSession(db);
+  if (!session) return null;
 
   const [readings, matches] = await Promise.all([
     db
       .select({ underlying: radarReadings.underlying, reading: radarReadings.reading })
       .from(radarReadings)
-      .where(eq(radarReadings.session, latest.session))
+      .where(eq(radarReadings.session, session))
       .orderBy(asc(radarReadings.underlying)),
     db
       .select({
@@ -149,12 +156,12 @@ export async function latestRadar(db: Database): Promise<StoredRadar | null> {
         legs: radarMatches.legs,
       })
       .from(radarMatches)
-      .where(eq(radarMatches.session, latest.session))
+      .where(eq(radarMatches.session, session))
       .orderBy(asc(radarMatches.underlying), asc(radarMatches.recipeId)),
   ]);
 
   return {
-    session: latest.session,
+    session,
     readings,
     matches: matches.flatMap((row) => {
       const facts = radarFactsSchema.safeParse(row.facts);

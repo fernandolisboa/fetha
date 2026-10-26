@@ -76,4 +76,5 @@ supersedes or amends them and says so.
 | 0069 | Two layouts, Workspace and Studio, and four themes carried over from Bardo and Mascate (amends 0015)                                                                        |
 | 0070 | B3 options are dividend-protected, so the engine prices them with `q = 0`; no dividend source (#81, amends 0013, 0054)                                                      |
 | 0071 | A third layout, Dock, floats the navigation over the page (amends 0069)                                                                                                     |
-| 0072 | A suggestion is open through the next trading day, then archived (amends 0067)                                                                                              |
+| 0072 | A suggestion is open through the next trading day, then archived (amends 0067; superseded by 0073)                                                                          |
+| 0073 | A suggestion is archived when the radar reads a newer close (supersedes 0072)                                                                                               |

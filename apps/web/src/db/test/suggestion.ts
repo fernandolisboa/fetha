@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { thesisClaimSchema, type Ticker } from "@fetha/contracts";
-import type { OperationPricing } from "@fetha/engine";
+import type { AssetReading, OperationPricing } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { radarLegsSchema } from "@/modules/radar/match";
@@ -93,5 +93,20 @@ export async function seedSuggestion(
     cleanup: async () => {
       await db.delete(radarReadings).where(eq(radarReadings.underlying, underlying));
     },
+  };
+}
+
+// A read radar row for a throwaway underlying at `session`: enough for the radar to count that
+// close as read (docs/adr/0073), with no suggestion of its own. Cleanup removes it.
+export async function seedRadarRead(db: Database, session: string): Promise<() => Promise<void>> {
+  const underlying = `RR${crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`;
+  await db.insert(radarReadings).values({
+    underlying,
+    session,
+    asOf: new Date(`${session}T20:00:00.000Z`),
+    reading: {} as AssetReading,
+  });
+  return async () => {
+    await db.delete(radarReadings).where(eq(radarReadings.underlying, underlying));
   };
 }

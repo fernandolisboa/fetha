@@ -183,6 +183,20 @@ export async function nthSessionAfter(
   return row;
 }
 
+// How many trading sessions after `date` have closed by `at`: how far the radar's newest read
+// close trails the calendar (docs/adr/0073).
+export async function countSessionsClosedAfter(
+  db: Database,
+  date: string,
+  at: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tradingSessions)
+    .where(and(gt(tradingSessions.date, date), lte(tradingSessions.close, at)));
+  return row?.count ?? 0;
+}
+
 export async function sessionByDate(
   db: Database,
   date: string,

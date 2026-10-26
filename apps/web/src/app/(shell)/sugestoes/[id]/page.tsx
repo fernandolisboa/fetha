@@ -39,10 +39,10 @@ export default async function SuggestionPage({ params }: { params: Promise<{ id:
           </Badge>
         </li>
         <li>
-          <Badge variant="secondary" className="font-mono tabular-nums">
-            {(suggestion.validity.archived ? t.page.archived : t.page.openThrough)(
-              formatSessionDate(suggestion.validity.openThrough),
-            )}
+          <Badge variant="secondary">
+            {suggestion.validity.archived
+              ? t.page.archived(formatSessionDate(suggestion.validity.supersededBy))
+              : t.page.current}
           </Badge>
         </li>
         <li>

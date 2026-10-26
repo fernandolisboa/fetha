@@ -1,17 +1,15 @@
 import { cache } from "react";
-import type { SessionDate } from "@fetha/contracts";
 
-import { getDb, type Database } from "@/db/client";
-import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
-import { forCurrentUser, readE2EToday } from "@/modules/auth";
-import { nthTradingSessionAfter } from "@/modules/market-data";
+import { getDb } from "@/db/client";
+import { forCurrentUser } from "@/modules/auth";
+import { countSessionsClosedAfter } from "@/modules/market-data";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { suggestionCalibration, type SuggestionCalibration } from "./calibration";
-import { latestRadar } from "./radar-repository";
+import { latestRadar, newestReadSession } from "./radar-repository";
 import { radarView, type RadarView } from "./radar-view";
 import { suggestionView, type SuggestionView } from "./suggestion-view";
-import { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
+import { suggestionValidity } from "./suggestion-validity";
 import { todaySuggestions, type TodaySuggestionsResult } from "./today-suggestions";
 import { findSuggestion, latestSuggestions, scoredSuggestions } from "./suggestions-repository";
 
@@ -37,33 +35,33 @@ export class SuggestionNotFoundError extends Error {
 // Suggestions are shared reference data (docs/adr/0067): any signed-in user reads any of them.
 export const getSuggestion = cache(async (id: string): Promise<SuggestionView> => {
   const db = getDb();
-  const stored = await findSuggestion(db, id);
-  const view = stored ? suggestionView(stored, await validityFor(db, stored.session)) : null;
+  const [stored, newest] = await Promise.all([findSuggestion(db, id), newestReadSession(db)]);
+  const view = stored ? suggestionView(stored, suggestionValidity(stored.session, newest)) : null;
   if (!view) throw new SuggestionNotFoundError();
   return view;
 });
 
-function suggestionToday(): SessionDate {
-  return readE2EToday() ?? todaySaoPauloDate();
-}
+// docs/adr/0073: the nightly runs read a close overnight, the last attempt at 09:00 UTC the next
+// morning, so a close is overdue only once it has gone unread for longer than that.
+const OVERDUE_AFTER_CLOSE_MS = 18 * 60 * 60 * 1000;
 
-async function validityFor(db: Database, session: SessionDate): Promise<SuggestionValidity> {
-  const next = await nthTradingSessionAfter(db, session, 1);
-  return suggestionValidity(session, next?.date, suggestionToday());
-}
-
-// Today's suggestions (docs/adr/0072): the radar's newest read session, while its suggestions
-// are open.
+// Today's suggestions (docs/adr/0073): the radar's newest read session, however old, with how
+// many later closes the radar is overdue on.
 export const getTodaySuggestions = cache(async (): Promise<TodaySuggestionsResult> => {
   const db = getDb();
   const stored = await latestSuggestions(db);
   const [first] = stored;
   if (!first) return { kind: "none" };
-  const validity = await validityFor(db, first.session);
+  const overdueSessions = await countSessionsClosedAfter(
+    db,
+    first.session,
+    new Date(Date.now() - OVERDUE_AFTER_CLOSE_MS),
+  );
+  const current = suggestionValidity(first.session, first.session);
   return todaySuggestions(
     first.session,
-    validity,
-    stored.flatMap((row) => suggestionView(row, validity) ?? []),
+    overdueSessions,
+    stored.flatMap((row) => suggestionView(row, current) ?? []),
   );
 });
 

@@ -18,7 +18,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { seedOperation, seedOptionSeries, seedStockOperation } from "@/db/test/held-operation";
-import { seedSuggestion } from "@/db/test/suggestion";
+import { seedRadarRead, seedSuggestion } from "@/db/test/suggestion";
 import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -720,18 +720,18 @@ describe("recordDecisionAction on a suggestion (docs/adr/0067)", () => {
     expect(await decide(crypto.randomUUID())).toEqual({ status: "error", error: "not_found" });
   });
 
-  it("refuses a decision once the suggestion is archived (docs/adr/0072)", async () => {
+  it("refuses a decision once the radar has read a newer close (docs/adr/0073)", async () => {
     const email = uniqueEmail("suggestion-archived");
     createdEmails.push(email);
     const archivedUser = await insertBareUser(email);
     currentUser = archivedUser;
     const suggestionId = await suggestion();
 
-    vi.stubEnv("E2E_TODAY", "2099-01-01");
+    const removeRead = await seedRadarRead(getDb(), "2099-01-02");
     try {
       expect(await decide(suggestionId)).toEqual({ status: "error", error: "archived" });
     } finally {
-      vi.unstubAllEnvs();
+      await removeRead();
     }
     expect(await new DecisionsRepository(getDb(), archivedUser).listMine()).toEqual([]);
   });
