@@ -31,7 +31,7 @@ function IdeaGroup({
       <h3 className="text-[15px] font-medium">
         {title} <span className="text-muted-foreground font-mono tabular-nums">{ideas.length}</span>
       </h3>
-      <div className="grid gap-3 @min-[56rem]:grid-cols-2 @min-[96rem]:grid-cols-3">
+      <div className="grid gap-3 @min-[56rem]:grid-cols-2 @min-[120rem]:grid-cols-3">
         {ideas.map((idea) => (
           <ResearchIdeaCard key={`${idea.underlying}-${idea.recipeId}`} idea={idea} stale={stale} />
         ))}
