@@ -4,6 +4,11 @@ import { preferences } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { layoutSchema, type Layout } from "./layout";
+import {
+  DEFAULT_ARCHIVE_MINUTES,
+  storedSuggestionArchive,
+  type SuggestionArchive,
+} from "./suggestion-archive";
 import { themeSchema, type Theme } from "./theme";
 
 export interface Preferences {
@@ -12,6 +17,7 @@ export interface Preferences {
   railCollapsed: boolean;
   tourDismissed: boolean;
   assetTourDismissed: boolean;
+  suggestionArchive: SuggestionArchive;
 }
 
 const defaults: Preferences = {
@@ -20,6 +26,7 @@ const defaults: Preferences = {
   railCollapsed: false,
   tourDismissed: false,
   assetTourDismissed: false,
+  suggestionArchive: { enabled: false, afterMinutes: DEFAULT_ARCHIVE_MINUTES },
 };
 
 export class PreferencesRepository extends UserScopedRepository {
@@ -31,6 +38,8 @@ export class PreferencesRepository extends UserScopedRepository {
         railCollapsed: preferences.railCollapsed,
         tourDismissedAt: preferences.tourDismissedAt,
         assetTourDismissedAt: preferences.assetTourDismissedAt,
+        suggestionArchiveEnabled: preferences.suggestionArchiveEnabled,
+        suggestionArchiveAfterMinutes: preferences.suggestionArchiveAfterMinutes,
       })
       .from(preferences)
       .where(eq(preferences.userId, this.userId))
@@ -48,6 +57,10 @@ export class PreferencesRepository extends UserScopedRepository {
       railCollapsed: row.railCollapsed,
       tourDismissed: row.tourDismissedAt !== null,
       assetTourDismissed: row.assetTourDismissedAt !== null,
+      suggestionArchive: storedSuggestionArchive(
+        row.suggestionArchiveEnabled,
+        row.suggestionArchiveAfterMinutes,
+      ),
     };
   }
 
@@ -57,6 +70,13 @@ export class PreferencesRepository extends UserScopedRepository {
 
   async setLayout(layout: Layout): Promise<void> {
     await this.upsert({ layout });
+  }
+
+  async setSuggestionArchive({ enabled, afterMinutes }: SuggestionArchive): Promise<void> {
+    await this.upsert({
+      suggestionArchiveEnabled: enabled,
+      suggestionArchiveAfterMinutes: afterMinutes,
+    });
   }
 
   async setRailCollapsed(railCollapsed: boolean): Promise<void> {
@@ -94,7 +114,12 @@ export class PreferencesRepository extends UserScopedRepository {
   }
 
   private async upsert(
-    patch: Partial<Pick<Preferences, "theme" | "layout" | "railCollapsed">>,
+    patch: Partial<
+      Pick<Preferences, "theme" | "layout" | "railCollapsed"> & {
+        suggestionArchiveEnabled: boolean;
+        suggestionArchiveAfterMinutes: number;
+      }
+    >,
   ): Promise<void> {
     await this.db
       .insert(preferences)

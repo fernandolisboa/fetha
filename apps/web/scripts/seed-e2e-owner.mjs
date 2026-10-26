@@ -20,7 +20,7 @@ const DEFAULT_E2E_OWNER_EMAIL = "dono-e2e@example.com";
 // script cannot import that .ts module. seed-e2e-owner.integration.test.ts
 // fails when the two drift, since a stale version sends the account to
 // /aceitar-termos instead of the page under test.
-const TERMS_VERSION = "2026-10-16.1";
+const TERMS_VERSION = "2026-10-26.1";
 
 // Read before the guard merges apps/web/.env.local over the environment, so
 // the address a caller passes always wins over a local default.

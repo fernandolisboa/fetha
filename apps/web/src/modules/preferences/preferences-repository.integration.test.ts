@@ -77,6 +77,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -107,6 +108,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -128,6 +130,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -158,6 +161,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: true,
       assetTourDismissed: true,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -175,6 +179,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -195,6 +200,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -214,6 +220,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -247,6 +254,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: false,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -267,6 +275,7 @@ describe("PreferencesRepository isolation", () => {
       railCollapsed: true,
       tourDismissed: false,
       assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
     });
   });
 
@@ -279,5 +288,58 @@ describe("PreferencesRepository isolation", () => {
     await db.insert(preferences).values({ userId: testUser.id, layout: "cockpit" });
 
     expect((await new PreferencesRepository(db, testUser).find()).layout).toBe("workspace");
+  });
+
+  it("persists the suggestion archive per user, and turning it off keeps the chosen delay", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("archive-a");
+    const emailB = uniqueEmail("archive-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const repositoryA = new PreferencesRepository(db, userA);
+    await new PreferencesRepository(db, userB).setTheme("amplo");
+
+    await repositoryA.setSuggestionArchive({ enabled: true, afterMinutes: 90 });
+
+    expect((await repositoryA.find()).suggestionArchive).toEqual({
+      enabled: true,
+      afterMinutes: 90,
+    });
+    expect((await new PreferencesRepository(db, userB).find()).suggestionArchive).toEqual({
+      enabled: false,
+      afterMinutes: 1440,
+    });
+    const [row] = await db
+      .select({
+        enabled: preferences.suggestionArchiveEnabled,
+        minutes: preferences.suggestionArchiveAfterMinutes,
+      })
+      .from(preferences)
+      .where(eq(preferences.userId, userA.id));
+    expect(row).toEqual({ enabled: true, minutes: 90 });
+
+    await repositoryA.setSuggestionArchive({ enabled: false, afterMinutes: 90 });
+    expect((await repositoryA.find()).suggestionArchive).toEqual({
+      enabled: false,
+      afterMinutes: 90,
+    });
+    expect((await repositoryA.find()).theme).toBe("instrumento");
+  });
+
+  it("rejects an archive delay outside one minute to one year at the database", async () => {
+    const db = getDb();
+    const email = uniqueEmail("archive-check");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+
+    await expect(
+      db.insert(preferences).values({ userId: testUser.id, suggestionArchiveAfterMinutes: 0 }),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .insert(preferences)
+        .values({ userId: testUser.id, suggestionArchiveAfterMinutes: 525_601 }),
+    ).rejects.toThrow();
   });
 });

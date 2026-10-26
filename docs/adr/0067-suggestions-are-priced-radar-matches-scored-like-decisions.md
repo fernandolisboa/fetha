@@ -166,3 +166,11 @@ decision (item 5); its page shows no decision bar (item 8).
 ADR-0073 replaces ADR-0072's window: a suggestion is archived once the radar reads a newer close,
 never by the date; while ingestion lags, the panel keeps the newest read session's suggestions
 with a warning of how many closes are overdue.
+
+## Amendment (2026-10-26, ADR-0074)
+
+Each user may have "Sugestões de hoje" drop the suggestions they have already seen, a delay they
+choose after the first sighting (off by default). The sightings are user data in
+`suggestion_sightings`, so `radar` now owns one user-scoped table. This does not change the
+archiving above: a suggestion taken off one user's panel still takes decisions while open and is
+scored for everyone.

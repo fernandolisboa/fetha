@@ -7,8 +7,10 @@ export { seedE2ERadar, type SeedE2ERadarResult } from "./e2e-seed";
 export {
   getSuggestion,
   getSuggestionCalibration,
-  getTodaySuggestions,
+  getMyTodaySuggestions,
+  type MyTodaySuggestions,
   SuggestionNotFoundError,
 } from "./queries";
 export type { SuggestionView } from "./suggestion-view";
+export { RadarDataExport } from "./data-export";
 export { scoreDueSuggestions, type ScoreSuggestionsOutcome } from "./suggestion-scoring";

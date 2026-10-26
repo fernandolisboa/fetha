@@ -93,6 +93,15 @@ const en = {
     answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Archived: the radar has read the close of ${session} since. It no longer takes decisions, but it is still scored at expiry.`,
+    seenArchive: {
+      allArchived:
+        "You have already seen every suggestion from this close, and they left this panel after the time you chose.",
+      archivedTitle: "Seen, archived for you",
+      on: (delay: string) =>
+        `Suggestions you have seen leave this panel ${delay} after the first time.`,
+      off: "Suggestions you have seen stay on this panel.",
+      adjust: "Change",
+    },
   },
   calibration: {
     title: "Fetha's suggestions",
@@ -223,6 +232,15 @@ const ptBR = {
     answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Arquivada: o radar já leu o fechamento de ${session}. Ela não recebe mais decisões, mas continua sendo avaliada no vencimento.`,
+    seenArchive: {
+      allArchived:
+        "Você já viu todas as sugestões deste fechamento, e elas saíram daqui depois do tempo que você escolheu.",
+      archivedTitle: "Já vistas, arquivadas para você",
+      on: (delay: string) =>
+        `As sugestões que você já viu saem daqui ${delay} depois da primeira vez.`,
+      off: "As sugestões que você já viu continuam aqui.",
+      adjust: "Ajustar",
+    },
   },
   calibration: {
     title: "Sugestões do Fetha",
