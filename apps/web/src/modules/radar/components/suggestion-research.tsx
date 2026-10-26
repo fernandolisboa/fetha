@@ -11,39 +11,48 @@ import { DEFAULT_RISK_PROFILE } from "@/modules/portfolio/client";
 import type { ResearchResult } from "../research";
 import { researchSuggestionsAction } from "../research-actions";
 import { RESEARCH_WINDOW_SESSIONS } from "../research-rules";
+import { applyOutcome, initialResearchState, type ResearchState } from "../research-state";
 import { researchSummary } from "../research-summary";
 import { t } from "../strings";
 import { ResearchIdeaCard } from "./research-idea-card";
 
-type State =
-  | { kind: "idle" }
-  | { kind: "done"; result: ResearchResult }
-  | { kind: "error"; error: "rate_limited" | "unavailable" };
-
-function IdeaGroup({ title, ideas }: { title: string; ideas: ResearchResult["holding"] }) {
+function IdeaGroup({
+  title,
+  ideas,
+  stale = false,
+}: {
+  title: string;
+  ideas: ResearchResult["holding"];
+  stale?: boolean;
+}) {
   if (ideas.length === 0) return null;
   return (
-    <section className="flex flex-col gap-3" aria-label={title}>
-      <h3 className="text-[13px] font-medium">
+    <section className="@container flex flex-col gap-3" aria-label={title}>
+      <h3 className="text-[15px] font-medium">
         {title} <span className="text-muted-foreground font-mono tabular-nums">{ideas.length}</span>
       </h3>
-      {ideas.map((idea) => (
-        <ResearchIdeaCard key={`${idea.underlying}-${idea.recipeId}`} idea={idea} />
-      ))}
+      <div className="grid gap-3 @min-[56rem]:grid-cols-2 @min-[96rem]:grid-cols-3">
+        {ideas.map((idea) => (
+          <ResearchIdeaCard key={`${idea.underlying}-${idea.recipeId}`} idea={idea} stale={stale} />
+        ))}
+      </div>
     </section>
   );
+}
+
+function summaryLine(result: ResearchResult): string {
+  const close = result.newestClose
+    ? `${t.research.close(formatSessionDate(result.newestClose))}. `
+    : "";
+  return `${close}${researchSummary(result)}`;
 }
 
 function ResearchResultView({ result }: { result: ResearchResult }) {
   const found = result.holding.length + result.noLongerHolding.length > 0;
   return (
     <div className="flex flex-col gap-3" data-testid="research-result">
-      <p className="text-muted-foreground text-xs text-pretty">
-        {result.newestClose && `${t.research.close(formatSessionDate(result.newestClose))}. `}
-        {researchSummary(result)}
-      </p>
       {result.timedOut && (
-        <p role="status" className="text-[13px] text-pretty" style={{ color: "var(--warning)" }}>
+        <p className="text-[13px] text-pretty" style={{ color: "var(--warning)" }}>
           {t.research.timedOut}
         </p>
       )}
@@ -66,26 +75,22 @@ function ResearchResultView({ result }: { result: ResearchResult }) {
         </p>
       )}
       <IdeaGroup title={t.research.holdingTitle} ideas={result.holding} />
-      <IdeaGroup title={t.research.noLongerTitle} ideas={result.noLongerHolding} />
+      <IdeaGroup title={t.research.noLongerTitle} ideas={result.noLongerHolding} stale />
     </div>
   );
 }
 
 export function SuggestionResearch() {
-  const [state, setState] = useState<State>({ kind: "idle" });
+  const [state, setState] = useState<ResearchState>(initialResearchState);
   const [pending, setPending] = useState(false);
 
   async function research() {
     setPending(true);
     try {
       const outcome = await researchSuggestionsAction();
-      setState(
-        outcome.status === "ok"
-          ? { kind: "done", result: outcome.result }
-          : { kind: "error", error: outcome.error },
-      );
+      setState((previous) => applyOutcome(previous, outcome));
     } catch {
-      setState({ kind: "error", error: "unavailable" });
+      setState((previous) => applyOutcome(previous, { status: "error", error: "unavailable" }));
     } finally {
       setPending(false);
     }
@@ -96,24 +101,29 @@ export function SuggestionResearch() {
       <p className="text-muted-foreground text-xs text-pretty">
         {t.research.hint(RESEARCH_WINDOW_SESSIONS)}
       </p>
-      <Button
-        type="button"
-        variant="outline"
-        className="self-start"
-        disabled={pending}
-        aria-busy={pending}
-        onClick={() => void research()}
-      >
-        {pending ? t.research.pending : t.research.button}
-      </Button>
-      <div aria-live="polite" className="flex flex-col gap-3">
-        {state.kind === "done" && <ResearchResultView result={state.result} />}
-        {state.kind === "error" && (
-          <p className="text-[13px] text-pretty" style={{ color: "var(--danger)" }}>
-            {t.research.errors[state.error]}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="max-md:min-h-11"
+          disabled={pending}
+          aria-busy={pending}
+          onClick={() => void research()}
+        >
+          {pending ? t.research.pending : t.research.button}
+        </Button>
+        <p
+          aria-live="polite"
+          className="text-[13px] text-pretty empty:hidden"
+          style={{ color: "var(--danger)" }}
+        >
+          {state.error ? t.research.errors[state.error] : null}
+        </p>
       </div>
+      <p aria-live="polite" className="text-muted-foreground text-xs text-pretty empty:hidden">
+        {state.result ? summaryLine(state.result) : null}
+      </p>
+      {state.result && <ResearchResultView result={state.result} />}
     </div>
   );
 }

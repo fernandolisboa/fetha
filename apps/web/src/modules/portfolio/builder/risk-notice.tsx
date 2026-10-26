@@ -12,14 +12,20 @@ function formatLimitValue(breach: LimitBreach): string {
     : formatPercent(breach.value);
 }
 
-export function RiskNotice({ breaches }: { breaches: LimitBreach[] }) {
+export function RiskNotice({
+  breaches,
+  announce = true,
+}: {
+  breaches: LimitBreach[];
+  announce?: boolean;
+}) {
   if (breaches.length === 0) {
     return null;
   }
 
   return (
     <div
-      role="alert"
+      role={announce ? "alert" : "group"}
       aria-label={t.builder.riskNotice.title}
       data-testid="risk-notice"
       className="flex flex-col gap-2 rounded-[var(--radius)] border p-3"

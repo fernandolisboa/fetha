@@ -51,6 +51,9 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
    and the expiry (a lot that near expiry leaves no time to decide and order). `exceeds_capital`:
    the lot's max loss is greater than the whole declared capital (equal is kept). The reasons apply
    in that order, once per candidate. 5 is this project's default (`MIN_SESSIONS_TO_EXPIRY`).
+   With today's book every recipe needs at least 20 business days to expiry, so at a 5-session
+   window `expires_too_soon` and `near_expiry` cannot trigger yet; they guard against a recipe or
+   window change.
 5. **Alerts, a closed list computed on the card.** `rule_no_longer_holds` (with the session the
    finding was made on; the idea goes under "Deixaram de valer", the others under "Ainda valem
    hoje"), `limit_breach` (one per breached limit, straight from the engine's `limitBreaches`) and

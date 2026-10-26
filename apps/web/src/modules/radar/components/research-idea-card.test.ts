@@ -78,8 +78,8 @@ function idea(overrides: Partial<Idea> = {}): Idea {
   };
 }
 
-function render(value: Idea): string {
-  return renderToStaticMarkup(createElement(ResearchIdeaCard, { idea: value }));
+function render(value: Idea, options: { stale?: boolean } = {}): string {
+  return renderToStaticMarkup(createElement(ResearchIdeaCard, { idea: value, ...options }));
 }
 
 describe("ResearchIdeaCard", () => {
@@ -125,6 +125,18 @@ describe("ResearchIdeaCard", () => {
     expect(html).toContain("21/10/2026");
     expect(html).toContain("Vence em 7 pregões");
     expect(html).toContain('data-testid="risk-notice"');
+    expect(html).not.toContain('role="alert"');
     expect(html).toContain("4%");
+  });
+
+  it("keeps each break-even in one piece", () => {
+    const html = render(idea({ breakEvens: [decimal("11.48"), decimal("11.52")] }));
+
+    expect(html).toContain('<span class="whitespace-nowrap">R$ 11,48</span> / <span');
+  });
+
+  it("marks a card whose rule stopped holding with the warning border", () => {
+    expect(render(idea(), { stale: true })).toContain("var(--warning)");
+    expect(render(idea())).not.toContain("var(--warning)");
   });
 });

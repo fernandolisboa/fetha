@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { decimalStringSchema, type Centavos } from "@fetha/contracts";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
@@ -17,7 +18,15 @@ export function netPremiumText(value: Centavos): string {
   return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
 }
 
-export function Figure({ label, value, token }: { label: string; value: string; token?: string }) {
+export function Figure({
+  label,
+  value,
+  token,
+}: {
+  label: string;
+  value: ReactNode;
+  token?: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</dt>

@@ -1,8 +1,10 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { AssetReadingChips } from "@/modules/market-data/client";
 import { RiskNotice } from "@/modules/portfolio/client";
@@ -19,6 +21,16 @@ function alertText(alert: Exclude<IdeaAlert, { kind: "limit_breach" }>): string 
     case "near_expiry":
       return t.research.alerts.near_expiry(alert.sessionsLeft);
   }
+}
+
+function BreakEvens({ values }: { values: Idea["breakEvens"] }) {
+  if (values.length === 0) return "—";
+  return values.map((value, index) => (
+    <Fragment key={value}>
+      {index > 0 && " / "}
+      <span className="whitespace-nowrap">{formatPriceBRL(value)}</span>
+    </Fragment>
+  ));
 }
 
 function IdeaAlerts({ alerts }: { alerts: readonly IdeaAlert[] }) {
@@ -40,7 +52,7 @@ function IdeaAlerts({ alerts }: { alerts: readonly IdeaAlert[] }) {
           ))}
         </ul>
       )}
-      <RiskNotice breaches={breaches} />
+      <RiskNotice breaches={breaches} announce={false} />
     </>
   );
 }
@@ -48,16 +60,20 @@ function IdeaAlerts({ alerts }: { alerts: readonly IdeaAlert[] }) {
 // One re-checked idea (docs/adr/0075): the lot re-priced at the newest close, its alerts, and a
 // way back to the suggestion it came from and to the asset. No decision bar yet: a research is
 // not stored, so its ideas have no id to decide on.
-export function ResearchIdeaCard({ idea }: { idea: Idea }) {
+export function ResearchIdeaCard({ idea, stale = false }: { idea: Idea; stale?: boolean }) {
   const title = t.research.cardTitle(idea.structure.name, idea.underlying);
   const labels = t.suggestions.numbers;
   return (
     <article
-      className="border-border flex flex-col gap-3 rounded-[var(--radius)] border p-3"
+      className={cn(
+        "border-border @container flex min-w-0 flex-col gap-3 rounded-[var(--radius)] border p-3",
+        stale && "border-l-[3px]",
+      )}
+      style={stale ? { borderLeftColor: "var(--warning)" } : undefined}
       data-testid="research-idea"
       aria-label={title}
     >
-      <h4 className="text-[15px] font-medium">{title}</h4>
+      <h4 className="text-[13px] font-semibold">{title}</h4>
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
           {t.research.foundOn(formatSessionDate(idea.foundOn))}
@@ -72,7 +88,10 @@ export function ResearchIdeaCard({ idea }: { idea: Idea }) {
       </ul>
       <dl
         aria-label={t.suggestions.numbersLabel}
-        className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4"
+        className={cn(
+          "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4",
+          stale && "opacity-75",
+        )}
       >
         <Figure label={labels.netPremium} value={netPremiumText(idea.netPremium)} />
         <Figure label={labels.maxLoss} value={formatBRL(idea.maxLoss)} />
@@ -80,14 +99,7 @@ export function ResearchIdeaCard({ idea }: { idea: Idea }) {
           label={labels.maxGain}
           value={idea.maxGain === "unbounded" ? labels.unbounded : formatBRL(idea.maxGain)}
         />
-        <Figure
-          label={labels.breakEvens}
-          value={
-            idea.breakEvens.length > 0
-              ? idea.breakEvens.map((value) => formatPriceBRL(value)).join(" / ")
-              : "—"
-          }
-        />
+        <Figure label={labels.breakEvens} value={<BreakEvens values={idea.breakEvens} />} />
       </dl>
       <p className="text-[13px]">
         {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
@@ -96,14 +108,18 @@ export function ResearchIdeaCard({ idea }: { idea: Idea }) {
         {idea.suggestionId && (
           <Link
             href={`/sugestoes/${idea.suggestionId}`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
+            className={buttonVariants({
+              variant: "outline",
+              size: "sm",
+              className: "max-md:min-h-11",
+            })}
           >
             {t.research.actions.suggestion}
           </Link>
         )}
         <Link
           href={`/ativos/${idea.underlying}`}
-          className={buttonVariants({ variant: "ghost", size: "sm" })}
+          className={buttonVariants({ variant: "ghost", size: "sm", className: "max-md:min-h-11" })}
         >
           {t.research.actions.asset}
         </Link>
