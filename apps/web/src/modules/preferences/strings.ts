@@ -62,7 +62,7 @@ const en = {
   suggestionArchive: {
     title: "Seen suggestions",
     subtitle:
-      "Take a suggestion off Today's suggestions some time after you first see it. It keeps its own page, and you can still decide on it while it is open.",
+      "Take a suggestion off Today's suggestions some time after you first see it. While this is on, Fetha records when each suggestion first shows on your screen; while it is off, nothing is recorded. An archived suggestion keeps its own page, and you can still decide on it while it is open.",
     label: "Archive a seen suggestion",
     options: {
       off: "Don't archive",
@@ -161,7 +161,7 @@ const ptBR = {
   suggestionArchive: {
     title: "Sugestões já vistas",
     subtitle:
-      "Tira uma sugestão de Sugestões de hoje algum tempo depois que você a viu pela primeira vez. Ela continua tendo a página dela, e você ainda pode decidir sobre ela enquanto valer.",
+      "Tira uma sugestão de Sugestões de hoje algum tempo depois que você a viu pela primeira vez. Com a opção ligada, o Fetha guarda quando cada sugestão apareceu na sua tela pela primeira vez; desligada, nada é guardado. A sugestão arquivada continua com a página dela, e você ainda pode decidir sobre ela enquanto estiver aberta.",
     label: "Arquivar uma sugestão já vista",
     options: {
       off: "Não arquivar",

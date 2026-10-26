@@ -8,7 +8,6 @@ export {
   getSuggestion,
   getSuggestionCalibration,
   getMyTodaySuggestions,
-  getTodaySuggestions,
   type MyTodaySuggestions,
   SuggestionNotFoundError,
 } from "./queries";

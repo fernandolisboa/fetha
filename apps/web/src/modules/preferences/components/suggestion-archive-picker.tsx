@@ -7,7 +7,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import { setSuggestionArchiveAction } from "../actions";
 import { t as preferencesStrings } from "../strings";
-import { suggestionArchiveDelays, type SuggestionArchiveDelay } from "../suggestion-archive";
+import {
+  suggestionArchiveDelays,
+  suggestionArchiveDelaySchema,
+  type SuggestionArchiveDelay,
+} from "../suggestion-archive";
 
 export function SuggestionArchivePicker({ current }: { current: SuggestionArchiveDelay }) {
   const strings = preferencesStrings.suggestionArchive;
@@ -22,8 +26,9 @@ export function SuggestionArchivePicker({ current }: { current: SuggestionArchiv
         aria-label={strings.label}
         disabled={pending}
         onValueChange={(next) => {
-          const delay = suggestionArchiveDelays.find((candidate) => candidate === next);
-          if (!delay) return;
+          const parsed = suggestionArchiveDelaySchema.safeParse(next);
+          if (!parsed.success) return;
+          const delay = parsed.data;
           const previous = value;
           setValue(delay);
           setFailed(false);

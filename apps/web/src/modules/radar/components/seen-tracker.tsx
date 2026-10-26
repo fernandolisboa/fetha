@@ -3,26 +3,49 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { markSuggestionsSeenAction } from "../actions";
+import { countsAsSeen, SEEN_THRESHOLDS } from "../seen";
 
 const FLUSH_DELAY_MS = 800;
 
-// docs/adr/0074: a suggestion counts as seen once at least half of its card was on screen while
-// the page was visible. Sightings go to the server in one batch per pause, each id once per page.
-export function SeenTracker({ children }: { children: ReactNode }) {
+// docs/adr/0074: a suggestion counts as seen once enough of its card was on screen while the page
+// was visible. Sightings go to the server in one batch per pause; a failed batch is retried the
+// next time its cards come on screen.
+export function SeenTracker({ ids, children }: { ids: readonly string[]; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
+  const sent = useRef(new Set<string>());
+  // The same tracker stays mounted when the list grows (watchlist tab to radar tab), so the
+  // cards are observed again whenever the rendered ids change.
+  const idsKey = ids.join(",");
 
   useEffect(() => {
     const element = root.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
-    const sent = new Set<string>();
     const pending = new Set<string>();
+    let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cards = () => [...element.querySelectorAll("[data-suggestion-id]")];
+    const observeUnsent = () => {
+      for (const card of cards()) {
+        if (sent.current.has(card.getAttribute("data-suggestion-id") ?? "")) continue;
+        observer.unobserve(card);
+        observer.observe(card);
+      }
+    };
 
     const flush = () => {
       timer = undefined;
-      const ids = [...pending];
+      const batch = [...pending];
       pending.clear();
-      if (ids.length > 0) void markSuggestionsSeenAction(ids).catch(() => undefined);
+      if (batch.length === 0) return;
+      void markSuggestionsSeenAction(batch)
+        .then((result) => result.status === "ok")
+        .catch(() => false)
+        .then((ok) => {
+          if (ok || disposed) return;
+          for (const id of batch) sent.current.delete(id);
+          observeUnsent();
+        });
     };
 
     const observer = new IntersectionObserver(
@@ -30,24 +53,23 @@ export function SeenTracker({ children }: { children: ReactNode }) {
         if (document.visibilityState !== "visible") return;
         for (const entry of entries) {
           const id = entry.target.getAttribute("data-suggestion-id");
-          if (!entry.isIntersecting || !id || sent.has(id)) continue;
-          sent.add(id);
+          if (!id || sent.current.has(id)) continue;
+          const seen = countsAsSeen({
+            intersectionRatio: entry.intersectionRatio,
+            intersectionHeight: entry.intersectionRect.height,
+            viewportHeight: entry.rootBounds?.height ?? null,
+          });
+          if (!seen) continue;
+          sent.current.add(id);
           pending.add(id);
           observer.unobserve(entry.target);
         }
         if (pending.size > 0 && timer === undefined) timer = setTimeout(flush, FLUSH_DELAY_MS);
       },
-      { threshold: 0.5 },
+      { threshold: SEEN_THRESHOLDS },
     );
-    // An observer reports a card once when observed and then only on changes, so a card already
-    // on screen while the tab was hidden is observed afresh when the tab comes back.
-    const observeUnsent = () => {
-      for (const card of element.querySelectorAll("[data-suggestion-id]")) {
-        if (sent.has(card.getAttribute("data-suggestion-id") ?? "")) continue;
-        observer.unobserve(card);
-        observer.observe(card);
-      }
-    };
+    // An observer reports a card once when observed and then only as it crosses a threshold, so
+    // a card already on screen while the tab was hidden is observed afresh when it comes back.
     const onVisibility = () => {
       if (document.visibilityState === "visible") observeUnsent();
     };
@@ -55,6 +77,7 @@ export function SeenTracker({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      disposed = true;
       document.removeEventListener("visibilitychange", onVisibility);
       observer.disconnect();
       if (timer !== undefined) {
@@ -62,7 +85,7 @@ export function SeenTracker({ children }: { children: ReactNode }) {
         flush();
       }
     };
-  }, []);
+  }, [idsKey]);
 
   return (
     <div ref={root} className="contents">

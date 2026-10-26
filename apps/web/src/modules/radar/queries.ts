@@ -5,17 +5,12 @@ import { getDb, type Database } from "@/db/client";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { forCurrentUser, readE2EToday } from "@/modules/auth";
 import { nthTradingSessionAfter } from "@/modules/market-data";
-import {
-  archiveAfterHours,
-  getPreferences,
-  type SuggestionArchiveDelay,
-} from "@/modules/preferences";
+import { hoursFromDelay, getPreferences, type SuggestionArchiveDelay } from "@/modules/preferences";
 import { WatchlistRepository } from "@/modules/watchlist";
 
 import { suggestionCalibration, type SuggestionCalibration } from "./calibration";
 import { latestRadar } from "./radar-repository";
 import { radarView, type RadarView } from "./radar-view";
-import { splitSeenSuggestions } from "./seen-archive";
 import { SuggestionSightingsRepository } from "./suggestion-sightings-repository";
 import { suggestionView, type SuggestionView } from "./suggestion-view";
 import { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
@@ -90,15 +85,9 @@ export const getMyTodaySuggestions = cache(async (): Promise<MyTodaySuggestions>
     getPreferences(),
     forCurrentUser(getDb(), SuggestionSightingsRepository),
   ]);
-  const afterHours = archiveAfterHours(suggestionArchive);
-  const firstSeen =
-    afterHours === null
-      ? new Map<string, Date>()
-      : await sightings.firstSeen(today.suggestions.map((suggestion) => suggestion.id));
-  const { shown, archivedSeen } = splitSeenSuggestions(
+  const { shown, archivedSeen } = await sightings.splitSeen(
     today.suggestions,
-    firstSeen,
-    afterHours,
+    hoursFromDelay(suggestionArchive),
     new Date(),
   );
   return { ...today, suggestions: shown, archivedSeen, archive: suggestionArchive };

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import { tickerSchema } from "@fetha/contracts";
+import { tickerSchema, type Ticker } from "@fetha/contracts";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
 import type { UserScopedRepository } from "@/lib/user-scoped-repository";
@@ -32,12 +32,13 @@ vi.mock("@/modules/auth", async () => {
 
 const { markSuggestionsSeenAction } = await import("./actions");
 const { SuggestionSightingsRepository } = await import("./suggestion-sightings-repository");
+const { PreferencesRepository } = await import("@/modules/preferences");
 
 // A session no other test reads as the radar's newest, so these suggestions stay out of theirs.
 const SESSION = "2001-03-05";
 const EXPIRY = "2099-11-20";
 
-function uniqueTicker(): string {
+function uniqueTicker(): Ticker {
   return tickerSchema.parse(
     `SG${crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`,
   );
@@ -81,7 +82,7 @@ const createdEmails: string[] = [];
 const seeded: SeededSuggestion[] = [];
 
 async function suggestion(): Promise<string> {
-  const row = await seedSuggestion(getDb(), tickerSchema.parse(uniqueTicker()), SESSION, EXPIRY);
+  const row = await seedSuggestion(getDb(), uniqueTicker(), SESSION, EXPIRY);
   seeded.push(row);
   return row.id;
 }
@@ -155,17 +156,59 @@ describe("SuggestionSightingsRepository isolation (docs/adr/0074)", () => {
   });
 });
 
+describe("SuggestionSightingsRepository.splitSeen (docs/adr/0074)", () => {
+  it("moves off only what this user saw at least the delay ago", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("split-a");
+    const emailB = uniqueEmail("split-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const [old, recent, unseen] = [await suggestion(), await suggestion(), await suggestion()];
+    const now = new Date("2026-10-27T15:00:00Z");
+    await db.insert(suggestionSightings).values([
+      { userId: userA.id, suggestionId: old, firstSeenAt: new Date("2026-10-26T14:00:00Z") },
+      { userId: userA.id, suggestionId: recent, firstSeenAt: new Date("2026-10-27T03:00:00Z") },
+      { userId: userB.id, suggestionId: unseen, firstSeenAt: new Date("2026-10-20T12:00:00Z") },
+    ]);
+    const items = [{ id: old }, { id: recent }, { id: unseen }];
+
+    const forA = await new SuggestionSightingsRepository(db, userA).splitSeen(items, 24, now);
+    expect(forA.shown.map(({ id }) => id)).toEqual([recent, unseen]);
+    expect(forA.archivedSeen.map(({ id }) => id)).toEqual([old]);
+
+    const off = await new SuggestionSightingsRepository(db, userA).splitSeen(items, null, now);
+    expect(off.archivedSeen).toEqual([]);
+
+    const forB = await new SuggestionSightingsRepository(db, userB).splitSeen(items, 12, now);
+    expect(forB.archivedSeen.map(({ id }) => id)).toEqual([unseen]);
+  });
+});
+
 describe("markSuggestionsSeenAction", () => {
-  it("records the signed-in user's sightings", async () => {
+  it("records the signed-in user's sightings while automatic archiving is on", async () => {
     const email = uniqueEmail("action");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
+    await new PreferencesRepository(getDb(), currentUser).setSuggestionArchive("24");
     const id = await suggestion();
 
     expect(await markSuggestionsSeenAction([id, id])).toEqual({ status: "ok" });
 
     const seen = await new SuggestionSightingsRepository(getDb(), currentUser).firstSeen([id]);
     expect(seen.has(id)).toBe(true);
+  });
+
+  it("records nothing while automatic archiving is off", async () => {
+    const email = uniqueEmail("action-off");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    const id = await suggestion();
+
+    expect(await markSuggestionsSeenAction([id])).toEqual({ status: "ok" });
+
+    const seen = await new SuggestionSightingsRepository(getDb(), currentUser).firstSeen([id]);
+    expect(seen.size).toBe(0);
   });
 
   it("rejects input that is not a short list of suggestion ids", async () => {

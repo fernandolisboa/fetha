@@ -8,10 +8,10 @@ export type SuggestionArchiveDelay = (typeof suggestionArchiveDelays)[number];
 
 export const suggestionArchiveDelaySchema = z.enum(suggestionArchiveDelays);
 
-export function archiveAfterHours(delay: SuggestionArchiveDelay): number | null {
+export function hoursFromDelay(delay: SuggestionArchiveDelay): number | null {
   return delay === "off" ? null : Number(delay);
 }
 
-export function suggestionArchiveDelay(hours: number | null): SuggestionArchiveDelay {
-  return suggestionArchiveDelays.find((delay) => archiveAfterHours(delay) === hours) ?? "off";
+export function delayFromHours(hours: number | null): SuggestionArchiveDelay {
+  return suggestionArchiveDelays.find((delay) => hoursFromDelay(delay) === hours) ?? "off";
 }

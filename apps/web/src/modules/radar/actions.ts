@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
+import { getPreferences } from "@/modules/preferences";
 
 import { SuggestionSightingsRepository } from "./suggestion-sightings-repository";
 
@@ -15,13 +16,14 @@ const seenIdsSchema = z.array(z.uuid()).min(1).max(MAX_SEEN_PER_CALL);
 export type MarkSuggestionsSeenResult = { status: "ok" } | { status: "error" };
 
 // No revalidation: a sighting only moves a suggestion off the panel after the viewer's delay,
-// never while it is on screen.
+// never while it is on screen. With automatic archiving off nothing is recorded (docs/adr/0074).
 export async function markSuggestionsSeenAction(ids: unknown): Promise<MarkSuggestionsSeenResult> {
   const parsed = seenIdsSchema.safeParse(ids);
   if (!parsed.success) return { status: "error" };
 
   await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), SuggestionSightingsRepository);
+    if ((await getPreferences()).suggestionArchive === "off") return;
     await repository.markSeen([...new Set(parsed.data)]);
   });
   return { status: "ok" };

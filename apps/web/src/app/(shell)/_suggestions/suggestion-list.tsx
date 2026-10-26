@@ -13,6 +13,7 @@ import {
 } from "@/modules/decisions";
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { getMyLimitBreaches, RiskNotice, type LimitCheckResult } from "@/modules/portfolio";
+import { getPreferences } from "@/modules/preferences";
 import { SuggestionCard, t, type SuggestionView } from "@/modules/radar";
 import { SeenTracker } from "@/modules/radar/client";
 
@@ -43,7 +44,8 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
 // The suggestion cards with the viewer's own layer on top (docs/adr/0067): their risk check,
 // their decision on each (none on an archived one, docs/adr/0072) and the analysis they may ask
 // for. `onPage` drops the link to the suggestion's own page, and the card's headline, when the
-// card is that page. Every card on screen counts as seen by the viewer (docs/adr/0074).
+// card is that page. While the viewer has automatic archiving on, the cards they have on screen
+// are recorded as seen (docs/adr/0074); with it off nothing is recorded.
 export async function SuggestionList({
   suggestions,
   onPage = false,
@@ -52,7 +54,7 @@ export async function SuggestionList({
   onPage?: boolean;
 }) {
   const ids = suggestions.map((suggestion) => suggestion.id);
-  const [decisions, analyses, usage, checks] = await Promise.all([
+  const [decisions, analyses, usage, checks, preferences] = await Promise.all([
     getMyDecisionsBySuggestionId(ids),
     getMyLatestAnalyses("suggestion", ids),
     getMyAnalysisUsage(),
@@ -68,6 +70,7 @@ export async function SuggestionList({
         at: suggestion.pricing.at,
       })),
     ),
+    getPreferences(),
   ]);
   const available = await isAnalysisAvailable();
 
@@ -125,7 +128,8 @@ export async function SuggestionList({
         }
       />
     );
-    // Framed in a list, so the list's own title never reads as part of the first card.
+    // Off the page each card is framed, so the list's own title never reads as part of the first
+    // card; the wrapper always carries the id the seen tracker observes.
     return (
       <div
         key={suggestion.id}
@@ -136,5 +140,9 @@ export async function SuggestionList({
       </div>
     );
   });
-  return <SeenTracker>{cards}</SeenTracker>;
+  return preferences.suggestionArchive === "off" ? (
+    cards
+  ) : (
+    <SeenTracker ids={ids}>{cards}</SeenTracker>
+  );
 }

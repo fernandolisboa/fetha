@@ -4,11 +4,7 @@ import { preferences } from "./schema";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { layoutSchema, type Layout } from "./layout";
-import {
-  archiveAfterHours,
-  suggestionArchiveDelay,
-  type SuggestionArchiveDelay,
-} from "./suggestion-archive";
+import { hoursFromDelay, delayFromHours, type SuggestionArchiveDelay } from "./suggestion-archive";
 import { themeSchema, type Theme } from "./theme";
 
 export interface Preferences {
@@ -56,7 +52,7 @@ export class PreferencesRepository extends UserScopedRepository {
       railCollapsed: row.railCollapsed,
       tourDismissed: row.tourDismissedAt !== null,
       assetTourDismissed: row.assetTourDismissedAt !== null,
-      suggestionArchive: suggestionArchiveDelay(row.suggestionArchiveAfterHours),
+      suggestionArchive: delayFromHours(row.suggestionArchiveAfterHours),
     };
   }
 
@@ -69,7 +65,7 @@ export class PreferencesRepository extends UserScopedRepository {
   }
 
   async setSuggestionArchive(delay: SuggestionArchiveDelay): Promise<void> {
-    await this.upsert({ suggestionArchiveAfterHours: archiveAfterHours(delay) });
+    await this.upsert({ suggestionArchiveAfterHours: hoursFromDelay(delay) });
   }
 
   async setRailCollapsed(railCollapsed: boolean): Promise<void> {

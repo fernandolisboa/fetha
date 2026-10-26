@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { suggestions, suggestionSightings } from "./schema";
+import { splitSeenSuggestions, type SeenArchiveSplit } from "./seen-archive";
 
 export class SuggestionSightingsRepository extends UserScopedRepository {
   // Only ids of stored suggestions are recorded, and a repeat sighting keeps the first one.
@@ -38,5 +39,18 @@ export class SuggestionSightingsRepository extends UserScopedRepository {
         ),
       );
     return new Map(rows.map((row) => [row.suggestionId, row.firstSeenAt]));
+  }
+
+  // docs/adr/0074: the viewer's split of `items` at `now`; with no delay nothing is read.
+  async splitSeen<T extends { id: string }>(
+    items: readonly T[],
+    afterHours: number | null,
+    now: Date,
+  ): Promise<SeenArchiveSplit<T>> {
+    const firstSeen =
+      afterHours === null
+        ? new Map<string, Date>()
+        : await this.firstSeen(items.map(({ id }) => id));
+    return splitSeenSuggestions(items, firstSeen, afterHours, now);
   }
 }

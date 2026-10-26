@@ -19,6 +19,6 @@ export { themeSchema, themes, type Theme } from "./theme";
 export { PreferencesDataExport } from "./data-export";
 export {
   suggestionArchiveDelays,
-  archiveAfterHours,
+  hoursFromDelay,
   type SuggestionArchiveDelay,
 } from "./suggestion-archive";

@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-26
 ---
 
-# A suggestion the user has seen leaves their panel after a delay they choose (amends 0067)
+# A suggestion the user has seen leaves their panel after a delay they choose (amends 0066, 0067)
 
 ## Context
 
@@ -14,13 +14,17 @@ time, with automatic archiving on or off and the delay chosen by the user.
 
 ## Decision
 
-1. **A sighting.** The first time at least half of a suggestion's card is on the user's screen
-   while the page is visible (today's suggestions on either tab, or the suggestion's page), the
-   browser records it: `suggestion_sightings` keeps one row per user and suggestion with
-   `first_seen_at`, and a later sighting never moves it. The Server Action
-   `markSuggestionsSeenAction` takes at most 100 suggestion ids and records only ids of stored
-   suggestions. It is user data like a decision: user-scoped (isolation test), in the account
-   export, deleted with the account, and gone when its suggestion is.
+1. **A sighting.** While the user has automatic archiving on, the first time enough of a
+   suggestion's card is on their screen while the page is visible (half of the card, or half of
+   the screen for a card taller than two screens; today's suggestions on either tab, or the
+   suggestion's page), the browser records it: `suggestion_sightings` keeps one row per user and
+   suggestion with `first_seen_at`, and a later sighting never moves it. The Server Action
+   `markSuggestionsSeenAction` takes at most 100 suggestion ids, records only ids of stored
+   suggestions, and records nothing while the option is off (data minimization: with the option
+   off the sighting has no purpose). It is user data like a decision: user-scoped (isolation
+   test), in the account export, deleted with the account, gone when its suggestion is, and
+   listed in the privacy policy (terms version 2026-10-26.1). `radar` thus owns one user-scoped
+   table next to its reference data (amending ADR-0066 item 2 and ADR-0067's "no user_id").
 2. **The setting.** `preferences.suggestion_archive_after_hours` (null = off, the default) takes
    12, 24, 48, 72 or 168 hours, chosen in Configurações › Aparência › Sugestões já vistas.
 3. **The rule.** With a delay set, a suggestion leaves that user's "Sugestões de hoje" once the
@@ -35,8 +39,9 @@ time, with automatic archiving on or off and the delay chosen by the user.
 ## Consequences
 
 - One user-scoped write per batch of cards that come on screen; none when nothing new shows.
-- A sighting is recorded whether or not the option is on, so turning it on applies to what the
-  user already saw.
+- Sightings start when the option is turned on: a suggestion seen before that counts from the
+  first time it shows afterwards. Turning the option off keeps the sightings already recorded
+  until their suggestion or the account is deleted.
 - No new decision lock: the hindsight argument of ADR-0072 does not apply, the suggestion's own
   close is still the newest.
 

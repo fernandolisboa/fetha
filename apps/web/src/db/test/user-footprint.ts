@@ -46,6 +46,8 @@ function only<T>(rows: T[]): T {
 export interface UserFootprint {
   strategyId: string;
   strategyVersionId: string;
+  // Removes the shared suggestion the sighting points at; the user's own rows go with the user.
+  cleanup: () => Promise<void>;
 }
 
 async function seedAuthRows(db: Database, userId: string, tag: string, at: Date): Promise<void> {
@@ -99,7 +101,7 @@ export async function seedUserFootprint(
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });
   // Its own underlying per footprint, on a session older than any test's and a horizon no
-  // scoring run reaches, so the shared suggestion it leaves behind never shows up elsewhere.
+  // scoring run reaches, so the shared suggestion never shows up in another test's reads.
   const seen = await seedSuggestion(
     db,
     tickerSchema.parse(`FP${tag.replace(/-/g, "").slice(0, 6).toUpperCase()}`),
@@ -327,5 +329,5 @@ export async function seedUserFootprint(
     engineVersion: "footprint",
   });
 
-  return { strategyId, strategyVersionId };
+  return { strategyId, strategyVersionId, cleanup: seen.cleanup };
 }
