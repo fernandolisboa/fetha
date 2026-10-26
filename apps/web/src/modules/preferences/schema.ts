@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, boolean, timestamp, integer, check } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/schema";
+import { DEFAULT_ARCHIVE_MINUTES, MAX_ARCHIVE_MINUTES } from "./suggestion-archive";
 
 export const preferences = pgTable(
   "preferences",
@@ -21,7 +22,7 @@ export const preferences = pgTable(
     suggestionArchiveEnabled: boolean("suggestion_archive_enabled").notNull().default(false),
     suggestionArchiveAfterMinutes: integer("suggestion_archive_after_minutes")
       .notNull()
-      .default(1440),
+      .default(DEFAULT_ARCHIVE_MINUTES),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -31,7 +32,7 @@ export const preferences = pgTable(
   (table) => [
     check(
       "preferences_suggestion_archive_after_minutes_range",
-      sql`${table.suggestionArchiveAfterMinutes} between 1 and 525600`,
+      sql`${table.suggestionArchiveAfterMinutes} between 1 and ${sql.raw(String(MAX_ARCHIVE_MINUTES))}`,
     ),
   ],
 );

@@ -85,9 +85,10 @@ export function SuggestionArchivePicker({
   const dirty = draftValid && draftMinutes !== saved.afterMinutes;
   const shownMinutes = draftValid ? draftMinutes : saved.afterMinutes;
   const fieldError = amount === null ? strings.invalidAmount : tooLong ? strings.tooLong : null;
+  const showError = enabled && fieldError !== null;
 
   function save(next: SuggestionArchive) {
-    const previousEnabled = enabled;
+    const previous = saved;
     setEnabled(next.enabled);
     setStatus("saving");
     startTransition(async () => {
@@ -99,7 +100,8 @@ export function SuggestionArchivePicker({
         setSaved(next);
         setStatus("saved");
       } else {
-        setEnabled(previousEnabled);
+        setEnabled(previous.enabled);
+        showDuration(previous.afterMinutes);
         setStatus("failed");
       }
     });
@@ -124,13 +126,11 @@ export function SuggestionArchivePicker({
           <div className="flex items-start gap-3">
             <Switch
               id={`${ids}-enabled`}
+              aria-describedby={`${ids}-hint`}
               checked={enabled}
               disabled={pending}
               onCheckedChange={(next) => {
-                save({
-                  enabled: next,
-                  afterMinutes: draftValid ? draftMinutes : saved.afterMinutes,
-                });
+                save({ enabled: next, afterMinutes: saved.afterMinutes });
               }}
               className="mt-0.5"
             />
@@ -138,7 +138,7 @@ export function SuggestionArchivePicker({
               <Label htmlFor={`${ids}-enabled`} className="text-sm font-medium">
                 {strings.toggle}
               </Label>
-              <p className="text-muted-foreground text-xs text-pretty">
+              <p id={`${ids}-hint`} className="text-muted-foreground text-xs text-pretty">
                 {enabled ? strings.toggleHint : strings.off}
               </p>
             </div>
@@ -154,10 +154,10 @@ export function SuggestionArchivePicker({
               !enabled && "opacity-50",
             )}
           >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${ids}-amount`} className="text-muted-foreground text-xs">
+            <div role="group" aria-labelledby={`${ids}-delay`} className="flex flex-col gap-1.5">
+              <span id={`${ids}-delay`} className="text-muted-foreground text-xs">
                 {strings.delayLabel}
-              </Label>
+              </span>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   id={`${ids}-amount`}
@@ -165,7 +165,7 @@ export function SuggestionArchivePicker({
                   autoComplete="off"
                   aria-label={strings.amountLabel}
                   aria-invalid={fieldError !== null}
-                  aria-describedby={fieldError ? `${ids}-error` : undefined}
+                  aria-describedby={showError ? `${ids}-error` : undefined}
                   disabled={!enabled || pending}
                   value={amountText}
                   onChange={(event) => {
@@ -204,7 +204,7 @@ export function SuggestionArchivePicker({
                   {status === "saved" ? strings.saved : ""}
                 </span>
               </div>
-              {enabled && fieldError && (
+              {showError && (
                 <p id={`${ids}-error`} className="text-destructive text-xs">
                   {fieldError}
                 </p>
@@ -271,7 +271,6 @@ function ArchiveTimeline({
   const track = enabled ? "bg-primary/60 h-px" : "border-line border-t border-dashed";
   return (
     <figure
-      aria-live="polite"
       data-testid="suggestion-archive-example"
       className="border-line-soft bg-muted/30 flex flex-col gap-3 rounded-[var(--radius)] border p-3"
     >
