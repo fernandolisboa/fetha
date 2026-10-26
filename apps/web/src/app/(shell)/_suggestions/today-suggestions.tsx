@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { archiveDelayText, settingsTabHref, type SuggestionArchive } from "@/modules/preferences";
 import { getMyTodaySuggestions, suggestionHeadline, t, type SuggestionView } from "@/modules/radar";
+import { SuggestionResearch } from "@/modules/radar/client";
 import { Panel } from "@/modules/shell";
 
 import { SuggestionList } from "./suggestion-list";
@@ -13,7 +14,16 @@ import { SuggestionList } from "./suggestion-list";
 // their chosen delay are listed apart, as links to their pages (docs/adr/0074).
 export async function TodaySuggestions({ limit }: { limit?: number }) {
   const today = await getMyTodaySuggestions();
-  if (today.kind === "none") return null;
+  if (today.kind === "none") {
+    return (
+      <Panel title={t.suggestions.title}>
+        <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
+          {t.suggestions.none}
+        </p>
+        <SuggestionResearch />
+      </Panel>
+    );
+  }
 
   const { suggestions, session, overdueSessions, archivedSeen, archive } = today;
   const shown = limit === undefined ? suggestions : suggestions.slice(0, limit);
@@ -48,6 +58,7 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
       {archivedSeen.length > 0 && <ArchivedSeen suggestions={archivedSeen} />}
       <p className="text-muted-foreground text-xs text-pretty">{t.suggestions.footnote}</p>
       <ArchiveSetting archive={archive} />
+      <SuggestionResearch />
     </Panel>
   );
 }

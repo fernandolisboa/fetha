@@ -174,3 +174,10 @@ choose after the first sighting (off by default). The sightings are user data in
 `suggestion_sightings`, so `radar` now owns one user-scoped table. This does not change the
 archiving above: a suggestion taken off one user's panel still takes decisions while open and is
 scored for everyone.
+
+## Amendment (2026-10-26, ADR-0075)
+
+Item 1's one-lot pricing also runs on demand for the signed-in user, with their risk profile (or
+the risk form's defaults when none is declared) and their open-operation count passed to the
+engine. Nothing is stored, and the declared capital only drops an idea whose max loss exceeds it:
+it never sizes the lot, which stays `SUGGESTION_LOT`. See docs/adr/0075.

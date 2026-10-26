@@ -1,10 +1,12 @@
+import { sessionDateSchema } from "@fetha/contracts";
 import type { AssetReading } from "@fetha/engine";
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 
 import { radarFactsSchema, radarLegsSchema, type RadarFacts, type RadarLeg } from "./match";
 import type { RadarMatch } from "./read-underlying";
+import type { Candidate } from "./research-rules";
 import { radarMatches, radarReadings, suggestions } from "./schema";
 
 export interface StoredRadarReading {
@@ -177,5 +179,46 @@ export async function latestRadar(db: Database): Promise<StoredRadar | null> {
           ]
         : [];
     }),
+  };
+}
+
+export interface RecentFindings {
+  sessions: string[];
+  findings: Candidate[];
+}
+
+// What the radar found over its last `count` read sessions (a session with at least one reading),
+// newest first, each with the stored suggestion of that match when it has one. Reference data,
+// like `latestRadar`: nothing here is per user.
+export async function recentFindings(db: Database, count: number): Promise<RecentFindings> {
+  const read = await db
+    .selectDistinct({ session: radarReadings.session })
+    .from(radarReadings)
+    .where(isNotNull(radarReadings.reading))
+    .orderBy(desc(radarReadings.session))
+    .limit(count);
+  const sessions = read.map((row) => row.session);
+  if (sessions.length === 0) return { sessions, findings: [] };
+
+  const rows = await db
+    .select({
+      underlying: radarMatches.underlying,
+      session: radarMatches.session,
+      recipeId: radarMatches.recipeId,
+      suggestionId: suggestions.id,
+    })
+    .from(radarMatches)
+    .leftJoin(
+      suggestions,
+      and(
+        eq(suggestions.underlying, radarMatches.underlying),
+        eq(suggestions.session, radarMatches.session),
+        eq(suggestions.recipeId, radarMatches.recipeId),
+      ),
+    )
+    .where(inArray(radarMatches.session, sessions));
+  return {
+    sessions,
+    findings: rows.map((row) => ({ ...row, session: sessionDateSchema.parse(row.session) })),
   };
 }

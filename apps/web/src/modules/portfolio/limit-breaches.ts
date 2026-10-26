@@ -2,13 +2,9 @@ import { engine, type LimitBreach } from "@fetha/engine";
 import type { ContemplatedLeg, Instant, Ticker } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { nowInstant } from "@/lib/instant";
-import { recordAccess } from "@/modules/audit";
-import { forCurrentUser, requireUser } from "@/modules/auth";
 import { buildOperationMarketView } from "@/modules/market-data";
 
-import { countLiveOpenOperations } from "./portfolio-service";
-import { RiskProfileRepository } from "./risk-profile-repository";
+import { getMyRiskContext } from "./risk-context";
 
 export type LimitCheckResult =
   { kind: "no_risk_profile" } | { kind: "unpriced" } | { kind: "checked"; breaches: LimitBreach[] };
@@ -25,11 +21,8 @@ export interface LimitCheck {
 export async function getMyLimitBreaches(
   checks: readonly LimitCheck[],
 ): Promise<LimitCheckResult[]> {
-  const user = await requireUser();
-  const riskProfile = await (await forCurrentUser(getDb(), RiskProfileRepository)).current();
-  await recordAccess("portfolio_read");
+  const { riskProfile, openOperationCount } = await getMyRiskContext();
   if (!riskProfile) return checks.map(() => ({ kind: "no_risk_profile" }));
-  const openOperationCount = await countLiveOpenOperations(getDb(), user, nowInstant());
 
   const views = new Map<string, ReturnType<typeof buildOperationMarketView>>();
   return Promise.all(

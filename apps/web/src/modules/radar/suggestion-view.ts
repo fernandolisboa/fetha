@@ -8,9 +8,11 @@ import type {
 } from "@fetha/contracts";
 import type { AssetReading, OperationPricing } from "@fetha/engine";
 
-import { catalog, recipeById } from "@/modules/strategies";
+import { recipeById } from "@/modules/strategies";
 
-import type { RadarFacts, RadarLeg } from "./match";
+import { lotLegsOf, type LotLeg } from "./lot-legs";
+import type { RadarFacts } from "./match";
+import { recipeStructure } from "./recipe-structure";
 import type { SuggestionValidity } from "./suggestion-validity";
 import type { SuggestionInContext } from "./suggestions-repository";
 
@@ -24,7 +26,7 @@ export interface SuggestionView {
   structure: { id: string; name: string };
   reading: AssetReading | null;
   facts: RadarFacts;
-  legs: (RadarLeg & { quantity: number; price: DecimalString })[];
+  legs: LotLeg[];
   entryLegs: (ContemplatedLeg & { entryPrice: DecimalString })[];
   pricing: OperationPricing;
   maxLoss: Centavos;
@@ -40,26 +42,21 @@ export function suggestionView(
   validity: SuggestionValidity,
 ): SuggestionView | null {
   const recipe = recipeById(stored.recipeId);
-  const structure = catalog.find(
-    (entry) => entry.structure.id === recipe?.definition.structureId,
-  )?.structure;
+  const structure = recipe ? recipeStructure(recipe) : null;
   if (!recipe || !structure || stored.pricing.maxLoss === "unbounded") return null;
 
-  const legs: SuggestionView["legs"] = [];
-  const entryLegs: SuggestionView["entryLegs"] = [];
-  for (const [index, leg] of stored.legs.entries()) {
-    const price = stored.pricing.legs[index]?.price ?? null;
-    const radarLeg = stored.radarLegs[index];
-    if (price === null || !radarLeg || radarLeg.ticker !== leg.ticker) return null;
-    legs.push({ ...radarLeg, quantity: leg.quantity, price });
-    entryLegs.push({
-      role: leg.role,
-      side: leg.side,
-      ticker: leg.ticker,
-      quantity: leg.quantity,
-      entryPrice: price,
-    });
-  }
+  const legs = lotLegsOf(
+    stored.legs,
+    stored.pricing.legs.map((valuation) => valuation.price),
+    stored.radarLegs,
+  );
+  if (!legs) return null;
+  const entryLegs: SuggestionView["entryLegs"] = stored.legs.flatMap((leg, index) => {
+    const entryPrice = legs[index]?.price;
+    return entryPrice
+      ? [{ role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity, entryPrice }]
+      : [];
+  });
 
   return {
     id: stored.id,

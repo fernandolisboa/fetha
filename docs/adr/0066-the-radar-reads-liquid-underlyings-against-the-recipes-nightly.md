@@ -107,3 +107,9 @@ The radar's tables are no longer all shared reference data: `suggestion_sighting
 user, when a suggestion first showed on their screen, for the per-user archive of seen
 suggestions. It is user-scoped, with an isolation test, in the account export and deleted with
 the account.
+
+## Amendment (2026-10-26, ADR-0075)
+
+Item 3's evaluation also runs on demand: "Obter sugestões" re-evaluates the matches of the last 5
+read sessions at the newest close, with the same code as the scan (`recipeEntryState` in
+`read-underlying.ts`). The nightly scan is unchanged. See docs/adr/0075.

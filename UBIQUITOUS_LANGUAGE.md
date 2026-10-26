@@ -247,7 +247,20 @@ as the lot entered at the engine's prices, with its confidence asserted. The AI 
 ranks suggestions. Open until the radar reads a newer close, then archived (pt-BR: _arquivada_):
 off today's suggestions, no new decision, still scored (ADR-0073). Archived here follows from the
 radar's next reading alone, never a user action or the date, unlike an archived strategy.
-_Avoid_: recommendation, tip, idea (in code), pick, match (the radar row before pricing)
+_Avoid_: recommendation, tip, idea (in code, except the suggestion research's own idea below), pick, match (the radar row before pricing)
+
+**Suggestion research** (pt-BR: _Pesquisa de sugestões_, the button "Obter sugestões"):
+The on-demand, per-user re-check of what the radar found over its last 5 read sessions (ADR-0075).
+Each finding, deduplicated by underlying and recipe with the newest kept, is evaluated again at
+the newest close with the nightly scan's own code and priced for one standard lot against the
+user's risk profile (the risk form's default one when none is declared, said on screen). It
+returns two groups of **ideas**, the re-priced findings (pt-BR: _ideias_): the ones that still
+hold today and the ones whose rule no longer does, each with computed alerts (the rule no longer
+holds, a limit breach, near expiry), plus a count of what was dropped by reason (no price,
+expires in fewer than 5 sessions, max loss above the declared capital). An idea is not a
+suggestion: it is not stored, has no id and takes no decision until part 2 of #356 stores it.
+Computed on each click, rate limited, never ordered by a score.
+_Avoid_: screener, scan, new suggestions, recommendation, refresh
 
 **Sighting** (pt-BR: _primeira visualização_):
 The first time at least half of a suggestion's card (or half of the screen, for a taller card)
@@ -482,12 +495,15 @@ _Avoid_: benchmark, tournament, optimization
 **Risk profile**:
 A user's declared capital for operations and their limits: max loss per operation, max
 exposure per operation, max open operations, max option premium bought, all as fractions of
-that capital.
+that capital. The suggestion research (ADR-0075) uses a default one (R$ 50.000,00 and the form's
+proposed limits) when the user has declared none: only for that computation, never saved, said on
+screen.
 _Avoid_: risk settings, limits (alone), appetite
 
 **Declared capital**:
 The amount of money a user states they dedicate to the operations modeled in Fetha. It is
-entered and edited by the user; Fetha never reads it from a bank or broker.
+entered and edited by the user; Fetha never reads it from a bank or broker. The suggestion
+research falls back to R$ 50.000,00 when none is declared, for that computation only (ADR-0075).
 _Avoid_: balance, net worth, account value, allocated capital
 
 **Sizing rule**:

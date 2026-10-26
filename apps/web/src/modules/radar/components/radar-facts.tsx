@@ -3,7 +3,7 @@ import type { DecimalString, IndicatorSpec } from "@fetha/contracts";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
-import { sessionDateToDisplayDate } from "@/modules/market-data";
+import { sessionDateToDisplayDate } from "@/modules/market-data/client";
 
 import type { RadarFacts, RadarLeg } from "../match";
 import { t } from "../strings";

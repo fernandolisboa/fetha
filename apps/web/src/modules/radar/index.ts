@@ -14,3 +14,7 @@ export {
 export type { SuggestionView } from "./suggestion-view";
 export { RadarDataExport } from "./data-export";
 export { scoreDueSuggestions, type ScoreSuggestionsOutcome } from "./suggestion-scoring";
+export {
+  researchSuggestionsAction,
+  type ResearchSuggestionsActionResult,
+} from "./research-actions";

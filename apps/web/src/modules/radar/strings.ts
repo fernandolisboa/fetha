@@ -103,6 +103,49 @@ const en = {
       adjust: "Change",
     },
   },
+  research: {
+    button: "Get suggestions",
+    pending: "Researching…",
+    hint: (sessions: number) =>
+      `Re-checks what the radar found over its last ${String(sessions)} sessions against the latest close and your risk limits. Nothing is saved.`,
+    holdingTitle: "Still valid today",
+    noLongerTitle: "No longer valid",
+    summary: (candidates: number, sessions: number) =>
+      `Looked at ${String(candidates)} ${candidates === 1 ? "idea" : "ideas"} from ${String(sessions)} ${sessions === 1 ? "session" : "sessions"}`,
+    droppedTotal: (count: number) => `; ${String(count)} dropped: `,
+    dropped: {
+      unpriced: (count: number) => `${String(count)} with no price today`,
+      expires_too_soon: (count: number, sessions: number) =>
+        `${String(count)} ${count === 1 ? "expires" : "expire"} in fewer than ${String(sessions)} sessions`,
+      exceeds_capital: (count: number) => `${String(count)} with a loss above your capital`,
+      not_evaluable: (count: number) => `${String(count)} without data to check the rule today`,
+    },
+    empty: (sessions: number) =>
+      `No idea from the last ${String(sessions)} sessions is valid today.`,
+    noRadar: "The radar has not read a session yet.",
+    timedOut:
+      "The research stopped at its time limit and only looked at part of the ideas. Try again.",
+    defaultProfile: (capital: string) =>
+      `You have not declared a risk profile, so I used the default one (capital of ${capital}).`,
+    declareProfile: "Declare yours in Settings",
+    close: (date: string) => `Prices from the close of ${date}`,
+    cardTitle: (structure: string, ticker: string) => `${structure} on ${ticker}`,
+    foundOn: (date: string) => `The radar found it at the close of ${date}.`,
+    expires: (date: string, sessions: number) =>
+      `Expires ${date}, in ${String(sessions)} ${sessions === 1 ? "session" : "sessions"}`,
+    alertsLabel: "Alerts",
+    alerts: {
+      rule_no_longer_holds: (date: string) =>
+        `The recipe's rule no longer holds: it found an entry at the close of ${date}, but not today.`,
+      near_expiry: (sessions: number) =>
+        `Expires in ${String(sessions)} ${sessions === 1 ? "session" : "sessions"}: little time left for it to work out.`,
+    },
+    actions: { suggestion: "See the original suggestion", asset: "See the asset" },
+    errors: {
+      rate_limited: "Too many researches in a short time. Try again in a minute.",
+      unavailable: "I could not research right now. Try again in a moment.",
+    },
+  },
   calibration: {
     title: "Fetha's suggestions",
     subtitle:
@@ -240,6 +283,49 @@ const ptBR = {
         `As sugestões que você já viu saem daqui ${delay} depois da primeira vez.`,
       off: "As sugestões que você já viu continuam aqui.",
       adjust: "Ajustar",
+    },
+  },
+  research: {
+    button: "Obter sugestões",
+    pending: "Pesquisando…",
+    hint: (sessions: number) =>
+      `Confere o que o radar encontrou nos últimos ${String(sessions)} pregões com o fechamento mais recente e com os seus limites de risco. Nada fica salvo.`,
+    holdingTitle: "Ainda valem hoje",
+    noLongerTitle: "Deixaram de valer",
+    summary: (candidates: number, sessions: number) =>
+      `Olhei ${String(candidates)} ${candidates === 1 ? "ideia" : "ideias"} de ${String(sessions)} ${sessions === 1 ? "pregão" : "pregões"}`,
+    droppedTotal: (count: number) =>
+      `; ${String(count)} ${count === 1 ? "descartada" : "descartadas"}: `,
+    dropped: {
+      unpriced: (count: number) => `${String(count)} sem preço hoje`,
+      expires_too_soon: (count: number, sessions: number) =>
+        `${String(count)} ${count === 1 ? "vence" : "vencem"} em menos de ${String(sessions)} pregões`,
+      exceeds_capital: (count: number) =>
+        `${String(count)} ${count === 1 ? "perda maior" : "perdas maiores"} que o seu capital`,
+      not_evaluable: (count: number) => `${String(count)} sem dados para avaliar a regra hoje`,
+    },
+    empty: (sessions: number) => `Nenhuma ideia dos últimos ${String(sessions)} pregões vale hoje.`,
+    noRadar: "O radar ainda não leu nenhum pregão.",
+    timedOut: "A pesquisa parou no limite de tempo e olhou só parte das ideias. Tente de novo.",
+    defaultProfile: (capital: string) =>
+      `Você ainda não declarou um perfil de risco, então usei o padrão (capital de ${capital}).`,
+    declareProfile: "Declare o seu em Configurações",
+    close: (date: string) => `Preços do fechamento de ${date}`,
+    cardTitle: (structure: string, ticker: string) => `${structure} em ${ticker}`,
+    foundOn: (date: string) => `O radar achou no fechamento de ${date}.`,
+    expires: (date: string, sessions: number) =>
+      `Vence em ${date}, daqui a ${String(sessions)} ${sessions === 1 ? "pregão" : "pregões"}`,
+    alertsLabel: "Alertas",
+    alerts: {
+      rule_no_longer_holds: (date: string) =>
+        `A regra da receita deixou de valer: ela encontrou entrada no fechamento de ${date}, mas hoje não.`,
+      near_expiry: (sessions: number) =>
+        `Vence em ${String(sessions)} ${sessions === 1 ? "pregão" : "pregões"}: pouco tempo para dar certo.`,
+    },
+    actions: { suggestion: "Ver a sugestão original", asset: "Ver o ativo" },
+    errors: {
+      rate_limited: "Pesquisas demais em pouco tempo. Tente de novo daqui a um minuto.",
+      unavailable: "Não consegui pesquisar agora. Tente de novo daqui a pouco.",
     },
   },
   calibration: {

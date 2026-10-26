@@ -2,7 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { Decimal } from "decimal.js";
-import { centavosSchema, type RiskProfile } from "@fetha/contracts";
+import type { RiskProfile } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,11 @@ import { ErrorNotice } from "@/components/error-notice";
 import { formatBRL, parseBRLToCentavos } from "@/lib/format/brl";
 import { fractionToPercentInputValue, parsePercentToFraction } from "@/lib/format/percent";
 
+import { DEFAULT_RISK_PROFILE } from "../default-risk-profile";
 import { declareRiskProfileAction } from "../risk-profile-actions";
 import { t } from "../strings";
 
-const DEFAULT_DECLARED_CAPITAL_PLACEHOLDER = formatBRL(centavosSchema.parse(5000000));
+const DEFAULT_DECLARED_CAPITAL_PLACEHOLDER = formatBRL(DEFAULT_RISK_PROFILE.declaredCapital);
 const MAX_OPEN_OPERATIONS_PATTERN = /^\d+$/;
 
 // Display only; the stored value is always an integer number of centavos
@@ -28,17 +29,16 @@ export function RiskProfileForm({ current }: { current: RiskProfile | null }) {
   const [declaredCapital, setDeclaredCapital] = useState(
     current ? centsToInputValue(current.declaredCapital) : "",
   );
+  const limits = (current ?? DEFAULT_RISK_PROFILE).limits;
   const [maxLossPerOperation, setMaxLossPerOperation] = useState(
-    current ? fractionToPercentInputValue(current.limits.maxLossPerOperation) : "2",
+    fractionToPercentInputValue(limits.maxLossPerOperation),
   );
   const [maxExposurePerOperation, setMaxExposurePerOperation] = useState(
-    current ? fractionToPercentInputValue(current.limits.maxExposurePerOperation) : "10",
+    fractionToPercentInputValue(limits.maxExposurePerOperation),
   );
-  const [maxOpenOperations, setMaxOpenOperations] = useState(
-    current ? String(current.limits.maxOpenOperations) : "5",
-  );
+  const [maxOpenOperations, setMaxOpenOperations] = useState(String(limits.maxOpenOperations));
   const [maxPremiumBought, setMaxPremiumBought] = useState(
-    current ? fractionToPercentInputValue(current.limits.maxPremiumBought) : "5",
+    fractionToPercentInputValue(limits.maxPremiumBought),
   );
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
