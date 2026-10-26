@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { decimalStringSchema } from "@fetha/contracts";
+import { decimalStringSchema, tickerSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -23,6 +23,7 @@ import {
   riskProfiles,
 } from "@/modules/portfolio/schema";
 import { preferences } from "@/modules/preferences/schema";
+import { suggestionSightings } from "@/modules/radar/schema";
 import {
   evaluations,
   signalReevaluations,
@@ -31,6 +32,8 @@ import {
   strategyVersions,
 } from "@/modules/strategies/schema";
 import { watchlistItems } from "@/modules/watchlist/schema";
+
+import { seedSuggestion } from "./suggestion";
 
 function only<T>(rows: T[]): T {
   const [row] = rows;
@@ -43,6 +46,8 @@ function only<T>(rows: T[]): T {
 export interface UserFootprint {
   strategyId: string;
   strategyVersionId: string;
+  // Removes the shared suggestion the sighting points at; the user's own rows go with the user.
+  cleanup: () => Promise<void>;
 }
 
 async function seedAuthRows(db: Database, userId: string, tag: string, at: Date): Promise<void> {
@@ -95,6 +100,15 @@ export async function seedUserFootprint(
   await db.insert(accessLog).values({ userId, event: "portfolio_read" });
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });
+  // Its own underlying per footprint, on a session older than any test's and a horizon no
+  // scoring run reaches, so the shared suggestion never shows up in another test's reads.
+  const seen = await seedSuggestion(
+    db,
+    tickerSchema.parse(`FP${tag.replace(/-/g, "").slice(0, 6).toUpperCase()}`),
+    "2000-01-03",
+    "2099-12-18",
+  );
+  await db.insert(suggestionSightings).values({ userId, suggestionId: seen.id });
   await db.insert(aiSettings).values({
     userId,
     modelFamilies: { signal: "haiku" },
@@ -315,5 +329,5 @@ export async function seedUserFootprint(
     engineVersion: "footprint",
   });
 
-  return { strategyId, strategyVersionId };
+  return { strategyId, strategyVersionId, cleanup: seen.cleanup };
 }

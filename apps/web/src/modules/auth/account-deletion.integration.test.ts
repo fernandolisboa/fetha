@@ -7,7 +7,7 @@ vi.mock("next/headers", () => ({
 
 import { getDb } from "@/db/client";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
-import { seedUserFootprint } from "@/db/test/user-footprint";
+import { seedUserFootprint, type UserFootprint } from "@/db/test/user-footprint";
 import { strategies, strategyVersions } from "@/modules/strategies/schema";
 
 import { getAuth } from "./auth";
@@ -25,6 +25,7 @@ function uniqueEmail(label: string): string {
 }
 
 const createdEmails: string[] = [];
+const footprints: UserFootprint[] = [];
 
 afterEach(async () => {
   const db = getDb();
@@ -32,7 +33,16 @@ afterEach(async () => {
     await deleteTestUser(db, email);
     await deleteTestInvite(db, email);
   }
+  for (const footprint of footprints.splice(0)) await footprint.cleanup();
 });
+
+async function seedFootprint(
+  ...args: Parameters<typeof seedUserFootprint>
+): Promise<UserFootprint> {
+  const footprint = await seedUserFootprint(...args);
+  footprints.push(footprint);
+  return footprint;
+}
 
 // A real, verified, signed-in account: the deletion goes through Better
 // Auth's handler exactly as the Server Action does.
@@ -93,12 +103,12 @@ describe("account deletion", () => {
   it("leaves no row of the deleted user in any table, and no one else's row goes", async () => {
     const db = getDb();
     const { owner, headers } = await signedInUser("full");
-    const footprint = await seedUserFootprint(db, owner, { withAuthRows: false });
+    const footprint = await seedFootprint(db, owner, { withAuthRows: false });
 
     const bystanderEmail = uniqueEmail("bystander");
     createdEmails.push(bystanderEmail);
     const bystander = await insertBareUser(bystanderEmail);
-    await seedUserFootprint(db, bystander);
+    await seedFootprint(db, bystander);
     const [copy] = await db
       .insert(strategies)
       .values({

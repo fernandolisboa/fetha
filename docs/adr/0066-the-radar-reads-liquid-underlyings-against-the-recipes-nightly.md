@@ -101,6 +101,13 @@ as a suggestion (`suggestions`, scored at its horizon). Item 7's deferral of the
 #311 is fulfilled: the home shows "Sugestões de hoje" in Fetha's own voice; the radar tab keeps
 the recipe's voice. See docs/adr/0067.
 
+## Amendment (2026-10-26, ADR-0074)
+
+The radar's tables are no longer all shared reference data: `suggestion_sightings` records, per
+user, when a suggestion first showed on their screen, for the per-user archive of seen
+suggestions. It is user-scoped, with an isolation test, in the account export and deleted with
+the account.
+
 ## Amendment (2026-10-26, ADR-0075)
 
 Item 3's evaluation also runs on demand: "Obter sugestões" re-evaluates the matches of the last 5

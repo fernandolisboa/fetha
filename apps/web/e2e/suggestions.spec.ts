@@ -68,3 +68,55 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(page.getByText(RATIONALE)).toBeVisible();
   await expect(page.getByText(/Sugestão do Fetha · /).first()).toBeVisible();
 });
+
+test("choose when seen suggestions leave today's suggestions", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+
+  await page.goto("/");
+  const setting = page.getByTestId("suggestion-archive-setting");
+  await expect(setting).toContainText("As sugestões que você já viu continuam aqui.");
+  await setting.getByRole("link", { name: "Ajustar" }).click();
+
+  await expect(page).toHaveURL(/\/configuracoes\/aparencia#sugestoes$/);
+  const toggle = page.getByRole("switch", { name: "Arquivar as sugestões que eu já vi" });
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
+  await expect(toggle).toBeChecked();
+  await expect(page.getByTestId("suggestion-archive-example")).toContainText("Sai do quadro");
+
+  const amount = page.getByRole("textbox", { name: "Quantos" });
+  await amount.fill("90");
+  await page.getByRole("combobox", { name: "Unidade" }).click();
+  await page.getByRole("option", { name: "minutos" }).click();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Salvo." })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Quantos" })).toHaveValue("90");
+  await expect(page.getByRole("combobox", { name: "Unidade" })).toHaveText(/minutos/);
+
+  await page.getByRole("button", { name: "1 dia" }).click();
+  await expect(page.getByRole("button", { name: "1 dia" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.reload();
+  await expect(
+    page.getByRole("switch", { name: "Arquivar as sugestões que eu já vi" }),
+  ).toBeChecked();
+  await expect(page.getByRole("textbox", { name: "Quantos" })).toHaveValue("1");
+
+  await page.goto("/");
+  await expect(page.getByTestId("today-suggestions").getByRole("article").first()).toBeVisible();
+  await expect(page.getByTestId("suggestion-archive-setting")).toContainText(
+    "As sugestões que você já viu saem daqui 1 dia depois da primeira vez.",
+  );
+});

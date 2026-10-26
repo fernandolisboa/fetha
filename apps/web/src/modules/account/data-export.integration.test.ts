@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { getDb } from "@/db/client";
 import { deleteTestInvite, deleteTestUser } from "@/db/test/cleanup";
-import { seedUserFootprint } from "@/db/test/user-footprint";
+import { seedUserFootprint, type UserFootprint } from "@/db/test/user-footprint";
 import { user } from "@/modules/auth/schema";
 
 import { accountExportStream, EXPORT_FORMAT } from "./data-export";
@@ -51,6 +51,7 @@ async function tablesWithUserId(): Promise<string[]> {
 }
 
 const createdEmails: string[] = [];
+const footprints: UserFootprint[] = [];
 
 afterEach(async () => {
   const db = getDb();
@@ -58,7 +59,16 @@ afterEach(async () => {
     await deleteTestUser(db, email);
     await deleteTestInvite(db, email);
   }
+  for (const footprint of footprints.splice(0)) await footprint.cleanup();
 });
+
+async function seedFootprint(
+  ...args: Parameters<typeof seedUserFootprint>
+): Promise<UserFootprint> {
+  const footprint = await seedUserFootprint(...args);
+  footprints.push(footprint);
+  return footprint;
+}
 
 async function twoSeededUsers(label: string) {
   const emailA = uniqueEmail(`${label}-a`);
@@ -66,8 +76,8 @@ async function twoSeededUsers(label: string) {
   createdEmails.push(emailA, emailB);
   const userA = await insertBareUser(emailA);
   const userB = await insertBareUser(emailB);
-  await seedUserFootprint(getDb(), userA);
-  const footprintB = await seedUserFootprint(getDb(), userB);
+  await seedFootprint(getDb(), userA);
+  const footprintB = await seedFootprint(getDb(), userB);
   return { userA, userB, footprintB };
 }
 

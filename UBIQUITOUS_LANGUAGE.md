@@ -262,6 +262,19 @@ suggestion: it is not stored, has no id and takes no decision until part 2 of #3
 Computed on each click, rate limited, never ordered by a score.
 _Avoid_: screener, scan, new suggestions, recommendation, refresh
 
+**Sighting** (pt-BR: _primeira visualização_):
+The first time at least half of a suggestion's card (or half of the screen, for a taller card)
+was on a user's screen while the page was visible, recorded only while that user has the archive
+of seen suggestions on (ADR-0074). One per user and suggestion, never moved by a later view;
+erased when the user turns the option off.
+_Avoid_: view, impression, read (the radar's reading)
+
+**Archived for you** (pt-BR: _arquivada para você_):
+A suggestion taken off one user's "Sugestões de hoje" because they saw it longer ago than the
+delay they chose (ADR-0074). Only that user's panel changes: it is still open, still takes
+decisions and is scored for everyone, unlike an archived suggestion.
+_Avoid_: hidden, dismissed, archived (alone: the radar's archive of ADR-0073)
+
 **Expected move**:
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or
 `big_move` (either way). Stated by the user; a recipe only maps it to a structure.

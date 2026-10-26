@@ -167,6 +167,14 @@ ADR-0073 replaces ADR-0072's window: a suggestion is archived once the radar rea
 never by the date; while ingestion lags, the panel keeps the newest read session's suggestions
 with a warning of how many closes are overdue.
 
+## Amendment (2026-10-26, ADR-0074)
+
+Each user may have "Sugestões de hoje" drop the suggestions they have already seen, a delay they
+choose after the first sighting (off by default). The sightings are user data in
+`suggestion_sightings`, so `radar` now owns one user-scoped table. This does not change the
+archiving above: a suggestion taken off one user's panel still takes decisions while open and is
+scored for everyone.
+
 ## Amendment (2026-10-26, ADR-0075)
 
 Item 1's one-lot pricing also runs on demand for the signed-in user, with their risk profile (or

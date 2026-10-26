@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 16/10/2026, revision 1",
+    updated: "Version of 26/10/2026, revision 1",
     sections: [
       {
         heading: "What Fetha is",
@@ -66,7 +66,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 16/10/2026, revision 1",
+    updated: "Version of 26/10/2026, revision 1",
     sections: [
       {
         heading: "Who handles your data",
@@ -79,7 +79,8 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
         paragraphs: [
           "Registration: your name, your email and the password you create after confirming your email, stored only as a one-way hash, plus which version of these terms you accepted and when.",
           "Sessions: when you signed in, the IP address and the browser. Sign-in attempt limits: the IP address of each call to sign-in, sign-up and the other account actions.",
-          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, your theme and layout preferences and, optionally, your own Anthropic API key, stored encrypted and used only, server-side, for the analyses you request, to test that the key works and to list the Claude models available to it, never shown to you again in full.",
+          "What you enter: your watchlist, strategies and their versions, declared risk profile and capital, contemplated operations, fills entered by hand or imported from the B3 spreadsheet, operations, backtests, decisions with their theses, your theme and layout preferences, whether and after how long to archive suggestions you have already seen and, optionally, your own Anthropic API key, stored encrypted and used only, server-side, for the analyses you request, to test that the key works and to list the Claude models available to it, never shown to you again in full.",
+          "Suggestions you have seen: while automatic archiving of seen suggestions is on, when each suggestion first showed on your screen, so that it can leave your Sugestões de hoje after the time you chose. Nothing is recorded while it is off, and turning it off erases what was recorded.",
           "Invitation: when sign-up is by invitation only, the invited email is recorded, and it is deleted when the account created with it is deleted. If that account is deleted because its email was never confirmed, the invitation stays open for a new registration.",
           "What Fetha computes for you: signals, strategy evaluations, decision scores and the AI analyses you request.",
           "Access log: each opening of a portfolio or decisions page and each data export, with the date, the IP address and the browser.",
@@ -133,7 +134,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 16/10/2026, revisão 1",
+    updated: "Versão de 26/10/2026, revisão 1",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -184,7 +185,7 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 16/10/2026, revisão 1",
+    updated: "Versão de 26/10/2026, revisão 1",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
@@ -197,7 +198,8 @@ const ptBR: typeof en = {
         paragraphs: [
           "Cadastro: seu nome, seu e-mail e a senha que você cria depois de confirmar o e-mail, guardada apenas como hash irreversível, além de qual versão destes termos você aceitou e quando.",
           "Sessões: quando você entrou, o endereço IP e o navegador. Limite de tentativas: o endereço IP de cada chamada de login, cadastro e demais ações da conta.",
-          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses, suas preferências de tema e de layout e, se quiser, sua própria chave de API da Anthropic, guardada de forma criptografada e usada só, no servidor, nas análises que você pedir, para testar se a chave funciona e para listar os modelos Claude disponíveis a ela, nunca mostrada a você de novo por completo.",
+          "O que você informa: sua watchlist, suas estratégias e versões, o perfil de risco e o capital declarados, operações em estudo, execuções lançadas manualmente ou importadas da planilha da B3, operações, backtests, decisões com suas teses, suas preferências de tema e de layout, se e depois de quanto tempo arquivar as sugestões que você já viu e, se quiser, sua própria chave de API da Anthropic, guardada de forma criptografada e usada só, no servidor, nas análises que você pedir, para testar se a chave funciona e para listar os modelos Claude disponíveis a ela, nunca mostrada a você de novo por completo.",
+          "Sugestões que você já viu: enquanto o arquivamento automático das sugestões já vistas estiver ligado, quando cada sugestão apareceu na sua tela pela primeira vez, para que ela saia das suas Sugestões de hoje depois do tempo que você escolheu. Com ele desligado, nada é guardado, e desligar apaga o que já tinha sido guardado.",
           "Convite: quando o cadastro é só por convite, o e-mail convidado fica registrado e é apagado quando a conta criada com ele é excluída. Se essa conta for apagada por nunca ter confirmado o e-mail, o convite continua valendo para um novo cadastro.",
           "O que o Fetha calcula para você: sinais, avaliações de estratégias, pontuações de decisões e as análises por IA que você pedir.",
           "Registro de acesso: cada abertura de uma tela da sua carteira ou das suas decisões e cada exportação de dados, com data, endereço IP e navegador.",
@@ -264,6 +266,10 @@ interface TermsChangeSummary {
 // `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-10-26.1": {
+    en: "This version covers the new, optional automatic archiving of suggestions you have already seen, under Configurações › Aparência: while it is on, Fetha records when each suggestion first showed on your screen, so that it leaves your Sugestões de hoje after the time you chose; while it is off, nothing is recorded, and turning it off erases what was recorded.",
+    ptBR: "Esta versão trata do novo arquivamento automático, opcional, das sugestões que você já viu, em Configurações › Aparência: com ele ligado, o Fetha guarda quando cada sugestão apareceu na sua tela pela primeira vez, para que ela saia das suas Sugestões de hoje depois do tempo que você escolheu; com ele desligado, nada é guardado, e desligar apaga o que já tinha sido guardado.",
+  },
   "2026-10-16.1": {
     en: "This version covers the new, optional own Anthropic API key under Configurações: it is stored encrypted, used only for the analyses you request, never shown to you again in full, and requests made with it are billed and processed under your own Anthropic account instead of Fetha's.",
     ptBR: "Esta versão trata da nova chave de API da Anthropic, opcional, em Configurações: ela fica guardada de forma criptografada, é usada só nas análises que você pedir, nunca é mostrada a você de novo por completo, e os pedidos feitos com ela são cobrados e tratados pela sua própria conta na Anthropic, não pela do Fetha.",

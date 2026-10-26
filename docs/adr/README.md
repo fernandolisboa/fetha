@@ -78,4 +78,5 @@ supersedes or amends them and says so.
 | 0071 | A third layout, Dock, floats the navigation over the page (amends 0069)                                                                                                     |
 | 0072 | A suggestion is open through the next trading day, then archived (amends 0067; superseded by 0073)                                                                          |
 | 0073 | A suggestion is archived when the radar reads a newer close (supersedes 0072)                                                                                               |
+| 0074 | A suggestion the user has seen leaves their panel after a delay they choose (amends 0066, 0067)                                                                             |
 | 0075 | "Obter sugestões" re-validates the radar's recent findings on demand (#356, amends 0066, 0067)                                                                              |
