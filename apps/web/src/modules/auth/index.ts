@@ -25,7 +25,6 @@ export {
   isProductionDeployment,
   readE2EInstrumentsRecordingsDirectory,
   readE2ESecret,
-  readE2EToday,
 } from "./env";
 export { isOwner } from "./owner";
 export { DeleteAccountDialog } from "./components/delete-account-dialog";

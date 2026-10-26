@@ -244,10 +244,23 @@ user, ordered by traded series, never by a score; a user's risk-profile breaches
 computed when shown. A user answers it with a decision (enter / do not enter), may request an
 analysis of it, test its recipe or open it in the builder. Scored at its horizon like a decision,
 as the lot entered at the engine's prices, with its confidence asserted. The AI never picks or
-ranks suggestions. Open through the São Paulo day of the trading session after its close, then
-archived (pt-BR: _arquivada_): off today's suggestions, no new decision, still scored (ADR-0072).
-Archived here follows from the date alone, never a user action, unlike an archived strategy.
+ranks suggestions. Open until the radar reads a newer close, then archived (pt-BR: _arquivada_):
+off today's suggestions, no new decision, still scored (ADR-0073). Archived here follows from the
+radar's next reading alone, never a user action or the date, unlike an archived strategy.
 _Avoid_: recommendation, tip, idea (in code), pick, match (the radar row before pricing)
+
+**Sighting** (pt-BR: _primeira visualização_):
+The first time at least half of a suggestion's card (or half of the screen, for a taller card)
+was on a user's screen while the page was visible, recorded only while that user has the archive
+of seen suggestions on (ADR-0074). One per user and suggestion, never moved by a later view;
+erased when the user turns the option off.
+_Avoid_: view, impression, read (the radar's reading)
+
+**Archived for you** (pt-BR: _arquivada para você_):
+A suggestion taken off one user's "Sugestões de hoje" because they saw it longer ago than the
+delay they chose (ADR-0074). Only that user's panel changes: it is still open, still takes
+decisions and is scored for everyone, unlike an archived suggestion.
+_Avoid_: hidden, dismissed, archived (alone: the radar's archive of ADR-0073)
 
 **Expected move**:
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or

@@ -42,7 +42,7 @@ function LimitCheck({ result }: { result: LimitCheckResult }) {
 }
 
 // The suggestion cards with the viewer's own layer on top (docs/adr/0067): their risk check,
-// their decision on each (none on an archived one, docs/adr/0072) and the analysis they may ask
+// their decision on each (none on an archived one, docs/adr/0073) and the analysis they may ask
 // for. `onPage` drops the link to the suggestion's own page, and the card's headline, when the
 // card is that page. While the viewer has automatic archiving on, the cards they have on screen
 // are recorded as seen (docs/adr/0074); with it off nothing is recorded.
@@ -113,7 +113,7 @@ export async function SuggestionList({
               </span>
             ) : suggestion.validity.archived ? (
               <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
-                {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.openThrough))}
+                {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.supersededBy))}
               </span>
             ) : (
               <DecisionBar

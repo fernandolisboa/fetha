@@ -72,8 +72,8 @@ export type RecordDecisionResult =
 // (portfolio's operations-actions.ts).
 const RECORD_RATE_LIMIT = { windowSeconds: 60, max: 20 };
 
-// docs/adr/0072: a decision is scored at the suggestion's scanned close, so answering one after
-// its window closed would be answering with hindsight.
+// docs/adr/0073: a decision is scored at the suggestion's scanned close, so answering one after
+// the radar has read a newer close would be answering with hindsight.
 class SuggestionArchivedError extends Error {
   constructor() {
     super("This suggestion is archived");

@@ -44,6 +44,10 @@ const en = {
     none: "No recipe found an entry at the latest close.",
     notRun: "The radar has not run yet. Suggestions show up after its first night.",
     more: (count: number) => `See all ${String(count)} suggestions in the radar`,
+    overdue: (count: number) =>
+      count === 1
+        ? "The radar has not read the next close yet. Today's prices may have moved."
+        : `The radar has not read the next ${String(count)} closes yet. Today's prices may have moved.`,
     headline: {
       "bull-call-spread-low-iv": (ticker: string) => `A bull call spread on ${ticker} fits now.`,
       "long-call-low-iv": (ticker: string) => `Buying a call on ${ticker} fits now.`,
@@ -87,10 +91,8 @@ const en = {
       builder: "Study in the builder",
     },
     answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
-    archived: (session: string, day: string) =>
-      `The suggestions from the close of ${session} were archived at the end of ${day}. New ones show up here once the radar reads the next close.`,
-    archivedCard: (day: string) =>
-      `Archived at the end of ${day}: it no longer takes decisions. It is still scored at expiry.`,
+    archivedCard: (session: string) =>
+      `Archived: the radar has read the close of ${session} since. It no longer takes decisions, but it is still scored at expiry.`,
     seenArchive: {
       allArchived:
         "You have already seen every suggestion from this close, and they left this panel after the time you chose.",
@@ -113,8 +115,8 @@ const en = {
   page: {
     overline: (date: string) => `Suggestion · close of ${date}`,
     expires: (date: string) => `Expires ${date}`,
-    openThrough: (date: string) => `Open through ${date}`,
-    archived: (date: string) => `Was open through ${date}`,
+    current: "Open",
+    archived: (session: string) => `Archived since the close of ${session}`,
     lot: "One standard lot",
     notesTitle: "How to read a suggestion",
     notes: [
@@ -123,7 +125,7 @@ const en = {
       "Max loss and max gain are at expiry, before costs. The break-even is the underlying's price at expiry where the result is zero.",
       "The thesis is what Fetha scores at expiry: it shows up in the journal, under Fetha's suggestions, as right or wrong, with the result of the lot.",
       "Your limits are checked against the risk profile you declared in Settings and the operations you have open now.",
-      "A suggestion is open until the end of the day (Brasília time) of the trading session after the close the radar read. Then it is archived: it leaves today's suggestions and takes no more decisions, but it is still scored at expiry.",
+      "A suggestion stays open until the radar reads a newer close. Then it is archived: it leaves today's suggestions and takes no more decisions, but it is still scored at expiry. If ingestion falls behind, it stays here with a note on how many closes the radar has not read yet.",
     ],
   },
 };
@@ -176,6 +178,10 @@ const ptBR = {
     none: "Nenhuma receita encontrou entrada no último fechamento.",
     notRun: "O radar ainda não rodou. As sugestões aparecem depois da primeira noite.",
     more: (count: number) => `Ver as ${String(count)} sugestões no radar`,
+    overdue: (count: number) =>
+      count === 1
+        ? "O radar ainda não leu o fechamento seguinte. Os preços de hoje podem ter mudado."
+        : `O radar ainda não leu os ${String(count)} fechamentos seguintes. Os preços de hoje podem ter mudado.`,
     headline: {
       "bull-call-spread-low-iv": (ticker: string) =>
         `Uma trava de alta com calls em ${ticker} cabe agora.`,
@@ -224,10 +230,8 @@ const ptBR = {
       builder: "Montar no simulador",
     },
     answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
-    archived: (session: string, day: string) =>
-      `As sugestões do fechamento de ${session} foram arquivadas no fim do dia ${day}. As novas aparecem aqui assim que o radar ler o próximo fechamento.`,
-    archivedCard: (day: string) =>
-      `Arquivada no fim do dia ${day}: não recebe mais decisões. Ela continua sendo avaliada no vencimento.`,
+    archivedCard: (session: string) =>
+      `Arquivada: o radar já leu o fechamento de ${session}. Ela não recebe mais decisões, mas continua sendo avaliada no vencimento.`,
     seenArchive: {
       allArchived:
         "Você já viu todas as sugestões deste fechamento, e elas saíram daqui depois do tempo que você escolheu.",
@@ -255,8 +259,8 @@ const ptBR = {
   page: {
     overline: (date: string) => `Sugestão · fechamento de ${date}`,
     expires: (date: string) => `Vence em ${date}`,
-    openThrough: (date: string) => `Vale até ${date}`,
-    archived: (date: string) => `Valia até ${date}`,
+    current: "Em aberto",
+    archived: (session: string) => `Arquivada desde o fechamento de ${session}`,
     lot: "Um lote padrão",
     notesTitle: "Como ler uma sugestão",
     notes: [
@@ -265,7 +269,7 @@ const ptBR = {
       "Perda máxima e ganho máximo valem para o vencimento, antes dos custos. O break-even é o preço do ativo no vencimento em que o resultado fica zero.",
       "A tese é o que o Fetha confere no vencimento: ela aparece no diário, em Sugestões do Fetha, como acerto ou erro, com o resultado do lote.",
       "Os seus limites são conferidos com o perfil de risco que você declarou em Configurações e com as operações que você tem abertas agora.",
-      "Uma sugestão vale até o fim do dia do pregão seguinte ao fechamento que o radar leu, no horário de Brasília. Depois disso, ela é arquivada: sai das sugestões de hoje e não recebe mais decisões, mas continua sendo avaliada no vencimento.",
+      "Uma sugestão fica em aberto até o radar ler um fechamento mais novo. Aí ela é arquivada: sai das sugestões de hoje e não recebe mais decisões, mas continua sendo avaliada no vencimento. Se a ingestão atrasar, ela continua aqui com um aviso de quantos fechamentos o radar ainda não leu.",
     ],
   },
 } satisfies typeof en;
