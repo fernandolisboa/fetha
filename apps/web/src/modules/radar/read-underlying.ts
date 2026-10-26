@@ -1,8 +1,11 @@
 import {
   conditionIndicators,
+  type ExpirySelection,
   type IndicatorSpec,
   type Instant,
   type Recipe,
+  type RiskProfile,
+  type Structure,
   type Ticker,
 } from "@fetha/contracts";
 import {
@@ -88,47 +91,107 @@ function legsOf(pricing: OperationPricing, view: MarketView, at: Instant): Radar
   });
 }
 
-async function matchRecipe(
-  recipe: Recipe,
-  view: MarketView,
-  ticker: Ticker,
-  at: Instant,
-  series: IndicatorSeries,
-): Promise<RadarMatch | null> {
+interface ResolvedRecipe {
+  structure: Structure;
+  expiry: ExpirySelection;
+}
+
+function resolveRecipe(recipe: Recipe): ResolvedRecipe | null {
   const { definition } = recipe;
   const structure = catalog.find(
     (entry) => entry.structure.id === definition.structureId,
   )?.structure;
-  if (!structure || !definition.expiry) return null;
+  return structure && definition.expiry ? { structure, expiry: definition.expiry } : null;
+}
 
+export interface RecipeEvaluationInput {
+  recipe: Recipe;
+  view: MarketView;
+  ticker: Ticker;
+  at: Instant;
+}
+
+// Whether the recipe's entry condition held for `ticker` at `at`, exactly as the engine
+// evaluates the recipe as a strategy; null when the book cannot resolve the recipe or the engine
+// cannot evaluate it on this view.
+export async function recipeEntryHeld({
+  recipe,
+  view,
+  ticker,
+  at,
+}: RecipeEvaluationInput): Promise<boolean | null> {
+  const resolved = resolveRecipe(recipe);
+  if (!resolved) return null;
   const evaluation = await engine.evaluateStrategy({
     view,
-    strategy: { id: `recipe:${recipe.id}`, definition, structure },
+    strategy: {
+      id: `recipe:${recipe.id}`,
+      definition: recipe.definition,
+      structure: resolved.structure,
+    },
     instruments: [ticker],
     at,
   });
   if (!evaluation.ok) return null;
   const record = evaluation.value.evaluations.findLast((entry) => entry.ticker === ticker);
-  if (!record || !conditionHeldOutcomes.has(record.outcome)) return null;
+  return record ? conditionHeldOutcomes.has(record.outcome) : null;
+}
 
-  // One standard lot, never a position size: sizing to a capital is the user's (docs/adr/0067).
+export interface PricedLot {
+  pricing: OperationPricing;
+  legs: RadarLeg[];
+  suggestion: SuggestionDraft | null;
+}
+
+// One standard lot, never a position size: sizing to a capital is the user's (docs/adr/0067).
+// The nightly scan passes no risk profile; the on-demand research (docs/adr/0075) passes the
+// user's, so the engine reports the limits the lot breaches.
+export async function priceRecipeLot({
+  recipe,
+  view,
+  ticker,
+  at,
+  riskProfile,
+  openOperationCount,
+}: RecipeEvaluationInput & {
+  riskProfile?: RiskProfile;
+  openOperationCount?: number;
+}): Promise<PricedLot | null> {
+  const resolved = resolveRecipe(recipe);
+  if (!resolved) return null;
   const pricing = await engine.priceOperation({
     view,
     at,
     legs: {
-      structure,
+      structure: resolved.structure,
       underlying: ticker,
-      strikes: definition.strikes,
-      expiry: definition.expiry,
+      strikes: recipe.definition.strikes,
+      expiry: resolved.expiry,
       quantity: SUGGESTION_LOT,
     },
+    ...(riskProfile ? { riskProfile } : {}),
+    ...(openOperationCount === undefined ? {} : { openOperationCount }),
   });
   if (!pricing.ok) return null;
-
-  const facts = factsFor(recipe, series);
-  if (!facts) return null;
   const legs = legsOf(pricing.value, view, at);
-  return { recipeId: recipe.id, facts, legs, suggestion: suggestionFrom(pricing.value, legs) };
+  return { pricing: pricing.value, legs, suggestion: suggestionFrom(pricing.value, legs) };
+}
+
+async function matchRecipe(
+  input: RecipeEvaluationInput,
+  series: IndicatorSeries,
+): Promise<RadarMatch | null> {
+  if (!(await recipeEntryHeld(input))) return null;
+  const lot = await priceRecipeLot(input);
+  if (!lot) return null;
+  const facts = factsFor(input.recipe, series);
+  if (!facts) return null;
+  return {
+    recipeId: input.recipe.id,
+    facts,
+    legs: lot.legs,
+    suggestion: lot.suggestion,
+  };
 }
 
 // One underlying at one closed session: its asset reading and every recipe whose entry
@@ -153,7 +216,7 @@ export async function readUnderlying(
 
   const matches: RadarMatch[] = [];
   for (const recipe of recipes) {
-    const match = await matchRecipe(recipe, view, ticker, at, series.value);
+    const match = await matchRecipe({ recipe, view, ticker, at }, series.value);
     if (match) matches.push(match);
   }
   return { ok: true, reading: reading.value, matches };
