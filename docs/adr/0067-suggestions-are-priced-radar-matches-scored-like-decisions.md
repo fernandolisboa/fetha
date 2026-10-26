@@ -159,4 +159,4 @@ only" is about execution, not about voice, and is unchanged.
 "Sugestões de hoje" no longer shows the newest read session's suggestions indefinitely: a
 suggestion is open through the São Paulo day of the trading session after its close, then
 archived. An archived suggestion leaves the panel, keeps its page and its score, and takes no new
-decision (item 5).
+decision (item 5); its page shows no decision bar (item 8).

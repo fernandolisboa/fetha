@@ -246,6 +246,7 @@ analysis of it, test its recipe or open it in the builder. Scored at its horizon
 as the lot entered at the engine's prices, with its confidence asserted. The AI never picks or
 ranks suggestions. Open through the São Paulo day of the trading session after its close, then
 archived (pt-BR: _arquivada_): off today's suggestions, no new decision, still scored (ADR-0072).
+Archived here follows from the date alone, never a user action, unlike an archived strategy.
 _Avoid_: recommendation, tip, idea (in code), pick, match (the radar row before pricing)
 
 **Expected move**:

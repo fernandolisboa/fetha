@@ -11,7 +11,7 @@ import type { AssetReading, OperationPricing } from "@fetha/engine";
 import { catalog, recipeById } from "@/modules/strategies";
 
 import type { RadarFacts, RadarLeg } from "./match";
-import type { SuggestionWindow } from "./suggestion-window";
+import type { SuggestionValidity } from "./suggestion-validity";
 import type { SuggestionInContext } from "./suggestions-repository";
 
 export interface SuggestionView {
@@ -29,7 +29,7 @@ export interface SuggestionView {
   pricing: OperationPricing;
   maxLoss: Centavos;
   claim: ThesisClaim;
-  window: SuggestionWindow;
+  validity: SuggestionValidity;
 }
 
 // What the cards, the suggestion page and the decision snapshot read: the stored suggestion with
@@ -37,7 +37,7 @@ export interface SuggestionView {
 // whose stored legs no longer line up with its pricing, is dropped like the radar drops its match.
 export function suggestionView(
   stored: SuggestionInContext,
-  window: SuggestionWindow,
+  validity: SuggestionValidity,
 ): SuggestionView | null {
   const recipe = recipeById(stored.recipeId);
   const structure = catalog.find(
@@ -76,6 +76,6 @@ export function suggestionView(
     pricing: stored.pricing,
     maxLoss: stored.pricing.maxLoss,
     claim: stored.claim,
-    window,
+    validity,
   };
 }

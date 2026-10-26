@@ -84,6 +84,9 @@ Environment variables:
 - `E2E_SECRET`: shared secret for the E2E-only route `/api/e2e/verification-link` (404 in
   production or when unset). Set on the Vercel project as `E2E_SECRET`; the spec skips entirely
   when this is not set.
+- `E2E_TODAY`: set it on the server under test (the preview's environment, or the shell running
+  `next start`) to `2026-09-21`, as CI does. Without it the suggestion `suggestions.spec.ts`
+  seeds at an old close is archived (ADR-0072) and the spec fails.
 - `E2E_OWNER_EMAIL`: optional, defaults to `dono-e2e@example.com`. The account on the preview's
   own `OWNER_EMAILS` allowlist (docs/adr/0042) that CI re-creates after every reset of
   `fetha-preview` (`db:seed-e2e-owner`), so nobody registers it by hand. The setup project signs

@@ -23,7 +23,7 @@ recorded days later would be answered with hindsight the score cannot see.
    calendar day of the first trading session after `S` (from the shared calendar), including the
    evening of `S` itself and any weekend or holiday in between; from the next day on it is
    archived. When the calendar does not reach the next session yet, the window ends on `S`'s own
-   day. The rule is a pure function (`suggestionWindow` in `modules/radar/suggestion-window.ts`);
+   day. The rule is a pure function (`suggestionValidity` in `modules/radar/suggestion-validity.ts`);
    "today" is `todaySaoPauloDate()`. Nothing is stored: archiving is derived on every read, so no
    migration and no nightly step.
 2. **Today's suggestions.** The panel shows the newest read session's suggestions only while their
@@ -31,15 +31,16 @@ recorded days later would be answered with hindsight the score cannot see.
    archived, and never falls back to anything older; nothing shows until the radar reads a newer
    close.
 3. **Archived is read-only.** An archived suggestion keeps its page (`/sugestoes/[id]`, badge
-   "Valeu até <data>"; an open one shows "Vale até <data>"), the recipe, the builder link and
+   "Valia até <data>"; an open one shows "Vale até <data>"), the recipe, the builder link and
    analyses, and is still scored at its horizon for the journal's calibration panel. It no longer
    takes a decision: the card shows that it was archived, and `recordDecisionAction` answers
    `archived` for one, so a page left open past midnight cannot record it either. A decision
    recorded while the suggestion was open stays as it is.
 4. **E2E clock.** The e2e suite only ingests fixed past sessions, so `E2E_TODAY` (a `YYYY-MM-DD`)
    pins the window's "today" outside production; it is ignored on a production deployment and
-   against the production database, like `E2E_B3_INSTRUMENTS_DIR`. CI sets it to the session
-   after the newest fixed one.
+   against the production database, like `E2E_B3_INSTRUMENTS_DIR`, and a value that is not a
+   valid date is ignored. CI sets it to the session after the newest fixed one; a manual run
+   needs it too.
 
 ## Consequences
 

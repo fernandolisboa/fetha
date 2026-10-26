@@ -1,6 +1,6 @@
 import type { SessionDate } from "@fetha/contracts";
 
-export interface SuggestionWindow {
+export interface SuggestionValidity {
   openThrough: SessionDate;
   archived: boolean;
 }
@@ -9,11 +9,11 @@ export interface SuggestionWindow {
 // the São Paulo day of the next trading session, the one day anyone can act on that close, and
 // archived from the day after. A calendar that does not reach the next session yet closes it on
 // its own session's day rather than leaving it open forever.
-export function suggestionWindow(
+export function suggestionValidity(
   session: SessionDate,
   nextSession: SessionDate | undefined,
   today: SessionDate,
-): SuggestionWindow {
+): SuggestionValidity {
   const openThrough = nextSession ?? session;
   return { openThrough, archived: today > openThrough };
 }

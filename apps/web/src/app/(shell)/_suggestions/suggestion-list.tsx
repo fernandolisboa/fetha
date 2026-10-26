@@ -3,7 +3,7 @@ import Link from "next/link";
 import { tickerSchema } from "@fetha/contracts";
 
 import { buttonVariants } from "@/components/ui/button";
-import { formatDate } from "@/lib/format/date-time";
+import { formatDate, formatSessionDate } from "@/lib/format/date-time";
 import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
   allowedDecisionKinds,
@@ -13,7 +13,6 @@ import {
   t as decisionsT,
 } from "@/modules/decisions";
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
-import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { getMyLimitBreaches, RiskNotice, type LimitCheckResult } from "@/modules/portfolio";
 import { SuggestionCard, t, type SuggestionView } from "@/modules/radar";
 
@@ -109,11 +108,9 @@ export async function SuggestionList({
                   formatDate(decision.decidedAt),
                 )}
               </span>
-            ) : suggestion.window.archived ? (
+            ) : suggestion.validity.archived ? (
               <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
-                {t.suggestions.archivedCard(
-                  formatDate(sessionDateToDisplayDate(suggestion.window.openThrough)),
-                )}
+                {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.openThrough))}
               </span>
             ) : (
               <DecisionBar

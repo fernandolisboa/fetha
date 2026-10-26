@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { tickerSchema } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/format/date-time";
+import { formatDate, formatSessionDate } from "@/lib/format/date-time";
 import { requireUser } from "@/modules/auth";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { getSuggestion, SuggestionNotFoundError, suggestionHeadline, t } from "@/modules/radar";
@@ -40,8 +40,8 @@ export default async function SuggestionPage({ params }: { params: Promise<{ id:
         </li>
         <li>
           <Badge variant="secondary" className="font-mono tabular-nums">
-            {(suggestion.window.archived ? t.page.archived : t.page.openThrough)(
-              formatDate(sessionDateToDisplayDate(suggestion.window.openThrough)),
+            {(suggestion.validity.archived ? t.page.archived : t.page.openThrough)(
+              formatSessionDate(suggestion.validity.openThrough),
             )}
           </Badge>
         </li>

@@ -85,6 +85,8 @@ describe("readE2EToday", () => {
     expect(readE2EToday({ E2E_TODAY: "2026-09-21" })).toBe("2026-09-21");
     expect(readE2EToday({})).toBeUndefined();
     expect(readE2EToday({ E2E_TODAY: " " })).toBeUndefined();
+    expect(readE2EToday({ E2E_TODAY: "21/09/2026" })).toBeUndefined();
+    expect(readE2EToday({ E2E_TODAY: "2026-02-30" })).toBeUndefined();
   });
 
   it("is ignored in production", () => {

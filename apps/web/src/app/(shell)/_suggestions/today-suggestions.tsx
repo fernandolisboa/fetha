@@ -1,32 +1,28 @@
 import Link from "next/link";
 
-import { formatDate } from "@/lib/format/date-time";
-import { sessionDateToDisplayDate } from "@/modules/market-data";
+import { formatSessionDate } from "@/lib/format/date-time";
 import { getTodaySuggestions, t } from "@/modules/radar";
 import { Panel } from "@/modules/shell";
 
 import { SuggestionList } from "./suggestion-list";
-
-const displayDate = (session: string) => formatDate(sessionDateToDisplayDate(session));
 
 // "Sugestões de hoje" (docs/adr/0067): on the watchlist tab the first `limit` cards with a link
 // to the rest; on the radar tab all of them. Once the newest ones are archived (docs/adr/0072)
 // the panel says so instead of showing them again.
 export async function TodaySuggestions({ limit }: { limit?: number }) {
   const today = await getTodaySuggestions();
-  switch (today.kind) {
-    case "none":
-      return null;
-    case "archived":
-      return (
-        <Panel title={t.suggestions.title}>
-          <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
-            {t.suggestions.archived(displayDate(today.session), displayDate(today.openThrough))}
-          </p>
-        </Panel>
-      );
-    case "open":
-      break;
+  if (today.kind === "none") return null;
+  if (today.kind === "archived") {
+    return (
+      <Panel title={t.suggestions.title}>
+        <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
+          {t.suggestions.archived(
+            formatSessionDate(today.session),
+            formatSessionDate(today.openThrough),
+          )}
+        </p>
+      </Panel>
+    );
   }
 
   const { suggestions } = today;
@@ -37,7 +33,7 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
   return (
     <Panel
       title={t.suggestions.title}
-      subtitle={`${t.suggestions.subtitle(displayDate(first.session))} ${t.suggestions.order}`}
+      subtitle={`${t.suggestions.subtitle(formatSessionDate(first.session))} ${t.suggestions.order}`}
     >
       <div className="flex flex-col gap-3" data-testid="today-suggestions">
         <SuggestionList suggestions={shown} />

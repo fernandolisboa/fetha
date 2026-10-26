@@ -276,7 +276,7 @@ async function buildRecordInput({
     if (!allowedDecisionKinds({ kind: "suggestion" }).includes(kind)) {
       throw new KindNotAllowedError();
     }
-    if (suggestion.window.archived) {
+    if (suggestion.validity.archived) {
       throw new SuggestionArchivedError();
     }
     const inputs: DecisionInputs = {

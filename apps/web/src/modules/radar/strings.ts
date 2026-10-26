@@ -90,7 +90,7 @@ const en = {
     archived: (session: string, day: string) =>
       `The suggestions from the close of ${session} were archived at the end of ${day}. New ones show up here once the radar reads the next close.`,
     archivedCard: (day: string) =>
-      `Archived at the end of ${day}: it no longer takes a decision. It is still scored at expiry.`,
+      `Archived at the end of ${day}: it no longer takes decisions. It is still scored at expiry.`,
   },
   calibration: {
     title: "Fetha's suggestions",
@@ -105,7 +105,7 @@ const en = {
     overline: (date: string) => `Suggestion · close of ${date}`,
     expires: (date: string) => `Expires ${date}`,
     openThrough: (date: string) => `Open through ${date}`,
-    archived: (date: string) => `Archived after ${date}`,
+    archived: (date: string) => `Was open through ${date}`,
     lot: "One standard lot",
     notesTitle: "How to read a suggestion",
     notes: [
@@ -218,7 +218,7 @@ const ptBR = {
     archived: (session: string, day: string) =>
       `As sugestões do fechamento de ${session} foram arquivadas no fim do dia ${day}. As novas aparecem aqui assim que o radar ler o próximo fechamento.`,
     archivedCard: (day: string) =>
-      `Arquivada no fim do dia ${day}: não recebe mais decisão. Ela continua sendo avaliada no vencimento.`,
+      `Arquivada no fim do dia ${day}: não recebe mais decisões. Ela continua sendo avaliada no vencimento.`,
   },
   calibration: {
     title: "Sugestões do Fetha",
@@ -238,7 +238,7 @@ const ptBR = {
     overline: (date: string) => `Sugestão · fechamento de ${date}`,
     expires: (date: string) => `Vence em ${date}`,
     openThrough: (date: string) => `Vale até ${date}`,
-    archived: (date: string) => `Valeu até ${date}`,
+    archived: (date: string) => `Valia até ${date}`,
     lot: "Um lote padrão",
     notesTitle: "Como ler uma sugestão",
     notes: [
