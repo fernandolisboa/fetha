@@ -161,6 +161,12 @@ suggestion is open through the São Paulo day of the trading session after its c
 archived. An archived suggestion leaves the panel, keeps its page and its score, and takes no new
 decision (item 5); its page shows no decision bar (item 8).
 
+## Amendment (2026-10-26, ADR-0073)
+
+ADR-0073 replaces ADR-0072's window: a suggestion is archived once the radar reads a newer close,
+never by the date; while ingestion lags, the panel keeps the newest read session's suggestions
+with a warning of how many closes are overdue.
+
 ## Amendment (2026-10-26, ADR-0075)
 
 Item 1's one-lot pricing also runs on demand for the signed-in user, with their risk profile (or

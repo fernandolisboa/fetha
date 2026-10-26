@@ -137,9 +137,10 @@ exposing module's interface, never through its tables.
    requests an analysis with a verdict, tests the recipe through the recipe start flow (or opens
    the run already made for that ticker) or opens the builder prefilled with the lot. Nothing is
    sized to the user's capital or stored per user until they decide; the suggestion itself is
-   shared reference data, scored at expiry for everyone alike. A suggestion is open through the
-   São Paulo day of the trading session after its close, then archived: it leaves today's
-   suggestions and takes no new decision, still scored (ADR-0072).
+   shared reference data, scored at expiry for everyone alike. A suggestion is open until the
+   radar reads a newer close, then archived: it leaves today's suggestions and takes no new
+   decision, still scored. While ingestion lags, today's suggestions stay with a warning of how
+   many closes the radar has not read (ADR-0073).
 10. **Get suggestions on demand.** The "Sugestões de hoje" panel always carries "Obter sugestões"
     (ADR-0075): a Server Action that takes the radar's findings of its last 5 read sessions
     (deduplicated by underlying and recipe, newest wins), builds one market view per underlying at
@@ -232,6 +233,6 @@ shared strategy definitions chosen by expected move (0064), the nightly radar ov
 underlyings (0066), and suggestions as priced radar matches spoken in direct voice and scored like
 decisions, with the "not a recommendation" stance lifted by the owner (0067), and the Workspace
 and Studio layouts with four themes carried over from Bardo and Mascate (0069), and the Dock
-layout's floating menu (0071), a suggestion open through the next trading day, then
-archived (0072), and the on-demand re-check of the radar's last 5 sessions against the user's
-risk limits (0075).
+layout's floating menu (0071), a suggestion archived once the radar reads a newer close
+(0073, superseding 0072), and the on-demand re-check of the radar's last 5 sessions against
+the user's risk limits (0075).

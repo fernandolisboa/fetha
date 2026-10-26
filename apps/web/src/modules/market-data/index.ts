@@ -54,7 +54,10 @@ export {
   type ResolvedOptionSeries,
 } from "./repositories/option-repository";
 export { buildPortfolioMarketView } from "./portfolio-view";
-export { latestSessionOnOrBefore } from "./repositories/calendar-repository";
+export {
+  countSessionsClosedAfter,
+  latestSessionOnOrBefore,
+} from "./repositories/calendar-repository";
 export { searchOptionSeriesAction, type SearchOptionSeriesResult } from "./actions";
 export { OptionSeriesPricesTable } from "./components/option-series-prices-table";
 export {

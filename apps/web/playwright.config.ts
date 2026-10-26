@@ -46,7 +46,9 @@ const ownerSpecs = [
 ];
 
 // Both seed the same PETR4 radar row through `/api/e2e/seed-radar`, whose read-then-write is
-// not atomic: run in parallel, the second insert hits the row's unique index.
+// not atomic: run in parallel, the second insert hits the row's unique index. They wait for the
+// owner specs because a suggestion is archived once the radar reads a newer close
+// (docs/adr/0073), and every owner spec's nightly run may read the recent session mid-spec.
 const radarSpecs = ["radar.spec.ts", "suggestions.spec.ts"];
 
 // Signs the owner in once and ingests every session the suite reads
@@ -80,7 +82,7 @@ export default defineConfig({
       testMatch: radarSpecs,
       fullyParallel: false,
       workers: 1,
-      dependencies: [setup],
+      dependencies: [setup, "owner"],
     },
     {
       name: "default",

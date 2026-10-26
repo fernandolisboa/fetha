@@ -8,7 +8,7 @@ date: 2026-10-26
 ## Context
 
 The radar reads each close once, at night (ADR-0066), and today's suggestions speak only for the
-newest close and only until the next trading day is over (ADR-0072). On 2026-10-26 the owner asked
+newest close and only until the radar reads a newer one (ADR-0073). On 2026-10-26 the owner asked
 for a button, "Obter sugestões", that looks beyond that single night: walk what the radar found
 over the last few sessions, check each finding again at the newest close and against the user's own
 risk limits, and say what still holds, what no longer does and what was left out, and why. This is
@@ -78,8 +78,8 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
    Server Action is rate limited per account (`radar/research`, 6 per 60 s) and stops itself after
    about **45 s**, returning what it has with `timedOut`; the home page, which hosts the action,
    sets `maxDuration = 60` so the platform does not cut it first.
-8. **Screen.** "Sugestões de hoje" on the home always renders, even when today's suggestions are
-   none or archived, so the button is always reachable. The button shows "Pesquisando…" while it
+8. **Screen.** "Sugestões de hoje" on the home always renders, even when there are no suggestions
+   today, so the button is always reachable. The button shows "Pesquisando…" while it
    runs. The answer is a one-line summary, the default-profile notice when it applies, and two
    groups of cards: "Ainda valem hoje" and "Deixaram de valer", each card with the re-priced lot,
    its alerts, a link to the original suggestion when one was stored and one to the asset. No
