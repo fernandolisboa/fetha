@@ -6,6 +6,11 @@ import { describe, expect, it } from "vitest";
 import { CotahistFetchError, cotahistDailyFileUrl, fetchCotahist } from "./fetch";
 
 const zipFixture = readFileSync(path.join(import.meta.dirname, "fixtures", "cotahist-sample.zip"));
+// The header, PETR4, the FROTA OCEÂNICA record B3 wrote with its name in UTF-8 (246 bytes) and
+// the trailer, cut from the real COTAHIST_D22102026.ZIP.
+const utf8RecordZip = readFileSync(
+  path.join(import.meta.dirname, "fixtures", "cotahist-utf8-record.zip"),
+);
 
 function fakeFetch(status: number, body: Uint8Array | string): typeof fetch {
   return () => Promise.resolve(new Response(body as BodyInit, { status }));
@@ -32,6 +37,11 @@ describe("fetchCotahist", () => {
       "PETRK312",
       "PETRW463",
     ]);
+  });
+
+  it("reads a record B3 wrote in UTF-8 inside the latin1 file at its fixed width", async () => {
+    const rows = await fetchCotahist("2026-10-22", fakeFetch(200, utf8RecordZip));
+    expect(rows.map((row) => row.ticker)).toEqual(["PETR4"]);
   });
 
   it("throws CotahistFetchError on a non-ok response", async () => {

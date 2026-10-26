@@ -25,7 +25,7 @@ const CALL_MARKET_TYPE = "070";
 const PUT_MARKET_TYPE = "080";
 const OPTION_MARKET_TYPES = new Set([CALL_MARKET_TYPE, PUT_MARKET_TYPE]);
 
-const RECORD_LENGTH = 245;
+export const RECORD_LENGTH = 245;
 const STORAGE_DECIMALS = 6;
 
 function slice(line: string, [start, end]: readonly [number, number]): string {
