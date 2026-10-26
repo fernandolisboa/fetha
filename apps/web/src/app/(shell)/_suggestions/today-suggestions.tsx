@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { formatSessionDate } from "@/lib/format/date-time";
 import { getTodaySuggestions, t } from "@/modules/radar";
+import { SuggestionResearch } from "@/modules/radar/client";
 import { Panel } from "@/modules/shell";
 
 import { SuggestionList } from "./suggestion-list";
@@ -11,7 +12,16 @@ import { SuggestionList } from "./suggestion-list";
 // the panel says so instead of showing them again.
 export async function TodaySuggestions({ limit }: { limit?: number }) {
   const today = await getTodaySuggestions();
-  if (today.kind === "none") return null;
+  if (today.kind === "none") {
+    return (
+      <Panel title={t.suggestions.title}>
+        <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
+          {t.suggestions.none}
+        </p>
+        <SuggestionResearch />
+      </Panel>
+    );
+  }
   if (today.kind === "archived") {
     return (
       <Panel title={t.suggestions.title}>
@@ -21,6 +31,7 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
             formatSessionDate(today.openThrough),
           )}
         </p>
+        <SuggestionResearch />
       </Panel>
     );
   }
@@ -47,6 +58,7 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
         </Link>
       )}
       <p className="text-muted-foreground text-xs text-pretty">{t.suggestions.footnote}</p>
+      <SuggestionResearch />
     </Panel>
   );
 }

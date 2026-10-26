@@ -247,7 +247,20 @@ as the lot entered at the engine's prices, with its confidence asserted. The AI 
 ranks suggestions. Open through the São Paulo day of the trading session after its close, then
 archived (pt-BR: _arquivada_): off today's suggestions, no new decision, still scored (ADR-0072).
 Archived here follows from the date alone, never a user action, unlike an archived strategy.
-_Avoid_: recommendation, tip, idea (in code), pick, match (the radar row before pricing)
+_Avoid_: recommendation, tip, idea (in code, except the suggestion research's own idea below), pick, match (the radar row before pricing)
+
+**Suggestion research** (pt-BR: _Pesquisa de sugestões_, the button "Obter sugestões"):
+The on-demand, per-user re-check of what the radar found over its last 5 read sessions (ADR-0075).
+Each finding, deduplicated by underlying and recipe with the newest kept, is evaluated again at
+the newest close with the nightly scan's own code and priced for one standard lot against the
+user's risk profile (the risk form's default one when none is declared, said on screen). It
+returns two groups of **ideas**, the re-priced findings (pt-BR: _ideias_): the ones that still
+hold today and the ones whose rule no longer does, each with computed alerts (the rule no longer
+holds, a limit breach, near expiry), plus a count of what was dropped by reason (no price,
+expires in fewer than 5 sessions, max loss above the declared capital). An idea is not a
+suggestion: it is not stored, has no id and takes no decision until part 2 of #356 stores it.
+Computed on each click, rate limited, never ordered by a score.
+_Avoid_: screener, scan, new suggestions, recommendation, refresh
 
 **Expected move**:
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or

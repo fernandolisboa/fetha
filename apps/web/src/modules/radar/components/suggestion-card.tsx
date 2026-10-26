@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { decimalStringSchema, type Centavos, type ThesisClaim } from "@fetha/contracts";
+import type { ThesisClaim } from "@fetha/contracts";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
@@ -7,7 +7,8 @@ import { AssetReadingChips } from "@/modules/market-data";
 
 import type { SuggestionView } from "../suggestion-view";
 import { t } from "../strings";
-import { displayDate, Facts, legText } from "./radar-facts";
+import { Figure, lotLegText, netPremiumText } from "./lot-parts";
+import { displayDate, Facts } from "./radar-facts";
 
 export function suggestionHeadline(suggestion: SuggestionView): string {
   const headlines: Partial<Record<string, (ticker: string) => string>> = t.suggestions.headline;
@@ -26,30 +27,6 @@ function claimText(claim: ThesisClaim, underlying: string, horizon: string): str
     case "operation_pnl_positive":
       return t.suggestions.claim.operation_pnl_positive(date);
   }
-}
-
-function lotLegText(leg: SuggestionView["legs"][number]): string {
-  const quantity = formatDecimal(decimalStringSchema.parse(String(leg.quantity)), 0);
-  return `${quantity} × ${legText(leg)} · ${t.suggestions.legPrice(formatPriceBRL(leg.price))}`;
-}
-
-// DESIGN.md's money convention, as the builder's StatBlocks: a credit reads "+ R$".
-function netPremiumText(value: Centavos): string {
-  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
-}
-
-function Figure({ label, value, token }: { label: string; value: string; token?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</dt>
-      <dd
-        className="font-mono text-[13px] tabular-nums"
-        style={token ? { color: `var(${token})` } : undefined}
-      >
-        {value}
-      </dd>
-    </div>
-  );
 }
 
 export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }) {

@@ -34,6 +34,13 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(card.getByRole("list", { name: "O lote" })).toContainText("100 ×");
   await expect(card.getByText(/^A tese: /)).toBeVisible();
 
+  await page.getByRole("button", { name: "Obter sugestões" }).click();
+  const research = page.getByTestId("research-result");
+  await expect(research).toContainText(/Olhei \d+ ideias? de \d+ pregões?/);
+  await expect(
+    research.getByRole("link", { name: "Declare o seu em Configurações" }),
+  ).toBeVisible();
+
   await card.getByRole("link", { name: "Ver receita" }).click();
   await expect(page).toHaveURL(new RegExp(`/sugestoes/${suggestionId ?? ""}$`));
   await expect(page.getByRole("heading", { name: HEADLINE })).toBeVisible();

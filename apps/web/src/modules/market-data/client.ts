@@ -20,3 +20,4 @@ export { ibovespa, isMarketIndex } from "./market-index";
 // The module's own locale choice (`t`), plain data with no server imports:
 // safe for a client component that needs exchangeRate.pairLabel (#305).
 export { t as marketDataT } from "./strings";
+export { AssetReadingChips } from "./components/asset-reading";

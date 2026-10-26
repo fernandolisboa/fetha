@@ -5,3 +5,4 @@ export { RecordFillDialog } from "./components/record-fill-dialog";
 export { PayoffChart } from "./builder/payoff-chart";
 export { StatBlocks } from "./builder/stat-blocks";
 export { RiskNotice } from "./builder/risk-notice";
+export { DEFAULT_RISK_PROFILE } from "./default-risk-profile";
