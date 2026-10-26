@@ -4,7 +4,13 @@ import { z } from "zod";
 
 import { getDb } from "@/db/client";
 import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
-import { getPreferences } from "@/modules/preferences";
+import {
+  getPreferences,
+  PreferencesRepository,
+  suggestionArchiveDelaySchema,
+  type PreferencesActionResult,
+} from "@/modules/preferences";
+import { revalidatePath } from "next/cache";
 
 import { SuggestionSightingsRepository } from "./suggestion-sightings-repository";
 
@@ -26,5 +32,24 @@ export async function markSuggestionsSeenAction(ids: unknown): Promise<MarkSugge
     if ((await getPreferences()).suggestionArchive === "off") return;
     await repository.markSeen([...new Set(parsed.data)]);
   });
+  return { status: "ok" };
+}
+
+// docs/adr/0074: turning the option off also erases the user's sightings, which have no purpose
+// without it.
+export async function setSuggestionArchiveAction(delay: unknown): Promise<PreferencesActionResult> {
+  const parsed = suggestionArchiveDelaySchema.safeParse(delay);
+  if (!parsed.success) return { status: "error" };
+
+  await withAuthenticatedAction(async () => {
+    const db = getDb();
+    const preferences = await forCurrentUser(db, PreferencesRepository);
+    await preferences.setSuggestionArchive(parsed.data);
+    if (parsed.data === "off") {
+      await (await forCurrentUser(db, SuggestionSightingsRepository)).clear();
+    }
+  });
+
+  revalidatePath("/", "layout");
   return { status: "ok" };
 }

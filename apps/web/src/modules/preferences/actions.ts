@@ -8,7 +8,6 @@ import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 
 import { layoutSchema } from "./layout";
 import { PreferencesRepository } from "./preferences-repository";
-import { suggestionArchiveDelaySchema } from "./suggestion-archive";
 import { themeSchema } from "./theme";
 
 export type PreferencesActionResult = { status: "ok" } | { status: "error" };
@@ -37,21 +36,6 @@ export async function setLayoutAction(formData: FormData): Promise<PreferencesAc
   await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), PreferencesRepository);
     await repository.setLayout(parsed.data);
-  });
-
-  revalidatePath("/", "layout");
-  return { status: "ok" };
-}
-
-export async function setSuggestionArchiveAction(delay: unknown): Promise<PreferencesActionResult> {
-  const parsed = suggestionArchiveDelaySchema.safeParse(delay);
-  if (!parsed.success) {
-    return { status: "error" };
-  }
-
-  await withAuthenticatedAction(async () => {
-    const repository = await forCurrentUser(getDb(), PreferencesRepository);
-    await repository.setSuggestionArchive(parsed.data);
   });
 
   revalidatePath("/", "layout");

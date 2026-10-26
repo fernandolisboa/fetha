@@ -40,8 +40,9 @@ time, with automatic archiving on or off and the delay chosen by the user.
 
 - One user-scoped write per batch of cards that come on screen; none when nothing new shows.
 - Sightings start when the option is turned on: a suggestion seen before that counts from the
-  first time it shows afterwards. Turning the option off keeps the sightings already recorded
-  until their suggestion or the account is deleted.
+  first time it shows afterwards. Turning the option off erases the user's sightings
+  (`setSuggestionArchiveAction`, owned by `radar` since `preferences` cannot depend on it; the
+  settings page passes it to the picker).
 - No new decision lock: the hindsight argument of ADR-0072 does not apply, the suggestion's own
   close is still the newest.
 

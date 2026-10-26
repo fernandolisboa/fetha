@@ -7,6 +7,8 @@ import {
   t as preferencesStrings,
 } from "@/modules/preferences";
 
+import { setSuggestionArchiveAction } from "@/modules/radar/client";
+
 import { SettingsSection } from "../_components/settings-section";
 
 export default async function AppearanceSettingsPage() {
@@ -35,7 +37,10 @@ export default async function AppearanceSettingsPage() {
         subtitle={preferencesStrings.suggestionArchive.subtitle}
         className="@container scroll-mt-20"
       >
-        <SuggestionArchivePicker current={preferences.suggestionArchive} />
+        <SuggestionArchivePicker
+          current={preferences.suggestionArchive}
+          setAction={setSuggestionArchiveAction}
+        />
       </SettingsSection>
     </div>
   );

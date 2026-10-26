@@ -24,6 +24,10 @@ export class SuggestionSightingsRepository extends UserScopedRepository {
       .onConflictDoNothing();
   }
 
+  async clear(): Promise<void> {
+    await this.db.delete(suggestionSightings).where(eq(suggestionSightings.userId, this.userId));
+  }
+
   async firstSeen(ids: readonly string[]): Promise<Map<string, Date>> {
     if (ids.length === 0) return new Map();
     const rows = await this.db

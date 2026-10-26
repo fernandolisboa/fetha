@@ -3,7 +3,6 @@ export {
   dismissTourAction,
   setLayoutAction,
   setRailCollapsedAction,
-  setSuggestionArchiveAction,
   setThemeAction,
   type PreferencesActionResult,
 } from "./actions";
@@ -20,5 +19,6 @@ export { PreferencesDataExport } from "./data-export";
 export {
   suggestionArchiveDelays,
   hoursFromDelay,
+  suggestionArchiveDelaySchema,
   type SuggestionArchiveDelay,
 } from "./suggestion-archive";

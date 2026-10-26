@@ -9,7 +9,7 @@ const FLUSH_DELAY_MS = 800;
 
 // docs/adr/0074: a suggestion counts as seen once enough of its card was on screen while the page
 // was visible. Sightings go to the server in one batch per pause; a failed batch is retried the
-// next time its cards come on screen.
+// next time the tab comes back or the list changes.
 export function SeenTracker({ ids, children }: { ids: readonly string[]; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
   const sent = useRef(new Set<string>());
@@ -21,7 +21,6 @@ export function SeenTracker({ ids, children }: { ids: readonly string[]; childre
     const element = root.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
     const pending = new Set<string>();
-    let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const cards = () => [...element.querySelectorAll("[data-suggestion-id]")];
@@ -42,9 +41,10 @@ export function SeenTracker({ ids, children }: { ids: readonly string[]; childre
         .then((result) => result.status === "ok")
         .catch(() => false)
         .then((ok) => {
-          if (ok || disposed) return;
+          if (ok) return;
           for (const id of batch) sent.current.delete(id);
-          observeUnsent();
+          // No immediate retry, which would loop while offline: the batch goes again when the
+          // tab comes back or the list changes.
         });
     };
 
@@ -77,7 +77,6 @@ export function SeenTracker({ ids, children }: { ids: readonly string[]; childre
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      disposed = true;
       document.removeEventListener("visibilitychange", onVisibility);
       observer.disconnect();
       if (timer !== undefined) {

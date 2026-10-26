@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { ErrorNotice } from "@/components/error-notice";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-import { setSuggestionArchiveAction } from "../actions";
+import type { PreferencesActionResult } from "../actions";
 import { t as preferencesStrings } from "../strings";
 import {
   suggestionArchiveDelays,
@@ -13,7 +13,15 @@ import {
   type SuggestionArchiveDelay,
 } from "../suggestion-archive";
 
-export function SuggestionArchivePicker({ current }: { current: SuggestionArchiveDelay }) {
+// The action comes from `radar`, which also erases the sightings when the option goes off
+// (docs/adr/0074); preferences cannot import radar, which reads it.
+export function SuggestionArchivePicker({
+  current,
+  setAction,
+}: {
+  current: SuggestionArchiveDelay;
+  setAction: (delay: SuggestionArchiveDelay) => Promise<PreferencesActionResult>;
+}) {
   const strings = preferencesStrings.suggestionArchive;
   const [value, setValue] = useState(current);
   const [failed, setFailed] = useState(false);
@@ -33,7 +41,7 @@ export function SuggestionArchivePicker({ current }: { current: SuggestionArchiv
           setValue(delay);
           setFailed(false);
           startTransition(async () => {
-            const result = await setSuggestionArchiveAction(delay).catch(() => null);
+            const result = await setAction(delay).catch(() => null);
             if (result?.status !== "ok") {
               setValue(previous);
               setFailed(true);

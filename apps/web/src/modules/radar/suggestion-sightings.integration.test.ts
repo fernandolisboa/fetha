@@ -30,7 +30,9 @@ vi.mock("@/modules/auth", async () => {
   };
 });
 
-const { markSuggestionsSeenAction } = await import("./actions");
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+
+const { markSuggestionsSeenAction, setSuggestionArchiveAction } = await import("./actions");
 const { SuggestionSightingsRepository } = await import("./suggestion-sightings-repository");
 const { PreferencesRepository } = await import("@/modules/preferences");
 
@@ -228,5 +230,39 @@ describe("markSuggestionsSeenAction", () => {
     await expect(markSuggestionsSeenAction([crypto.randomUUID()])).rejects.toSatisfy(
       isRedirectError,
     );
+  });
+});
+
+describe("setSuggestionArchiveAction", () => {
+  it("saves the delay, and turning it off erases only this user's sightings", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("off-a");
+    const emailB = uniqueEmail("off-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const id = await suggestion();
+    await db.insert(suggestionSightings).values([
+      { userId: userA.id, suggestionId: id },
+      { userId: userB.id, suggestionId: id },
+    ]);
+    currentUser = userA;
+
+    expect(await setSuggestionArchiveAction("72")).toEqual({ status: "ok" });
+    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toBe("72");
+    expect((await new SuggestionSightingsRepository(db, userA).firstSeen([id])).size).toBe(1);
+
+    expect(await setSuggestionArchiveAction("off")).toEqual({ status: "ok" });
+    expect((await new PreferencesRepository(db, userA).find()).suggestionArchive).toBe("off");
+    expect((await new SuggestionSightingsRepository(db, userA).firstSeen([id])).size).toBe(0);
+    expect((await new SuggestionSightingsRepository(db, userB).firstSeen([id])).size).toBe(1);
+  });
+
+  it("rejects a delay that is not an option", async () => {
+    const email = uniqueEmail("bad-delay");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await setSuggestionArchiveAction("5")).toEqual({ status: "error" });
   });
 });
