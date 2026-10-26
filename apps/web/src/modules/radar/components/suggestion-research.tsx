@@ -120,7 +120,11 @@ export function SuggestionResearch() {
           {state.error ? t.research.errors[state.error] : null}
         </p>
       </div>
-      <p aria-live="polite" className="text-muted-foreground text-xs text-pretty empty:hidden">
+      <p
+        aria-live="polite"
+        className="text-muted-foreground text-xs text-pretty empty:hidden"
+        data-testid="research-summary"
+      >
         {state.result ? summaryLine(state.result) : null}
       </p>
       {state.result && <ResearchResultView result={state.result} />}
