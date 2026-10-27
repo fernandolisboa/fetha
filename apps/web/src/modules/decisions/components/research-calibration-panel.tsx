@@ -15,15 +15,31 @@ function Row({ line }: { line: ResearchVerdictLine }) {
       data-testid={`research-row-${line.verdict}`}
     >
       <td className="py-1.5 pr-3">{t.research.groups[line.verdict]}</td>
-      <td className="py-1.5 pr-3 text-right font-mono tabular-nums">{line.scored}</td>
+      <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
+        {line.scored}
+        {line.unscorable > 0 && (
+          <span className="text-muted-foreground block text-[11px]">
+            {t.research.calibration.noData(line.unscorable)}
+          </span>
+        )}
+      </td>
       <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
         {t.research.calibration.held(line.held, line.claimed)}
       </td>
       <td
         className="py-1.5 text-right font-mono tabular-nums"
-        style={{ color: line.pnl < 0 ? "var(--down)" : line.pnl > 0 ? "var(--up)" : undefined }}
+        style={{
+          color:
+            line.averagePnl === null
+              ? undefined
+              : line.averagePnl < 0
+                ? "var(--down)"
+                : line.averagePnl > 0
+                  ? "var(--up)"
+                  : undefined,
+        }}
       >
-        {formatBRL(line.pnl)}
+        {line.averagePnl === null ? "—" : formatBRL(line.averagePnl)}
       </td>
     </tr>
   );
@@ -33,7 +49,7 @@ function Row({ line }: { line: ResearchVerdictLine }) {
 // from their track record, the AI calibration and the shared suggestions' panel.
 export function ResearchCalibrationPanel({ calibration }: { calibration: ResearchCalibration }) {
   const strings = t.research.calibration;
-  const scored = calibration.reduce((sum, line) => sum + line.scored, 0);
+  const scored = calibration.reduce((sum, line) => sum + line.scored + line.unscorable, 0);
   const discarded = discardedOutcome(calibration);
   return (
     <Panel title={strings.title} subtitle={strings.subtitle}>

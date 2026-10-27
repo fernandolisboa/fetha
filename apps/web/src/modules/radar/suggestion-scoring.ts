@@ -1,36 +1,26 @@
-import { confidenceSchema, instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
+import { instantSchema, sessionDateSchema, tickerSchema } from "@fetha/contracts";
 import {
   engine as realEngine,
   type Engine,
   type Operation,
   type OperationLeg,
-  type Score,
   type TradingSession,
 } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
-import { DEFAULT_COST_MODEL } from "@/modules/backtests";
-import {
-  buildOperationMarketView,
-  calendarUpTo,
-  tradingSessionOnOrAfter,
-} from "@/modules/market-data";
+import { calendarUpTo, tradingSessionOnOrAfter } from "@/modules/market-data";
 
+import {
+  assertedScoreFields,
+  INSUFFICIENT_DATA_RETRY_SESSIONS,
+  scoreAssertedLot,
+} from "./asserted-lot-scoring";
 import {
   dueSuggestions,
   insertSuggestionScore,
-  type NewSuggestionScore,
   type StoredSuggestion,
 } from "./suggestions-repository";
-
-// A suggestion states its claim without a likelihood (docs/adr/0067), so the engine scores it as
-// a certain call: its Brier is 0 when the claim held and 1 when it did not, the miss rate. The
-// journal shows the hit rate and the P&L, never this Brier.
-const ASSERTED = confidenceSchema.parse("1");
-// The same retry window decisions and analyses use (ADR-0014 Q54): missing data this many
-// sessions after the horizon is a permanent gap.
-const INSUFFICIENT_DATA_RETRY_SESSIONS = 5;
 
 export interface ScoreSuggestionsOutcome {
   asOfSession: string;
@@ -61,18 +51,6 @@ function operationOf(suggestion: StoredSuggestion): Operation | null {
     openedAt: suggestion.session,
     strategyVersionId: null,
     rolledFrom: null,
-  };
-}
-
-function scoredRow(suggestionId: string, score: Score): NewSuggestionScore {
-  return {
-    suggestionId,
-    score,
-    claimHeld: score.thesis.claim === null ? null : score.thesis.held,
-    pnlCentavos: score.pnl,
-    maxLossCentavos: score.maxLoss === null || score.maxLoss === "unbounded" ? null : score.maxLoss,
-    normalizedPnl: score.normalizedPnl,
-    engineVersion: score.provenance.engineVersion,
   };
 }
 
@@ -119,26 +97,18 @@ export async function scoreDueSuggestions(
         continue;
       }
       const decidedAt = instantSchema.parse(suggestion.asOf.toISOString());
-      const view = await buildOperationMarketView(db, operation.underlying, horizon.close, {
-        from: decidedAt,
-      });
-      const result = await scoringEngine.score({
-        view,
-        subject: "enter",
-        decidedAt,
-        horizon: horizon.date,
-        confidence: ASSERTED,
-        claim: suggestion.claim,
+      const result = await scoreAssertedLot(db, scoringEngine, {
         operation,
-        realizedFills: [],
-        origin: { kind: "manual" },
-        costModel: DEFAULT_COST_MODEL,
+        decidedAt,
+        horizon,
+        claim: suggestion.claim,
       });
       if (result.ok) {
-        const { inserted } = await insertSuggestionScore(
-          db,
-          scoredRow(suggestion.id, result.value),
-        );
+        const { inserted } = await insertSuggestionScore(db, {
+          suggestionId: suggestion.id,
+          score: result.value,
+          ...assertedScoreFields(result.value),
+        });
         if (inserted) outcome.scored += 1;
         continue;
       }

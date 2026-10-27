@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte } from "drizzle-orm";
 import {
   analysisVerdicts,
   tickerSchema,
@@ -34,8 +34,6 @@ export type NewResearchIdeaScore =
       engineVersion: string;
     };
 
-// A research idea whose horizon has arrived and that has no score yet (docs/adr/0076): the lot the
-// engine priced, entered at its own leg prices at the research's newest close.
 export interface DueResearchIdea {
   id: string;
   underlying: string;
@@ -43,7 +41,13 @@ export interface DueResearchIdea {
   horizon: SessionDate;
   claim: ThesisClaim;
   legs: OperationLeg[];
-  researchCreatedAt: Date;
+}
+
+// `invalid`: due ideas whose stored jsonb no longer parses; the scorer settles them as terminal
+// instead of leaving them due every night.
+export interface DueResearch {
+  due: DueResearchIdea[];
+  invalid: string[];
 }
 
 export interface ResearchScoreRow {
@@ -79,20 +83,10 @@ export class ResearchScoresRepository extends UserScopedRepository {
     return { inserted: rows.length > 0 };
   }
 
-  async dueForUser(asOfSession: string): Promise<DueResearchIdea[]> {
+  async dueForUser(asOfSession: string): Promise<DueResearch> {
     const rows = await this.db
-      .select({
-        idea: researchIdeas,
-        researchCreatedAt: suggestionResearches.createdAt,
-      })
+      .select({ idea: researchIdeas })
       .from(researchIdeas)
-      .innerJoin(
-        suggestionResearches,
-        and(
-          eq(suggestionResearches.id, researchIdeas.researchId),
-          eq(suggestionResearches.userId, this.userId),
-        ),
-      )
       .leftJoin(researchIdeaScores, eq(researchIdeaScores.ideaId, researchIdeas.id))
       .where(
         and(
@@ -103,30 +97,33 @@ export class ResearchScoresRepository extends UserScopedRepository {
       )
       .orderBy(asc(researchIdeas.horizon), asc(researchIdeas.id));
 
-    return rows.flatMap(({ idea, researchCreatedAt }) => {
+    const due: DueResearchIdea[] = [];
+    const invalid: string[] = [];
+    for (const { idea } of rows) {
       const legs = lotLegsSchema.safeParse(idea.legs);
       const claim = thesisClaimSchema.safeParse(idea.claim);
       const newestClose = sessionDateSchema.safeParse(idea.newestClose);
       const horizon = sessionDateSchema.safeParse(idea.horizon);
-      if (!legs.success || !claim.success || !newestClose.success || !horizon.success) return [];
-      return [
-        {
-          id: idea.id,
-          underlying: idea.underlying,
-          newestClose: newestClose.data,
-          horizon: horizon.data,
-          claim: claim.data,
-          researchCreatedAt,
-          legs: legs.data.map(({ role, side, ticker, quantity, price }) => ({
-            role,
-            side,
-            ticker: tickerSchema.parse(ticker),
-            quantity,
-            entryPrice: price,
-          })),
-        },
-      ];
-    });
+      if (!legs.success || !claim.success || !newestClose.success || !horizon.success) {
+        invalid.push(idea.id);
+        continue;
+      }
+      due.push({
+        id: idea.id,
+        underlying: idea.underlying,
+        newestClose: newestClose.data,
+        horizon: horizon.data,
+        claim: claim.data,
+        legs: legs.data.map(({ role, side, ticker, quantity, price }) => ({
+          role,
+          side,
+          ticker: tickerSchema.parse(ticker),
+          quantity,
+          entryPrice: price,
+        })),
+      });
+    }
+    return { due, invalid };
   }
 
   async findForIdeas(ideaIds: readonly string[]): Promise<Map<string, ResearchScoreRow>> {
@@ -158,26 +155,49 @@ export class ResearchScoresRepository extends UserScopedRepository {
     );
   }
 
-  // The journal's "Pesquisas do Fetha" rows (docs/adr/0076): every score of this user's, scored
-  // or unscorable, with the verdict it judges.
+  // The journal's "Pesquisas do Fetha" rows (docs/adr/0076): the scores of this user's ideas,
+  // scored or unscorable, with the verdict each judges. Asking again at the same close stores
+  // the same lots again; only the latest research of each close counts, so one market state is
+  // not counted once per click.
   async allMine(): Promise<ResearchScoreRow[]> {
-    const rows = await this.db
-      .select({
-        ideaId: researchIdeaScores.ideaId,
-        verdict: researchIdeas.verdict,
-        unscorableReason: researchIdeaScores.unscorableReason,
-        claimHeld: researchIdeaScores.claimHeld,
-        pnlCentavos: researchIdeaScores.pnlCentavos,
-      })
-      .from(researchIdeaScores)
-      .innerJoin(
-        researchIdeas,
-        and(eq(researchIdeas.id, researchIdeaScores.ideaId), eq(researchIdeas.userId, this.userId)),
-      )
-      .where(eq(researchIdeaScores.userId, this.userId));
-    return rows.flatMap((row) => {
+    const [rows, researches] = await Promise.all([
+      this.db
+        .select({
+          ideaId: researchIdeaScores.ideaId,
+          researchId: researchIdeas.researchId,
+          verdict: researchIdeas.verdict,
+          unscorableReason: researchIdeaScores.unscorableReason,
+          claimHeld: researchIdeaScores.claimHeld,
+          pnlCentavos: researchIdeaScores.pnlCentavos,
+        })
+        .from(researchIdeaScores)
+        .innerJoin(
+          researchIdeas,
+          and(
+            eq(researchIdeas.id, researchIdeaScores.ideaId),
+            eq(researchIdeas.userId, this.userId),
+          ),
+        )
+        .where(eq(researchIdeaScores.userId, this.userId)),
+      this.db
+        .select({
+          id: suggestionResearches.id,
+          newestClose: suggestionResearches.newestClose,
+        })
+        .from(suggestionResearches)
+        .where(eq(suggestionResearches.userId, this.userId))
+        .orderBy(desc(suggestionResearches.createdAt), desc(suggestionResearches.id)),
+    ]);
+    const latestAtClose = new Map<string, string>();
+    for (const research of researches) {
+      if (!latestAtClose.has(research.newestClose)) {
+        latestAtClose.set(research.newestClose, research.id);
+      }
+    }
+    const latest = new Set(latestAtClose.values());
+    return rows.flatMap(({ researchId, ...row }) => {
       const verdict = verdictSchema.safeParse(row.verdict);
-      return verdict.success ? [{ ...row, verdict: verdict.data }] : [];
+      return verdict.success && latest.has(researchId) ? [{ ...row, verdict: verdict.data }] : [];
     });
   }
 }

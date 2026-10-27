@@ -42,18 +42,13 @@ export interface ResearchView {
   candidates: number;
   dropped: Record<DropReason, number>;
   usingDefaultProfile: boolean;
-  // Whether the radar has read a newer close since: its ideas no longer take decisions.
   supersededBy: SessionDate | null;
   groups: Record<AnalysisVerdictDecision, ResearchIdeaView[]>;
-  // The ideas past the cut, which only the engine looked at; present right after a research.
   unsent: IdeaCard[];
 }
 
 const INDEX = /^(0|[1-9]\d*)$/;
 
-// A readable label for a fact path the model cited (`ideas.3.pricing.maxLoss` becomes "Lote ·
-// Perda máxima"): the idea's own prefix is dropped, list positions count from 1, and a segment
-// with no label stays as written.
 export function citedFactLabel(path: string): string {
   const segments = path.split(".");
   const rest =

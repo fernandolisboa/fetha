@@ -21,15 +21,10 @@ export {
 } from "./research-actions";
 export type { Idea, IdeaCard, ResearchResult } from "./research";
 export { ideaCardOf } from "./research";
-export {
-  dropReasons,
-  ideaAlertSchema,
-  RESEARCH_WINDOW_SESSIONS,
-  type DropReason,
-  type IdeaAlert,
-} from "./research-rules";
+export { dropReasons, ideaAlertSchema, type DropReason, type IdeaAlert } from "./research-rules";
 export { lotLegsSchema, type LotLeg } from "./lot-legs";
-export { SUGGESTION_LOT, suggestionClaim } from "./suggestion";
+export { suggestionClaim } from "./suggestion";
+export { assertedScoreFields, scoreAssertedLot } from "./asserted-lot-scoring";
 export { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
 export { newestReadSession } from "./radar-repository";
 export { recipeStructureById } from "./recipe-structure";

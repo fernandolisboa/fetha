@@ -46,7 +46,8 @@ export async function POST(request: Request): Promise<Response> {
       : NextResponse.json({ error: "no ingested close for PETR4" }, { status: 409 });
   }
   const suggestion = seeded.suggestionId ? await getSuggestion(seeded.suggestionId) : null;
-  if (!suggestion?.reading) {
+  const reading = suggestion?.reading;
+  if (!suggestion || !reading) {
     return NextResponse.json({ error: "the engine could not price the spread" }, { status: 409 });
   }
 
@@ -62,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
     sessionsToExpiry: 20,
     legs: suggestion.legs,
     pricing: suggestion.pricing,
-    reading: suggestion.reading as NonNullable<typeof suggestion.reading>,
+    reading,
     engineAlerts: [],
     verdict,
     justification,

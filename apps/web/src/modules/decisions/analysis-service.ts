@@ -111,6 +111,7 @@ export interface AnalysisContract<Output, Inputs extends AnalysisInputs> {
   system: string;
   render: (inputs: Inputs) => string;
   outputSchema: ZodType<Output>;
+  maxOutputTokens?: number;
 }
 
 export interface AskUnderCapDeps {
@@ -167,6 +168,7 @@ export async function askUnderCap<Output, Inputs extends AnalysisInputs>(
     system: contract.system,
     user: contract.render(request.inputs),
     outputSchema: contract.outputSchema,
+    maxOutputTokens: contract.maxOutputTokens,
     onRejected: deps.onRejected,
   });
 

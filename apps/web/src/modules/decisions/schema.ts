@@ -370,9 +370,6 @@ export const analysisScores = pgTable(
   ],
 );
 
-// One run of "Obter sugestões" that the AI answered (docs/adr/0076): the engine's research summary
-// and the analysis request that carried it. User-scoped and append-only
-// (`suggestion_researches_no_update`, hand-appended to the migration like `decisions_no_update`).
 // The id is drawn before the request is reserved and doubles as that request's `subject_id`.
 export const suggestionResearches = pgTable(
   "suggestion_researches",
@@ -407,11 +404,7 @@ export const suggestionResearches = pgTable(
   ],
 );
 
-// One idea the AI gave a verdict on (docs/adr/0076): the lot as re-priced at the research's newest
-// close, the engine's alerts, the verdict with its words, and the claim and horizon the nightly
-// scoring judges it by (ADR-0067 item 3). `newest_close` repeats the research's so the horizon check
-// can live in the table, and `reading` and `sessions_to_expiry` let the home page redraw the card
-// as the research showed it. User-scoped, append-only (`research_ideas_no_update`).
+// `newest_close` repeats the research's so the horizon check can live in the table.
 export const researchIdeas = pgTable(
   "research_ideas",
   {
@@ -460,9 +453,6 @@ export const researchIdeas = pgTable(
   ],
 );
 
-// The engine's score of a research idea at its horizon (docs/adr/0076), the same shape as
-// `suggestion_scores` but per user: one append-only row per idea (`research_idea_scores_no_update`),
-// the `Score` or a terminal `unscorable_reason`. Every verdict is scored, `do_not_enter` included.
 export const researchIdeaScores = pgTable(
   "research_idea_scores",
   {

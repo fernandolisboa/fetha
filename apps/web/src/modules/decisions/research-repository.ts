@@ -28,6 +28,7 @@ import {
   storedAiAlertsSchema,
   storedDroppedSchema,
   storedIdeaPricingSchema,
+  storedIdeaReadingSchema,
   storedInputsCitedSchema,
   type StoredIdeaPricing,
 } from "./research-schemas";
@@ -106,6 +107,7 @@ const engineAlertsSchema = z.array(ideaAlertSchema);
 function toStoredIdea(row: typeof researchIdeas.$inferSelect): StoredResearchIdea | null {
   const legs = lotLegsSchema.safeParse(row.legs);
   const pricing = storedIdeaPricingSchema.safeParse(row.pricing);
+  const reading = storedIdeaReadingSchema.safeParse(row.reading);
   const engineAlerts = engineAlertsSchema.safeParse(row.engineAlerts);
   const verdict = verdictSchema.safeParse(row.verdict);
   const aiAlerts = storedAiAlertsSchema.safeParse(row.aiAlerts);
@@ -117,6 +119,7 @@ function toStoredIdea(row: typeof researchIdeas.$inferSelect): StoredResearchIde
   if (
     !legs.success ||
     !pricing.success ||
+    !reading.success ||
     !engineAlerts.success ||
     !verdict.success ||
     !aiAlerts.success ||
@@ -162,6 +165,10 @@ export class ResearchRepository extends UserScopedRepository {
     ideas: readonly NewResearchIdea[];
   }): Promise<void> {
     const { completion, research, ideas } = input;
+    for (const idea of ideas) {
+      storedIdeaPricingSchema.parse(idea.pricing);
+      storedIdeaReadingSchema.parse(idea.reading);
+    }
     await this.db.transaction(async (tx) => {
       await new AnalysesRepository(this.db, this.currentUser).complete(
         research.analysisRequestId,

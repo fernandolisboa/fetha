@@ -1,6 +1,7 @@
 import type { FilingCategory, FilingTone, FilingTopic } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { companiesOfTickers, filingsOfCompaniesSince } from "@/modules/market-data";
 
 import { labelWindowStart } from "./label-filings";
@@ -65,15 +66,22 @@ function daysBefore(now: Date, days: number): string {
 
 // The asset page's "Sentimento" read model (docs/adr/0065). Everything here
 // is shared reference data; nothing depends on who is looking.
+//
+// With `knownAt`, the view is what was known by that instant, the windows ending there:
+// articles published up to it and, day-granular facts being unplaceable inside a day, only
+// filings and tone points of earlier days (docs/adr/0076).
 export async function sentimentForInstrument(
   db: Database,
   ticker: string,
   now: Date = new Date(),
+  knownAt?: Date,
 ): Promise<SentimentView> {
   const settings = readSentimentSettings();
+  const anchor = knownAt ?? now;
+  const before = knownAt && todaySaoPauloDate(knownAt);
   const [[company], articles] = await Promise.all([
     companiesOfTickers(db, [ticker]),
-    latestNewsArticles(db, ticker, LATEST_ARTICLES),
+    latestNewsArticles(db, ticker, LATEST_ARTICLES, knownAt),
   ]);
   const provider = { enabled: settings.providerConfigured, articles };
   const filingsEnabled = settings.labelApiKey !== undefined;
@@ -94,9 +102,9 @@ export async function sentimentForInstrument(
   }
 
   const [filings, [fetch], points] = await Promise.all([
-    filingsOfCompaniesSince(db, [company.cnpj], labelWindowStart(now)),
+    filingsOfCompaniesSince(db, [company.cnpj], labelWindowStart(anchor), before),
     sentimentFetchesOf(db, "gdelt", [company.cnpj]),
-    newsTonePointsSince(db, company.cnpj, daysBefore(now, NEWS_WINDOW_DAYS)),
+    newsTonePointsSince(db, company.cnpj, daysBefore(anchor, NEWS_WINDOW_DAYS), before),
   ]);
   const labels = await storedFilingLabels(db, filings);
   const labelOf = new Map(
@@ -145,7 +153,7 @@ export async function sentimentForInstrument(
       status: fetch?.status ?? null,
       fetchedAt: fetch?.fetchedAt ?? null,
       points,
-      average: averageTone(points, daysBefore(now, AVERAGE_WINDOW_DAYS)),
+      average: averageTone(points, daysBefore(anchor, AVERAGE_WINDOW_DAYS)),
     },
     provider,
   };

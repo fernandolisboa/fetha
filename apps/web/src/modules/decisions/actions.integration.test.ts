@@ -16,6 +16,7 @@ import {
 
 import { getDb } from "@/db/client";
 import { user } from "@/modules/auth/schema";
+import { assetReadingFixture } from "@/db/test/asset-reading";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { seedOperation, seedOptionSeries, seedStockOperation } from "@/db/test/held-operation";
 import { seedRadarRead, seedSuggestion } from "@/db/test/suggestion";
@@ -788,7 +789,7 @@ describe("recordDecisionAction on a research idea (docs/adr/0076)", () => {
             maxLoss: 9500,
             maxGain: 10500,
           } as unknown as OperationPricing,
-          reading: {} as never,
+          reading: assetReadingFixture(ticker, SESSION),
           engineAlerts: [],
           verdict: "do_not_enter",
           justification: "Justificativa",

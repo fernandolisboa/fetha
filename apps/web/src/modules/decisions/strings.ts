@@ -187,7 +187,6 @@ const en = {
       rate_limited:
         "Too many requests in a short time, so I show only the numbers. Try again in a minute.",
       failed: "I could not get Fetha's opinion right now; I show only the numbers.",
-      unavailable: "Fetha's opinion is not available in this environment; I show only the numbers.",
     },
     factLabels: {
       underlying: "Asset",
@@ -231,7 +230,7 @@ const en = {
       recipeTrackRecord: "The recipe's record",
       scored: "Scored",
       claimHeldShare: "Share whose thesis held",
-      pnlPerLot: "Result per lot",
+      pnlPerLot: "Average result per lot",
       filings: "Filings",
       date: "Date",
       topic: "Topic",
@@ -249,9 +248,15 @@ const en = {
     calibration: {
       title: "Fetha's researches",
       subtitle:
-        "How the verdicts of the researches you asked for aged at each idea's expiry: the share whose thesis held and the result of one lot, entered at the close of the research, after B3 costs. Every idea counts, the discarded ones too. Only yours.",
+        "How the verdicts of the researches you asked for aged at each idea's expiry, as if you had entered each lot at the close of the research: how many of those entries would have worked, and the average result of one lot after B3 costs. For a discarded idea, a high number means the discard was wrong. Every idea counts, the discarded ones too; asking again at the same close counts only the latest research. Only yours.",
       empty: "No idea from your researches has reached its expiry yet.",
-      columns: { verdict: "Verdict", scored: "Scored", held: "Thesis held", pnl: "Result per lot" },
+      columns: {
+        verdict: "Verdict",
+        scored: "Scored",
+        held: "Entry would have worked",
+        pnl: "Average result per lot",
+      },
+      noData: (count: number) => `${String(count)} no data`,
       held: (held: number, claimed: number) => `${String(held)} of ${String(claimed)}`,
       discardedSentence: (count: number, amount: string, sign: "gain" | "loss" | "flat") => {
         const verb = sign === "gain" ? "made" : "lost";
@@ -521,9 +526,8 @@ const ptBR = {
       cap: (cap: number) =>
         `Você já usou as ${String(cap)} análises deste mês, então mostro só os números.`,
       rate_limited:
-        "Pedidos demais em pouco tempo, então mostro só os números. Tente de novo daqui a um minuto.",
+        "Muitos pedidos em pouco tempo, então mostro só os números. Tente de novo daqui a um minuto.",
       failed: "Não consegui a opinião do Fetha agora; mostro só os números.",
-      unavailable: "A opinião do Fetha não está disponível neste ambiente; mostro só os números.",
     },
     factLabels: {
       underlying: "Ativo",
@@ -539,7 +543,7 @@ const ptBR = {
       exit: "Regra de saída",
       reading: "Leitura",
       trend: "Tendência",
-      momentum: "Momento",
+      momentum: "Momentum",
       range: "Faixa",
       impliedVolatility: "Volatilidade implícita",
       options: "Opções",
@@ -567,7 +571,7 @@ const ptBR = {
       recipeTrackRecord: "Histórico da receita",
       scored: "Avaliadas",
       claimHeldShare: "Teses confirmadas",
-      pnlPerLot: "Resultado por lote",
+      pnlPerLot: "Resultado médio por lote",
       filings: "Comunicados",
       date: "Data",
       topic: "Assunto",
@@ -585,14 +589,15 @@ const ptBR = {
     calibration: {
       title: "Pesquisas do Fetha",
       subtitle:
-        "Como os vereditos das pesquisas que você pediu se saíram no vencimento de cada ideia: quantas tiveram a tese confirmada e o resultado de um lote, comprado no fechamento da pesquisa, já com os custos da B3. Todas as ideias entram, as descartadas também. Só as suas.",
+        "Como os vereditos das pesquisas que você pediu se saíram no vencimento de cada ideia, como se você tivesse aberto cada lote no fechamento da pesquisa: em quantas a entrada teria dado certo e o resultado médio de um lote, já com os custos da B3. Numa ideia descartada, número alto quer dizer que descartar foi um erro. Todas as ideias entram, as descartadas também; se você pesquisou de novo no mesmo fechamento, vale só a pesquisa mais recente. Só as suas.",
       empty: "Nenhuma ideia das suas pesquisas chegou ao vencimento ainda.",
       columns: {
         verdict: "Veredito",
         scored: "Avaliadas",
-        held: "Tese confirmada",
-        pnl: "Resultado por lote",
+        held: "A entrada teria dado certo",
+        pnl: "Resultado médio por lote",
       },
+      noData: (count: number) => `${String(count)} sem dados`,
       held: (held: number, claimed: number) => `${String(held)} de ${String(claimed)}`,
       discardedSentence: (count: number, amount: string, sign: "gain" | "loss" | "flat") => {
         const verb = sign === "gain" ? "rendido" : "perdido";

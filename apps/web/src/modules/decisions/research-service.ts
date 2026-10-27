@@ -9,6 +9,7 @@ import {
 import { researchPrompt } from "@fetha/prompts";
 
 import type { Database } from "@/db/client";
+import { safeDbErrorMessage } from "@/db/pg-error";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { suggestionClaim, type DropReason, type Idea } from "@/modules/radar";
 
@@ -38,6 +39,10 @@ export interface RequestResearchDeps {
   family: ModelFamily;
   onRejected?: (modelId: string) => void;
   now?: Date;
+  // The latest instant (`clock()` ms) the model call may still start at, so that a call already
+  // paid for is never cut short by the platform's own limit (docs/adr/0076).
+  mustStartBy?: number;
+  clock?: () => number;
   assemble?: (input: {
     newestClose: SessionDate;
     ideas: readonly Idea[];
@@ -102,6 +107,9 @@ export async function requestResearch(
   const assemble = deps.assemble ?? ((args) => assembleResearchInputs(deps.db, args));
   const assembled = await assemble({ newestClose: input.newestClose, ideas: input.ideas, now });
   if (!assembled.ok) return { status: "not_ready" };
+  if (deps.mustStartBy !== undefined && (deps.clock ?? Date.now)() > deps.mustStartBy) {
+    return { status: "failed" };
+  }
 
   const repository: AnalysisRepositoryPort =
     deps.repository ?? new AnalysesRepository(deps.db, deps.user);
@@ -175,7 +183,8 @@ export async function requestResearch(
       },
       ideas,
     });
-  } catch {
+  } catch (error) {
+    console.error("requestResearch storage failed", safeDbErrorMessage(error));
     // The transaction left no result row, so the paid reply is settled as rejected: it still
     // counts toward the cap, and the user sees the engine's numbers alone.
     await completeRejected(repository, requestId, { kind: "storage" }, model, usage);

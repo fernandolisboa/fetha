@@ -132,8 +132,6 @@ export const getMyAnalysisUsage = cache(async (): Promise<AnalysisUsage> => {
   return repository.usageThisMonth();
 });
 
-// The user's latest stored research, only while the radar has not read a newer close than the
-// one it was made at (docs/adr/0076): an older one is not shown on the home page.
 export async function getMyCurrentResearch(): Promise<ResearchView | null> {
   const db = getDb();
   const newest = await newestReadSession(db);
@@ -152,16 +150,12 @@ export async function getMyCurrentResearch(): Promise<ResearchView | null> {
   });
 }
 
-// The journal's "Pesquisas do Fetha" panel (docs/adr/0076): this user's own scored ideas, by
-// verdict.
 export async function getMyResearchCalibration(): Promise<ResearchCalibration> {
   const repository = await forCurrentUser(getDb(), ResearchScoresRepository);
   await recordAccess("decisions_read");
   return researchCalibration(await repository.allMine());
 }
 
-// The structure, underlying and legs of one of this user's stored research ideas, for the
-// builder's "Montar no simulador" link (docs/adr/0076); null for an id that is not theirs.
 export async function getMyResearchIdeaLot(ideaId: string) {
   const repository = await forCurrentUser(getDb(), ResearchRepository);
   await recordAccess("decisions_read");

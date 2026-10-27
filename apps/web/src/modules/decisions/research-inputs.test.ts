@@ -179,15 +179,40 @@ describe("ideaContextOf", () => {
   it("carries the recipe's shared calibration", () => {
     expect(
       ideaContextOf(idea(), calibrationOf(5, 4, 3, centavosSchema.parse(-2500)), null).trackRecord,
-    ).toEqual({ claimed: 4, held: 3, scored: 5, pnl: -2500 });
+    ).toEqual({ claimed: 4, held: 3, scored: 5, averagePnl: -500 });
   });
 
   it("sends no filings, tone or news for an underlying the sentiment data does not cover", () => {
     const empty = { trackRecord: null, filings: [], newsTone: null, providerNews: [] };
     expect(ideaContextOf(idea(), noCalibration, null)).toEqual(empty);
     expect(
-      ideaContextOf(idea(), noCalibration, { mapped: false } as unknown as SentimentView),
+      ideaContextOf(idea(), noCalibration, {
+        mapped: false,
+        provider: { enabled: false, articles: [] },
+      } as unknown as SentimentView),
     ).toEqual(empty);
+  });
+
+  it("keeps the provider's articles for a ticker with no mapped company, and nothing else", () => {
+    const unmapped = { ...mappedSentiment(), mapped: false } as SentimentView;
+    expect(ideaContextOf(idea(), noCalibration, unmapped)).toEqual({
+      trackRecord: null,
+      filings: [],
+      newsTone: null,
+      providerNews: [
+        { publishedOn: "2026-10-22", title: "Petrobras anuncia novo poço", sentiment: "0.35" },
+      ],
+    });
+  });
+
+  it("dates an article by its São Paulo day, not its UTC one", () => {
+    const sentiment = mappedSentiment();
+    const [article] = sentiment.provider.articles;
+    if (!article) throw new Error("fixture");
+    article.publishedAt = new Date("2026-10-23T01:30:00Z");
+    expect(ideaContextOf(idea(), noCalibration, sentiment).providerNews[0]?.publishedOn).toBe(
+      "2026-10-22",
+    );
   });
 
   it("carries the labelled filings, the news tone and the provider's articles that exist", () => {
@@ -347,7 +372,7 @@ describe("buildResearchInputs", () => {
         entry.underlying === "PETR4"
           ? ideaContextOf(
               entry,
-              calibrationOf(8, 4, 3, centavosSchema.parse(-2500)),
+              calibrationOf(8, 4, 3, centavosSchema.parse(-2400)),
               mappedSentiment(),
             )
           : none(),
@@ -357,7 +382,7 @@ describe("buildResearchInputs", () => {
     expect(rich?.recipeTrackRecord).toEqual({
       scored: "8",
       claimHeldShare: "75%",
-      pnlPerLot: "−R$ 25,00",
+      pnlPerLot: "−R$ 3,00",
     });
     expect(rich?.filings).toEqual([
       {

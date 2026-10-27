@@ -11,13 +11,21 @@ import {
   type ResearchOutput,
   type Ticker,
 } from "@fetha/contracts";
-import type { AssetReading, OperationPricing, Score } from "@fetha/engine";
+import type { OperationPricing, Score } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
+import { assetReadingFixture } from "@/db/test/asset-reading";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { DEFAULT_COST_MODEL } from "@/modules/backtests";
 import { user } from "@/modules/auth/schema";
-import { candles, tradingSessions } from "@/modules/market-data/schema";
+import {
+  candles,
+  companyFilings,
+  companyTickers,
+  tradingSessions,
+} from "@/modules/market-data/schema";
+import { filingLabels } from "@/modules/sentiment/schema";
+import { recordFinalFilingLabel } from "@/modules/sentiment/repositories/filing-label-repository";
 import type { Idea } from "@/modules/radar";
 
 import { AnalysesRepository, MONTHLY_ANALYSIS_CAP } from "./analyses-repository";
@@ -28,6 +36,7 @@ import { storeSeededResearch, type SeedE2EResearchIdea } from "./research-e2e-se
 import { ResearchRepository } from "./research-repository";
 import { ResearchScoresRepository } from "./research-scores-repository";
 import { scoreDueResearch } from "./research-scoring-service";
+import { assembleResearchInputs } from "./research-inputs";
 import { requestResearch } from "./research-service";
 import {
   analysisRequests,
@@ -41,12 +50,26 @@ import {
 const createdEmails: string[] = [];
 const createdTickers: Ticker[] = [];
 const createdSessions: string[] = [];
+const createdCnpjs: string[] = [];
 
 afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) await deleteTestUser(db, email);
   const tickers = createdTickers.splice(0);
   if (tickers.length > 0) await db.delete(candles).where(inArray(candles.ticker, tickers));
+  for (const cnpj of createdCnpjs.splice(0)) {
+    const protocols = (
+      await db
+        .select({ protocol: companyFilings.protocol })
+        .from(companyFilings)
+        .where(eq(companyFilings.cnpj, cnpj))
+    ).map((row) => row.protocol);
+    if (protocols.length > 0) {
+      await db.delete(filingLabels).where(inArray(filingLabels.protocol, protocols));
+    }
+    await db.delete(companyFilings).where(eq(companyFilings.cnpj, cnpj));
+    await db.delete(companyTickers).where(eq(companyTickers.cnpj, cnpj));
+  }
   const sessions = createdSessions.splice(0);
   if (sessions.length > 0) {
     await db.delete(tradingSessions).where(inArray(tradingSessions.date, sessions));
@@ -137,7 +160,7 @@ function ideaOf(ticker: string, expiry = EXPIRY): Idea {
     maxLoss: centavosSchema.parse(12000),
     maxGain: centavosSchema.parse(8000),
     breakEvens: [decimalStringSchema.parse("39.70")],
-    reading: {} as AssetReading,
+    reading: assetReadingFixture(ticker),
     alerts: [],
     suggestionId: null,
     pricing,
@@ -367,7 +390,7 @@ function seededIdea(ticker: string, overrides: Partial<SeedE2EResearchIdea> = {}
     sessionsToExpiry: 20,
     legs: ideaOf(ticker).legs,
     pricing,
-    reading: {} as AssetReading,
+    reading: assetReadingFixture(ticker),
     engineAlerts: [],
     verdict: "enter" as const,
     justification: "Justificativa",
@@ -417,7 +440,7 @@ describe("tenant isolation of researches, ideas, scores and decisions on them", 
 
     const scoresB = new ResearchScoresRepository(db, userB);
     expect(await scoresB.allMine()).toEqual([]);
-    expect(await scoresB.dueForUser("2099-01-01")).toEqual([]);
+    expect(await scoresB.dueForUser("2099-01-01")).toEqual({ due: [], invalid: [] });
     expect(await scoresB.findForIdeas([ideaId])).toEqual(new Map());
 
     await expect(
@@ -569,12 +592,16 @@ function decisionInputs() {
   };
 }
 
+function optionTickerOf(underlying: Ticker): Ticker {
+  return tickerSchema.parse(`${underlying.slice(0, 6)}K40`);
+}
+
 function lotLegsOf(ticker: Ticker): SeedE2EResearchIdea["legs"] {
   return [
     {
       role: "call",
       side: "buy",
-      ticker,
+      ticker: optionTickerOf(ticker),
       strike: decimalStringSchema.parse("40"),
       expiry: null,
       quantity: quantitySchema.parse(100),
@@ -659,11 +686,16 @@ describe("scoreDueResearch (docs/adr/0076)", () => {
     expect(scores.has(ideaIds[3] ?? "")).toBe(false);
 
     expect(score).toHaveBeenCalledTimes(3);
+    const [calendarRow] = await db
+      .select({ close: tradingSessions.close })
+      .from(tradingSessions)
+      .where(eq(tradingSessions.date, close));
+    const closeInstant = calendarRow?.close.toISOString();
     const [input] = score.mock.calls[0] as [Record<string, unknown>];
     expect(input).toMatchObject({
       subject: "enter",
       horizon,
-      decidedAt: `${close}T21:00:00.000Z`,
+      decidedAt: closeInstant,
       confidence: "1",
       claim,
       realizedFills: [],
@@ -674,7 +706,15 @@ describe("scoreDueResearch (docs/adr/0076)", () => {
         expiry: horizon,
         openedAt: close,
         strategyVersionId: null,
-        legs: [{ role: "call", side: "buy", ticker, quantity: 100, entryPrice: "1.25" }],
+        legs: [
+          {
+            role: "call",
+            side: "buy",
+            ticker: optionTickerOf(ticker),
+            quantity: 100,
+            entryPrice: "1.25",
+          },
+        ],
       },
     });
 
@@ -688,7 +728,7 @@ describe("scoreDueResearch (docs/adr/0076)", () => {
     expect(stored[0]).toMatchObject({ engineVersion: "test-engine", normalizedPnl: "4" });
 
     const lines = researchCalibration([...scores.values()]);
-    expect(lines.map((line) => [line.verdict, line.scored, line.held, line.pnl])).toEqual([
+    expect(lines.map((line) => [line.verdict, line.scored, line.held, line.averagePnl])).toEqual([
       ["enter", 1, 1, 50000],
       ["wait", 1, 1, 50000],
       ["do_not_enter", 1, 1, 50000],
@@ -764,6 +804,56 @@ describe("scoreDueResearch (docs/adr/0076)", () => {
     expect(row).toMatchObject({ unscorableReason: "engine_error:invalid_input" });
   });
 
+  it("counts only the latest research of a close, and keeps the older closes' own", async () => {
+    const db = getDb();
+    const owner = await insertBareUser("latest-per-close");
+    const ticker = randomTicker();
+    const { close, horizon } = await calendar();
+    const olderClose = sessionDateSchema.parse(sessionOffset(close, -1));
+    await insertSession(olderClose);
+    const earlier = await seedResearchFor(owner, [ideaDue(ticker, horizon)], close);
+    const latest = await seedResearchFor(owner, [ideaDue(ticker, horizon)], close);
+    const other = await seedResearchFor(owner, [ideaDue(ticker, horizon)], olderClose);
+
+    await scoreDueResearch(db, horizon, { engine: fakeEngine({ ok: true, value: SCORE }).engine });
+
+    const rows = await new ResearchScoresRepository(db, owner).allMine();
+    expect(rows.map((row) => row.ideaId).sort()).toEqual(
+      [...latest.ideaIds, ...other.ideaIds].sort(),
+    );
+    expect(rows.map((row) => row.ideaId)).not.toContain(earlier.ideaIds[0]);
+    expect(researchCalibration(rows)[0]).toMatchObject({ scored: 2, unscorable: 0 });
+  });
+
+  it("settles an idea whose stored lot no longer parses as terminal instead of leaving it due", async () => {
+    const db = getDb();
+    const owner = await insertBareUser("invalid-stored");
+    const ticker = randomTicker();
+    const { close, horizon } = await calendar();
+    const { ideaIds } = await seedResearchFor(owner, [ideaDue(ticker, horizon)], close);
+    const [seeded] = await db
+      .select()
+      .from(researchIdeas)
+      .where(eq(researchIdeas.id, ideaIds[0] ?? ""));
+    if (!seeded) throw new Error("seed stored no idea");
+    const { id: seededId, ...rest } = seeded;
+    await db
+      .insert(researchIdeas)
+      .values({ ...rest, position: 9, legs: [{ role: "unknown" }] as never });
+    const invalidId = (await new ResearchRepository(db, owner).ideaIdsOf(seeded.researchId)).find(
+      (id) => id !== seededId,
+    );
+    if (!invalidId) throw new Error("the broken idea was not stored");
+    const { score, engine } = fakeEngine({ ok: true, value: SCORE });
+
+    expect(await scoreDueResearch(db, horizon, { engine })).toMatchObject({ scored: 1, errors: 1 });
+    expect(score).toHaveBeenCalledTimes(1);
+    const repository = new ResearchScoresRepository(db, owner);
+    const [row] = [...(await repository.findForIdeas([invalidId])).values()];
+    expect(row).toMatchObject({ unscorableReason: "invalid_stored_idea" });
+    expect(await repository.dueForUser(horizon)).toEqual({ due: [], invalid: [] });
+  });
+
   it("starts no user past the deadline", async () => {
     const db = getDb();
     const owner = await insertBareUser("deadline");
@@ -776,6 +866,65 @@ describe("scoreDueResearch (docs/adr/0076)", () => {
 
     expect(score).not.toHaveBeenCalled();
     expect(outcome.scored).toBe(0);
-    expect(await new ResearchScoresRepository(db, owner).dueForUser(horizon)).toHaveLength(1);
+    expect((await new ResearchScoresRepository(db, owner).dueForUser(horizon)).due).toHaveLength(1);
+  });
+});
+
+describe("assembleResearchInputs against the database (docs/adr/0076)", () => {
+  it("sends only the filings delivered before the newest close's day, never one that came after", async () => {
+    const db = getDb();
+    const ticker = randomTicker();
+    const cnpj = String(Math.floor(Math.random() * 1e14)).padStart(14, "0");
+    createdCnpjs.push(cnpj);
+    await insertSession(NEWEST_CLOSE);
+    await db.insert(companyTickers).values({ ticker, cnpj, referenceDate: "2026-09-01" });
+
+    const deliveries = [
+      ["known", "2026-10-20"],
+      ["same-day", NEWEST_CLOSE],
+      ["after", "2026-10-26"],
+    ] as const;
+    for (const [label, deliveredOn] of deliveries) {
+      const protocol = `${cnpj}-${label}`;
+      await db.insert(companyFilings).values({
+        protocol,
+        version: 1,
+        cnpj,
+        companyName: "EMPRESA TESTE S.A.",
+        category: "material_fact",
+        kind: null,
+        subject: "Fato relevante",
+        deliveredOn,
+        documentUrl: `https://example.test/${protocol}`,
+      });
+      await recordFinalFilingLabel(
+        db,
+        { protocol, version: 1 },
+        { outcome: "labelled", topic: "buyback", tone: "positive", summary: `Resumo ${label}.` },
+        null,
+      );
+    }
+
+    const built = await assembleResearchInputs(db, {
+      newestClose: NEWEST_CLOSE,
+      ideas: [
+        {
+          ...ideaOf(ticker),
+          pricing: {
+            ...pricing,
+            riskFreeRate: "0.1065",
+            dividendYield: "0",
+            greeks: { delta: "0.4", gamma: "0.1", theta: "-0.02", vega: "0.1", rho: "0.05" },
+            limitBreaches: [],
+            notes: [],
+          } as unknown as OperationPricing,
+        },
+      ],
+      now: new Date("2026-10-27T12:00:00Z"),
+    });
+    if (!built.ok) throw new Error("expected inputs");
+    const [idea] = (built.inputs.facts as { ideas: { filings: { summary: string }[] | null }[] })
+      .ideas;
+    expect(idea?.filings?.map((filing) => filing.summary)).toEqual(["Resumo known."]);
   });
 });

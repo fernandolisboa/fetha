@@ -17,7 +17,7 @@ const row = (
 });
 
 describe("researchCalibration", () => {
-  it("counts, per verdict, the scored ideas, those with a judged claim, those that held and the summed P&L", () => {
+  it("counts, per verdict, the scored ideas, those with a judged claim, those that held and the average P&L per lot", () => {
     const lines = researchCalibration([
       row("enter", true, 10000),
       row("enter", false, -4000),
@@ -26,15 +26,34 @@ describe("researchCalibration", () => {
       row("do_not_enter", false, -7000),
     ]);
     expect(lines).toEqual([
-      { verdict: "enter", scored: 3, claimed: 2, held: 1, pnl: 6500 },
-      { verdict: "wait", scored: 1, claimed: 1, held: 1, pnl: 300 },
-      { verdict: "do_not_enter", scored: 1, claimed: 1, held: 0, pnl: -7000 },
+      { verdict: "enter", scored: 3, unscorable: 0, claimed: 2, held: 1, averagePnl: 2167 },
+      { verdict: "wait", scored: 1, unscorable: 0, claimed: 1, held: 1, averagePnl: 300 },
+      {
+        verdict: "do_not_enter",
+        scored: 1,
+        unscorable: 0,
+        claimed: 1,
+        held: 0,
+        averagePnl: -7000,
+      },
     ]);
   });
 
-  it("counts nothing for an idea the engine could not score", () => {
-    const [enter] = researchCalibration([row("enter", null, null, "insufficient_data")]);
-    expect(enter).toEqual({ verdict: "enter", scored: 0, claimed: 0, held: 0, pnl: 0 });
+  it("counts an idea the engine could not score apart, and averages nothing over it", () => {
+    const [enter] = researchCalibration([
+      row("enter", null, null, "insufficient_data"),
+      row("enter", true, 400),
+    ]);
+    expect(enter).toEqual({
+      verdict: "enter",
+      scored: 1,
+      unscorable: 1,
+      claimed: 1,
+      held: 1,
+      averagePnl: 400,
+    });
+    const [none] = researchCalibration([row("enter", null, null, "invalid_stored_idea")]);
+    expect(none).toMatchObject({ scored: 0, unscorable: 1, averagePnl: null });
   });
 
   it("lists every verdict even with no rows", () => {
@@ -47,6 +66,15 @@ describe("researchCalibration", () => {
 });
 
 describe("discardedOutcome", () => {
+  it("is the same figure as the discarded verdict's row", () => {
+    const calibration = researchCalibration([
+      row("do_not_enter", true, 3000),
+      row("do_not_enter", false, -1001),
+    ]);
+    const line = calibration.find((entry) => entry.verdict === "do_not_enter");
+    expect(discardedOutcome(calibration)).toMatchObject({ amount: line?.averagePnl, sign: "gain" });
+  });
+
   it("is null until a discarded idea is scored", () => {
     expect(discardedOutcome(researchCalibration([row("enter", true, 100)]))).toBeNull();
   });

@@ -1,9 +1,10 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { FilingLabelInputs } from "@fetha/contracts";
+import type { DecimalString, FilingLabelInputs } from "@fetha/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { user } from "@/modules/auth/schema";
 import { companyFilings, companyTickers } from "@/modules/market-data/schema";
 import { watchlistItems } from "@/modules/watchlist/schema";
@@ -15,6 +16,7 @@ import { refreshNewsTone } from "./news-tone-job";
 import { refreshProviderArticles } from "./provider-articles-job";
 import { sentimentForInstrument } from "./queries";
 import { recordFinalFilingLabel } from "./repositories/filing-label-repository";
+import { insertNewsArticles } from "./repositories/news-repository";
 import { runSentimentJob } from "./run-sentiment-job";
 import { filingLabels, newsArticles, newsTonePoints, sentimentFetches } from "./schema";
 import { sentimentUniverse } from "./universe";
@@ -583,6 +585,68 @@ describe("sentimentForInstrument", () => {
     expect(view.provider.articles).toEqual([
       expect.objectContaining({ ticker, articleId: `${ticker}-x`, sentiment: "-0.2500" }),
     ]);
+  });
+
+  it("with knownAt shows only what was known by then: earlier filings, tone days and articles (docs/adr/0076)", async () => {
+    const db = getDb();
+    const fixture = await company();
+    const [ticker = ""] = fixture.tickers;
+    const knownAt = new Date(Date.now() - 5 * DAY_MS);
+    const known = await filing(fixture, { deliveredOn: daysAgo(8) });
+    const sameDay = await filing(fixture, { deliveredOn: todaySaoPauloDate(knownAt) });
+    const later = await filing(fixture, { deliveredOn: daysAgo(2) });
+    const refiled = await filing(fixture, {
+      deliveredOn: daysAgo(1),
+      protocol: known.protocol,
+      version: 2,
+    });
+    for (const [stored, summary] of [
+      [known, "Conhecido."],
+      [sameDay, "No mesmo dia."],
+      [later, "Depois."],
+      [refiled, "Reapresentado."],
+    ] as const) {
+      await recordFinalFilingLabel(
+        db,
+        stored,
+        { outcome: "labelled", topic: "buyback", tone: "positive", summary },
+        null,
+      );
+    }
+    await refreshNewsTone(db, {
+      companies: [{ cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers }],
+      fetchImpl: gdeltFetch([
+        { day: daysAgo(9), tone: 1, articles: 2 },
+        { day: todaySaoPauloDate(knownAt), tone: -4, articles: 10 },
+        { day: daysAgo(2), tone: -6, articles: 10 },
+      ]),
+      now: new Date(),
+      deadlineAt: deadline(),
+      sleep: noSleep,
+    });
+    await insertNewsArticles(
+      db,
+      [
+        ["before", new Date(knownAt.getTime() - 60_000)],
+        ["after", new Date(knownAt.getTime() + 60_000)],
+      ].map(([id, publishedAt]) => ({
+        provider: "marketaux" as const,
+        articleId: `${ticker}-${String(id)}`,
+        ticker,
+        title: `Notícia ${String(id)}`,
+        url: `https://example.com/${ticker}-${String(id)}`,
+        source: "example.com",
+        publishedAt: publishedAt as Date,
+        sentiment: "0.1000" as DecimalString,
+      })),
+    );
+
+    const view = await sentimentForInstrument(db, ticker, new Date(), knownAt);
+
+    expect(view.filings.latest.map((entry) => entry.summary)).toEqual(["Conhecido."]);
+    expect(view.newsTone.points.map((point) => point.day)).toEqual([daysAgo(9)]);
+    expect(view.newsTone.average).toEqual({ tone: "1.0000", articles: 2 });
+    expect(view.provider.articles.map((entry) => entry.articleId)).toEqual([`${ticker}-before`]);
   });
 
   it("says a code with no listed company is not mapped", async () => {

@@ -147,6 +147,37 @@ describe("requestResearch", () => {
     expect(reserve).not.toHaveBeenCalled();
   });
 
+  it("reserves and calls nothing when assembling the facts left too little time", async () => {
+    const reserve = vi.fn();
+    const client = clientReplying(goodOutput);
+    const result = await requestResearch(
+      deps({
+        client,
+        mustStartBy: 100,
+        clock: () => 101,
+        repository: { reserve, complete: vi.fn() },
+      }),
+      request,
+    );
+    expect(result).toEqual({ status: "failed" });
+    expect(reserve).not.toHaveBeenCalled();
+    expect(client.analyze).not.toHaveBeenCalled();
+  });
+
+  it("lets an error assembling the facts out, with nothing reserved", async () => {
+    const reserve = vi.fn();
+    await expect(
+      requestResearch(
+        deps({
+          assemble: vi.fn().mockRejectedValue(new Error("neon unreachable")),
+          repository: { reserve, complete: vi.fn() },
+        }),
+        request,
+      ),
+    ).rejects.toThrow("neon unreachable");
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
   it("calls no model and reserves nothing when there are no ideas", async () => {
     const reserve = vi.fn();
     const client = clientReplying(goodOutput);

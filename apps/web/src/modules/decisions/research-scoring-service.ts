@@ -1,36 +1,18 @@
-import { confidenceSchema, instantSchema, tickerSchema } from "@fetha/contracts";
-import {
-  engine as realEngine,
-  type Operation,
-  type Score,
-  type TradingSession,
-} from "@fetha/engine";
+import { instantSchema, tickerSchema } from "@fetha/contracts";
+import { engine as realEngine, type Operation, type TradingSession } from "@fetha/engine";
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
-import { DEFAULT_COST_MODEL } from "@/modules/backtests";
-import {
-  buildOperationMarketView,
-  calendarUpTo,
-  tradingSessionOnOrAfter,
-} from "@/modules/market-data";
+import { calendarUpTo, tradingSessionOnOrAfter } from "@/modules/market-data";
+import { assertedScoreFields, scoreAssertedLot } from "@/modules/radar";
 
 import { dueResearchUserIds } from "./due-research-users";
-import {
-  ResearchScoresRepository,
-  type DueResearchIdea,
-  type NewResearchIdeaScore,
-} from "./research-scores-repository";
+import { ResearchScoresRepository, type DueResearchIdea } from "./research-scores-repository";
 import {
   insufficientDataExhausted,
   RETRIABLE_ERROR_CODE,
   type ScoreDecisionsOptions,
 } from "./scoring-service";
-
-// An idea states its claim without a likelihood (docs/adr/0076, as a suggestion does, ADR-0067):
-// the engine scores it as a certain call, so the journal reads its hit rate and P&L, never a
-// Brier.
-const ASSERTED = confidenceSchema.parse("1");
 
 export interface ScoreResearchOutcome {
   asOfSession: string;
@@ -55,23 +37,12 @@ function operationOf(idea: DueResearchIdea): Operation {
   };
 }
 
-function scoredRow(ideaId: string, score: Score): NewResearchIdeaScore {
-  return {
-    ideaId,
-    score,
-    claimHeld: score.thesis.claim === null ? null : score.thesis.held,
-    pnlCentavos: score.pnl,
-    maxLossCentavos: score.maxLoss === null || score.maxLoss === "unbounded" ? null : score.maxLoss,
-    normalizedPnl: score.normalizedPnl,
-    engineVersion: score.provenance.engineVersion,
-  };
-}
-
 // The nightly step after suggestion scoring (docs/adr/0076): on the same as-of session the
-// decisions were scored on, the same deadline and retry window, scores every research idea whose horizon has arrived as the lot it priced,
-// held from the research's newest close to the horizon with no fills, the B3 default cost model
-// and no strategy behind it. Every verdict is scored, `do_not_enter` included. One score per idea,
-// in its user's own rows.
+// decisions were scored on, with the same deadline and retry window, scores every research idea
+// whose horizon has arrived as the lot it priced, held from the research's newest close to the
+// horizon (`scoreAssertedLot`). Every verdict is scored, `do_not_enter` included. One score per
+// idea, in its user's own rows; an idea whose stored lot no longer parses is settled as
+// `invalid_stored_idea` rather than due every night.
 export async function scoreDueResearch(
   db: Database,
   asOfSession: string,
@@ -108,7 +79,12 @@ export async function scoreDueResearch(
       const unscorable = (ideaId: string, reason: string) =>
         repository.insertIfAbsent({ ideaId, unscorableReason: reason, engineVersion });
 
-      for (const idea of await repository.dueForUser(resolvedAsOf)) {
+      const { due, invalid } = await repository.dueForUser(resolvedAsOf);
+      for (const ideaId of invalid) {
+        outcome.errors += 1;
+        await unscorable(ideaId, "invalid_stored_idea");
+      }
+      for (const idea of due) {
         if (options.deadlineAt !== undefined && now() >= options.deadlineAt) break;
         try {
           const [horizon, entry] = await Promise.all([
@@ -126,23 +102,18 @@ export async function scoreDueResearch(
           }
           const decidedAt = instantSchema.parse(new Date(entry.close).toISOString());
           const operation = operationOf(idea);
-          const view = await buildOperationMarketView(db, operation.underlying, horizon.close, {
-            from: decidedAt,
-          });
-          const result = await scoringEngine.score({
-            view,
-            subject: "enter",
-            decidedAt,
-            horizon: horizon.date,
-            confidence: ASSERTED,
-            claim: idea.claim,
+          const result = await scoreAssertedLot(db, scoringEngine, {
             operation,
-            realizedFills: [],
-            origin: { kind: "manual" },
-            costModel: DEFAULT_COST_MODEL,
+            decidedAt,
+            horizon,
+            claim: idea.claim,
           });
           if (result.ok) {
-            const { inserted } = await repository.insertIfAbsent(scoredRow(idea.id, result.value));
+            const { inserted } = await repository.insertIfAbsent({
+              ideaId: idea.id,
+              score: result.value,
+              ...assertedScoreFields(result.value),
+            });
             if (inserted) outcome.scored += 1;
             continue;
           }

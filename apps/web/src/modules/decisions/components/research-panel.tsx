@@ -345,9 +345,6 @@ function NoticeLine({ state }: { state: ResearchPanelState }) {
   }
 }
 
-// "Obter sugestões" (docs/adr/0075, docs/adr/0076): the button, the research the page loaded
-// with (the user's latest, while the radar has not read a newer close) and the one a click
-// returns. With Fetha's opinion the ideas sit in verdict groups; without it, in part 1's two.
 export function ResearchPanel({ stored }: { stored: ResearchView | null }) {
   const [state, setState] = useState<ResearchPanelState>(() => initialPanelState(stored));
   const [pending, setPending] = useState(false);

@@ -32,7 +32,4 @@ export { t } from "./strings";
 export { DecisionsDataExport } from "./data-export";
 export { scoreDueResearch, type ScoreResearchOutcome } from "./research-scoring-service";
 export { ResearchCalibrationPanel } from "./components/research-calibration-panel";
-export { ResearchRepository } from "./research-repository";
-export { ResearchScoresRepository } from "./research-scores-repository";
-export type { ResearchView } from "./research-view";
 export { seedE2EResearch, type SeedE2EResearchIdea } from "./research-e2e-seed";

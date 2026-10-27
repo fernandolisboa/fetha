@@ -268,7 +268,6 @@ export class DecisionsRepository extends UserScopedRepository {
     return map;
   }
 
-  // This user's decision on each of a page of research ideas (answered once, like a suggestion).
   async findForResearchIdeas(ideaIds: readonly string[]): Promise<Map<string, DecisionListItem>> {
     if (ideaIds.length === 0) return new Map();
 

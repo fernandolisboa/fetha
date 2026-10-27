@@ -1,5 +1,6 @@
 import {
   analysisInputsSchema,
+  centavosSchema,
   MAX_RESEARCH_IDEAS_SENT,
   sessionDateSchema,
   type AnalysisInputs,
@@ -7,6 +8,8 @@ import {
 } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
+import { tradingSessionOnOrAfter } from "@/modules/market-data";
 import {
   getSuggestionCalibration,
   type Idea,
@@ -60,11 +63,23 @@ export function ideaContextOf(
   const line = calibration.byRecipe.find((entry) => entry.recipeId === idea.recipeId);
   const trackRecord =
     line && line.scored > 0
-      ? { claimed: line.claimed, held: line.held, scored: line.scored, pnl: line.pnl }
+      ? {
+          claimed: line.claimed,
+          held: line.held,
+          scored: line.scored,
+          averagePnl: centavosSchema.parse(Math.round(line.pnl / line.scored)),
+        }
       : null;
-  if (!sentiment?.mapped) return { ...NO_CONTEXT, trackRecord };
+  if (!sentiment) return { ...NO_CONTEXT, trackRecord };
+  const providerNews = sentiment.provider.articles.map((article) => ({
+    publishedOn: todaySaoPauloDate(article.publishedAt),
+    title: article.title,
+    sentiment: article.sentiment,
+  }));
+  if (!sentiment.mapped) return { ...NO_CONTEXT, trackRecord, providerNews };
   return {
     trackRecord,
+    providerNews,
     filings: sentiment.filings.latest.map((filing) => ({
       deliveredOn: sessionDateSchema.parse(filing.deliveredOn),
       topic: filing.topic,
@@ -78,11 +93,6 @@ export function ideaContextOf(
           windowDays: AVERAGE_WINDOW_DAYS,
         }
       : null,
-    providerNews: sentiment.provider.articles.map((article) => ({
-      publishedOn: sessionDateSchema.parse(article.publishedAt.toISOString().slice(0, 10)),
-      title: article.title,
-      sentiment: article.sentiment,
-    })),
   };
 }
 
@@ -129,19 +139,23 @@ export function buildResearchInputs(input: {
   return parsed.success ? { ok: true, inputs: parsed.data } : { ok: false };
 }
 
-// Shared reference data only: the recipes' calibration and each underlying's filings and news.
-// Whatever the sentiment tables hold today is used, and an underlying without any sends nothing
-// (docs/adr/0076).
+// Shared reference data only: the recipes' calibration and each underlying's filings and news,
+// as they stood at the newest close (docs/adr/0076): the lot is entered, and later scored, at that
+// close, so nothing delivered after it may inform the verdict. An underlying without any context
+// sends nothing.
 export async function assembleResearchInputs(
   db: Database,
   input: { newestClose: SessionDate; ideas: readonly Idea[]; now: Date },
 ): Promise<{ ok: true; inputs: AnalysisInputs } | { ok: false }> {
+  const close = await tradingSessionOnOrAfter(db, input.newestClose);
+  const knownAt = close ? new Date(close.close) : new Date(`${input.newestClose}T00:00:00.000Z`);
   const tickers = [...new Set(input.ideas.map((idea) => idea.underlying))];
   const [calibration, sentiments] = await Promise.all([
     getSuggestionCalibration(),
     Promise.all(
       tickers.map(
-        async (ticker) => [ticker, await sentimentForInstrument(db, ticker, input.now)] as const,
+        async (ticker) =>
+          [ticker, await sentimentForInstrument(db, ticker, input.now, knownAt)] as const,
       ),
     ),
   ]);

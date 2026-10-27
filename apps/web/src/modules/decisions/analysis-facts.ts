@@ -227,8 +227,14 @@ export interface ResearchIdeaFactsInput {
   // Codes only: `rule_no_longer_holds`, `near_expiry` and the names of the breached limits.
   engineAlerts: readonly string[];
   pricing: OperationPricing;
-  // The shared calibration of the idea's recipe (docs/adr/0067 item 9); null with nothing scored.
-  trackRecord: { claimed: number; held: number; scored: number; pnl: Centavos } | null;
+  // The shared calibration of the idea's recipe (docs/adr/0067 item 9): the average result of one
+  // lot over the scored suggestions, which does not grow with their number; null with none scored.
+  trackRecord: {
+    claimed: number;
+    held: number;
+    scored: number;
+    averagePnl: Centavos;
+  } | null;
   // The underlying's labelled CVM filings of the last 90 days, newest first, at most five.
   filings: readonly { deliveredOn: SessionDate; topic: string; tone: string; summary: string }[];
   newsTone: { tone: DecimalString; articles: number; windowDays: number } | null;
@@ -259,7 +265,7 @@ function trackRecordFacts(
         : formatPercent(
             new Decimal(record.held).dividedBy(record.claimed).toFixed(4) as DecimalString,
           ),
-    pnlPerLot: money(record.pnl),
+    pnlPerLot: money(record.averagePnl),
   };
 }
 

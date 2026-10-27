@@ -65,6 +65,7 @@ describe("getMyAiSettings", () => {
       "held_operation",
       "backtest_run",
       "suggestion",
+      "research",
     ]);
   });
 
