@@ -53,7 +53,9 @@ are the primary reading surface; numbers and charts share one visual language.
 On demand, one object at a time (a signal, an operation, a strategy with its backtest, a
 suggestion), reasoning over engine outputs only: thesis, counter-thesis, key risks, max loss,
 break-evens, invalidation conditions, confidence with justification and, for a suggestion, a
-verdict in words (enter, wait, do not enter). The AI never picks or ranks suggestions. Every
+verdict in words (enter, wait, do not enter). The AI never ranks or orders suggestions. The
+exception to "one object at a time" is a research, the one call behind "Obter sugestões": it reads
+the set of ideas the engine re-checked and gives each a closed verdict, nothing else. Every
 analysis and every recorded decision goes to a journal that is scored at its horizon (outcome,
 thesis accuracy, counterfactual for "do not enter"), so the user sees their own track record, the
 AI's calibration and how Fetha's suggestions aged.

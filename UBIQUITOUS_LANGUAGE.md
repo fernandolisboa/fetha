@@ -265,8 +265,9 @@ _Avoid_: screener, scan, new suggestions, recommendation, refresh
 **Fetha's research** (pt-BR: _Pesquisa do Fetha_, panel "Pesquisas do Fetha" in the journal):
 The suggestion research plus one AI call, the analysis subject `research`, that gives each idea a
 **research verdict** and a justification (ADR-0076). Stored per user with its ideas when the AI
-answers; one counts as one analysis against the monthly cap. At most 20 ideas are sent, the rest
-stay engine-only. The model never orders the ideas and writes no number. Shown on the home page
+answers; counts as one analysis against the monthly analysis cap, though it is of a set of ideas,
+not of one object, and is asked only through "Obter sugestões" (a subject kind that is not an
+object kind). At most 20 ideas are sent, the rest stay engine-only. The model never orders the ideas and writes no number. Shown on the home page
 until the radar reads a newer close. The journal panel scores every idea at its expiry, the
 discarded ones too, so the user sees whether the verdicts age well.
 _Avoid_: AI suggestions, AI picks, analysis (a research is not one object's analysis), report
@@ -596,7 +597,7 @@ the analysis that informed it. "Do not enter" is a first-class decision. A decis
 existing operation of the real portfolio (hold, adjust or exit) is scored on the position held
 when it was taken and the fills that followed (ADR-0022). A decision on a suggestion (enter or do
 not enter, one per user per suggestion) snapshots the lot as shown and is scored on it
-(ADR-0067).
+(ADR-0067); the same holds for a decision on a research idea, one per user per idea (ADR-0076).
 _Avoid_: action, choice, trade idea, entry, order
 
 **Thesis**:
@@ -618,7 +619,8 @@ inputs it used (ADR-0057). Requested on demand, never automatically, up to a mon
 (default 50); every request and its outcome (`accepted`, `rejected` or `failed`) is stored
 append-only with the prompt version and the model that answered. From `analysis@2` on, an
 analysis may carry an outlook, scored at its horizon (ADR-0058); from `analysis@3` on, an
-analysis of a suggestion ends with a verdict (ADR-0067).
+analysis of a suggestion ends with a verdict (ADR-0067). A research (ADR-0076) is the one
+analysis subject of a set rather than an object, with its own contract, `research@1`.
 _Avoid_: recommendation, report, insight, opinion
 
 **Verdict** (pt-BR: _Veredito_):
@@ -626,7 +628,7 @@ The closing field of an analysis of a suggestion (`analysis@3`, ADR-0067): `ente
 `do_not_enter`, a word from a closed list with a justification in prose, never a number. Required
 on a suggestion's analysis and forbidden on every other subject's; its justification goes through
 the same citation check as the rest of the reply. A verdict is read, not executed: the decision
-stays the user's.
+stays the user's. A research gives one per idea sent, as the **research verdict**.
 _Avoid_: recommendation, rating, score, signal, call
 
 **Model family**:

@@ -75,7 +75,10 @@ exposing module's interface, never through its tables.
    readings and matches as shared reference data, resumable per underlying under the same
    deadline; a match the engine fully prices for one standard lot is also stored as a suggestion
    (ADR-0067), and `radar/suggestion-scoring.ts` scores every suggestion whose horizon arrived
-   on the same as-of session, one append-only row each (`suggestion_scores`). Last, `sentiment` labels the recent filings of every watched company with Claude
+   on the same as-of session, one append-only row each (`suggestion_scores`); right after,
+   `decisions/research-scoring-service.ts` (`scoreDueResearch`) scores the same way every
+   research idea whose horizon arrived, per user, whatever its verdict (`research_idea_scores`,
+   ADR-0076). Last, `sentiment` labels the recent filings of every watched company with Claude
    Haiku (behind a code switch, on in production since the owner confirmed the cost), reads their
    GDELT news tone and, when a key is set, a paid provider's scored articles (ADR-0065).
    `nightly/run-nightly-job.ts` owns this sequence; Vercel Cron's own `GET` on
@@ -118,7 +121,10 @@ exposing module's interface, never through its tables.
    fills once any expired option is settled (ADR-0022). At the horizon the engine scores the
    decision (#29, ADR-0005), and each analysis's outlook the same way (ADR-0058); the journal
    shows analyses under the decisions they informed, and the track record keeps the two apart,
-   with a third, shared panel for how Fetha's own suggestions aged (ADR-0067).
+   with a third, shared panel for how Fetha's own suggestions aged (ADR-0067) and a fourth, the
+   user's own, for how the verdicts of Fetha's researches aged (flow 10, ADR-0076). A research
+   is the one analysis of a set rather than an object: an "Obter sugestões" click, one call over
+   the ideas the engine re-checked, counting one against the cap.
 7. **Track the real portfolio.** Fills are entered by hand or imported from the B3 investor-area
    spreadsheet; they form positions; the user groups fills into operations; the engine marks
    everything to market and proposes exercise or expiry outcomes on expiry dates, which the user
@@ -199,7 +205,8 @@ exposing module's interface, never through its tables.
   suggestions and suggestion scores included), the catalog and shared strategies.
 - Fetha suggests but never ranks by an invented score and never executes: a suggestion's order on
   screen is a market fact (traded series), the AI analyses one suggestion on request and never
-  picks among them, and every order is placed by the user at their broker (ADR-0003, ADR-0067).
+  ranks or orders them (it may give a closed verdict on the ideas of a research, ADR-0076), and
+  every order is placed by the user at their broker (ADR-0003, ADR-0067).
 - Prices are decimals, money is integer centavos, quantities are integers; never a float for
   money.
 - No broker integration and no order execution (ADR-0003).
@@ -242,5 +249,5 @@ decisions, with the "not a recommendation" stance lifted by the owner (0067), an
 and Studio layouts with four themes carried over from Bardo and Mascate (0069), and the Dock
 layout's floating menu (0071), a suggestion archived once the radar reads a newer close
 (0073, superseding 0072), the per-user archive of seen suggestions (0074), and the
-on-demand re-check of the radar's last 5 sessions against the user's risk limits (0075), and
-the AI's closed verdict on each of its ideas, stored and scored (0076).
+on-demand re-check of the radar's last 5 sessions against the user's risk limits (0075),
+and the AI's closed verdict on each of its ideas, stored and scored (0076).
