@@ -9,6 +9,7 @@ import {
   checkAnalysisVerdict,
   resolveAnalysisOutlook,
   type AnalysisInputs,
+  type AnalysisObjectKind,
   type AnalysisOutputV3,
 } from "@fetha/contracts";
 
@@ -20,8 +21,10 @@ function read(path: string): unknown {
   return JSON.parse(readFileSync(`${fixtures}${path}`, "utf8"));
 }
 
-function inputsOf(name: string): AnalysisInputs {
-  return analysisInputsSchema.parse(read(`${name}/inputs.json`));
+function inputsOf(name: string): AnalysisInputs & { subject: AnalysisObjectKind } {
+  const inputs = analysisInputsSchema.parse(read(`${name}/inputs.json`));
+  if (inputs.subject === "research") throw new Error(`${name}: not an object subject`);
+  return { ...inputs, subject: inputs.subject };
 }
 
 function outputOf(name: string, file = "output.json"): AnalysisOutputV3 {

@@ -1,0 +1,12 @@
+{
+  "overview": "Só a primeira ideia importa hoje.",
+  "ideas": [
+    {
+      "idea": "ideas.0",
+      "verdict": "enter",
+      "justification": "Entre agora: a meta é R$ 99,00.",
+      "alerts": [],
+      "inputsCited": ["ideas.0.pricing.maxLoss"]
+    }
+  ]
+}
