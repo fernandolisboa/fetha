@@ -11,6 +11,11 @@ import {
 // The most ideas one research sends to the model (docs/adr/0076); the rest are shown engine-only.
 export const MAX_RESEARCH_IDEAS_SENT = 20;
 
+// The reply's token budget (docs/adr/0076): twenty ideas at the largest the bounds below allow come to about 10 000
+// tokens of JSON, and the model's own thinking is billed against the same limit. Past this the
+// reply is cut off and rejected as incomplete.
+export const RESEARCH_MAX_OUTPUT_TOKENS = 20_000;
+
 export const researchAlerts = [
   "negative_news",
   "recent_filing",
@@ -33,19 +38,19 @@ const prose = (max: number) => z.string().trim().min(1).max(max);
 export const researchIdeaOutputSchema = z.strictObject({
   idea: z.string().min(1).max(40),
   verdict: z.enum(analysisVerdicts),
-  justification: prose(800),
+  justification: prose(600),
   alerts: z
     .array(researchAlertSchema)
     .max(5)
     .refine((alerts) => new Set(alerts).size === alerts.length, {
       message: "alerts must not repeat",
     }),
-  inputsCited: z.array(z.string().min(1).max(120)).min(1).max(20),
+  inputsCited: z.array(z.string().min(1).max(80)).min(1).max(8),
 });
 export type ResearchIdeaOutput = z.infer<typeof researchIdeaOutputSchema>;
 
 export const researchOutputSchema = z.strictObject({
-  overview: prose(1200),
+  overview: prose(800),
   ideas: z.array(researchIdeaOutputSchema).min(1).max(MAX_RESEARCH_IDEAS_SENT),
 });
 export type ResearchOutput = z.infer<typeof researchOutputSchema>;

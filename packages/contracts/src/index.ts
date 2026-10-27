@@ -171,6 +171,7 @@ export {
   researchIdeaOutputSchema,
   researchIdeaPath,
   researchOutputSchema,
+  RESEARCH_MAX_OUTPUT_TOKENS,
   type ResearchAlert,
   type ResearchIdeaOutput,
   type ResearchIdeasCheck,

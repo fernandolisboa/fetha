@@ -2,6 +2,7 @@ import {
   analysisOutputV3Schema,
   filingLabelOutputSchema,
   researchOutputSchema,
+  RESEARCH_MAX_OUTPUT_TOKENS,
   type FilingLabelInputs,
   type AnalysisInputs,
   type AnalysisObjectKind,
@@ -34,6 +35,7 @@ export interface ResearchPrompt {
   render: (inputs: AnalysisInputs) => string;
   // The contract a reply is checked against (docs/adr/0076).
   outputSchema: typeof researchOutputSchema;
+  maxOutputTokens: number;
 }
 
 // The prompt of "Obter sugestões" (docs/adr/0076): one call over all the ideas of a research,
@@ -41,6 +43,7 @@ export interface ResearchPrompt {
 export const researchPrompt: ResearchPrompt = {
   ...researchV1,
   outputSchema: researchOutputSchema,
+  maxOutputTokens: RESEARCH_MAX_OUTPUT_TOKENS,
 };
 
 // The 5.5-generation id of each family: the floor `apps/web`'s model

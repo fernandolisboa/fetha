@@ -6,6 +6,7 @@ import {
   checkResearchIdeas,
   researchAlerts,
   researchIdeaPath,
+  RESEARCH_MAX_OUTPUT_TOKENS,
   researchOutputSchema,
   type ResearchOutput,
 } from "./research";
@@ -210,5 +211,35 @@ describe("checkResearchCitations", () => {
       ].flatMap((entry) => (entry ? [entry] : [])),
     });
     expect(checkResearchCitations(inputs, output)).toEqual({ ok: true });
+  });
+});
+
+describe("the reply's size bounds", () => {
+  it("keeps twenty ideas at the largest the schema allows within half the token budget", () => {
+    const largest: ResearchOutput = {
+      overview: "x".repeat(800),
+      ideas: Array.from({ length: 20 }, (_, position) => ({
+        idea: researchIdeaPath(position),
+        verdict: "wait" as const,
+        justification: "x".repeat(600),
+        alerts: researchAlerts.slice(0, 5),
+        inputsCited: Array.from({ length: 8 }, () => "x".repeat(80)),
+      })),
+    };
+    expect(researchOutputSchema.safeParse(largest).success).toBe(true);
+    // A conservative three characters to the token, against half the budget: the rest is the
+    // model's thinking.
+    expect(JSON.stringify(largest).length / 3).toBeLessThan(RESEARCH_MAX_OUTPUT_TOKENS / 2);
+  });
+
+  it("refuses a justification, a citation list or an overview past its bound", () => {
+    const base = { idea: "ideas.0", verdict: "enter" as const, alerts: [] };
+    const idea = { ...base, justification: "ok", inputsCited: ["ideas.0.pricing.maxLoss"] };
+    const parse = (ideas: unknown[], overview = "ok") =>
+      researchOutputSchema.safeParse({ overview, ideas }).success;
+    expect(parse([idea])).toBe(true);
+    expect(parse([{ ...idea, justification: "x".repeat(601) }])).toBe(false);
+    expect(parse([{ ...idea, inputsCited: Array(9).fill("ideas.0.pricing.maxLoss") }])).toBe(false);
+    expect(parse([idea], "x".repeat(801))).toBe(false);
   });
 });
