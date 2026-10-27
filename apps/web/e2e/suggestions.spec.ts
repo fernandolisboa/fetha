@@ -42,16 +42,9 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(summary).toContainText("sem dados para avaliar a regra hoje");
   const research = page.getByTestId("research-result");
   await expect(research.getByText("Deixaram de valer")).toHaveCount(0);
-  // The owner has no Anthropic key: the engine's result stays and one line says why Fetha is
-  // silent (docs/adr/0076).
-  const notice = page.getByTestId("research-notice");
-  await expect(notice).toContainText(
-    "Para o Fetha opinar sobre as ideias, cadastre a sua chave da Anthropic em",
-  );
-  await expect(notice.getByRole("link", { name: "Configurações › IA" })).toHaveAttribute(
-    "href",
-    "/configuracoes/ia",
-  );
+  // The only idea is dropped as not evaluable, so there is nothing for Fetha to opine on: no model
+  // call and no notice (docs/adr/0076). The no-key notice is covered by the research-opinion tests.
+  await expect(page.getByTestId("research-notice")).toBeEmpty();
   await expect(
     research.getByRole("link", { name: "Declare o seu em Configurações" }),
   ).toBeVisible();
