@@ -7,10 +7,12 @@ export interface SentimentCompany {
   cnpj: string;
   companyName: string | null;
   tickers: string[];
+  watched: boolean;
 }
 
 export interface SentimentUniverse {
   tickers: string[];
+  watchedTickers: string[];
   companies: SentimentCompany[];
 }
 
@@ -19,10 +21,11 @@ export interface SentimentUniverse {
 export const RADAR_SENTIMENT_TICKERS = 40;
 
 // docs/adr/0065: every watchlist ticker first, then the underlyings the radar found in the
-// sessions "Obter sugestões" researches (docs/adr/0076), so a run that defers at its deadline has
-// served the watchlist before any radar name. Tickers with no company (ETFs, FIIs, BDRs) still
-// get provider articles, never filings or GDELT tone. docs/adr/0062: a market index is excluded,
-// its page shows no sentiment panel.
+// sessions "Obter sugestões" researches (docs/adr/0076). The jobs keep that priority when they
+// pick what to do under their caps and deadline: watched subjects first, then the oldest
+// fetch (tone, provider) or the newest filing (labels). Tickers with no company (ETFs, FIIs,
+// BDRs) still get provider articles, never filings or GDELT tone. docs/adr/0062: a market index
+// is excluded, its page shows no sentiment panel.
 export async function sentimentUniverse(db: Database): Promise<SentimentUniverse> {
   const watched = (await watchedTickersOfAnyUser(db)).filter((ticker) => !isMarketIndex(ticker));
   const found = await recentFindingUnderlyings(db, {
@@ -31,6 +34,7 @@ export async function sentimentUniverse(db: Database): Promise<SentimentUniverse
     excluding: watched,
   });
   const tickers = [...watched, ...found];
+  const watchedSet = new Set(watched);
   const rank = new Map(tickers.map((ticker, index) => [ticker, index]));
   const mapped = (await companiesOfTickers(db, tickers)).sort(
     (a, b) => (rank.get(a.ticker) ?? 0) - (rank.get(b.ticker) ?? 0),
@@ -41,9 +45,11 @@ export async function sentimentUniverse(db: Database): Promise<SentimentUniverse
       cnpj: company.cnpj,
       companyName: company.companyName,
       tickers: [],
+      watched: false,
     };
     entry.tickers.push(company.ticker);
+    entry.watched ||= watchedSet.has(company.ticker);
     byCnpj.set(company.cnpj, entry);
   }
-  return { tickers, companies: [...byCnpj.values()] };
+  return { tickers, watchedTickers: watched, companies: [...byCnpj.values()] };
 }

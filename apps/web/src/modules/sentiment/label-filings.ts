@@ -14,7 +14,8 @@ import {
   type LabelCall,
 } from "./repositories/filing-label-repository";
 
-// docs/adr/0065: filings of the last 90 days, newest first; RAD throttles
+// docs/adr/0065: filings of the last 90 days, a watched company's first and newest first within
+// each group; RAD throttles
 // bursts, so downloads are spaced; a filing RAD will not hand over after
 // three nights is given up.
 export const LABEL_WINDOW_DAYS = 90;
@@ -43,6 +44,7 @@ export interface LabelFilingsOutcome {
 export interface LabelFilingsOptions {
   client: FilingLabelClient | null;
   cnpjs: readonly string[];
+  watchedCnpjs: readonly string[];
   fetchImpl: typeof fetch;
   now: Date;
   deadlineAt: number;
@@ -115,16 +117,19 @@ export async function labelFilings(
   const stateOf = new Map(
     states.map((state) => [`${state.protocol}:${String(state.version)}`, state]),
   );
-  const todo = filings.filter((filing) => {
-    const state = stateOf.get(`${filing.protocol}:${String(filing.version)}`);
-    if (state === undefined) {
-      return true;
-    }
-    return (
-      state.outcome === "pending" &&
-      options.now.getTime() - state.updatedAt.getTime() >= RETRY_AFTER_MS
-    );
-  });
+  const watched = new Set(options.watchedCnpjs);
+  const todo = filings
+    .filter((filing) => {
+      const state = stateOf.get(`${filing.protocol}:${String(filing.version)}`);
+      if (state === undefined) {
+        return true;
+      }
+      return (
+        state.outcome === "pending" &&
+        options.now.getTime() - state.updatedAt.getTime() >= RETRY_AFTER_MS
+      );
+    })
+    .sort((a, b) => Number(watched.has(b.cnpj)) - Number(watched.has(a.cnpj)));
 
   for (const [index, filing] of todo.entries()) {
     if (index >= MAX_LABEL_CALLS_PER_RUN || Date.now() + ITEM_BUDGET_MS > options.deadlineAt) {

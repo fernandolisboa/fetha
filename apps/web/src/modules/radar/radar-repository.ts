@@ -228,9 +228,10 @@ export async function recentFindings(db: Database, count: number): Promise<Recen
   };
 }
 
-// The distinct underlyings the radar matched over its last `sessions` read sessions, the newest
-// session's first, minus `excluding` and market indexes (docs/adr/0062), at most `limit`. Applying
-// both before the cap keeps a skipped name from taking a slot. Reference data, nothing per user.
+// The distinct underlyings the radar matched over its last `sessions` read sessions: the newest
+// session's first, then the ones found in more sessions, then by ticker, minus `excluding` and
+// market indexes (docs/adr/0062), at most `limit`. Applying both before the cap keeps a skipped
+// name from taking a slot. Reference data, nothing per user.
 export async function recentFindingUnderlyings(
   db: Database,
   input: { sessions: number; limit: number; excluding: readonly string[] },
@@ -239,12 +240,13 @@ export async function recentFindingUnderlyings(
   if (sessions.length === 0) return [];
 
   const latest = sql<string>`max(${radarMatches.session})`;
+  const sessionsFound = sql<number>`count(distinct ${radarMatches.session})`;
   const rows = await db
     .select({ underlying: radarMatches.underlying })
     .from(radarMatches)
     .where(inArray(radarMatches.session, sessions))
     .groupBy(radarMatches.underlying)
-    .orderBy(desc(latest), asc(radarMatches.underlying));
+    .orderBy(desc(latest), desc(sessionsFound), asc(radarMatches.underlying));
   const excluded = new Set(input.excluding);
   return rows
     .map((row) => row.underlying)

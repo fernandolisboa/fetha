@@ -34,8 +34,8 @@ What was checked on 2026-10-13, from this session's network:
 ### Where it lives
 
 A new `sentiment` module owns the four tables, the nightly step, the read model and the panel. It
-reads `market-data` (filings, the ticker → CNPJ mapping) and `watchlist` (which tickers to
-follow). The issue text placed the provider seam in `market-data`, but `market-data` cannot
+reads `market-data` (filings, the ticker → CNPJ mapping), `watchlist` (which tickers to
+follow) and, since the 2026-10-27 amendment, `radar` (its recent findings). The issue text placed the provider seam in `market-data`, but `market-data` cannot
 depend on `watchlist` without a cycle. The seam serves only sentiment, so it lives here.
 
 ### Universe
@@ -227,7 +227,9 @@ docs/adr/0076.
 
 **Universe.** The universe is the union of the watchlist tickers, listed first, and the underlyings
 with radar findings (`radar_matches`) in the last `RESEARCH_WINDOW_SESSIONS` (5) read sessions,
-the same window "Obter sugestões" researches (ADR-0075), newest session first. At most
+the same window "Obter sugestões" researches (ADR-0075), newest session first. Within a session
+the names found in more of the window's sessions come first, then ticker order, so a cap that
+cuts a session does not always cut the same alphabetical tail. At most
 `RADAR_SENTIMENT_TICKERS` (40) underlyings are added on top of the watchlist; a ticker already on
 a watchlist and a market index (ADR-0062) take no slot. Tickers stay distinct, never tied to who
 watches them, and companies are grouped by CNPJ as before, in the same order as `tickers`. The
@@ -235,16 +237,22 @@ radar exposes the read as `recentFindingUnderlyings` through its index; radar do
 sentiment.
 
 **Order.** The nightly job scans the radar before the sentiment step, so the night's own findings
-are in the window. Labels, tone and provider articles each defer per item at the deadline, so with
-the watchlist first a short run serves the watchlist before any radar name.
+are in the window. The universe carries which tickers and companies are watched, and each job
+keeps them ahead of the radar names under its cap and deadline: GDELT tone and provider articles
+sort what is due watched first, then oldest fetch first (a never-fetched radar name cannot jump
+a watched one fetched yesterday); filing labels sort the filings to label watched companies first,
+then newest delivered first. A short run, or the provider's 30-request cap, therefore serves the
+watchlist before any radar name.
 
 **Leak note.** Seeing a label on an asset you don't watch used to say someone in the instance
 watches it. It now also covers "the radar found it", which is shared reference data anyway, so
 the note shrinks to the watchlist-only part and loses weight as the radar covers more.
 
-**Cost.** Filing labels run on the server key (owner agreed 2026-10-16). The first night after
-this deploys labels up to 90 days of filings for the newly covered companies, resumable under the
-existing per-item budget and deferral. Marketaux stays optional, off unless its token is set, and
-keeps its own rate-limit status. The 40-name cap bounds the cost.
+**Cost.** Filing labels run on the server key (owner agreed 2026-10-16). Cost stays under the
+existing 60-calls-per-run label cap; the 40-name cap bounds how many new companies enter per night
+(the rotating radar set grows the labelled set over time). The first night after this deploys
+labels up to 90 days of filings for the newly covered companies, resumable under the existing
+per-item budget and deferral. Marketaux stays optional, off unless its token is set, and keeps its
+own rate-limit status.
 
 ADR-0076's research facts therefore usually exist for radar ideas now.
