@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { confidenceSchema, sessionDateSchema, thesisClaimSchema } from "@fetha/contracts";
+import {
+  confidenceSchema,
+  sessionDateSchema,
+  thesisClaimSchema,
+  tickerSchema,
+  type SessionDate,
+} from "@fetha/contracts";
 import { decisionKinds } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
@@ -20,7 +26,13 @@ import {
   getMyOperation,
   HeldOperationNotFoundError,
 } from "@/modules/portfolio";
-import { getSuggestion, SuggestionNotFoundError } from "@/modules/radar";
+import {
+  getSuggestion,
+  newestReadSession,
+  recipeStructureById,
+  SuggestionNotFoundError,
+  suggestionValidity,
+} from "@/modules/radar";
 import {
   getMySignal,
   getStructures,
@@ -37,6 +49,7 @@ import {
   type RecordDecisionInput,
 } from "./decisions-repository";
 import { horizonChecker } from "./horizon-status";
+import { ResearchRepository } from "./research-repository";
 import type { DecisionInputs } from "./inputs";
 
 const recordInputSchema = z.strictObject({
@@ -78,6 +91,13 @@ class SuggestionArchivedError extends Error {
   constructor() {
     super("This suggestion is archived");
     this.name = "SuggestionArchivedError";
+  }
+}
+
+class ResearchIdeaNotFoundError extends Error {
+  constructor() {
+    super("Research idea not found");
+    this.name = "ResearchIdeaNotFoundError";
   }
 }
 
@@ -161,6 +181,7 @@ export async function recordDecisionAction(
       error instanceof ContemplatedOperationNotFoundError ||
       error instanceof HeldOperationNotFoundError ||
       error instanceof SuggestionNotFoundError ||
+      error instanceof ResearchIdeaNotFoundError ||
       error instanceof UnknownOperationError
     ) {
       return { status: "error", error: "not_found" };
@@ -182,6 +203,11 @@ export async function recordDecisionAction(
     }
     throw error;
   }
+}
+
+async function currentRadarSession(): Promise<SessionDate | null> {
+  const session = await newestReadSession(getDb());
+  return session === null ? null : sessionDateSchema.parse(session);
 }
 
 interface BuildRecordInputArgs {
@@ -300,6 +326,58 @@ async function buildRecordInput({
         signalId: null,
         contemplatedOperationId: null,
         suggestionId: suggestion.id,
+        strategyVersionId: null,
+        inputs,
+        rationale,
+        claim,
+        confidence,
+        horizon,
+        costModel: DEFAULT_COST_MODEL,
+      },
+      markSignalIdWhenAnswered: null,
+    };
+  }
+
+  if (originKind === "research_idea") {
+    const idea = await (await forCurrentUser(getDb(), ResearchRepository)).findIdea(targetId);
+    if (!idea) {
+      throw new ResearchIdeaNotFoundError();
+    }
+    if (!allowedDecisionKinds({ kind: "research_idea" }).includes(kind)) {
+      throw new KindNotAllowedError();
+    }
+    // Scored at the research's newest close like a suggestion (docs/adr/0073, docs/adr/0076):
+    // answering after the radar read a newer close would be answering with hindsight.
+    if (suggestionValidity(idea.newestClose, await currentRadarSession()).archived) {
+      throw new SuggestionArchivedError();
+    }
+    const structure = recipeStructureById(idea.recipeId);
+    const inputs: DecisionInputs = {
+      originKind: "research_idea",
+      underlying: tickerSchema.parse(idea.underlying),
+      recipeId: idea.recipeId,
+      structureId: structure?.id ?? idea.recipeId,
+      structureName: structure?.name ?? idea.recipeId,
+      session: idea.newestClose,
+      expiry: idea.horizon,
+      legs: idea.legs.map(({ role, side, ticker, quantity, price }) => ({
+        role,
+        side,
+        ticker,
+        quantity,
+        entryPrice: price,
+      })),
+      netPremiumCentavos: idea.pricing.netPremium,
+      maxLossCentavos: idea.pricing.maxLoss,
+      maxGainCentavos: idea.pricing.maxGain === "unbounded" ? null : idea.pricing.maxGain,
+    };
+    return {
+      recordInput: {
+        kind,
+        originKind: "research_idea",
+        signalId: null,
+        contemplatedOperationId: null,
+        researchIdeaId: idea.id,
         strategyVersionId: null,
         inputs,
         rationale,

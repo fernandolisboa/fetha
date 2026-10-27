@@ -1,0 +1,30 @@
+{
+  "overview": "Das ideias que olhei, só a primeira tem a regra valendo, risco pequeno e notícias neutras ou boas. As outras duas trazem problemas que pesam: uma perdeu a regra da receita e a outra estourou um limite de risco. Hoje eu entraria só na primeira.",
+  "ideas": [
+    {
+      "idea": "ideas.0",
+      "verdict": "enter",
+      "justification": "A regra da receita continua valendo e o lote custa −R$ 120,00, que também é a perda máxima, contra um ganho máximo de R$ 80,00 e break-even (o preço em que o resultado zera) em R$ 32,20. O ativo está em alta, as opções são líquidas e o tom das notícias é levemente positivo.",
+      "alerts": [],
+      "inputsCited": [
+        "ideas.0.ruleHolds",
+        "ideas.0.pricing.maxLoss",
+        "ideas.0.pricing.maxGain",
+        "ideas.0.pricing.breakEvens.0",
+        "ideas.0.reading.trend",
+        "ideas.0.newsTone.averageTone"
+      ]
+    },
+    {
+      "idea": "ideas.2",
+      "verdict": "wait",
+      "justification": "A estrutura estoura um limite de risco do seu perfil e a receita acertou pouco no passado: a tese se confirmou em 25% das sugestões avaliadas. Há ainda um fato relevante recente sobre um processo, de tom negativo, então eu esperaria.",
+      "alerts": ["limit_breach", "weak_track_record", "recent_filing"],
+      "inputsCited": [
+        "ideas.2.engineAlerts.0",
+        "ideas.2.recipeTrackRecord.claimHeldShare",
+        "ideas.2.filings.0.summary"
+      ]
+    }
+  ]
+}

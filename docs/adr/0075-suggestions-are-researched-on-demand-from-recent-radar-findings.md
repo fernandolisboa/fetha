@@ -112,3 +112,13 @@ stores the research; part 3 widens the nightly sentiment universe to the radar's
   what changed.
 - Require a declared risk profile: it would turn the button into a dead end for a new user, so the
   form's own defaults stand in, announced.
+
+## Amendment (2026-10-27, ADR-0076)
+
+Items 1, 7, 8, 9 and 10 change. When the AI answers, the research and its ideas are stored per
+user (`suggestion_researches`, `research_ideas`, validated on read) (1, 9) and the screen shows the
+latest one on load (8). The home page's `maxDuration` is 180 s, not 60 (7). Stored ideas get the
+decision bar and the builder link, and the pending copy changes (8). The click now makes an AI
+call, with its own notice line when there is none (10). The engine part, its deadline and its
+rules are unchanged; the ideas past the 20 sent to the AI stay engine-only and unstored. See
+docs/adr/0076.

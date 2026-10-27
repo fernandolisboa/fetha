@@ -142,3 +142,11 @@ kind, billed to the user's own Anthropic key when one is stored and readable, el
 Caps, facts discipline and storage are unchanged. See docs/adr/0068. #325, the same day, removed
 the "else the server's" clause: the server key no longer bills a user-requested analysis, and with
 no readable own key the action answers `own_key_missing` instead. See docs/adr/0068's amendment.
+
+## Amendment (2026-10-27, ADR-0076)
+
+`research` is a sixth subject: one call over the ideas of an "Obter sugestões" research, one
+analysis against the 50 a month. Its reserve/call/classify/citation core is the same code
+(`askUnderCap`), its output is `research@1`, and it adds two rejection reasons: `research_ideas`
+(the ideas do not cover every sent idea exactly once) and `storage` (the accepted research could
+not be saved). See docs/adr/0076.

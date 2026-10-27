@@ -53,6 +53,31 @@ export interface Idea {
   reading: AssetReading;
   alerts: IdeaAlert[];
   suggestionId: string | null;
+  // The engine's pricing of the lot at the newest close: what a stored idea keeps and what the
+  // AI's facts are made of (docs/adr/0076). Not part of what a card draws.
+  pricing: OperationPricing;
+}
+
+// What a card draws and what reaches the browser.
+export type IdeaCard = Omit<Idea, "pricing">;
+
+export function ideaCardOf(idea: Idea): IdeaCard {
+  return {
+    underlying: idea.underlying,
+    recipeId: idea.recipeId,
+    structure: idea.structure,
+    foundOn: idea.foundOn,
+    expiry: idea.expiry,
+    sessionsToExpiry: idea.sessionsToExpiry,
+    legs: idea.legs,
+    netPremium: idea.netPremium,
+    maxLoss: idea.maxLoss,
+    maxGain: idea.maxGain,
+    breakEvens: idea.breakEvens,
+    reading: idea.reading,
+    alerts: idea.alerts,
+    suggestionId: idea.suggestionId,
+  };
 }
 
 export interface ResearchResult {
@@ -65,6 +90,10 @@ export interface ResearchResult {
   usingDefaultProfile: boolean;
   timedOut: boolean;
 }
+
+// The first of two budgets the page's `maxDuration` (180 s, app/(shell)/page.tsx) holds: this one,
+// then the model call (docs/adr/0076).
+export const RESEARCH_BUDGET_MS = 45_000;
 
 export interface ResearchInput extends RiskContext {
   now: Date;
@@ -158,6 +187,7 @@ async function researchCandidate(
       reading,
       alerts: assessment.alerts,
       suggestionId: candidate.suggestionId,
+      pricing: lot.pricing,
     },
   };
 }

@@ -216,3 +216,9 @@ updated nightly for the assets on a watchlist.
 The filing-label job now resolves `claude-haiku-5-5`'s family to its newest release instead of
 sending that literal id, keeping the server key only; a 400/404 on the resolved id retries once on
 the pinned id before the filing is marked `bad_request`. See docs/adr/0068.
+
+## Amendment (2026-10-27, ADR-0076)
+
+The question left open above is decided: filing labels, news tone and the provider's articles enter
+the facts of an AI research (not of a single-object analysis), cut at the newest close. See
+docs/adr/0076.

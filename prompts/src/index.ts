@@ -1,19 +1,23 @@
 import {
   analysisOutputV3Schema,
   filingLabelOutputSchema,
+  researchOutputSchema,
+  RESEARCH_MAX_OUTPUT_TOKENS,
   type FilingLabelInputs,
   type AnalysisInputs,
+  type AnalysisObjectKind,
   type AnalysisSubjectKind,
   type ModelFamily,
 } from "@fetha/contracts";
 
 import * as analysisV3 from "./analysis/v3";
 import * as filingLabelV1 from "./filing-label/v1";
+import * as researchV1 from "./research/v1";
 
 export interface AnalysisPrompt {
   version: string;
   system: string;
-  render: (inputs: AnalysisInputs) => string;
+  render: (inputs: AnalysisInputs & { subject: AnalysisObjectKind }) => string;
   // The contract a reply to this version is checked against (docs/adr/0067).
   outputSchema: typeof analysisOutputV3Schema;
 }
@@ -23,6 +27,23 @@ export interface AnalysisPrompt {
 export const analysisPrompt: AnalysisPrompt = {
   ...analysisV3,
   outputSchema: analysisOutputV3Schema,
+};
+
+export interface ResearchPrompt {
+  version: string;
+  system: string;
+  render: (inputs: AnalysisInputs) => string;
+  // The contract a reply is checked against (docs/adr/0076).
+  outputSchema: typeof researchOutputSchema;
+  maxOutputTokens: number;
+}
+
+// The prompt of "Obter sugestões" (docs/adr/0076): one call over all the ideas of a research,
+// apart from the single-object analysis above because its contract, checks and fixtures differ.
+export const researchPrompt: ResearchPrompt = {
+  ...researchV1,
+  outputSchema: researchOutputSchema,
+  maxOutputTokens: RESEARCH_MAX_OUTPUT_TOKENS,
 };
 
 // The 5.5-generation id of each family: the floor `apps/web`'s model
@@ -46,6 +67,8 @@ export const defaultAnalysisFamilies: Record<AnalysisSubjectKind, ModelFamily> =
   held_operation: "opus",
   backtest_run: "opus",
   suggestion: "opus",
+  // Opus judges ideas that put capital at stake, like a suggestion's own analysis (docs/adr/0076).
+  research: "opus",
 };
 
 export interface FilingLabelPrompt {

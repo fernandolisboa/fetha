@@ -1,13 +1,15 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
   analysisInputsSchema,
-  analysisSubjectKindSchema,
+  analysisObjectKindSchema,
   confidenceSchema,
   storedAnalysisOutputSchema,
   analysisOutlookClaimSchema,
   type AnalysisInputs,
+  type AnalysisObjectKind,
   type AnalysisSubjectKind,
   type Confidence,
+  type ResearchOutput,
   type SessionDate,
   type StoredAnalysisOutput,
   type AnalysisOutlookClaim,
@@ -51,7 +53,7 @@ export interface AnalysisClaim {
 
 export interface CompleteAnalysisInput {
   outcome: AnalysisOutcome;
-  output: StoredAnalysisOutput | null;
+  output: StoredAnalysisOutput | ResearchOutput | null;
   reason: AnalysisReason | null;
   model: string | null;
   inputTokens: number | null;
@@ -70,7 +72,7 @@ export interface LatestAcceptedAnalysis {
 
 // An accepted analysis as the journal lists it (docs/adr/0058).
 export interface JournalAnalysis extends LatestAcceptedAnalysis {
-  subjectKind: AnalysisSubjectKind;
+  subjectKind: AnalysisObjectKind;
   subjectId: string;
   claim: AnalysisClaim | null;
 }
@@ -152,8 +154,14 @@ export class AnalysesRepository extends UserScopedRepository {
     });
   }
 
-  async complete(requestId: string, result: CompleteAnalysisInput): Promise<void> {
-    await this.db.insert(analysisResults).values({
+  // `executor` lets a caller write the result in a transaction of its own, so a research's rows
+  // and its result land together or not at all (docs/adr/0076).
+  async complete(
+    requestId: string,
+    result: CompleteAnalysisInput,
+    executor: Database | Transaction = this.db,
+  ): Promise<void> {
+    await executor.insert(analysisResults).values({
       userId: this.userId,
       requestId,
       outcome: result.outcome,
@@ -198,7 +206,7 @@ export class AnalysesRepository extends UserScopedRepository {
   }
 
   async latestAccepted(
-    subjectKind: AnalysisSubjectKind,
+    subjectKind: AnalysisObjectKind,
     subjectIds: readonly string[],
   ): Promise<Map<string, LatestAcceptedAnalysis>> {
     if (subjectIds.length === 0) return new Map();
@@ -257,13 +265,21 @@ export class AnalysesRepository extends UserScopedRepository {
           eq(analysisResults.userId, this.userId),
         ),
       )
-      .where(and(eq(analysisRequests.userId, this.userId), eq(analysisResults.outcome, "accepted")))
+      .where(
+        and(
+          eq(analysisRequests.userId, this.userId),
+          eq(analysisResults.outcome, "accepted"),
+          // A research is not an analysis of one object: the journal shows it in its own panel
+          // (docs/adr/0076).
+          ne(analysisRequests.subjectKind, "research"),
+        ),
+      )
       .orderBy(desc(analysisRequests.requestedAt))
       .limit(JOURNAL_ANALYSIS_LIMIT);
 
     return rows.map((row) => ({
       ...toLatestAccepted(row),
-      subjectKind: analysisSubjectKindSchema.parse(row.subjectKind),
+      subjectKind: analysisObjectKindSchema.parse(row.subjectKind),
       subjectId: row.subjectId,
       claim: toAnalysisClaim(row),
     }));

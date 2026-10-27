@@ -1,0 +1,43 @@
+{
+  "overview": "Das ideias que olhei, só a primeira tem a regra valendo, risco pequeno e notícias neutras ou boas. As outras duas trazem problemas que pesam: uma perdeu a regra da receita e a outra estourou um limite de risco. Hoje eu entraria só na primeira.",
+  "ideas": [
+    {
+      "idea": "ideas.0",
+      "verdict": "enter",
+      "justification": "Entre agora: a meta do ativo é R$ 33,50 até o vencimento.",
+      "alerts": [],
+      "inputsCited": [
+        "ideas.0.ruleHolds",
+        "ideas.0.pricing.maxLoss",
+        "ideas.0.pricing.maxGain",
+        "ideas.0.pricing.breakEvens.0",
+        "ideas.0.reading.trend",
+        "ideas.0.newsTone.averageTone"
+      ]
+    },
+    {
+      "idea": "ideas.1",
+      "verdict": "do_not_enter",
+      "justification": "A regra da receita deixou de valer neste fechamento, o ativo está em queda e poucas séries de opções negociaram. O tom médio das notícias é de −1,80, negativo, e a perda máxima de −R$ 300,00 é todo o prêmio pago.",
+      "alerts": ["rule_no_longer_holds", "negative_news", "low_liquidity", "trend_against"],
+      "inputsCited": [
+        "ideas.1.ruleHolds",
+        "ideas.1.newsTone.averageTone",
+        "ideas.1.pricing.maxLoss",
+        "ideas.1.reading.options",
+        "ideas.1.reading.trend"
+      ]
+    },
+    {
+      "idea": "ideas.2",
+      "verdict": "wait",
+      "justification": "A estrutura estoura um limite de risco do seu perfil e a receita acertou pouco no passado: a tese se confirmou em 25% das sugestões avaliadas. Há ainda um fato relevante recente sobre um processo, de tom negativo, então eu esperaria.",
+      "alerts": ["limit_breach", "weak_track_record", "recent_filing"],
+      "inputsCited": [
+        "ideas.2.engineAlerts.0",
+        "ideas.2.recipeTrackRecord.claimHeldShare",
+        "ideas.2.filings.0.summary"
+      ]
+    }
+  ]
+}

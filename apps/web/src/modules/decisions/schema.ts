@@ -15,12 +15,20 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { decisionKinds } from "@fetha/engine";
-import type { AnalysisOutlookClaim, CostModel, ThesisClaim } from "@fetha/contracts";
-import type { Score } from "@fetha/engine";
+import { analysisVerdicts } from "@fetha/contracts";
+import type {
+  AnalysisOutlookClaim,
+  CostModel,
+  ResearchAlert,
+  ResearchOutput,
+  ThesisClaim,
+} from "@fetha/contracts";
+import type { AssetReading, OperationPricing, Score } from "@fetha/engine";
 
 import { user } from "../auth/schema";
 import { signals, strategyVersions } from "../strategies/schema";
 import { contemplatedOperations, operations } from "../portfolio/schema";
+import type { DropReason, IdeaAlert, LotLeg } from "@/modules/radar";
 import { suggestions } from "../radar/schema";
 
 import {
@@ -74,6 +82,9 @@ export const decisions = pgTable(
     // is the user's, the suggestion every user's. `no action` on delete for the same reason as
     // `signal_id` above: the radar never rewrites a suggestion once an underlying is read.
     suggestionId: text("suggestion_id").references(() => suggestions.id),
+    // A stored idea of Fetha's research (docs/adr/0076): the user's own row, so the composite
+    // foreign key below binds it to this decision's user. `no action` on delete, like the others.
+    researchIdeaId: text("research_idea_id"),
     inputs: jsonb("inputs").$type<DecisionInputs>().notNull(),
     rationale: text("rationale").notNull(),
     claim: jsonb("claim").$type<ThesisClaim | null>(),
@@ -99,6 +110,15 @@ export const decisions = pgTable(
     uniqueIndex("decisions_user_id_suggestion_id_idx")
       .on(table.userId, table.suggestionId)
       .where(sql`${table.suggestionId} is not null`),
+    // An idea is answered once per user, like a suggestion (docs/adr/0076).
+    uniqueIndex("decisions_user_id_research_idea_id_idx")
+      .on(table.userId, table.researchIdeaId)
+      .where(sql`${table.researchIdeaId} is not null`),
+    foreignKey({
+      name: "decisions_research_idea_id_user_id_fk",
+      columns: [table.researchIdeaId, table.userId],
+      foreignColumns: [researchIdeas.id, researchIdeas.userId],
+    }),
     // Not a business constraint (the primary key already makes `id` unique
     // on its own): Postgres requires a unique constraint on exactly the
     // referenced column set before `decision_scores`' composite foreign key
@@ -124,10 +144,11 @@ export const decisions = pgTable(
     ),
     check(
       "decisions_origin_match_check",
-      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null and ${table.operationId} is null and ${table.suggestionId} is null)
-        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null and ${table.operationId} is null and ${table.suggestionId} is null)
-        or (${table.originKind} = 'held_operation' and ${table.operationId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.suggestionId} is null)
-        or (${table.originKind} = 'suggestion' and ${table.suggestionId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.operationId} is null)`,
+      sql`(${table.originKind} = 'signal' and ${table.signalId} is not null and ${table.contemplatedOperationId} is null and ${table.operationId} is null and ${table.suggestionId} is null and ${table.researchIdeaId} is null)
+        or (${table.originKind} = 'contemplated_operation' and ${table.contemplatedOperationId} is not null and ${table.signalId} is null and ${table.operationId} is null and ${table.suggestionId} is null and ${table.researchIdeaId} is null)
+        or (${table.originKind} = 'held_operation' and ${table.operationId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.suggestionId} is null and ${table.researchIdeaId} is null)
+        or (${table.originKind} = 'suggestion' and ${table.suggestionId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.operationId} is null and ${table.researchIdeaId} is null)
+        or (${table.originKind} = 'research_idea' and ${table.researchIdeaId} is not null and ${table.signalId} is null and ${table.contemplatedOperationId} is null and ${table.operationId} is null and ${table.suggestionId} is null)`,
     ),
     check("decisions_rationale_not_blank_check", sql`length(trim(${table.rationale})) > 0`),
     check(
@@ -270,7 +291,7 @@ export const analysisResults = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     requestId: text("request_id").notNull().unique(),
     outcome: text("outcome").notNull(),
-    output: jsonb("output").$type<StoredAnalysisOutput | null>(),
+    output: jsonb("output").$type<StoredAnalysisOutput | ResearchOutput | null>(),
     reason: jsonb("reason").$type<AnalysisReason | null>(),
     model: text("model"),
     inputTokens: integer("input_tokens"),
@@ -343,6 +364,124 @@ export const analysisScores = pgTable(
     }),
     check(
       "analysis_scores_score_xor_unscorable_check",
+      sql`(${table.score} is not null and ${table.unscorableReason} is null)
+        or (${table.score} is null and ${table.unscorableReason} is not null)`,
+    ),
+  ],
+);
+
+// The id is drawn before the request is reserved and doubles as that request's `subject_id`.
+export const suggestionResearches = pgTable(
+  "suggestion_researches",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    analysisRequestId: text("analysis_request_id").notNull(),
+    newestClose: date("newest_close", { mode: "string" }).notNull(),
+    sessionsLooked: integer("sessions_looked").notNull(),
+    candidates: integer("candidates").notNull(),
+    dropped: jsonb("dropped").$type<Record<DropReason, number>>().notNull(),
+    usingDefaultProfile: boolean("using_default_profile").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("suggestion_researches_user_id_created_at_idx").on(table.userId, table.createdAt),
+    uniqueIndex("suggestion_researches_id_user_id_idx").on(table.id, table.userId),
+    uniqueIndex("suggestion_researches_analysis_request_id_idx").on(table.analysisRequestId),
+    foreignKey({
+      name: "suggestion_researches_request_id_user_id_fk",
+      columns: [table.analysisRequestId, table.userId],
+      foreignColumns: [analysisRequests.id, analysisRequests.userId],
+    }),
+    check(
+      "suggestion_researches_counts_check",
+      sql`${table.sessionsLooked} >= 0 and ${table.candidates} >= 0`,
+    ),
+  ],
+);
+
+// `newest_close` repeats the research's so the horizon check can live in the table.
+export const researchIdeas = pgTable(
+  "research_ideas",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    researchId: text("research_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    underlying: text("underlying").notNull(),
+    recipeId: text("recipe_id").notNull(),
+    foundOn: date("found_on", { mode: "string" }).notNull(),
+    // The suggestion the radar filed this finding as, when it did; shared reference data.
+    suggestionId: text("suggestion_id").references(() => suggestions.id),
+    newestClose: date("newest_close", { mode: "string" }).notNull(),
+    sessionsToExpiry: integer("sessions_to_expiry").notNull(),
+    legs: jsonb("legs").$type<LotLeg[]>().notNull(),
+    pricing: jsonb("pricing").$type<OperationPricing>().notNull(),
+    reading: jsonb("reading").$type<AssetReading>().notNull(),
+    engineAlerts: jsonb("engine_alerts").$type<IdeaAlert[]>().notNull(),
+    verdict: text("verdict").notNull(),
+    justification: text("justification").notNull(),
+    aiAlerts: jsonb("ai_alerts").$type<ResearchAlert[]>().notNull(),
+    inputsCited: jsonb("inputs_cited").$type<string[]>().notNull(),
+    claim: jsonb("claim").$type<ThesisClaim>().notNull(),
+    horizon: date("horizon", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("research_ideas_research_id_position_idx").on(table.researchId, table.position),
+    uniqueIndex("research_ideas_id_user_id_idx").on(table.id, table.userId),
+    index("research_ideas_user_id_horizon_idx").on(table.userId, table.horizon),
+    foreignKey({
+      name: "research_ideas_research_id_user_id_fk",
+      columns: [table.researchId, table.userId],
+      foreignColumns: [suggestionResearches.id, suggestionResearches.userId],
+    }),
+    check("research_ideas_position_check", sql`${table.position} >= 0`),
+    check(
+      "research_ideas_verdict_check",
+      sql`${table.verdict} in (${sql.raw(analysisVerdicts.map((verdict) => `'${verdict}'`).join(", "))})`,
+    ),
+    check("research_ideas_horizon_after_close_check", sql`${table.horizon} > ${table.newestClose}`),
+  ],
+);
+
+export const researchIdeaScores = pgTable(
+  "research_idea_scores",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ideaId: text("idea_id").notNull(),
+    score: jsonb("score").$type<Score>(),
+    unscorableReason: text("unscorable_reason"),
+    claimHeld: boolean("claim_held"),
+    pnlCentavos: bigint("pnl_centavos", { mode: "number" }),
+    maxLossCentavos: bigint("max_loss_centavos", { mode: "number" }),
+    normalizedPnl: numeric("normalized_pnl", { mode: "string" }),
+    engineVersion: text("engine_version").notNull(),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("research_idea_scores_idea_id_idx").on(table.ideaId),
+    index("research_idea_scores_user_id_scored_at_idx").on(table.userId, table.scoredAt),
+    foreignKey({
+      name: "research_idea_scores_idea_id_user_id_fk",
+      columns: [table.ideaId, table.userId],
+      foreignColumns: [researchIdeas.id, researchIdeas.userId],
+    }),
+    check(
+      "research_idea_scores_score_xor_unscorable_check",
       sql`(${table.score} is not null and ${table.unscorableReason} is null)
         or (${table.score} is null and ${table.unscorableReason} is not null)`,
     ),

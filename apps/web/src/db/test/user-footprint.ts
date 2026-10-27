@@ -15,6 +15,9 @@ import {
   analysisScores,
   decisions,
   decisionScores,
+  researchIdeas,
+  researchIdeaScores,
+  suggestionResearches,
 } from "@/modules/decisions/schema";
 import {
   contemplatedOperations,
@@ -327,6 +330,87 @@ export async function seedUserFootprint(
     requestId: scoredRequest.id,
     unscorableReason: "footprint",
     engineVersion: "footprint",
+  });
+
+  const researchRequest = only(
+    await db
+      .insert(analysisRequests)
+      .values({
+        userId,
+        subjectKind: "research",
+        subjectId: `footprint-${tag}`,
+        inputs: { subject: "research", facts: { ideas: [] } },
+        promptVersion: "research@1",
+        model: "footprint",
+      })
+      .returning({ id: analysisRequests.id }),
+  );
+  await db.insert(analysisResults).values({
+    userId,
+    requestId: researchRequest.id,
+    outcome: "accepted",
+    output: {
+      overview: "footprint",
+      ideas: [
+        {
+          idea: "ideas.0",
+          verdict: "enter",
+          justification: "footprint",
+          alerts: [],
+          inputsCited: ["ideas.0"],
+        },
+      ],
+    },
+  });
+  const research = only(
+    await db
+      .insert(suggestionResearches)
+      .values({
+        userId,
+        analysisRequestId: researchRequest.id,
+        newestClose: "2026-09-25",
+        sessionsLooked: 3,
+        candidates: 1,
+        dropped: { unpriced: 0, expires_too_soon: 0, exceeds_capital: 0, not_evaluable: 0 },
+        usingDefaultProfile: true,
+      })
+      .returning({ id: suggestionResearches.id }),
+  );
+  const researchIdea = only(
+    await db
+      .insert(researchIdeas)
+      .values({
+        researchId: research.id,
+        userId,
+        position: 0,
+        underlying: "PETR4",
+        recipeId: "footprint",
+        foundOn: "2026-09-24",
+        newestClose: "2026-09-25",
+        sessionsToExpiry: 10,
+        legs: [] as never,
+        pricing: {} as never,
+        reading: {} as never,
+        engineAlerts: [],
+        verdict: "enter",
+        justification: "footprint",
+        aiAlerts: [],
+        inputsCited: ["ideas.0"],
+        claim: { kind: "operation_pnl_positive" },
+        horizon: "2026-10-09",
+      })
+      .returning({ id: researchIdeas.id }),
+  );
+  await db.insert(researchIdeaScores).values({
+    userId,
+    ideaId: researchIdea.id,
+    unscorableReason: "footprint",
+    engineVersion: "footprint",
+  });
+  await db.insert(decisions).values({
+    ...decisionBase,
+    originKind: "research_idea",
+    researchIdeaId: researchIdea.id,
   });
 
   return { strategyId, strategyVersionId, cleanup: seen.cleanup };

@@ -1,16 +1,18 @@
 import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
-import { analysisSubjectKinds } from "@fetha/contracts";
+import { analysisObjectKinds, analysisSubjectKinds } from "@fetha/contracts";
 
 import * as analysisV1 from "./analysis/v1";
 import * as analysisV2 from "./analysis/v2";
 import * as analysisV3 from "./analysis/v3";
 import * as filingLabelV1 from "./filing-label/v1";
-import { analysisPrompt, filingLabelPrompt } from "./index";
+import * as researchV1 from "./research/v1";
+import { analysisPrompt, filingLabelPrompt, researchPrompt } from "./index";
 
 const releasedBeforeSuggestions = analysisSubjectKinds.filter(
-  (subject): subject is analysisV2.ReleasedSubject => subject !== "suggestion",
+  (subject): subject is analysisV2.ReleasedSubject =>
+    subject !== "suggestion" && subject !== "research",
 );
 
 // A released prompt's text never changes: editing it means adding a new
@@ -26,7 +28,7 @@ function digest(prompt: typeof analysisV1 | typeof analysisV2): string {
 }
 
 function digestV3(): string {
-  const rendered = analysisSubjectKinds.map((subject) => analysisV3.render({ subject, facts: {} }));
+  const rendered = analysisObjectKinds.map((subject) => analysisV3.render({ subject, facts: {} }));
   return createHash("sha256")
     .update([analysisV3.system, ...rendered].join("\n\u0000\n"))
     .digest("hex");
@@ -55,6 +57,24 @@ describe("released prompt versions", () => {
   it("new requests use analysis@3", () => {
     expect(analysisPrompt.version).toBe(analysisV3.version);
     expect(analysisPrompt.system).toBe(analysisV3.system);
+  });
+
+  it("research@1 is frozen", () => {
+    expect(researchV1.version).toBe("research@1");
+    expect(
+      createHash("sha256")
+        .update(
+          [researchV1.system, researchV1.render({ subject: "research", facts: {} })].join(
+            "\n\u0000\n",
+          ),
+        )
+        .digest("hex"),
+    ).toBe("a11248d197007f9a640542d91a88188c85ad1b15a3f568de6889e4b3363192a2");
+  });
+
+  it("new researches use research@1", () => {
+    expect(researchPrompt.version).toBe(researchV1.version);
+    expect(researchPrompt.system).toBe(researchV1.system);
   });
 
   it("filing-label@1 is frozen", () => {

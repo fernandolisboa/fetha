@@ -1,0 +1,521 @@
+{
+  "subject": "research",
+  "facts": {
+    "newestClose": "26/10/2026",
+    "ideas": [
+      {
+        "underlying": "PETR4",
+        "structure": "Trava de alta com calls",
+        "foundOn": "23/10/2026",
+        "ruleHolds": "yes",
+        "expiry": "20/11/2026",
+        "sessionsToExpiry": "19 sessões",
+        "recipe": {
+          "expectedMove": "up",
+          "ivRegime": "low",
+          "entry": {
+            "kind": "and",
+            "conditions": [
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "price",
+                  "field": "close"
+                },
+                "comparator": ">",
+                "right": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "sma",
+                    "length": "50"
+                  }
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "rsi",
+                    "length": "14"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "70"
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "iv_rank",
+                    "lookbackSessions": "63"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "50"
+                }
+              }
+            ]
+          },
+          "exit": [
+            {
+              "kind": "profit_target",
+              "fractionOfPremium": "0,5"
+            },
+            {
+              "kind": "stop_loss",
+              "multipleOfMaxLoss": "0,5"
+            },
+            {
+              "kind": "days_before_expiry",
+              "businessDays": "5"
+            }
+          ]
+        },
+        "reading": {
+          "trend": "up",
+          "momentum": "neutral",
+          "range": "normal",
+          "impliedVolatility": "low",
+          "options": "liquid"
+        },
+        "tradedSeries": "42 séries negociadas",
+        "engineAlerts": [],
+        "pricing": {
+          "spot": "R$ 31,20",
+          "riskFreeRate": "10,65% a.a.",
+          "dividendYield": "0,00% a.a.",
+          "netPremium": "−R$ 120,00",
+          "maxLoss": "−R$ 120,00",
+          "maxGain": "R$ 80,00",
+          "breakEvens": ["R$ 32,20"],
+          "greeks": {
+            "delta": "18,40",
+            "gamma": "2,10",
+            "theta": "−0,85",
+            "vega": "3,20",
+            "rho": "1,05"
+          },
+          "legs": [
+            {
+              "role": "call",
+              "side": "buy",
+              "ticker": "PETRK310",
+              "quantity": "100",
+              "price": "R$ 1,90",
+              "priceSource": "close",
+              "stale": null,
+              "fairValue": "R$ 1,85",
+              "impliedVolatility": "31,20%",
+              "greeks": {
+                "delta": "0,55",
+                "gamma": "0,12",
+                "theta": "−0,02",
+                "vega": "0,04",
+                "rho": "0,01"
+              }
+            },
+            {
+              "role": "call",
+              "side": "sell",
+              "ticker": "PETRK330",
+              "quantity": "100",
+              "price": "R$ 0,70",
+              "priceSource": "close",
+              "stale": null,
+              "fairValue": "R$ 0,72",
+              "impliedVolatility": "29,80%",
+              "greeks": {
+                "delta": "0,37",
+                "gamma": "0,10",
+                "theta": "−0,01",
+                "vega": "0,03",
+                "rho": "0,01"
+              }
+            }
+          ],
+          "payoff": [
+            {
+              "underlying": "R$ 29,00",
+              "pnl": "−R$ 120,00"
+            },
+            {
+              "underlying": "R$ 31,00",
+              "pnl": "−R$ 120,00"
+            },
+            {
+              "underlying": "R$ 32,20",
+              "pnl": "R$ 0,00"
+            },
+            {
+              "underlying": "R$ 33,00",
+              "pnl": "R$ 80,00"
+            },
+            {
+              "underlying": "R$ 35,00",
+              "pnl": "R$ 80,00"
+            }
+          ],
+          "limitBreaches": [],
+          "notes": ["european_pricing"]
+        },
+        "recipeTrackRecord": {
+          "scored": "12",
+          "claimHeldShare": "58,33%",
+          "pnlPerLot": "R$ 340,00"
+        },
+        "filings": [
+          {
+            "date": "20/10/2026",
+            "topic": "dividends",
+            "tone": "positive",
+            "summary": "A empresa anunciou o pagamento de proventos aos acionistas."
+          }
+        ],
+        "newsTone": {
+          "averageTone": "0,35",
+          "articles": "18",
+          "window": "30 dias"
+        },
+        "providerNews": null
+      },
+      {
+        "underlying": "VALE3",
+        "structure": "Compra de call",
+        "foundOn": "21/10/2026",
+        "ruleHolds": "no",
+        "expiry": "20/11/2026",
+        "sessionsToExpiry": "19 sessões",
+        "recipe": {
+          "expectedMove": "up",
+          "ivRegime": "low",
+          "entry": {
+            "kind": "and",
+            "conditions": [
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "price",
+                  "field": "close"
+                },
+                "comparator": ">",
+                "right": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "sma",
+                    "length": "50"
+                  }
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "rsi",
+                    "length": "14"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "70"
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "iv_rank",
+                    "lookbackSessions": "63"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "50"
+                }
+              }
+            ]
+          },
+          "exit": [
+            {
+              "kind": "profit_target",
+              "fractionOfPremium": "0,5"
+            },
+            {
+              "kind": "stop_loss",
+              "multipleOfMaxLoss": "0,5"
+            },
+            {
+              "kind": "days_before_expiry",
+              "businessDays": "5"
+            }
+          ]
+        },
+        "reading": {
+          "trend": "down",
+          "momentum": "oversold",
+          "range": "wide",
+          "impliedVolatility": "high",
+          "options": "thin"
+        },
+        "tradedSeries": "6 séries negociadas",
+        "engineAlerts": ["rule_no_longer_holds"],
+        "pricing": {
+          "spot": "R$ 65,00",
+          "riskFreeRate": "10,65% a.a.",
+          "dividendYield": "0,00% a.a.",
+          "netPremium": "−R$ 300,00",
+          "maxLoss": "−R$ 300,00",
+          "maxGain": "ilimitado",
+          "breakEvens": ["R$ 68,00"],
+          "greeks": {
+            "delta": "55,00",
+            "gamma": "4,00",
+            "theta": "−1,20",
+            "vega": "6,00",
+            "rho": "2,00"
+          },
+          "legs": [
+            {
+              "role": "call",
+              "side": "buy",
+              "ticker": "VALEK680",
+              "quantity": "100",
+              "price": "R$ 3,00",
+              "priceSource": "close",
+              "stale": null,
+              "fairValue": "R$ 2,80",
+              "impliedVolatility": "38,50%",
+              "greeks": {
+                "delta": "0,55",
+                "gamma": "0,04",
+                "theta": "−0,01",
+                "vega": "0,06",
+                "rho": "0,02"
+              }
+            }
+          ],
+          "payoff": [
+            {
+              "underlying": "R$ 60,00",
+              "pnl": "−R$ 300,00"
+            },
+            {
+              "underlying": "R$ 68,00",
+              "pnl": "R$ 0,00"
+            },
+            {
+              "underlying": "R$ 75,00",
+              "pnl": "R$ 400,00"
+            }
+          ],
+          "limitBreaches": [],
+          "notes": []
+        },
+        "recipeTrackRecord": null,
+        "filings": null,
+        "newsTone": {
+          "averageTone": "−1,80",
+          "articles": "25",
+          "window": "30 dias"
+        },
+        "providerNews": null
+      },
+      {
+        "underlying": "BBAS3",
+        "structure": "Trava de baixa com puts",
+        "foundOn": "26/10/2026",
+        "ruleHolds": "yes",
+        "expiry": "20/11/2026",
+        "sessionsToExpiry": "19 sessões",
+        "recipe": {
+          "expectedMove": "down",
+          "ivRegime": "low",
+          "entry": {
+            "kind": "and",
+            "conditions": [
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "price",
+                  "field": "close"
+                },
+                "comparator": ">",
+                "right": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "sma",
+                    "length": "50"
+                  }
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "rsi",
+                    "length": "14"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "70"
+                }
+              },
+              {
+                "kind": "compare",
+                "left": {
+                  "kind": "indicator",
+                  "indicator": {
+                    "kind": "iv_rank",
+                    "lookbackSessions": "63"
+                  }
+                },
+                "comparator": "<",
+                "right": {
+                  "kind": "constant",
+                  "value": "50"
+                }
+              }
+            ]
+          },
+          "exit": [
+            {
+              "kind": "profit_target",
+              "fractionOfPremium": "0,5"
+            },
+            {
+              "kind": "stop_loss",
+              "multipleOfMaxLoss": "0,5"
+            },
+            {
+              "kind": "days_before_expiry",
+              "businessDays": "5"
+            }
+          ]
+        },
+        "reading": {
+          "trend": "sideways",
+          "momentum": "neutral",
+          "range": "calm",
+          "impliedVolatility": "low",
+          "options": "liquid"
+        },
+        "tradedSeries": "15 séries negociadas",
+        "engineAlerts": ["maxLossPerOperation"],
+        "pricing": {
+          "spot": "R$ 27,40",
+          "riskFreeRate": "10,65% a.a.",
+          "dividendYield": "0,00% a.a.",
+          "netPremium": "−R$ 150,00",
+          "maxLoss": "−R$ 150,00",
+          "maxGain": "R$ 50,00",
+          "breakEvens": ["R$ 25,50"],
+          "greeks": {
+            "delta": "−12,00",
+            "gamma": "1,50",
+            "theta": "−0,40",
+            "vega": "2,10",
+            "rho": "−0,60"
+          },
+          "legs": [
+            {
+              "role": "put",
+              "side": "buy",
+              "ticker": "BBASW270",
+              "quantity": "100",
+              "price": "R$ 1,90",
+              "priceSource": "close",
+              "stale": null,
+              "fairValue": "R$ 1,88",
+              "impliedVolatility": "27,00%",
+              "greeks": {
+                "delta": "−0,45",
+                "gamma": "0,10",
+                "theta": "−0,01",
+                "vega": "0,03",
+                "rho": "−0,01"
+              }
+            },
+            {
+              "role": "put",
+              "side": "sell",
+              "ticker": "BBASW250",
+              "quantity": "100",
+              "price": "R$ 0,40",
+              "priceSource": "close",
+              "stale": null,
+              "fairValue": "R$ 0,41",
+              "impliedVolatility": "26,00%",
+              "greeks": {
+                "delta": "−0,12",
+                "gamma": "0,06",
+                "theta": "−0,01",
+                "vega": "0,01",
+                "rho": "0,00"
+              }
+            }
+          ],
+          "payoff": [
+            {
+              "underlying": "R$ 24,00",
+              "pnl": "R$ 50,00"
+            },
+            {
+              "underlying": "R$ 25,50",
+              "pnl": "R$ 0,00"
+            },
+            {
+              "underlying": "R$ 27,00",
+              "pnl": "−R$ 150,00"
+            },
+            {
+              "underlying": "R$ 30,00",
+              "pnl": "−R$ 150,00"
+            }
+          ],
+          "limitBreaches": ["maxLossPerOperation"],
+          "notes": []
+        },
+        "recipeTrackRecord": {
+          "scored": "4",
+          "claimHeldShare": "25%",
+          "pnlPerLot": "−R$ 210,00"
+        },
+        "filings": [
+          {
+            "date": "15/10/2026",
+            "topic": "litigation",
+            "tone": "negative",
+            "summary": "A empresa informou que passou a responder a um processo relevante."
+          },
+          {
+            "date": "02/10/2026",
+            "topic": "management",
+            "tone": "neutral",
+            "summary": "A empresa comunicou a troca de um dos diretores."
+          }
+        ],
+        "newsTone": null,
+        "providerNews": [
+          {
+            "date": "25/10/2026",
+            "title": "Banco enfrenta pressão sobre a margem no trimestre",
+            "sentiment": "−0,40"
+          }
+        ]
+      }
+    ]
+  }
+}

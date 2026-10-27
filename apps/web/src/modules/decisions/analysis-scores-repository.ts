@@ -171,7 +171,7 @@ export class AnalysisScoresRepository extends UserScopedRepository {
     return computeAnalysisTrackRecordStats(
       rows.map(({ output, ...row }) => ({
         ...row,
-        likelihood: output ? (outlookOf(output)?.likelihood ?? null) : null,
+        likelihood: output && "thesis" in output ? (outlookOf(output)?.likelihood ?? null) : null,
       })),
     );
   }

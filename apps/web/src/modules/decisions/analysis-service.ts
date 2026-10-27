@@ -2,18 +2,23 @@ import {
   checkAnalysisCitations,
   checkAnalysisVerdict,
   resolveAnalysisOutlook,
+  type AnalysisInputs,
+  type AnalysisObjectKind,
   type AnalysisOutlookHorizon,
+  type AnalysisSubjectKind,
   type ModelFamily,
   type SessionDate,
 } from "@fetha/contracts";
 import { analysisPrompt } from "@fetha/prompts";
+import type { ZodType } from "zod";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 
 import { assembleAnalysisInputs, type AssembleAnalysisInputsResult } from "./analysis-inputs";
 import { resolveOutlookHorizon } from "./analysis-horizon";
-import type { AnalysisModelClient } from "./analysis-model";
+import type { AnalysisModelClient, AnalysisUsage } from "./analysis-model";
+import type { AnalysisReason } from "./analysis-reason";
 import {
   AnalysesRepository,
   AnalysisCapReachedError,
@@ -34,7 +39,7 @@ export type RequestAnalysisResult =
   | { status: "rejected" }
   | { status: "failed" };
 
-interface AnalysisRepositoryPort {
+export interface AnalysisRepositoryPort {
   reserve: (input: ReserveAnalysisInput) => Promise<{ id: string; requestedAt: Date }>;
   complete: (requestId: string, result: CompleteAnalysisInput) => Promise<void>;
 }
@@ -54,7 +59,7 @@ export interface RequestAnalysisDeps {
   // user-scoped query (docs/adr/0057's own ownership check), the fake used
   // by those tests exercises every branch below it without a database.
   assemble?: (
-    subjectKind: Parameters<typeof assembleAnalysisInputs>[0],
+    subjectKind: AnalysisObjectKind,
     subjectId: string,
   ) => Promise<AssembleAnalysisInputsResult>;
   repository?: AnalysisRepositoryPort;
@@ -65,14 +70,14 @@ export interface RequestAnalysisDeps {
 }
 
 export interface RequestAnalysisInput {
-  subjectKind: Parameters<typeof assembleAnalysisInputs>[0];
+  subjectKind: AnalysisObjectKind;
   subjectId: string;
 }
 
 async function completeFailed(
   repository: AnalysisRepositoryPort,
   requestId: string,
-  reason: CompleteAnalysisInput["reason"],
+  reason: AnalysisReason,
 ): Promise<void> {
   await repository.complete(requestId, {
     outcome: "failed",
@@ -84,12 +89,12 @@ async function completeFailed(
   });
 }
 
-async function completeRejected(
+export async function completeRejected(
   repository: AnalysisRepositoryPort,
   requestId: string,
-  reason: CompleteAnalysisInput["reason"],
+  reason: AnalysisReason,
   model: string,
-  usage: { inputTokens: number; outputTokens: number },
+  usage: AnalysisUsage,
 ): Promise<void> {
   await repository.complete(requestId, {
     outcome: "rejected",
@@ -99,6 +104,106 @@ async function completeRejected(
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
   });
+}
+
+export interface AnalysisContract<Output, Inputs extends AnalysisInputs> {
+  version: string;
+  system: string;
+  render: (inputs: Inputs) => string;
+  outputSchema: ZodType<Output>;
+  maxOutputTokens?: number;
+}
+
+export interface AskUnderCapDeps {
+  client: AnalysisModelClient;
+  model: string;
+  family: ModelFamily;
+  onRejected?: (modelId: string) => void;
+}
+
+export type AskUnderCapResult<Output> =
+  | { status: "cap_reached" | "rejected" | "failed" }
+  | {
+      status: "parsed";
+      requestId: string;
+      requestedAt: Date;
+      output: Output;
+      model: string;
+      usage: AnalysisUsage;
+    };
+
+// ADR-0057's reservation and classification, shared by every contract that asks the model
+// (a single object's analysis, a research's verdicts, docs/adr/0076): reserve a request under this
+// user's monthly cap, call the model, and settle every outcome that is not a reply meeting the
+// contract's schema (a refusal, a truncation, a missing reply, a schema failure) before handing
+// the parsed reply back for the contract's own checks.
+export async function askUnderCap<Output, Inputs extends AnalysisInputs>(
+  deps: AskUnderCapDeps,
+  repository: AnalysisRepositoryPort,
+  request: { subjectKind: AnalysisSubjectKind; subjectId: string; inputs: Inputs },
+  contract: AnalysisContract<Output, Inputs>,
+): Promise<AskUnderCapResult<Output>> {
+  let requestId: string;
+  let requestedAt: Date;
+  try {
+    const reserved = await repository.reserve({
+      subjectKind: request.subjectKind,
+      subjectId: request.subjectId,
+      inputs: request.inputs,
+      promptVersion: contract.version,
+      model: deps.model,
+    });
+    requestId = reserved.id;
+    requestedAt = reserved.requestedAt;
+  } catch (error) {
+    if (error instanceof AnalysisCapReachedError) {
+      return { status: "cap_reached" };
+    }
+    throw error;
+  }
+
+  const reply = await deps.client.analyze({
+    model: deps.model,
+    family: deps.family,
+    system: contract.system,
+    user: contract.render(request.inputs),
+    outputSchema: contract.outputSchema,
+    maxOutputTokens: contract.maxOutputTokens,
+    onRejected: deps.onRejected,
+  });
+
+  if (reply.kind === "refusal") {
+    await completeRejected(repository, requestId, { kind: "refusal" }, reply.model, reply.usage);
+    return { status: "rejected" };
+  }
+  if (reply.kind === "incomplete") {
+    await completeRejected(
+      repository,
+      requestId,
+      { kind: "incomplete", stopReason: reply.stopReason },
+      reply.model,
+      reply.usage,
+    );
+    return { status: "rejected" };
+  }
+  if (reply.kind === "api_error") {
+    await completeFailed(repository, requestId, { kind: "api_error", status: reply.status });
+    return { status: "failed" };
+  }
+
+  const parsed = contract.outputSchema.safeParse(reply.output);
+  if (!parsed.success) {
+    await completeRejected(repository, requestId, { kind: "schema" }, reply.model, reply.usage);
+    return { status: "rejected" };
+  }
+  return {
+    status: "parsed",
+    requestId,
+    requestedAt,
+    output: parsed.data,
+    model: reply.model,
+    usage: reply.usage,
+  };
 }
 
 // ADR-0057's own pipeline: a null client answers `unavailable` before
@@ -123,61 +228,20 @@ export async function requestAnalysis(
 
   const repository: AnalysisRepositoryPort =
     deps.repository ?? new AnalysesRepository(deps.db, deps.user);
-  const model = deps.model;
 
-  let requestId: string;
-  let requestedAt: Date;
-  try {
-    const reserved = await repository.reserve({
-      subjectKind: input.subjectKind,
-      subjectId: input.subjectId,
-      inputs: assembled.inputs,
-      promptVersion: analysisPrompt.version,
-      model,
-    });
-    requestId = reserved.id;
-    requestedAt = reserved.requestedAt;
-  } catch (error) {
-    if (error instanceof AnalysisCapReachedError) {
-      return { status: "cap_reached" };
-    }
-    throw error;
+  const asked = await askUnderCap(
+    { ...deps, client: deps.client },
+    repository,
+    { subjectKind: input.subjectKind, subjectId: input.subjectId, inputs: assembled.inputs },
+    analysisPrompt,
+  );
+  if (asked.status !== "parsed") {
+    return { status: asked.status };
   }
+  const { requestId, requestedAt, output, model, usage } = asked;
+  const reply = { model, usage };
 
-  const reply = await deps.client.analyze({
-    model,
-    family: deps.family,
-    system: analysisPrompt.system,
-    user: analysisPrompt.render(assembled.inputs),
-    onRejected: deps.onRejected,
-  });
-
-  if (reply.kind === "refusal") {
-    await completeRejected(repository, requestId, { kind: "refusal" }, reply.model, reply.usage);
-    return { status: "rejected" };
-  }
-  if (reply.kind === "incomplete") {
-    await completeRejected(
-      repository,
-      requestId,
-      { kind: "incomplete", stopReason: reply.stopReason },
-      reply.model,
-      reply.usage,
-    );
-    return { status: "rejected" };
-  }
-  if (reply.kind === "api_error") {
-    await completeFailed(repository, requestId, { kind: "api_error", status: reply.status });
-    return { status: "failed" };
-  }
-
-  const parsed = analysisPrompt.outputSchema.safeParse(reply.output);
-  if (!parsed.success) {
-    await completeRejected(repository, requestId, { kind: "schema" }, reply.model, reply.usage);
-    return { status: "rejected" };
-  }
-
-  const citation = checkAnalysisCitations(assembled.inputs, parsed.data);
+  const citation = checkAnalysisCitations(assembled.inputs, output);
   if (!citation.ok) {
     await completeRejected(
       repository,
@@ -193,7 +257,7 @@ export async function requestAnalysis(
     return { status: "rejected" };
   }
 
-  const verdict = checkAnalysisVerdict(input.subjectKind, parsed.data);
+  const verdict = checkAnalysisVerdict(input.subjectKind, output);
   if (!verdict.ok) {
     await completeRejected(
       repository,
@@ -206,8 +270,8 @@ export async function requestAnalysis(
   }
 
   let claim: AnalysisClaim | null = null;
-  if (parsed.data.outlook !== null) {
-    const outlook = resolveAnalysisOutlook(assembled.inputs, parsed.data.outlook);
+  if (output.outlook !== null) {
+    const outlook = resolveAnalysisOutlook(assembled.inputs, output.outlook);
     if (!outlook.ok) {
       await completeRejected(
         repository,
@@ -232,7 +296,7 @@ export async function requestAnalysis(
 
   await repository.complete(requestId, {
     outcome: "accepted",
-    output: parsed.data,
+    output,
     reason: null,
     model: reply.model,
     inputTokens: reply.usage.inputTokens,
@@ -246,7 +310,7 @@ export async function requestAnalysis(
       requestedAt,
       promptVersion: analysisPrompt.version,
       model: reply.model,
-      output: parsed.data,
+      output,
       inputs: assembled.inputs,
     },
   };

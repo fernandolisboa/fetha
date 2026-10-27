@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import {
   centavosSchema,
   decimalStringSchema,
+  quantitySchema,
   sessionDateSchema,
   tickerSchema,
 } from "@fetha/contracts";
 import { assetReadingThresholds, type AssetReading } from "@fetha/engine";
 
-import type { Idea } from "../research";
+import type { IdeaCard } from "../research";
 import { ResearchIdeaCard } from "./research-idea-card";
 
 const decimal = (value: string) => decimalStringSchema.parse(value);
@@ -39,7 +40,7 @@ const reading: AssetReading = {
   },
 };
 
-function idea(overrides: Partial<Idea> = {}): Idea {
+function idea(overrides: Partial<IdeaCard> = {}): IdeaCard {
   return {
     underlying: tickerSchema.parse("PETR4"),
     recipeId: "bull-call-spread-low-iv",
@@ -54,7 +55,7 @@ function idea(overrides: Partial<Idea> = {}): Idea {
         ticker: tickerSchema.parse("PETRK385"),
         strike: decimal("38.5"),
         expiry: sessionDateSchema.parse("2026-11-20"),
-        quantity: 100,
+        quantity: quantitySchema.parse(100),
         price: decimal("1.20"),
       },
       {
@@ -63,7 +64,7 @@ function idea(overrides: Partial<Idea> = {}): Idea {
         ticker: tickerSchema.parse("PETRK405"),
         strike: decimal("40.5"),
         expiry: sessionDateSchema.parse("2026-11-20"),
-        quantity: 100,
+        quantity: quantitySchema.parse(100),
         price: decimal("0.50"),
       },
     ],
@@ -78,7 +79,7 @@ function idea(overrides: Partial<Idea> = {}): Idea {
   };
 }
 
-function render(value: Idea, options: { stale?: boolean } = {}): string {
+function render(value: IdeaCard, options: { stale?: boolean } = {}): string {
   return renderToStaticMarkup(createElement(ResearchIdeaCard, { idea: value, ...options }));
 }
 

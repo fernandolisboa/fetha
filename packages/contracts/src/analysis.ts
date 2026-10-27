@@ -16,9 +16,23 @@ export const analysisSubjectKinds = [
   "held_operation",
   "backtest_run",
   "suggestion",
+  "research",
 ] as const;
 export const analysisSubjectKindSchema = z.enum(analysisSubjectKinds);
 export type AnalysisSubjectKind = z.infer<typeof analysisSubjectKindSchema>;
+
+// The subjects a user asks about one at a time (docs/adr/0057). `research` is one call over the
+// whole set of a research's ideas (docs/adr/0076): it has its own prompt, contract and checks and
+// is never requested through the single-object analysis action.
+export const analysisObjectKinds = [
+  "signal",
+  "contemplated_operation",
+  "held_operation",
+  "backtest_run",
+  "suggestion",
+] as const satisfies readonly AnalysisSubjectKind[];
+export const analysisObjectKindSchema = z.enum(analysisObjectKinds);
+export type AnalysisObjectKind = z.infer<typeof analysisObjectKindSchema>;
 
 // A fact is what the screen shows (docs/adr/0057): every leaf is already a
 // pt-BR display string ("R$ 1.234,56", "2,08%", "17/10/2026") or null, so the
@@ -269,16 +283,24 @@ export function checkAnalysisCitations(
   inputs: AnalysisInputs,
   output: StoredAnalysisOutput,
 ): AnalysisCitationCheck {
+  return checkProseCitations(inputs, outputProse(output), output.inputsCited);
+}
+
+// The one rule behind every contract that writes prose over facts (docs/adr/0057, 0076): each
+// figure in `prose` is a figure of the facts, and each `cited` path names a fact.
+export function checkProseCitations(
+  inputs: AnalysisInputs,
+  prose: readonly string[],
+  cited: readonly string[],
+): AnalysisCitationCheck {
   const known = new Set(collectFactStrings(inputs.facts).flatMap(figureKeys));
   const uncitedFigures = unique(
-    outputProse(output)
+    prose
       .flatMap(figuresIn)
       .filter((figure) => !figure.keys.some((key) => known.has(key)))
       .map((figure) => figure.text),
   );
-  const unknownPaths = unique(
-    output.inputsCited.filter((path) => factAt(inputs.facts, path) === undefined),
-  );
+  const unknownPaths = unique(cited.filter((path) => factAt(inputs.facts, path) === undefined));
   return uncitedFigures.length === 0 && unknownPaths.length === 0
     ? { ok: true }
     : { ok: false, uncitedFigures, unknownPaths };

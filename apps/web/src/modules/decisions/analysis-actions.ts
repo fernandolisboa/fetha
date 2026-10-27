@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { analysisSubjectKinds } from "@fetha/contracts";
+import { analysisObjectKinds } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import {
@@ -17,7 +17,7 @@ import { createAnthropicAnalysisClient } from "./analysis-model";
 import { requestAnalysis, type AcceptedAnalysisView } from "./analysis-service";
 
 const requestInputSchema = z.strictObject({
-  subjectKind: z.enum(analysisSubjectKinds),
+  subjectKind: z.enum(analysisObjectKinds),
   subjectId: z.string().min(1).max(200),
 });
 

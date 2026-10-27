@@ -1,9 +1,10 @@
 import { cache } from "react";
-import type { AnalysisSubjectKind } from "@fetha/contracts";
+import { sessionDateSchema, type AnalysisObjectKind } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import { recordAccess } from "@/modules/audit";
 import { forCurrentUser } from "@/modules/auth";
+import { newestReadSession, recipeStructureById } from "@/modules/radar";
 
 import {
   AnalysesRepository,
@@ -22,6 +23,10 @@ import {
   type TrackRecordStats,
 } from "./decision-scores-repository";
 import { DecisionsRepository, type DecisionListItem } from "./decisions-repository";
+import { researchCalibration, type ResearchCalibration } from "./research-calibration";
+import { ResearchRepository } from "./research-repository";
+import { ResearchScoresRepository } from "./research-scores-repository";
+import { researchViewOf, type ResearchView } from "./research-view";
 
 export const getMyDecisions = cache(async (): Promise<DecisionListItem[]> => {
   const repository = await forCurrentUser(getDb(), DecisionsRepository);
@@ -91,7 +96,7 @@ export async function getMyDecisionsByHeldOperationId(
 // page of ids (docs/adr/0057): a subject with none yet is simply absent
 // from the map.
 export async function getMyLatestAnalyses(
-  subjectKind: AnalysisSubjectKind,
+  subjectKind: AnalysisObjectKind,
   subjectIds: readonly string[],
 ): Promise<Map<string, LatestAcceptedAnalysis>> {
   const repository = await forCurrentUser(getDb(), AnalysesRepository);
@@ -126,3 +131,40 @@ export const getMyAnalysisUsage = cache(async (): Promise<AnalysisUsage> => {
   await recordAccess("decisions_read");
   return repository.usageThisMonth();
 });
+
+export async function getMyCurrentResearch(): Promise<ResearchView | null> {
+  const db = getDb();
+  const newest = await newestReadSession(db);
+  if (newest === null) return null;
+  const repository = await forCurrentUser(db, ResearchRepository);
+  await recordAccess("decisions_read");
+  const research = await repository.latest();
+  if (!research || research.newestClose !== newest) return null;
+  const decisions = await (
+    await forCurrentUser(db, DecisionsRepository)
+  ).findForResearchIdeas(research.ideas.map((idea) => idea.id));
+  return researchViewOf({
+    research,
+    decisions,
+    newestReadSession: sessionDateSchema.parse(newest),
+  });
+}
+
+export async function getMyResearchCalibration(): Promise<ResearchCalibration> {
+  const repository = await forCurrentUser(getDb(), ResearchScoresRepository);
+  await recordAccess("decisions_read");
+  return researchCalibration(await repository.allMine());
+}
+
+export async function getMyResearchIdeaLot(ideaId: string) {
+  const repository = await forCurrentUser(getDb(), ResearchRepository);
+  await recordAccess("decisions_read");
+  const idea = await repository.findIdea(ideaId);
+  const structure = idea ? recipeStructureById(idea.recipeId) : null;
+  if (!idea || !structure) return null;
+  return {
+    underlying: idea.underlying,
+    structureId: structure.id,
+    legs: idea.legs.map(({ role, side, ticker, quantity }) => ({ role, side, ticker, quantity })),
+  };
+}

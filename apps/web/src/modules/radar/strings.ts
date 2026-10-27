@@ -105,9 +105,6 @@ const en = {
   },
   research: {
     button: "Get suggestions",
-    pending: "Researching…",
-    hint: (sessions: number) =>
-      `Re-checks what the radar found over its last ${String(sessions)} sessions against the latest close and your risk limits. Nothing is saved.`,
     holdingTitle: "Still valid today",
     noLongerTitle: "No longer valid",
     summary: (candidates: number, sessions: number) =>
@@ -287,9 +284,6 @@ const ptBR = {
   },
   research: {
     button: "Obter sugestões",
-    pending: "Pesquisando…",
-    hint: (sessions: number) =>
-      `Confere o que o radar encontrou nos últimos ${String(sessions)} pregões com o fechamento mais recente e com os seus limites de risco. Nada fica salvo.`,
     holdingTitle: "Ainda valem hoje",
     noLongerTitle: "Deixaram de valer",
     summary: (candidates: number, sessions: number) =>

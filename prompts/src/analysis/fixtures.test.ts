@@ -19,7 +19,8 @@ function read(path: string): unknown {
 
 function inputsOf(name: string): AnalysisInputs & { subject: ReleasedSubject } {
   const inputs = analysisInputsSchema.parse(read(`${name}/inputs.json`));
-  if (inputs.subject === "suggestion") throw new Error(`${name}: not a released subject`);
+  if (inputs.subject === "suggestion" || inputs.subject === "research")
+    throw new Error(`${name}: not a released subject`);
   return { ...inputs, subject: inputs.subject };
 }
 

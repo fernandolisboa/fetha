@@ -24,6 +24,7 @@ export interface RecordDecisionInput {
   contemplatedOperationId: string | null;
   operationId?: string | null;
   suggestionId?: string | null;
+  researchIdeaId?: string | null;
   strategyVersionId: string | null;
   inputs: DecisionInputs;
   rationale: string;
@@ -61,6 +62,7 @@ export interface DecisionListItem {
   contemplatedOperationId: string | null;
   operationId: string | null;
   suggestionId: string | null;
+  researchIdeaId: string | null;
 }
 
 // Thrown on the unique partial index over (user_id, signal_id): a signal is
@@ -116,6 +118,7 @@ function toDecisionListItem(row: typeof decisions.$inferSelect): DecisionListIte
     contemplatedOperationId: row.contemplatedOperationId,
     operationId: row.operationId,
     suggestionId: row.suggestionId,
+    researchIdeaId: row.researchIdeaId,
     rationale: row.rationale,
     horizon: row.horizon,
     kind: parseDecisionKind(row.kind),
@@ -147,6 +150,7 @@ export class DecisionsRepository extends UserScopedRepository {
           contemplatedOperationId: input.contemplatedOperationId,
           operationId: input.operationId ?? null,
           suggestionId: input.suggestionId ?? null,
+          researchIdeaId: input.researchIdeaId ?? null,
           strategyVersionId: input.strategyVersionId,
           inputs,
           rationale: input.rationale,
@@ -259,6 +263,25 @@ export class DecisionsRepository extends UserScopedRepository {
     for (const row of rows) {
       if (row.suggestionId !== null) {
         map.set(row.suggestionId, toDecisionListItem(row));
+      }
+    }
+    return map;
+  }
+
+  async findForResearchIdeas(ideaIds: readonly string[]): Promise<Map<string, DecisionListItem>> {
+    if (ideaIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select()
+      .from(decisions)
+      .where(
+        and(eq(decisions.userId, this.userId), inArray(decisions.researchIdeaId, [...ideaIds])),
+      );
+
+    const map = new Map<string, DecisionListItem>();
+    for (const row of rows) {
+      if (row.researchIdeaId !== null) {
+        map.set(row.researchIdeaId, toDecisionListItem(row));
       }
     }
     return map;

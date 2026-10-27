@@ -29,3 +29,9 @@ The model per subject is now a family (Haiku, Sonnet, Opus) resolved to that fam
 release, not a pinned id; a user can override the family per kind and supply their own Anthropic
 key under Configurações. The Opus/Sonnet split this ADR set is now `@fetha/prompts`'
 `defaultAnalysisFamilies`, used whenever no override is stored. See docs/adr/0068.
+
+## Amendment (2026-10-27, ADR-0076)
+
+An analysis may also be of a set: a research of the ideas "Obter sugestões" re-checked. It is still
+on demand, over engine artifacts only, one call at the user's click, never automatic. See
+docs/adr/0076.

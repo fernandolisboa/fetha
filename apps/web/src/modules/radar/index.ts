@@ -12,9 +12,19 @@ export {
   SuggestionNotFoundError,
 } from "./queries";
 export type { SuggestionView } from "./suggestion-view";
+export type { SuggestionCalibration } from "./calibration";
 export { RadarDataExport } from "./data-export";
 export { scoreDueSuggestions, type ScoreSuggestionsOutcome } from "./suggestion-scoring";
 export {
   researchSuggestionsAction,
   type ResearchSuggestionsActionResult,
 } from "./research-actions";
+export type { Idea, IdeaCard, ResearchResult } from "./research";
+export { ideaCardOf, RESEARCH_BUDGET_MS } from "./research";
+export { dropReasons, ideaAlertSchema, type DropReason, type IdeaAlert } from "./research-rules";
+export { lotLegsSchema, type LotLeg } from "./lot-legs";
+export { suggestionClaim } from "./suggestion";
+export { assertedScoreFields, scoreAssertedLot } from "./asserted-lot-scoring";
+export { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
+export { newestReadSession } from "./radar-repository";
+export { recipeStructureById } from "./recipe-structure";

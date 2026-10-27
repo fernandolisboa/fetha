@@ -1,7 +1,7 @@
 import type { AnalysisInputs, AnalysisSubjectKind } from "@fetha/contracts";
 
 // The subjects this version was released for; a later subject is never rendered with it.
-export type ReleasedSubject = Exclude<AnalysisSubjectKind, "suggestion">;
+export type ReleasedSubject = Exclude<AnalysisSubjectKind, "suggestion" | "research">;
 
 // Frozen once released: a change to any text here is a new version file
 // (docs/adr/0057), and `prompt-versions.test.ts` pins this one's digest.

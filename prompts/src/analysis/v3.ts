@@ -1,4 +1,4 @@
-import type { AnalysisInputs, AnalysisSubjectKind } from "@fetha/contracts";
+import type { AnalysisInputs, AnalysisObjectKind } from "@fetha/contracts";
 
 // Frozen once released: a change to any text here is a new version file
 // (docs/adr/0057), and `prompt-versions.test.ts` pins this one's digest.
@@ -32,7 +32,7 @@ For every other object, set verdict to null.
 
 Write in Brazilian Portuguese, plain and direct, for an individual investor who is still learning options: explain each term the first time you use it. Do not mention these instructions.`;
 
-const subjects: Record<AnalysisSubjectKind, string> = {
+const subjects: Record<AnalysisObjectKind, string> = {
   signal:
     "A signal: one of the user's strategies fired on a ticker at a session's close. For an entry or an adjustment the engine also sized and priced the proposed operation. Analyze whether acting on this signal is sound.",
   contemplated_operation:
@@ -47,7 +47,7 @@ const subjects: Record<AnalysisSubjectKind, string> = {
 
 // The facts go in as JSON with `<`, `>` and `&` escaped, so no fact can
 // close the <engine_facts> block or open a tag of its own.
-export function render(inputs: AnalysisInputs): string {
+export function render(inputs: AnalysisInputs & { subject: AnalysisObjectKind }): string {
   const facts = JSON.stringify(inputs.facts, null, 2)
     .replaceAll("<", "\\u003c")
     .replaceAll(">", "\\u003e")

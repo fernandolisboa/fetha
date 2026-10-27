@@ -1,7 +1,7 @@
 import { postgresErrorOf } from "@/db/pg-error";
 
 // Tuned to what `DecisionsRepository.record` needs to distinguish: the unique
-// violation on (user_id, signal_id) or (user_id, suggestion_id) (each is
+// violation on (user_id, signal_id) or (user_id, suggestion_id) or (user_id, research_idea_id) (each is
 // answered once) from
 // *specifically* the horizon check constraint (defense in depth behind the
 // action's own pre-insert validation, see actions.ts) from every other

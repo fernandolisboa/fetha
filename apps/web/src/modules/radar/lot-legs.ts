@@ -1,12 +1,28 @@
-import type { DecimalString } from "@fetha/contracts";
+import {
+  decimalStringSchema,
+  quantitySchema,
+  type DecimalString,
+  type Quantity,
+} from "@fetha/contracts";
 import type { Leg } from "@fetha/engine";
+import { z } from "zod";
 
-import type { RadarLeg } from "./match";
+import { radarLegSchema, type RadarLeg } from "./match";
 
 export interface LotLeg extends RadarLeg {
-  quantity: number;
+  quantity: Quantity;
   price: DecimalString;
 }
+
+// A lot's legs as a research stores them (docs/adr/0076), validated when read back.
+export const lotLegsSchema = z
+  .array(
+    radarLegSchema.extend({
+      quantity: quantitySchema,
+      price: decimalStringSchema,
+    }),
+  )
+  .min(1);
 
 // The lot's legs with the series each resolved to, paired by position; null when a leg has no
 // price, the radar legs fall short or one does not name the same ticker (a stored row an older

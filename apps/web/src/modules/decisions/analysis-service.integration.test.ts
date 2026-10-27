@@ -151,7 +151,7 @@ describe("requestAnalysis never sends user text to the model (docs/adr/0057)", (
         client,
         model: "claude-sonnet-5-5",
         family: "sonnet",
-        assemble: () => Promise.resolve({ ok: true, inputs }),
+        assemble: () => Promise.resolve({ ok: true, inputs: { ...inputs, subject: "signal" } }),
       },
       { subjectKind: "signal", subjectId: signal.id },
     );

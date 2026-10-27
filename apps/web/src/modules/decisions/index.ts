@@ -8,12 +8,15 @@ export {
   getMyAnalysisScores,
   getMyAnalysisTrackRecordStats,
   getMyAnalysisUsage,
+  getMyCurrentResearch,
+  getMyResearchCalibration,
   getMyDecisions,
   getMyDecisionScores,
   getMyDecisionsByHeldOperationId,
   getMyDecisionsByOperationId,
   getMyDecisionsBySignalId,
   getMyDecisionsBySuggestionId,
+  getMyResearchIdeaLot,
   getMyJournalAnalyses,
   getMyLatestAnalyses,
   getMyTrackRecordStats,
@@ -27,3 +30,6 @@ export { scoreDueDecisions, type ScoreDecisionsOutcome } from "./scoring-service
 export { scoreDueAnalyses, type ScoreAnalysesOutcome } from "./analysis-scoring-service";
 export { t } from "./strings";
 export { DecisionsDataExport } from "./data-export";
+export { scoreDueResearch, type ScoreResearchOutcome } from "./research-scoring-service";
+export { ResearchCalibrationPanel } from "./components/research-calibration-panel";
+export { seedE2EResearch, type SeedE2EResearchIdea } from "./research-e2e-seed";

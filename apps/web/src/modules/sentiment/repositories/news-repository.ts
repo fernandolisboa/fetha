@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { DecimalString } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
@@ -99,6 +99,7 @@ export async function newsTonePointsSince(
   db: Database,
   cnpj: string,
   since: string,
+  before?: string,
 ): Promise<NewsTonePoint[]> {
   return db
     .select({
@@ -107,7 +108,13 @@ export async function newsTonePointsSince(
       articles: newsTonePoints.articles,
     })
     .from(newsTonePoints)
-    .where(and(eq(newsTonePoints.cnpj, cnpj), gte(newsTonePoints.day, since)))
+    .where(
+      and(
+        eq(newsTonePoints.cnpj, cnpj),
+        gte(newsTonePoints.day, since),
+        before === undefined ? undefined : lt(newsTonePoints.day, before),
+      ),
+    )
     .orderBy(newsTonePoints.day);
 }
 
@@ -132,6 +139,7 @@ export async function latestNewsArticles(
   db: Database,
   ticker: string,
   limit: number,
+  until?: Date,
 ): Promise<NewsArticle[]> {
   return db
     .select({
@@ -145,7 +153,12 @@ export async function latestNewsArticles(
       sentiment: newsArticles.sentiment,
     })
     .from(newsArticles)
-    .where(eq(newsArticles.ticker, ticker))
+    .where(
+      and(
+        eq(newsArticles.ticker, ticker),
+        until === undefined ? undefined : lte(newsArticles.publishedAt, until),
+      ),
+    )
     .orderBy(desc(newsArticles.publishedAt))
     .limit(limit);
 }

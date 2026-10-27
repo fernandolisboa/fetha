@@ -111,3 +111,9 @@ new `suggestion` subject; the outlook, its resolution, confidence table, horizon
 unchanged and apply to a suggestion's analysis as to an operation's (`instrumentFact` is
 `"underlying"`). Stored rows of any version are read through `storedAnalysisOutputSchema`. See
 docs/adr/0067.
+
+## Amendment (2026-10-27, ADR-0076)
+
+`research@1` carries no outlook and no likelihood. An idea of a research is scored through the
+engine's lot at the research's newest close with the claim `suggestionClaim` derives (ADR-0067),
+in `research_idea_scores`, not through `analysis_scores`. See docs/adr/0076.

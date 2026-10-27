@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, max, notExists, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lt, max, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { Database, Transaction } from "@/db/client";
@@ -171,11 +171,14 @@ export interface CompanyFilingOfCompany extends CompanyFilingRow {
 }
 
 // Every filing of these companies delivered on or after `since`, each
-// protocol at its highest stored version, newest first.
+// protocol at its highest stored version, newest first. With `before`, only
+// what was delivered on an earlier day, and a later version delivered on or
+// after that day does not hide the one before it.
 export async function filingsOfCompaniesSince(
   db: Database,
   cnpjs: readonly string[],
   since: string,
+  before?: string,
 ): Promise<CompanyFilingOfCompany[]> {
   if (cnpjs.length === 0) {
     return [];
@@ -197,6 +200,7 @@ export async function filingsOfCompaniesSince(
       and(
         inArray(companyFilings.cnpj, [...cnpjs]),
         gte(companyFilings.deliveredOn, since),
+        before === undefined ? undefined : lt(companyFilings.deliveredOn, before),
         notExists(
           db
             .select({ protocol: newerVersion.protocol })
@@ -205,6 +209,7 @@ export async function filingsOfCompaniesSince(
               and(
                 eq(newerVersion.protocol, companyFilings.protocol),
                 gt(newerVersion.version, companyFilings.version),
+                before === undefined ? undefined : lt(newerVersion.deliveredOn, before),
               ),
             ),
         ),

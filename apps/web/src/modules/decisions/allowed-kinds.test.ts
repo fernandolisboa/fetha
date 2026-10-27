@@ -21,6 +21,10 @@ describe("allowedDecisionKinds", () => {
     ]);
   });
 
+  it("allows enter / do_not_enter for a research idea, like a suggestion", () => {
+    expect(allowedDecisionKinds({ kind: "research_idea" })).toEqual(["enter", "do_not_enter"]);
+  });
+
   it("allows enter / do_not_enter for a contemplated operation", () => {
     expect(allowedDecisionKinds({ kind: "contemplated_operation" })).toEqual([
       "enter",

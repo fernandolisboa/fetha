@@ -92,6 +92,8 @@ const en = {
     originHeldOperation: (underlying: string) => `Portfolio operation · ${underlying}`,
     originSuggestion: (structureName: string, underlying: string) =>
       `Fetha's suggestion · ${structureName} · ${underlying}`,
+    originResearchIdea: (structureName: string, underlying: string) =>
+      `Fetha's research · ${structureName} · ${underlying}`,
     confidenceLabel: "Confidence",
     horizonLabel: "Horizon",
     claimLabel: "Thesis",
@@ -112,6 +114,7 @@ const en = {
       outlookNotHeld: "Outlook not confirmed",
       originSuggestion: (structure: string, underlying: string) =>
         `Suggestion · ${structure} · ${underlying}`,
+      originResearch: "Fetha's research",
       verdictLabel: "Verdict",
     },
   },
@@ -136,6 +139,137 @@ const en = {
     aiLikelihoodHeader: "Stated likelihood",
     aiNominalHeader: "Nominal probability",
     aiCountHeader: "Analyses",
+  },
+  research: {
+    hint: (sessions: number) =>
+      `Re-checks what the radar found over its last ${String(sessions)} sessions against the latest close and your risk limits. With your Anthropic key, Fetha also gives a verdict on each idea and the research is saved.`,
+    pending: "Researching… this takes up to a minute and a half.",
+    again: "Research again",
+    overviewTitle: "Fetha's overview",
+    groups: { enter: "Worth it", wait: "With reservations", do_not_enter: "Discarded" },
+    discarded: (count: number) =>
+      `${String(count)} ${count === 1 ? "idea discarded" : "ideas discarded"}, see why`,
+    headline: {
+      enter: (structure: string, ticker: string) => `I would enter: ${structure} on ${ticker}.`,
+      wait: (structure: string, ticker: string) => `I would wait: ${structure} on ${ticker}.`,
+      do_not_enter: (structure: string, ticker: string) =>
+        `I would not enter: ${structure} on ${ticker}.`,
+    },
+    noneWorthIt: (ideas: number, sessions: number) =>
+      `I looked at ${String(ideas)} ${ideas === 1 ? "idea" : "ideas"} from ${String(sessions)} ${sessions === 1 ? "session" : "sessions"} and none is worth it today.`,
+    researchedAt: (date: string, time: string, model: string) =>
+      `Research of ${date} at ${time} · ${model}`,
+    unsent: (count: number) =>
+      `${String(count)} ${count === 1 ? "idea was" : "ideas were"} not sent to Fetha`,
+    unsentTitle: "Not sent to Fetha",
+    aiAlertsLabel: "Fetha's alerts",
+    aiAlerts: {
+      negative_news: "Negative news",
+      recent_filing: "Recent filing",
+      rule_no_longer_holds: "The rule no longer holds",
+      limit_breach: "Breaks one of your limits",
+      near_expiry: "Close to expiry",
+      low_liquidity: "Low liquidity",
+      weak_track_record: "Weak track record",
+      iv_regime_mismatch: "Volatility does not fit the recipe",
+      trend_against: "Trend against it",
+    },
+    citedToggle: "Facts behind this opinion",
+    archived: (session: string) =>
+      `Archived since the close of ${session}: the radar read a newer close.`,
+    notices: {
+      noKeyBefore: "For Fetha to give an opinion on the ideas, save your Anthropic key in ",
+      noKeyLink: "Settings › AI",
+      keyUnreadableBefore:
+        "I could not read your Anthropic key, so I show only the numbers. Save it again in ",
+      cap: (cap: number) =>
+        `You have used all ${String(cap)} analyses of this month, so I show only the numbers.`,
+      rate_limited:
+        "Too many requests in a short time, so I show only the numbers. Try again in a minute.",
+      failed: "I could not get Fetha's opinion right now; I show only the numbers.",
+    },
+    factLabels: {
+      underlying: "Asset",
+      structure: "Structure",
+      foundOn: "Found on",
+      ruleHolds: "The rule still holds",
+      expiry: "Expiry",
+      sessionsToExpiry: "Sessions to expiry",
+      recipe: "Recipe",
+      expectedMove: "Expected move",
+      ivRegime: "Volatility regime",
+      entry: "Entry rule",
+      exit: "Exit rule",
+      reading: "Reading",
+      trend: "Trend",
+      momentum: "Momentum",
+      range: "Range",
+      impliedVolatility: "Implied volatility",
+      options: "Options",
+      tradedSeries: "Series traded",
+      engineAlerts: "Engine alerts",
+      pricing: "Lot",
+      spot: "Price",
+      riskFreeRate: "Risk-free rate",
+      dividendYield: "Dividend yield",
+      netPremium: "Net premium",
+      maxLoss: "Maximum loss",
+      maxGain: "Maximum gain",
+      breakEvens: "Break-evens",
+      greeks: "Greeks",
+      delta: "Delta",
+      gamma: "Gamma",
+      theta: "Theta",
+      vega: "Vega",
+      rho: "Rho",
+      legs: "Legs",
+      payoff: "Payoff",
+      pnl: "Result",
+      limitBreaches: "Limits breached",
+      notes: "Notes",
+      recipeTrackRecord: "The recipe's record",
+      scored: "Scored",
+      claimHeldShare: "Share whose thesis held",
+      pnlPerLot: "Average result per lot",
+      filings: "Filings",
+      date: "Date",
+      topic: "Topic",
+      tone: "Tone",
+      summary: "Summary",
+      newsTone: "News tone",
+      averageTone: "Average tone",
+      articles: "Articles",
+      window: "Window",
+      providerNews: "News",
+      title: "Headline",
+      sentiment: "Sentiment",
+      newestClose: "Close read",
+    } as Record<string, string>,
+    calibration: {
+      title: "Fetha's researches",
+      subtitle:
+        "How the verdicts of the researches you asked for aged at each idea's expiry, as if you had entered each lot at the close of the research: how many of those entries would have worked, and the average result of one lot after B3 costs. For a discarded idea, a high number means the discard was wrong. Every idea counts, the discarded ones too; asking again at the same close counts only the latest research. Only yours.",
+      empty: "No idea from your researches has reached its expiry yet.",
+      columns: {
+        verdict: "Verdict",
+        scored: "Scored",
+        held: "Would have worked",
+        pnl: "Average result per lot",
+      },
+      noData: (count: number) => `${String(count)} no data`,
+      held: (held: number, claimed: number) => `${String(held)} of ${String(claimed)}`,
+      discardedSentence: (count: number, amount: string, sign: "gain" | "loss" | "flat") => {
+        const verb = sign === "gain" ? "made" : "lost";
+        if (sign === "flat") {
+          return count === 1
+            ? "The idea Fetha discarded would have broken even."
+            : `The ${String(count)} ideas Fetha discarded would have broken even.`;
+        }
+        return count === 1
+          ? `The idea Fetha discarded would have ${verb} ${amount} per lot.`
+          : `The ${String(count)} ideas Fetha discarded would have ${verb} ${amount} per lot on average.`;
+      },
+    },
   },
   analysis: {
     dialog: {
@@ -298,6 +432,8 @@ const ptBR = {
     originHeldOperation: (underlying: string) => `Operação em carteira · ${underlying}`,
     originSuggestion: (structureName: string, underlying: string) =>
       `Sugestão do Fetha · ${structureName} · ${underlying}`,
+    originResearchIdea: (structureName: string, underlying: string) =>
+      `Pesquisa do Fetha · ${structureName} · ${underlying}`,
     confidenceLabel: "Confiança",
     horizonLabel: "Horizonte",
     claimLabel: "Tese",
@@ -319,6 +455,7 @@ const ptBR = {
       outlookNotHeld: "Previsão não confirmada",
       originSuggestion: (structure: string, underlying: string) =>
         `Sugestão · ${structure} · ${underlying}`,
+      originResearch: "Pesquisa do Fetha",
       verdictLabel: "Veredito",
     },
   },
@@ -343,6 +480,137 @@ const ptBR = {
     aiLikelihoodHeader: "Probabilidade declarada",
     aiNominalHeader: "Equivale a",
     aiCountHeader: "Análises",
+  },
+  research: {
+    hint: (sessions: number) =>
+      `Confere o que o radar encontrou nos últimos ${String(sessions)} pregões com o fechamento mais recente e com os seus limites de risco. Com a sua chave da Anthropic, o Fetha também dá um veredito sobre cada ideia, e a pesquisa fica salva.`,
+    pending: "Pesquisando… isso leva até um minuto e meio.",
+    again: "Pesquisar de novo",
+    overviewTitle: "Visão geral do Fetha",
+    groups: { enter: "Vale a pena", wait: "Com ressalva", do_not_enter: "Descartadas" },
+    discarded: (count: number) =>
+      `${String(count)} ${count === 1 ? "ideia descartada" : "ideias descartadas"}, ver por quê`,
+    headline: {
+      enter: (structure: string, ticker: string) => `Eu entraria: ${structure} em ${ticker}.`,
+      wait: (structure: string, ticker: string) => `Eu esperaria: ${structure} em ${ticker}.`,
+      do_not_enter: (structure: string, ticker: string) =>
+        `Eu não entraria: ${structure} em ${ticker}.`,
+    },
+    noneWorthIt: (ideas: number, sessions: number) =>
+      `Olhei ${String(ideas)} ${ideas === 1 ? "ideia" : "ideias"} de ${String(sessions)} ${sessions === 1 ? "pregão" : "pregões"} e nenhuma vale a pena hoje.`,
+    researchedAt: (date: string, time: string, model: string) =>
+      `Pesquisa de ${date} às ${time} · ${model}`,
+    unsent: (count: number) =>
+      `${String(count)} ${count === 1 ? "ideia não foi enviada" : "ideias não foram enviadas"} ao Fetha`,
+    unsentTitle: "Não enviadas ao Fetha",
+    aiAlertsLabel: "Alertas do Fetha",
+    aiAlerts: {
+      negative_news: "Notícias negativas",
+      recent_filing: "Comunicado recente",
+      rule_no_longer_holds: "A regra deixou de valer",
+      limit_breach: "Estoura um dos seus limites",
+      near_expiry: "Perto do vencimento",
+      low_liquidity: "Pouca liquidez",
+      weak_track_record: "Histórico fraco",
+      iv_regime_mismatch: "Volatilidade não combina com a receita",
+      trend_against: "Tendência contrária",
+    },
+    citedToggle: "Fatos por trás desta opinião",
+    archived: (session: string) =>
+      `Arquivada desde o fechamento de ${session}: o radar leu um fechamento mais novo.`,
+    notices: {
+      noKeyBefore: "Para o Fetha opinar sobre as ideias, cadastre a sua chave da Anthropic em ",
+      noKeyLink: "Configurações › IA",
+      keyUnreadableBefore:
+        "Não consegui ler a sua chave da Anthropic, então mostro só os números. Cadastre-a de novo em ",
+      cap: (cap: number) =>
+        `Você já usou as ${String(cap)} análises deste mês, então mostro só os números.`,
+      rate_limited:
+        "Muitos pedidos em pouco tempo, então mostro só os números. Tente de novo daqui a um minuto.",
+      failed: "Não consegui a opinião do Fetha agora; mostro só os números.",
+    },
+    factLabels: {
+      underlying: "Ativo",
+      structure: "Estrutura",
+      foundOn: "Encontrada em",
+      ruleHolds: "A regra continua valendo",
+      expiry: "Vencimento",
+      sessionsToExpiry: "Pregões até o vencimento",
+      recipe: "Receita",
+      expectedMove: "Movimento esperado",
+      ivRegime: "Regime de volatilidade",
+      entry: "Regra de entrada",
+      exit: "Regra de saída",
+      reading: "Leitura",
+      trend: "Tendência",
+      momentum: "Momentum",
+      range: "Faixa",
+      impliedVolatility: "Volatilidade implícita",
+      options: "Opções",
+      tradedSeries: "Séries negociadas",
+      engineAlerts: "Alertas do motor",
+      pricing: "Lote",
+      spot: "Preço",
+      riskFreeRate: "Taxa livre de risco",
+      dividendYield: "Rendimento de dividendos",
+      netPremium: "Prêmio líquido",
+      maxLoss: "Perda máxima",
+      maxGain: "Ganho máximo",
+      breakEvens: "Break-evens",
+      greeks: "Gregas",
+      delta: "Delta",
+      gamma: "Gama",
+      theta: "Theta",
+      vega: "Vega",
+      rho: "Rô",
+      legs: "Pernas",
+      payoff: "Payoff",
+      pnl: "Resultado",
+      limitBreaches: "Limites estourados",
+      notes: "Observações",
+      recipeTrackRecord: "Histórico da receita",
+      scored: "Avaliadas",
+      claimHeldShare: "Teses confirmadas",
+      pnlPerLot: "Resultado médio por lote",
+      filings: "Comunicados",
+      date: "Data",
+      topic: "Assunto",
+      tone: "Tom",
+      summary: "Resumo",
+      newsTone: "Tom das notícias",
+      averageTone: "Tom médio",
+      articles: "Notícias lidas",
+      window: "Janela",
+      providerNews: "Notícias",
+      title: "Manchete",
+      sentiment: "Sentimento",
+      newestClose: "Fechamento lido",
+    } as Record<string, string>,
+    calibration: {
+      title: "Pesquisas do Fetha",
+      subtitle:
+        "Como os vereditos das pesquisas que você pediu se saíram no vencimento de cada ideia, como se você tivesse aberto cada lote no fechamento da pesquisa: em quantas a entrada teria dado certo e o resultado médio de um lote, já com os custos da B3. Numa ideia descartada, número alto quer dizer que descartar foi um erro. Todas as ideias entram, as descartadas também; se você pesquisou de novo no mesmo fechamento, vale só a pesquisa mais recente. Só as suas.",
+      empty: "Nenhuma ideia das suas pesquisas chegou ao vencimento ainda.",
+      columns: {
+        verdict: "Veredito",
+        scored: "Avaliadas",
+        held: "Teria dado certo",
+        pnl: "Resultado médio por lote",
+      },
+      noData: (count: number) => `${String(count)} sem dados`,
+      held: (held: number, claimed: number) => `${String(held)} de ${String(claimed)}`,
+      discardedSentence: (count: number, amount: string, sign: "gain" | "loss" | "flat") => {
+        const verb = sign === "gain" ? "rendido" : "perdido";
+        if (sign === "flat") {
+          return count === 1
+            ? "A ideia que o Fetha descartou teria ficado no zero a zero."
+            : `As ${String(count)} ideias que o Fetha descartou teriam ficado no zero a zero, em média.`;
+        }
+        return count === 1
+          ? `A ideia que o Fetha descartou teria ${verb} ${amount} por lote.`
+          : `As ${String(count)} ideias que o Fetha descartou teriam ${verb}, em média, ${amount} por lote.`;
+      },
+    },
   },
   analysis: {
     dialog: {
