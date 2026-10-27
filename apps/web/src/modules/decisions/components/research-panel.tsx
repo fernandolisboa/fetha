@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import { analysisVerdicts, type AnalysisVerdictDecision } from "@fetha/contracts";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -20,7 +21,7 @@ import {
 import { allowedDecisionKinds } from "../allowed-kinds";
 import { obtainSuggestionsAction, type EngineResearchView } from "../research-actions";
 import { applyObtained, initialPanelState, type ResearchPanelState } from "../research-panel-state";
-import { researchVerdictOrder, type ResearchIdeaView, type ResearchView } from "../research-view";
+import type { ResearchIdeaView, ResearchView } from "../research-view";
 import { t } from "../strings";
 import { DecisionBar } from "./decision-bar";
 
@@ -211,7 +212,7 @@ function VerdictGroup({
   verdict,
 }: {
   research: ResearchView;
-  verdict: (typeof researchVerdictOrder)[number];
+  verdict: AnalysisVerdictDecision;
 }) {
   const ideas = research.groups[verdict];
   if (ideas.length === 0) return null;
@@ -287,7 +288,7 @@ function ResearchResult({
           {t.research.noneWorthIt(research.candidates, research.sessionsLooked)}
         </p>
       )}
-      {researchVerdictOrder.map((verdict) => (
+      {analysisVerdicts.map((verdict) => (
         <VerdictGroup key={verdict} research={research} verdict={verdict} />
       ))}
       {research.unsent.length > 0 && (

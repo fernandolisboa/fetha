@@ -9,7 +9,7 @@ import {
 } from "@fetha/contracts";
 import type { AssetReading } from "@fetha/engine";
 
-import { citedFactLabel, researchViewOf, researchVerdictOrder } from "./research-view";
+import { citedFactLabel, researchViewOf } from "./research-view";
 import type { StoredResearch, StoredResearchIdea } from "./research-repository";
 
 const session = (value: string) => sessionDateSchema.parse(value);
@@ -97,7 +97,6 @@ describe("researchViewOf", () => {
       decisions: new Map(),
       newestReadSession: session("2026-10-23"),
     });
-    expect(researchVerdictOrder).toEqual(["enter", "wait", "do_not_enter"]);
     expect(view.groups.enter.map((idea) => idea.id)).toEqual(["idea-1", "idea-2"]);
     expect(view.groups.wait.map((idea) => idea.id)).toEqual(["idea-3"]);
     expect(view.groups.do_not_enter.map((idea) => idea.id)).toEqual(["idea-0"]);

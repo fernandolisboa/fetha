@@ -14,12 +14,6 @@ import type { DecisionListItem } from "./decisions-repository";
 import type { StoredResearch, StoredResearchIdea } from "./research-repository";
 import { t } from "./strings";
 
-export const researchVerdictOrder: readonly AnalysisVerdictDecision[] = [
-  "enter",
-  "wait",
-  "do_not_enter",
-];
-
 export interface CitedFact {
   label: string;
   value: string | null;
