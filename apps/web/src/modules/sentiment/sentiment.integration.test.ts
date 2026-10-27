@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { seedRadarFinding } from "@/db/test/radar-finding";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { user } from "@/modules/auth/schema";
 import { companyFilings, companyTickers } from "@/modules/market-data/schema";
@@ -32,9 +33,13 @@ interface Fixture {
 }
 
 const fixtures: Fixture[] = [];
+const radarCleanups: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
   const db = getDb();
+  for (const cleanup of radarCleanups.splice(0)) {
+    await cleanup();
+  }
   for (const fixture of fixtures.splice(0)) {
     if (fixture.protocols.length > 0) {
       await db.delete(filingLabels).where(inArray(filingLabels.protocol, fixture.protocols));
@@ -195,6 +200,101 @@ describe("sentimentUniverse", () => {
     const universe = await sentimentUniverse(getDb());
 
     expect(universe.tickers).not.toContain("IBOV11");
+  });
+});
+
+// Far-future sessions: newer than any other read session in the database, so they are the
+// radar's window whatever else the suite seeded.
+const RADAR_SESSIONS = [
+  "2190-03-06",
+  "2190-03-05",
+  "2190-03-04",
+  "2190-03-03",
+  "2190-03-02",
+  "2190-03-01",
+];
+
+async function radarFinding(ticker: string, sessionIndex: number): Promise<void> {
+  const session = RADAR_SESSIONS[sessionIndex] ?? "";
+  radarCleanups.push(await seedRadarFinding(getDb(), ticker, session));
+}
+
+describe("sentimentUniverse with the radar's findings (docs/adr/0065)", () => {
+  it("adds the underlyings found in the last five read sessions and drops older ones", async () => {
+    const inside = await company();
+    const outside = await company();
+    await radarFinding(inside.tickers[0] ?? "", 4);
+    await radarFinding(outside.tickers[0] ?? "", 5);
+    for (const [index, filler] of ["ZZAA3", "ZZAB3", "ZZAC3", "ZZAD3"].entries()) {
+      await radarFinding(filler, index);
+    }
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).toContain(inside.tickers[0]);
+    expect(universe.tickers).not.toContain(outside.tickers[0]);
+    expect(universe.companies.find((entry) => entry.cnpj === outside.cnpj)).toBeUndefined();
+  });
+
+  it("excludes a market index the radar found", async () => {
+    await radarFinding("IBOV11", 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).not.toContain("IBOV11");
+  });
+
+  it("lists the watchlist first and never twice, in tickers and in companies", async () => {
+    const watched = await company();
+    const found = await company();
+    await watch(watched, watched.tickers);
+    await radarFinding(found.tickers[0] ?? "", 0);
+    await radarFinding(watched.tickers[0] ?? "", 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers.filter((ticker) => ticker === watched.tickers[0])).toHaveLength(1);
+    const watchedAt = Math.max(
+      ...watched.tickers.map((ticker) => universe.tickers.indexOf(ticker)),
+    );
+    expect(watchedAt).toBeLessThan(universe.tickers.indexOf(found.tickers[0] ?? ""));
+    const cnpjs = universe.companies.map((entry) => entry.cnpj);
+    expect(cnpjs.filter((cnpj) => cnpj === watched.cnpj)).toHaveLength(1);
+    expect(cnpjs.indexOf(watched.cnpj)).toBeLessThan(cnpjs.indexOf(found.cnpj));
+  });
+
+  it("adds at most 40 radar underlyings, newest session first, on top of the watchlist", async () => {
+    const watched = await company();
+    await watch(watched, watched.tickers);
+    const older = Array.from({ length: 10 }, (_, index) => `ZY${String(index).padStart(2, "0")}3`);
+    const newest = Array.from({ length: 45 }, (_, index) => `ZX${String(index).padStart(2, "0")}3`);
+    for (const ticker of older) await radarFinding(ticker, 1);
+    for (const ticker of newest) await radarFinding(ticker, 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    const found = universe.tickers.filter((ticker) => /^Z[XY]\d\d3$/.test(ticker));
+    expect(found).toHaveLength(40);
+    expect(found.every((ticker) => newest.includes(ticker))).toBe(true);
+    expect(universe.tickers.slice(0, watched.tickers.length)).toEqual(
+      expect.arrayContaining(watched.tickers),
+    );
+  });
+
+  it("groups radar tickers by company and keeps one with no company as a bare ticker", async () => {
+    const found = await company();
+    const bare = `${randomLetters(4)}11`;
+    await radarFinding(found.tickers[0] ?? "", 0);
+    await radarFinding(found.tickers[1] ?? "", 0);
+    await radarFinding(bare, 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).toContain(bare);
+    expect(universe.companies.find((entry) => entry.cnpj === found.cnpj)?.tickers).toEqual(
+      [...found.tickers].sort(),
+    );
+    expect(universe.companies.flatMap((entry) => entry.tickers)).not.toContain(bare);
   });
 });
 

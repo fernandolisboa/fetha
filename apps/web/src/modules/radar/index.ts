@@ -21,10 +21,11 @@ export {
 } from "./research-actions";
 export type { Idea, IdeaCard, ResearchResult } from "./research";
 export { ideaCardOf, RESEARCH_BUDGET_MS } from "./research";
+export { RESEARCH_WINDOW_SESSIONS } from "./research-rules";
 export { dropReasons, ideaAlertSchema, type DropReason, type IdeaAlert } from "./research-rules";
 export { lotLegsSchema, type LotLeg } from "./lot-legs";
 export { suggestionClaim } from "./suggestion";
 export { assertedScoreFields, scoreAssertedLot } from "./asserted-lot-scoring";
 export { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
-export { newestReadSession } from "./radar-repository";
+export { newestReadSession, recentFindingUnderlyings } from "./radar-repository";
 export { recipeStructureById } from "./recipe-structure";

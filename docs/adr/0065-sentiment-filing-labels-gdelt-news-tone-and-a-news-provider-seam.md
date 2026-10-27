@@ -42,8 +42,8 @@ depend on `watchlist` without a cycle. The seam serves only sentiment, so it liv
 
 The tickers on any user's watchlist (`watchedTickersOfAnyUser`, distinct tickers only, never who
 watches them), grouped by company CNPJ. ETFs, real-estate funds and BDRs have no CNPJ mapping
-(ADR-0060), so they get provider articles but no filings or GDELT tone. The radar (#308) will
-widen the universe. Labels and tone are shared reference data. Seeing a label on an asset you
+(ADR-0060), so they get provider articles but no filings or GDELT tone. The radar widens the
+universe (amendment 2026-10-27 below). Labels and tone are shared reference data. Seeing a label on an asset you
 don't watch says someone in the instance watches it. That leak is accepted while the instance is
 the owner's alone, and it disappears once the radar universe covers the whole market.
 
@@ -222,3 +222,29 @@ the pinned id before the filing is marked `bad_request`. See docs/adr/0068.
 The question left open above is decided: filing labels, news tone and the provider's articles enter
 the facts of an AI research (not of a single-object analysis), cut at the newest close. See
 docs/adr/0076.
+
+## Amendment (2026-10-27, #360, ADR-0076)
+
+**Universe.** The universe is the union of the watchlist tickers, listed first, and the underlyings
+with radar findings (`radar_matches`) in the last `RESEARCH_WINDOW_SESSIONS` (5) read sessions,
+the same window "Obter sugestões" researches (ADR-0075), newest session first. At most
+`RADAR_SENTIMENT_TICKERS` (40) underlyings are added on top of the watchlist; a ticker already on
+a watchlist and a market index (ADR-0062) take no slot. Tickers stay distinct, never tied to who
+watches them, and companies are grouped by CNPJ as before, in the same order as `tickers`. The
+radar exposes the read as `recentFindingUnderlyings` through its index; radar does not import
+sentiment.
+
+**Order.** The nightly job scans the radar before the sentiment step, so the night's own findings
+are in the window. Labels, tone and provider articles each defer per item at the deadline, so with
+the watchlist first a short run serves the watchlist before any radar name.
+
+**Leak note.** Seeing a label on an asset you don't watch used to say someone in the instance
+watches it. It now also covers "the radar found it", which is shared reference data anyway, so
+the note shrinks to the watchlist-only part and loses weight as the radar covers more.
+
+**Cost.** Filing labels run on the server key (owner agreed 2026-10-16). The first night after
+this deploys labels up to 90 days of filings for the newly covered companies, resumable under the
+existing per-item budget and deferral. Marketaux stays optional, off unless its token is set, and
+keeps its own rate-limit status. The 40-name cap bounds the cost.
+
+ADR-0076's research facts therefore usually exist for radar ideas now.
