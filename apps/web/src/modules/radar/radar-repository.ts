@@ -3,6 +3,7 @@ import type { AssetReading } from "@fetha/engine";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
+import { isMarketIndex } from "@/modules/market-data";
 
 import { radarFactsSchema, radarLegsSchema, type RadarFacts, type RadarLeg } from "./match";
 import type { RadarMatch } from "./read-underlying";
@@ -182,6 +183,16 @@ export async function latestRadar(db: Database): Promise<StoredRadar | null> {
   };
 }
 
+async function recentReadSessions(db: Database, count: number): Promise<string[]> {
+  const read = await db
+    .selectDistinct({ session: radarReadings.session })
+    .from(radarReadings)
+    .where(isNotNull(radarReadings.reading))
+    .orderBy(desc(radarReadings.session))
+    .limit(count);
+  return read.map((row) => row.session);
+}
+
 export interface RecentFindings {
   sessions: string[];
   findings: Candidate[];
@@ -191,13 +202,7 @@ export interface RecentFindings {
 // newest first, each with the stored suggestion of that match when it has one. Reference data,
 // like `latestRadar`: nothing here is per user.
 export async function recentFindings(db: Database, count: number): Promise<RecentFindings> {
-  const read = await db
-    .selectDistinct({ session: radarReadings.session })
-    .from(radarReadings)
-    .where(isNotNull(radarReadings.reading))
-    .orderBy(desc(radarReadings.session))
-    .limit(count);
-  const sessions = read.map((row) => row.session);
+  const sessions = await recentReadSessions(db, count);
   if (sessions.length === 0) return { sessions, findings: [] };
 
   const rows = await db
@@ -221,4 +226,30 @@ export async function recentFindings(db: Database, count: number): Promise<Recen
     sessions,
     findings: rows.map((row) => ({ ...row, session: sessionDateSchema.parse(row.session) })),
   };
+}
+
+// The distinct underlyings the radar matched over its last `sessions` read sessions: the newest
+// session's first, then the ones found in more sessions, then by ticker, minus `excluding` and
+// market indexes (docs/adr/0062), at most `limit`. Applying both before the cap keeps a skipped
+// name from taking a slot. Reference data, nothing per user.
+export async function recentFindingUnderlyings(
+  db: Database,
+  input: { sessions: number; limit: number; excluding: readonly string[] },
+): Promise<string[]> {
+  const sessions = await recentReadSessions(db, input.sessions);
+  if (sessions.length === 0) return [];
+
+  const latest = sql<string>`max(${radarMatches.session})`;
+  const sessionsFound = sql<number>`count(distinct ${radarMatches.session})`;
+  const rows = await db
+    .select({ underlying: radarMatches.underlying })
+    .from(radarMatches)
+    .where(inArray(radarMatches.session, sessions))
+    .groupBy(radarMatches.underlying)
+    .orderBy(desc(latest), desc(sessionsFound), asc(radarMatches.underlying));
+  const excluded = new Set(input.excluding);
+  return rows
+    .map((row) => row.underlying)
+    .filter((underlying) => !excluded.has(underlying) && !isMarketIndex(underlying))
+    .slice(0, input.limit);
 }

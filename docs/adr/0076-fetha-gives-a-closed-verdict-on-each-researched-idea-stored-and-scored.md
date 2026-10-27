@@ -187,7 +187,8 @@ journal can say whether the verdicts age well. This ADR amends six decisions:
 - A research stored for a close the radar has since passed stays in the database and in the
   calibration, but is not shown on the home page and takes no new decision.
 - Part 3 (sentiment for the radar's tickers) needs no change here: whatever the sentiment tables
-  hold is sent, and an underlying with none sends nothing.
+  hold is sent, and an underlying with none sends nothing. ADR-0065's 2026-10-27 amendment (#360)
+  widens the nightly universe to the radar's recent findings, so these facts now usually exist.
 
 ## Considered options
 

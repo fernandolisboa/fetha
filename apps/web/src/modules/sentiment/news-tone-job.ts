@@ -55,7 +55,11 @@ export async function refreshNewsTone(
         options.now.getTime() - at >= REFRESH_AFTER_MS
       );
     })
-    .sort((a, b) => (lastFetch.get(a.cnpj) ?? 0) - (lastFetch.get(b.cnpj) ?? 0));
+    .sort(
+      (a, b) =>
+        Number(b.watched) - Number(a.watched) ||
+        (lastFetch.get(a.cnpj) ?? 0) - (lastFetch.get(b.cnpj) ?? 0),
+    );
 
   let requests = 0;
   const spaced = async <T>(request: () => Promise<T>): Promise<T> => {

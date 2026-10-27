@@ -471,6 +471,8 @@ _Avoid_: snapshot, save state, resume token
 **Universe**:
 The set of instruments a backtest run evaluates the strategy over. The radar's universe (ADR-0066)
 is a different, global set: the liquid optionable underlyings it reads nightly.
+The sentiment universe (ADR-0065) is a third set: the watched tickers plus up to 40 underlyings the
+radar found in its last five read sessions.
 _Avoid_: watchlist (that is the live list), basket
 
 **Cost model**:

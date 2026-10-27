@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
+import { seedRadarFinding } from "@/db/test/radar-finding";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { user } from "@/modules/auth/schema";
 import { companyFilings, companyTickers } from "@/modules/market-data/schema";
@@ -32,9 +33,13 @@ interface Fixture {
 }
 
 const fixtures: Fixture[] = [];
+const radarCleanups: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
   const db = getDb();
+  for (const cleanup of radarCleanups.splice(0)) {
+    await cleanup();
+  }
   for (const fixture of fixtures.splice(0)) {
     if (fixture.protocols.length > 0) {
       await db.delete(filingLabels).where(inArray(filingLabels.protocol, fixture.protocols));
@@ -185,6 +190,7 @@ describe("sentimentUniverse", () => {
       cnpj: fixture.cnpj,
       companyName: "EMPRESA TESTE S.A. - TESTE",
       tickers: fixture.tickers.slice(0, 2).sort(),
+      watched: true,
     });
   });
 
@@ -195,6 +201,112 @@ describe("sentimentUniverse", () => {
     const universe = await sentimentUniverse(getDb());
 
     expect(universe.tickers).not.toContain("IBOV11");
+  });
+});
+
+// Far-future sessions: newer than any other read session in the database, so they are the
+// radar's window whatever else the suite seeded.
+const RADAR_SESSIONS = [
+  "2190-03-06",
+  "2190-03-05",
+  "2190-03-04",
+  "2190-03-03",
+  "2190-03-02",
+  "2190-03-01",
+];
+
+async function radarFinding(ticker: string, sessionIndex: number): Promise<void> {
+  const session = RADAR_SESSIONS[sessionIndex] ?? "";
+  radarCleanups.push(await seedRadarFinding(getDb(), ticker, session));
+}
+
+describe("sentimentUniverse with the radar's findings (docs/adr/0065)", () => {
+  it("adds the underlyings found in the last five read sessions and drops older ones", async () => {
+    const inside = await company();
+    const outside = await company();
+    await radarFinding(inside.tickers[0] ?? "", 4);
+    await radarFinding(outside.tickers[0] ?? "", 5);
+    for (const [index, filler] of ["ZZAA3", "ZZAB3", "ZZAC3", "ZZAD3"].entries()) {
+      await radarFinding(filler, index);
+    }
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).toContain(inside.tickers[0]);
+    expect(universe.tickers).not.toContain(outside.tickers[0]);
+    expect(universe.companies.find((entry) => entry.cnpj === outside.cnpj)).toBeUndefined();
+  });
+
+  it("excludes a market index the radar found, next to a normal ticker of the same session", async () => {
+    const found = await company();
+    await radarFinding("IBOV11", 0);
+    await radarFinding(found.tickers[0] ?? "", 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).toContain(found.tickers[0]);
+    expect(universe.tickers).not.toContain("IBOV11");
+  });
+
+  it("lists the watchlist first and never twice, in tickers and in companies", async () => {
+    const watched = await company();
+    const found = await company();
+    await watch(watched, watched.tickers);
+    await radarFinding(found.tickers[0] ?? "", 0);
+    await radarFinding(watched.tickers[0] ?? "", 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers.filter((ticker) => ticker === watched.tickers[0])).toHaveLength(1);
+    const watchedAt = Math.max(
+      ...watched.tickers.map((ticker) => universe.tickers.indexOf(ticker)),
+    );
+    expect(watchedAt).toBeLessThan(universe.tickers.indexOf(found.tickers[0] ?? ""));
+    expect(universe.watchedTickers).toEqual(expect.arrayContaining(watched.tickers));
+    expect(universe.watchedTickers).not.toContain(found.tickers[0]);
+    const cnpjs = universe.companies.map((entry) => entry.cnpj);
+    expect(cnpjs.filter((cnpj) => cnpj === watched.cnpj)).toHaveLength(1);
+    expect(cnpjs.indexOf(watched.cnpj)).toBeLessThan(cnpjs.indexOf(found.cnpj));
+    const flagOf = (cnpj: string) => universe.companies.find((entry) => entry.cnpj === cnpj);
+    expect(flagOf(watched.cnpj)?.watched).toBe(true);
+    expect(flagOf(found.cnpj)?.watched).toBe(false);
+  });
+
+  it("adds at most 40 radar underlyings, newest session first, on top of the watchlist", async () => {
+    const watched = await company();
+    await watch(watched, watched.tickers);
+    const older = Array.from({ length: 10 }, (_, index) => `ZY${String(index).padStart(2, "0")}3`);
+    const newest = Array.from({ length: 45 }, (_, index) => `ZX${String(index).padStart(2, "0")}3`);
+    for (const ticker of older) await radarFinding(ticker, 1);
+    for (const ticker of newest) await radarFinding(ticker, 0);
+    for (const sessionIndex of [1, 2]) await radarFinding("ZX443", sessionIndex);
+
+    const universe = await sentimentUniverse(getDb());
+
+    const found = universe.tickers.filter((ticker) => /^Z[XY]\d\d3$/.test(ticker));
+    expect(found).toHaveLength(40);
+    expect(found.every((ticker) => newest.includes(ticker))).toBe(true);
+    expect(found).toContain("ZX443");
+    const firstFound = universe.tickers.indexOf(found[0] ?? "");
+    for (const ticker of watched.tickers) {
+      expect(universe.tickers.indexOf(ticker)).toBeLessThan(firstFound);
+    }
+  });
+
+  it("groups radar tickers by company and keeps one with no company as a bare ticker", async () => {
+    const found = await company();
+    const bare = `${randomLetters(4)}11`;
+    await radarFinding(found.tickers[0] ?? "", 0);
+    await radarFinding(found.tickers[1] ?? "", 0);
+    await radarFinding(bare, 0);
+
+    const universe = await sentimentUniverse(getDb());
+
+    expect(universe.tickers).toContain(bare);
+    expect(universe.companies.find((entry) => entry.cnpj === found.cnpj)?.tickers).toEqual(
+      [...found.tickers].sort(),
+    );
+    expect(universe.companies.flatMap((entry) => entry.tickers)).not.toContain(bare);
   });
 });
 
@@ -218,7 +330,14 @@ describe("labelFilings", () => {
       [`${revised.protocol}&v=1`]: "pdf",
     });
     const { client, label } = labelClient(goodReply);
-    const options = { client, cnpjs: [fixture.cnpj], fetchImpl, now, sleep: noSleep };
+    const options = {
+      client,
+      cnpjs: [fixture.cnpj],
+      watchedCnpjs: [fixture.cnpj],
+      fetchImpl,
+      now,
+      sleep: noSleep,
+    };
 
     const first = await labelFilings(db, { ...options, deadlineAt: deadline() });
 
@@ -290,6 +409,7 @@ describe("labelFilings", () => {
     const options = {
       client,
       cnpjs: [fixture.cnpj],
+      watchedCnpjs: [fixture.cnpj],
       fetchImpl: radFetch({ [target.protocol]: "pdf" }),
       now: new Date(),
       sleep: noSleep,
@@ -315,6 +435,7 @@ describe("labelFilings", () => {
     const outcome = await labelFilings(db, {
       client,
       cnpjs: [fixture.cnpj],
+      watchedCnpjs: [fixture.cnpj],
       fetchImpl: radFetch({ [fixture.cnpj]: "pdf" }),
       now: new Date(),
       deadlineAt: deadline(),
@@ -326,6 +447,28 @@ describe("labelFilings", () => {
     expect(await labelsOf(fixture.protocols)).toEqual([]);
   });
 
+  it("labels a watched company's filing before a newer radar company's under a one-call outage", async () => {
+    const db = getDb();
+    const watched = await company(1);
+    const found = await company(1);
+    await filing(watched, { deliveredOn: daysAgo(20), subject: "Do vigiado" });
+    await filing(found, { deliveredOn: daysAgo(1), subject: "Do radar" });
+    const { client, label } = labelClient(() => ({ kind: "api_error" }));
+
+    await labelFilings(db, {
+      client,
+      cnpjs: [found.cnpj, watched.cnpj],
+      watchedCnpjs: [watched.cnpj],
+      fetchImpl: radFetch({ ENET: "pdf" }),
+      now: new Date(),
+      deadlineAt: deadline(),
+      sleep: noSleep,
+    });
+
+    expect(label).toHaveBeenCalledTimes(1);
+    expect(label.mock.calls[0]?.[0].inputs.subject).toBe("Do vigiado");
+  });
+
   it("defers every filing it cannot finish before the deadline", async () => {
     const fixture = await company();
     await filing(fixture, { deliveredOn: daysAgo(1) });
@@ -334,6 +477,7 @@ describe("labelFilings", () => {
     const outcome = await labelFilings(getDb(), {
       client,
       cnpjs: [fixture.cnpj],
+      watchedCnpjs: [fixture.cnpj],
       fetchImpl: radFetch({}),
       now: new Date(),
       deadlineAt: Date.now() + 1000,
@@ -391,7 +535,12 @@ describe("refreshNewsTone", () => {
     const db = getDb();
     const fixture = await company();
     const companies = [
-      { cnpj: fixture.cnpj, companyName: "EMPRESA TESTE S.A. - TESTE", tickers: fixture.tickers },
+      {
+        cnpj: fixture.cnpj,
+        companyName: "EMPRESA TESTE S.A. - TESTE",
+        tickers: fixture.tickers,
+        watched: true,
+      },
     ];
     const fetchImpl = gdeltFetch([
       { day: daysAgo(2), tone: -1.5, articles: 4 },
@@ -440,6 +589,39 @@ describe("refreshNewsTone", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("asks about a watched company before a never-asked radar one", async () => {
+    const db = getDb();
+    const watched = await company(1);
+    const found = await company(1);
+    await db.insert(sentimentFetches).values({
+      source: "gdelt",
+      subject: watched.cnpj,
+      query: "q",
+      status: "ok",
+      fetchedAt: new Date(Date.now() - 21 * 60 * 60 * 1000),
+    });
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response("Please limit requests to one every 5 seconds")),
+    );
+
+    await refreshNewsTone(db, {
+      companies: [
+        { cnpj: found.cnpj, companyName: null, tickers: found.tickers, watched: false },
+        { cnpj: watched.cnpj, companyName: null, tickers: watched.tickers, watched: true },
+      ],
+      fetchImpl,
+      now: new Date(),
+      deadlineAt: deadline(),
+      sleep: noSleep,
+    });
+
+    const rows = await db
+      .select()
+      .from(sentimentFetches)
+      .where(inArray(sentimentFetches.subject, [watched.cnpj, found.cnpj]));
+    expect(rows.map((row) => [row.subject, row.status])).toEqual([[watched.cnpj, "rate_limited"]]);
+  });
+
   it("leaves the company due when GDELT asks to slow down", async () => {
     const db = getDb();
     const fixture = await company();
@@ -447,7 +629,9 @@ describe("refreshNewsTone", () => {
       Promise.resolve(new Response("Please limit requests to one every 5 seconds")),
     );
     const options = {
-      companies: [{ cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers }],
+      companies: [
+        { cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers, watched: true },
+      ],
       fetchImpl,
       now: new Date(),
       sleep: noSleep,
@@ -494,10 +678,38 @@ describe("refreshProviderArticles", () => {
       await refreshProviderArticles(getDb(), {
         provider: null,
         tickers: ["PETR4"],
+        watchedTickers: ["PETR4"],
         now: new Date(),
         deadlineAt: deadline(),
       }),
     ).toEqual({ status: "off", refreshed: 0, articles: 0, failed: 0, deferred: 0 });
+  });
+
+  it("refreshes a watched ticker ahead of a full run of never-fetched radar ones", async () => {
+    const db = getDb();
+    const watched = await company(1);
+    const radar = Array.from({ length: 30 }, (_, index) => `ZW${String(index).padStart(2, "0")}3`);
+    const [watchedTicker = ""] = watched.tickers;
+    watched.tickers.push(...radar);
+    await db.insert(sentimentFetches).values({
+      source: "marketaux",
+      subject: watchedTicker,
+      query: null,
+      status: "ok",
+      fetchedAt: new Date(Date.now() - 21 * 60 * 60 * 1000),
+    });
+    const { provider, latestArticles } = fakeProvider(() => []);
+
+    await refreshProviderArticles(db, {
+      provider,
+      tickers: [...radar, watchedTicker],
+      watchedTickers: [watchedTicker],
+      now: new Date(),
+      deadlineAt: deadline(),
+    });
+
+    expect(latestArticles).toHaveBeenCalledTimes(30);
+    expect(latestArticles.mock.calls[0]?.[0]).toEqual([watchedTicker]);
   });
 
   it("stores each ticker's articles once and asks again only after a day", async () => {
@@ -506,7 +718,12 @@ describe("refreshProviderArticles", () => {
     const { provider, latestArticles } = fakeProvider((ticker) => [
       article(ticker, `${ticker}-a`, "0.6124"),
     ]);
-    const options = { provider, tickers: fixture.tickers, deadlineAt: deadline() };
+    const options = {
+      provider,
+      tickers: fixture.tickers,
+      watchedTickers: fixture.tickers,
+      deadlineAt: deadline(),
+    };
 
     const outcome = await refreshProviderArticles(db, { ...options, now: new Date() });
 
@@ -539,7 +756,9 @@ describe("sentimentForInstrument", () => {
       null,
     );
     await refreshNewsTone(db, {
-      companies: [{ cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers }],
+      companies: [
+        { cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers, watched: true },
+      ],
       fetchImpl: gdeltFetch([
         { day: daysAgo(40), tone: 9, articles: 50 },
         { day: daysAgo(5), tone: -2, articles: 1 },
@@ -552,6 +771,7 @@ describe("sentimentForInstrument", () => {
     await refreshProviderArticles(db, {
       provider: fakeProvider((t) => [article(t, `${t}-x`, "-0.2500")]).provider,
       tickers: [ticker],
+      watchedTickers: [ticker],
       now: new Date(),
       deadlineAt: deadline(),
     });
@@ -614,7 +834,9 @@ describe("sentimentForInstrument", () => {
       );
     }
     await refreshNewsTone(db, {
-      companies: [{ cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers }],
+      companies: [
+        { cnpj: fixture.cnpj, companyName: null, tickers: fixture.tickers, watched: true },
+      ],
       fetchImpl: gdeltFetch([
         { day: daysAgo(9), tone: 1, articles: 2 },
         { day: todaySaoPauloDate(knownAt), tone: -4, articles: 10 },

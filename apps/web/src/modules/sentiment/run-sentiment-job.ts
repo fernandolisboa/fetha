@@ -108,6 +108,9 @@ export async function runSentimentJob(
         labelFilings(db, {
           client: labelClient,
           cnpjs: universe.companies.map((company) => company.cnpj),
+          watchedCnpjs: universe.companies
+            .filter((company) => company.watched)
+            .map((company) => company.cnpj),
           fetchImpl,
           now,
           deadlineAt,
@@ -123,7 +126,14 @@ export async function runSentimentJob(
     ),
     guarded(
       "provider",
-      () => refreshProviderArticles(db, { provider, tickers: universe.tickers, now, deadlineAt }),
+      () =>
+        refreshProviderArticles(db, {
+          provider,
+          tickers: universe.tickers,
+          watchedTickers: universe.watchedTickers,
+          now,
+          deadlineAt,
+        }),
       failedProvider,
     ),
   ]);

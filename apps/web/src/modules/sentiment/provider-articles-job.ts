@@ -23,6 +23,7 @@ export interface ProviderArticlesOutcome {
 export interface ProviderArticlesOptions {
   provider: NewsSentimentProvider | null;
   tickers: readonly string[];
+  watchedTickers: readonly string[];
   now: Date;
   deadlineAt: number;
 }
@@ -45,12 +46,17 @@ export async function refreshProviderArticles(
   const source = provider.name;
   const fetches = await sentimentFetchesOf(db, source, options.tickers);
   const lastFetch = new Map(fetches.map((row) => [row.subject, row.fetchedAt.getTime()]));
+  const watched = new Set(options.watchedTickers);
   const due = options.tickers
     .filter((ticker) => {
       const at = lastFetch.get(ticker);
       return at === undefined || options.now.getTime() - at >= REFRESH_AFTER_MS;
     })
-    .sort((a, b) => (lastFetch.get(a) ?? 0) - (lastFetch.get(b) ?? 0));
+    .sort(
+      (a, b) =>
+        Number(watched.has(b)) - Number(watched.has(a)) ||
+        (lastFetch.get(a) ?? 0) - (lastFetch.get(b) ?? 0),
+    );
 
   for (const [index, ticker] of due.entries()) {
     if (index >= MAX_REQUESTS_PER_RUN || Date.now() + ITEM_BUDGET_MS > options.deadlineAt) {
