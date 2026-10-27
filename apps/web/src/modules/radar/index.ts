@@ -20,7 +20,7 @@ export {
   type ResearchSuggestionsActionResult,
 } from "./research-actions";
 export type { Idea, IdeaCard, ResearchResult } from "./research";
-export { ideaCardOf } from "./research";
+export { ideaCardOf, RESEARCH_BUDGET_MS } from "./research";
 export { dropReasons, ideaAlertSchema, type DropReason, type IdeaAlert } from "./research-rules";
 export { lotLegsSchema, type LotLeg } from "./lot-legs";
 export { suggestionClaim } from "./suggestion";

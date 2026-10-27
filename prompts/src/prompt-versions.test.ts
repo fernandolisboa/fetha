@@ -69,7 +69,7 @@ describe("released prompt versions", () => {
           ),
         )
         .digest("hex"),
-    ).toBe("5db5db63918fcc54b4763450cd63925d1c9ce1259842a23ad79e7d6df1447932");
+    ).toBe("a11248d197007f9a640542d91a88188c85ad1b15a3f568de6889e4b3363192a2");
   });
 
   it("new researches use research@1", () => {

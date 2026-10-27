@@ -145,12 +145,17 @@ journal can say whether the verdicts age well. This ADR amends six decisions:
    (`safeDbErrorMessage`) and answered as the `failed` notice with the engine's cards, and if the
    research was stored and only the re-read failed, it is on the next page load.
 9. **Timing.** The engine part keeps its 45 s deadline and the model call its 100 s timeout, so
-   the home page's `maxDuration` is **180 s**: 45 + 100 = 145, plus 35 s for the sentiment reads,
-   the advisory-lock wait, the storage transaction and cold start (Vercel Pro allows 300). The
-   headroom is enforced, not hoped for: the action notes when it started, and the model call is
-   skipped, with the `failed` notice and nothing reserved, if more than 180 − 100 − 35 = 45 s have
-   gone by when it would start (checked again after the facts are assembled), so the platform
-   never kills a call that is already paid for.
+   the home page's `maxDuration` is **180 s** (Vercel Pro allows 300). The model call may start
+   at the latest 180 − 100 − 15 = **65 s** after the action began: the 15 s of headroom pays only
+   for what follows the call (settling the reservation, the storage transaction, re-reading the
+   stored research, revalidation). Everything before the call fits between the engine's 45 s and
+   that 65 s, which leaves 20 s for the key lookup, the per-minute token, the sentiment reads, the
+   facts, the advisory-lock wait, the reservation and a cold start; a test asserts both sums. The
+   limit is enforced, not hoped for: the action notes when it started, and the model call is
+   skipped, with the `failed` notice and nothing reserved, if more than 65 s have gone by when
+   the key is known (before the per-minute token is spent), and checked again after the facts are
+   assembled, right before the call, which is the authoritative check. So the platform never
+   kills a call that is already paid for.
 10. **"Pesquisas do Fetha" in `/diario`.** From the user's own `research_idea_scores`, for each
     verdict: how many were scored, how many ideas had no data to be scored ("N sem dados", kept
     out of every figure), in how many of those the entry would have worked (the idea's claim

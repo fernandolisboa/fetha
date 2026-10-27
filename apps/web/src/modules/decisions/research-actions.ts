@@ -78,12 +78,14 @@ export async function obtainSuggestionsAction(): Promise<ObtainSuggestionsResult
   const researched = await researchSuggestionsAction();
   if (researched.status === "error") return researched;
 
-  const user = await withAuthenticatedAction(() => requireUser());
+  let signedIn: ReturnType<typeof requireUser> | undefined;
+  const currentUser = () => (signedIn ??= withAuthenticatedAction(() => requireUser()));
   const opinion = await opinionOn(researched.result, startedAt, {
     resolveModel: () =>
       withAuthenticatedAction(() => resolveAnalysisModelForCurrentUser("research")),
     takeRequestToken: async () => {
       try {
+        const user = await currentUser();
         await enforceAccountRateLimit(getDb(), user.email, "analyses/request", REQUEST_RATE_LIMIT);
         return true;
       } catch (error) {
@@ -91,8 +93,9 @@ export async function obtainSuggestionsAction(): Promise<ObtainSuggestionsResult
         throw error;
       }
     },
-    request: (choice, input, mustStartBy) =>
-      withAuthenticatedAction(() =>
+    request: async (choice, input, mustStartBy) => {
+      const user = await currentUser();
+      return withAuthenticatedAction(() =>
         requestResearch(
           {
             db: getDb(),
@@ -105,7 +108,8 @@ export async function obtainSuggestionsAction(): Promise<ObtainSuggestionsResult
           },
           input,
         ),
-      ),
+      );
+    },
     readStored: async (researchId) =>
       (await forCurrentUser(getDb(), ResearchRepository)).find(researchId),
     newestReadSession: async () => {

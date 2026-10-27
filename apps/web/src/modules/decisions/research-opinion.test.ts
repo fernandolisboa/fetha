@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { sessionDateSchema } from "@fetha/contracts";
 
-import type { Idea, IdeaCard, ResearchResult } from "@/modules/radar";
+import { RESEARCH_BUDGET_MS, type Idea, type IdeaCard, type ResearchResult } from "@/modules/radar";
 
 import { MONTHLY_ANALYSIS_CAP } from "./analyses-repository";
-import { LATEST_MODEL_START_MS, opinionOn, type OpinionPorts } from "./research-opinion";
+import { REQUEST_TIMEOUT_MS } from "./analysis-model";
+import {
+  ACTION_MAX_DURATION_MS,
+  LATEST_MODEL_START_MS,
+  STORAGE_HEADROOM_MS,
+  opinionOn,
+  type OpinionPorts,
+} from "./research-opinion";
 import type { StoredResearch } from "./research-repository";
 
 const CLOSE = sessionDateSchema.parse("2026-10-23");
@@ -116,6 +123,27 @@ describe("opinionOn", () => {
       expect.anything(),
       expect.anything(),
       STARTED_AT + LATEST_MODEL_START_MS,
+    );
+  });
+
+  it("still asks when the engine used its whole budget", async () => {
+    const p = ports({ clock: () => STARTED_AT + RESEARCH_BUDGET_MS + 5_000 });
+    const outcome = await opinionOn(result, STARTED_AT, p);
+    expect(p.request).toHaveBeenCalled();
+    expect(outcome).toMatchObject({ notice: null, stored: true });
+  });
+
+  it("spends no per-minute token on a call that will not happen", async () => {
+    const p = ports({ clock: () => STARTED_AT + LATEST_MODEL_START_MS + 1 });
+    expect(await opinionOn(result, STARTED_AT, p)).toMatchObject({ notice: { kind: "failed" } });
+    expect(p.takeRequestToken).not.toHaveBeenCalled();
+  });
+
+  it("fits the engine, the work before the call, the call and what follows in the page's limit", () => {
+    const preCallAllowanceMs = 20_000;
+    expect(RESEARCH_BUDGET_MS + preCallAllowanceMs).toBeLessThanOrEqual(LATEST_MODEL_START_MS);
+    expect(LATEST_MODEL_START_MS + REQUEST_TIMEOUT_MS + STORAGE_HEADROOM_MS).toBeLessThanOrEqual(
+      ACTION_MAX_DURATION_MS,
     );
   });
 

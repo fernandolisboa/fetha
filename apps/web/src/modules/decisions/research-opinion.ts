@@ -24,11 +24,12 @@ export type OpinionOutcome =
 
 type ModelChoice = Awaited<ReturnType<typeof resolveAnalysisModelForCurrentUser>>;
 
-// The page's `maxDuration` (180 s, app/(shell)/page.tsx) less the model's own timeout and room to
-// reserve, assemble the facts and store the answer: past this much time spent on the engine, the
-// platform could kill a call that is already paid for (docs/adr/0076).
+// The page's `maxDuration` (180 s, app/(shell)/page.tsx) less the model's own timeout and room for
+// what follows the call: settling the reservation, storing the answer, re-reading it. Past this
+// instant a call could be killed after it is already paid for. Everything before the call (the
+// engine's 45 s, then the key, the rate limit and the facts) must fit before it (docs/adr/0076).
 export const ACTION_MAX_DURATION_MS = 180_000;
-export const STORAGE_HEADROOM_MS = 35_000;
+export const STORAGE_HEADROOM_MS = 15_000;
 export const LATEST_MODEL_START_MS =
   ACTION_MAX_DURATION_MS - REQUEST_TIMEOUT_MS - STORAGE_HEADROOM_MS;
 
@@ -72,12 +73,12 @@ export async function opinionOn(
     if (choice.status === "own_key_unreadable") {
       return { research: null, notice: { kind: "key_unreadable" }, stored };
     }
-    if (!(await ports.takeRequestToken())) {
-      return { research: null, notice: { kind: "rate_limited" }, stored };
-    }
     const mustStartBy = startedAt + LATEST_MODEL_START_MS;
     if (ports.clock() > mustStartBy) {
       return { research: null, notice: { kind: "failed" }, stored };
+    }
+    if (!(await ports.takeRequestToken())) {
+      return { research: null, notice: { kind: "rate_limited" }, stored };
     }
 
     const answered = await ports.request(

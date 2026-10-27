@@ -91,6 +91,10 @@ export interface ResearchResult {
   timedOut: boolean;
 }
 
+// The first of two budgets the page's `maxDuration` (180 s, app/(shell)/page.tsx) holds: this one,
+// then the model call (docs/adr/0076).
+export const RESEARCH_BUDGET_MS = 45_000;
+
 export interface ResearchInput extends RiskContext {
   now: Date;
   deadlineAt: number;
