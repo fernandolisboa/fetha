@@ -243,8 +243,8 @@ options share one expiry. Shared reference data written by the nightly scan, the
 user, ordered by traded series, never by a score; a user's risk-profile breaches on it are
 computed when shown. A user answers it with a decision (enter / do not enter), may request an
 analysis of it, test its recipe or open it in the builder. Scored at its horizon like a decision,
-as the lot entered at the engine's prices, with its confidence asserted. The AI never picks or
-ranks suggestions. Open until the radar reads a newer close, then archived (pt-BR: _arquivada_):
+as the lot entered at the engine's prices, with its confidence asserted. The AI never ranks or
+orders suggestions; it gives a verdict only on a research's ideas (below, ADR-0076). Open until the radar reads a newer close, then archived (pt-BR: _arquivada_):
 off today's suggestions, no new decision, still scored (ADR-0073). Archived here follows from the
 radar's next reading alone, never a user action or the date, unlike an archived strategy.
 _Avoid_: recommendation, tip, idea (in code, except the suggestion research's own idea below), pick, match (the radar row before pricing)
@@ -258,9 +258,32 @@ returns two groups of **ideas**, the re-priced findings (pt-BR: _ideias_): the o
 hold today and the ones whose rule no longer does, each with computed alerts (the rule no longer
 holds, a limit breach, near expiry), plus a count of what was dropped by reason (no price,
 expires in fewer than 5 sessions, max loss above the declared capital). An idea is not a
-suggestion: it is not stored, has no id and takes no decision until part 2 of #356 stores it.
-Computed on each click, rate limited, never ordered by a score.
+suggestion. The engine part is computed on each click, rate limited and never ordered by a score;
+the verdicts on it are **Fetha's research** (below), which is what stores it.
 _Avoid_: screener, scan, new suggestions, recommendation, refresh
+
+**Fetha's research** (pt-BR: _Pesquisa do Fetha_, panel "Pesquisas do Fetha" in the journal):
+The suggestion research plus one AI call, the analysis subject `research`, that gives each idea a
+**research verdict** and a justification (ADR-0076). Stored per user with its ideas when the AI
+answers; one counts as one analysis against the monthly cap. At most 20 ideas are sent, the rest
+stay engine-only. The model never orders the ideas and writes no number. Shown on the home page
+until the radar reads a newer close. The journal panel scores every idea at its expiry, the
+discarded ones too, so the user sees whether the verdicts age well.
+_Avoid_: AI suggestions, AI picks, analysis (a research is not one object's analysis), report
+
+**Research verdict** (pt-BR: _veredito da pesquisa_): `enter` ("Vale a pena", _Eu entraria_),
+`wait` ("Com ressalva", _Eu esperaria_) or `do_not_enter` ("Descartadas", _Eu não entraria_): the
+closed list the AI answers with for each research idea, always with a justification in words,
+never a rating or a score. Not a decision: the user's own decision on the idea is theirs.
+_Avoid_: rating, score, ranking, recommendation, signal
+
+**Research idea** (pt-BR: _ideia da pesquisa_):
+An idea of a stored research: the lot re-priced at the research's newest close, its engine alerts,
+its verdict, justification and AI alerts, the claim and the horizon (the options' expiry) it is
+scored on. Unlike an unstored idea it has an id, takes a decision (`enter` or `do_not_enter`, once
+per user) and opens the builder. Scored at its horizon like a suggestion, with its confidence
+asserted, whatever its verdict.
+_Avoid_: suggestion (the radar's priced match), recommendation, pick
 
 **Sighting** (pt-BR: _primeira visualização_):
 The first time at least half of a suggestion's card (or half of the screen, for a taller card)

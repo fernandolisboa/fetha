@@ -181,3 +181,10 @@ Item 1's one-lot pricing also runs on demand for the signed-in user, with their 
 the risk form's defaults when none is declared) and their open-operation count passed to the
 engine. Nothing is stored, and the declared capital only drops an idea whose max loss exceeds it:
 it never sizes the lot, which stays `SUGGESTION_LOT`. See docs/adr/0075.
+
+## Amendment (2026-10-27, ADR-0076)
+
+Item 6 changes: the AI now **picks by a closed verdict** (`enter` | `wait` | `do_not_enter`) on the
+ideas of an "Obter sugestões" research, still never ranking, ordering or scoring them. Those ideas
+take decisions (origin `research_idea`) and are scored like a suggestion, in `research_idea_scores`.
+See docs/adr/0076.
