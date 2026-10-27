@@ -28,3 +28,17 @@ export function applyObtained(
     ? { engine: outcome.engine, research: outcome.research, notice: outcome.notice, error: null }
     : { ...previous, error: outcome.error };
 }
+
+// The page re-renders with the stored research after a decision is saved on one of its ideas, and
+// the panel keeps its own copy: take the revalidated one so the decision shows. The on-screen
+// copy may hold ideas that were not sent, which a stored research does not carry. An engine-only
+// result on screen is newer than anything stored and stays.
+export function withStored(
+  previous: ResearchPanelState,
+  stored: ResearchView | null,
+): ResearchPanelState {
+  if (!stored) return previous;
+  if (!previous.research) return previous.engine ? previous : { ...previous, research: stored };
+  if (previous.research.id !== stored.id) return { ...previous, research: stored };
+  return { ...previous, research: { ...stored, unsent: previous.research.unsent } };
+}

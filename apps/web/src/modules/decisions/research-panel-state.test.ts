@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineResearchView, ObtainSuggestionsResult } from "./research-actions";
-import { applyObtained, initialPanelState } from "./research-panel-state";
+import { applyObtained, initialPanelState, withStored } from "./research-panel-state";
 import type { ResearchView } from "./research-view";
 
 const engine = { candidates: 2 } as unknown as EngineResearchView;
@@ -71,5 +71,64 @@ describe("applyObtained", () => {
     expect(
       applyObtained(failed, { status: "ok", engine, research: null, notice: null }).error,
     ).toBeNull();
+  });
+});
+
+describe("withStored", () => {
+  const unsentCard = { underlying: "PETR4" } as unknown as ResearchView["unsent"][number];
+  const onScreen = {
+    id: "fresh",
+    unsent: [unsentCard],
+    marker: "before",
+  } as unknown as ResearchView;
+  const revalidated = { id: "fresh", unsent: [], marker: "after" } as unknown as ResearchView;
+
+  it("takes the revalidated research with the same id, keeping the unsent ideas on screen", () => {
+    const previous = applyObtained(initialPanelState(null), {
+      status: "ok",
+      engine,
+      research: onScreen,
+      notice: null,
+    });
+    const next = withStored(previous, revalidated);
+    expect(next.research).toEqual({ ...revalidated, unsent: [unsentCard] });
+    expect(next.engine).toBe(engine);
+    expect(next.notice).toBeNull();
+    expect(next.error).toBeNull();
+  });
+
+  it("takes the stored research when none is on screen", () => {
+    expect(withStored(initialPanelState(null), stored)).toEqual(initialPanelState(stored));
+  });
+
+  it("takes a different stored research as it is", () => {
+    const next = withStored(initialPanelState(onScreen), stored);
+    expect(next.research).toBe(stored);
+  });
+
+  it("leaves an engine-only result on screen, which is newer than any stored research", () => {
+    const engineOnly = applyObtained(initialPanelState(stored), {
+      status: "ok",
+      engine,
+      research: null,
+      notice: { kind: "no_key" },
+    });
+    expect(withStored(engineOnly, stored)).toBe(engineOnly);
+  });
+
+  it("keeps what is on screen when nothing is stored any more", () => {
+    const previous = initialPanelState(stored);
+    expect(withStored(previous, null)).toBe(previous);
+  });
+
+  it("keeps the error and the notice", () => {
+    const previous = {
+      ...initialPanelState(onScreen),
+      notice: { kind: "no_key" as const },
+      error: "unavailable" as const,
+    };
+    const next = withStored(previous, revalidated);
+    expect(next.notice).toEqual({ kind: "no_key" });
+    expect(next.error).toBe("unavailable");
   });
 });

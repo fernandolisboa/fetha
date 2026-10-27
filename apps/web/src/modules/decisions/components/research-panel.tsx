@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { analysisVerdicts, type AnalysisVerdictDecision } from "@fetha/contracts";
 
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatBRL } from "@/lib/format/brl";
@@ -20,7 +21,12 @@ import {
 
 import { allowedDecisionKinds } from "../allowed-kinds";
 import { obtainSuggestionsAction, type EngineResearchView } from "../research-actions";
-import { applyObtained, initialPanelState, type ResearchPanelState } from "../research-panel-state";
+import {
+  applyObtained,
+  initialPanelState,
+  withStored,
+  type ResearchPanelState,
+} from "../research-panel-state";
 import type { ResearchIdeaView, ResearchView } from "../research-view";
 import { t } from "../strings";
 import { DecisionBar } from "./decision-bar";
@@ -103,12 +109,10 @@ function AiAlerts({ idea }: { idea: ResearchIdeaView }) {
   return (
     <ul aria-label={t.research.aiAlertsLabel} className="flex flex-wrap gap-1.5">
       {idea.aiAlerts.map((alert) => (
-        <li
-          key={alert}
-          className="border-primary text-primary rounded-[var(--radius)] border px-2 py-0.5 text-xs"
-          data-testid="research-ai-alert"
-        >
-          {t.research.aiAlerts[alert]}
+        <li key={alert} data-testid="research-ai-alert">
+          <Badge variant="secondary" className="h-auto min-h-5 whitespace-normal">
+            {t.research.aiAlerts[alert]}
+          </Badge>
         </li>
       ))}
     </ul>
@@ -136,7 +140,7 @@ function Opinion({ idea }: { idea: ResearchIdeaView }) {
             />
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 pt-1 pb-2 text-xs">
               {idea.cited.map((fact, index) => (
                 <div key={`${fact.label}-${String(index)}`} className="contents">
                   <dt className="text-muted-foreground">{fact.label}</dt>
@@ -348,6 +352,11 @@ function NoticeLine({ state }: { state: ResearchPanelState }) {
 export function ResearchPanel({ stored }: { stored: ResearchView | null }) {
   const [state, setState] = useState<ResearchPanelState>(() => initialPanelState(stored));
   const [pending, setPending] = useState(false);
+  const [seenStored, setSeenStored] = useState(stored);
+  if (stored !== seenStored) {
+    setSeenStored(stored);
+    setState((previous) => withStored(previous, stored));
+  }
 
   async function research() {
     setPending(true);
