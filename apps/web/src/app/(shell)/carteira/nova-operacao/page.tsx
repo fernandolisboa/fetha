@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { tickerSchema } from "@fetha/contracts";
 
 import { requireUser } from "@/modules/auth";
+import { getMyResearchIdeaLot } from "@/modules/decisions";
 import { EmptyState, PageHeader, t as shellStrings } from "@/modules/shell";
 import { getCurrentRiskProfile, t } from "@/modules/portfolio";
 import { OperationBuilderForm } from "@/modules/portfolio/client";
@@ -13,11 +14,15 @@ export const metadata: Metadata = { title: `Fetha · ${t.builder.title}` };
 export default async function NewOperationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ticker?: string | string[]; sugestao?: string | string[] }>;
+  searchParams: Promise<{
+    ticker?: string | string[];
+    sugestao?: string | string[];
+    pesquisa?: string | string[];
+  }>;
 }) {
   await requireUser();
-  const { ticker: rawTicker, sugestao } = await searchParams;
-  const [structures, riskProfile, suggestion] = await Promise.all([
+  const { ticker: rawTicker, sugestao, pesquisa } = await searchParams;
+  const [structures, riskProfile, suggestion, ideaLot] = await Promise.all([
     getStructures(),
     getCurrentRiskProfile(),
     typeof sugestao === "string"
@@ -26,9 +31,12 @@ export default async function NewOperationPage({
           throw error;
         })
       : null,
+    typeof pesquisa === "string" ? getMyResearchIdeaLot(pesquisa) : null,
   ]);
   const ticker = tickerSchema.safeParse(
-    suggestion?.underlying ?? (typeof rawTicker === "string" ? rawTicker.toUpperCase() : undefined),
+    suggestion?.underlying ??
+      ideaLot?.underlying ??
+      (typeof rawTicker === "string" ? rawTicker.toUpperCase() : undefined),
   );
 
   if (structures.length === 0) {
@@ -42,13 +50,15 @@ export default async function NewOperationPage({
         structures={structures}
         hasRiskProfile={riskProfile !== null}
         initialUnderlying={ticker.success ? ticker.data : ""}
-        initialStructureId={suggestion?.structure.id}
-        initialLegs={suggestion?.entryLegs.map(({ role, side, ticker: leg, quantity }) => ({
-          role,
-          side,
-          ticker: leg,
-          quantity,
-        }))}
+        initialStructureId={suggestion?.structure.id ?? ideaLot?.structureId}
+        initialLegs={(suggestion?.entryLegs ?? ideaLot?.legs)?.map(
+          ({ role, side, ticker: leg, quantity }) => ({
+            role,
+            side,
+            ticker: leg,
+            quantity,
+          }),
+        )}
       />
     </div>
   );

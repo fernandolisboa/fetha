@@ -13,7 +13,8 @@ import { getMyRiskContext } from "@/modules/portfolio";
 import { researchSuggestions, type ResearchResult } from "./research";
 
 const RESEARCH_RATE_LIMIT = { windowSeconds: 60, max: 6 };
-// Under the page's `maxDuration` (60 s, app/(shell)/page.tsx) with room to answer.
+// The first of two budgets the page's `maxDuration` (180 s, app/(shell)/page.tsx) holds: this one,
+// then the model call (docs/adr/0076).
 const RESEARCH_BUDGET_MS = 45_000;
 
 export type ResearchSuggestionsActionResult =

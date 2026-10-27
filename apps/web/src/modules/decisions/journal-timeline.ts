@@ -21,6 +21,8 @@ function decisionSubject(
       return decision.operationId ? { kind: "held_operation", id: decision.operationId } : null;
     case "suggestion":
       return decision.suggestionId ? { kind: "suggestion", id: decision.suggestionId } : null;
+    case "research_idea":
+      return null;
   }
 }
 

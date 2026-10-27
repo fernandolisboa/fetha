@@ -81,10 +81,18 @@ export const suggestionDecisionInputsSchema = z.strictObject({
 });
 export type SuggestionDecisionInputs = z.infer<typeof suggestionDecisionInputsSchema>;
 
+// docs/adr/0076: the research idea as the user saw it, one standard lot at the engine's own leg
+// prices at the research's newest close (`session`), which scoring reads as the entry.
+export const researchIdeaDecisionInputsSchema = suggestionDecisionInputsSchema.extend({
+  originKind: z.literal("research_idea"),
+});
+export type ResearchIdeaDecisionInputs = z.infer<typeof researchIdeaDecisionInputsSchema>;
+
 export const decisionInputsSchema = z.discriminatedUnion("originKind", [
   signalDecisionInputsSchema,
   operationDecisionInputsSchema,
   heldOperationDecisionInputsSchema,
   suggestionDecisionInputsSchema,
+  researchIdeaDecisionInputsSchema,
 ]);
 export type DecisionInputs = z.infer<typeof decisionInputsSchema>;

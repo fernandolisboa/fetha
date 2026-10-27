@@ -3,6 +3,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { analysisPrompt } from "@fetha/prompts";
 import type { ModelFamily } from "@fetha/contracts";
+import type { ZodType } from "zod";
 
 import { withPinnedFallback } from "@/modules/ai-models";
 
@@ -13,6 +14,9 @@ export interface AnalysisModelRequest {
   family: ModelFamily;
   system: string;
   user: string;
+  // The contract the reply is asked to follow; `analysis@3`'s unless a caller has its own
+  // (a research, docs/adr/0076).
+  outputSchema?: ZodType;
   // Called with `model` once a pinned-fallback retry for it succeeds
   // (#322 review A2/A3): the resolver's own closure, so this module never
   // holds the plaintext listing key the catalog is cached under.
@@ -39,8 +43,17 @@ const MAX_OUTPUT_TOKENS = 8000;
 // one attempt of at most 100s leaves time to store the result, so a slow
 // call ends as `api_error` instead of the platform killing the function.
 const REQUEST_TIMEOUT_MS = 100_000;
-const outputFormat = betaZodOutputFormat(analysisPrompt.outputSchema);
+const defaultOutputSchema: ZodType = analysisPrompt.outputSchema;
+const outputFormats = new WeakMap<ZodType, ReturnType<typeof betaZodOutputFormat>>();
 const END_TURN_STOP_REASONS = new Set(["end_turn", "stop_sequence"]);
+
+function outputFormatOf(schema: ZodType): ReturnType<typeof betaZodOutputFormat> {
+  const known = outputFormats.get(schema);
+  if (known) return known;
+  const format = betaZodOutputFormat(schema);
+  outputFormats.set(schema, format);
+  return format;
+}
 
 // Reads the reply by hand instead of through the SDK's `parse()`, which
 // throws on a reply that misses the schema before `stop_reason` can be
@@ -100,7 +113,9 @@ export function createAnthropicAnalysisClient(apiKey: string): AnalysisModelClie
     family: ModelFamily,
     system: string,
     user: string,
+    outputSchema: ZodType,
   ): Promise<AnalysisModelReply> {
+    const outputFormat = outputFormatOf(outputSchema);
     // Haiku 5.5 has no server-side fallback (docs/adr/0068): the beta and
     // `fallbacks` are spread in only for the other two families, since
     // sending them for Haiku would be rejected by the API.
@@ -125,12 +140,19 @@ export function createAnthropicAnalysisClient(apiKey: string): AnalysisModelClie
   }
 
   return {
-    async analyze({ model, family, system, user, onRejected }): Promise<AnalysisModelReply> {
+    async analyze({
+      model,
+      family,
+      system,
+      user,
+      outputSchema = defaultOutputSchema,
+      onRejected,
+    }): Promise<AnalysisModelReply> {
       try {
         return await withPinnedFallback(
           family,
           model,
-          (m) => attempt(m, family, system, user),
+          (m) => attempt(m, family, system, user, outputSchema),
           onRejected,
         );
       } catch (error) {

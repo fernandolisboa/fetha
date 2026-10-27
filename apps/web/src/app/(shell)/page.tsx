@@ -22,9 +22,10 @@ import { TodaySuggestions } from "./_suggestions/today-suggestions";
 // The watchlist tab shows the most liquid few; the radar tab lists every suggestion.
 const WATCHLIST_SUGGESTIONS = 3;
 
-// "Obter sugestões" runs as a Server Action of this page and stops itself at 45 s
-// (modules/radar/research-actions.ts); 60 s leaves room to answer.
-export const maxDuration = 60;
+// "Obter sugestões" runs as a Server Action of this page: the engine stops itself at 45 s
+// (modules/radar/research-actions.ts) and the model call at 100 s (modules/decisions/
+// analysis-model.ts); 180 s leaves 35 s for the rest (docs/adr/0076).
+export const maxDuration = 180;
 
 export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations.watchlist}` };
 

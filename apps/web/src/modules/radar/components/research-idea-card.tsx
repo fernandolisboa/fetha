@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 
@@ -9,7 +9,7 @@ import { formatSessionDate } from "@/lib/format/date-time";
 import { AssetReadingChips } from "@/modules/market-data/client";
 import { RiskNotice } from "@/modules/portfolio/client";
 
-import type { Idea } from "../research";
+import type { IdeaCard } from "../research";
 import type { IdeaAlert } from "../research-rules";
 import { t } from "../strings";
 import { Figure, lotLegText, netPremiumText } from "./lot-parts";
@@ -23,7 +23,7 @@ function alertText(alert: Exclude<IdeaAlert, { kind: "limit_breach" }>): string 
   }
 }
 
-function BreakEvens({ values }: { values: Idea["breakEvens"] }) {
+function BreakEvens({ values }: { values: IdeaCard["breakEvens"] }) {
   if (values.length === 0) return "—";
   return values.map((value, index) => (
     <Fragment key={value}>
@@ -58,10 +58,23 @@ function IdeaAlerts({ alerts }: { alerts: readonly IdeaAlert[] }) {
 }
 
 // One re-checked idea (docs/adr/0075): the lot re-priced at the newest close, its alerts, and a
-// way back to the suggestion it came from and to the asset. No decision bar yet: a research is
-// not stored, so its ideas have no id to decide on.
-export function ResearchIdeaCard({ idea, stale = false }: { idea: Idea; stale?: boolean }) {
-  const title = t.research.cardTitle(idea.structure.name, idea.underlying);
+// way back to the suggestion it came from and to the asset. `title` replaces the engine's plain
+// headline with Fetha's voice, `opinion` sits right under it and `actions` follow the links; a
+// stored idea gets all three (docs/adr/0076), an engine-only one none.
+export function ResearchIdeaCard({
+  idea,
+  stale = false,
+  title: voicedTitle,
+  opinion,
+  actions,
+}: {
+  idea: IdeaCard;
+  stale?: boolean;
+  title?: string;
+  opinion?: ReactNode;
+  actions?: ReactNode;
+}) {
+  const title = voicedTitle ?? t.research.cardTitle(idea.structure.name, idea.underlying);
   const labels = t.suggestions.numbers;
   return (
     <article
@@ -74,6 +87,7 @@ export function ResearchIdeaCard({ idea, stale = false }: { idea: Idea; stale?: 
       aria-label={title}
     >
       <h4 className="text-[13px] font-semibold">{title}</h4>
+      {opinion}
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
           {t.research.foundOn(formatSessionDate(idea.foundOn))}
@@ -123,6 +137,7 @@ export function ResearchIdeaCard({ idea, stale = false }: { idea: Idea; stale?: 
         >
           {t.research.actions.asset}
         </Link>
+        {actions}
       </div>
     </article>
   );

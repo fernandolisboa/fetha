@@ -1,6 +1,6 @@
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { analysisOutputSchema } from "@fetha/contracts";
+import { analysisOutputSchema, researchOutputSchema } from "@fetha/contracts";
 import { describe, expect, it } from "vitest";
 
 import { replyFromMessage } from "./analysis-model";
@@ -23,6 +23,15 @@ function message(
 describe("betaZodOutputFormat(analysisOutputSchema)", () => {
   it("builds without throwing", () => {
     expect(() => betaZodOutputFormat(analysisOutputSchema)).not.toThrow();
+  });
+});
+
+describe("betaZodOutputFormat(researchOutputSchema)", () => {
+  it("builds without throwing and asks for one verdict per idea from the closed lists", () => {
+    const format = betaZodOutputFormat(researchOutputSchema);
+    const schema = JSON.stringify(format.schema);
+    expect(schema).toContain("do_not_enter");
+    expect(schema).toContain("trend_against");
   });
 });
 

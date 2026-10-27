@@ -7,8 +7,10 @@ import {
   getMyDecisionScores,
   getMyDecisions,
   getMyJournalAnalyses,
+  getMyResearchCalibration,
   getMyTrackRecordStats,
   JournalTimeline,
+  ResearchCalibrationPanel,
   TrackRecordPanel,
   t,
 } from "@/modules/decisions";
@@ -19,13 +21,18 @@ export const metadata: Metadata = { title: `Fetha · ${shellStrings.destinations
 
 export default async function JournalPage() {
   await requireUser();
-  const [decisions, analyses] = await Promise.all([getMyDecisions(), getMyJournalAnalyses()]);
+  const [decisions, analyses, researchCalibration] = await Promise.all([
+    getMyDecisions(),
+    getMyJournalAnalyses(),
+    getMyResearchCalibration(),
+  ]);
 
   if (decisions.length === 0 && analyses.length === 0) {
     return (
       <div className="flex flex-col gap-8 px-5 py-8">
         <EmptyState sentence={shellStrings.emptyStates.journal.sentence} />
-        <div className="mx-auto w-full max-w-xl">
+        <div className="mx-auto flex w-full max-w-xl flex-col gap-[14px]">
+          <ResearchCalibrationPanel calibration={researchCalibration} />
           <SuggestionCalibrationPanel />
         </div>
       </div>
@@ -55,6 +62,7 @@ export default async function JournalPage() {
 
         <div className="flex flex-col gap-[14px]">
           <TrackRecordPanel stats={trackRecordStats} analysisStats={analysisTrackRecordStats} />
+          <ResearchCalibrationPanel calibration={researchCalibration} />
           <SuggestionCalibrationPanel />
         </div>
       </div>

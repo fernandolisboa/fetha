@@ -34,6 +34,8 @@ export function analysisOrigin(analysis: Pick<JournalAnalysis, "inputs">): strin
       return labels.originBacktest(fact(inputs, "period.from"), fact(inputs, "period.to"));
     case "suggestion":
       return labels.originSuggestion(fact(inputs, "structure"), fact(inputs, "underlying"));
+    case "research":
+      return labels.originResearch;
   }
 }
 

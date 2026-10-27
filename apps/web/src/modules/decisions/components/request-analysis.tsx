@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { AnalysisSubjectKind } from "@fetha/contracts";
+import type { AnalysisObjectKind } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +15,7 @@ import { t } from "../strings";
 import { analysisErrorMessage } from "./analysis-error-message";
 
 interface RequestAnalysisButtonProps {
-  subjectKind: AnalysisSubjectKind;
+  subjectKind: AnalysisObjectKind;
   subjectId: string;
   hasExistingAnalysis: boolean;
   usage: { used: number; cap: number };

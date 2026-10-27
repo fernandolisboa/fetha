@@ -11,6 +11,7 @@ const purgeExpiredNightlyRunsMock = vi.hoisted(() => vi.fn());
 const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
 const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
+const scoreDueResearchMock = vi.hoisted(() => vi.fn());
 const readE2EInstrumentsRecordingsDirectoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
@@ -18,6 +19,7 @@ vi.mock("@/modules/strategies", () => ({ evaluateSignalsForSession: evaluateSign
 vi.mock("@/modules/decisions", () => ({
   scoreDueDecisions: scoreDueDecisionsMock,
   scoreDueAnalyses: scoreDueAnalysesMock,
+  scoreDueResearch: scoreDueResearchMock,
 }));
 vi.mock("@/modules/sentiment", () => ({ runSentimentJob: runSentimentJobMock }));
 vi.mock("@/modules/radar", () => ({
@@ -69,6 +71,11 @@ describe("runNightlyJob", () => {
       }),
     );
     scoreDueSuggestionsMock
+      .mockReset()
+      .mockImplementation((_db: unknown, asOfSession: string) =>
+        Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 }),
+      );
+    scoreDueResearchMock
       .mockReset()
       .mockImplementation((_db: unknown, asOfSession: string) =>
         Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 }),
@@ -281,6 +288,30 @@ describe("runNightlyJob", () => {
     expect(asOfSession).toBe("2026-09-08");
     expect(typeof options.deadlineAt).toBe("number");
     expect(outcome.suggestionScoring).toMatchObject({ scored: 3 });
+  });
+
+  it("scores the ideas of the users' researches right after suggestions, on the same session and deadline", async () => {
+    const order: string[] = [];
+    scoreDueSuggestionsMock.mockImplementationOnce((_db: unknown, asOfSession: string) => {
+      order.push("suggestions");
+      return Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 });
+    });
+    scoreDueResearchMock.mockImplementationOnce((_db: unknown, asOfSession: string) => {
+      order.push("research");
+      return Promise.resolve({ asOfSession, scored: 2, skipped: 1, errors: 0 });
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+    const outcome = await runNightlyJob(fakeDb);
+    expect(order).toEqual(["suggestions", "research"]);
+    const [db, asOfSession, options] = scoreDueResearchMock.mock.calls[0] as [
+      unknown,
+      string,
+      { deadlineAt?: unknown },
+    ];
+    expect(db).toBe(fakeDb);
+    expect(asOfSession).toBe("2026-09-08");
+    expect(typeof options.deadlineAt).toBe("number");
+    expect(outcome.researchScoring).toMatchObject({ scored: 2, skipped: 1 });
   });
 
   it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {

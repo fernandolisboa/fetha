@@ -16,6 +16,7 @@ const en = {
     held_operation: "Held operations",
     backtest_run: "Backtests",
     suggestion: "Suggestions",
+    research: "Suggestion research",
   },
   usingModel: (name: string) => `using ${name}`,
   apiKey: {
@@ -62,6 +63,7 @@ const ptBR: typeof en = {
     held_operation: "Operações em carteira",
     backtest_run: "Backtests",
     suggestion: "Sugestões",
+    research: "Pesquisa de sugestões",
   },
   usingModel: (name: string) => `usando ${name}`,
   apiKey: {

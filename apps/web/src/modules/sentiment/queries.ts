@@ -19,7 +19,7 @@ import { readSentimentSettings } from "./settings";
 const LATEST_LABELS = 5;
 const LATEST_ARTICLES = 5;
 const NEWS_WINDOW_DAYS = 90;
-const AVERAGE_WINDOW_DAYS = 30;
+export const AVERAGE_WINDOW_DAYS = 30;
 
 export interface LabelledFilingView {
   protocol: string;

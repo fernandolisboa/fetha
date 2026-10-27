@@ -279,9 +279,9 @@ export async function buildScoreInput(
         strategy: { id: version.id, definition: version.definition, structure },
       };
     }
-  } else if (inputs.originKind === "suggestion") {
-    // docs/adr/0067: the lot the suggestion priced, entered at its snapshotted leg prices; no
-    // strategy stands behind it, so the origin stays manual.
+  } else if (inputs.originKind === "suggestion" || inputs.originKind === "research_idea") {
+    // docs/adr/0067, 0076: the lot the suggestion or research idea priced, entered at its
+    // snapshotted leg prices; no strategy stands behind it, so the origin stays manual.
     operation = {
       id: syntheticOperationId(row.id),
       underlying: inputs.underlying,

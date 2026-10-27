@@ -1,3 +1,4 @@
+import { Decimal } from "decimal.js";
 import type {
   AdjustmentRule,
   AnalysisFact,
@@ -82,7 +83,10 @@ function uniqueCodes(notes: readonly { code: string }[]): string[] {
 // `limitBreaches` carries only the breached limit's name, never `value`/
 // `allowed` (docs/adr/0057): those derive from the user's declared capital,
 // which must never reach the model.
-export function pricingFacts(pricing: OperationPricing): AnalysisFacts {
+export function pricingFacts(
+  pricing: OperationPricing,
+  maxPayoffPoints: number = MAX_PAYOFF_POINTS,
+): AnalysisFacts {
   return {
     spot: formatPriceBRL(pricing.spot),
     riskFreeRate: rate(pricing.riskFreeRate),
@@ -93,7 +97,7 @@ export function pricingFacts(pricing: OperationPricing): AnalysisFacts {
     breakEvens: pricing.breakEvens.map((price) => formatPriceBRL(price)),
     greeks: greeksFacts(pricing.greeks),
     legs: pricing.legs.map((leg) => legFacts(leg)),
-    payoff: samplePayoff(pricing.payoff).map((point) => ({
+    payoff: samplePayoff(pricing.payoff, maxPayoffPoints).map((point) => ({
       underlying: formatPriceBRL(point.underlying),
       pnl: money(point.pnl),
     })),
@@ -103,16 +107,18 @@ export function pricingFacts(pricing: OperationPricing): AnalysisFacts {
 }
 
 const MAX_PAYOFF_POINTS = 21;
+// A research sends up to twenty ideas in one request (docs/adr/0076), so each carries fewer points.
+export const MAX_RESEARCH_PAYOFF_POINTS = 9;
 
-// Evenly sampled, first and last kept, at most MAX_PAYOFF_POINTS points
+// Evenly sampled, first and last kept, at most `maxPoints` points
 // (docs/adr/0057): a payoff with more points than that is thinned by index,
 // not by value, so the sampled curve still spans the same range.
-export function samplePayoff<T>(points: readonly T[]): T[] {
-  if (points.length <= MAX_PAYOFF_POINTS) {
+export function samplePayoff<T>(points: readonly T[], maxPoints: number = MAX_PAYOFF_POINTS): T[] {
+  if (points.length <= maxPoints) {
     return [...points];
   }
-  const step = (points.length - 1) / (MAX_PAYOFF_POINTS - 1);
-  return Array.from({ length: MAX_PAYOFF_POINTS }, (_, index) => {
+  const step = (points.length - 1) / (maxPoints - 1);
+  return Array.from({ length: maxPoints }, (_, index) => {
     const sourceIndex = Math.round(index * step);
     return points[Math.min(sourceIndex, points.length - 1)] as T;
   });
@@ -163,6 +169,16 @@ export function contemplatedOperationFacts(input: ContemplatedOperationFactsInpu
   };
 }
 
+function readingFacts(reading: AssetReading): AnalysisFacts {
+  return {
+    trend: reading.trend.label,
+    momentum: reading.momentum.label,
+    range: reading.range.label,
+    impliedVolatility: reading.impliedVolatility.label,
+    options: reading.options.label,
+  };
+}
+
 export interface SuggestionFactsInput {
   session: SessionDate;
   expiry: SessionDate;
@@ -190,20 +206,116 @@ export function suggestionFacts(input: SuggestionFactsInput): AnalysisFacts {
       entry: genericFact(input.recipe.entry),
       exit: genericFact(input.recipe.exit),
     },
-    reading: input.reading
-      ? {
-          trend: input.reading.trend.label,
-          momentum: input.reading.momentum.label,
-          range: input.reading.range.label,
-          impliedVolatility: input.reading.impliedVolatility.label,
-          options: input.reading.options.label,
-        }
-      : null,
+    reading: input.reading ? readingFacts(input.reading) : null,
     entry: {
       close: formatPriceBRL(input.close),
       indicators: indicatorReadingFacts(input.indicators),
     },
     pricing: pricingFacts(input.pricing),
+  };
+}
+
+export interface ResearchIdeaFactsInput {
+  underlying: string;
+  structure: string;
+  foundOn: SessionDate;
+  ruleHolds: boolean;
+  expiry: SessionDate;
+  sessionsToExpiry: number;
+  recipe: { expectedMove: string; ivRegime: string; entry: unknown; exit: unknown };
+  reading: AssetReading;
+  // Codes only: `rule_no_longer_holds`, `near_expiry` and the names of the breached limits.
+  engineAlerts: readonly string[];
+  pricing: OperationPricing;
+  // The shared calibration of the idea's recipe (docs/adr/0067 item 9); null with nothing scored.
+  trackRecord: { claimed: number; held: number; scored: number; pnl: Centavos } | null;
+  // The underlying's labelled CVM filings of the last 90 days, newest first, at most five.
+  filings: readonly { deliveredOn: SessionDate; topic: string; tone: string; summary: string }[];
+  newsTone: { tone: DecimalString; articles: number; windowDays: number } | null;
+  providerNews: readonly { publishedOn: SessionDate; title: string; sentiment: DecimalString }[];
+}
+
+export interface ResearchFactsInput {
+  newestClose: SessionDate;
+  ideas: readonly ResearchIdeaFactsInput[];
+}
+
+// Every leaf of the facts is at most this long (`analysisFactSchema`); text from outside (a filing
+// summary, a news title) is cut to fit instead of failing the whole request.
+const MAX_FACT_TEXT = 200;
+
+function clipped(text: string): string {
+  return text.length <= MAX_FACT_TEXT ? text : `${text.slice(0, MAX_FACT_TEXT - 1).trimEnd()}…`;
+}
+
+function trackRecordFacts(
+  record: NonNullable<ResearchIdeaFactsInput["trackRecord"]>,
+): AnalysisFact {
+  return {
+    scored: String(record.scored),
+    claimHeldShare:
+      record.claimed === 0
+        ? null
+        : formatPercent(
+            new Decimal(record.held).dividedBy(record.claimed).toFixed(4) as DecimalString,
+          ),
+    pnlPerLot: money(record.pnl),
+  };
+}
+
+function researchIdeaFacts(idea: ResearchIdeaFactsInput): AnalysisFacts {
+  return {
+    underlying: idea.underlying,
+    structure: idea.structure,
+    foundOn: session(idea.foundOn),
+    ruleHolds: idea.ruleHolds ? "yes" : "no",
+    expiry: session(idea.expiry),
+    sessionsToExpiry: `${String(idea.sessionsToExpiry)} sessões`,
+    recipe: {
+      expectedMove: idea.recipe.expectedMove,
+      ivRegime: idea.recipe.ivRegime,
+      entry: genericFact(idea.recipe.entry),
+      exit: genericFact(idea.recipe.exit),
+    },
+    reading: readingFacts(idea.reading),
+    tradedSeries: `${String(idea.reading.options.tradedSeries)} séries negociadas`,
+    engineAlerts: [...idea.engineAlerts],
+    pricing: pricingFacts(idea.pricing, MAX_RESEARCH_PAYOFF_POINTS),
+    recipeTrackRecord: idea.trackRecord ? trackRecordFacts(idea.trackRecord) : null,
+    filings:
+      idea.filings.length === 0
+        ? null
+        : idea.filings.map((filing) => ({
+            date: session(filing.deliveredOn),
+            topic: filing.topic,
+            tone: filing.tone,
+            summary: clipped(filing.summary),
+          })),
+    newsTone: idea.newsTone
+      ? {
+          averageTone: formatDecimal(idea.newsTone.tone, 2),
+          articles: String(idea.newsTone.articles),
+          window: `${String(idea.newsTone.windowDays)} dias`,
+        }
+      : null,
+    providerNews:
+      idea.providerNews.length === 0
+        ? null
+        : idea.providerNews.map((article) => ({
+            date: session(article.publishedOn),
+            title: clipped(article.title),
+            sentiment: formatDecimal(article.sentiment, 2),
+          })),
+  };
+}
+
+// docs/adr/0076: the facts of a research, one entry per idea sent, in the order they are shown.
+// Nothing here is the user's: no capital, no limit value (only the names of the limits an idea
+// breaches), no id, no text the user wrote, no strategy name.
+export function researchFacts(input: ResearchFactsInput): AnalysisFacts {
+  return {
+    newestClose: session(input.newestClose),
+    ideas: input.ideas.map(researchIdeaFacts),
   };
 }
 

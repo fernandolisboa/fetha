@@ -33,6 +33,9 @@ function origin(decision: DecisionListItem): string {
   if (decision.inputs.originKind === "suggestion") {
     return t.journal.originSuggestion(decision.inputs.structureName, decision.inputs.underlying);
   }
+  if (decision.inputs.originKind === "research_idea") {
+    return t.journal.originResearchIdea(decision.inputs.structureName, decision.inputs.underlying);
+  }
   return t.journal.originOperation(decision.inputs.structureName, decision.inputs.underlying);
 }
 

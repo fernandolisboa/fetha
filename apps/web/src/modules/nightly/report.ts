@@ -47,6 +47,12 @@ const suggestionScoringReportSchema = z.object({
   errorCount: z.number().int().nonnegative(),
 });
 
+const researchScoringReportSchema = z.object({
+  scored: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+});
+
 const sentimentReportSchema = z.object({
   labels: z.object({
     status: z.enum(["off", "ran", "failed"]),
@@ -98,6 +104,8 @@ const completedReportSchema = z.object({
   analysisScoring: analysisScoringReportSchema,
   // Optional: runs stored before docs/adr/0067 have no such field.
   suggestionScoring: suggestionScoringReportSchema.optional(),
+  // Optional: runs stored before docs/adr/0076 have no such field.
+  researchScoring: researchScoringReportSchema.optional(),
   // Absent from runs recorded before #310.
   sentiment: sentimentReportSchema.optional(),
   radar: radarReportSchema.nullable(),
@@ -168,6 +176,11 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       scored: outcome.suggestionScoring.scored,
       skipped: outcome.suggestionScoring.skipped,
       errorCount: outcome.suggestionScoring.errors,
+    },
+    researchScoring: {
+      scored: outcome.researchScoring.scored,
+      skipped: outcome.researchScoring.skipped,
+      errorCount: outcome.researchScoring.errors,
     },
     sentiment: {
       labels: { ...outcome.sentiment.labels },

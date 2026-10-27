@@ -19,6 +19,7 @@ import { user } from "@/modules/auth/schema";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { seedOperation, seedOptionSeries, seedStockOperation } from "@/db/test/held-operation";
 import { seedRadarRead, seedSuggestion } from "@/db/test/suggestion";
+import type { OperationPricing } from "@fetha/engine";
 import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { tradingSessions } from "@/modules/market-data/schema";
 import { OperationsRepository } from "@/modules/portfolio/operations-repository";
@@ -58,6 +59,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 const { recordDecisionAction } = await import("./actions");
 const { DecisionsRepository } = await import("./decisions-repository");
+const { ResearchRepository } = await import("./research-repository");
+const { storeSeededResearch } = await import("./research-e2e-seed");
 const { todaySaoPauloDate } = await import("@/lib/today-sao-paulo");
 
 function decimalString(value: string): DecimalString {
@@ -734,5 +737,137 @@ describe("recordDecisionAction on a suggestion (docs/adr/0067)", () => {
       await removeRead();
     }
     expect(await new DecisionsRepository(getDb(), archivedUser).listMine()).toEqual([]);
+  });
+});
+
+describe("recordDecisionAction on a research idea (docs/adr/0076)", () => {
+  const SESSION = sessionDateSchema.parse("2031-06-02");
+  const EXPIRY = sessionDateSchema.parse("2031-07-18");
+
+  async function researchIdea(owner: CurrentUser): Promise<string> {
+    const ticker = randomTicker();
+    const researchId = await storeSeededResearch(getDb(), owner, {
+      research: {
+        newestClose: SESSION,
+        sessionsLooked: 3,
+        candidates: 1,
+        dropped: { unpriced: 0, expires_too_soon: 0, exceeds_capital: 0, not_evaluable: 0 },
+        usingDefaultProfile: true,
+      },
+      model: "test-model",
+      overview: "Visão geral",
+      ideas: [
+        {
+          underlying: ticker,
+          recipeId: "bull-call-spread-low-iv",
+          foundOn: SESSION,
+          suggestionId: null,
+          sessionsToExpiry: 20,
+          legs: [
+            {
+              role: "call",
+              side: "buy",
+              ticker: tickerSchema.parse(`${ticker.slice(0, 4)}K310`),
+              strike: "31.0" as DecimalString,
+              expiry: EXPIRY,
+              quantity: quantitySchema.parse(100),
+              price: "1.90" as DecimalString,
+            },
+          ],
+          pricing: {
+            at: "2031-06-02T21:00:00.000Z",
+            underlying: ticker,
+            spot: "31.20",
+            legs: [],
+            netPremium: -9500,
+            breakEvens: ["31.95"],
+            payoff: [
+              { underlying: "28.00", pnl: -9500 },
+              { underlying: "35.00", pnl: 10500 },
+            ],
+            maxLoss: 9500,
+            maxGain: 10500,
+          } as unknown as OperationPricing,
+          reading: {} as never,
+          engineAlerts: [],
+          verdict: "do_not_enter",
+          justification: "Justificativa",
+          aiAlerts: [],
+          claim: { kind: "operation_pnl_positive" },
+          horizon: EXPIRY,
+        },
+      ],
+    });
+    const [ideaId] = await new ResearchRepository(getDb(), owner).ideaIdsOf(researchId);
+    if (!ideaId) throw new Error("test setup: expected an idea");
+    return ideaId;
+  }
+
+  function decide(targetId: string, kind: "enter" | "do_not_enter" | "hold" = "enter") {
+    return recordDecisionAction({
+      originKind: "research_idea",
+      targetId,
+      kind,
+      rationale: "Following the research",
+      claim: null,
+      confidence: confidenceSchema.parse("0.6"),
+      horizon: "2031-06-15",
+    });
+  }
+
+  it("records the lot the research priced even when Fetha said not to enter, once per user, and keeps it private", async () => {
+    const emailA = uniqueEmail("research-a");
+    const emailB = uniqueEmail("research-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const ideaId = await researchIdea(userA);
+
+    currentUser = userA;
+    expect(await decide(ideaId)).toMatchObject({ status: "ok" });
+    expect(await decide(ideaId, "do_not_enter")).toEqual({ status: "error", error: "duplicate" });
+
+    const [recorded] = await new DecisionsRepository(getDb(), userA).listMine();
+    expect(recorded?.researchIdeaId).toBe(ideaId);
+    expect(recorded?.inputs).toMatchObject({
+      originKind: "research_idea",
+      recipeId: "bull-call-spread-low-iv",
+      expiry: "2031-07-18",
+      netPremiumCentavos: -9500,
+      maxLossCentavos: 9500,
+      maxGainCentavos: 10500,
+      legs: [{ side: "buy", quantity: 100, entryPrice: "1.90" }],
+    });
+
+    currentUser = userB;
+    expect(await decide(ideaId)).toEqual({ status: "error", error: "not_found" });
+    expect(await new DecisionsRepository(getDb(), userB).listMine()).toEqual([]);
+  });
+
+  it("allows only enter and do_not_enter, and answers not_found for an unknown idea", async () => {
+    const email = uniqueEmail("research-kinds");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const ideaId = await researchIdea(owner);
+
+    expect(await decide(ideaId, "hold")).toEqual({ status: "error", error: "not_allowed" });
+    expect(await decide(crypto.randomUUID())).toEqual({ status: "error", error: "not_found" });
+  });
+
+  it("refuses a decision once the radar has read a newer close", async () => {
+    const email = uniqueEmail("research-archived");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const ideaId = await researchIdea(owner);
+
+    const removeRead = await seedRadarRead(getDb(), "2099-01-02");
+    try {
+      expect(await decide(ideaId)).toEqual({ status: "error", error: "archived" });
+    } finally {
+      await removeRead();
+    }
+    expect(await new DecisionsRepository(getDb(), owner).listMine()).toEqual([]);
   });
 });

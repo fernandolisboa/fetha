@@ -1,5 +1,12 @@
-import type { Centavos, SessionDate } from "@fetha/contracts";
+import {
+  decimalStringSchema,
+  riskLimits,
+  sessionDateSchema,
+  type Centavos,
+  type SessionDate,
+} from "@fetha/contracts";
 import type { AssetReading, LimitBreach } from "@fetha/engine";
+import { z } from "zod";
 
 // docs/adr/0075: how far back the research looks, and when an idea is too close to its expiry to
 // be worth acting on. These are this project's defaults, not figures from a reference.
@@ -21,6 +28,19 @@ export type IdeaAlert =
   | { kind: "rule_no_longer_holds"; foundOn: SessionDate }
   | { kind: "limit_breach"; breach: LimitBreach }
   | { kind: "near_expiry"; sessionsLeft: number };
+
+export const ideaAlertSchema: z.ZodType<IdeaAlert> = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("rule_no_longer_holds"), foundOn: sessionDateSchema }),
+  z.strictObject({
+    kind: z.literal("limit_breach"),
+    breach: z.strictObject({
+      limit: z.enum(riskLimits),
+      value: decimalStringSchema,
+      allowed: decimalStringSchema,
+    }),
+  }),
+  z.strictObject({ kind: z.literal("near_expiry"), sessionsLeft: z.number().int().nonnegative() }),
+]);
 
 export interface Candidate {
   underlying: string;

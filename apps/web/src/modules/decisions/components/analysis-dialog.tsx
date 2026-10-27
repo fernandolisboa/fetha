@@ -1,6 +1,6 @@
 "use client";
 
-import type { AnalysisSubjectKind } from "@fetha/contracts";
+import type { AnalysisObjectKind } from "@fetha/contracts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,7 @@ import { AnalysisPanel, type AnalysisPanelData } from "./analysis-panel";
 import { RequestAnalysisButton } from "./request-analysis";
 
 interface AnalysisDialogProps {
-  subjectKind: AnalysisSubjectKind;
+  subjectKind: AnalysisObjectKind;
   subjectId: string;
   latest: AnalysisPanelData | null;
   usage: { used: number; cap: number };

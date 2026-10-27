@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { formatSessionDate } from "@/lib/format/date-time";
+import { getMyCurrentResearch } from "@/modules/decisions";
+import { ResearchPanel } from "@/modules/decisions/client";
 import { archiveDelayText, settingsTabHref, type SuggestionArchive } from "@/modules/preferences";
 import { getMyTodaySuggestions, suggestionHeadline, t, type SuggestionView } from "@/modules/radar";
-import { SuggestionResearch } from "@/modules/radar/client";
 import { Panel } from "@/modules/shell";
 
 import { SuggestionList } from "./suggestion-list";
@@ -11,16 +12,17 @@ import { SuggestionList } from "./suggestion-list";
 // "Sugestões de hoje" (docs/adr/0067): on the watchlist tab the first `limit` cards with a link
 // to the rest; on the radar tab all of them. They stay until the radar reads a newer close, with
 // a note when that close is overdue (docs/adr/0073). The ones the viewer saw longer ago than
-// their chosen delay are listed apart, as links to their pages (docs/adr/0074).
+// their chosen delay are listed apart, as links to their pages (docs/adr/0074). Under them,
+// "Obter sugestões" with the viewer's latest stored research (docs/adr/0076).
 export async function TodaySuggestions({ limit }: { limit?: number }) {
-  const today = await getMyTodaySuggestions();
+  const [today, research] = await Promise.all([getMyTodaySuggestions(), getMyCurrentResearch()]);
   if (today.kind === "none") {
     return (
       <Panel title={t.suggestions.title}>
         <p className="text-muted-foreground text-xs text-pretty" data-testid="today-suggestions">
           {t.suggestions.none}
         </p>
-        <SuggestionResearch />
+        <ResearchPanel stored={research} />
       </Panel>
     );
   }
@@ -58,7 +60,7 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
       {archivedSeen.length > 0 && <ArchivedSeen suggestions={archivedSeen} />}
       <p className="text-muted-foreground text-xs text-pretty">{t.suggestions.footnote}</p>
       <ArchiveSetting archive={archive} />
-      <SuggestionResearch />
+      <ResearchPanel stored={research} />
     </Panel>
   );
 }
