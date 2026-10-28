@@ -4,6 +4,7 @@ import type { ThesisClaim } from "@fetha/contracts";
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 import { AssetReadingChips } from "@/modules/market-data";
+import { PayoffChart } from "@/modules/portfolio/client";
 
 import type { SuggestionView } from "../suggestion-view";
 import { t } from "../strings";
@@ -35,7 +36,7 @@ export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }
   return (
     <dl
       aria-label={t.suggestions.numbersLabel}
-      className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4"
+      className="grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4"
     >
       <Figure label={labels.netPremium} value={netPremiumText(pricing.netPremium)} />
       <Figure label={labels.maxLoss} value={formatBRL(suggestion.maxLoss)} />
@@ -77,7 +78,8 @@ export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }
 
 // One suggestion as the cards and its own page show it (docs/adr/0067): the direct-voice line,
 // the readings that triggered it, the lot the engine priced and its numbers, the thesis it is
-// scored on, then the viewer's own risk check and actions, which the page supplies. On its own
+// scored on and, beside them on a wide card or under them on a narrow one, the engine's payoff at
+// expiry, then the viewer's own risk check and actions, which the page supplies. On its own
 // page the page header already speaks the line, so the card leaves it out.
 export function SuggestionCard({
   suggestion,
@@ -92,27 +94,40 @@ export function SuggestionCard({
 }) {
   return (
     <article
-      className="flex flex-col gap-3"
+      className="@container flex flex-col gap-3"
       data-testid="suggestion-card"
       aria-label={suggestionHeadline(suggestion)}
     >
       {headline && <h3 className="text-[15px] font-medium">{suggestionHeadline(suggestion)}</h3>}
-      <div className="flex flex-col gap-1.5">
-        <p className="text-muted-foreground text-xs">
-          {t.suggestions.why(suggestion.recipe.definition.name)}
-        </p>
-        {suggestion.reading && <AssetReadingChips reading={suggestion.reading} />}
-        <Facts facts={suggestion.facts} />
+      <div className="grid gap-3 @min-[44rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]:gap-6">
+        <div className="@container flex min-w-0 flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <p className="text-muted-foreground text-xs">
+              {t.suggestions.why(suggestion.recipe.definition.name)}
+            </p>
+            {suggestion.reading && <AssetReadingChips reading={suggestion.reading} />}
+            <Facts facts={suggestion.facts} />
+          </div>
+          <ul aria-label={t.suggestions.legsLabel} className="font-mono text-xs tabular-nums">
+            {suggestion.legs.map((leg) => (
+              <li key={`${leg.side}-${leg.ticker}`}>{lotLegText(leg)}</li>
+            ))}
+          </ul>
+          <SuggestionNumbers suggestion={suggestion} />
+          <p className="text-[13px]">
+            {claimText(suggestion.claim, suggestion.underlying, suggestion.horizon)}
+          </p>
+        </div>
+        <PayoffChart
+          points={suggestion.pricing.payoff}
+          spot={suggestion.pricing.spot}
+          breakEvens={suggestion.pricing.breakEvens}
+          maxGain={suggestion.pricing.maxGain}
+          maxLoss={suggestion.maxLoss}
+          spotLabel={t.suggestions.chartSpot(formatPriceBRL(suggestion.pricing.spot))}
+          focus
+        />
       </div>
-      <ul aria-label={t.suggestions.legsLabel} className="font-mono text-xs tabular-nums">
-        {suggestion.legs.map((leg) => (
-          <li key={`${leg.side}-${leg.ticker}`}>{lotLegText(leg)}</li>
-        ))}
-      </ul>
-      <SuggestionNumbers suggestion={suggestion} />
-      <p className="text-[13px]">
-        {claimText(suggestion.claim, suggestion.underlying, suggestion.horizon)}
-      </p>
       {risk}
       <div className="flex flex-wrap items-center gap-2">{actions}</div>
     </article>

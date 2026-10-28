@@ -409,6 +409,9 @@ export function OperationBuilderForm({
                 points={pricing.payoff}
                 spot={pricing.spot}
                 breakEvens={pricing.breakEvens}
+                maxGain={pricing.maxGain}
+                maxLoss={pricing.maxLoss}
+                focus
               />
             </Panel>
           ) : null}

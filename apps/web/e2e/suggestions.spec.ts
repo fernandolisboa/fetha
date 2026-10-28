@@ -34,6 +34,14 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(card.getByRole("list", { name: "O lote" })).toContainText("100 ×");
   await expect(card.getByText(/^A tese: /)).toBeVisible();
 
+  // The engine's payoff at expiry beside the numbers; the read-out snaps to its own samples.
+  const payoff = card.getByTestId("payoff-chart");
+  await expect(payoff).toContainText(/Fechamento R\$ /);
+  const plot = payoff.getByRole("img", { name: "Resultado no vencimento" });
+  await expect(plot).toBeVisible();
+  await plot.hover();
+  await expect(payoff.getByTestId("payoff-readout")).toContainText(/Se fechar a R\$ /);
+
   // The preview holds a few sessions, far short of the history the recipe's rule reads, so the
   // engine cannot evaluate it: the idea is dropped as not evaluable, never called stale.
   await page.getByRole("button", { name: "Obter sugestões" }).click();

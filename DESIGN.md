@@ -210,7 +210,11 @@ Follow the dataviz method. Candles: `--up` and `--down` bodies with wicks in `--
 bars in `--surface-2`; overlays (SMA, EMA) in `--greek-vega` and `--greek-gamma`; indicator panes
 below the price with their own y scale. Payoff: line in `--chart-stroke`, gain area `--up` at 12%
 opacity, loss area `--down` at 12%, zero line dashed `--muted`, spot as a dotted vertical rule in
-`--ink`, break-evens as hollow markers with labels, max loss and max gain labeled in their color.
+`--ink`, break-evens as hollow markers with labels (a crowded label drops below the zero line),
+max loss and max gain as dotted rules labeled in their color. The x window frames the strikes,
+break-evens and spot with at least 5% of spot each side, inside the engine's 0.8x–1.2x samples;
+the pointer read-out snaps to the engine's samples and never prints an interpolated value. Away
+from the builder (suggestion cards) a legend names the line, the spot and the break-even mark.
 Equity curve in `--chart-stroke` with drawdown as a `--down` area below; distribution of returns
 as `--surface-2` bars with the zero bin marked. Greeks by their tokens, never by `--up`/`--down`.
 Risk bands: within limit `--up`, near limit (≥ 80%) `--warning`, breach `--down`. Grid recessive

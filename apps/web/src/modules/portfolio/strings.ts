@@ -70,7 +70,17 @@ const en = {
         maxPremiumBought: "Max option premium bought",
       },
     },
-    payoffChart: { underlying: "Underlying price", pnl: "P&L at expiry" },
+    payoffChart: {
+      underlying: "Underlying price",
+      pnl: "P&L at expiry",
+      maxGain: (value: string) => `Max gain ${value}`,
+      maxLoss: (value: string) => `Max loss ${value}`,
+      at: (price: string) => `Closing at ${price} on expiry`,
+      legend: {
+        line: "P&L at expiry",
+        breakEven: "Break-even",
+      },
+    },
   },
   dashboard: {
     title: "Positions and operations",
@@ -319,7 +329,17 @@ const ptBR = {
         maxPremiumBought: "Prêmio máximo comprado em opções",
       },
     },
-    payoffChart: { underlying: "Preço do ativo-objeto", pnl: "Resultado no vencimento" },
+    payoffChart: {
+      underlying: "Preço do ativo-objeto",
+      pnl: "Resultado no vencimento",
+      maxGain: (value: string) => `Ganho máx. ${value}`,
+      maxLoss: (value: string) => `Perda máx. ${value}`,
+      at: (price: string) => `Se fechar a ${price} no vencimento`,
+      legend: {
+        line: "Resultado no vencimento",
+        breakEven: "Break-even",
+      },
+    },
   },
   dashboard: {
     title: "Posições e operações",
