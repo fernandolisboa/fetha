@@ -78,8 +78,8 @@ export function SuggestionNumbers({ suggestion }: { suggestion: SuggestionView }
 
 // One suggestion as the cards and its own page show it (docs/adr/0067): the direct-voice line,
 // the readings that triggered it, the lot the engine priced and its numbers, the thesis it is
-// scored on and, beside them on a wide card or under them on a narrow one, the engine's payoff at
-// expiry, then the viewer's own risk check and actions, which the page supplies. On its own
+// scored on and the engine's payoff at expiry, then the viewer's own risk check and actions, which
+// the page supplies. On its own
 // page the page header already speaks the line, so the card leaves it out.
 export function SuggestionCard({
   suggestion,
@@ -125,7 +125,7 @@ export function SuggestionCard({
           maxGain={suggestion.pricing.maxGain}
           maxLoss={suggestion.maxLoss}
           spotLabel={t.suggestions.chartSpot(formatPriceBRL(suggestion.pricing.spot))}
-          focus
+          framed
         />
       </div>
       {risk}

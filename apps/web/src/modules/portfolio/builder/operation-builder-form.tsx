@@ -411,7 +411,7 @@ export function OperationBuilderForm({
                 breakEvens={pricing.breakEvens}
                 maxGain={pricing.maxGain}
                 maxLoss={pricing.maxLoss}
-                focus
+                framed
               />
             </Panel>
           ) : null}

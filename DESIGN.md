@@ -212,7 +212,8 @@ below the price with their own y scale. Payoff: line in `--chart-stroke`, gain a
 opacity, loss area `--down` at 12%, zero line dashed `--muted`, spot as a dotted vertical rule in
 `--ink`, break-evens as hollow markers with labels (a crowded label drops below the zero line),
 max loss and max gain as dotted rules labeled in their color. The x window frames the strikes,
-break-evens and spot with at least 5% of spot each side, inside the engine's 0.8x–1.2x samples;
+break-evens and spot with a margin of three quarters of their span, at least 5% of spot, and
+never leaves the engine's sampled range (0.8x–1.2x of spot plus every strike and break-even);
 the pointer read-out snaps to the engine's samples and never prints an interpolated value. Away
 from the builder (suggestion cards) a legend names the line, the spot and the break-even mark.
 Equity curve in `--chart-stroke` with drawdown as a `--down` area below; distribution of returns

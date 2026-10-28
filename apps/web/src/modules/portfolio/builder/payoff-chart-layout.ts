@@ -33,8 +33,6 @@ export function guideVisible(pnl: number, maxAbsPnl: number): boolean {
   return pnl !== 0 && Math.abs(pnl) <= maxAbsPnl;
 }
 
-// A guide's label baseline: on the side away from zero (above a gain, below a loss) unless that
-// would leave the plot, then on the other side.
 export function guideLabelY(
   y: number,
   side: "gain" | "loss",
@@ -49,8 +47,6 @@ export function guideLabelY(
 
 type Sample = { underlying: number; pnl: number };
 
-// Where the payoff bends: each sample whose slope differs on its two sides (a strike), plus the
-// break-evens and the spot.
 function kinks(samples: readonly Sample[]): number[] {
   const slope = (a: Sample, b: Sample) => (b.pnl - a.pnl) / (b.underlying - a.underlying);
   return samples.flatMap((sample, index) => {

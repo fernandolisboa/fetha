@@ -41,6 +41,17 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   await expect(plot).toBeVisible();
   await plot.hover();
   await expect(payoff.getByTestId("payoff-readout")).toContainText(/Se fechar a R\$ /);
+  await expect(payoff).toContainText("Perda máx. R$");
+
+  // On a phone the chart goes under the numbers and nothing scrolls sideways.
+  const desktop = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(plot).toBeVisible();
+  const sideways = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(sideways).toBe(0);
+  if (desktop) await page.setViewportSize(desktop);
 
   // The preview holds a few sessions, far short of the history the recipe's rule reads, so the
   // engine cannot evaluate it: the idea is dropped as not evaluable, never called stale.

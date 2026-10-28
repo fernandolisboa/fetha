@@ -6,8 +6,8 @@ import { scaleLinear } from "@visx/scale";
 import { AreaClosed, Line, LinePath } from "@visx/shape";
 import { Group } from "@visx/group";
 import { AxisBottom, AxisLeft } from "@visx/axis";
-import { centavosSchema, type Centavos, type DecimalString } from "@fetha/contracts";
-import type { PayoffPoint } from "@fetha/engine";
+import { centavosSchema, type DecimalString } from "@fetha/contracts";
+import type { OperationPricing, PayoffPoint } from "@fetha/engine";
 
 import { ticksThatFit } from "@/lib/chart-ticks";
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
@@ -55,7 +55,7 @@ const MIN_HEIGHT = 220;
 // An 11px label plus room for d3 returning more ticks than asked when it rounds to a nicer step.
 const Y_TICK_SPACING = 32;
 
-type Extremes = { maxGain?: Centavos | "unbounded"; maxLoss?: Centavos | "unbounded" };
+type Extremes = { maxGain?: OperationPricing["maxGain"]; maxLoss?: OperationPricing["maxLoss"] };
 
 function pnlColor(pnl: number): string {
   return pnl > 0 ? "var(--up)" : pnl < 0 ? "var(--down)" : "var(--ink)";
@@ -73,14 +73,14 @@ function Chart({
   spot,
   breakEvens,
   extremes,
-  focus,
+  framed,
 }: {
   width: number;
   points: PayoffPoint[];
   spot: number;
   breakEvens: DecimalString[];
   extremes: Extremes;
-  focus: boolean;
+  framed: boolean;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const clipId = `payoff-${useId().replace(/[^\w-]/g, "")}`;
@@ -90,7 +90,7 @@ function Chart({
 
   const plot = plotPoints(points);
   const underlyings = plot.map((point) => point.underlying);
-  const [xMin, xMax] = focus
+  const [xMin, xMax] = framed
     ? focusWindow(plot, spot, breakEvens.map(Number))
     : [Math.min(...underlyings), Math.max(...underlyings)];
   const shown = plot
@@ -137,8 +137,10 @@ function Chart({
         ],
   );
 
-  const point = hovered === null ? undefined : plot[hovered];
-  const source = hovered === null ? undefined : points[hovered];
+  // A re-price can move the window under a resting pointer; a sample it left is not read out.
+  const onChart = hovered !== null && shown.some((sample) => sample.index === hovered);
+  const point = onChart ? plot[hovered] : undefined;
+  const source = onChart ? points[hovered] : undefined;
   const hoveredX = point ? xScale(point.underlying) : null;
 
   function onPointer(event: PointerEvent<SVGRectElement>) {
@@ -155,7 +157,7 @@ function Chart({
       <svg width={width} height={height} role="img" aria-label={t.builder.payoffChart.pnl}>
         <defs>
           <clipPath id={clipId}>
-            <rect width={innerWidth} height={innerHeight} />
+            <rect y={-2} width={innerWidth} height={innerHeight + 4} />
           </clipPath>
         </defs>
         <Group left={left} top={MARGIN.top}>
@@ -288,8 +290,10 @@ function Chart({
             fill="transparent"
             onPointerMove={onPointer}
             onPointerDown={onPointer}
-            onPointerLeave={() => {
-              setHovered(null);
+            style={{ touchAction: "pan-y" }}
+            // A touch pointer leaves right after it lifts; the tapped sample stays until the next tap.
+            onPointerLeave={(event) => {
+              if (event.pointerType === "mouse") setHovered(null);
             }}
           />
         </Group>
@@ -328,8 +332,6 @@ function LegendSwatch({ dash, color }: { dash?: string; color: string }) {
   );
 }
 
-// What the lines mean, for a chart shown away from the builder's own labels: the payoff line, the
-// price the operation was priced at and the break-even marks.
 function Legend({ spotLabel }: { spotLabel: string }) {
   const labels = t.builder.payoffChart.legend;
   return (
@@ -366,15 +368,15 @@ export function PayoffChart({
   maxGain,
   maxLoss,
   spotLabel,
-  focus = false,
+  framed = false,
 }: {
   points: PayoffPoint[];
   spot: string;
   breakEvens: DecimalString[];
-  maxGain?: Centavos | "unbounded";
-  maxLoss?: Centavos | "unbounded";
+  maxGain?: OperationPricing["maxGain"];
+  maxLoss?: OperationPricing["maxLoss"];
   spotLabel?: string;
-  focus?: boolean;
+  framed?: boolean;
 }) {
   if (points.length === 0) {
     return null;
@@ -399,7 +401,7 @@ export function PayoffChart({
             spot={Number(spot)}
             breakEvens={breakEvens}
             extremes={{ maxGain, maxLoss }}
-            focus={focus}
+            framed={framed}
           />
         ) : null
       }
