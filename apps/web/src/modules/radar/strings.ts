@@ -36,6 +36,7 @@ const en = {
   },
   suggestions: {
     title: "Today's suggestions",
+    chartSpot: (price: string) => `Close ${price}`,
     subtitle: (date: string) =>
       `From the radar at the close of ${date}, priced for one standard lot (100 per leg).`,
     order: "Ordered by how many option series traded at the close, never by a score.",
@@ -209,6 +210,7 @@ const ptBR = {
   },
   suggestions: {
     title: "Sugestões de hoje",
+    chartSpot: (price: string) => `Fechamento ${price}`,
     subtitle: (date: string) =>
       `Do radar do fechamento de ${date}, com preço para um lote padrão (100 por perna).`,
     order:
