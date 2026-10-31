@@ -36,10 +36,16 @@ describe("buildSparkline", () => {
     expect(printedChange(values)).toBe("−2,08%");
   });
 
-  it("counts a flat window as up with a zero change", () => {
+  it("calls a flat window flat with a zero change", () => {
     const sparkline = buildSparkline(closes("10", "10", "10"));
-    expect(sparkline?.direction).toBe("up");
-    expect(sparkline?.changeFraction).toBe("0.00000000");
+    expect(sparkline?.direction).toBe("flat");
+    expect(sparkline?.changeFraction).toBe("0.0000");
+  });
+
+  it("takes the direction from the printed change, so a move that rounds to 0% is flat", () => {
+    const values = closes("100", "99.99999");
+    expect(buildSparkline(values)?.direction).toBe("flat");
+    expect(printedChange(values)).toBe("0%");
   });
 
   it("keeps only the last 30 closes", () => {
@@ -61,6 +67,6 @@ describe("buildSparkline", () => {
   });
 
   it("does not round the percent through floating point", () => {
-    expect(buildSparkline(closes("0.1", "0.3"))?.changeFraction).toBe("2.00000000");
+    expect(buildSparkline(closes("0.1", "0.3"))?.changeFraction).toBe("2.0000");
   });
 });

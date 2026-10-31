@@ -26,7 +26,8 @@ const en = {
       trend: "30 sessions",
       session: "Session",
     },
-    sparklineLabel: "Closes of the last 30 sessions",
+    sparklineLabel: (ticker: string, sessions: number) =>
+      `${ticker} closes over the last ${String(sessions)} sessions`,
     noClose: "no close yet",
     noStrategy:
       "No active strategy looks at these assets. The reading works without one; an active strategy adds the nightly signals.",
@@ -91,7 +92,8 @@ const ptBR = {
       trend: "30 pregões",
       session: "Pregão",
     },
-    sparklineLabel: "Fechamentos dos últimos 30 pregões",
+    sparklineLabel: (ticker: string, sessions: number) =>
+      `Fechamentos de ${ticker} nos últimos ${String(sessions)} pregões`,
     noClose: "sem fechamento ainda",
     noStrategy:
       "Nenhuma estratégia ativa olha estes ativos. A leitura funciona sem estratégia; uma estratégia ativa acrescenta os sinais noturnos.",

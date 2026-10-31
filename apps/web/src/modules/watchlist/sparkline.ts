@@ -5,11 +5,13 @@ export const SPARKLINE_SESSIONS = 30;
 export const SPARKLINE_WIDTH = 96;
 export const SPARKLINE_HEIGHT = 24;
 const PADDING = 2;
-const FRACTION_DECIMALS = 8;
+// A percent printed with two decimals is a fraction with four: rounding once here keeps the
+// colour and the printed change in agreement.
+const FRACTION_DECIMALS = 4;
 
 export interface Sparkline {
   points: string;
-  direction: "up" | "down";
+  direction: "up" | "down" | "flat";
   changeFraction: DecimalString;
   sessions: number;
 }
@@ -44,12 +46,14 @@ export function buildSparkline(
     })
     .join(" ");
 
+  const change = lastValue
+    .minus(firstValue)
+    .div(firstValue.abs())
+    .toDecimalPlaces(FRACTION_DECIMALS);
   return {
     points,
-    direction: lastValue.greaterThanOrEqualTo(firstValue) ? "up" : "down",
-    changeFraction: decimalStringSchema.parse(
-      lastValue.minus(firstValue).div(firstValue.abs()).toFixed(FRACTION_DECIMALS),
-    ),
+    direction: change.isZero() ? "flat" : change.isPositive() ? "up" : "down",
+    changeFraction: decimalStringSchema.parse(change.toFixed(FRACTION_DECIMALS)),
     sessions: window.length,
   };
 }

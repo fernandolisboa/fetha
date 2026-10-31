@@ -116,7 +116,7 @@ async function WatchlistTable() {
                     : t.table.noClose}
                 </td>
                 <td className="py-2 pr-4 text-right" data-label={t.table.columns.trend}>
-                  <WatchlistSparkline sparkline={item.sparkline} />
+                  <WatchlistSparkline ticker={item.ticker} sparkline={item.sparkline} />
                 </td>
                 <td
                   className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums"

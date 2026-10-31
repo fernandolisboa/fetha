@@ -3,7 +3,19 @@ import { formatPercent } from "@/lib/format/percent";
 import { t } from "../strings";
 import { SPARKLINE_HEIGHT, SPARKLINE_WIDTH, type Sparkline } from "../sparkline";
 
-export function WatchlistSparkline({ sparkline }: { sparkline: Sparkline | null }) {
+const COLOR: Record<Sparkline["direction"], string> = {
+  up: "var(--up)",
+  down: "var(--down)",
+  flat: "var(--muted)",
+};
+
+export function WatchlistSparkline({
+  ticker,
+  sparkline,
+}: {
+  ticker: string;
+  sparkline: Sparkline | null;
+}) {
   if (!sparkline) {
     return (
       <span className="text-muted-foreground font-mono" data-testid="watchlist-sparkline-empty">
@@ -12,7 +24,7 @@ export function WatchlistSparkline({ sparkline }: { sparkline: Sparkline | null 
     );
   }
 
-  const color = sparkline.direction === "up" ? "var(--up)" : "var(--down)";
+  const color = COLOR[sparkline.direction];
 
   return (
     <div
@@ -21,7 +33,7 @@ export function WatchlistSparkline({ sparkline }: { sparkline: Sparkline | null 
     >
       <svg
         role="img"
-        aria-label={t.table.sparklineLabel}
+        aria-label={t.table.sparklineLabel(ticker, sparkline.sessions)}
         width={SPARKLINE_WIDTH}
         height={SPARKLINE_HEIGHT}
         viewBox={`0 0 ${String(SPARKLINE_WIDTH)} ${String(SPARKLINE_HEIGHT)}`}
