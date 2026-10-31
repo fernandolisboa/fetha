@@ -135,6 +135,9 @@ test("a stored research shows on load, grouped by verdict, with the discarded on
   const worth = research.getByRole("article", {
     name: "Eu entraria: Trava de alta com calls em PETR4.",
   });
+  await expect(
+    worth.getByTestId("payoff-chart").getByRole("img", { name: "Resultado no vencimento" }),
+  ).toBeVisible();
   await expect(worth.getByRole("link", { name: "Montar no simulador" })).toHaveAttribute(
     "href",
     /\/carteira\/nova-operacao\?pesquisa=.+/,
