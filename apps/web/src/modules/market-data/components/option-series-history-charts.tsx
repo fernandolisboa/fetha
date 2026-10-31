@@ -19,11 +19,13 @@ import {
   formatVolatilityTick,
   isolatedIndexes,
   nearestIndex,
+  PRICE_TICK_STEP,
   toPlotPoints,
-  Y_TICKS,
-  yDomain,
-  yTicks,
+  underlyingTickFormat,
+  VOLATILITY_TICK_STEP,
+  yAxis,
   type PlotPoint,
+  type YAxis,
 } from "./option-series-history-chart";
 
 const labels = t.optionSeries.history;
@@ -41,6 +43,8 @@ interface Row {
   stroke: string;
   points: PlotPoint[];
   format: (value: number) => string;
+  tickStep: number;
+  axis: YAxis;
 }
 
 function rowHeight(showAxis: boolean): number {
@@ -63,11 +67,7 @@ function Chart({
   onHover: (index: number | null) => void;
 }) {
   const innerWidth = Math.max(0, width - left - MARGIN.right);
-  const yScale = scaleLinear<number>({
-    domain: yDomain(definedValues(row.points)),
-    range: [PLOT_HEIGHT, 0],
-    nice: true,
-  });
+  const yScale = scaleLinear<number>({ domain: row.axis.domain, range: [PLOT_HEIGHT, 0] });
   const sessions = row.points.map((point) => point.session);
   const xScale = scalePoint<string>({ domain: sessions, range: [0, innerWidth] });
   const x = (session: string): number => xScale(session) ?? 0;
@@ -87,7 +87,7 @@ function Chart({
       data-testid={`option-series-history-${row.id}`}
     >
       <Group left={left} top={MARGIN.top}>
-        {yScale.ticks(Y_TICKS).map((tick) => (
+        {row.axis.ticks.map((tick) => (
           <Line
             key={tick}
             from={{ x: 0, y: yScale(tick) }}
@@ -140,7 +140,7 @@ function Chart({
           tickStroke="var(--line-soft)"
           tickLabelProps={TICK_LABEL_PROPS}
           tickFormat={(value) => row.format(Number(value))}
-          numTicks={Y_TICKS}
+          tickValues={row.axis.ticks}
         />
         {showAxis ? (
           <AxisBottom
@@ -185,20 +185,22 @@ export function OptionSeriesHistoryCharts({
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const candidates: Row[] = [
+  const candidates: Omit<Row, "axis">[] = [
     {
       id: "close",
       label: labels.seriesClose,
       stroke: "var(--chart-stroke)",
       points: toPlotPoints(points, (point) => point.close),
       format: formatPriceTick,
+      tickStep: PRICE_TICK_STEP,
     },
     {
       id: "underlying",
       label: labels.underlyingClose(underlying),
       stroke: "var(--series-2)",
       points: toPlotPoints(points, (point) => point.underlyingClose),
-      format: formatPriceTick,
+      format: underlyingTickFormat(underlying),
+      tickStep: PRICE_TICK_STEP,
     },
     {
       id: "volatility",
@@ -206,20 +208,21 @@ export function OptionSeriesHistoryCharts({
       stroke: "var(--series-3)",
       points: toPlotPoints(points, (point) => point.impliedVolatility),
       format: formatVolatilityTick,
+      tickStep: VOLATILITY_TICK_STEP,
     },
   ];
-  const rows = candidates.filter((row) => definedValues(row.points).length > 0);
+  const rows: Row[] = candidates.flatMap((row) => {
+    const values = definedValues(row.points);
+    if (values.length === 0) return [];
+    return [{ ...row, axis: yAxis(values, row.tickStep) }];
+  });
   if (rows.length === 0) {
     return null;
   }
   const volatilityMissing = !rows.some((row) => row.id === "volatility");
 
   // Stacked charts share one plot origin, so the x axes line up whatever each y label's width.
-  const left = Math.max(
-    ...rows.map((row) =>
-      axisLeftMargin(yTicks(yDomain(definedValues(row.points)), PLOT_HEIGHT).map(row.format)),
-    ),
-  );
+  const left = Math.max(...rows.map((row) => axisLeftMargin(row.axis.ticks.map(row.format))));
 
   return (
     <div className="flex flex-col gap-4" data-testid="option-series-history">
