@@ -446,9 +446,10 @@ export type OperationPricing = {
   netPremium: Centavos;
   greeks: Greeks;
   payoff: PayoffPoint[];
-  // ADR-0077: the P&L at `at` (mark-to-model) over the expiry curve's samples plus 41 points
-  // from 0.8x to 1.2x spot; null when an option leg has no volatility to value it with. The
-  // engine always sets it; it is optional because pricing stored before 0.18.0 lacks it.
+  // ADR-0077: the P&L at `at` (mark-to-model) over the expiry curve's samples plus a grid one
+  // percent of spot apart from 0.8x to 1.2x spot and on to the farthest of them; null with no
+  // option leg or when one has no volatility to value it with. Absent from `markToMarket`'s
+  // pricing and from pricing stored before 0.18.0.
   payoffNow?: PayoffPoint[] | null;
   breakEvens: DecimalString[];
   maxLoss: Centavos | "unbounded";
@@ -3332,10 +3333,15 @@ collection stays in the interface for an unprotected option, should the app ever
 
 `OperationPricing` gains `payoffNow?: PayoffPoint[] | null`: the operation's P&L at `at`,
 mark-to-model, each option leg at the Black-Scholes value its own fair value used with the
-underlying moved to the sample, a stock leg linear, both against the leg's entry premium. It is
-sampled at every underlying `payoff` samples plus 41 points one percent of spot apart from 0.8x
-to 1.2x of spot, and is `null` when any option leg has no model value (no volatility, a solve that
-did not converge, or an expiry already passed). The field is optional only because pricing stored
-before this change lacks it; the engine sets it on every pricing it returns. Signals' proposals
-are persisted, so `ENGINE_VERSION` moves from `"0.17.0"` to `"0.18.0"`. The four backtest goldens
-change only by that version and, in `catch-up-evaluation.json`, the new field on each proposal.
+underlying moved to the sample, a stock leg at the sample itself, each against the leg's premium
+in that pricing (its given price, else its market price, else its fair value). It is sampled at
+every underlying `payoff` samples plus a grid one percent of spot apart over 0.8x to 1.2x of spot,
+extended to the farthest strike or break-even with a step that widens past that core so the grid
+stays within 120 points. It is `null` for an operation with no option leg and when any option leg
+has no model value (no volatility, a solve that did not converge, or an expiry already passed).
+The field is optional because pricing stored before this change lacks it and because
+`markToMarket` leaves it off (its legs' premiums are the current marks, not the user's entries, and
+nothing reads it there); every other pricing the engine returns carries it.
+Signals' proposals are persisted, so `ENGINE_VERSION` moves from `"0.17.0"` to `"0.18.0"`. The four
+backtest goldens change only by that version and, in `catch-up-evaluation.json`, the new field on
+each proposal (`null`: those proposals are stock-only).
