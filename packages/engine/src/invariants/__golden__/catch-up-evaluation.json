@@ -1544,6 +1544,172 @@
         "pnl": 999996
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "20.04",
+        "pnl": -999996
+       },
+       {
+        "underlying": "20.29",
+        "pnl": -950096
+       },
+       {
+        "underlying": "20.54",
+        "pnl": -900196
+       },
+       {
+        "underlying": "20.79",
+        "pnl": -850296
+       },
+       {
+        "underlying": "21.04",
+        "pnl": -800396
+       },
+       {
+        "underlying": "21.29",
+        "pnl": -750496
+       },
+       {
+        "underlying": "21.54",
+        "pnl": -700596
+       },
+       {
+        "underlying": "21.79",
+        "pnl": -650696
+       },
+       {
+        "underlying": "22.04",
+        "pnl": -600796
+       },
+       {
+        "underlying": "22.29",
+        "pnl": -550896
+       },
+       {
+        "underlying": "22.55",
+        "pnl": -499000
+       },
+       {
+        "underlying": "22.80",
+        "pnl": -449100
+       },
+       {
+        "underlying": "23.05",
+        "pnl": -399200
+       },
+       {
+        "underlying": "23.30",
+        "pnl": -349300
+       },
+       {
+        "underlying": "23.55",
+        "pnl": -299400
+       },
+       {
+        "underlying": "23.80",
+        "pnl": -249500
+       },
+       {
+        "underlying": "24.05",
+        "pnl": -199600
+       },
+       {
+        "underlying": "24.30",
+        "pnl": -149700
+       },
+       {
+        "underlying": "24.55",
+        "pnl": -99800
+       },
+       {
+        "underlying": "24.80",
+        "pnl": -49900
+       },
+       {
+        "underlying": "25.05",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.30",
+        "pnl": 49900
+       },
+       {
+        "underlying": "25.55",
+        "pnl": 99800
+       },
+       {
+        "underlying": "25.80",
+        "pnl": 149700
+       },
+       {
+        "underlying": "26.05",
+        "pnl": 199600
+       },
+       {
+        "underlying": "26.30",
+        "pnl": 249500
+       },
+       {
+        "underlying": "26.55",
+        "pnl": 299400
+       },
+       {
+        "underlying": "26.80",
+        "pnl": 349300
+       },
+       {
+        "underlying": "27.05",
+        "pnl": 399200
+       },
+       {
+        "underlying": "27.30",
+        "pnl": 449100
+       },
+       {
+        "underlying": "27.56",
+        "pnl": 500996
+       },
+       {
+        "underlying": "27.81",
+        "pnl": 550896
+       },
+       {
+        "underlying": "28.06",
+        "pnl": 600796
+       },
+       {
+        "underlying": "28.31",
+        "pnl": 650696
+       },
+       {
+        "underlying": "28.56",
+        "pnl": 700596
+       },
+       {
+        "underlying": "28.81",
+        "pnl": 750496
+       },
+       {
+        "underlying": "29.06",
+        "pnl": 800396
+       },
+       {
+        "underlying": "29.31",
+        "pnl": 850296
+       },
+       {
+        "underlying": "29.56",
+        "pnl": 900196
+       },
+       {
+        "underlying": "29.81",
+        "pnl": 950096
+       },
+       {
+        "underlying": "30.06",
+        "pnl": 999996
+       }
+      ],
       "breakEvens": [
        "25.05"
       ],
@@ -1557,7 +1723,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1660,6 +1826,172 @@
         "pnl": 999424
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "20.49",
+        "pnl": -999424
+       },
+       {
+        "underlying": "20.74",
+        "pnl": -950624
+       },
+       {
+        "underlying": "21.00",
+        "pnl": -899872
+       },
+       {
+        "underlying": "21.26",
+        "pnl": -849120
+       },
+       {
+        "underlying": "21.51",
+        "pnl": -800320
+       },
+       {
+        "underlying": "21.77",
+        "pnl": -749568
+       },
+       {
+        "underlying": "22.02",
+        "pnl": -700768
+       },
+       {
+        "underlying": "22.28",
+        "pnl": -650016
+       },
+       {
+        "underlying": "22.54",
+        "pnl": -599264
+       },
+       {
+        "underlying": "22.79",
+        "pnl": -550464
+       },
+       {
+        "underlying": "23.05",
+        "pnl": -499712
+       },
+       {
+        "underlying": "23.31",
+        "pnl": -448960
+       },
+       {
+        "underlying": "23.56",
+        "pnl": -400160
+       },
+       {
+        "underlying": "23.82",
+        "pnl": -349408
+       },
+       {
+        "underlying": "24.07",
+        "pnl": -300608
+       },
+       {
+        "underlying": "24.33",
+        "pnl": -249856
+       },
+       {
+        "underlying": "24.59",
+        "pnl": -199104
+       },
+       {
+        "underlying": "24.84",
+        "pnl": -150304
+       },
+       {
+        "underlying": "25.10",
+        "pnl": -99552
+       },
+       {
+        "underlying": "25.35",
+        "pnl": -50752
+       },
+       {
+        "underlying": "25.61",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.87",
+        "pnl": 50752
+       },
+       {
+        "underlying": "26.12",
+        "pnl": 99552
+       },
+       {
+        "underlying": "26.38",
+        "pnl": 150304
+       },
+       {
+        "underlying": "26.63",
+        "pnl": 199104
+       },
+       {
+        "underlying": "26.89",
+        "pnl": 249856
+       },
+       {
+        "underlying": "27.15",
+        "pnl": 300608
+       },
+       {
+        "underlying": "27.40",
+        "pnl": 349408
+       },
+       {
+        "underlying": "27.66",
+        "pnl": 400160
+       },
+       {
+        "underlying": "27.91",
+        "pnl": 448960
+       },
+       {
+        "underlying": "28.17",
+        "pnl": 499712
+       },
+       {
+        "underlying": "28.43",
+        "pnl": 550464
+       },
+       {
+        "underlying": "28.68",
+        "pnl": 599264
+       },
+       {
+        "underlying": "28.94",
+        "pnl": 650016
+       },
+       {
+        "underlying": "29.20",
+        "pnl": 700768
+       },
+       {
+        "underlying": "29.45",
+        "pnl": 749568
+       },
+       {
+        "underlying": "29.71",
+        "pnl": 800320
+       },
+       {
+        "underlying": "29.96",
+        "pnl": 849120
+       },
+       {
+        "underlying": "30.22",
+        "pnl": 899872
+       },
+       {
+        "underlying": "30.48",
+        "pnl": 950624
+       },
+       {
+        "underlying": "30.73",
+        "pnl": 999424
+       }
+      ],
       "breakEvens": [
        "25.61"
       ],
@@ -1673,7 +2005,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1776,6 +2108,172 @@
         "pnl": 999900
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "20.20",
+        "pnl": -999900
+       },
+       {
+        "underlying": "20.45",
+        "pnl": -950400
+       },
+       {
+        "underlying": "20.71",
+        "pnl": -898920
+       },
+       {
+        "underlying": "20.96",
+        "pnl": -849420
+       },
+       {
+        "underlying": "21.21",
+        "pnl": -799920
+       },
+       {
+        "underlying": "21.46",
+        "pnl": -750420
+       },
+       {
+        "underlying": "21.72",
+        "pnl": -698940
+       },
+       {
+        "underlying": "21.97",
+        "pnl": -649440
+       },
+       {
+        "underlying": "22.22",
+        "pnl": -599940
+       },
+       {
+        "underlying": "22.47",
+        "pnl": -550440
+       },
+       {
+        "underlying": "22.73",
+        "pnl": -498960
+       },
+       {
+        "underlying": "22.98",
+        "pnl": -449460
+       },
+       {
+        "underlying": "23.23",
+        "pnl": -399960
+       },
+       {
+        "underlying": "23.48",
+        "pnl": -350460
+       },
+       {
+        "underlying": "23.74",
+        "pnl": -298980
+       },
+       {
+        "underlying": "23.99",
+        "pnl": -249480
+       },
+       {
+        "underlying": "24.24",
+        "pnl": -199980
+       },
+       {
+        "underlying": "24.49",
+        "pnl": -150480
+       },
+       {
+        "underlying": "24.75",
+        "pnl": -99000
+       },
+       {
+        "underlying": "25.00",
+        "pnl": -49500
+       },
+       {
+        "underlying": "25.25",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.50",
+        "pnl": 49500
+       },
+       {
+        "underlying": "25.76",
+        "pnl": 100980
+       },
+       {
+        "underlying": "26.01",
+        "pnl": 150480
+       },
+       {
+        "underlying": "26.26",
+        "pnl": 199980
+       },
+       {
+        "underlying": "26.51",
+        "pnl": 249480
+       },
+       {
+        "underlying": "26.77",
+        "pnl": 300960
+       },
+       {
+        "underlying": "27.02",
+        "pnl": 350460
+       },
+       {
+        "underlying": "27.27",
+        "pnl": 399960
+       },
+       {
+        "underlying": "27.52",
+        "pnl": 449460
+       },
+       {
+        "underlying": "27.78",
+        "pnl": 500940
+       },
+       {
+        "underlying": "28.03",
+        "pnl": 550440
+       },
+       {
+        "underlying": "28.28",
+        "pnl": 599940
+       },
+       {
+        "underlying": "28.53",
+        "pnl": 649440
+       },
+       {
+        "underlying": "28.79",
+        "pnl": 700920
+       },
+       {
+        "underlying": "29.04",
+        "pnl": 750420
+       },
+       {
+        "underlying": "29.29",
+        "pnl": 799920
+       },
+       {
+        "underlying": "29.54",
+        "pnl": 849420
+       },
+       {
+        "underlying": "29.80",
+        "pnl": 900900
+       },
+       {
+        "underlying": "30.05",
+        "pnl": 950400
+       },
+       {
+        "underlying": "30.30",
+        "pnl": 999900
+       }
+      ],
       "breakEvens": [
        "25.25"
       ],
@@ -1789,7 +2287,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1892,6 +2390,172 @@
         "pnl": 1000000
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "20.00",
+        "pnl": -1000000
+       },
+       {
+        "underlying": "20.25",
+        "pnl": -950000
+       },
+       {
+        "underlying": "20.50",
+        "pnl": -900000
+       },
+       {
+        "underlying": "20.75",
+        "pnl": -850000
+       },
+       {
+        "underlying": "21.00",
+        "pnl": -800000
+       },
+       {
+        "underlying": "21.25",
+        "pnl": -750000
+       },
+       {
+        "underlying": "21.50",
+        "pnl": -700000
+       },
+       {
+        "underlying": "21.75",
+        "pnl": -650000
+       },
+       {
+        "underlying": "22.00",
+        "pnl": -600000
+       },
+       {
+        "underlying": "22.25",
+        "pnl": -550000
+       },
+       {
+        "underlying": "22.50",
+        "pnl": -500000
+       },
+       {
+        "underlying": "22.75",
+        "pnl": -450000
+       },
+       {
+        "underlying": "23.00",
+        "pnl": -400000
+       },
+       {
+        "underlying": "23.25",
+        "pnl": -350000
+       },
+       {
+        "underlying": "23.50",
+        "pnl": -300000
+       },
+       {
+        "underlying": "23.75",
+        "pnl": -250000
+       },
+       {
+        "underlying": "24.00",
+        "pnl": -200000
+       },
+       {
+        "underlying": "24.25",
+        "pnl": -150000
+       },
+       {
+        "underlying": "24.50",
+        "pnl": -100000
+       },
+       {
+        "underlying": "24.75",
+        "pnl": -50000
+       },
+       {
+        "underlying": "25.00",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.25",
+        "pnl": 50000
+       },
+       {
+        "underlying": "25.50",
+        "pnl": 100000
+       },
+       {
+        "underlying": "25.75",
+        "pnl": 150000
+       },
+       {
+        "underlying": "26.00",
+        "pnl": 200000
+       },
+       {
+        "underlying": "26.25",
+        "pnl": 250000
+       },
+       {
+        "underlying": "26.50",
+        "pnl": 300000
+       },
+       {
+        "underlying": "26.75",
+        "pnl": 350000
+       },
+       {
+        "underlying": "27.00",
+        "pnl": 400000
+       },
+       {
+        "underlying": "27.25",
+        "pnl": 450000
+       },
+       {
+        "underlying": "27.50",
+        "pnl": 500000
+       },
+       {
+        "underlying": "27.75",
+        "pnl": 550000
+       },
+       {
+        "underlying": "28.00",
+        "pnl": 600000
+       },
+       {
+        "underlying": "28.25",
+        "pnl": 650000
+       },
+       {
+        "underlying": "28.50",
+        "pnl": 700000
+       },
+       {
+        "underlying": "28.75",
+        "pnl": 750000
+       },
+       {
+        "underlying": "29.00",
+        "pnl": 800000
+       },
+       {
+        "underlying": "29.25",
+        "pnl": 850000
+       },
+       {
+        "underlying": "29.50",
+        "pnl": 900000
+       },
+       {
+        "underlying": "29.75",
+        "pnl": 950000
+       },
+       {
+        "underlying": "30.00",
+        "pnl": 1000000
+       }
+      ],
       "breakEvens": [
        "25.00"
       ],
@@ -1905,7 +2569,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2008,6 +2672,172 @@
         "pnl": 998998
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "19.98",
+        "pnl": -998998
+       },
+       {
+        "underlying": "20.23",
+        "pnl": -948948
+       },
+       {
+        "underlying": "20.48",
+        "pnl": -898898
+       },
+       {
+        "underlying": "20.73",
+        "pnl": -848848
+       },
+       {
+        "underlying": "20.97",
+        "pnl": -800800
+       },
+       {
+        "underlying": "21.22",
+        "pnl": -750750
+       },
+       {
+        "underlying": "21.47",
+        "pnl": -700700
+       },
+       {
+        "underlying": "21.72",
+        "pnl": -650650
+       },
+       {
+        "underlying": "21.97",
+        "pnl": -600600
+       },
+       {
+        "underlying": "22.22",
+        "pnl": -550550
+       },
+       {
+        "underlying": "22.47",
+        "pnl": -500500
+       },
+       {
+        "underlying": "22.72",
+        "pnl": -450450
+       },
+       {
+        "underlying": "22.97",
+        "pnl": -400400
+       },
+       {
+        "underlying": "23.22",
+        "pnl": -350350
+       },
+       {
+        "underlying": "23.47",
+        "pnl": -300300
+       },
+       {
+        "underlying": "23.72",
+        "pnl": -250250
+       },
+       {
+        "underlying": "23.97",
+        "pnl": -200200
+       },
+       {
+        "underlying": "24.22",
+        "pnl": -150150
+       },
+       {
+        "underlying": "24.47",
+        "pnl": -100100
+       },
+       {
+        "underlying": "24.72",
+        "pnl": -50050
+       },
+       {
+        "underlying": "24.97",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.22",
+        "pnl": 50050
+       },
+       {
+        "underlying": "25.47",
+        "pnl": 100100
+       },
+       {
+        "underlying": "25.72",
+        "pnl": 150150
+       },
+       {
+        "underlying": "25.97",
+        "pnl": 200200
+       },
+       {
+        "underlying": "26.22",
+        "pnl": 250250
+       },
+       {
+        "underlying": "26.47",
+        "pnl": 300300
+       },
+       {
+        "underlying": "26.72",
+        "pnl": 350350
+       },
+       {
+        "underlying": "26.97",
+        "pnl": 400400
+       },
+       {
+        "underlying": "27.22",
+        "pnl": 450450
+       },
+       {
+        "underlying": "27.47",
+        "pnl": 500500
+       },
+       {
+        "underlying": "27.72",
+        "pnl": 550550
+       },
+       {
+        "underlying": "27.97",
+        "pnl": 600600
+       },
+       {
+        "underlying": "28.22",
+        "pnl": 650650
+       },
+       {
+        "underlying": "28.47",
+        "pnl": 700700
+       },
+       {
+        "underlying": "28.72",
+        "pnl": 750750
+       },
+       {
+        "underlying": "28.97",
+        "pnl": 800800
+       },
+       {
+        "underlying": "29.21",
+        "pnl": 848848
+       },
+       {
+        "underlying": "29.46",
+        "pnl": 898898
+       },
+       {
+        "underlying": "29.71",
+        "pnl": 948948
+       },
+       {
+        "underlying": "29.96",
+        "pnl": 998998
+       }
+      ],
       "breakEvens": [
        "24.97"
       ],
@@ -2021,7 +2851,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2124,6 +2954,172 @@
         "pnl": 999482
        }
       ],
+      "payoffNow": [
+       {
+        "underlying": "20.09",
+        "pnl": -999482
+       },
+       {
+        "underlying": "20.34",
+        "pnl": -949707
+       },
+       {
+        "underlying": "20.59",
+        "pnl": -899932
+       },
+       {
+        "underlying": "20.84",
+        "pnl": -850157
+       },
+       {
+        "underlying": "21.09",
+        "pnl": -800382
+       },
+       {
+        "underlying": "21.34",
+        "pnl": -750607
+       },
+       {
+        "underlying": "21.59",
+        "pnl": -700832
+       },
+       {
+        "underlying": "21.85",
+        "pnl": -649066
+       },
+       {
+        "underlying": "22.10",
+        "pnl": -599291
+       },
+       {
+        "underlying": "22.35",
+        "pnl": -549516
+       },
+       {
+        "underlying": "22.60",
+        "pnl": -499741
+       },
+       {
+        "underlying": "22.85",
+        "pnl": -449966
+       },
+       {
+        "underlying": "23.10",
+        "pnl": -400191
+       },
+       {
+        "underlying": "23.35",
+        "pnl": -350416
+       },
+       {
+        "underlying": "23.60",
+        "pnl": -300641
+       },
+       {
+        "underlying": "23.85",
+        "pnl": -250866
+       },
+       {
+        "underlying": "24.11",
+        "pnl": -199100
+       },
+       {
+        "underlying": "24.36",
+        "pnl": -149325
+       },
+       {
+        "underlying": "24.61",
+        "pnl": -99550
+       },
+       {
+        "underlying": "24.86",
+        "pnl": -49775
+       },
+       {
+        "underlying": "25.11",
+        "pnl": 0
+       },
+       {
+        "underlying": "25.36",
+        "pnl": 49775
+       },
+       {
+        "underlying": "25.61",
+        "pnl": 99550
+       },
+       {
+        "underlying": "25.86",
+        "pnl": 149325
+       },
+       {
+        "underlying": "26.11",
+        "pnl": 199100
+       },
+       {
+        "underlying": "26.37",
+        "pnl": 250866
+       },
+       {
+        "underlying": "26.62",
+        "pnl": 300641
+       },
+       {
+        "underlying": "26.87",
+        "pnl": 350416
+       },
+       {
+        "underlying": "27.12",
+        "pnl": 400191
+       },
+       {
+        "underlying": "27.37",
+        "pnl": 449966
+       },
+       {
+        "underlying": "27.62",
+        "pnl": 499741
+       },
+       {
+        "underlying": "27.87",
+        "pnl": 549516
+       },
+       {
+        "underlying": "28.12",
+        "pnl": 599291
+       },
+       {
+        "underlying": "28.37",
+        "pnl": 649066
+       },
+       {
+        "underlying": "28.63",
+        "pnl": 700832
+       },
+       {
+        "underlying": "28.88",
+        "pnl": 750607
+       },
+       {
+        "underlying": "29.13",
+        "pnl": 800382
+       },
+       {
+        "underlying": "29.38",
+        "pnl": 850157
+       },
+       {
+        "underlying": "29.63",
+        "pnl": 899932
+       },
+       {
+        "underlying": "29.88",
+        "pnl": 949707
+       },
+       {
+        "underlying": "30.13",
+        "pnl": 999482
+       }
+      ],
       "breakEvens": [
        "25.11"
       ],
@@ -2137,7 +3133,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -3817,7 +4813,7 @@
   ],
   "notes": [],
   "provenance": {
-   "engineVersion": "0.17.0",
+   "engineVersion": "0.18.0",
    "pricingModel": "bsm_continuous_yield",
    "truncated": [],
    "dataVersion": null,

@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.17.0";
+export const ENGINE_VERSION = "0.18.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -446,6 +446,7 @@ export type OperationPricing = {
   netPremium: Centavos;
   greeks: Greeks;
   payoff: PayoffPoint[];
+  payoffNow?: PayoffPoint[] | null; // ADR-0077
   breakEvens: DecimalString[];
   maxLoss: Centavos | "unbounded";
   maxGain: Centavos | "unbounded";
@@ -3323,3 +3324,15 @@ which the strike epochs of ADR-0056 already carry. Their fair value is the `q = 
 `apps/web` fills no `dividendYields`. `resolveDividendYield` and its `dividend_yield_defaulted`
 note are unchanged, and the note now reads as the model's choice, not a missing input. The
 collection stays in the interface for an unprotected option, should the app ever price one.
+
+## Addendum: a T+0 payoff curve; `ENGINE_VERSION` bumped to `0.18.0` (2026-10-31, see ADR-0077)
+
+`OperationPricing` gains `payoffNow?: PayoffPoint[] | null`: the operation's P&L at `at`,
+mark-to-model, each option leg at the Black-Scholes value its own fair value used with the
+underlying moved to the sample, a stock leg linear, both against the leg's entry premium. It is
+sampled at every underlying `payoff` samples plus 41 points one percent of spot apart from 0.8x
+to 1.2x of spot, and is `null` when any option leg has no model value (no volatility, a solve that
+did not converge, or an expiry already passed). The field is optional only because pricing stored
+before this change lacks it; the engine sets it on every pricing it returns. Signals' proposals
+are persisted, so `ENGINE_VERSION` moves from `"0.17.0"` to `"0.18.0"`. The four backtest goldens
+change only by that version and, in `catch-up-evaluation.json`, the new field on each proposal.

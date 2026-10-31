@@ -581,6 +581,12 @@ The profit or loss of a structure or operation at expiry as a function of the un
 including the net premium paid or received.
 _Avoid_: P&L diagram, profit curve
 
+**T+0 payoff** (pt-BR: _Resultado hoje_):
+The profit or loss of an operation at the pricing instant as a function of the underlying price:
+each option leg at its model fair value with the underlying moved, against its entry premium
+(ADR-0077). Absent when a leg has no volatility to value it with.
+_Avoid_: today curve, theoretical P&L
+
 **Max loss / max gain**:
 The worst and best payoff of an operation at expiry over all underlying prices; unbounded when
 the structure has naked exposure.
