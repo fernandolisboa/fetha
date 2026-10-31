@@ -90,7 +90,7 @@ test("an open operation shows its payoff at expiry against the entry prices", as
   const payoffs = page.getByTestId("open-operation-payoffs");
   const card = payoffs.getByRole("article", { name: "PETR4, aberta em 15/09/2026" });
   await expect(card).toBeVisible();
-  await expect(card).toContainText("30,5");
+  await expect(card).toContainText("R$ 30,50");
   const chart = card.getByTestId("payoff-chart");
   await expect(chart).toContainText(/Último fechamento R\$ /);
   await chart.getByRole("img", { name: "Resultado no vencimento" }).hover();

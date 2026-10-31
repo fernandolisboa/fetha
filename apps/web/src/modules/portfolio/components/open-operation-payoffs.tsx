@@ -3,12 +3,10 @@ import type { OperationPricing } from "@fetha/engine";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { formatDecimal } from "@/lib/format/decimal";
 import { sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
 
 import { PayoffChart } from "../builder/payoff-chart";
-import { StatBlock } from "../builder/stat-blocks";
 import type { OperationRow } from "../portfolio-service";
 import { t } from "../strings";
 
@@ -42,8 +40,17 @@ export function openOperationPayoffs(operations: readonly OperationRow[]): OpenO
   };
 }
 
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</dt>
+      <dd className="font-mono text-[13px] tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
 function moneyOrUnbounded(value: OperationPricing["maxGain"]): string {
-  return value === "unbounded" ? t.builder.statBlocks.unbounded : formatBRL(value);
+  return value === "unbounded" ? labels.unbounded : formatBRL(value);
 }
 
 export function OpenOperationPayoffsPanel({ operations }: { operations: readonly OperationRow[] }) {
@@ -68,24 +75,18 @@ export function OpenOperationPayoffsPanel({ operations }: { operations: readonly
                   {labels.opened(formatDate(sessionDateToDisplayDate(openedAt)))}
                 </span>
               </header>
-              <div className="grid grid-cols-3 gap-3">
-                <StatBlock
-                  label={t.builder.statBlocks.maxGain}
-                  value={moneyOrUnbounded(pricing.maxGain)}
-                />
-                <StatBlock
-                  label={t.builder.statBlocks.maxLoss}
-                  value={moneyOrUnbounded(pricing.maxLoss)}
-                />
-                <StatBlock
-                  label={t.builder.statBlocks.breakEvens}
+              <dl className="grid grid-cols-3 gap-x-4 gap-y-2">
+                <Figure label={labels.maxGain} value={moneyOrUnbounded(pricing.maxGain)} />
+                <Figure label={labels.maxLoss} value={moneyOrUnbounded(pricing.maxLoss)} />
+                <Figure
+                  label={labels.breakEvens}
                   value={
                     pricing.breakEvens.length > 0
-                      ? pricing.breakEvens.map((value) => formatDecimal(value)).join(" / ")
+                      ? pricing.breakEvens.map((value) => formatPriceBRL(value)).join(" / ")
                       : "—"
                   }
                 />
-              </div>
+              </dl>
               <PayoffChart
                 points={pricing.payoff}
                 spot={pricing.spot}

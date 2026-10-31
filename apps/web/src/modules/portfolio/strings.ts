@@ -90,6 +90,10 @@ const en = {
       cardLabel: (underlying: string, opened: string) => `${underlying}, opened on ${opened}`,
       opened: (date: string) => `opened on ${date}`,
       spot: (price: string) => `Last close ${price}`,
+      maxGain: "Max gain",
+      maxLoss: "Max loss",
+      breakEvens: "Break-even",
+      unbounded: "Unbounded",
       uncharted:
         "no chart, because a split, reverse split or bonus since the opening changed the strikes and quantities.",
     },
@@ -358,6 +362,10 @@ const ptBR = {
       cardLabel: (underlying: string, opened: string) => `${underlying}, aberta em ${opened}`,
       opened: (date: string) => `aberta em ${date}`,
       spot: (price: string) => `Último fechamento ${price}`,
+      maxGain: "Ganho máx.",
+      maxLoss: "Perda máx.",
+      breakEvens: "Equilíbrio",
+      unbounded: "Ilimitado",
       uncharted:
         "sem gráfico, porque um desdobramento, grupamento ou bonificação depois da abertura mudou strikes e quantidades.",
     },
