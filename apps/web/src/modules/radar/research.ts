@@ -58,8 +58,10 @@ export interface Idea {
   pricing: OperationPricing;
 }
 
-// What a card draws and what reaches the browser.
-export type IdeaCard = Omit<Idea, "pricing">;
+// What a card draws and what reaches the browser: of the pricing, only what the payoff chart needs.
+export type IdeaCard = Omit<Idea, "pricing"> & {
+  chart: Pick<OperationPricing, "payoff" | "spot">;
+};
 
 export function ideaCardOf(idea: Idea): IdeaCard {
   return {
@@ -77,6 +79,7 @@ export function ideaCardOf(idea: Idea): IdeaCard {
     reading: idea.reading,
     alerts: idea.alerts,
     suggestionId: idea.suggestionId,
+    chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
   };
 }
 
