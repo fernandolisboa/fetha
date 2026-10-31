@@ -14,6 +14,7 @@ import {
   getMyWatchlist,
   RemoveFromWatchlistButton,
   t,
+  WatchlistSparkline,
   WatchlistTabs,
 } from "@/modules/watchlist";
 
@@ -82,6 +83,9 @@ async function WatchlistTable() {
                 {t.table.columns.lastClose}
               </th>
               <th className="py-2 pr-4 text-right font-normal whitespace-nowrap">
+                {t.table.columns.trend}
+              </th>
+              <th className="py-2 pr-4 text-right font-normal whitespace-nowrap">
                 {t.table.columns.session}
               </th>
               <th className="py-2 font-normal" />
@@ -110,6 +114,9 @@ async function WatchlistTable() {
                       ? formatDecimal(item.lastClose.close)
                       : formatPriceBRL(item.lastClose.close)
                     : t.table.noClose}
+                </td>
+                <td className="py-2 pr-4 text-right" data-label={t.table.columns.trend}>
+                  <WatchlistSparkline ticker={item.ticker} sparkline={item.sparkline} />
                 </td>
                 <td
                   className="text-muted-foreground py-2 pr-4 text-right font-mono whitespace-nowrap tabular-nums"

@@ -24,6 +24,8 @@ export const storedIdeaPricingSchema = z.looseObject({
   maxLoss: centavosSchema,
   maxGain: z.union([centavosSchema, z.literal("unbounded")]),
   breakEvens: z.array(decimalStringSchema),
+  spot: decimalStringSchema,
+  payoff: z.array(z.object({ underlying: decimalStringSchema, pnl: centavosSchema })),
 });
 export type StoredIdeaPricing = z.infer<typeof storedIdeaPricingSchema>;
 
