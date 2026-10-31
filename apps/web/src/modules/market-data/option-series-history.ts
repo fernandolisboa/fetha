@@ -9,6 +9,7 @@ import {
   settlementStyleSchema,
   tickerSchema,
   type DecimalString,
+  type Instant,
   type OptionRight,
   type SessionDate,
   type Ticker,
@@ -17,6 +18,7 @@ import {
   engine,
   type MacroPoint,
   type MarketView,
+  type NoteCode,
   type OptionDayPrice,
   type OptionSeries,
 } from "@fetha/engine";
@@ -25,6 +27,8 @@ import type { Database } from "@/db/client";
 
 import {
   emptyMarketView,
+  latestSeriesRowByTicker,
+  priceMatchesEpoch,
   toEngineCandle,
   toEngineCorporateActions,
   toTradingSession,
@@ -50,6 +54,11 @@ export const OPTION_SERIES_HISTORY_SESSIONS = 60;
 const CDI_LOOKBACK_DAYS = 10;
 
 const ONE_CONTRACT = quantitySchema.parse(1);
+
+const UNRELIABLE_SOLVE_NOTES: ReadonlySet<NoteCode> = new Set([
+  "risk_free_rate_defaulted",
+  "option_strike_unadjusted_across_corporate_action",
+]);
 
 export interface OptionSeriesHistoryPoint {
   session: SessionDate;
@@ -87,37 +96,17 @@ function lookbackStart(session: string): string {
 // One view for the whole history: the engine reads every collection point-in-time off the
 // `at` it is given, so the same view prices each session without leaking a later row.
 export function assembleOptionSeriesHistoryView(rows: OptionSeriesHistoryRows): MarketView {
-  // A series that traded on a session was listed by then, but the registry may have first
-  // recorded it later than the earliest session still shown; the earliest epoch is therefore
-  // made visible from the earliest price, or those sessions could never be priced.
-  const firstPriceAsOf = rows.prices.reduce<Date | null>(
-    (earliest, row) => (earliest === null || row.asOf < earliest ? row.asOf : earliest),
-    null,
-  );
-  const earliestEpochAsOf = rows.epochs.reduce<Date | null>(
-    (earliest, row) => (earliest === null || row.asOf < earliest ? row.asOf : earliest),
-    null,
-  );
-
-  const optionSeries: OptionSeries[] = rows.epochs.map((row) => {
-    const isEarliest =
-      earliestEpochAsOf !== null && row.asOf.getTime() === earliestEpochAsOf.getTime();
-    const asOf =
-      isEarliest && firstPriceAsOf !== null && firstPriceAsOf < row.asOf
-        ? firstPriceAsOf
-        : row.asOf;
-    return {
-      ticker: tickerSchema.parse(row.ticker),
-      underlying: tickerSchema.parse(row.underlying),
-      right: optionRightSchema.parse(row.right),
-      strike: decimalStringSchema.parse(row.strike),
-      expiry: sessionDateSchema.parse(row.expiry),
-      style: exerciseStyleSchema.parse(row.style),
-      asOf: instantSchema.parse(asOf.toISOString()),
-      priceFactor: decimalStringSchema.parse(row.priceFactor),
-      settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
-    };
-  });
+  const optionSeries: OptionSeries[] = rows.epochs.map((row) => ({
+    ticker: tickerSchema.parse(row.ticker),
+    underlying: tickerSchema.parse(row.underlying),
+    right: optionRightSchema.parse(row.right),
+    strike: decimalStringSchema.parse(row.strike),
+    expiry: sessionDateSchema.parse(row.expiry),
+    style: exerciseStyleSchema.parse(row.style),
+    asOf: instantSchema.parse(row.asOf.toISOString()),
+    priceFactor: decimalStringSchema.parse(row.priceFactor),
+    settlementStyle: settlementStyleSchema.parse(row.settlementStyle),
+  }));
 
   const optionPrices: OptionDayPrice[] = rows.prices.map((row) => ({
     ticker: tickerSchema.parse(row.ticker),
@@ -157,16 +146,15 @@ export function assembleOptionSeriesHistoryView(rows: OptionSeriesHistoryRows): 
 }
 
 // The series' implied volatility at one session's close, solved by the engine from that
-// session's own price. Unavailable (null) rather than approximated when the price is stale
-// or the rate fell back to 0: a rate defaulted silently would bake a wrong number into the
-// chart (docs/adr/0054 draws the same line for the IV index).
+// session's own price. Unavailable (null) rather than approximated when the price is stale,
+// the rate fell back to 0 or the strike may not reflect a corporate action: a number solved
+// from a wrong input would bake into the chart (docs/adr/0054 draws the same line for the IV
+// index).
 async function impliedVolatilityAt(
   view: MarketView,
   target: OptionSeriesHistoryTarget,
-  session: SessionDate,
+  at: Instant,
 ): Promise<DecimalString | null> {
-  const at = view.calendar.find((day) => day.date === session)?.close;
-  if (!at) return null;
   const result = await engine.priceOperation({
     view,
     at,
@@ -175,7 +163,8 @@ async function impliedVolatilityAt(
   if (!result.ok) return null;
   const leg = result.value.legs[0];
   if (!leg || leg.impliedVolatility === null || leg.stale !== null) return null;
-  if (result.value.notes.some((note) => note.code === "risk_free_rate_defaulted")) return null;
+  const notes = [...result.value.notes, ...leg.notes];
+  if (notes.some((note) => UNRELIABLE_SOLVE_NOTES.has(note.code))) return null;
   return leg.impliedVolatility;
 }
 
@@ -189,15 +178,30 @@ export async function computeOptionSeriesHistory(
       .filter((candle) => candle.ticker === target.underlying)
       .map((candle) => [candle.session, candle.close]),
   );
+  const closeBySession = new Map(rows.calendar.map((day) => [day.date, day.close]));
   const ordered = [...rows.prices].reverse();
   return Promise.all(
     ordered.map(async (row) => {
       const session = sessionDateSchema.parse(row.session);
+      const underlyingClose = underlyingCloseBySession.get(session) ?? null;
+      const at = closeBySession.get(session);
+      // Solved only against that session's own spot (the engine would otherwise carry an older
+      // close forward) and only when the price was recorded under the strike the engine prices
+      // at that close: the latest visible epoch, the same rule the operation view applies (#274).
+      const solvable =
+        underlyingClose !== null &&
+        at !== undefined &&
+        priceMatchesEpoch(
+          row,
+          latestSeriesRowByTicker(rows.epochs.filter((epoch) => epoch.asOf <= at)).get(row.ticker),
+        );
       return {
         session,
         close: row.close ? decimalStringSchema.parse(row.close) : null,
-        underlyingClose: underlyingCloseBySession.get(session) ?? null,
-        impliedVolatility: await impliedVolatilityAt(view, target, session),
+        underlyingClose,
+        impliedVolatility: solvable
+          ? await impliedVolatilityAt(view, target, instantSchema.parse(at.toISOString()))
+          : null,
       };
     }),
   );

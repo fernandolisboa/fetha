@@ -55,7 +55,7 @@ function baseRows(closes: Array<DecimalString | null>): OptionSeriesHistoryRows 
         strike: "40.00000000",
         expiry: EXPIRY,
         style: "european",
-        asOf: closeOf("2026-03-04"),
+        asOf: closeOf("2026-02-27"),
         priceFactor: "1",
         settlementStyle: "physical",
       },
@@ -146,7 +146,7 @@ describe("computeOptionSeriesHistory", () => {
     ]);
   });
 
-  it("solves the implied volatility on every session from the engine, including those before the registry first saw the series", async () => {
+  it("solves the implied volatility on every session from the engine", async () => {
     const closes = await closesImpliedBy(SIGMA);
 
     const history = await computeOptionSeriesHistory(target, baseRows(closes));
@@ -197,6 +197,105 @@ describe("computeOptionSeriesHistory", () => {
     expect(history[2]?.underlyingClose).toBeNull();
     expect(history[3]?.underlyingClose).toBe("43.000000");
   });
+
+  it("leaves the volatility empty on a session its underlying candle is missing, never solving against an older spot", async () => {
+    const closes = await closesImpliedBy(SIGMA);
+    const rows = baseRows(closes);
+
+    const history = await computeOptionSeriesHistory(target, {
+      ...rows,
+      candles: rows.candles.filter((candle) => candle.session !== "2026-03-04"),
+    });
+
+    expect(history[2]?.impliedVolatility).toBeNull();
+    expect(history[1]?.impliedVolatility).not.toBeNull();
+    expect(history[3]?.impliedVolatility).not.toBeNull();
+  });
+
+  it("leaves the volatility empty on sessions before the registry first listed the series", async () => {
+    const closes = await closesImpliedBy(SIGMA);
+    const rows = baseRows(closes);
+    const [epoch] = rows.epochs;
+    if (!epoch) throw new Error("fixture epoch missing");
+
+    const history = await computeOptionSeriesHistory(target, {
+      ...rows,
+      epochs: [{ ...epoch, asOf: closeOf("2026-03-04") }],
+    });
+
+    expect(history.map((point) => point.impliedVolatility === null)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("leaves the volatility empty on a session whose price was recorded under a strike other than the latest epoch's", async () => {
+    const closes = await closesImpliedBy(SIGMA);
+    const rows = baseRows(closes);
+    const [epoch] = rows.epochs;
+    if (!epoch) throw new Error("fixture epoch missing");
+
+    const history = await computeOptionSeriesHistory(target, {
+      ...rows,
+      epochs: [epoch, { ...epoch, strike: "44.00000000", asOf: closeOf("2026-03-04") }],
+    });
+
+    expect(history.map((point) => point.impliedVolatility === null)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it("solves the volatility once the price carries the latest epoch's strike", async () => {
+    const closes = await closesImpliedBy(SIGMA);
+    const rows = baseRows(closes);
+    const [epoch] = rows.epochs;
+    if (!epoch) throw new Error("fixture epoch missing");
+
+    const history = await computeOptionSeriesHistory(target, {
+      ...rows,
+      epochs: [
+        { ...epoch, strike: "38.00000000" },
+        { ...epoch, asOf: closeOf("2026-03-04") },
+      ],
+    });
+
+    expect(history.map((point) => point.impliedVolatility === null)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("leaves the volatility empty when the strike may not reflect a corporate action on the underlying", async () => {
+    const closes = await closesImpliedBy(SIGMA);
+
+    const history = await computeOptionSeriesHistory(target, {
+      ...baseRows(closes),
+      corporateActions: [
+        {
+          ticker: UNDERLYING,
+          exDate: sessionDateSchema.parse("2026-03-04"),
+          asOf: closeOf("2026-03-03"),
+          factor: decimalStringSchema.parse("0.900000"),
+          recordedAt: closeOf("2026-03-03"),
+        },
+      ],
+    });
+
+    expect(history[0]?.impliedVolatility).not.toBeNull();
+    expect(history[1]?.impliedVolatility).not.toBeNull();
+    expect(history[3]?.impliedVolatility).toBeNull();
+    expect(history[4]?.impliedVolatility).toBeNull();
+  });
 });
 
 describe("assembleOptionSeriesHistoryView", () => {
@@ -217,12 +316,17 @@ describe("assembleOptionSeriesHistoryView", () => {
     expect(view.macro[0]?.annualRate).toBe("0.14150000");
   });
 
-  it("makes the earliest epoch visible from the earliest price when the registry saw the series later", () => {
-    const closes = SESSIONS.map(() => decimalStringSchema.parse("1.000000"));
+  it("keeps each epoch visible from its own as-of, never from an earlier price", () => {
+    const rows = baseRows(SESSIONS.map(() => decimalStringSchema.parse("1.000000")));
+    const [epoch] = rows.epochs;
+    if (!epoch) throw new Error("fixture epoch missing");
 
-    const view = assembleOptionSeriesHistoryView(baseRows(closes));
+    const view = assembleOptionSeriesHistoryView({
+      ...rows,
+      epochs: [{ ...epoch, asOf: closeOf("2026-03-04") }],
+    });
 
     expect(view.optionSeries).toHaveLength(1);
-    expect(view.optionSeries[0]?.asOf).toBe(closeOf("2026-03-02").toISOString());
+    expect(view.optionSeries[0]?.asOf).toBe(closeOf("2026-03-04").toISOString());
   });
 });

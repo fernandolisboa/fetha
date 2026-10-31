@@ -496,7 +496,7 @@ function isEarlierOnExactTie(a: SeriesRow, b: SeriesRow): boolean {
   return a.ticker < b.ticker;
 }
 
-function latestSeriesRowByTicker(
+export function latestSeriesRowByTicker(
   rows: readonly OptionSeriesEpochRow[],
 ): Map<string, OptionSeriesEpochRow> {
   const latest = new Map<string, OptionSeriesEpochRow>();
@@ -511,6 +511,13 @@ function latestSeriesRowByTicker(
     }
   }
   return latest;
+}
+
+export function priceMatchesEpoch(
+  price: { expiry: string; strike: string },
+  epoch: { expiry: string; strike: string } | undefined,
+): boolean {
+  return epoch !== undefined && price.expiry === epoch.expiry && price.strike === epoch.strike;
 }
 
 function furthestExpiry(seriesExpiries: readonly string[]): string | null {
@@ -681,8 +688,7 @@ async function assembleOperationMarketView(
   // (ADR-0017), so the expiry check still matters on its own.
   const optionPricesByTicker = new Map<string, (typeof priceRows)[number]>();
   for (const row of priceRows) {
-    const series = latestSeriesByTicker.get(row.ticker);
-    if (!series || row.expiry !== series.expiry || row.strike !== series.strike) {
+    if (!priceMatchesEpoch(row, latestSeriesByTicker.get(row.ticker))) {
       continue;
     }
     optionPricesByTicker.set(row.ticker, row);
