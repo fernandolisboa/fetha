@@ -86,7 +86,7 @@ const en = {
     title: "Positions and operations",
     openPayoffs: {
       title: "Open operations at expiry",
-      subtitle: "Result at expiry against your entry prices, for each close of the underlying",
+      subtitle: "The open position at expiry, against your average entry prices",
       cardLabel: (underlying: string, opened: string) => `${underlying}, opened on ${opened}`,
       opened: (date: string) => `opened on ${date}`,
       spot: (price: string) => `Last close ${price}`,
@@ -94,8 +94,9 @@ const en = {
       maxLoss: "Max loss",
       breakEvens: "Break-even",
       unbounded: "Unbounded",
-      uncharted:
+      adjusted:
         "no chart, because a split, reverse split or bonus since the opening changed the strikes and quantities.",
+      unpriced: "no chart, because the market data to price it is missing.",
     },
     markedAt: "marked at",
     importSpreadsheet: "Import B3 spreadsheet",
@@ -358,16 +359,17 @@ const ptBR = {
     title: "Posições e operações",
     openPayoffs: {
       title: "Operações abertas no vencimento",
-      subtitle: "Quanto cada operação dá no vencimento, contra os seus preços de entrada",
+      subtitle: "A posição aberta no vencimento, contra os seus preços médios de entrada",
       cardLabel: (underlying: string, opened: string) => `${underlying}, aberta em ${opened}`,
       opened: (date: string) => `aberta em ${date}`,
       spot: (price: string) => `Último fechamento ${price}`,
       maxGain: "Ganho máx.",
       maxLoss: "Perda máx.",
-      breakEvens: "Equilíbrio",
+      breakEvens: "Break-even",
       unbounded: "Ilimitado",
-      uncharted:
+      adjusted:
         "sem gráfico, porque um desdobramento, grupamento ou bonificação depois da abertura mudou strikes e quantidades.",
+      unpriced: "sem gráfico, porque faltam dados de mercado para precificar.",
     },
     markedAt: "marcada em",
     importSpreadsheet: "Importar planilha da B3",

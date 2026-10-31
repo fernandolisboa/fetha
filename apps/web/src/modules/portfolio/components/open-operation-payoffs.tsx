@@ -1,9 +1,10 @@
-import type { SessionDate } from "@fetha/contracts";
+import type { DecimalString, SessionDate } from "@fetha/contracts";
 import type { OperationPricing } from "@fetha/engine";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
-import { sessionDateToDisplayDate } from "@/modules/market-data";
+import { formatDecimal } from "@/lib/format/decimal";
+import { isMarketIndex, sessionDateToDisplayDate } from "@/modules/market-data";
 import { Panel } from "@/modules/shell";
 
 import { PayoffChart } from "../builder/payoff-chart";
@@ -14,7 +15,8 @@ const labels = t.dashboard.openPayoffs;
 
 export interface OpenOperationPayoffs {
   charted: { id: string; underlying: string; openedAt: SessionDate; pricing: OperationPricing }[];
-  uncharted: string[];
+  adjusted: string[];
+  unpriced: string[];
 }
 
 export function openOperationPayoffs(operations: readonly OperationRow[]): OpenOperationPayoffs {
@@ -23,19 +25,22 @@ export function openOperationPayoffs(operations: readonly OperationRow[]): OpenO
   );
   return {
     charted: open.flatMap(({ operation, entryPayoff }) =>
-      entryPayoff
+      entryPayoff.kind === "priced"
         ? [
             {
               id: operation.id,
               underlying: operation.underlying,
               openedAt: operation.openedAt,
-              pricing: entryPayoff,
+              pricing: entryPayoff.pricing,
             },
           ]
         : [],
     ),
-    uncharted: open
-      .filter(({ entryPayoff }) => !entryPayoff)
+    adjusted: open
+      .filter(({ entryPayoff }) => entryPayoff.kind === "adjusted")
+      .map(({ operation }) => operation.underlying),
+    unpriced: open
+      .filter(({ entryPayoff }) => entryPayoff.kind === "unpriced")
       .map(({ operation }) => operation.underlying),
   };
 }
@@ -44,9 +49,22 @@ function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</dt>
-      <dd className="font-mono text-[13px] tabular-nums">{value}</dd>
+      <dd className="font-mono text-[13px] break-words tabular-nums">{value}</dd>
     </div>
   );
+}
+
+function Uncharted({ tickers, reason }: { tickers: string[]; reason: string }) {
+  if (tickers.length === 0) return null;
+  return (
+    <p className="text-muted-foreground mt-3 text-[12px]">
+      <span className="font-mono uppercase">{tickers.join(", ")}</span>: {reason}
+    </p>
+  );
+}
+
+function priceText(underlying: string, value: DecimalString): string {
+  return isMarketIndex(underlying) ? formatDecimal(value) : formatPriceBRL(value);
 }
 
 function moneyOrUnbounded(value: OperationPricing["maxGain"]): string {
@@ -54,8 +72,8 @@ function moneyOrUnbounded(value: OperationPricing["maxGain"]): string {
 }
 
 export function OpenOperationPayoffsPanel({ operations }: { operations: readonly OperationRow[] }) {
-  const { charted, uncharted } = openOperationPayoffs(operations);
-  if (charted.length === 0 && uncharted.length === 0) return null;
+  const { charted, adjusted, unpriced } = openOperationPayoffs(operations);
+  if (charted.length === 0 && adjusted.length === 0 && unpriced.length === 0) return null;
   return (
     <Panel title={labels.title} subtitle={labels.subtitle}>
       <div className="@container" data-testid="open-operation-payoffs">
@@ -75,14 +93,14 @@ export function OpenOperationPayoffsPanel({ operations }: { operations: readonly
                   {labels.opened(formatDate(sessionDateToDisplayDate(openedAt)))}
                 </span>
               </header>
-              <dl className="grid grid-cols-3 gap-x-4 gap-y-2">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 @min-[24rem]:grid-cols-3">
                 <Figure label={labels.maxGain} value={moneyOrUnbounded(pricing.maxGain)} />
                 <Figure label={labels.maxLoss} value={moneyOrUnbounded(pricing.maxLoss)} />
                 <Figure
                   label={labels.breakEvens}
                   value={
                     pricing.breakEvens.length > 0
-                      ? pricing.breakEvens.map((value) => formatPriceBRL(value)).join(" / ")
+                      ? pricing.breakEvens.map((value) => priceText(underlying, value)).join(" / ")
                       : "—"
                   }
                 />
@@ -93,17 +111,14 @@ export function OpenOperationPayoffsPanel({ operations }: { operations: readonly
                 breakEvens={pricing.breakEvens}
                 maxGain={pricing.maxGain}
                 maxLoss={pricing.maxLoss}
-                spotLabel={labels.spot(formatPriceBRL(pricing.spot))}
+                spotLabel={labels.spot(priceText(underlying, pricing.spot))}
                 framed
               />
             </article>
           ))}
         </div>
-        {uncharted.length > 0 && (
-          <p className="text-muted-foreground mt-3 text-[12px]">
-            <span className="font-mono uppercase">{uncharted.join(", ")}</span>: {labels.uncharted}
-          </p>
-        )}
+        <Uncharted tickers={adjusted} reason={labels.adjusted} />
+        <Uncharted tickers={unpriced} reason={labels.unpriced} />
       </div>
     </Panel>
   );

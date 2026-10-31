@@ -6,7 +6,9 @@ import {
   tickerSchema,
 } from "@fetha/contracts";
 
-import { adjustedSinceOpening } from "./entry-payoff";
+import type { MarketView, Operation } from "@fetha/engine";
+
+import { adjustedSinceOpening, entryPayoff } from "./entry-payoff";
 
 const operation = {
   underlying: tickerSchema.parse("PETR4"),
@@ -45,5 +47,18 @@ describe("adjustedSinceOpening", () => {
     expect(
       adjustedSinceOpening({ corporateActions: [factor("PETR4", "2026-11-03")] }, operation, today),
     ).toBe(false);
+  });
+});
+
+describe("entryPayoff", () => {
+  it("draws nothing across a corporate action, before asking the engine", async () => {
+    const view = { corporateActions: [factor("PETR4", "2026-10-10")] } as unknown as MarketView;
+    const result = await entryPayoff(
+      view,
+      instantSchema.parse("2026-10-20T21:00:00.000Z"),
+      { ...operation, legs: [] } as unknown as Operation,
+      today,
+    );
+    expect(result).toEqual({ kind: "adjusted" });
   });
 });

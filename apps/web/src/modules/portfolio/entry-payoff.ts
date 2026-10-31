@@ -17,16 +17,16 @@ export function adjustedSinceOpening(
   );
 }
 
-// The payoff at expiry the operation was opened for: the engine prices its legs at their entry
-// prices (`LegInput.price`), so P&L, break-evens and max gain/loss read against what was paid,
-// while the spot is today's.
+export type EntryPayoff =
+  { kind: "priced"; pricing: OperationPricing } | { kind: "adjusted" } | { kind: "unpriced" };
+
 export async function entryPayoff(
   view: MarketView,
   at: Instant,
   operation: Operation,
   today: SessionDate,
-): Promise<OperationPricing | null> {
-  if (adjustedSinceOpening(view, operation, today)) return null;
+): Promise<EntryPayoff> {
+  if (adjustedSinceOpening(view, operation, today)) return { kind: "adjusted" };
   const priced = await engine.priceOperation({
     view,
     at,
@@ -38,5 +38,5 @@ export async function entryPayoff(
       price: leg.entryPrice,
     })),
   });
-  return priced.ok && priced.value.payoff.length > 0 ? priced.value : null;
+  return priced.ok ? { kind: "priced", pricing: priced.value } : { kind: "unpriced" };
 }

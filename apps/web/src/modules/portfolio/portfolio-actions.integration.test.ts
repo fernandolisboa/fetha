@@ -455,9 +455,10 @@ describe("the portfolio from fills to a confirmed settlement", () => {
     // The payoff at expiry against the entry prices: bought at 30,00, call sold at 1,50 on strike
     // 32, so at most (32 − 30 + 1,50) × 100 and even at 28,50.
     const payoff = beforeExpiry.operations[0]?.entryPayoff;
-    expect(payoff?.maxGain).toBe(35_000);
-    expect(payoff?.breakEvens.map(Number)).toEqual([28.5]);
-    expect(beforeOpening.operations[0]?.entryPayoff).toBeNull();
+    if (payoff?.kind !== "priced") throw new Error("expected the entry payoff to be priced");
+    expect(payoff.pricing.maxGain).toBe(35_000);
+    expect(payoff.pricing.breakEvens.map(Number)).toEqual([28.5]);
+    expect(beforeOpening.operations[0]?.entryPayoff).toEqual({ kind: "unpriced" });
     expect(beforeExpiry.pendingSettlements).toEqual([]);
     if (!beforeExpiry.valuation?.ok || !beforeExpiry.greeks) throw new Error("expected greeks");
     const engineTotals = beforeExpiry.valuation.value.totals.greeks;
