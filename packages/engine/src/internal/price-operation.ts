@@ -37,7 +37,8 @@ import {
   STALE_PRICE_NOTE,
 } from "./notes";
 import { resolveOptionStrike } from "./option-strike";
-import { priceOptionLeg } from "./option-pricing";
+import { priceOptionLegWithModel, type OptionLegModel } from "./option-pricing";
+import { computePayoffNow } from "./payoff-now";
 import { resolvePriceFactor } from "./price-factor";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
@@ -85,6 +86,10 @@ export type PricedLeg = {
   // scale the intrinsic value it derives from `strike` back down to the same reais
   // `premiumPerUnit` is already on before the two are combined.
   priceFactor: Decimal;
+  // The sigma and time to expiry behind an option leg's fair value, so the T+0 curve
+  // (ADR-0077) values it with the same model; null for a stock leg and for an option leg
+  // without a model value.
+  model: OptionLegModel | null;
 };
 
 // `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
@@ -143,6 +148,7 @@ function valueOneLeg(
         strike: null,
         premiumPerUnit: premium.value.price,
         priceFactor: new Decimal(1),
+        model: null,
       },
       premiumRescaled: premium.value.rescaled,
     };
@@ -203,7 +209,13 @@ function valueOneLeg(
     if (strikeAdjustmentNote) valuation.notes = [...valuation.notes, strikeAdjustmentNote];
     return {
       ok: true,
-      leg: { valuation, strike: strikeString, premiumPerUnit: intrinsic, priceFactor },
+      leg: {
+        valuation,
+        strike: strikeString,
+        premiumPerUnit: intrinsic,
+        priceFactor,
+        model: null,
+      },
       premiumRescaled: false,
     };
   }
@@ -259,7 +271,7 @@ function valueOneLeg(
     premium.ok,
     "price-operation: resolveOptionStrike already refused a non-positive factor",
   );
-  const valuation = priceOptionLeg({
+  const { valuation, model } = priceOptionLegWithModel({
     leg: { role: leg.role, side: leg.side, ticker: leg.ticker, quantity: leg.quantity },
     strike: strikeString,
     spot,
@@ -280,7 +292,7 @@ function valueOneLeg(
 
   return {
     ok: true,
-    leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor },
+    leg: { valuation, strike: strikeString, premiumPerUnit, priceFactor, model },
     premiumRescaled: premium.value.rescaled,
   };
 }
@@ -671,6 +683,15 @@ function resolveOperationRates(
   };
 }
 
+type PriceLegsOptions = {
+  expiredIntrinsicBasis?: DecimalString | null;
+  legPathAt?: (index: number) => string;
+  // Off where nothing reads the T+0 curve: `evaluateStrategy`'s exit-rule pricing (every open
+  // operation, every session), where it more than doubled a backtest's run time, and
+  // `markToMarket`, whose legs are priced against the current mark, not the user's entry.
+  withPayoffNow?: boolean;
+};
+
 function priceConcreteLegs(
   view: MarketView,
   at: string,
@@ -683,8 +704,7 @@ function priceConcreteLegs(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
+  { expiredIntrinsicBasis = null, legPathAt, withPayoffNow = true }: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const valued = valueLegs(
     view,
@@ -730,6 +750,15 @@ function priceConcreteLegs(
   if (anyPremiumRescaled) pushNoteOnce(notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
+  const payoffNow = withPayoffNow
+    ? computePayoffNow(
+        priced,
+        spot,
+        payoff.map((point) => point.underlying),
+        riskFreeRate,
+        dividendYield,
+      )
+    : undefined;
 
   const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
@@ -767,6 +796,7 @@ function priceConcreteLegs(
       netPremium: toCentavos(netPremiumCentavos.round().toNumber()),
       greeks,
       payoff,
+      ...(payoffNow === undefined ? {} : { payoffNow }),
       breakEvens,
       maxLoss,
       maxGain,
@@ -793,8 +823,7 @@ export function priceLegsAtSpot(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
+  options: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const ratesResolution = resolveOperationRates(view, at, underlying);
   if (!ratesResolution.ok) return err(ratesResolution.error);
@@ -811,8 +840,7 @@ export function priceLegsAtSpot(
     riskProfile,
     openOperationCount,
     provenanceBase,
-    expiredIntrinsicBasis,
-    legPathAt,
+    options,
   );
 }
 
@@ -829,8 +857,7 @@ export function priceLegsAt(
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
   spotPath: string,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
+  options: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const spotResult = resolveUnderlyingSpotOnSessionScale(view, underlying, at);
   if (!spotResult.ok) return err(spotResult.error);
@@ -849,8 +876,7 @@ export function priceLegsAt(
     riskProfile,
     openOperationCount,
     provenanceBase,
-    expiredIntrinsicBasis,
-    legPathAt,
+    options,
   );
   if (!priced.ok || !reading.rescaled) return priced;
   return { ok: true, value: { ...priced.value, notes: withStaleRescaleNote(priced.value.notes) } };

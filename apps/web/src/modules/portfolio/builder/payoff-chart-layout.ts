@@ -1,3 +1,6 @@
+import type { DecimalString } from "@fetha/contracts";
+import type { PayoffPoint } from "@fetha/engine";
+
 const AXIS_PRICE = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 export function formatAxisPrice(value: number): string {
@@ -83,4 +86,14 @@ export function pnlAt(samples: readonly Sample[], underlying: number): number {
   const b = samples[after];
   if (!a || !b) return 0;
   return a.pnl + ((b.pnl - a.pnl) * (underlying - a.underlying)) / (b.underlying - a.underlying);
+}
+
+// The engine samples the T+0 curve at every underlying the expiry curve has (ADR-0077), so the
+// read-out pairs the two by the engine's own price string; pricing stored before the curve existed
+// has none, and the read-out then shows the expiry value alone.
+export function pnlNowAt(
+  points: readonly PayoffPoint[] | null | undefined,
+  underlying: DecimalString,
+): PayoffPoint["pnl"] | null {
+  return points?.find((point) => point.underlying === underlying)?.pnl ?? null;
 }

@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.17.0";
+export const ENGINE_VERSION = "0.18.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -388,6 +388,11 @@ export type OperationPricing = {
   netPremium: Centavos;
   greeks: Greeks;
   payoff: PayoffPoint[];
+  // ADR-0077: the P&L at `at` (mark-to-model) over the expiry curve's samples plus a grid one
+  // percent of spot apart from 0.8x to 1.2x spot and on to the farthest of them; null with no
+  // option leg or when one has no volatility to value it with. Absent from `markToMarket`'s
+  // pricing and from pricing stored before 0.18.0.
+  payoffNow?: PayoffPoint[] | null;
   breakEvens: DecimalString[];
   maxLoss: Centavos | "unbounded";
   maxGain: Centavos | "unbounded";

@@ -120,6 +120,7 @@ export function SuggestionCard({
         </div>
         <PayoffChart
           points={suggestion.pricing.payoff}
+          pointsNow={suggestion.pricing.payoffNow}
           spot={suggestion.pricing.spot}
           breakEvens={suggestion.pricing.breakEvens}
           maxGain={suggestion.pricing.maxGain}

@@ -86,6 +86,29 @@ describe("priceOperation (concrete legs)", () => {
     expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C40" });
   });
 
+  it("returns missing_instrument for a second option leg with no listed series", () => {
+    const leg = {
+      role: "call" as const,
+      side: "buy" as const,
+      quantity: quantity(1),
+      volatility: decimalString("0.2"),
+    };
+    const result = priceOperation(
+      {
+        view: { ...baseView, optionSeries: [callSeries("PETR4C31", "31.00")] },
+        at,
+        legs: [
+          { ...leg, ticker: "PETR4C31" },
+          { ...leg, ticker: "PETR4C40" },
+        ],
+      },
+      provenanceBase,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({ code: "missing_instrument", ticker: "PETR4C40" });
+  });
+
   it("rejects a calendar that lists a session twice as invalid_input (#40)", () => {
     const [first] = baseView.calendar;
     if (!first) throw new Error("fixture calendar is empty");

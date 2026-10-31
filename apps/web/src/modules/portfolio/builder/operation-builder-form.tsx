@@ -404,9 +404,16 @@ export function OperationBuilderForm({
           ) : null}
 
           {pricing ? (
-            <Panel title={t.builder.payoffChart.pnl}>
+            <Panel
+              title={
+                (pricing.payoffNow?.length ?? 0) > 0
+                  ? t.builder.payoffChart.pnlWithToday
+                  : t.builder.payoffChart.pnl
+              }
+            >
               <PayoffChart
                 points={pricing.payoff}
+                pointsNow={pricing.payoffNow}
                 spot={pricing.spot}
                 breakEvens={pricing.breakEvens}
                 maxGain={pricing.maxGain}
