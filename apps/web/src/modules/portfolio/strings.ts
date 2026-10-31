@@ -84,6 +84,15 @@ const en = {
   },
   dashboard: {
     title: "Positions and operations",
+    openPayoffs: {
+      title: "Open operations at expiry",
+      subtitle: "Result at expiry against your entry prices, for each close of the underlying",
+      cardLabel: (underlying: string, opened: string) => `${underlying}, opened on ${opened}`,
+      opened: (date: string) => `opened on ${date}`,
+      spot: (price: string) => `Last close ${price}`,
+      uncharted:
+        "no chart, because a split, reverse split or bonus since the opening changed the strikes and quantities.",
+    },
     markedAt: "marked at",
     importSpreadsheet: "Import B3 spreadsheet",
     recordFill: "Record fill",
@@ -343,6 +352,15 @@ const ptBR = {
   },
   dashboard: {
     title: "Posições e operações",
+    openPayoffs: {
+      title: "Operações abertas no vencimento",
+      subtitle: "Quanto cada operação dá no vencimento, contra os seus preços de entrada",
+      cardLabel: (underlying: string, opened: string) => `${underlying}, aberta em ${opened}`,
+      opened: (date: string) => `aberta em ${date}`,
+      spot: (price: string) => `Último fechamento ${price}`,
+      uncharted:
+        "sem gráfico, porque um desdobramento, grupamento ou bonificação depois da abertura mudou strikes e quantidades.",
+    },
     markedAt: "marcada em",
     importSpreadsheet: "Importar planilha da B3",
     recordFill: "Registrar execução",
