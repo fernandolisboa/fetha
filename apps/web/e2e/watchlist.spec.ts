@@ -66,7 +66,9 @@ test("add an instrument to the watchlist and open its chart", async ({
   const row = page.getByRole("row", { name: new RegExp(TICKER) });
   await expect(row).toBeVisible();
   await expect(row.getByTestId("watchlist-sparkline")).toBeVisible();
-  await expect(row.getByRole("img", { name: "Fechamentos dos últimos 30 pregões" })).toBeVisible();
+  await expect(
+    row.getByRole("img", { name: /^Fechamentos de PETR4 nos últimos \d+ pregões$/ }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
 
