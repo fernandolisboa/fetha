@@ -73,11 +73,14 @@ const en = {
     payoffChart: {
       underlying: "Underlying price",
       pnl: "P&L at expiry",
+      pnlWithToday: "P&L at expiry and today",
       maxGain: (value: string) => `Max gain ${value}`,
       maxLoss: (value: string) => `Max loss ${value}`,
       at: (price: string) => `Closing at ${price} on expiry`,
+      today: "Today:",
       legend: {
         line: "P&L at expiry",
+        today: "P&L today",
         breakEven: "Break-even",
       },
     },
@@ -332,11 +335,14 @@ const ptBR = {
     payoffChart: {
       underlying: "Preço do ativo-objeto",
       pnl: "Resultado no vencimento",
+      pnlWithToday: "Resultado no vencimento e hoje",
       maxGain: (value: string) => `Ganho máx. ${value}`,
       maxLoss: (value: string) => `Perda máx. ${value}`,
       at: (price: string) => `Se fechar a ${price} no vencimento`,
+      today: "Hoje:",
       legend: {
         line: "Resultado no vencimento",
+        today: "Resultado hoje",
         breakEven: "Break-even",
       },
     },
