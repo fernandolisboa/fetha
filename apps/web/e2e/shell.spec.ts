@@ -214,6 +214,16 @@ test("the palette navigates to an option series page", async ({ page, baseURL, r
   const underlying = ((await underlyingLink.textContent()) ?? "").replace("Ver ", "");
   await underlyingLink.click();
   await expect(page).toHaveURL(new RegExp(`/ativos/${underlying}$`));
+
+  // The palette's first series may never have traded. PETRI512 traded on FROM_SESSION and
+  // TO_SESSION (B3's own COTAHIST for those dates) and the recorded registry lists that ticker
+  // for the EXPIRY_SESSION cycle only, so its page always charts that cycle. The suite does not
+  // require the CDI source to succeed (#289), so the volatility chart is not asserted.
+  await page.goto("/opcoes/PETRI512");
+  await expect(page.getByRole("heading", { level: 1, name: "PETRI512" })).toBeVisible();
+  await expect(page.getByTestId("option-series-history")).toBeVisible();
+  await expect(page.getByTestId("option-series-history-close")).toBeVisible();
+  await expect(page.getByTestId("option-series-history-underlying")).toBeVisible();
 });
 
 test("the palette navigates to a strategy result", async ({ page, baseURL, request }) => {

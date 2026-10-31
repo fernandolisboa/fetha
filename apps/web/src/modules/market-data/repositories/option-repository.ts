@@ -928,6 +928,37 @@ export async function optionSeriesForUnderlyingAt(
     );
 }
 
+// Every strike epoch of one listing cycle (ticker and expiry), with no `as_of` ceiling: the
+// series page replays the cycle's whole history, so each session's pricing reads the epoch
+// visible at its own close and the engine, not this query, does the point-in-time cut.
+export async function optionSeriesEpochsForCycle(
+  db: Database,
+  ticker: string,
+  expiry: string,
+): Promise<OptionSeriesEpochRow[]> {
+  return db
+    .select(epochColumns)
+    .from(optionSeries)
+    .leftJoin(optionSeriesStrikes, epochJoin())
+    .where(and(eq(optionSeries.ticker, ticker), eq(optionSeries.expiry, expiry)));
+}
+
+// The newest `limit` day-price rows of one listing cycle, newest first; the expiry keeps a
+// reused ticker's earlier cycle out (ADR-0017).
+export async function optionPricesForCycle(
+  db: Database,
+  ticker: string,
+  expiry: string,
+  limit: number,
+): Promise<(typeof optionDailyPrices.$inferSelect)[]> {
+  return db
+    .select()
+    .from(optionDailyPrices)
+    .where(and(eq(optionDailyPrices.ticker, ticker), eq(optionDailyPrices.expiry, expiry)))
+    .orderBy(desc(optionDailyPrices.session))
+    .limit(limit);
+}
+
 // `optionSeriesForUnderlyingAt` narrowed for the IV index (#334): only the tickers with a
 // visible row expiring on or before the first expiry strictly after `after`, each with every
 // one of its own rows, so a ticker's latest epoch stays the one the full read would collapse

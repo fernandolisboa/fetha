@@ -13,8 +13,10 @@ import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { requireUser } from "@/modules/auth";
 import {
   latestCandle,
-  OptionSeriesPricesTable,
+  OptionSeriesHistoryCharts,
   optionSeriesDetail,
+  optionSeriesHistory,
+  OptionSeriesPricesTable,
   sessionDateToDisplayDate,
   t,
 } from "@/modules/market-data";
@@ -57,7 +59,10 @@ export default async function OptionSeriesPage({
   }
   // The underlying's own candle (ADR-0062): for an index option this is now `IBOV11`'s own
   // close, so the link below renders for it too, same as for an equity underlying.
-  const underlyingCandle = await latestCandle(db, series.underlying);
+  const [underlyingCandle, history] = await Promise.all([
+    latestCandle(db, series.underlying),
+    optionSeriesHistory(db, series),
+  ]);
 
   const expiry = formatDate(sessionDateToDisplayDate(series.expiry));
 
@@ -110,6 +115,12 @@ export default async function OptionSeriesPage({
           </Badge>
         </li>
       </ul>
+
+      {history.some((point) => point.close !== null) && (
+        <Panel title={labels.history.title} subtitle={labels.history.subtitle(history.length)}>
+          <OptionSeriesHistoryCharts points={history} underlying={series.underlying} />
+        </Panel>
+      )}
 
       <Panel title={labels.prices.title} subtitle={labels.prices.subtitle}>
         <OptionSeriesPricesTable prices={series.prices} />
