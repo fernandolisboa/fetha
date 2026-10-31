@@ -164,7 +164,7 @@ describe("payoffNow through priceOperation", () => {
     expect(result.value.payoff.length).toBeGreaterThan(0);
   });
 
-  it("draws a stock leg as a straight line that matches the expiry curve", () => {
+  it("is null for an operation with no option leg, where it would only repeat the expiry curve", () => {
     const result = priceOperation(
       {
         view: viewAt("30.00", []),
@@ -182,11 +182,49 @@ describe("payoffNow through priceOperation", () => {
       provenanceBase,
     );
     if (!result.ok) throw new Error(JSON.stringify(result.error));
-    const now = result.value.payoffNow ?? [];
-    for (const point of result.value.payoff) {
-      expect(pointAt(now, point.underlying)?.pnl).toBe(point.pnl);
-    }
-    expect(pointAt(now, "30.30")?.pnl).toBe(centavos(80_00));
+    expect(result.value.payoffNow).toBeNull();
+    expect(result.value.payoff.length).toBeGreaterThan(0);
+  });
+
+  it("values a covered call's stock leg at the sample itself next to the call's model value", () => {
+    const result = priceOperation(
+      {
+        view: viewAt("30.00", [series("PETR4C31", "call", "31.00")]),
+        at,
+        legs: [
+          {
+            role: "stock",
+            side: "buy",
+            ticker: "PETR4",
+            quantity: quantity(100),
+            price: decimalString("29.50"),
+          },
+          {
+            role: "call",
+            side: "sell",
+            ticker: "PETR4C31",
+            quantity: quantity(100),
+            price: decimalString("0.85"),
+            volatility: decimalString("0.35"),
+          },
+        ],
+      },
+      provenanceBase,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    const call = bsmPriceRaw({
+      s: 30.3,
+      k: 31,
+      t: timeToExpiry(),
+      r: Number(result.value.riskFreeRate),
+      q: 0,
+      sigma: 0.35,
+      right: "call",
+    });
+    const expected = centavosOf(
+      new Decimal("30.30").sub("29.50").sub(new Decimal(call).sub("0.85")).mul(100),
+    );
+    expect(pointAt(result.value.payoffNow ?? [], "30.30")?.pnl).toBe(centavos(expected));
   });
 
   it("scales an index option's model value down by its price factor (ADR-0063)", () => {
@@ -504,6 +542,75 @@ describe("computePayoffNow", () => {
         },
       ),
     );
+  });
+
+  // Hull, Options, Futures, and Other Derivatives, Example 15.6: S = 42, K = 40, r = 10%,
+  // sigma = 20%, T = 0.5 gives c = 4.76 and p = 0.81. Zero premium makes the T+0 P&L the value.
+  it("values Hull's Example 15.6 call and put at 4.76 and 0.81 at spot", () => {
+    const hull = { strike: "40.00", premium: "0", qty: 1, sigma: 0.2, t: 0.5 };
+    const call = pointAt(
+      now([optionLeg({ ...hull, right: "call", side: "buy" })], "42.00", 0.1),
+      "42.00",
+    );
+    const put = pointAt(
+      now([optionLeg({ ...hull, right: "put", side: "buy" })], "42.00", 0.1),
+      "42.00",
+    );
+    expect(Math.abs((call?.pnl ?? Number.NaN) - 476)).toBeLessThanOrEqual(1);
+    expect(Math.abs((put?.pnl ?? Number.NaN) - 81)).toBeLessThanOrEqual(1);
+  });
+
+  it("draws the model, not a chord, between a far strike and the 0.8x spot sample", () => {
+    const t = 0.25;
+    const sigma = 0.35;
+    const leg = optionLeg({
+      right: "put",
+      side: "buy",
+      strike: "65.00",
+      premium: "0.10",
+      qty: 1,
+      sigma,
+      t,
+    });
+    const curve = now([leg], "100.00", R, ["64.90", "65.00", "80.00", "100.00", "120.00"]);
+    const below = curve.filter((p) => new Decimal(p.underlying).lte("72.50")).at(-1);
+    const above = curve.find((p) => new Decimal(p.underlying).gt("72.50"));
+    if (!below || !above) throw new Error("72.50 lies inside the sampled range");
+    const weight = new Decimal("72.50")
+      .sub(below.underlying)
+      .div(new Decimal(above.underlying).sub(below.underlying));
+    const drawn = new Decimal(below.pnl).add(weight.mul(above.pnl - below.pnl));
+    const model = new Decimal(
+      bsmPriceRaw({ s: 72.5, k: 65, t, r: R, q: 0, sigma, right: "put" }),
+    ).sub("0.10");
+    expect(drawn.sub(model.mul(100)).abs().toNumber()).toBeLessThanOrEqual(1);
+    for (let percent = 65; percent <= 120; percent += 1) {
+      expect(pointAt(curve, `${String(percent)}.00`)).toBeDefined();
+    }
+  });
+
+  it("widens the step outside 0.8x-1.2x of spot so a far break-even cannot explode the sample count", () => {
+    const leg = optionLeg({
+      right: "call",
+      side: "buy",
+      strike: "100.00",
+      premium: "1.00",
+      qty: 1,
+      sigma: 0.3,
+      t: 0.1,
+    });
+    const expiryUnderlyings = ["1.00", "80.00", "100.00", "120.00", "1000.00"];
+    const curve = now([leg], "100.00", R, expiryUnderlyings);
+    expect(curve.length).toBeLessThanOrEqual(120 + expiryUnderlyings.length);
+    for (let percent = 80; percent <= 120; percent += 1) {
+      expect(pointAt(curve, `${String(percent)}.00`)).toBeDefined();
+    }
+    expect(curve[0]?.underlying).toBe("1.00");
+    expect(curve.at(-1)?.underlying).toBe("1000.00");
+    const gaps = curve
+      .slice(1)
+      .map((p, i) => new Decimal(p.underlying).sub(curve[i]?.underlying ?? "0"));
+    expect(Decimal.max(...gaps).toNumber()).toBeLessThan(20);
   });
 
   it("values a short call as the exact negation of the long call", () => {

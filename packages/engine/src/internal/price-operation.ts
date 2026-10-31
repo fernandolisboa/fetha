@@ -683,6 +683,15 @@ function resolveOperationRates(
   };
 }
 
+type PriceLegsOptions = {
+  expiredIntrinsicBasis?: DecimalString | null;
+  legPathAt?: (index: number) => string;
+  // Off where nothing reads the T+0 curve: `evaluateStrategy`'s exit-rule pricing (every open
+  // operation, every session), where it more than doubled a backtest's run time, and
+  // `markToMarket`, whose legs are priced against the current mark, not the user's entry.
+  withPayoffNow?: boolean;
+};
+
 function priceConcreteLegs(
   view: MarketView,
   at: string,
@@ -695,11 +704,7 @@ function priceConcreteLegs(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
-  // `evaluateStrategy`'s exit-rule pricing (every open operation, every session) reads only
-  // premiums and max loss; the T+0 curve there more than doubled a backtest's run time.
-  withPayoffNow = true,
+  { expiredIntrinsicBasis = null, legPathAt, withPayoffNow = true }: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const valued = valueLegs(
     view,
@@ -818,9 +823,7 @@ export function priceLegsAtSpot(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
-  withPayoffNow = true,
+  options: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const ratesResolution = resolveOperationRates(view, at, underlying);
   if (!ratesResolution.ok) return err(ratesResolution.error);
@@ -837,9 +840,7 @@ export function priceLegsAtSpot(
     riskProfile,
     openOperationCount,
     provenanceBase,
-    expiredIntrinsicBasis,
-    legPathAt,
-    withPayoffNow,
+    options,
   );
 }
 
@@ -856,9 +857,7 @@ export function priceLegsAt(
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
   spotPath: string,
-  expiredIntrinsicBasis: DecimalString | null = null,
-  legPathAt?: (index: number) => string,
-  withPayoffNow = true,
+  options: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const spotResult = resolveUnderlyingSpotOnSessionScale(view, underlying, at);
   if (!spotResult.ok) return err(spotResult.error);
@@ -877,9 +876,7 @@ export function priceLegsAt(
     riskProfile,
     openOperationCount,
     provenanceBase,
-    expiredIntrinsicBasis,
-    legPathAt,
-    withPayoffNow,
+    options,
   );
   if (!priced.ok || !reading.rescaled) return priced;
   return { ok: true, value: { ...priced.value, notes: withStaleRescaleNote(priced.value.notes) } };

@@ -296,9 +296,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
     undefined,
     exitRuleProvenanceBase,
     "spot",
-    null,
-    undefined,
-    false,
+    { withPayoffNow: false },
   );
   if (!result.ok) return null;
   const pricing = result.value;
@@ -343,9 +341,7 @@ function evaluateNumericExitRule(
     undefined,
     exitRuleProvenanceBase,
     "spot",
-    null,
-    undefined,
-    false,
+    { withPayoffNow: false },
   );
   // This call shares its view, at, underlying and every leg's ticker with
   // computeExitRuleBases's own priceLegsAt call above it, which already gated this op on
