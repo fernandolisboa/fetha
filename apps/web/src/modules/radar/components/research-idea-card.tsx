@@ -7,7 +7,7 @@ import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { AssetReadingChips } from "@/modules/market-data/client";
-import { RiskNotice } from "@/modules/portfolio/client";
+import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
 import type { IdeaCard } from "../research";
 import type { IdeaAlert } from "../research-rules";
@@ -115,6 +115,15 @@ export function ResearchIdeaCard({
         />
         <Figure label={labels.breakEvens} value={<BreakEvens values={idea.breakEvens} />} />
       </dl>
+      <PayoffChart
+        points={idea.chart.payoff}
+        spot={idea.chart.spot}
+        breakEvens={idea.breakEvens}
+        maxGain={idea.maxGain}
+        maxLoss={idea.maxLoss}
+        spotLabel={t.suggestions.chartSpot(formatPriceBRL(idea.chart.spot))}
+        framed
+      />
       <p className="text-[13px]">
         {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
       </p>

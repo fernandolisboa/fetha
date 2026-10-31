@@ -66,6 +66,7 @@ function ideaView(
       reading,
       alerts: [],
       suggestionId: null,
+      chart: { payoff: [], spot: decimal("39.00") },
     },
     ...overrides,
   };

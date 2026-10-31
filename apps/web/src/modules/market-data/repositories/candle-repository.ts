@@ -280,6 +280,43 @@ export async function latestCandle(db: Database, ticker: string): Promise<Candle
   return row ? toCandleRow(row) : null;
 }
 
+// The last `limit` daily closes of each of `tickers`, oldest first, in one round trip: a lateral
+// probe per ticker rides the `(ticker, timeframe, session)` primary key, so a watchlist of a
+// hundred tickers reads a hundred short index ranges, not their whole history. A ticker with no
+// candle has no entry in the map.
+export async function recentDailyCloses(
+  db: Database,
+  tickers: readonly string[],
+  limit: number,
+): Promise<Map<string, DecimalString[]>> {
+  const closesByTicker = new Map<string, DecimalString[]>();
+  if (tickers.length === 0) {
+    return closesByTicker;
+  }
+  const wanted = sql.join(
+    tickers.map((ticker) => sql`${ticker}`),
+    sql`, `,
+  );
+  const result = await db.execute<{ ticker: string; close: string }>(sql`
+    select wanted.ticker, recent.close::text as close
+    from unnest(array[${wanted}]::text[]) as wanted(ticker)
+    cross join lateral (
+      select ${candles.session} as session, ${candles.close} as close
+      from ${candles}
+      where ${candles.ticker} = wanted.ticker and ${candles.timeframe} = ${DAILY_TIMEFRAME}
+      order by ${candles.session} desc
+      limit ${limit}
+    ) as recent
+    order by wanted.ticker, recent.session asc
+  `);
+  for (const row of result.rows) {
+    const closes = closesByTicker.get(row.ticker) ?? [];
+    closes.push(decimalStringSchema.parse(row.close));
+    closesByTicker.set(row.ticker, closes);
+  }
+  return closesByTicker;
+}
+
 // Reference data only (ADR-0017): no per-user scope. `tickerPrefixQuerySchema`
 // keeps live `LIKE` wildcards out of the pattern built below. `DISTINCT ON` collapses "match + latest close per ticker" into the one
 // query a search-as-you-type call (the instrument combobox, #13) needs,

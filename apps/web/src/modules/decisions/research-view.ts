@@ -84,6 +84,7 @@ export function ideaCardOfStored(idea: StoredResearchIdea): IdeaCard {
     reading: idea.reading,
     alerts: idea.engineAlerts,
     suggestionId: idea.suggestionId,
+    chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
   };
 }
 

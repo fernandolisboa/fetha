@@ -65,6 +65,10 @@ test("add an instrument to the watchlist and open its chart", async ({
   // finish, so the reopen click below can't race a still-closing instance.
   const row = page.getByRole("row", { name: new RegExp(TICKER) });
   await expect(row).toBeVisible();
+  await expect(row.getByTestId("watchlist-sparkline")).toBeVisible();
+  await expect(
+    row.getByRole("img", { name: /^Fechamentos de PETR4 nos últimos \d+ pregões$/ }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Adicionar ativo" }).click();
 

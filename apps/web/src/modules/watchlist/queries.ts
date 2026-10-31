@@ -3,13 +3,20 @@ import type { AssetReading } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import { forCurrentUser } from "@/modules/auth";
-import { latestCandle, loadAssetReading, type CandleRow } from "@/modules/market-data";
+import {
+  latestCandle,
+  loadAssetReading,
+  recentDailyCloses,
+  type CandleRow,
+} from "@/modules/market-data";
 
+import { buildSparkline, SPARKLINE_SESSIONS, type Sparkline } from "./sparkline";
 import { WatchlistRepository, type WatchlistItem } from "./watchlist-repository";
 
 export interface WatchlistRow extends WatchlistItem {
   lastClose: CandleRow | null;
   reading: AssetReading | null;
+  sparkline: Sparkline | null;
 }
 
 // Each reading costs a handful of queries, so rows are read a few at a time rather than all at
@@ -20,6 +27,11 @@ export const getMyWatchlist = cache(async (): Promise<WatchlistRow[]> => {
   const db = getDb();
   const repository = await forCurrentUser(db, WatchlistRepository);
   const items = await repository.list();
+  const closesByTicker = await recentDailyCloses(
+    db,
+    items.map((item) => item.ticker),
+    SPARKLINE_SESSIONS,
+  );
   const rows: WatchlistRow[] = [];
   for (let start = 0; start < items.length; start += READING_BATCH) {
     const batch = items.slice(start, start + READING_BATCH);
@@ -30,7 +42,12 @@ export const getMyWatchlist = cache(async (): Promise<WatchlistRow[]> => {
             latestCandle(db, item.ticker),
             loadAssetReading(db, item.ticker),
           ]);
-          return { ...item, lastClose, reading };
+          return {
+            ...item,
+            lastClose,
+            reading,
+            sparkline: buildSparkline(closesByTicker.get(item.ticker) ?? []),
+          };
         }),
       )),
     );

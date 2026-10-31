@@ -46,6 +46,8 @@ function storedIdea(
       maxLoss: centavosSchema.parse(12000),
       maxGain: "unbounded",
       breakEvens: [decimal("39.70")],
+      spot: decimal("39.00"),
+      payoff: [{ underlying: decimal("39.00"), pnl: centavosSchema.parse(-12000) }],
     },
     reading: {} as AssetReading,
     engineAlerts: [],

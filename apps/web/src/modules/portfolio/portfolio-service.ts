@@ -50,6 +50,7 @@ import {
   type SeriesByHolding,
   type SeriesFacts,
 } from "./operation-plan";
+import { entryPayoff, type EntryPayoff } from "./entry-payoff";
 import { PortfolioRepository, type FillRecord, type OperationRecord } from "./portfolio-repository";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { closingQuantities } from "./settlement-plan";
@@ -80,6 +81,7 @@ export interface OperationRow {
   state: OperationState | null;
   heldExpiry: SessionDate | null;
   valuation: OperationValuation | null;
+  entryPayoff: EntryPayoff;
   pendingSettlement: boolean;
 }
 
@@ -391,6 +393,7 @@ export async function loadPortfolio(
   let valuation: Result<PortfolioValuation> | null = null;
   let greeks: Greeks | null = null;
   const fairValues = new Map<string, LegValuation["fairValue"]>();
+  const entryPayoffs = new Map<string, EntryPayoff>();
   if (underlyings.length > 0) {
     const view = await buildPortfolioMarketView(db, underlyings, at);
     valuation = await engine.markToMarket({
@@ -404,7 +407,15 @@ export async function loadPortfolio(
     const standalone = holdingsFromFills(unassigned).filter(
       (holding) => holding.assetClass === "option" && !isExpiredSeries(holding),
     );
-    const [, standaloneGreeks] = await Promise.all([
+    const [, , standaloneGreeks] = await Promise.all([
+      Promise.all(
+        liveOperations.map(async ({ record, state }) => {
+          entryPayoffs.set(
+            record.id,
+            await entryPayoff(view, at, toEngineOperation(record.id, state), asOf),
+          );
+        }),
+      ),
       Promise.all(
         liveHoldings.map(async (holding) => {
           const pricing = await priceOneLeg(view, at, holding, series);
@@ -453,6 +464,7 @@ export async function loadPortfolio(
         // decision action refuses that operation anyway.
         heldExpiry: state ? heldExpiry(state) : null,
         valuation: valued?.operations.find((entry) => entry.operation.id === operation.id) ?? null,
+        entryPayoff: entryPayoffs.get(operation.id) ?? { kind: "unpriced" },
         pendingSettlement: pendingSettlements.some(
           (pending) => pending.operation.id === operation.id,
         ),
