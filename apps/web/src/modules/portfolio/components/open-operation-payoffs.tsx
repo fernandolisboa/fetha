@@ -107,6 +107,7 @@ export function OpenOperationPayoffsPanel({ operations }: { operations: readonly
               </dl>
               <PayoffChart
                 points={pricing.payoff}
+                pointsNow={pricing.payoffNow}
                 spot={pricing.spot}
                 breakEvens={pricing.breakEvens}
                 maxGain={pricing.maxGain}
