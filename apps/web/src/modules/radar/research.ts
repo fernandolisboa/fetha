@@ -54,7 +54,7 @@ export interface Idea {
   alerts: IdeaAlert[];
   suggestionId: string | null;
   // The engine's pricing of the lot at the newest close: what a stored idea keeps and what the
-  // AI's facts are made of (docs/adr/0076). Not part of what a card draws.
+  // AI's facts are made of (docs/adr/0076). A card draws only its payoff and spot.
   pricing: OperationPricing;
 }
 
