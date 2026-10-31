@@ -88,9 +88,8 @@ const en = {
   dashboard: {
     title: "Positions and operations",
     openPayoffs: {
-      title: "Open operations P&L",
-      subtitle:
-        "Against your average entry prices. With options, today's curve shows beside the one at expiry",
+      title: "Open operations at expiry",
+      subtitle: "The open position at expiry, against your average entry prices",
       cardLabel: (underlying: string, opened: string) => `${underlying}, opened on ${opened}`,
       opened: (date: string) => `opened on ${date}`,
       spot: (price: string) => `Last close ${price}`,
@@ -365,9 +364,8 @@ const ptBR = {
   dashboard: {
     title: "Posições e operações",
     openPayoffs: {
-      title: "Resultado das operações abertas",
-      subtitle:
-        "Contra os seus preços médios de entrada. Com opções, a curva de hoje aparece junto da do vencimento",
+      title: "Operações abertas no vencimento",
+      subtitle: "A posição aberta no vencimento, contra os seus preços médios de entrada",
       cardLabel: (underlying: string, opened: string) => `${underlying}, aberta em ${opened}`,
       opened: (date: string) => `aberta em ${date}`,
       spot: (price: string) => `Último fechamento ${price}`,
