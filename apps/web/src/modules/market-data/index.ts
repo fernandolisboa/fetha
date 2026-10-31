@@ -26,6 +26,7 @@ export {
 export {
   candleSessionBoundsInRange,
   latestCandle,
+  recentDailyCloses,
   searchInstruments,
   type CandleRow,
   type InstrumentSearchResult,
