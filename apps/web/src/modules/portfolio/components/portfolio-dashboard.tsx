@@ -21,6 +21,7 @@ import type { PortfolioReadModel, PositionRow } from "../portfolio-service";
 import { t } from "../strings";
 
 import { FillsPanel, type FillRow } from "./fills-panel";
+import { OpenOperationPayoffsPanel } from "./open-operation-payoffs";
 import { GroupExpiredButton, UngroupButton } from "./operation-buttons";
 import { SettlementDialog, type SettlementLegView } from "./settlement-dialog";
 
@@ -463,6 +464,7 @@ export function PortfolioDashboard({
               analysisSlot={analysisSlot}
             />
           </Panel>
+          <OpenOperationPayoffsPanel operations={model.operations} />
           <Panel title={labels.fills.title}>
             <FillsPanel fills={fills} openOperations={openOperations} />
           </Panel>

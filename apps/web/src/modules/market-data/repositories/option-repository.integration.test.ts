@@ -16,9 +16,11 @@ import { ensureMonthlyPartition } from "./partitions";
 import {
   latestExpiredTradedSeries,
   optionChainForUnderlying,
+  optionPricesForCycle,
   optionPricesInSessionRange,
   optionSeriesDetail,
   optionSeriesForFills,
+  optionSeriesEpochsForCycle,
   optionSeriesInWindow,
   searchOptionSeries,
   seriesKey,
@@ -1285,5 +1287,31 @@ describe("searchOptionSeries and optionSeriesDetail", () => {
 
   it("is null for a ticker the registry has never listed", async () => {
     expect(await optionSeriesDetail(getDb(), uniqueTicker("NO"), TODAY, 20)).toBeNull();
+  });
+
+  it("reads a cycle's newest prices and every one of its epochs, never a reused ticker's other cycle", async () => {
+    const ticker = `${uniqueTicker("HI")}E40`;
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2098-07-17",
+      strike: "38",
+      asOf: "2098-01-02T00:00:00Z",
+    });
+    await seedSeries(ticker, {
+      isin: isin(),
+      expiry: "2099-07-17",
+      strike: "40",
+      asOf: "2099-01-02T00:00:00Z",
+    });
+    await seedPrice(ticker, "2098-07-10", "2098-07-17", "9.99", 3);
+    await seedPrice(ticker, "2099-06-10", "2099-07-17", "1.25", 12);
+    await seedPrice(ticker, "2099-06-11", "2099-07-17", "1.30", 4);
+    await seedPrice(ticker, "2099-06-12", "2099-07-17", "1.40", 7);
+
+    const prices = await optionPricesForCycle(getDb(), ticker, "2099-07-17", 2);
+    const epochs = await optionSeriesEpochsForCycle(getDb(), ticker, "2099-07-17");
+
+    expect(prices.map((row) => row.session)).toEqual(["2099-06-12", "2099-06-11"]);
+    expect(epochs.map((row) => [row.expiry, Number(row.strike)])).toEqual([["2099-07-17", 40]]);
   });
 });

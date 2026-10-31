@@ -75,6 +75,13 @@ function idea(overrides: Partial<IdeaCard> = {}): IdeaCard {
     reading,
     alerts: [],
     suggestionId: "abc",
+    chart: {
+      payoff: [
+        { underlying: decimal("38.5"), pnl: centavosSchema.parse(-7000) },
+        { underlying: decimal("40.5"), pnl: centavosSchema.parse(13000) },
+      ],
+      spot: decimal("39.06"),
+    },
     ...overrides,
   };
 }
@@ -84,6 +91,19 @@ function render(value: IdeaCard, options: { stale?: boolean } = {}): string {
 }
 
 describe("ResearchIdeaCard", () => {
+  it("draws the lot's payoff at expiry with the close it was priced at", () => {
+    const html = render(idea());
+
+    expect(html).toContain('data-testid="payoff-chart"');
+    expect(html).toContain("Fechamento R$ 39,06");
+  });
+
+  it("draws no payoff chart when the engine sampled no points", () => {
+    expect(render(idea({ chart: { payoff: [], spot: decimal("39.06") } }))).not.toContain(
+      "payoff-chart",
+    );
+  });
+
   it("shows the re-priced lot, the original finding and links to the suggestion and the asset", () => {
     const html = render(idea());
 
