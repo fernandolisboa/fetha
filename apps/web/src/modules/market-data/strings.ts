@@ -115,7 +115,7 @@ const en = {
     history: {
       title: "Price and volatility history",
       subtitle: (sessions: number) =>
-        `Last ${String(sessions)} sessions with a record. Implied volatility is solved by the engine from each session's close (Black-Scholes).`,
+        `${sessions === 1 ? "The last session" : `Last ${String(sessions)} sessions`} with a record. Implied volatility is solved by the engine from each session's close (Black-Scholes).`,
       seriesClose: "Series close",
       underlyingClose: (underlying: string) => `${underlying} close`,
       impliedVolatility: "Implied volatility",
@@ -305,7 +305,7 @@ const ptBR = {
     history: {
       title: "Histórico de preço e volatilidade",
       subtitle: (sessions: number) =>
-        `Últimos ${String(sessions)} pregões com registro. A volatilidade implícita é calculada pelo motor a partir do fechamento de cada pregão (Black-Scholes).`,
+        `${sessions === 1 ? "Último pregão" : `Últimos ${String(sessions)} pregões`} com registro. A volatilidade implícita é calculada pelo motor a partir do fechamento de cada pregão (Black-Scholes).`,
       seriesClose: "Fechamento da série",
       underlyingClose: (underlying: string) => `Fechamento de ${underlying}`,
       impliedVolatility: "Volatilidade implícita",
