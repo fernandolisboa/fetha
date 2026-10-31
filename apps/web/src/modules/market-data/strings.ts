@@ -112,6 +112,16 @@ const en = {
       noTrades: "no trades",
       empty: "No session recorded for this series yet.",
     },
+    history: {
+      title: "Price and volatility history",
+      subtitle: (sessions: number) =>
+        `Last ${String(sessions)} sessions with a record. Implied volatility is solved by the engine from each session's close (Black-Scholes).`,
+      seriesClose: "Series close",
+      underlyingClose: (underlying: string) => `${underlying} close`,
+      impliedVolatility: "Implied volatility",
+      noValue: "no value",
+      volatilityUnavailable: "Not enough data to solve the implied volatility on these sessions.",
+    },
   },
   exchangeRate: {
     overline: "Exchange rate",
@@ -291,6 +301,17 @@ const ptBR = {
       trades: "Negócios",
       noTrades: "sem negócios",
       empty: "Ainda não há pregão registrado para esta série.",
+    },
+    history: {
+      title: "Histórico de preço e volatilidade",
+      subtitle: (sessions: number) =>
+        `Últimos ${String(sessions)} pregões com registro. A volatilidade implícita é calculada pelo motor a partir do fechamento de cada pregão (Black-Scholes).`,
+      seriesClose: "Fechamento da série",
+      underlyingClose: (underlying: string) => `Fechamento de ${underlying}`,
+      impliedVolatility: "Volatilidade implícita",
+      noValue: "sem valor",
+      volatilityUnavailable:
+        "Não há dados suficientes para calcular a volatilidade implícita nestes pregões.",
     },
   },
   exchangeRate: {

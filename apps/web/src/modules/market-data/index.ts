@@ -60,6 +60,8 @@ export {
 } from "./repositories/calendar-repository";
 export { searchOptionSeriesAction, type SearchOptionSeriesResult } from "./actions";
 export { OptionSeriesPricesTable } from "./components/option-series-prices-table";
+export { OptionSeriesHistoryCharts } from "./components/option-series-history-charts";
+export { optionSeriesHistory, type OptionSeriesHistoryPoint } from "./option-series-history";
 export {
   recordCorporateActionFactorAction,
   type RecordCorporateActionFactorResult,

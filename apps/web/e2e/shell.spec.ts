@@ -209,6 +209,16 @@ test("the palette navigates to an option series page", async ({ page, baseURL, r
   await expect(page.getByText(/^Strike \d[\d.]*,\d{2}$/)).toBeVisible();
   await expect(page.getByText(/^Vence em \d{2}\/\d{2}\/\d{4}$/)).toBeVisible();
 
+  // The registry lists series that never traded, so the history panel only exists for a series
+  // with at least one recorded session; the reference data does not promise which one the
+  // palette lists first.
+  const hasSessions =
+    (await page.getByText("Ainda não há pregão registrado para esta série.").count()) === 0;
+  if (hasSessions) {
+    await expect(page.getByTestId("option-series-history")).toBeVisible();
+    await expect(page.getByTestId("option-series-history-close")).toBeVisible();
+  }
+
   // PETR3 and PETR4 options share the PETR root, so either can come first.
   const underlyingLink = page.getByRole("link", { name: /^Ver PETR[34]$/ });
   const underlying = ((await underlyingLink.textContent()) ?? "").replace("Ver ", "");
