@@ -68,3 +68,38 @@ test("imports the B3 spreadsheet, shows positions and settles an expired series"
   await expect(operations.getByText("vencida")).toBeVisible();
   await expect(page.locator("section", { hasText: "Liquidação pendente" })).toHaveCount(0);
 });
+
+test("an open operation shows its payoff at expiry against the entry prices", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  await page.goto("/carteira");
+
+  await page.getByRole("button", { name: "Importar planilha da B3" }).click();
+  const importDialog = page.getByRole("dialog");
+  await importDialog.getByLabel("Planilha").setInputFiles(fixture);
+  await importDialog.getByRole("button", { name: "Importar" }).click();
+  await expect(importDialog.getByText(/6 execuções importadas/)).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("checkbox", { name: "Selecionar execução PETR4 15/09/2026" }).check();
+  await page.getByRole("button", { name: "Agrupar em nova operação" }).click();
+
+  const payoffs = page.getByTestId("open-operation-payoffs");
+  const card = payoffs.getByRole("article", { name: "PETR4, aberta em 15/09/2026" });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("R$ 30,50");
+  const chart = card.getByTestId("payoff-chart");
+  await expect(chart).toContainText(/Último fechamento R\$ /);
+  await chart.getByRole("img", { name: "Resultado no vencimento" }).hover();
+  await expect(chart.getByTestId("payoff-readout")).toContainText(/Se fechar a R\$ /);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card).toBeVisible();
+  const sideways = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(sideways).toBe(0);
+});
