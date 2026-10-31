@@ -19,7 +19,14 @@ const en = {
     error: "Couldn't remove the instrument. Try again.",
   },
   table: {
-    columns: { ticker: "Ticker", reading: "Reading", lastClose: "Last close", session: "Session" },
+    columns: {
+      ticker: "Ticker",
+      reading: "Reading",
+      lastClose: "Last close",
+      trend: "30 sessions",
+      session: "Session",
+    },
+    sparklineLabel: "Closes of the last 30 sessions",
     noClose: "no close yet",
     noStrategy:
       "No active strategy looks at these assets. The reading works without one; an active strategy adds the nightly signals.",
@@ -81,8 +88,10 @@ const ptBR = {
       ticker: "Código",
       reading: "Leitura",
       lastClose: "Último fechamento",
+      trend: "30 pregões",
       session: "Pregão",
     },
+    sparklineLabel: "Fechamentos dos últimos 30 pregões",
     noClose: "sem fechamento ainda",
     noStrategy:
       "Nenhuma estratégia ativa olha estes ativos. A leitura funciona sem estratégia; uma estratégia ativa acrescenta os sinais noturnos.",
