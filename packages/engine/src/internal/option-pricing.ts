@@ -61,7 +61,16 @@ function toReportedGreeks(raw: ReturnType<typeof bsmGreeksRaw>, priceFactor: num
   };
 }
 
+export type OptionLegModel = { sigma: number; timeToExpiryYears: number };
+
 export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
+  return priceOptionLegWithModel(input).valuation;
+}
+
+export function priceOptionLegWithModel(input: PriceOptionLegInput): {
+  valuation: LegValuation;
+  model: OptionLegModel | null;
+} {
   const notes: Note[] = [];
   const right: OptionRightRaw = input.leg.role;
   const s = Number(input.spot);
@@ -135,6 +144,7 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
 
   let fairValue: DecimalString | null = null;
   let greeks: Greeks | null = null;
+  let model: OptionLegModel | null = null;
   if (sigma !== null && sigma > 0 && s > 0 && k > 0 && priceFactor > 0) {
     const priceRaw = bsmPriceRaw({ s, k, t, r, q, sigma, right });
     const greeksRaw = bsmGreeksRaw({ s, k, t, r, q, sigma, right });
@@ -147,6 +157,7 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
       // scaled back down to reais per contract (ADR-0063) before it becomes a fair value.
       fairValue = toDecimalString(new Decimal(priceRaw).div(priceFactor), PRICE_SCALE);
       greeks = toReportedGreeks(greeksRaw, priceFactor);
+      model = { sigma, timeToExpiryYears: t };
       notes.push({
         code: "european_pricing",
         message: "priced as a European option under Black-Scholes-Merton (ADR-0002)",
@@ -155,20 +166,23 @@ export function priceOptionLeg(input: PriceOptionLegInput): LegValuation {
   }
 
   return {
-    leg: {
-      role: input.leg.role,
-      side: input.leg.side,
-      ticker: input.leg.ticker,
-      quantity: input.leg.quantity,
+    valuation: {
+      leg: {
+        role: input.leg.role,
+        side: input.leg.side,
+        ticker: input.leg.ticker,
+        quantity: input.leg.quantity,
+      },
+      price: input.marketPrice?.value ?? null,
+      priceSource: input.marketPrice?.source ?? null,
+      stale: input.marketPrice?.stale ?? null,
+      fairValue,
+      impliedVolatility,
+      volatilitySource,
+      greeks,
+      timeToExpiryYears: toDecimalString(new Decimal(t), RATIO_SCALE),
+      notes,
     },
-    price: input.marketPrice?.value ?? null,
-    priceSource: input.marketPrice?.source ?? null,
-    stale: input.marketPrice?.stale ?? null,
-    fairValue,
-    impliedVolatility,
-    volatilitySource,
-    greeks,
-    timeToExpiryYears: toDecimalString(new Decimal(t), RATIO_SCALE),
-    notes,
+    model,
   };
 }

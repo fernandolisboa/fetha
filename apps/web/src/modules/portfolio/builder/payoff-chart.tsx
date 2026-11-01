@@ -21,6 +21,7 @@ import {
   focusWindow,
   nearestIndex,
   pnlAt,
+  pnlNowAt,
   staggeredBelow,
 } from "./payoff-chart-layout";
 
@@ -39,7 +40,9 @@ type PlotPoint = { underlying: number; pnl: number };
 // `computePayoffProfile` (packages/engine/src/internal/price-operation.ts) already samples
 // each leg's strike and each break-even alongside 0.8/1/1.2 of spot, sorted ascending and
 // de-duplicated: every kink the line needs to be honest is a real
-// engine point, so the chart draws them as given and never fabricates a value between them.
+// engine point, so the chart draws them as given and never fabricates a value between them. The
+// T+0 curve (ADR-0077) adds 41 samples one percent of spot apart, close enough that its straight
+// segments stay within a pixel of the model's curve.
 function plotPoints(points: PayoffPoint[]): PlotPoint[] {
   return points.map((point) => ({ underlying: Number(point.underlying), pnl: point.pnl }));
 }
@@ -70,6 +73,7 @@ const labelText = {
 function Chart({
   width,
   points,
+  pointsNow,
   spot,
   breakEvens,
   extremes,
@@ -77,6 +81,7 @@ function Chart({
 }: {
   width: number;
   points: PayoffPoint[];
+  pointsNow: PayoffPoint[] | null;
   spot: number;
   breakEvens: DecimalString[];
   extremes: Extremes;
@@ -89,6 +94,7 @@ function Chart({
   const yTicks = ticksThatFit(innerHeight, Y_TICK_SPACING, 10);
 
   const plot = plotPoints(points);
+  const plotNow = pointsNow ? plotPoints(pointsNow) : [];
   const underlyings = plot.map((point) => point.underlying);
   const [xMin, xMax] = framed
     ? focusWindow(plot, spot, breakEvens.map(Number))
@@ -96,7 +102,14 @@ function Chart({
   const shown = plot
     .map((point, index) => ({ ...point, index }))
     .filter((point) => point.underlying >= xMin && point.underlying <= xMax);
-  const pnls = [...shown.map((point) => point.pnl), pnlAt(plot, xMin), pnlAt(plot, xMax)];
+  const shownNow = plotNow.filter((point) => point.underlying >= xMin && point.underlying <= xMax);
+  const pnls = [
+    ...shown.map((point) => point.pnl),
+    pnlAt(plot, xMin),
+    pnlAt(plot, xMax),
+    ...shownNow.map((point) => point.pnl),
+    ...(plotNow.length > 0 ? [pnlAt(plotNow, xMin), pnlAt(plotNow, xMax)] : []),
+  ];
 
   const maxAbsPnl = Math.max(1, ...pnls.map((pnl) => Math.abs(pnl)));
   const yScale = scaleLinear({
@@ -142,6 +155,7 @@ function Chart({
   const point = onChart ? plot[hovered] : undefined;
   const source = onChart ? points[hovered] : undefined;
   const hoveredX = point ? xScale(point.underlying) : null;
+  const sourceNow = source ? pnlNowAt(pointsNow, source.underlying) : null;
 
   function onPointer(event: PointerEvent<SVGRectElement>) {
     const box = event.currentTarget.getBoundingClientRect();
@@ -154,7 +168,14 @@ function Chart({
 
   return (
     <div className="relative">
-      <svg width={width} height={height} role="img" aria-label={t.builder.payoffChart.pnl}>
+      <svg
+        width={width}
+        height={height}
+        role="img"
+        aria-label={
+          plotNow.length > 0 ? t.builder.payoffChart.pnlWithToday : t.builder.payoffChart.pnl
+        }
+      >
         <defs>
           <clipPath id={clipId}>
             <rect y={-2} width={innerWidth} height={innerHeight + 4} />
@@ -211,6 +232,16 @@ function Chart({
               fill="var(--down)"
               opacity={0.12}
             />
+            {plotNow.length > 0 ? (
+              <LinePath
+                data={plotNow}
+                x={(point) => xScale(point.underlying)}
+                y={(point) => yScale(point.pnl)}
+                stroke="var(--muted)"
+                strokeWidth={1}
+                data-testid="payoff-now-line"
+              />
+            ) : null}
             <LinePath
               data={plot}
               x={(point) => xScale(point.underlying)}
@@ -252,6 +283,16 @@ function Chart({
                 to={{ x: hoveredX, y: innerHeight }}
                 stroke="var(--line)"
               />
+              {sourceNow !== null ? (
+                <circle
+                  cx={hoveredX}
+                  cy={yScale(sourceNow)}
+                  r={3}
+                  fill="var(--muted)"
+                  stroke="var(--surface)"
+                  strokeWidth={1.5}
+                />
+              ) : null}
               <circle
                 cx={hoveredX}
                 cy={yScale(point.pnl)}
@@ -318,21 +359,45 @@ function Chart({
           <p className="font-mono tabular-nums" style={{ color: pnlColor(source.pnl) }}>
             {formatBRL(source.pnl)}
           </p>
+          {sourceNow !== null ? (
+            <p className="text-muted-foreground" data-testid="payoff-readout-now">
+              {t.builder.payoffChart.today}{" "}
+              <span className="font-mono tabular-nums" style={{ color: pnlColor(sourceNow) }}>
+                {formatBRL(sourceNow)}
+              </span>
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
 }
 
-function LegendSwatch({ dash, color }: { dash?: string; color: string }) {
+function LegendSwatch({
+  dash,
+  color,
+  width = 1.5,
+}: {
+  dash?: string;
+  color: string;
+  width?: number;
+}) {
   return (
     <svg width={16} height={8} aria-hidden="true" className="shrink-0">
-      <line x1={0} y1={4} x2={16} y2={4} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
+      <line
+        x1={0}
+        y1={4}
+        x2={16}
+        y2={4}
+        stroke={color}
+        strokeWidth={width}
+        strokeDasharray={dash}
+      />
     </svg>
   );
 }
 
-function Legend({ spotLabel }: { spotLabel: string }) {
+function Legend({ spotLabel, today }: { spotLabel: string | undefined; today: boolean }) {
   const labels = t.builder.payoffChart.legend;
   return (
     <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
@@ -340,29 +405,40 @@ function Legend({ spotLabel }: { spotLabel: string }) {
         <LegendSwatch color="var(--chart-stroke)" />
         {labels.line}
       </li>
-      <li className="flex items-center gap-1.5 font-mono tabular-nums">
-        <LegendSwatch color="var(--ink)" dash="2,2" />
-        {spotLabel}
-      </li>
-      <li className="flex items-center gap-1.5">
-        <svg width={10} height={10} aria-hidden="true" className="shrink-0">
-          <circle
-            cx={5}
-            cy={5}
-            r={3.5}
-            fill="var(--surface)"
-            stroke="var(--ink)"
-            strokeWidth={1.5}
-          />
-        </svg>
-        {labels.breakEven}
-      </li>
+      {today ? (
+        <li className="flex items-center gap-1.5">
+          <LegendSwatch color="var(--muted)" width={1} />
+          {labels.today}
+        </li>
+      ) : null}
+      {spotLabel !== undefined ? (
+        <>
+          <li className="flex items-center gap-1.5 font-mono tabular-nums">
+            <LegendSwatch color="var(--ink)" dash="2,2" />
+            {spotLabel}
+          </li>
+          <li className="flex items-center gap-1.5">
+            <svg width={10} height={10} aria-hidden="true" className="shrink-0">
+              <circle
+                cx={5}
+                cy={5}
+                r={3.5}
+                fill="var(--surface)"
+                stroke="var(--ink)"
+                strokeWidth={1.5}
+              />
+            </svg>
+            {labels.breakEven}
+          </li>
+        </>
+      ) : null}
     </ul>
   );
 }
 
 export function PayoffChart({
   points,
+  pointsNow = null,
   spot,
   breakEvens,
   maxGain,
@@ -371,6 +447,7 @@ export function PayoffChart({
   framed = false,
 }: {
   points: PayoffPoint[];
+  pointsNow?: OperationPricing["payoffNow"];
   spot: string;
   breakEvens: DecimalString[];
   maxGain?: OperationPricing["maxGain"];
@@ -398,6 +475,7 @@ export function PayoffChart({
           <Chart
             width={width}
             points={points}
+            pointsNow={pointsNow}
             spot={Number(spot)}
             breakEvens={breakEvens}
             extremes={{ maxGain, maxLoss }}
@@ -407,10 +485,11 @@ export function PayoffChart({
       }
     </ParentSize>
   );
-  if (spotLabel === undefined) return chart;
+  const today = (pointsNow?.length ?? 0) > 0;
+  if (spotLabel === undefined && !today) return chart;
   return (
     <figure className="flex min-w-0 flex-col gap-2" data-testid="payoff-chart">
-      <Legend spotLabel={spotLabel} />
+      <Legend spotLabel={spotLabel} today={today} />
       {chart}
     </figure>
   );

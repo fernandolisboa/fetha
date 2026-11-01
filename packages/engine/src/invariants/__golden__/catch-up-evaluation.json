@@ -1544,6 +1544,7 @@
         "pnl": 999996
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "25.05"
       ],
@@ -1557,7 +1558,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1660,6 +1661,7 @@
         "pnl": 999424
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "25.61"
       ],
@@ -1673,7 +1675,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1776,6 +1778,7 @@
         "pnl": 999900
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "25.25"
       ],
@@ -1789,7 +1792,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -1892,6 +1895,7 @@
         "pnl": 1000000
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "25.00"
       ],
@@ -1905,7 +1909,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2008,6 +2012,7 @@
         "pnl": 998998
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "24.97"
       ],
@@ -2021,7 +2026,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -2124,6 +2129,7 @@
         "pnl": 999482
        }
       ],
+      "payoffNow": null,
       "breakEvens": [
        "25.11"
       ],
@@ -2137,7 +2143,7 @@
        }
       ],
       "provenance": {
-       "engineVersion": "0.17.0",
+       "engineVersion": "0.18.0",
        "pricingModel": "bsm_continuous_yield",
        "dataVersion": null,
        "datasetNotes": [],
@@ -3817,7 +3823,7 @@
   ],
   "notes": [],
   "provenance": {
-   "engineVersion": "0.17.0",
+   "engineVersion": "0.18.0",
    "pricingModel": "bsm_continuous_yield",
    "truncated": [],
    "dataVersion": null,

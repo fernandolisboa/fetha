@@ -237,6 +237,7 @@ function buildEntryPricedLegs(
         strike: null,
         premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
         priceFactor: new Decimal(1),
+        model: null,
       });
       continue;
     }
@@ -258,6 +259,7 @@ function buildEntryPricedLegs(
       strike: resolvedStrike.value.strike,
       premiumPerUnit: parseDecimal(effectiveLeg.entryPrice),
       priceFactor: priceFactorResult.value,
+      model: null,
     });
   }
   const notes: Note[] = [];

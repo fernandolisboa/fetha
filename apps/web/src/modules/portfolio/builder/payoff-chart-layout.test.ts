@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { centavosSchema, decimalStringSchema } from "@fetha/contracts";
 
 import {
   focusWindow,
@@ -7,8 +8,12 @@ import {
   guideVisible,
   nearestIndex,
   pnlAt,
+  pnlNowAt,
   staggeredBelow,
 } from "./payoff-chart-layout";
+
+const decimalString = (value: string) => decimalStringSchema.parse(value);
+const centavos = (value: number) => centavosSchema.parse(value);
 
 describe("formatAxisPrice", () => {
   it("prints pt-BR decimals without trailing zeros", () => {
@@ -121,5 +126,26 @@ describe("pnlAt", () => {
   it("holds the end values outside the samples", () => {
     expect(pnlAt(spread, 10)).toBe(-4500);
     expect(pnlAt(spread, 99)).toBe(5500);
+  });
+});
+
+describe("pnlNowAt", () => {
+  const now = [
+    { underlying: decimalString("42.23"), pnl: centavos(-4100) },
+    { underlying: decimalString("52.79"), pnl: centavos(-1200) },
+    { underlying: decimalString("53.31"), pnl: centavos(150) },
+  ];
+
+  it("reads the T+0 value the engine computed at the snapped underlying", () => {
+    expect(pnlNowAt(now, decimalString("52.79"))).toBe(-1200);
+  });
+
+  it("reads nothing where the T+0 curve has no sample", () => {
+    expect(pnlNowAt(now, decimalString("52.80"))).toBeNull();
+  });
+
+  it("reads nothing from pricing stored without a T+0 curve or with none to draw", () => {
+    expect(pnlNowAt(undefined, decimalString("52.79"))).toBeNull();
+    expect(pnlNowAt(null, decimalString("52.79"))).toBeNull();
   });
 });

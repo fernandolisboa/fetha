@@ -81,3 +81,4 @@ supersedes or amends them and says so.
 | 0074 | A suggestion the user has seen leaves their panel after a delay they choose (amends 0066, 0067)                                                                             |
 | 0075 | "Obter sugestões" re-validates the radar's recent findings on demand (#356, amends 0066, 0067)                                                                              |
 | 0076 | Fetha gives a closed verdict on each researched idea; the research is stored and each idea scored (#358, amends 0009, 0057, 0058, 0065, 0067, 0075)                         |
+| 0077 | The engine computes a "today" (T+0) payoff curve next to the expiry curve (amends 0013)                                                                                     |

@@ -66,7 +66,7 @@ const asOfPlusMs = (asOf: string, ms: number): string =>
   new Date(instantMs(asOf) + ms).toISOString();
 
 describe("markToMarket equals priceOperation on freshly opened legs", () => {
-  it("marks a freshly opened stock operation to a zero unrealized P&L and the same pricing priceOperation gives", () => {
+  it("marks a freshly opened stock operation to a zero unrealized P&L and the same pricing priceOperation gives, less the T+0 curve", () => {
     fc.assert(
       fc.property(candlePriceArbitrary, (price) => {
         const view: MarketView = {
@@ -90,7 +90,9 @@ describe("markToMarket equals priceOperation on freshly opened legs", () => {
         expect(priceResult.ok).toBe(true);
         if (!mtmResult.ok || !priceResult.ok) return;
         expect(mtmResult.value.operations[0]?.unrealizedPnl).toBe(0);
-        expect(mtmResult.value.operations[0]?.pricing).toEqual(priceResult.value);
+        const { payoffNow, ...pricing } = priceResult.value;
+        expect(payoffNow).toBeNull();
+        expect(mtmResult.value.operations[0]?.pricing).toEqual(pricing);
       }),
     );
   });

@@ -126,6 +126,47 @@ describe("markToMarket", () => {
     });
   });
 
+  it("leaves the T+0 payoff curve off an operation's pricing (ADR-0077)", () => {
+    const view: MarketView = {
+      ...baseView,
+      quotes: [{ ticker: "PETR4", asOf: at, last: decimalString("30.00"), bid: null, ask: null }],
+      optionSeries: [callSeries("PETR4C28", "28.00")],
+      optionPrices: [
+        {
+          ticker: "PETR4C28",
+          session: "2024-01-02",
+          asOf: at,
+          average: null,
+          close: decimalString("3.00"),
+          trades: 10,
+          tradedQuantity: 100,
+        },
+      ],
+    };
+    const op = stockOperation({
+      id: "op-call",
+      legs: [
+        {
+          role: "call",
+          side: "buy",
+          ticker: "PETR4C28",
+          quantity: quantity(1),
+          entryPrice: decimalString("2.50"),
+        },
+      ],
+      expiry: "2024-01-21",
+    });
+    const result = markToMarket(
+      { view, at, positions: [], operations: [op], cash: centavos(0) },
+      provenanceBase,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    const pricing = result.value.operations[0]?.pricing;
+    expect(pricing?.legs[0]?.fairValue).not.toBeNull();
+    expect(pricing?.payoff.length).toBeGreaterThan(0);
+    expect(pricing).not.toHaveProperty("payoffNow");
+  });
+
   it("aggregates greeks across operations, signed by side and quantity", () => {
     const view: MarketView = {
       ...baseView,

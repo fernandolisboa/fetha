@@ -216,8 +216,7 @@ function priceExistingOperation(
     openOperationCount,
     provenanceBase,
     `${path}.spot`,
-    basisValue,
-    legPathAt,
+    { expiredIntrinsicBasis: basisValue, legPathAt, withPayoffNow: false },
   );
   if (!pricingResult.ok) return { ok: false, error: pricingResult.error };
   const pricing = pricingResult.value;
