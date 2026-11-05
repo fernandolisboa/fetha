@@ -15,7 +15,7 @@ export interface LegalDocument {
 const en: { terms: LegalDocument; privacy: LegalDocument } = {
   terms: {
     title: "Terms of use",
-    updated: "Version of 27/10/2026, revision 1",
+    updated: "Version of 05/11/2026, revision 1",
     sections: [
       {
         heading: "What Fetha is",
@@ -66,12 +66,12 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Version of 27/10/2026, revision 1",
+    updated: "Version of 05/11/2026, revision 1",
     sections: [
       {
         heading: "Who handles your data",
         paragraphs: [
-          "Fetha is a personal project kept by its developer, who is the controller of the personal data described here under the LGPD (Law 13,709/2018). Requests about your data can be sent to fetha@miolos.app; most of them you can also carry out yourself under Configurações.",
+          "Fetha is a personal project kept by its developer, who is the controller of the personal data described here under the LGPD (Law 13,709/2018). Requests about your data can be sent to fetha@filx.app; most of them you can also carry out yourself under Configurações.",
         ],
       },
       {
@@ -134,7 +134,7 @@ const en: { terms: LegalDocument; privacy: LegalDocument } = {
 const ptBR: typeof en = {
   terms: {
     title: "Termos de uso",
-    updated: "Versão de 27/10/2026, revisão 1",
+    updated: "Versão de 05/11/2026, revisão 1",
     sections: [
       {
         heading: "O que é o Fetha",
@@ -185,12 +185,12 @@ const ptBR: typeof en = {
   },
   privacy: {
     title: "Política de privacidade",
-    updated: "Versão de 27/10/2026, revisão 1",
+    updated: "Versão de 05/11/2026, revisão 1",
     sections: [
       {
         heading: "Quem cuida dos seus dados",
         paragraphs: [
-          "O Fetha é um projeto pessoal mantido pelo seu desenvolvedor, que é o controlador dos dados pessoais descritos aqui nos termos da LGPD (Lei 13.709/2018). Pedidos sobre seus dados podem ser enviados para fetha@miolos.app; a maioria deles você também resolve sozinho em Configurações.",
+          "O Fetha é um projeto pessoal mantido pelo seu desenvolvedor, que é o controlador dos dados pessoais descritos aqui nos termos da LGPD (Lei 13.709/2018). Pedidos sobre seus dados podem ser enviados para fetha@filx.app; a maioria deles você também resolve sozinho em Configurações.",
         ],
       },
       {
@@ -266,6 +266,10 @@ interface TermsChangeSummary {
 // `CURRENT_TERMS_VERSION` moves to a version that changed the legal text
 // itself; this is not itself the legally binding text.
 const termsChangeSummaries: Record<string, TermsChangeSummary> = {
+  "2026-11-05.1": {
+    en: "This version changes only the contact for requests about your data, which is now fetha@filx.app, and Fetha's address, now fetha.filx.app. Nothing else in the terms of use or the privacy policy changed.",
+    ptBR: "Esta versão muda só o contato para pedidos sobre os seus dados, que agora é fetha@filx.app, e o endereço do Fetha, que agora é fetha.filx.app. Nada mais mudou nos termos de uso nem na política de privacidade.",
+  },
   "2026-10-27.1": {
     en: "This version covers the research you can now ask for in Sugestões de hoje: Fetha sends Anthropic the ideas the radar found, with each lot's legs, prices, greeks and payoff and public context for the same assets (recent filings, news, how the recipes have fared) and which of your risk limits an idea would break (never the limit's value), and never your name, email, declared capital or any text you wrote; the research is saved with a verdict on each idea, and each idea is scored when it reaches its expiry, discarded ones included. A verdict is a model's reading of those figures, not a recommendation.",
     ptBR: "Esta versão trata da pesquisa que você agora pode pedir em Sugestões de hoje: o Fetha envia à Anthropic as ideias que o radar encontrou, com as pernas, os preços, as gregas e o payoff de cada lote e o contexto público dos mesmos ativos (comunicados, notícias e como as receitas se saíram) e quais dos seus limites de risco uma ideia estouraria (nunca o valor do limite), e nunca seu nome, seu e-mail, seu capital declarado nem texto escrito por você; a pesquisa fica guardada com um veredito sobre cada ideia, e cada ideia é avaliada quando chega ao vencimento, as descartadas também. Um veredito é a leitura de um modelo sobre esses números, não uma recomendação.",

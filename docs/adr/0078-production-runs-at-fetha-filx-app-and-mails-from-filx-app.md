@@ -25,13 +25,13 @@ second trusted origin in code.
   before the handler runs, is not logged and is not retried. A domain-level redirect cannot
   exclude a path, so it would risk silently stopping the nightly ingestion.
 - **Mail from filx.app.** `EMAIL_FROM` (Production) is `Fetha <fetha@filx.app>`. The domain is
-  verified in Resend with its default records on the `send` subdomain (MX and SPF for the
-  return path) plus the `resend._domainkey` DKIM key, so the apex SPF stays free for whatever
-  mailbox provider receives `@filx.app` mail. The Resend API key stays, unless it was restricted to
-  the old domain.
-- **Privacy contact unchanged.** The data-request contact stays `fetha@miolos.app`, which has a
-  mailbox; `filx.app` has none yet. Moving it changes the privacy policy, so it ships with a new
-  terms version.
+  verified in Resend with its records on Vercel DNS: `send` and `rsend` CNAMEs to Resend's
+  sending hosts (`*.forge.rmta.net`) and the `resend._domainkey` DKIM key, so the apex MX and SPF
+  stay Proton Mail's. The existing Resend API key was extended to `filx.app`; no new key.
+- **Privacy contact moves too.** The owner moved the `fetha@` mailbox from `miolos.app` to
+  `filx.app` in Proton Mail (the apex MX and SPF of `filx.app` are Proton's), so the
+  data-request contact in the privacy policy is `fetha@filx.app`. That changes the legal text,
+  so it ships as terms version `2026-11-05.1` and every user re-accepts once.
 
 ## Consequences
 
