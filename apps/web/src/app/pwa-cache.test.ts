@@ -3,7 +3,7 @@ import { NetworkOnly, type RouteMatchCallbackOptions } from "serwist";
 
 import { runtimeCaching } from "./pwa-cache";
 
-const ORIGIN = "https://fetha.vercel.app";
+const ORIGIN = "https://fetha.filx.app";
 
 function matchOptions(path: string, mode: RequestMode, headers: HeadersInit = {}) {
   const url = new URL(path, ORIGIN);

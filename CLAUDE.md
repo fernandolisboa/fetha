@@ -87,7 +87,8 @@ Handlers.
   second adapter. Greeks and IV are always computed by the engine.
 - **AI**: `@anthropic-ai/sdk`. Opus for thesis/counter-thesis and strategy critique; Sonnet for
   routine reports. Prompts under `prompts/` with versions and fixture tests.
-- **Hosting**: Vercel on the owner's Pro team (`feuxs-projects`), `*.vercel.app` domain. Pro is used for
+- **Hosting**: Vercel on the owner's Pro team (`flisboa-projects`), production at `fetha.filx.app`
+  (`fetha.vercel.app` redirects there, ADR-0078). Pro is used for
   `maxDuration` on backtests and ingestion, never for per-minute crons (ADR-0010). Builds consume
   the team's included credit: keep preview builds lean.
 

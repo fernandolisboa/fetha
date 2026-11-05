@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
+import { legacyHostRedirects } from "./src/lib/production-host";
 import {
   nonDocumentSources,
   securityHeaders,
@@ -13,6 +14,9 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       ...nonDocumentSources.map((source) => ({ source, headers: [staticContentSecurityPolicy] })),
     ]);
+  },
+  redirects() {
+    return Promise.resolve(legacyHostRedirects);
   },
 };
 
