@@ -60,7 +60,8 @@ describe("legal text", () => {
   it("gives a private email as the data-request contact", () => {
     for (const language of ["en", "ptBR"] as const) {
       const text = fullText(language);
-      expect(text).toContain("fetha@miolos.app");
+      expect(text).toContain("fetha@filx.app");
+      expect(text).not.toContain("miolos.app");
       expect(text).not.toContain("github.com");
     }
   });
