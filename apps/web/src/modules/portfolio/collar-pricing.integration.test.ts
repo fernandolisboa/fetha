@@ -175,8 +175,8 @@ describe("a manually built collar prices from the priceable chain", () => {
     const callSeries = chain.find((series) => series.ticker === callTicker);
     const untradedSeries = chain.find((series) => series.ticker === untradedTicker);
 
-    expect(putSeries?.lastPrice).toEqual({ value: "1.200000", session: priceSession });
-    expect(callSeries?.lastPrice).toEqual({ value: "1.000000", session: priceSession });
+    expect(putSeries?.lastPrice).toEqual({ value: "1.200000", session: priceSession, trades: 5 });
+    expect(callSeries?.lastPrice).toEqual({ value: "1.000000", session: priceSession, trades: 5 });
     expect(untradedSeries?.lastPrice).toBeNull();
 
     const legs: ContemplatedLeg[] = [

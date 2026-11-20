@@ -15,12 +15,15 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
+  corporateActionFactorsForUnderlying,
+  countSessionsClosedAfter,
+  latestCandle,
   latestSessionOnOrBefore,
   optionChainForUnderlying,
-  type ChainSeries,
 } from "@/modules/market-data";
 import { getStructures } from "@/modules/strategies";
 
+import type { BuilderChain } from "./builder/types";
 import { priceOperationLegs } from "./engine-client";
 import { OperationsRepository } from "./operations-repository";
 import { priceOperationNow } from "./price-now";
@@ -62,18 +65,51 @@ async function currentSessionDate(): Promise<string | null> {
   return session?.date ?? null;
 }
 
-export async function loadChainAction(underlying: string): Promise<ChainSeries[]> {
+const EMPTY_CHAIN: BuilderChain = { series: [], spot: null };
+
+// The picker compares this close with today's registry strikes. It is
+// withheld when it trails the calendar by more than the nightly ingestion
+// lag, or when a corporate action falls after it: that close is on the
+// pre-event scale (the engine rescales it when pricing, #285), and every
+// distance would be off by the event's factor.
+const MAX_SPOT_LAG_SESSIONS = 1;
+
+async function pickerSpot(
+  candle: { close: string; session: string },
+  corporateActions: { exDate: string }[],
+  session: string,
+  now: Date,
+): Promise<BuilderChain["spot"]> {
+  const closeBeforeEvent = corporateActions.some(
+    (action) => action.exDate > candle.session && action.exDate <= session,
+  );
+  if (closeBeforeEvent) return null;
+  const lag = await countSessionsClosedAfter(getDb(), candle.session, now);
+  return lag > MAX_SPOT_LAG_SESSIONS ? null : { value: candle.close, session: candle.session };
+}
+
+export async function loadChainAction(underlying: string): Promise<BuilderChain> {
   const parsed = tickerSchema.safeParse(underlying);
   if (!parsed.success) {
-    return [];
+    return EMPTY_CHAIN;
   }
   return withAuthenticatedAction(async () => {
     await requireUser();
     const session = await currentSessionDate();
     if (!session) {
-      return [];
+      return EMPTY_CHAIN;
     }
-    return optionChainForUnderlying(getDb(), parsed.data, session, new Date());
+    const db = getDb();
+    const now = new Date();
+    const [series, candle, corporateActions] = await Promise.all([
+      optionChainForUnderlying(db, parsed.data, session, now),
+      latestCandle(db, parsed.data),
+      corporateActionFactorsForUnderlying(db, parsed.data),
+    ]);
+    return {
+      series,
+      spot: candle ? await pickerSpot(candle, corporateActions, session, now) : null,
+    };
   });
 }
 

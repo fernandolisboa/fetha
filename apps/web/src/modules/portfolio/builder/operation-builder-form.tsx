@@ -32,7 +32,9 @@ import { LegsTable } from "./legs-table";
 import { PayoffChart } from "./payoff-chart";
 import { RiskNotice } from "./risk-notice";
 import { StatBlocks } from "./stat-blocks";
-import type { BuilderLeg, ChainSeries } from "./types";
+import type { BuilderChain, BuilderLeg } from "./types";
+
+const EMPTY_BUILDER_CHAIN: BuilderChain = { series: [], spot: null };
 
 const DISPLAYED_NOTE_CODES = [
   "no_market_price",
@@ -112,7 +114,7 @@ export function OperationBuilderForm({
   );
   const structure = structures.find((candidate) => candidate.id === structureId) ?? structures[0];
   const [underlying, setUnderlying] = useState(initialUnderlying);
-  const [chain, setChain] = useState<ChainSeries[]>([]);
+  const [chain, setChain] = useState<BuilderChain>(EMPTY_BUILDER_CHAIN);
   const [legs, setLegs] = useState<BuilderLeg[]>(() => {
     if (!structure) return [];
     const templates = legsForStructure(structure, initialUnderlying);
@@ -134,8 +136,8 @@ export function OperationBuilderForm({
     if (!tickerSchema.safeParse(initialUnderlying).success) return;
     const requestId = chainRequestId.current + 1;
     chainRequestId.current = requestId;
-    void loadChainAction(initialUnderlying).then((series) => {
-      if (chainRequestId.current === requestId) setChain(series);
+    void loadChainAction(initialUnderlying).then((loaded) => {
+      if (chainRequestId.current === requestId) setChain(loaded);
     });
   }, [initialUnderlying]);
 
@@ -173,32 +175,44 @@ export function OperationBuilderForm({
     const requestId = chainRequestId.current + 1;
     chainRequestId.current = requestId;
     if (tickerSchema.safeParse(nextUnderlying).success) {
-      const series = await loadChainAction(nextUnderlying);
+      const loaded = await loadChainAction(nextUnderlying);
       if (chainRequestId.current !== requestId) return;
-      setChain(series);
+      setChain(loaded);
     } else {
       if (chainRequestId.current !== requestId) return;
-      setChain([]);
+      setChain(EMPTY_BUILDER_CHAIN);
     }
   }
 
+  // A structure's option legs share one expiry (validate-legs rejects a mix),
+  // so picking a series from another cycle clears the legs left behind in the
+  // old one instead of leaving a leg set that can never be saved.
   function changeTicker(index: number, ticker: string) {
+    const expiry = chain.series.find((series) => series.ticker === ticker)?.expiry;
+    const expiryOf = (other: string) =>
+      chain.series.find((series) => series.ticker === other)?.expiry;
     setLegs((current) =>
-      current.map((builderLeg, position) =>
-        position === index
-          ? {
-              ...builderLeg,
-              leg: {
-                role: builderLeg.template.role,
-                side: builderLeg.template.side,
-                ticker,
-                quantity:
-                  builderLeg.leg?.quantity ?? quantitySchema.parse(builderLeg.template.ratio),
-              },
-              valuation: null,
-            }
-          : builderLeg,
-      ),
+      current.map((builderLeg, position) => {
+        if (position === index) {
+          return {
+            ...builderLeg,
+            leg: {
+              role: builderLeg.template.role,
+              side: builderLeg.template.side,
+              ticker,
+              quantity: builderLeg.leg?.quantity ?? quantitySchema.parse(builderLeg.template.ratio),
+            },
+            valuation: null,
+          };
+        }
+        const other = builderLeg.leg;
+        const leftBehind =
+          builderLeg.template.role !== "stock" &&
+          other !== null &&
+          expiry !== undefined &&
+          expiryOf(other.ticker) !== expiry;
+        return leftBehind ? { ...builderLeg, leg: null, valuation: null } : builderLeg;
+      }),
     );
     resetPricingState();
   }
@@ -396,7 +410,8 @@ export function OperationBuilderForm({
               <LegsTable
                 underlying={underlying}
                 legs={legs}
-                chain={chain}
+                chain={chain.series}
+                spot={chain.spot}
                 onChangeTicker={changeTicker}
                 onChangeQuantity={changeQuantity}
               />

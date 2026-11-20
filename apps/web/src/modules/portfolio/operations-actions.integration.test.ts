@@ -49,6 +49,36 @@ vi.mock("@/modules/market-data", async () => {
         close: new Date("2026-09-10T20:00:00.000Z"),
       }),
     optionChainForUnderlying: () => Promise.resolve([]),
+    countSessionsClosedAfter: (_db: Database, date: string) =>
+      Promise.resolve(date === "2026-08-20" ? 14 : 1),
+    corporateActionFactorsForUnderlying: (_db: Database, ticker: string) =>
+      Promise.resolve(
+        ticker === "VALE3"
+          ? [
+              {
+                ticker: "VALE3",
+                exDate: "2026-09-10",
+                asOf: "2026-09-09T22:00:00.000Z",
+                factor: "0.500000",
+              },
+            ]
+          : [],
+      ),
+    latestCandle: (_db: Database, ticker: string) =>
+      Promise.resolve(
+        ticker === "PETR4" || ticker === "VALE3" || ticker === "BBAS3"
+          ? {
+              ticker,
+              session: ticker === "BBAS3" ? "2026-08-20" : "2026-09-09",
+              asOf: new Date("2026-09-09T21:00:00.000Z"),
+              open: "30.000000",
+              high: "31.000000",
+              low: "29.500000",
+              close: "30.420000",
+              tradedQuantity: 1000,
+            }
+          : null,
+      ),
   };
 });
 
@@ -89,7 +119,7 @@ vi.mock("./engine-client", () => ({
     Promise.resolve({ ok: true, value: unpriceableFairValueOnly() }),
 }));
 
-const { saveOperationAction } = await import("./operations-actions");
+const { loadChainAction, saveOperationAction } = await import("./operations-actions");
 const { OperationsRepository } = await import("./operations-repository");
 
 function uniqueEmail(label: string): string {
@@ -167,5 +197,46 @@ describe("saveOperationAction", () => {
       await import("@/modules/auth")
     ).forCurrentUser(getDb(), OperationsRepository);
     expect(await repository.listMine()).toHaveLength(0);
+  });
+});
+
+describe("loadChainAction", () => {
+  it("sends the underlying's last close along with its chain", async () => {
+    const email = uniqueEmail("chain-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("PETR4")).toEqual({
+      series: [],
+      spot: { value: "30.420000", session: "2026-09-09" },
+    });
+  });
+
+  it("has no spot when the underlying has no candle", async () => {
+    const email = uniqueEmail("chain-no-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("ITUB4")).toEqual({ series: [], spot: null });
+  });
+
+  it("withholds a close older than a corporate action, which is on the pre-event scale", async () => {
+    const email = uniqueEmail("chain-pre-event-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("VALE3")).toEqual({ series: [], spot: null });
+  });
+
+  it("withholds a close that trails the calendar by more than the nightly ingestion lag", async () => {
+    const email = uniqueEmail("chain-stale-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("BBAS3")).toEqual({ series: [], spot: null });
+  });
+
+  it("returns an empty chain for a malformed ticker", async () => {
+    expect(await loadChainAction("not a ticker")).toEqual({ series: [], spot: null });
   });
 });
