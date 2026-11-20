@@ -240,19 +240,20 @@ test("caps a structure's suggestions at the top of the panel, with the rest behi
   });
   await expect(disclosure).toBeVisible();
 
-  const overflowCards = suggestionIds
-    .slice(2)
-    .map((id) => page.locator(`[data-suggestion-id="${id}"]`));
-  for (const card of overflowCards) {
-    // docs/adr/0074 (ADR-0067's #378 amendment): kept mounted while collapsed, so the seen
-    // tracker can still find and observe it; just not visible until the disclosure opens.
+  // The panel orders cards by traded series, not by seed order, so which two stay on top is read
+  // from the DOM. docs/adr/0074 (ADR-0067's #378 amendment): overflow cards stay mounted while
+  // collapsed, so the seen tracker can observe them; they are just not visible until opened.
+  const cards = suggestionIds.map((id) => page.locator(`[data-suggestion-id="${id}"]`));
+  let visibleBeforeOpening = 0;
+  for (const card of cards) {
     await expect(card).toBeAttached();
-    await expect(card).not.toBeVisible();
+    if (await card.isVisible()) visibleBeforeOpening += 1;
   }
+  expect(visibleBeforeOpening).toBe(2);
 
   await disclosure.click();
 
-  for (const card of overflowCards) {
+  for (const card of cards) {
     await expect(card).toBeVisible();
   }
 });
