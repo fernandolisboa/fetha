@@ -29,3 +29,9 @@ export { assertedScoreFields, scoreAssertedLot } from "./asserted-lot-scoring";
 export { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
 export { newestReadSession, recentFindingUnderlyings } from "./radar-repository";
 export { recipeStructureById } from "./recipe-structure";
+export {
+  groupSuggestionsByStructureCap,
+  SUGGESTIONS_PER_STRUCTURE_CAP,
+  type GroupedSuggestions,
+  type StructureOverflowGroup,
+} from "./group-by-structure-cap";

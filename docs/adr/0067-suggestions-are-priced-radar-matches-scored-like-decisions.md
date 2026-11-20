@@ -188,3 +188,17 @@ Item 6 changes: the AI now **picks by a closed verdict** (`enter` | `wait` | `do
 ideas of an "Obter sugestões" research, still never ranking, ordering or scoring them. Those ideas
 take decisions (origin `research_idea`) and are scored like a suggestion, in `research_idea_scores`.
 See docs/adr/0076.
+
+## Amendment (2026-11-20, #378)
+
+Item 7's ordering (traded series, ticker, recipe id) stayed exactly as it was, but with
+`call-butterfly` the only recipe with no IV filter until ADR-0064's addendum fixed that, it
+crowded "Sugestões de hoje" with one structure. The panel now shows at most
+`SUGGESTIONS_PER_STRUCTURE_CAP` (2) suggestions of a given structure at the top, in the item's
+own order; a structure's later suggestions move, in that same order, behind a "Mais desta
+estrutura (N)" disclosure (`Collapsible`, the primitive the app already uses elsewhere; never
+hand-rolled). The cap is a pure function, `groupSuggestionsByStructureCap` in the `radar` module,
+applied inside `SuggestionList` so the watchlist card limit, the radar tab's full list and the
+single-suggestion page all get it for free; it does not change which suggestions are fetched or
+scored, only how `SuggestionList` groups the cards it already builds. The radar tab's own rows
+(ADR-0066 item 7) are unaffected: the cap is a suggestions-panel concern, not a radar-wide one.

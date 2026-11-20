@@ -88,6 +88,16 @@ const en = {
         "Buys calls 5% below and 5% above and sells two at today's price. Gains most if the stock ends near where it is.",
       maxLoss: "Max loss: what you pay to set it up.",
     },
+    "put-butterfly": {
+      summary:
+        "Buys puts 5% below and 5% above and sells two at today's price. The put version of the call butterfly: gains most if the stock ends near where it is.",
+      maxLoss: "Max loss: what you pay to set it up.",
+    },
+    "iron-condor": {
+      summary:
+        "Sells a put 5% below and a call 5% above today's price, both bought back further out at 10%. Keeps the credit if the stock stays between the two sold strikes.",
+      maxLoss: "Max loss: the distance to the farther strikes minus what you received.",
+    },
     "long-straddle-low-iv": {
       summary:
         "Buys a call and a put at today's price. Gains if the stock moves a lot, up or down.",
@@ -225,6 +235,16 @@ const ptBR = {
       summary:
         "Compra calls 5% abaixo e 5% acima e vende duas no preço atual. Ganha mais se o ativo terminar perto de onde está.",
       maxLoss: "Perda máxima: o que você paga para montar.",
+    },
+    "put-butterfly": {
+      summary:
+        "Compra puts 5% abaixo e 5% acima e vende duas no preço atual. A versão com puts da borboleta com calls: ganha mais se o ativo terminar perto de onde está.",
+      maxLoss: "Perda máxima: o que você paga para montar.",
+    },
+    "iron-condor": {
+      summary:
+        "Vende uma put 5% abaixo e uma call 5% acima do preço atual, as duas recompradas mais longe, a 10%. Fica com o valor recebido se o ativo ficar entre as duas strikes vendidas.",
+      maxLoss: "Perda máxima: a distância até as strikes mais longe menos o que você recebeu.",
     },
     "long-straddle-low-iv": {
       summary:
