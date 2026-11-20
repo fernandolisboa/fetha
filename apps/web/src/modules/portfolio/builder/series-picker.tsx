@@ -38,8 +38,9 @@ const strings = t.builder.seriesPicker;
 // One grid for the header and every row: three columns on a phone (the
 // rest folds into a second line), seven once the popup is wide enough.
 const ROW_GRID =
-  "grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3 @[40rem]/picker:grid-cols-[6.5rem_4.5rem_4.5rem_minmax(0,1fr)_5rem_5.5rem_4rem]";
+  "grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3 @[40rem]/picker:grid-cols-[6.5rem_4.5rem_4.5rem_minmax(0,1fr)_6.5rem_6.5rem_4.5rem]";
 const WIDE_ONLY = "hidden @[40rem]/picker:block";
+const CHIP = "aria-pressed:border-(--accent) aria-pressed:text-(--accent)";
 
 // The strike inputs live inside cmdk's root, whose keydown handler would
 // otherwise turn Enter into "pick the highlighted series" and arrows into
@@ -217,13 +218,17 @@ export function SeriesPicker({
       />
       <PopoverContent
         align="start"
+        collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         collisionPadding={16}
         className="@container/picker max-h-[min(var(--available-height),40rem)] w-[min(48rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0"
       >
-        <Command shouldFilter={false} className="min-h-0 flex-1 rounded-none! p-0">
+        <Command
+          label={strings.searchLabel}
+          shouldFilter={false}
+          className="min-h-0 flex-1 rounded-none! p-0"
+        >
           <div className="border-b p-2">
             <CommandInput
-              aria-label={strings.searchLabel}
               placeholder={strings.search}
               value={filters.query}
               onValueChange={(query) => {
@@ -278,6 +283,7 @@ export function SeriesPicker({
                     size="xs"
                     variant={expiry === null ? "secondary" : "outline"}
                     aria-pressed={expiry === null}
+                    className={CHIP}
                     onClick={() => {
                       update({ expiry: null });
                     }}
@@ -294,7 +300,7 @@ export function SeriesPicker({
                       onClick={() => {
                         update({ expiry: option.expiry });
                       }}
-                      className="font-mono tabular-nums"
+                      className={`${CHIP} font-mono tabular-nums`}
                     >
                       {formatSessionDate(option.expiry)}
                     </Button>
@@ -306,7 +312,7 @@ export function SeriesPicker({
 
           <div
             aria-hidden
-            className={`${ROW_GRID} text-muted-foreground border-b px-4 py-1.5 text-[11px] tracking-[0.06em] uppercase`}
+            className={`${ROW_GRID} text-muted-foreground border-b px-4 py-1.5 text-[11px] tracking-[0.06em] whitespace-nowrap uppercase`}
           >
             <span>{strings.columns.series}</span>
             <span className="text-right">{strings.columns.strike}</span>
