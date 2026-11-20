@@ -4,7 +4,13 @@ import { formatSessionDate } from "@/lib/format/date-time";
 import { getMyCurrentResearch } from "@/modules/decisions";
 import { ResearchPanel } from "@/modules/decisions/client";
 import { archiveDelayText, settingsTabHref, type SuggestionArchive } from "@/modules/preferences";
-import { getMyTodaySuggestions, suggestionHeadline, t, type SuggestionView } from "@/modules/radar";
+import {
+  getMyTodaySuggestions,
+  pickVariedSuggestions,
+  suggestionHeadline,
+  t,
+  type SuggestionView,
+} from "@/modules/radar";
 import { Panel } from "@/modules/shell";
 
 import { SuggestionList } from "./suggestion-list";
@@ -28,7 +34,9 @@ export async function TodaySuggestions({ limit }: { limit?: number }) {
   }
 
   const { suggestions, session, overdueSessions, archivedSeen, archive } = today;
-  const shown = limit === undefined ? suggestions : suggestions.slice(0, limit);
+  // #378: on the watchlist tab's narrower limit, the varied, per-structure-capped order is
+  // picked from first, so one structure flooding the close does not fill the limit on its own.
+  const shown = limit === undefined ? suggestions : pickVariedSuggestions(suggestions, limit);
 
   return (
     <Panel

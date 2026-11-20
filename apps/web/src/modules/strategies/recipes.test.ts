@@ -74,7 +74,7 @@ describe("the recipe file (#306)", () => {
     expect(structuresBy).toEqual({
       up: ["bull-call-spread:low", "long-call:low", "bull-put-spread:high", "covered-call:high"],
       down: ["bear-put-spread:low", "long-put:low", "bear-call-spread:high"],
-      sideways: ["call-butterfly:any"],
+      sideways: ["call-butterfly:high", "put-butterfly:high", "iron-condor:high"],
       big_move: ["long-straddle:low", "long-strangle:low"],
     });
   });

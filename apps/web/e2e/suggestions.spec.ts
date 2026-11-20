@@ -209,3 +209,51 @@ test("choose when seen suggestions leave today's suggestions", async ({
     "As sugestões que você já viu saem daqui 1 dia depois da primeira vez.",
   );
 });
+
+test("caps a structure's suggestions at the top of the panel, with the rest behind a disclosure that stays in the DOM", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar-many", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionIds } = (await seeded.json()) as { suggestionIds: string[] };
+  // #378's cap needs at least 3 suggestions of one structure to put any behind a disclosure.
+  expect(suggestionIds.length).toBeGreaterThanOrEqual(3);
+
+  // The radar tab shows every suggestion (docs/adr/0067 item 7); the watchlist tab's own card
+  // limit is picked from the already-capped, varied order (#378), so it never has an overflow
+  // to show when every seeded suggestion shares one structure.
+  await page.goto("/?aba=radar");
+  const panel = page.getByTestId("today-suggestions");
+  const structureName = "Trava de alta com calls";
+  const overflowCount = suggestionIds.length - 2;
+
+  const disclosure = panel.getByRole("button", {
+    name: new RegExp(`Mais da estrutura ${structureName} \\(${String(overflowCount)}\\)`),
+  });
+  await expect(disclosure).toBeVisible();
+
+  // The panel orders cards by traded series, not by seed order, so which two stay on top is read
+  // from the DOM. docs/adr/0074 (ADR-0067's #378 amendment): overflow cards stay mounted while
+  // collapsed, so the seen tracker can observe them; they are just not visible until opened.
+  const cards = suggestionIds.map((id) => page.locator(`[data-suggestion-id="${id}"]`));
+  let visibleBeforeOpening = 0;
+  for (const card of cards) {
+    await expect(card).toBeAttached();
+    if (await card.isVisible()) visibleBeforeOpening += 1;
+  }
+  expect(visibleBeforeOpening).toBe(2);
+
+  await disclosure.click();
+
+  for (const card of cards) {
+    await expect(card).toBeVisible();
+  }
+});

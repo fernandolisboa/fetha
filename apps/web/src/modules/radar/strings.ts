@@ -58,6 +58,8 @@ const en = {
       "long-put-low-iv": (ticker: string) => `Buying a put on ${ticker} fits now.`,
       "bear-call-spread-high-iv": (ticker: string) => `A bear call spread on ${ticker} fits now.`,
       "call-butterfly": (ticker: string) => `A call butterfly on ${ticker} fits now.`,
+      "put-butterfly": (ticker: string) => `A put butterfly on ${ticker} fits now.`,
+      "iron-condor": (ticker: string) => `An iron condor on ${ticker} fits now.`,
       "long-straddle-low-iv": (ticker: string) => `A long straddle on ${ticker} fits now.`,
       "long-strangle-low-iv": (ticker: string) => `A long strangle on ${ticker} fits now.`,
     },
@@ -91,6 +93,8 @@ const en = {
       recipe: "See the recipe",
       builder: "Study in the builder",
     },
+    moreOfStructure: (structureName: string, count: number) =>
+      `More of the ${structureName} structure (${String(count)})`,
     answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Archived: the radar has read the close of ${session} since. It no longer takes decisions, but it is still scored at expiry.`,
@@ -237,6 +241,8 @@ const ptBR = {
       "bear-call-spread-high-iv": (ticker: string) =>
         `Uma trava de baixa com calls em ${ticker} cabe agora.`,
       "call-butterfly": (ticker: string) => `Uma borboleta com calls em ${ticker} cabe agora.`,
+      "put-butterfly": (ticker: string) => `Uma borboleta com puts em ${ticker} cabe agora.`,
+      "iron-condor": (ticker: string) => `Um condor de ferro em ${ticker} cabe agora.`,
       "long-straddle-low-iv": (ticker: string) => `Um straddle comprado em ${ticker} cabe agora.`,
       "long-strangle-low-iv": (ticker: string) => `Um strangle comprado em ${ticker} cabe agora.`,
     },
@@ -271,6 +277,8 @@ const ptBR = {
       recipe: "Ver receita",
       builder: "Montar no simulador",
     },
+    moreOfStructure: (structureName: string, count: number) =>
+      `Mais da estrutura ${structureName} (${String(count)})`,
     answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Arquivada: o radar já leu o fechamento de ${session}. Ela não recebe mais decisões, mas continua sendo avaliada no vencimento.`,

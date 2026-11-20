@@ -3,7 +3,12 @@ export { SuggestionCalibrationPanel } from "./components/suggestion-calibration-
 export { SuggestionCard, suggestionHeadline } from "./components/suggestion-card";
 export { scanRadar, type RadarScanOutcome } from "./scan";
 export { radarStrings, t } from "./strings";
-export { seedE2ERadar, type SeedE2ERadarResult } from "./e2e-seed";
+export {
+  seedE2ERadar,
+  seedE2ERadarMany,
+  type SeedE2ERadarManyResult,
+  type SeedE2ERadarResult,
+} from "./e2e-seed";
 export {
   getSuggestion,
   getSuggestionCalibration,
@@ -29,3 +34,8 @@ export { assertedScoreFields, scoreAssertedLot } from "./asserted-lot-scoring";
 export { suggestionValidity, type SuggestionValidity } from "./suggestion-validity";
 export { newestReadSession, recentFindingUnderlyings } from "./radar-repository";
 export { recipeStructureById } from "./recipe-structure";
+export {
+  groupSuggestionsByStructureCap,
+  pickVariedSuggestions,
+  type StructureOverflowGroup,
+} from "./group-by-structure-cap";

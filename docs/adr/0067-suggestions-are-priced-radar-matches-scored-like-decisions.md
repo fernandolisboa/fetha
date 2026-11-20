@@ -188,3 +188,26 @@ Item 6 changes: the AI now **picks by a closed verdict** (`enter` | `wait` | `do
 ideas of an "Obter sugestões" research, still never ranking, ordering or scoring them. Those ideas
 take decisions (origin `research_idea`) and are scored like a suggestion, in `research_idea_scores`.
 See docs/adr/0076.
+
+## Amendment (2026-11-20, #378)
+
+Item 7's ordering (traded series, ticker, recipe id) stayed exactly as it was, but with
+`call-butterfly` the only recipe with no IV filter until ADR-0064's addendum fixed that, it
+crowded "Sugestões de hoje" with one structure. The panel now shows at most 2 suggestions of a
+given structure at the top, in the item's own order; a structure's later suggestions move, in
+that same order, behind a "Mais de &lt;estrutura&gt; (N)" disclosure (`Collapsible`, the
+primitive the app already uses elsewhere; never hand-rolled), named per structure since more than
+one can overflow on the same screen. The cap is a pure function, `groupSuggestionsByStructureCap`
+in the `radar` module. `TodaySuggestions` (`apps/web/src/app/(shell)/_suggestions/`) groups the
+full day's suggestions first and only then takes its watchlist-tab card limit from the grouped,
+varied order, so a structure that floods the close does not crowd out the others on that
+narrower view; the radar tab, with no limit, sees every suggestion either way.
+`SuggestionList`, which both the watchlist tab and the radar tab render, applies the same
+grouping again to split what it is given into the capped top and the per-structure overflow
+sections — a no-op on the watchlist tab's already-grouped list, the real split on the radar tab's
+full one and on the single-suggestion page (where it never has anything to move). Collapsed
+overflow cards stay mounted (`keepMounted` on `CollapsibleContent`) so `SeenTracker` (ADR-0074)
+still finds their `[data-suggestion-id]` node and counts them once the viewer opens the
+disclosure and the card crosses its visibility threshold; a hidden card is never counted while
+still collapsed. `RadarPanel`'s own rows (ADR-0066 item 7) are unaffected: the cap is a
+`TodaySuggestions`/`SuggestionList` concern, not a radar-wide one.

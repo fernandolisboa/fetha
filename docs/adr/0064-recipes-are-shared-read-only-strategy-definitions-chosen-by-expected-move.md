@@ -120,3 +120,34 @@ reusable later by the radar (#308) and suggestions (#311) as the rules they matc
 - Choosing the IV regime for the user from today's IV rank: the asset reading (#304) shows it,
   and the radar (#308) will match it; the picker shows every recipe for the expected move with
   the regime it suits, so the choice stays the user's.
+
+## Addendum (2026-11-20, #378): the sideways column moves to IV high, and gains two recipes
+
+The owner's suggestions panel showed almost only `call-butterfly`: it was the only sideways
+recipe and the only one of the ten with no IV filter, so it matched on far more sessions than
+the other nine. Item 3's table is corrected and extended:
+
+| expected move | IV low                       | IV high                                    | any IV |
+| ------------- | ---------------------------- | ------------------------------------------ | ------ |
+| up            | bull call spread, long call  | bull put spread, covered call              |        |
+| down          | bear put spread, long put    | bear call spread                           |        |
+| sideways      |                              | call butterfly, put butterfly, iron condor |        |
+| big move      | long straddle, long strangle |                                            |        |
+
+- `call-butterfly` gains the IV filter every other recipe already has: 63-session IV rank at or
+  above 50, on the same vega reasoning item 3 already gave for the high-IV column (a structure
+  short vega enters after IV is elevated) but had not applied to it. Its `ivRegime` moves from
+  `any` to `high`.
+- `put-butterfly`, on the catalog structure of the same name (ADR-0053), is the put mirror of the
+  call butterfly recipe: same RSI(14) 40–60 band, same IV filter, same strikes, exits and sizing.
+- A new catalog structure, `iron-condor` (ADR-0053's file): a bull put spread below the spot plus
+  a bear call spread above it, four strikes, net credit, defined risk. Its recipe uses the same
+  neutral, high-IV entry as the two butterflies; its strikes default to ±5% and ±10% of the spot
+  so the two short strikes sit inside the two long wings. No new engine capability was needed:
+  `priceOperation` already prices an arbitrary leg list (the frozen interface, ADR-0013), and its
+  own test suite already exercises a four-leg iron condor payoff.
+- No `any` IV regime remains among the twelve recipes now; the column stays in the table for a
+  future recipe that genuinely has none.
+- Consequence: the per-recipe backtest integration test's sideways scenario moved from an
+  IV-agnostic market to a rising-IV one, since every sideways recipe now needs IV rank ≥ 50 to
+  enter.

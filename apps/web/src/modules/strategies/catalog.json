@@ -507,6 +507,66 @@
   },
   {
     "structure": {
+      "id": "iron-condor",
+      "name": "Condor de ferro",
+      "expiry": "shared",
+      "legs": [
+        {
+          "role": "put",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 1
+        },
+        {
+          "role": "put",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 2
+        },
+        {
+          "role": "call",
+          "side": "sell",
+          "ratio": 1,
+          "strikeRank": 3
+        },
+        {
+          "role": "call",
+          "side": "buy",
+          "ratio": 1,
+          "strikeRank": 4
+        }
+      ]
+    },
+    "defaults": {
+      "strikes": [
+        {
+          "kind": "moneyness",
+          "percent": "-0.1"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "-0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.05"
+        },
+        {
+          "kind": "moneyness",
+          "percent": "0.1"
+        }
+      ],
+      "expiry": {
+        "kind": "business_days",
+        "min": 15,
+        "max": 45
+      }
+    },
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from puts; bear spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta e de baixa",
+    "notes": "A bull put spread below the spot plus a bear call spread above it, on four strikes: keeps both credits while the underlying stays between the two inner strikes, loss capped by the outer wings. Commonly called an iron condor; the name itself is not in either source."
+  },
+  {
+    "structure": {
       "id": "long-straddle",
       "name": "Straddle comprado",
       "expiry": "shared",

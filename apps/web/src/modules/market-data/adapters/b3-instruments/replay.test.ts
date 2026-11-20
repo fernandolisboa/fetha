@@ -53,15 +53,24 @@ describe("replayInstrumentsRegistry", () => {
 });
 
 describe("the e2e recordings", () => {
-  it.each(["2026-09-08", "2026-09-09", "2026-09-18"])(
-    "%s parses whole, PETR4 series only, with the monthly expiry the portfolio spec settles",
-    async (session) => {
+  // 2026-09-08 could not be downloaded again when ITUB4, BBAS3 and BBDC4 were added (#378).
+  const underlyingsBySession = {
+    "2026-09-08": ["PETR4"],
+    "2026-09-09": ["BBAS3", "BBDC4", "ITUB4", "PETR4"],
+    "2026-09-18": ["BBAS3", "BBDC4", "ITUB4", "PETR4"],
+  };
+
+  it.each(Object.entries(underlyingsBySession))(
+    "%s parses whole, only its recorded underlyings, with the monthly expiry the portfolio spec settles",
+    async (session, underlyings) => {
       const { series, skipped } = await replayInstrumentsRegistry(e2eRecordings, session);
       expect(skipped).toBe(0);
       expect(series.length).toBeGreaterThan(3000);
-      expect(new Set(series.map((row) => row.underlying))).toEqual(new Set(["PETR4"]));
+      expect(new Set(series.map((row) => row.underlying))).toEqual(new Set(underlyings));
       expect(new Set(series.map((row) => row.asOf))).toEqual(new Set([session]));
-      expect(series.some((row) => row.expiry === "2026-09-18")).toBe(true);
+      expect(series.some((row) => row.underlying === "PETR4" && row.expiry === "2026-09-18")).toBe(
+        true,
+      );
     },
   );
 });

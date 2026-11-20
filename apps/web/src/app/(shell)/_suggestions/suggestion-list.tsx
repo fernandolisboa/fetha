@@ -1,7 +1,10 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { tickerSchema } from "@fetha/contracts";
 
 import { buttonVariants } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDate, formatSessionDate } from "@/lib/format/date-time";
 import { isAnalysisAvailable } from "@/modules/ai-models";
 import {
@@ -14,7 +17,13 @@ import {
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { getMyLimitBreaches, RiskNotice, type LimitCheckResult } from "@/modules/portfolio";
 import { getPreferences } from "@/modules/preferences";
-import { SuggestionCard, t, type SuggestionView } from "@/modules/radar";
+import {
+  groupSuggestionsByStructureCap,
+  SuggestionCard,
+  t,
+  type StructureOverflowGroup,
+  type SuggestionView,
+} from "@/modules/radar";
 import { SeenTracker } from "@/modules/radar/client";
 
 function LimitCheck({ result }: { result: LimitCheckResult }) {
@@ -74,75 +83,118 @@ export async function SuggestionList({
   ]);
   const available = await isAnalysisAvailable();
 
-  const cards = suggestions.map((suggestion, index) => {
-    const decision = decisions.get(suggestion.id);
-    const card = (
-      <SuggestionCard
-        suggestion={suggestion}
-        headline={!onPage}
-        risk={<LimitCheck result={checks[index] ?? { kind: "unpriced" }} />}
-        actions={
-          <>
-            {!onPage && (
+  const cardById = new Map(
+    suggestions.map((suggestion, index) => {
+      const decision = decisions.get(suggestion.id);
+      const card = (
+        <SuggestionCard
+          suggestion={suggestion}
+          headline={!onPage}
+          risk={<LimitCheck result={checks[index] ?? { kind: "unpriced" }} />}
+          actions={
+            <>
+              {!onPage && (
+                <Link
+                  href={`/sugestoes/${suggestion.id}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  {t.suggestions.actions.recipe}
+                </Link>
+              )}
               <Link
-                href={`/sugestoes/${suggestion.id}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+                href={`/carteira/nova-operacao?sugestao=${suggestion.id}`}
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
               >
-                {t.suggestions.actions.recipe}
+                {t.suggestions.actions.builder}
               </Link>
-            )}
-            <Link
-              href={`/carteira/nova-operacao?sugestao=${suggestion.id}`}
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
-            >
-              {t.suggestions.actions.builder}
-            </Link>
-            <AnalysisDialog
-              subjectKind="suggestion"
-              subjectId={suggestion.id}
-              latest={analyses.get(suggestion.id) ?? null}
-              usage={usage}
-              available={available}
-            />
-            {decision ? (
-              <span className="text-muted-foreground text-xs" data-testid="suggestion-decision">
-                {t.suggestions.answered(
-                  decisionsT.kind[decision.kind],
-                  formatDate(decision.decidedAt),
-                )}
-              </span>
-            ) : suggestion.validity.archived ? (
-              <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
-                {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.supersededBy))}
-              </span>
-            ) : (
-              <DecisionBar
-                originKind="suggestion"
-                targetId={suggestion.id}
-                allowedKinds={allowedDecisionKinds({ kind: "suggestion" })}
-                defaultHorizon={suggestion.horizon}
-                defaultInstrument={suggestion.underlying}
+              <AnalysisDialog
+                subjectKind="suggestion"
+                subjectId={suggestion.id}
+                latest={analyses.get(suggestion.id) ?? null}
+                usage={usage}
+                available={available}
               />
-            )}
-          </>
-        }
-      />
-    );
-    // Off the page each card is framed, so the list's own title never reads as part of the first
-    // card; the wrapper always carries the id the seen tracker observes.
-    return (
-      <div
-        key={suggestion.id}
-        data-suggestion-id={suggestion.id}
-        className={onPage ? undefined : "border-border rounded-[var(--radius)] border p-3"}
-      >
-        {card}
-      </div>
-    );
-  });
+              {decision ? (
+                <span className="text-muted-foreground text-xs" data-testid="suggestion-decision">
+                  {t.suggestions.answered(
+                    decisionsT.kind[decision.kind],
+                    formatDate(decision.decidedAt),
+                  )}
+                </span>
+              ) : suggestion.validity.archived ? (
+                <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
+                  {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.supersededBy))}
+                </span>
+              ) : (
+                <DecisionBar
+                  originKind="suggestion"
+                  targetId={suggestion.id}
+                  allowedKinds={allowedDecisionKinds({ kind: "suggestion" })}
+                  defaultHorizon={suggestion.horizon}
+                  defaultInstrument={suggestion.underlying}
+                />
+              )}
+            </>
+          }
+        />
+      );
+      // Off the page each card is framed, so the list's own title never reads as part of the first
+      // card; the wrapper always carries the id the seen tracker observes.
+      return [
+        suggestion.id,
+        <div
+          key={suggestion.id}
+          data-suggestion-id={suggestion.id}
+          className={onPage ? undefined : "border-border rounded-[var(--radius)] border p-3"}
+        >
+          {card}
+        </div>,
+      ] as const;
+    }),
+  );
+
+  const grouped = groupSuggestionsByStructureCap(suggestions);
+  const top = grouped.top.map((suggestion) => cardById.get(suggestion.id));
+  const overflowSections = grouped.overflow.map((group) => (
+    <StructureOverflow key={group.structureId} group={group} cardById={cardById} />
+  ));
+  const cards = [...top, ...overflowSections];
+
   return !preferences.suggestionArchive.enabled ? (
     cards
   ) : (
     <SeenTracker ids={ids}>{cards}</SeenTracker>
+  );
+}
+
+function StructureOverflow({
+  group,
+  cardById,
+}: {
+  group: StructureOverflowGroup;
+  cardById: Map<string, ReactNode>;
+}) {
+  return (
+    <Collapsible className="flex flex-col gap-3">
+      <CollapsibleTrigger
+        className={buttonVariants({
+          variant: "outline",
+          size: "sm",
+          className: "group/structure-overflow self-start",
+        })}
+      >
+        {t.suggestions.moreOfStructure(group.structureName, group.suggestions.length)}
+        <ChevronDown
+          aria-hidden="true"
+          className="size-4 transition-transform group-data-[panel-open]/structure-overflow:rotate-180"
+        />
+      </CollapsibleTrigger>
+      {/* keepMounted: the cards stay in the DOM while collapsed, hidden at zero intersection, so
+          SeenTracker (docs/adr/0074) can still observe their [data-suggestion-id] node and count
+          them once the viewer opens this disclosure. */}
+      <CollapsibleContent keepMounted className="flex flex-col gap-3">
+        {group.suggestions.map((suggestion) => cardById.get(suggestion.id))}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

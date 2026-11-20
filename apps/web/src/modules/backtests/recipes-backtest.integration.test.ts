@@ -55,7 +55,7 @@ const SCENARIOS: Scenario[] = [
   { move: "up", iv: "high", ticker: tickerSchema.parse(`ZUH${suffix}3`) },
   { move: "down", iv: "low", ticker: tickerSchema.parse(`ZDL${suffix}3`) },
   { move: "down", iv: "high", ticker: tickerSchema.parse(`ZDH${suffix}3`) },
-  { move: "sideways", iv: "any", ticker: tickerSchema.parse(`ZSA${suffix}3`) },
+  { move: "sideways", iv: "high", ticker: tickerSchema.parse(`ZSH${suffix}3`) },
   { move: "big_move", iv: "low", ticker: tickerSchema.parse(`ZML${suffix}3`) },
 ];
 

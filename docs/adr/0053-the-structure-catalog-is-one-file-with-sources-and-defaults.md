@@ -64,3 +64,12 @@ and a committed checklist of what was covered and what was left out.
 Full reference strategies now exist, outside the catalog: `recipes.json` next to it holds
 complete definitions chosen by expected move, with entry and exit thresholds stated as this
 project's defaults rather than as the sources'. The catalog itself stays structures only.
+
+## Addendum (2026-11-20, #378)
+
+Item 5's "only cited structures" is clarified for structures that combine two already-cited
+ones: a structure built from two cited structures sharing one expiry (box-spread from a bull
+call spread and a bear put spread; iron-condor from a bull put spread and a bear call spread)
+counts as cited through each component's own section, even where neither source names the
+combination itself. `docs/catalog.md`'s "left out" table is reserved for structures no cited
+section covers at all, not for combinations the sources describe in parts.
