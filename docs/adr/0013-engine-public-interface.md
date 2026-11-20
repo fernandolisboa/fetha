@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.18.0";
+export const ENGINE_VERSION = "0.19.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -153,7 +153,8 @@ export type NoteCode =
   | "option_strike_unadjusted_across_corporate_action"
   | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
-  | "warm_up_sessions_excluded";
+  | "warm_up_sessions_excluded"
+  | "adjustment_not_applied";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -183,6 +184,7 @@ export const noteCodes = [
   "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
+  "adjustment_not_applied",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -3345,3 +3347,27 @@ nothing reads it there); every other pricing the engine returns carries it.
 Signals' proposals are persisted, so `ENGINE_VERSION` moves from `"0.17.0"` to `"0.18.0"`. The four
 backtest goldens change only by that version and, in `catch-up-evaluation.json`, the new field on
 each proposal (`null`: those proposals are stock-only).
+
+## Addendum: `adjustment_not_applied`; `ENGINE_VERSION` bumped to `0.19.0` (2026-11-20, #377, part 1 of #376)
+
+`unsupportedAdjustmentRuleKinds` (`roll`) and `capabilities().adjustmentRules = []` already say a
+roll rule is not implemented, but `runBacktest` never read `StrategyDefinition.adjustments` at all:
+a strategy that declared one backtested silently as if it had never been rolled, and the report
+read as though the roll had been exercised. `createStrategyEvaluator`'s own coherence check (a
+roll is meaningless for a stock-only structure) and `unsupportedAdjustmentRuleKinds` are both
+unchanged — rolling itself still needs its own settlement-and-reopen semantics, tracked separately
+— this addendum only makes the gap visible.
+
+`NoteCode` gains `adjustment_not_applied` (`notes.ts`'s `ADJUSTMENT_NOT_APPLIED_NOTE`, mirrored by
+`noteCodeSchema`). `runBacktest` pushes it onto `BacktestRun.notes` exactly once, after every other
+note, when `config.strategy.definition.adjustments.length > 0` — regardless of how many rules the
+strategy declares, the same one-note-per-run shape every other run-wide note in this file already
+has. `evaluateStrategy` (daily/intraday evaluation, the signal inbox) is untouched: the note is a
+property of a _run report_, not of a single evaluation instant, and the issue scoped it to
+`runBacktest` alone.
+
+A run whose strategy declares no adjustment is bit-for-bit unchanged (none of the four backtest
+goldens carries an `adjustments` rule, so none of their `notes` arrays gains the new code; they
+still change by `ENGINE_VERSION` alone, `"0.18.0"` to `"0.19.0"`, same as every prior version-only
+addendum above). A run whose strategy does declare one now carries one more note than it used to:
+the only persisted-artifact shape change this addendum makes.

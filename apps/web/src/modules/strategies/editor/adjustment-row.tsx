@@ -37,6 +37,7 @@ export function AdjustmentRow({
         }}
         onRemove={() => undefined}
       />
+      <p className="text-muted-foreground text-sm">{t.editor.adjustments.backtestNotice}</p>
       <ExpiryFields
         value={value.expiry}
         onChange={(expiry) => {
