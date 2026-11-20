@@ -40,7 +40,9 @@ Every project depends on `setup` (`owner.setup.ts`), which runs first and does t
   GitHub's runners (504 on the token request), so the job sets `E2E_B3_INSTRUMENTS_DIR` to
   `e2e/fixtures/b3-instruments` and the nightly job replays those recordings instead: one
   `<session>.csv` per fixed session, B3's own `InstrumentsConsolidatedFile` for that date cut down
-  to its PETR4 option rows and the columns the parser reads. A session with no recording (the
+  to the option rows of PETR4 (every session) and of ITUB4, BBAS3 and BBDC4 (2026-09-09 and
+  2026-09-18; B3 refused the 2026-09-08 download when they were added for #378's per-structure
+  cap, which needs several suggestions of one structure) and the columns the parser reads. A session with no recording (the
   recent session signals and decisions ingest) replays the newest one before it, so that session's
   PETR4 chain and IV index only see the strikes listed by then; no spec asserts either. The
   variable is ignored in production and against the production database. COTAHIST still comes live from `bvmf.bmfbovespa.com.br`. To record a new
