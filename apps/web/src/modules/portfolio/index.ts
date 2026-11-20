@@ -19,6 +19,7 @@ export {
 export { getMyOperation, getMyOperations } from "./operations-queries";
 export { getMyPortfolio } from "./portfolio-queries";
 export type { PortfolioReadModel } from "./portfolio-service";
+export { countLiveOpenOperations } from "./portfolio-service";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,

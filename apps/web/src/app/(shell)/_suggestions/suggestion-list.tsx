@@ -107,6 +107,12 @@ export async function SuggestionList({
               >
                 {t.suggestions.actions.builder}
               </Link>
+              <Link
+                href={`/planos/novo?sugestao=${suggestion.id}`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                {t.suggestions.actions.plan}
+              </Link>
               <AnalysisDialog
                 subjectKind="suggestion"
                 subjectId={suggestion.id}

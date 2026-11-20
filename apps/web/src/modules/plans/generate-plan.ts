@@ -33,6 +33,11 @@ export interface GeneratedPlan {
   maxLossCentavos: Centavos | "unbounded";
   maxGainCentavos: Centavos | "unbounded";
   breakEvens: DecimalString[];
+  // For the plan screen's payoff chart (docs/adr/0077), the same engine pricing every other
+  // number here came from.
+  spot: DecimalString;
+  payoff: OperationPricing["payoff"];
+  payoffNow: OperationPricing["payoffNow"];
   exitRules: ResolvedExitRule[];
   roll: RollRule;
 }
@@ -127,6 +132,9 @@ export function generatePlan(input: GeneratePlanInput): GeneratePlanResult {
       maxLossCentavos: pricing.maxLoss,
       maxGainCentavos: pricing.maxGain,
       breakEvens: pricing.breakEvens,
+      spot: pricing.spot,
+      payoff: pricing.payoff,
+      payoffNow: pricing.payoffNow ?? null,
       exitRules: resolveExitRules(exitRules, input.sessionsBeforeExpiry),
       roll: resolveRollRule(input.structureId, exitRules, input.sessionsBeforeExpiry),
     },

@@ -25,6 +25,7 @@ import {
   operations,
   riskProfiles,
 } from "@/modules/portfolio/schema";
+import { operationPlanRules } from "@/modules/plans/schema";
 import { preferences } from "@/modules/preferences/schema";
 import { suggestionSightings } from "@/modules/radar/schema";
 import {
@@ -208,6 +209,17 @@ export async function seedUserFootprint(
   await db
     .insert(riskProfiles)
     .values({ userId, declaredCapital: 10_000_000, limits: {} as never });
+  await db.insert(operationPlanRules).values({
+    userId,
+    contemplatedOperationId: contemplated.id,
+    recipeId: "footprint",
+    rules: {
+      recipeId: "footprint",
+      summary: "footprint",
+      exitRules: [{ rule: { kind: "days_before_expiry", businessDays: 5 }, session: null }],
+      roll: { applies: false, session: null },
+    } as never,
+  });
   const operation = only(
     await db
       .insert(operations)

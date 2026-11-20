@@ -22,6 +22,7 @@ import {
   RateLineChart,
   t,
 } from "@/modules/market-data";
+import { PlanPanel } from "@/modules/plans";
 import { RecipePanel } from "@/modules/recipes";
 import { getPreferences } from "@/modules/preferences";
 import { SentimentPanel, sentimentForInstrument, t as sentimentStrings } from "@/modules/sentiment";
@@ -151,6 +152,11 @@ export default async function InstrumentPage({
           {lastClose && !isIndex && (
             <div id="receitas" className="scroll-mt-16">
               <RecipePanel ticker={ticker} />
+            </div>
+          )}
+          {lastClose && !isIndex && (
+            <div id="plano" className="scroll-mt-16">
+              <PlanPanel ticker={ticker} />
             </div>
           )}
           {!isIndex && filings && sentiment && (

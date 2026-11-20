@@ -49,7 +49,7 @@ const ownerSpecs = [
 // not atomic: run in parallel, the second insert hits the row's unique index. They wait for the
 // owner specs because a suggestion is archived once the radar reads a newer close
 // (docs/adr/0073), and every owner spec's nightly run may read the recent session mid-spec.
-const radarSpecs = ["radar.spec.ts", "suggestions.spec.ts"];
+const radarSpecs = ["radar.spec.ts", "suggestions.spec.ts", "plans.spec.ts"];
 
 // Signs the owner in once and ingests every session the suite reads
 // (e2e/owner.setup.ts), so no spec depends on another one's ingestion and

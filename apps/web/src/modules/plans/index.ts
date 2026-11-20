@@ -23,3 +23,17 @@ export {
   type SavePlanRulesInput,
 } from "./plan-rules-repository";
 export { operationPlanRules } from "./schema";
+export { PlanRulesDataExport } from "./data-export";
+export {
+  buildPlanAction,
+  savePlanAction,
+  type BuildPlanActionInput,
+  type BuildPlanOutcome,
+  type PlanActionError,
+  type PlanLegSeries,
+  type SavePlanResult,
+} from "./actions";
+export { t, plansStrings } from "./strings";
+export { PlanScreen } from "./components/plan-screen";
+export { PlanViewQuestion } from "./components/plan-view-question";
+export { PlanPanel } from "./components/plan-panel";
