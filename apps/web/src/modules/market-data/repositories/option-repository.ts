@@ -298,8 +298,6 @@ export interface ChainSeries {
   strike: string;
   expiry: string;
   style: string;
-  // `trades` is the number of trades on `session`, the liquidity a picker
-  // shows beside the price.
   lastPrice: { value: string; session: string; trades: number } | null;
   // The strike `lastPrice` was actually recorded under, set only when it
   // differs from `strike` (the current registry strike this chain always

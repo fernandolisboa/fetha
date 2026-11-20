@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
@@ -54,6 +55,18 @@ function keepKeysInField(event: KeyboardEvent<HTMLInputElement>) {
 function signedPercent(distance: string): string {
   const formatted = formatPercent(decimalStringSchema.parse(distance));
   return formatted.startsWith("−") || formatted === "0%" ? formatted : `+${formatted}`;
+}
+
+// Rows arrive sorted by expiry; with every cycle shown, each one gets a
+// heading so a strike is never read against the wrong expiry.
+function groupByExpiry(rows: SeriesRow[]): { expiry: string; rows: SeriesRow[] }[] {
+  const groups: { expiry: string; rows: SeriesRow[] }[] = [];
+  for (const row of rows) {
+    const last = groups.at(-1);
+    if (last?.expiry === row.series.expiry) last.rows.push(row);
+    else groups.push({ expiry: row.series.expiry, rows: [row] });
+  }
+  return groups;
 }
 
 function StrikeBound({
@@ -326,19 +339,29 @@ export function SeriesPicker({
           <CommandStatus>{strings.shown(rows.length, inCycle.length)}</CommandStatus>
           <CommandList className="max-h-none min-h-0 flex-1 p-1">
             <CommandEmpty>{options.length === 0 ? strings.emptyChain : strings.empty}</CommandEmpty>
-            {rows.map((row) => (
-              <CommandItem
-                key={row.series.ticker}
-                value={row.series.ticker}
-                data-checked={row.series.ticker === value}
-                onSelect={() => {
-                  onChange(row.series.ticker);
-                  setOpen(false);
-                }}
-                className="px-3 py-1"
+            {groupByExpiry(rows).map((group) => (
+              <CommandGroup
+                key={group.expiry}
+                heading={
+                  expiry === null ? strings.expiryGroup(formatSessionDate(group.expiry)) : undefined
+                }
+                className="p-0"
               >
-                <SeriesRowContent row={row} />
-              </CommandItem>
+                {group.rows.map((row) => (
+                  <CommandItem
+                    key={row.series.ticker}
+                    value={row.series.ticker}
+                    data-checked={row.series.ticker === value}
+                    onSelect={() => {
+                      onChange(row.series.ticker);
+                      setOpen(false);
+                    }}
+                    className="px-3 py-1"
+                  >
+                    <SeriesRowContent row={row} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             ))}
           </CommandList>
 

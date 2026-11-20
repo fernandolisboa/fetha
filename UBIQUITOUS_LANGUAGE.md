@@ -86,6 +86,16 @@ series-level field, named `settlementStyle` precisely to keep the two apart)
 The set of option series listed on one underlying on a given day, with their quotes.
 _Avoid_: option board, grade de opções
 
+**Distance to spot / in, at, out of the money** (pt-BR: _distância_, _dentro / no / fora do
+dinheiro_):
+Display labels in the builder's series picker. Distance is strike / last close − 1, shown as a
+signed percent; a series is at the money when that percent, rounded to two decimals, is under 1%,
+otherwise a call above the close (a put below it) is out of the money. The close is the
+underlying's latest daily candle, withheld when a corporate action falls after it (it would be on
+the pre-event scale). A preview, not the engine's resolved spot, and unrelated to the `moneyness`
+strike-selection kind.
+_Avoid_: ATM/ITM/OTM in pt-BR copy
+
 **Candle**:
 The open, high, low, close and traded quantity (count of shares or contracts) of an instrument
 over one timeframe interval: a trading session (daily) or an intraday interval of 15, 30 or 60

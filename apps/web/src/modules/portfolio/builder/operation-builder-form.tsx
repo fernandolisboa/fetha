@@ -25,19 +25,14 @@ import {
 import { ErrorNotice } from "@/components/error-notice";
 import { Panel } from "@/modules/shell/client";
 
-import {
-  loadChainAction,
-  priceOperationAction,
-  saveOperationAction,
-  type BuilderChain,
-} from "../operations-actions";
+import { loadChainAction, priceOperationAction, saveOperationAction } from "../operations-actions";
 import { t } from "../strings";
 import { GreeksPanel } from "./greeks-panel";
 import { LegsTable } from "./legs-table";
 import { PayoffChart } from "./payoff-chart";
 import { RiskNotice } from "./risk-notice";
 import { StatBlocks } from "./stat-blocks";
-import type { BuilderLeg } from "./types";
+import type { BuilderChain, BuilderLeg } from "./types";
 
 const EMPTY_BUILDER_CHAIN: BuilderChain = { series: [], spot: null };
 

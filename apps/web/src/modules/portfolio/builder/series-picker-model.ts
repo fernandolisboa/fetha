@@ -53,7 +53,6 @@ export function defaultExpiry(series: readonly ChainSeries[]): string | null {
   return (options.find((option) => option.traded > 0) ?? options[0])?.expiry ?? null;
 }
 
-// Distance is strike / spot − 1: positive above the spot, negative below.
 export function distanceToSpot(strike: string, spot: string): DecimalString | null {
   const spotValue = new Decimal(spot);
   if (spotValue.lte(0)) return null;
@@ -62,7 +61,9 @@ export function distanceToSpot(strike: string, spot: string): DecimalString | nu
 
 export function moneyness(right: string, distance: string | null): Moneyness | null {
   if (distance === null) return null;
-  const value = new Decimal(distance);
+  // Decided on the distance as the column shows it (two decimals of a
+  // percent), so two rows both reading "+1%" never get different labels.
+  const value = new Decimal(distance).toDecimalPlaces(4);
   if (value.abs().lt(AT_THE_MONEY_BAND)) return "at";
   const strikeAboveSpot = value.isPositive();
   if (right === "call") return strikeAboveSpot ? "out" : "in";

@@ -49,11 +49,24 @@ vi.mock("@/modules/market-data", async () => {
         close: new Date("2026-09-10T20:00:00.000Z"),
       }),
     optionChainForUnderlying: () => Promise.resolve([]),
+    corporateActionFactorsForUnderlying: (_db: Database, ticker: string) =>
+      Promise.resolve(
+        ticker === "VALE3"
+          ? [
+              {
+                ticker: "VALE3",
+                exDate: "2026-09-10",
+                asOf: "2026-09-09T22:00:00.000Z",
+                factor: "0.500000",
+              },
+            ]
+          : [],
+      ),
     latestCandle: (_db: Database, ticker: string) =>
       Promise.resolve(
-        ticker === "PETR4"
+        ticker === "PETR4" || ticker === "VALE3"
           ? {
-              ticker: "PETR4",
+              ticker,
               session: "2026-09-09",
               asOf: new Date("2026-09-09T21:00:00.000Z"),
               open: "30.000000",
@@ -199,6 +212,14 @@ describe("loadChainAction", () => {
 
   it("has no spot when the underlying has no candle", async () => {
     const email = uniqueEmail("chain-no-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("ITUB4")).toEqual({ series: [], spot: null });
+  });
+
+  it("withholds a close older than a corporate action, which is on the pre-event scale", async () => {
+    const email = uniqueEmail("chain-pre-event-spot");
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
 

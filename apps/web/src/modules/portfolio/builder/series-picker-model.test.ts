@@ -92,9 +92,14 @@ describe("moneyness", () => {
   });
 
   it("calls a strike within 1% of the spot at the money", () => {
-    expect(moneyness("call", "0.009999")).toBe("at");
-    expect(moneyness("put", "-0.009999")).toBe("at");
+    expect(moneyness("call", "0.009940")).toBe("at");
+    expect(moneyness("put", "-0.009940")).toBe("at");
     expect(moneyness("call", "0.010000")).toBe("out");
+  });
+
+  it("decides on the distance as displayed, two decimals of a percent", () => {
+    expect(moneyness("call", "0.009990")).toBe("out");
+    expect(moneyness("call", "0.009949")).toBe("at");
   });
 
   it("is null without a distance", () => {

@@ -15,13 +15,14 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
+  corporateActionFactorsForUnderlying,
   latestCandle,
   latestSessionOnOrBefore,
   optionChainForUnderlying,
-  type ChainSeries,
 } from "@/modules/market-data";
 import { getStructures } from "@/modules/strategies";
 
+import type { BuilderChain } from "./builder/types";
 import { priceOperationLegs } from "./engine-client";
 import { OperationsRepository } from "./operations-repository";
 import { priceOperationNow } from "./price-now";
@@ -63,13 +64,6 @@ async function currentSessionDate(): Promise<string | null> {
   return session?.date ?? null;
 }
 
-// The underlying's last close travels with its chain so the series picker
-// can show how far each strike sits from it before anything is priced.
-export interface BuilderChain {
-  series: ChainSeries[];
-  spot: { value: string; session: string } | null;
-}
-
 const EMPTY_CHAIN: BuilderChain = { series: [], spot: null };
 
 export async function loadChainAction(underlying: string): Promise<BuilderChain> {
@@ -84,13 +78,21 @@ export async function loadChainAction(underlying: string): Promise<BuilderChain>
       return EMPTY_CHAIN;
     }
     const db = getDb();
-    const [series, candle] = await Promise.all([
+    const [series, candle, corporateActions] = await Promise.all([
       optionChainForUnderlying(db, parsed.data, session, new Date()),
       latestCandle(db, parsed.data),
+      corporateActionFactorsForUnderlying(db, parsed.data),
     ]);
+    // The picker compares this close with today's registry strikes. A close
+    // older than a corporate action is on the pre-event scale (the engine
+    // rescales it when pricing, #285), so it is withheld rather than shown
+    // as a distance off by the event's factor.
+    const closeBeforeEvent =
+      candle !== null &&
+      corporateActions.some((action) => action.exDate > candle.session && action.exDate <= session);
     return {
       series,
-      spot: candle ? { value: candle.close, session: candle.session } : null,
+      spot: candle && !closeBeforeEvent ? { value: candle.close, session: candle.session } : null,
     };
   });
 }

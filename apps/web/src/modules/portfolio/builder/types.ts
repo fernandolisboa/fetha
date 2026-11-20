@@ -13,3 +13,10 @@ export interface BuilderLeg {
 }
 
 export type { ChainSeries };
+
+// The underlying's last close travels with its chain so the series picker
+// can show how far each strike sits from it before anything is priced.
+export interface BuilderChain {
+  series: ChainSeries[];
+  spot: { value: string; session: string } | null;
+}

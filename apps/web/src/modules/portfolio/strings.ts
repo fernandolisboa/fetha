@@ -66,9 +66,11 @@ const en = {
       trades: (count: number) => `${String(count)} ${count === 1 ? "trade" : "trades"}`,
       spot: (underlying: string, price: string, session: string) =>
         `${underlying} closed at ${price} on ${session}. Distance is how far the strike sits above (+) or below (−) that price.`,
-      noSpot: "No close for the underlying yet, so distance and moneyness are not shown.",
+      noSpot:
+        "No close for the underlying on the scale of today's strikes (none yet, or one from before a corporate action), so distance and moneyness are not shown.",
       shown: (shown: number, total: number) => `${String(shown)} of ${String(total)} series`,
       empty: "No series match these filters.",
+      expiryGroup: (expiry: string) => `Expiry ${expiry}`,
       emptyChain: "Type an underlying to load its series.",
     },
     statBlocks: {
@@ -370,9 +372,11 @@ const ptBR = {
       trades: (count: number) => `${String(count)} ${count === 1 ? "negócio" : "negócios"}`,
       spot: (underlying: string, price: string, session: string) =>
         `${underlying} fechou a ${price} em ${session}. A distância mostra quanto o strike está acima (+) ou abaixo (−) desse preço.`,
-      noSpot: "Ainda não há fechamento do ativo-objeto, então distância e situação não aparecem.",
+      noSpot:
+        "Não há um fechamento do ativo-objeto comparável aos strikes atuais (ainda não saiu, ou é de antes de um evento corporativo), então distância e situação não aparecem.",
       shown: (shown: number, total: number) => `${String(shown)} de ${String(total)} séries`,
       empty: "Nenhuma série com esses filtros.",
+      expiryGroup: (expiry: string) => `Vencimento ${expiry}`,
       emptyChain: "Digite um ativo-objeto para carregar as séries.",
     },
     statBlocks: {
