@@ -249,6 +249,7 @@ const en = {
       addAdjustment: "Add adjustment",
       removeAdjustment: "Remove adjustment",
       when: "Roll when",
+      backtestNotice: "Backtests don't apply this roll yet; the result holds the operation as is.",
     },
     submit: { create: "Create strategy", save: "Save new version" },
     cancel: "Cancel",
@@ -453,6 +454,8 @@ const ptBR = {
       addAdjustment: "Adicionar ajuste",
       removeAdjustment: "Remover ajuste",
       when: "Rolar quando",
+      backtestNotice:
+        "O backtest ainda não aplica essa rolagem: o resultado mantém a operação como está.",
     },
     submit: { create: "Criar estratégia", save: "Salvar nova versão" },
     cancel: "Cancelar",

@@ -66,6 +66,7 @@ export const noteCodeSchema = z.enum([
   "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
+  "adjustment_not_applied",
 ]);
 
 export const pricingModelSchema = z.enum(["bsm_continuous_yield"]);

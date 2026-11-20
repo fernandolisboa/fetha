@@ -111,4 +111,10 @@ describe("generalNotesFor", () => {
     const run = runWithNotes([note("stale_price")]);
     expect(generalNotesFor(run)).toEqual([note("stale_price")]);
   });
+
+  it("includes adjustment_not_applied in the general notes panel (#377)", () => {
+    expect(surfacedNoteCodes).not.toContain("adjustment_not_applied");
+    const run = runWithNotes([note("adjustment_not_applied")]);
+    expect(generalNotesFor(run)).toEqual([note("adjustment_not_applied")]);
+  });
 });

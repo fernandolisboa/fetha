@@ -46,6 +46,19 @@ test("create a strategy, edit it into a new version, share it, and copy it as an
   await page.getByRole("combobox", { name: "Estrutura" }).click();
   await page.getByRole("option", { name: "Compra de ação", exact: true }).click();
 
+  // The "Ajustes" section always lets a roll rule be added, regardless of
+  // structure, but a backtest does not apply it yet (#377): adding one must
+  // show that notice right there, before the rule is removed again so this
+  // stock-only strategy still saves (a roll is meaningless for a
+  // stock-only structure, strategy-coherence.ts).
+  await page.getByRole("button", { name: "Adicionar ajuste" }).click();
+  await expect(
+    page.getByText(
+      "O backtest ainda não aplica essa rolagem: o resultado mantém a operação como está.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Remover ajuste" }).click();
+
   await page.getByRole("button", { name: "Criar estratégia" }).click();
 
   // The regex must not also match /estrategias/nova: "nova" satisfies
