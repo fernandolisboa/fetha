@@ -49,6 +49,8 @@ vi.mock("@/modules/market-data", async () => {
         close: new Date("2026-09-10T20:00:00.000Z"),
       }),
     optionChainForUnderlying: () => Promise.resolve([]),
+    countSessionsClosedAfter: (_db: Database, date: string) =>
+      Promise.resolve(date === "2026-08-20" ? 14 : 1),
     corporateActionFactorsForUnderlying: (_db: Database, ticker: string) =>
       Promise.resolve(
         ticker === "VALE3"
@@ -64,10 +66,10 @@ vi.mock("@/modules/market-data", async () => {
       ),
     latestCandle: (_db: Database, ticker: string) =>
       Promise.resolve(
-        ticker === "PETR4" || ticker === "VALE3"
+        ticker === "PETR4" || ticker === "VALE3" || ticker === "BBAS3"
           ? {
               ticker,
-              session: "2026-09-09",
+              session: ticker === "BBAS3" ? "2026-08-20" : "2026-09-09",
               asOf: new Date("2026-09-09T21:00:00.000Z"),
               open: "30.000000",
               high: "31.000000",
@@ -224,6 +226,14 @@ describe("loadChainAction", () => {
     currentUser = await insertBareUser(email);
 
     expect(await loadChainAction("VALE3")).toEqual({ series: [], spot: null });
+  });
+
+  it("withholds a close that trails the calendar by more than the nightly ingestion lag", async () => {
+    const email = uniqueEmail("chain-stale-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("BBAS3")).toEqual({ series: [], spot: null });
   });
 
   it("returns an empty chain for a malformed ticker", async () => {

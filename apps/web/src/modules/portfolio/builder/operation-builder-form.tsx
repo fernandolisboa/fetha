@@ -184,23 +184,35 @@ export function OperationBuilderForm({
     }
   }
 
+  // A structure's option legs share one expiry (validate-legs rejects a mix),
+  // so picking a series from another cycle clears the legs left behind in the
+  // old one instead of leaving a leg set that can never be saved.
   function changeTicker(index: number, ticker: string) {
+    const expiry = chain.series.find((series) => series.ticker === ticker)?.expiry;
+    const expiryOf = (other: string) =>
+      chain.series.find((series) => series.ticker === other)?.expiry;
     setLegs((current) =>
-      current.map((builderLeg, position) =>
-        position === index
-          ? {
-              ...builderLeg,
-              leg: {
-                role: builderLeg.template.role,
-                side: builderLeg.template.side,
-                ticker,
-                quantity:
-                  builderLeg.leg?.quantity ?? quantitySchema.parse(builderLeg.template.ratio),
-              },
-              valuation: null,
-            }
-          : builderLeg,
-      ),
+      current.map((builderLeg, position) => {
+        if (position === index) {
+          return {
+            ...builderLeg,
+            leg: {
+              role: builderLeg.template.role,
+              side: builderLeg.template.side,
+              ticker,
+              quantity: builderLeg.leg?.quantity ?? quantitySchema.parse(builderLeg.template.ratio),
+            },
+            valuation: null,
+          };
+        }
+        const other = builderLeg.leg;
+        const leftBehind =
+          builderLeg.template.role !== "stock" &&
+          other !== null &&
+          expiry !== undefined &&
+          expiryOf(other.ticker) !== expiry;
+        return leftBehind ? { ...builderLeg, leg: null, valuation: null } : builderLeg;
+      }),
     );
     resetPricingState();
   }

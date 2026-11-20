@@ -71,12 +71,20 @@ export function moneyness(right: string, distance: string | null): Moneyness | n
   return null;
 }
 
+// Strikes are shown with pt-BR grouping ("1.250,00"), so both sides drop the
+// grouping dots; a lone dot with one or two digits after it ("9.5") is read
+// as a decimal point, the way most people type it.
+function normalizeStrikeQuery(query: string): string {
+  if (query.includes(",")) return query.replaceAll(".", "");
+  return /\.\d{1,2}$/.test(query) ? query.replace(".", ",") : query.replaceAll(".", "");
+}
+
 function matchesQuery(series: ChainSeries, query: string): boolean {
   const needle = query.trim().toUpperCase();
   if (needle === "") return true;
   if (series.ticker.toUpperCase().includes(needle)) return true;
-  const strikeText = formatDecimal(decimalStringSchema.parse(series.strike));
-  return strikeText.startsWith(needle.replace(".", ","));
+  const strikeText = formatDecimal(decimalStringSchema.parse(series.strike)).replaceAll(".", "");
+  return strikeText.startsWith(normalizeStrikeQuery(needle));
 }
 
 function strikeBound(raw: string): Decimal | null {

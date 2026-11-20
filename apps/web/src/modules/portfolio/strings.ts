@@ -51,7 +51,7 @@ const en = {
       invalidStrike: "Use digits and a comma, e.g. 9,50",
       expiry: "Expiry",
       allExpiries: "All",
-      lockedExpiry: "Same expiry as the leg already picked",
+      clearsOtherLegs: "Picking a series in another expiry clears the other legs",
       includeUntraded: (count: number) => `Show series with no trades (${String(count)})`,
       columns: {
         series: "Series",
@@ -67,7 +67,7 @@ const en = {
       spot: (underlying: string, price: string, session: string) =>
         `${underlying} closed at ${price} on ${session}. Distance is how far the strike sits above (+) or below (−) that price.`,
       noSpot:
-        "No close for the underlying on the scale of today's strikes (none yet, or one from before a corporate action), so distance and moneyness are not shown.",
+        "No recent close for the underlying on the scale of today's strikes (none yet, an ingestion gap, or one from before a corporate action), so distance and moneyness are not shown.",
       shown: (shown: number, total: number) => `${String(shown)} of ${String(total)} series`,
       empty: "No series match these filters.",
       expiryGroup: (expiry: string) => `Expiry ${expiry}`,
@@ -357,7 +357,7 @@ const ptBR = {
       invalidStrike: "Use números com vírgula, como 9,50",
       expiry: "Vencimento",
       allExpiries: "Todos",
-      lockedExpiry: "Mesmo vencimento da perna já escolhida",
+      clearsOtherLegs: "Escolher uma série de outro vencimento limpa as outras pernas",
       includeUntraded: (count: number) => `Mostrar séries sem negócios (${String(count)})`,
       columns: {
         series: "Série",
@@ -373,7 +373,7 @@ const ptBR = {
       spot: (underlying: string, price: string, session: string) =>
         `${underlying} fechou a ${price} em ${session}. A distância mostra quanto o strike está acima (+) ou abaixo (−) desse preço.`,
       noSpot:
-        "Não há um fechamento do ativo-objeto comparável aos strikes atuais (ainda não saiu, ou é de antes de um evento corporativo), então distância e situação não aparecem.",
+        "Não há um fechamento recente do ativo-objeto comparável aos strikes atuais (ainda não saiu, faltou carga ou é de antes de um evento corporativo), então distância e situação não aparecem.",
       shown: (shown: number, total: number) => `${String(shown)} de ${String(total)} séries`,
       empty: "Nenhuma série com esses filtros.",
       expiryGroup: (expiry: string) => `Vencimento ${expiry}`,

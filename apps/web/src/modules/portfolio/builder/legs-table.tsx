@@ -25,11 +25,9 @@ function roleLabel(role: BuilderLeg["template"]["role"]): string {
   return t.builder.legsTable.stock;
 }
 
-// The expiry of the first option leg the user has picked among the other
-// legs, locking this leg's picker to the same cycle: a structure's legs share
-// one expiry, and the chain alone allows a call from one cycle next to a
-// put from another.
-function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
+// The cycle the other option legs already sit in: a structure's legs share
+// one expiry, so this leg's picker opens on it.
+function otherLegsExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
   for (const builderLeg of legs) {
     if (builderLeg.template.role === "stock" || !builderLeg.leg) continue;
     const series = chain.find((candidate) => candidate.ticker === builderLeg.leg?.ticker);
@@ -73,7 +71,7 @@ export function LegsTable({
           const { template, leg, valuation } = builderLeg;
           const isStock = template.role === "stock";
           const options = chain.filter((series) => series.right === template.role);
-          const expiry = lockedExpiry(
+          const legsExpiry = otherLegsExpiry(
             legs.filter((_, position) => position !== index),
             chain,
           );
@@ -103,7 +101,7 @@ export function LegsTable({
                     label={`${t.builder.legsTable.instrument} ${String(index + 1)}`}
                     underlying={underlying}
                     options={options}
-                    lockedExpiry={expiry}
+                    legsExpiry={legsExpiry}
                     spot={spot}
                     value={leg?.ticker ?? null}
                     onChange={(ticker) => {

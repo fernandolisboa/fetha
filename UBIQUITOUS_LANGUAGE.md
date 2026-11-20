@@ -91,8 +91,8 @@ dinheiro_):
 Display labels in the builder's series picker. Distance is strike / last close − 1, shown as a
 signed percent; a series is at the money when that percent, rounded to two decimals, is under 1%,
 otherwise a call above the close (a put below it) is out of the money. The close is the
-underlying's latest daily candle, withheld when a corporate action falls after it (it would be on
-the pre-event scale). A preview, not the engine's resolved spot, and unrelated to the `moneyness`
+underlying's latest daily candle, withheld when it trails the calendar by more than one session or
+a corporate action falls after it (it would be on the pre-event scale). A preview, not the engine's resolved spot, and unrelated to the `moneyness`
 strike-selection kind.
 _Avoid_: ATM/ITM/OTM in pt-BR copy
 

@@ -16,6 +16,7 @@ import {
 } from "@/modules/auth";
 import {
   corporateActionFactorsForUnderlying,
+  countSessionsClosedAfter,
   latestCandle,
   latestSessionOnOrBefore,
   optionChainForUnderlying,
@@ -66,6 +67,27 @@ async function currentSessionDate(): Promise<string | null> {
 
 const EMPTY_CHAIN: BuilderChain = { series: [], spot: null };
 
+// The picker compares this close with today's registry strikes. It is
+// withheld when it trails the calendar by more than the nightly ingestion
+// lag, or when a corporate action falls after it: that close is on the
+// pre-event scale (the engine rescales it when pricing, #285), and every
+// distance would be off by the event's factor.
+const MAX_SPOT_LAG_SESSIONS = 1;
+
+async function pickerSpot(
+  candle: { close: string; session: string },
+  corporateActions: { exDate: string }[],
+  session: string,
+  now: Date,
+): Promise<BuilderChain["spot"]> {
+  const closeBeforeEvent = corporateActions.some(
+    (action) => action.exDate > candle.session && action.exDate <= session,
+  );
+  if (closeBeforeEvent) return null;
+  const lag = await countSessionsClosedAfter(getDb(), candle.session, now);
+  return lag > MAX_SPOT_LAG_SESSIONS ? null : { value: candle.close, session: candle.session };
+}
+
 export async function loadChainAction(underlying: string): Promise<BuilderChain> {
   const parsed = tickerSchema.safeParse(underlying);
   if (!parsed.success) {
@@ -78,21 +100,15 @@ export async function loadChainAction(underlying: string): Promise<BuilderChain>
       return EMPTY_CHAIN;
     }
     const db = getDb();
+    const now = new Date();
     const [series, candle, corporateActions] = await Promise.all([
-      optionChainForUnderlying(db, parsed.data, session, new Date()),
+      optionChainForUnderlying(db, parsed.data, session, now),
       latestCandle(db, parsed.data),
       corporateActionFactorsForUnderlying(db, parsed.data),
     ]);
-    // The picker compares this close with today's registry strikes. A close
-    // older than a corporate action is on the pre-event scale (the engine
-    // rescales it when pricing, #285), so it is withheld rather than shown
-    // as a distance off by the event's factor.
-    const closeBeforeEvent =
-      candle !== null &&
-      corporateActions.some((action) => action.exDate > candle.session && action.exDate <= session);
     return {
       series,
-      spot: candle && !closeBeforeEvent ? { value: candle.close, session: candle.session } : null,
+      spot: candle ? await pickerSpot(candle, corporateActions, session, now) : null,
     };
   });
 }

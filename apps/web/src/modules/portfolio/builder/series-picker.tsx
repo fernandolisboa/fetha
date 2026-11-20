@@ -157,11 +157,27 @@ function SeriesRowContent({ row }: { row: SeriesRow }) {
   );
 }
 
+// `expiry: undefined` means "not chosen in this opening yet": the cycle then
+// follows the other legs, or the nearest traded one, even when the chain
+// arrives after the picker opened.
+type PickerState = Omit<SeriesFilters, "expiry" | "includeUntraded"> & {
+  expiry: string | null | undefined;
+  includeUntraded: boolean | undefined;
+};
+
+const FRESH_STATE: PickerState = {
+  query: "",
+  expiry: undefined,
+  minStrike: "",
+  maxStrike: "",
+  includeUntraded: undefined,
+};
+
 export function SeriesPicker({
   label,
   underlying,
   options,
-  lockedExpiry,
+  legsExpiry,
   spot,
   value,
   onChange,
@@ -169,43 +185,36 @@ export function SeriesPicker({
   label: string;
   underlying: string;
   options: ChainSeries[];
-  lockedExpiry: string | null;
+  legsExpiry: string | null;
   spot: { value: string; session: string } | null;
   value: string | null;
   onChange: (ticker: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [filters, setFilters] = useState<SeriesFilters>({
-    query: "",
-    expiry: null,
-    minStrike: "",
-    maxStrike: "",
-    includeUntraded: false,
-  });
+  const [state, setState] = useState<PickerState>(FRESH_STATE);
 
   const selected = options.find((series) => series.ticker === value) ?? null;
   const expiries = expiryOptions(options);
-  const expiry = lockedExpiry ?? filters.expiry;
-  const effective = { ...filters, expiry };
-  const rows = pickerRows(options, effective, spot?.value ?? null);
-  const inCycle = options.filter((series) => expiry === null || series.expiry === expiry);
-  const untradedInCycle = inCycle.filter((series) => series.lastPrice === null).length;
+  const expiry =
+    state.expiry === undefined
+      ? (selected?.expiry ?? legsExpiry ?? defaultExpiry(options))
+      : state.expiry;
+  const includeUntraded =
+    state.includeUntraded ?? (selected !== null && selected.lastPrice === null);
+  const filters: SeriesFilters = { ...state, expiry, includeUntraded };
+  const spotValue = spot?.value ?? null;
+  const rows = pickerRows(options, filters, spotValue);
+  const withUntraded = pickerRows(options, { ...filters, includeUntraded: true }, spotValue);
+  const untradedShown = withUntraded.filter((row) => row.series.lastPrice === null).length;
+  const leavesOtherLegs = legsExpiry !== null && expiry !== legsExpiry;
 
-  function update(patch: Partial<SeriesFilters>) {
-    setFilters((current) => ({ ...current, ...patch }));
+  function update(patch: Partial<PickerState>) {
+    setState((current) => ({ ...current, ...patch }));
   }
 
   function openPicker(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setFilters({
-        query: "",
-        expiry: selected?.expiry ?? defaultExpiry(options),
-        minStrike: "",
-        maxStrike: "",
-        includeUntraded: selected !== null && selected.lastPrice === null,
-      });
-    }
+    if (nextOpen) setState(FRESH_STATE);
   }
 
   return (
@@ -243,7 +252,7 @@ export function SeriesPicker({
           <div className="border-b p-2">
             <CommandInput
               placeholder={strings.search}
-              value={filters.query}
+              value={state.query}
               onValueChange={(query) => {
                 update({ query });
               }}
@@ -251,14 +260,14 @@ export function SeriesPicker({
             <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2 px-1">
               <StrikeBound
                 label={strings.minStrike}
-                value={filters.minStrike}
+                value={state.minStrike}
                 onChange={(minStrike) => {
                   update({ minStrike });
                 }}
               />
               <StrikeBound
                 label={strings.maxStrike}
-                value={filters.maxStrike}
+                value={state.maxStrike}
                 onChange={(maxStrike) => {
                   update({ maxStrike });
                 }}
@@ -266,12 +275,12 @@ export function SeriesPicker({
               <label className="flex h-7 items-center gap-2 text-[12px]">
                 <Switch
                   size="sm"
-                  checked={filters.includeUntraded}
+                  checked={includeUntraded}
                   onCheckedChange={(includeUntraded) => {
                     update({ includeUntraded });
                   }}
                 />
-                {strings.includeUntraded(untradedInCycle)}
+                {strings.includeUntraded(untradedShown)}
               </label>
             </div>
             <div
@@ -282,44 +291,40 @@ export function SeriesPicker({
               <span className="text-muted-foreground mr-1 text-[11px] tracking-[0.06em] uppercase">
                 {strings.expiry}
               </span>
-              {lockedExpiry ? (
-                <span className="text-[12px]">
-                  <span className="font-mono tabular-nums">{formatSessionDate(lockedExpiry)}</span>
-                  <span className="text-muted-foreground ml-2 text-[11px]">
-                    {strings.lockedExpiry}
-                  </span>
-                </span>
-              ) : (
-                <>
+              <>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={expiry === null ? "secondary" : "outline"}
+                  aria-pressed={expiry === null}
+                  className={CHIP}
+                  onClick={() => {
+                    update({ expiry: null });
+                  }}
+                >
+                  {strings.allExpiries}
+                </Button>
+                {expiries.map((option) => (
                   <Button
+                    key={option.expiry}
                     type="button"
                     size="xs"
-                    variant={expiry === null ? "secondary" : "outline"}
-                    aria-pressed={expiry === null}
-                    className={CHIP}
+                    variant={expiry === option.expiry ? "secondary" : "outline"}
+                    aria-pressed={expiry === option.expiry}
                     onClick={() => {
-                      update({ expiry: null });
+                      update({ expiry: option.expiry });
                     }}
+                    className={`${CHIP} font-mono tabular-nums`}
                   >
-                    {strings.allExpiries}
+                    {formatSessionDate(option.expiry)}
                   </Button>
-                  {expiries.map((option) => (
-                    <Button
-                      key={option.expiry}
-                      type="button"
-                      size="xs"
-                      variant={expiry === option.expiry ? "secondary" : "outline"}
-                      aria-pressed={expiry === option.expiry}
-                      onClick={() => {
-                        update({ expiry: option.expiry });
-                      }}
-                      className={`${CHIP} font-mono tabular-nums`}
-                    >
-                      {formatSessionDate(option.expiry)}
-                    </Button>
-                  ))}
-                </>
-              )}
+                ))}
+              </>
+              {leavesOtherLegs ? (
+                <span className="text-[11px]" style={{ color: "var(--warning)" }}>
+                  {strings.clearsOtherLegs}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -336,7 +341,7 @@ export function SeriesPicker({
             <span className={`${WIDE_ONLY} text-right`}>{strings.columns.trades}</span>
           </div>
 
-          <CommandStatus>{strings.shown(rows.length, inCycle.length)}</CommandStatus>
+          <CommandStatus>{strings.shown(rows.length, withUntraded.length)}</CommandStatus>
           <CommandList className="max-h-none min-h-0 flex-1 p-1">
             <CommandEmpty>{options.length === 0 ? strings.emptyChain : strings.empty}</CommandEmpty>
             {groupByExpiry(rows).map((group) => (
@@ -376,7 +381,7 @@ export function SeriesPicker({
                 : strings.noSpot}
             </span>
             <span className="font-mono tabular-nums">
-              {strings.shown(rows.length, inCycle.length)}
+              {strings.shown(rows.length, withUntraded.length)}
             </span>
           </div>
         </Command>

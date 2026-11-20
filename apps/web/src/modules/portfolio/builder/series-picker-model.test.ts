@@ -153,6 +153,16 @@ describe("pickerRows", () => {
     expect(tickers({ query: "9.5" })).toEqual(["PETRA95"]);
   });
 
+  it("finds a strike of a thousand or more typed with or without grouping", () => {
+    const index = [series({ ticker: "IBOVL130", strike: "130000.00000000" })];
+    const found = (query: string) =>
+      pickerRows(index, { ...noFilters, query }, null).map((row) => row.series.ticker);
+    expect(found("130000")).toEqual(["IBOVL130"]);
+    expect(found("130.000")).toEqual(["IBOVL130"]);
+    expect(found("130.000,00")).toEqual(["IBOVL130"]);
+    expect(found("131")).toEqual([]);
+  });
+
   it("annotates each row with its distance and moneyness against the spot", () => {
     const rows = pickerRows(chain, { ...noFilters, expiry: "2099-01-16" }, "10.00");
     const byTicker = new Map(rows.map((row) => [row.series.ticker, row]));
