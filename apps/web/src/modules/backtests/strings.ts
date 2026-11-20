@@ -176,6 +176,8 @@ const en = {
     candle_less_sessions_excluded: "Some sessions had no candle and were left out of the metrics.",
     warm_up_sessions_excluded:
       "The strategy's warm-up period was left out of the metrics; it never had enough history to trade.",
+    adjustment_not_applied:
+      "This strategy's roll rule is not applied in the backtest yet: the result reflects the operation held without rolling.",
   } satisfies Record<NoteCode, string>,
   engineErrors: {
     invalid_input: "Invalid input.",
@@ -413,6 +415,8 @@ const ptBR = {
       "Alguns pregões não tinham candle e ficaram de fora das métricas.",
     warm_up_sessions_excluded:
       "O período de aquecimento da estratégia ficou de fora das métricas; ela ainda não tinha histórico suficiente para operar.",
+    adjustment_not_applied:
+      "A regra de rolagem desta estratégia ainda não é aplicada no backtest: o resultado considera a operação sem rolar.",
   } satisfies Record<NoteCode, string>,
   engineErrors: {
     invalid_input: "Entrada inválida.",

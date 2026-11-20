@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.18.0";
+export const ENGINE_VERSION = "0.19.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -153,7 +153,8 @@ export type NoteCode =
   | "option_strike_unadjusted_across_corporate_action"
   | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
-  | "warm_up_sessions_excluded";
+  | "warm_up_sessions_excluded"
+  | "adjustment_not_applied";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -183,6 +184,7 @@ export const noteCodes = [
   "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
+  "adjustment_not_applied",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -1539,11 +1541,13 @@ from` for every candle in it.
 ### Error union
 
 `EngineError` is the complete list of whole-call failures: `invalid_input` (semantic, after Zod),
-`unsupported` (a `kind` the contracts allow but the engine does not implement; see
-`capabilities()`), `missing_instrument`, `insufficient_data` (naming the `DataWindow` that would
-suffice), `no_series_matches`, `degenerate_strikes`, `unsizeable`, `checkpoint_mismatch`. Anything
-else that can go wrong is a `null` field with a `Note` on the item or a `Note` on the artifact. A
-thrown exception from the engine is a bug.
+`unsupported` (a `kind` the contracts allow but the engine does not implement, when the call
+cannot produce a result at all without it; see `capabilities()` and, for the one call that can
+still produce a result while ignoring such a kind, the #377 addendum below), `missing_instrument`,
+`insufficient_data` (naming the `DataWindow` that would suffice), `no_series_matches`,
+`degenerate_strikes`, `unsizeable`, `checkpoint_mismatch`. Anything else that can go wrong is a
+`null` field with a `Note` on the item or a `Note` on the artifact. A thrown exception from the
+engine is a bug.
 
 ### Ordering constraints
 
@@ -3345,3 +3349,42 @@ nothing reads it there); every other pricing the engine returns carries it.
 Signals' proposals are persisted, so `ENGINE_VERSION` moves from `"0.17.0"` to `"0.18.0"`. The four
 backtest goldens change only by that version and, in `catch-up-evaluation.json`, the new field on
 each proposal (`null`: those proposals are stock-only).
+
+## Addendum: `adjustment_not_applied`; `ENGINE_VERSION` bumped to `0.19.0` (2026-11-20, #377, part 1 of #376)
+
+`unsupportedAdjustmentRuleKinds` (`roll`) and `capabilities().adjustmentRules = []` already say a
+roll rule is not implemented, but `runBacktest` never read `StrategyDefinition.adjustments` at all:
+a strategy that declared one backtested silently as if it had never been rolled, and the report
+read as though the roll had been exercised. `createStrategyEvaluator`'s own coherence check (a
+roll is meaningless for a stock-only structure) and `unsupportedAdjustmentRuleKinds` are both
+unchanged — rolling itself still needs its own settlement-and-reopen semantics, tracked separately
+— this addendum only makes the gap visible.
+
+`NoteCode` gains `adjustment_not_applied` (`notes.ts`'s `ADJUSTMENT_NOT_APPLIED_NOTE`, mirrored by
+`noteCodeSchema`). `runBacktest` pushes it onto `BacktestRun.notes` exactly once, after every other
+note, when `config.strategy.definition.adjustments.length > 0` — regardless of how many rules the
+strategy declares, the same one-note-per-run shape every other run-wide note in this file already
+has. `evaluateStrategy` (daily/intraday evaluation, the signal inbox) is untouched: the note is a
+property of a _run report_, not of a single evaluation instant, and the issue scoped it to
+`runBacktest` alone.
+
+- **`runBacktest` does not refuse with `unsupported` (`adjustmentRules`, `roll`), unlike
+  `markToMarket`/`proposeSettlement` (the #21 addendum above).** `unsupported` is reserved for a
+  call that cannot produce a result at all without the unimplemented kind, the same reading the
+  #16 addendum above gives `timeframe !== "D1"` (a restriction this ticket imposes, not grounds
+  for `unsupported`, "the wrong code here"). A roll rule is different again from both: it is a
+  genuine, capabilities-reported gap (`capabilities().adjustmentRules = []`), but `runBacktest` can
+  still produce a result without applying it — a valid run of the declared structure, held without
+  rolling, same as before this issue, just no longer silent about it. Refusing outright would also
+  stop every already-saved strategy that carries a roll rule from backtesting at all, for a gap
+  the strategy's other rules (entry, exit, sizing) have nothing to do with. `markToMarket` and
+  `proposeSettlement` have no such "held as is" fallback — a roll is the entire ask of those two
+  calls — so `unsupported` is the right code there and stays unchanged; `runBacktest` instead
+  degrades to a note, the shape this file's "Anything else that can go wrong is a `null` field with
+  a `Note`" sentence (Error union, above) already describes for every other partial, non-fatal gap.
+
+A run whose strategy declares no adjustment is bit-for-bit unchanged (none of the four backtest
+goldens carries an `adjustments` rule, so none of their `notes` arrays gains the new code; they
+still change by `ENGINE_VERSION` alone, `"0.18.0"` to `"0.19.0"`, same as every prior version-only
+addendum above). A run whose strategy does declare one now carries one more note than it used to:
+the only persisted-artifact shape change this addendum makes.

@@ -1916,6 +1916,90 @@ describe("runBacktest — observed-session metrics filtering (#92, ADR-0041)", (
   });
 });
 
+describe("runBacktest — roll adjustments not applied (#377)", () => {
+  const optionCalendar = businessDays(20).map(session);
+  const singleCall: Structure = {
+    id: "single_call",
+    name: "Long call",
+    expiry: "shared",
+    legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+  };
+  const rollAdjustment = {
+    kind: "roll" as const,
+    when: { kind: "profit_target" as const, fractionOfPremium: decimalString("0.1") },
+    expiry: { kind: "business_days" as const, min: 20, max: 40 },
+    strikes: [{ kind: "moneyness" as const, percent: decimalString("0") }],
+  };
+
+  function optionConfig(adjustments: StrategyDefinition["adjustments"]) {
+    const days = businessDays(20);
+    const expiry = days[15] as string;
+    return {
+      config: baseConfig({
+        strategy: strategyVersion(
+          {
+            ...definition({
+              entry: closeAbove9,
+              exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.2") }],
+              adjustments,
+            }),
+            structureId: "single_call",
+            strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+            expiry: { kind: "business_days", min: 1, max: 18 },
+          },
+          singleCall,
+        ),
+        period: { from: days[0] as string, to: days[6] as string },
+      }),
+      view: {
+        ...emptyView,
+        calendar: optionCalendar,
+        candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+        optionSeries: [
+          callOrPutSeries(
+            "PETR4C11",
+            "call",
+            "11.00",
+            expiry,
+            `${days[0] as string}T20:00:00.000Z`,
+          ),
+        ],
+        optionPrices: days
+          .slice(0, 7)
+          .map((d, i) => optionDayPrice("PETR4C11", d, i <= 1 ? "1.00" : "3.00")),
+      } satisfies MarketView,
+    };
+  }
+
+  it("carries a run-wide note, once, when the strategy declares a roll adjustment", () => {
+    const { config, view } = optionConfig([rollAdjustment]);
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const occurrences = run.notes.filter((n) => n.code === "adjustment_not_applied");
+    expect(occurrences).toHaveLength(1);
+    expect(occurrences[0]).toEqual({
+      code: "adjustment_not_applied",
+      message:
+        "this strategy declares a roll adjustment rule, but runBacktest does not apply it yet; the result reflects the operation held without rolling",
+    });
+  });
+
+  it("carries no such note when the strategy declares no adjustments", () => {
+    const { config, view } = optionConfig([]);
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    expect(run.notes.some((n) => n.code === "adjustment_not_applied")).toBe(false);
+  });
+});
+
 describe("runBacktest — tax deduction timing and month bookkeeping", () => {
   it("deducts a finalized month's tax on the last session of the following month, mid-run", () => {
     const calendar = [

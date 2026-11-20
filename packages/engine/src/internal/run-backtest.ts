@@ -70,6 +70,7 @@ import {
 import { isAtOrBefore } from "./instant";
 import { assertDefined, invariant } from "./invariant";
 import {
+  ADJUSTMENT_NOT_APPLIED_NOTE,
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
@@ -2129,6 +2130,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   }
   if (state.stalePriceRescaledAcrossCorporateActionNoted) {
     notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
+  }
+  if (config.strategy.definition.adjustments.length > 0) {
+    notes.push(ADJUSTMENT_NOT_APPLIED_NOTE);
   }
 
   const truncated = batchTruncationReport({
