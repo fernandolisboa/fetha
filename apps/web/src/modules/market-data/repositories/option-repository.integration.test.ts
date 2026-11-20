@@ -271,7 +271,7 @@ describe("optionChainForUnderlying", () => {
     const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
-    expect(series?.lastPrice).toEqual({ value: "1.550000", session: tradedSession });
+    expect(series?.lastPrice).toEqual({ value: "1.550000", session: tradedSession, trades: 4 });
     expect(series?.lastPriceStrike).toBeNull();
   });
 
@@ -485,7 +485,7 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.strike).toBe("14.98000000");
-    expect(series?.lastPrice).toEqual({ value: "2.000000", session: oldStrikeSession });
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: oldStrikeSession, trades: 1 });
     expect(series?.lastPriceStrike).toBe("29.95000000");
   });
 
@@ -542,7 +542,7 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
     const chain = await optionChainForUnderlying(db, underlying, currentSession, at);
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
-    expect(series?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: tieSession, trades: 1 });
     expect(series?.strike).toBe("14.98000000");
     expect(series?.lastPriceStrike).toBe("29.95000000");
   });
@@ -627,9 +627,9 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
 
     const oldSeries = chain.find((candidate) => candidate.ticker === oldTicker);
     const newSeries = chain.find((candidate) => candidate.ticker === newTicker);
-    expect(oldSeries?.lastPrice).toEqual({ value: "2.000000", session: tieSession });
+    expect(oldSeries?.lastPrice).toEqual({ value: "2.000000", session: tieSession, trades: 1 });
     expect(oldSeries?.lastPriceStrike).toBeNull();
-    expect(newSeries?.lastPrice).toEqual({ value: "1.000000", session: tieSession });
+    expect(newSeries?.lastPrice).toEqual({ value: "1.000000", session: tieSession, trades: 1 });
     expect(newSeries?.lastPriceStrike).toBeNull();
   });
 
@@ -775,7 +775,7 @@ describe("optionChainForUnderlying price matching against strike epochs (#274, A
 
     const series = chain.find((candidate) => candidate.ticker === optionTicker);
     expect(series?.strike).toBe("10.00000000");
-    expect(series?.lastPrice).toEqual({ value: "2.000000", session: sessionA });
+    expect(series?.lastPrice).toEqual({ value: "2.000000", session: sessionA, trades: 1 });
     expect(series?.lastPriceStrike).toBeNull();
   });
 });

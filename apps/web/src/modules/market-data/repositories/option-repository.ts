@@ -298,7 +298,9 @@ export interface ChainSeries {
   strike: string;
   expiry: string;
   style: string;
-  lastPrice: { value: string; session: string } | null;
+  // `trades` is the number of trades on `session`, the liquidity a picker
+  // shows beside the price.
+  lastPrice: { value: string; session: string; trades: number } | null;
   // The strike `lastPrice` was actually recorded under, set only when it
   // differs from `strike` (the current registry strike this chain always
   // displays): on a corporate-action session the registry and COTAHIST can
@@ -384,6 +386,7 @@ export async function optionChainForUnderlying(
             strike: optionDailyPrices.strike,
             average: optionDailyPrices.average,
             close: optionDailyPrices.close,
+            trades: optionDailyPrices.trades,
           })
           .from(optionDailyPrices)
           .where(
@@ -441,7 +444,7 @@ export async function optionChainForUnderlying(
         strike,
         expiry,
         style,
-        lastPrice: { value, session: priceRow.session },
+        lastPrice: { value, session: priceRow.session, trades: priceRow.trades },
         lastPriceStrike: priceRow.strike !== strike ? priceRow.strike : null,
       };
     });

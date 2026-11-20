@@ -15,6 +15,7 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
+  latestCandle,
   latestSessionOnOrBefore,
   optionChainForUnderlying,
   type ChainSeries,
@@ -62,18 +63,35 @@ async function currentSessionDate(): Promise<string | null> {
   return session?.date ?? null;
 }
 
-export async function loadChainAction(underlying: string): Promise<ChainSeries[]> {
+// The underlying's last close travels with its chain so the series picker
+// can show how far each strike sits from it before anything is priced.
+export interface BuilderChain {
+  series: ChainSeries[];
+  spot: { value: string; session: string } | null;
+}
+
+const EMPTY_CHAIN: BuilderChain = { series: [], spot: null };
+
+export async function loadChainAction(underlying: string): Promise<BuilderChain> {
   const parsed = tickerSchema.safeParse(underlying);
   if (!parsed.success) {
-    return [];
+    return EMPTY_CHAIN;
   }
   return withAuthenticatedAction(async () => {
     await requireUser();
     const session = await currentSessionDate();
     if (!session) {
-      return [];
+      return EMPTY_CHAIN;
     }
-    return optionChainForUnderlying(getDb(), parsed.data, session, new Date());
+    const db = getDb();
+    const [series, candle] = await Promise.all([
+      optionChainForUnderlying(db, parsed.data, session, new Date()),
+      latestCandle(db, parsed.data),
+    ]);
+    return {
+      series,
+      spot: candle ? { value: candle.close, session: candle.session } : null,
+    };
   });
 }
 

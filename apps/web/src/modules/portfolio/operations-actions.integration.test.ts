@@ -49,6 +49,21 @@ vi.mock("@/modules/market-data", async () => {
         close: new Date("2026-09-10T20:00:00.000Z"),
       }),
     optionChainForUnderlying: () => Promise.resolve([]),
+    latestCandle: (_db: Database, ticker: string) =>
+      Promise.resolve(
+        ticker === "PETR4"
+          ? {
+              ticker: "PETR4",
+              session: "2026-09-09",
+              asOf: new Date("2026-09-09T21:00:00.000Z"),
+              open: "30.000000",
+              high: "31.000000",
+              low: "29.500000",
+              close: "30.420000",
+              tradedQuantity: 1000,
+            }
+          : null,
+      ),
   };
 });
 
@@ -89,7 +104,7 @@ vi.mock("./engine-client", () => ({
     Promise.resolve({ ok: true, value: unpriceableFairValueOnly() }),
 }));
 
-const { saveOperationAction } = await import("./operations-actions");
+const { loadChainAction, saveOperationAction } = await import("./operations-actions");
 const { OperationsRepository } = await import("./operations-repository");
 
 function uniqueEmail(label: string): string {
@@ -167,5 +182,30 @@ describe("saveOperationAction", () => {
       await import("@/modules/auth")
     ).forCurrentUser(getDb(), OperationsRepository);
     expect(await repository.listMine()).toHaveLength(0);
+  });
+});
+
+describe("loadChainAction", () => {
+  it("sends the underlying's last close along with its chain", async () => {
+    const email = uniqueEmail("chain-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("PETR4")).toEqual({
+      series: [],
+      spot: { value: "30.420000", session: "2026-09-09" },
+    });
+  });
+
+  it("has no spot when the underlying has no candle", async () => {
+    const email = uniqueEmail("chain-no-spot");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    expect(await loadChainAction("VALE3")).toEqual({ series: [], spot: null });
+  });
+
+  it("returns an empty chain for a malformed ticker", async () => {
+    expect(await loadChainAction("not a ticker")).toEqual({ series: [], spot: null });
   });
 });

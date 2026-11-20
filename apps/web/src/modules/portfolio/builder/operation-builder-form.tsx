@@ -25,14 +25,21 @@ import {
 import { ErrorNotice } from "@/components/error-notice";
 import { Panel } from "@/modules/shell/client";
 
-import { loadChainAction, priceOperationAction, saveOperationAction } from "../operations-actions";
+import {
+  loadChainAction,
+  priceOperationAction,
+  saveOperationAction,
+  type BuilderChain,
+} from "../operations-actions";
 import { t } from "../strings";
 import { GreeksPanel } from "./greeks-panel";
 import { LegsTable } from "./legs-table";
 import { PayoffChart } from "./payoff-chart";
 import { RiskNotice } from "./risk-notice";
 import { StatBlocks } from "./stat-blocks";
-import type { BuilderLeg, ChainSeries } from "./types";
+import type { BuilderLeg } from "./types";
+
+const EMPTY_BUILDER_CHAIN: BuilderChain = { series: [], spot: null };
 
 const DISPLAYED_NOTE_CODES = [
   "no_market_price",
@@ -112,7 +119,7 @@ export function OperationBuilderForm({
   );
   const structure = structures.find((candidate) => candidate.id === structureId) ?? structures[0];
   const [underlying, setUnderlying] = useState(initialUnderlying);
-  const [chain, setChain] = useState<ChainSeries[]>([]);
+  const [chain, setChain] = useState<BuilderChain>(EMPTY_BUILDER_CHAIN);
   const [legs, setLegs] = useState<BuilderLeg[]>(() => {
     if (!structure) return [];
     const templates = legsForStructure(structure, initialUnderlying);
@@ -134,8 +141,8 @@ export function OperationBuilderForm({
     if (!tickerSchema.safeParse(initialUnderlying).success) return;
     const requestId = chainRequestId.current + 1;
     chainRequestId.current = requestId;
-    void loadChainAction(initialUnderlying).then((series) => {
-      if (chainRequestId.current === requestId) setChain(series);
+    void loadChainAction(initialUnderlying).then((loaded) => {
+      if (chainRequestId.current === requestId) setChain(loaded);
     });
   }, [initialUnderlying]);
 
@@ -173,12 +180,12 @@ export function OperationBuilderForm({
     const requestId = chainRequestId.current + 1;
     chainRequestId.current = requestId;
     if (tickerSchema.safeParse(nextUnderlying).success) {
-      const series = await loadChainAction(nextUnderlying);
+      const loaded = await loadChainAction(nextUnderlying);
       if (chainRequestId.current !== requestId) return;
-      setChain(series);
+      setChain(loaded);
     } else {
       if (chainRequestId.current !== requestId) return;
-      setChain([]);
+      setChain(EMPTY_BUILDER_CHAIN);
     }
   }
 
@@ -396,7 +403,8 @@ export function OperationBuilderForm({
               <LegsTable
                 underlying={underlying}
                 legs={legs}
-                chain={chain}
+                chain={chain.series}
+                spot={chain.spot}
                 onChangeTicker={changeTicker}
                 onChangeQuantity={changeQuantity}
               />

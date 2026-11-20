@@ -4,13 +4,6 @@ import { decimalStringSchema, quantitySchema } from "@fetha/contracts";
 
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -23,6 +16,7 @@ import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 
 import { t } from "../strings";
+import { SeriesPicker } from "./series-picker";
 import type { BuilderLeg, ChainSeries } from "./types";
 
 function roleLabel(role: BuilderLeg["template"]["role"]): string {
@@ -31,8 +25,8 @@ function roleLabel(role: BuilderLeg["template"]["role"]): string {
   return t.builder.legsTable.stock;
 }
 
-// The expiry of the first option leg the user has picked, locking every
-// other option leg's picker to the same cycle: a structure's legs share
+// The expiry of the first option leg the user has picked among the other
+// legs, locking this leg's picker to the same cycle: a structure's legs share
 // one expiry, and the chain alone allows a call from one cycle next to a
 // put from another.
 function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
@@ -44,29 +38,21 @@ function lockedExpiry(legs: BuilderLeg[], chain: ChainSeries[]): string | null {
   return null;
 }
 
-// Priceable series first (the ticket's own diagnosis: a picker offering
-// every listed series regardless of whether it ever traded is how "could
-// not price this operation" happens), stable within each group so the
-// expiry/strike ladder the repository already sorted still reads top to
-// bottom inside it.
-function byPriceableFirst(a: ChainSeries, b: ChainSeries): number {
-  return (a.lastPrice ? 0 : 1) - (b.lastPrice ? 0 : 1);
-}
-
 export function LegsTable({
   underlying,
   legs,
   chain,
+  spot,
   onChangeTicker,
   onChangeQuantity,
 }: {
   underlying: string;
   legs: BuilderLeg[];
   chain: ChainSeries[];
+  spot: { value: string; session: string } | null;
   onChangeTicker: (index: number, ticker: string) => void;
   onChangeQuantity: (index: number, quantity: number) => void;
 }) {
-  const expiry = lockedExpiry(legs, chain);
   return (
     <Table stacked>
       <TableHeader>
@@ -86,12 +72,11 @@ export function LegsTable({
         {legs.map((builderLeg, index) => {
           const { template, leg, valuation } = builderLeg;
           const isStock = template.role === "stock";
-          const options = chain
-            .filter(
-              (series) => series.right === template.role && (!expiry || series.expiry === expiry),
-            )
-            .slice()
-            .sort(byPriceableFirst);
+          const options = chain.filter((series) => series.right === template.role);
+          const expiry = lockedExpiry(
+            legs.filter((_, position) => position !== index),
+            chain,
+          );
           const selected = options.find((series) => series.ticker === leg?.ticker);
 
           return (
@@ -114,41 +99,17 @@ export function LegsTable({
                 {isStock ? (
                   underlying
                 ) : (
-                  <Select
-                    value={leg?.ticker ?? ""}
-                    onValueChange={(value) => {
-                      if (value) onChangeTicker(index, value);
+                  <SeriesPicker
+                    label={`${t.builder.legsTable.instrument} ${String(index + 1)}`}
+                    underlying={underlying}
+                    options={options}
+                    lockedExpiry={expiry}
+                    spot={spot}
+                    value={leg?.ticker ?? null}
+                    onChange={(ticker) => {
+                      onChangeTicker(index, ticker);
                     }}
-                  >
-                    <SelectTrigger
-                      aria-label={`${t.builder.legsTable.instrument} ${String(index + 1)}`}
-                    >
-                      <SelectValue placeholder={t.builder.legsTable.pickInstrument} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options.map((series) => (
-                        <SelectItem key={series.ticker} value={series.ticker}>
-                          <span className="font-mono">{series.ticker}</span>
-                          {series.lastPrice ? (
-                            <span
-                              className="ml-2 font-mono text-[11px] tabular-nums"
-                              style={{ color: "var(--muted)" }}
-                            >
-                              {formatDecimal(decimalStringSchema.parse(series.lastPrice.value))} ·{" "}
-                              {formatSessionDate(series.lastPrice.session)}
-                              {series.lastPriceStrike
-                                ? ` · ${t.builder.legsTable.tradedAtStrike(formatDecimal(decimalStringSchema.parse(series.lastPriceStrike)))}`
-                                : null}
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-[11px]" style={{ color: "var(--faint)" }}>
-                              {t.builder.legsTable.noTrades}
-                            </span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 )}
               </TableCell>
               <TableCell
