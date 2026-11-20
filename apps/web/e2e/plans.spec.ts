@@ -6,7 +6,6 @@ import { registerAndSignIn } from "./helpers";
 // suggestion at the newest ingested close.
 const e2eSecret = process.env.E2E_SECRET;
 const HEADLINE = "Uma trava de alta com calls em PETR4 cabe agora.";
-const RATIONALE = "Plano montado no teste de ponta a ponta";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the plan flow.");
 
@@ -44,20 +43,39 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await page.getByRole("button", { name: "Salvar plano" }).click();
   await expect(page.getByText("Plano salvo.")).toBeVisible();
 
+  // Saving a plan records its own "enter" decision in the same transaction (ADR-0079): the
+  // portfolio row already shows it, no DecisionBar left to fill in.
   await page.getByRole("link", { name: "Ir para a carteira" }).click();
   await expect(page).toHaveURL(/\/carteira$/);
-
   const row = page.getByRole("row", { name: /PETR4/ });
   await expect(row).toBeVisible();
-  await row.getByRole("button", { name: "Registrar decisão" }).click();
-  const dialog = page.getByRole("dialog", { name: "Registrar decisão" });
-  await dialog.getByRole("button", { name: "Entrar", exact: true }).click();
-  await dialog.getByLabel("Justificativa").fill(RATIONALE);
-  await dialog.getByLabel("Confiança (%)").fill("60");
-  await dialog.getByLabel("Horizonte").fill("2030-01-01");
-  await dialog.getByRole("button", { name: "Salvar decisão" }).click();
-  await expect(dialog).not.toBeVisible();
+  await expect(row.getByText(/^Entrar · /)).toBeVisible();
 
   await page.goto("/diario");
-  await expect(page.getByText(RATIONALE)).toBeVisible();
+  await expect(
+    page.getByText(
+      "A Fetha montou essa Trava de alta com calls em PETR4 a partir da sugestão de hoje.",
+    ),
+  ).toBeVisible();
+});
+
+test("build a plan from the asset page's own view question and see its orders", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.goto("/ativos/PETR4");
+  await expect(page.getByText("O que você espera de PETR4 nas próximas semanas?")).toBeVisible();
+  await page.getByRole("radio", { name: "Sobe" }).click();
+  await page.getByRole("button", { name: "Montar plano" }).click();
+
+  await expect(page).toHaveURL(/\/planos\/novo\?ticker=PETR4&view=up$/);
+  await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
+  await expect(page.getByText("Perda máxima")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ordens" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "PETR4" }).first()).toBeVisible();
 });

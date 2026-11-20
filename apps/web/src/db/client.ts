@@ -7,6 +7,11 @@ import * as schema from "./schema";
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
 export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+// What a repository's write method can run against: the pooled `Database` on its own, or a
+// `Transaction` another module's `db.transaction` already opened, so two repositories from
+// different modules can write inside one transaction without either depending on the other's
+// internals.
+export type Executor = Database | Transaction;
 
 let cachedDb: Database | undefined;
 

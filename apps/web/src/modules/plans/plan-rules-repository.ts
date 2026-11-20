@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { planRulesSchema, type PlanRules } from "@fetha/contracts";
 
+import type { Executor } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { operationPlanRules } from "./schema";
@@ -17,8 +18,8 @@ export interface SavedPlanRules extends SavePlanRulesInput {
 }
 
 export class PlanRulesRepository extends UserScopedRepository {
-  async save(input: SavePlanRulesInput): Promise<{ id: string }> {
-    const [row] = await this.db
+  async save(input: SavePlanRulesInput, executor: Executor = this.db): Promise<{ id: string }> {
+    const [row] = await executor
       .insert(operationPlanRules)
       .values({
         userId: this.userId,

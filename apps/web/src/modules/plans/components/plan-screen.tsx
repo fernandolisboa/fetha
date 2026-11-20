@@ -1,4 +1,5 @@
-import { centavosSchema, type Centavos } from "@fetha/contracts";
+import { Decimal } from "decimal.js";
+import { centavosSchema, type Centavos, type DecimalString } from "@fetha/contracts";
 
 import {
   Table,
@@ -11,7 +12,7 @@ import {
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { exitText } from "@/modules/recipes";
-import { PayoffChart } from "@/modules/portfolio/client";
+import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
 import type { BuildPlanActionInput, BuildPlanOutcome, PlanLegSeries } from "../actions";
 import { t } from "../strings";
@@ -43,6 +44,13 @@ function riskUsedText(maxLoss: number | "unbounded", riskLimitCentavos: number):
   return `${((maxLoss / riskLimitCentavos) * 100).toFixed(0)}%`;
 }
 
+// One real-money total per leg: a `decimal.js` multiplication of the limit price (a
+// `DecimalString`) by the lot's quantity, never a raw `Number()` on a price string
+// (CLAUDE.md principle 5 — round 1 review item 5).
+function legTotalCentavos(limitPrice: DecimalString, quantity: number): Centavos {
+  return centavosSchema.parse(new Decimal(limitPrice).mul(100).mul(quantity).round().toNumber());
+}
+
 export function PlanScreen({
   outcome,
   riskLimitCentavos,
@@ -54,11 +62,13 @@ export function PlanScreen({
   cashTodayCentavos: Centavos;
   input: BuildPlanActionInput;
 }) {
-  const { plan, seriesByTicker } = outcome;
+  const { plan, seriesByTicker, fingerprint } = outcome;
 
   return (
     <div className="flex flex-col gap-6">
       <p className="text-[15px] text-pretty">{plan.summary}</p>
+
+      {plan.limitBreaches.length > 0 && <RiskNotice breaches={plan.limitBreaches} />}
 
       <div className="grid grid-cols-2 gap-4 @min-[40rem]:grid-cols-5">
         <StatBlock
@@ -135,9 +145,7 @@ export function PlanScreen({
                   data-label={t.screen.orders.total}
                   className="text-right font-mono tabular-nums"
                 >
-                  {formatBRL(
-                    centavosSchema.parse(Math.round(Number(limitPrice) * leg.quantity * 100)),
-                  )}
+                  {formatBRL(legTotalCentavos(limitPrice, leg.quantity))}
                 </TableCell>
               </TableRow>
             ))}
@@ -182,7 +190,7 @@ export function PlanScreen({
         </ul>
       </section>
 
-      <SavePlanButton input={input} />
+      <SavePlanButton input={input} fingerprint={fingerprint} />
     </div>
   );
 }

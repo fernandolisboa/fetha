@@ -58,8 +58,12 @@ const en = {
     errors: {
       invalid: "Could not build a plan for this request.",
       no_data: "There is not enough data to build a plan for this underlying today.",
+      no_recipe: "The recipe book has no match for this view today.",
       unpriceable: "Fetha could not price this plan today.",
       does_not_fit: "Even one lot of this structure loses more than your risk limit allows.",
+      stale_prices: "At least one leg's price is stale; Fetha will not build a plan on it.",
+      no_market_price: "At least one leg has no market price today.",
+      plan_changed: "This plan changed since you opened it; review it again.",
       rate_limited: "Too many plans built in a short time; try again shortly.",
     },
     backToSuggestion: "Back to the suggestion",
@@ -126,8 +130,13 @@ const ptBR = {
     errors: {
       invalid: "Não foi possível montar um plano para esse pedido.",
       no_data: "Não há dados suficientes para montar um plano desse ativo hoje.",
+      no_recipe: "O receituário não tem uma receita para essa visão hoje.",
       unpriceable: "A Fetha não conseguiu precificar esse plano hoje.",
       does_not_fit: "Mesmo um lote dessa estrutura perde mais do que seu limite de risco permite.",
+      stale_prices:
+        "Pelo menos uma ponta está com preço desatualizado; a Fetha não monta o plano com ele.",
+      no_market_price: "Pelo menos uma ponta não tem preço de mercado hoje.",
+      plan_changed: "Esse plano mudou desde que você abriu; revise de novo.",
       rate_limited: "Muitos planos montados em pouco tempo; tente novamente em breve.",
     },
     backToSuggestion: "Voltar para a sugestão",

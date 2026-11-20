@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/modules/auth";
-import { getCurrentRiskProfile } from "@/modules/portfolio";
+import { DEFAULT_RISK_PROFILE, getCurrentRiskProfile } from "@/modules/portfolio";
 import {
   buildPlanAction,
   PlanScreen,
   planViewSchema,
+  riskLimitCentavos,
   t,
   type BuildPlanActionInput,
 } from "@/modules/plans";
@@ -43,9 +44,7 @@ export default async function NewPlanPage({
     buildPlanAction(input),
     getCurrentRiskProfile(),
   ]);
-  const riskLimitCentavos = riskProfile
-    ? Math.floor(riskProfile.declaredCapital * Number(riskProfile.limits.maxLossPerOperation))
-    : 0;
+  const riskLimit = riskLimitCentavos(riskProfile ?? DEFAULT_RISK_PROFILE);
 
   return (
     <div className="flex flex-col gap-6 px-5 py-8">
@@ -60,7 +59,7 @@ export default async function NewPlanPage({
       {outcome.status === "ok" ? (
         <PlanScreen
           outcome={outcome}
-          riskLimitCentavos={riskLimitCentavos}
+          riskLimitCentavos={riskLimit}
           cashTodayCentavos={outcome.plan.netPremiumCentavos}
           input={input}
         />

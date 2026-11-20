@@ -2,7 +2,11 @@ export { allowedDecisionKinds } from "./allowed-kinds";
 export { AnalysisPanel } from "./components/analysis-panel";
 export { JournalTimeline } from "./components/journal-timeline";
 export { TrackRecordPanel } from "./components/track-record-panel";
-export { type DecisionListItem } from "./decisions-repository";
+export {
+  DecisionsRepository,
+  type DecisionListItem,
+  type RecordDecisionInput,
+} from "./decisions-repository";
 export { seedE2EDecision } from "./e2e-seed";
 export {
   getMyAnalysisScores,
