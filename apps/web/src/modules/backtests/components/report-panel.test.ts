@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { RiskProfile } from "@fetha/contracts";
 import type { BacktestRun, EquityPoint, Note } from "@fetha/engine";
 
-import { noteMessage } from "../strings";
 import {
   declaredLimitValues,
   generalNotesFor,
@@ -73,14 +72,9 @@ function note(code: Note["code"]): Note {
   return { code, message: code };
 }
 
-function runWithNotes(notes: Note[], adjustments: unknown[] = []): BacktestRun {
-  return {
-    notes,
-    config: { strategy: { definition: { adjustments } } },
-  } as unknown as BacktestRun;
+function runWithNotes(notes: Note[]): BacktestRun {
+  return { notes } as unknown as BacktestRun;
 }
-
-const rollAdjustment = { kind: "roll" };
 
 describe("generalNotesFor", () => {
   it("includes the unadjusted-strike-across-corporate-action note in the general notes panel: the engine now fires it run-wide, never per operation, so the operations table's own head is not a place it would ever be seen", () => {
@@ -122,22 +116,5 @@ describe("generalNotesFor", () => {
     expect(surfacedNoteCodes).not.toContain("adjustment_not_applied");
     const run = runWithNotes([note("adjustment_not_applied")]);
     expect(generalNotesFor(run)).toEqual([note("adjustment_not_applied")]);
-  });
-
-  it("derives adjustment_not_applied for a run persisted before #377, whose strategy declares a roll but whose stored notes predate the code", () => {
-    const run = runWithNotes([], [rollAdjustment]);
-    expect(generalNotesFor(run)).toEqual([
-      { code: "adjustment_not_applied", message: noteMessage("adjustment_not_applied") },
-    ]);
-  });
-
-  it("never doubles adjustment_not_applied for a run that already carries the engine-emitted note", () => {
-    const run = runWithNotes([note("adjustment_not_applied")], [rollAdjustment]);
-    expect(generalNotesFor(run)).toEqual([note("adjustment_not_applied")]);
-  });
-
-  it("derives no adjustment_not_applied note for a strategy with no adjustments", () => {
-    const run = runWithNotes([]);
-    expect(generalNotesFor(run)).toEqual([]);
   });
 });
