@@ -224,13 +224,8 @@ test("caps a structure's suggestions at the top of the panel, with the rest behi
   });
   expect(seeded.status()).toBe(201);
   const { suggestionIds } = (await seeded.json()) as { suggestionIds: string[] };
-  // `seed-radar-many` tries a handful of liquid tickers and only keeps the ones whose real
-  // chain, in this preview's ingested sessions, actually resolves a bull call spread; #378's
-  // cap needs at least 3 of the same structure to have anything to show behind a disclosure.
-  test.skip(
-    suggestionIds.length < 3,
-    "fewer than 3 of the candidate tickers had a chain deep enough for a bull call spread in this preview",
-  );
+  // #378's cap needs at least 3 suggestions of one structure to put any behind a disclosure.
+  expect(suggestionIds.length).toBeGreaterThanOrEqual(3);
 
   // The radar tab shows every suggestion (docs/adr/0067 item 7); the watchlist tab's own card
   // limit is picked from the already-capped, varied order (#378), so it never has an overflow
